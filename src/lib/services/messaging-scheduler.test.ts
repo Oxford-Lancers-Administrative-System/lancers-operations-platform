@@ -31,6 +31,14 @@ import { stopChasingIn } from "./rsvp";
 import { escalationCarriesNoPersonalData } from "@/lib/delivery/templates";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
+// LAN-181, F-W1. Every sweep call below is real work against the shared local
+// database — a claim per due job, up to `SWEEP_BATCH_LIMIT` (50) of them, not
+// a mock. Under `npm run test`'s default file parallelism that is dozens of
+// other database suites' own queries contending for the same Postgres
+// connection at once, and Vitest's 5s default has been observed too tight for
+// that under full-suite load, independent of any one test's own logic.
+vi.setConfig({ testTimeout: 20_000 });
+
 const MARKER = "LAN169SchedulerSuite";
 
 const PHONE = "07700 900321";
@@ -46,6 +54,54 @@ const CONFIGURED: EnvironmentSource = {
   EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
   DELIVERY_EMAIL_ALLOWLIST: EMAIL,
 };
+
+/**
+ * LAN-181, F-W1. `runMessagingSweep()` is global by design — it is `readDueJobs`
+ * against the whole `notification_jobs` table, not this file's own rows — and
+ * LAN-181's own seed repair (F-A1) means the local database this suite runs
+ * against always carries genuine ambient due jobs from the synthetic future
+ * calendar, alongside whatever fixture a test adds. `readDueJobs` orders by how
+ * overdue a job is and caps one call at `SWEEP_BATCH_LIMIT` (50) — pacing that
+ * exists for production (LAN-177) — so a fixture whose own rung is only a
+ * little overdue can lose the batch's 50 slots to ambient jobs that became due
+ * earlier, and never get claimed at all on the one sweep call a test makes.
+ * Empirically reproducible: three tests failed this way against a freshly
+ * repaired seed before this correction, all fixtures at the ordinary `-1`
+ * hour offset `fixture()` defaults to.
+ *
+ * Widening `runMessagingSweep`'s own `limit` was tried first and reverted: it
+ * fixes crowd-out by processing the *entire* ambient backlog in one call,
+ * which works but is a far bigger footprint than the fix needs — it can drain
+ * the very due jobs `tests/synthetic-seed.test.ts`'s own regression assertion
+ * (F-A1) depends on finding, observed causing exactly that failure under
+ * `npm run test`'s default file parallelism. The fix instead makes the
+ * fixture's own rung win `readDueJobs`' ordering on its own terms: every test
+ * below whose assertions depend on its rung being claimed gives it a
+ * deliberately extreme `invitationOffsetHours` (`EXTREME_OVERDUE_HOURS`, or an
+ * explicit `scheduled_for` for `noticeFixture()`, which has no offset
+ * parameter) — far more overdue than anything the seed's live ladder plausibly
+ * produces — so it always sorts first, within the *unmodified* default
+ * `SWEEP_BATCH_LIMIT`. A test proving the *opposite* — a rung that is held,
+ * not yet due, or excluded because its event has started or been cancelled —
+ * needs no such guarantee: nothing about ambient volume can put an excluded
+ * job into `due` in the first place, so those keep the ordinary `-1` hour
+ * default.
+ *
+ * `CONFIGURED`'s allowlist is narrowed to this file's own `PHONE`/`EMAIL`
+ * (LAN-124), so ambient jobs claimed alongside a fixture can never reach
+ * `sent` — the delivery adapter refuses them before the transport is ever
+ * called. `sent` and per-fixture database reads (`jobsFor`, `jobRow`,
+ * `escalationStateFor`) are therefore already scoped to this suite's own
+ * fixture once the fixture's job is claimed, which is exactly what the
+ * ordering guarantee above delivers.
+ *
+ * What this does **not** fix, and must not be asked to: `summary.accepted` and
+ * `summary.refused` stay genuinely global counters. A test that needs to know
+ * whether *this* job succeeded reads the job's own row; nothing here rewrites
+ * `runMessagingSweep()` to return a per-caller count it was never built to
+ * hold.
+ */
+const EXTREME_OVERDUE_HOURS = -8760;
 
 let observer: Client;
 let seasonId: string;
@@ -372,7 +428,7 @@ async function jobsFor(eventId: string) {
 
 describe("a due rung", () => {
   it("is claimed and sent by the sweep, with no person involved", async () => {
-    const target = await fixture();
+    const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
     const { sent, transport } = acceptingTransport();
 
     const summary = await runMessagingSweep({ source: CONFIGURED, transport });
@@ -415,7 +471,7 @@ describe("a due rung", () => {
   it("sends the email rung on the email channel when its moment arrives", async () => {
     // The ladder's fixed order carried through to the transport:
     // `REQ-ladder-order`, and the fallback the club has never had.
-    const target = await fixture({ invitationOffsetHours: -80 });
+    const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
     const { sent, transport } = acceptingTransport();
 
     await runMessagingSweep({ source: CONFIGURED, transport });
@@ -445,10 +501,17 @@ describe("a due rung", () => {
     );
 
     const { sent, transport } = acceptingTransport();
-    const summary = await runMessagingSweep({ source: CONFIGURED, transport });
+    await runMessagingSweep({ source: CONFIGURED, transport });
 
+    // `sent` stays scoped to this fixture's own allowlisted contact (LAN-124),
+    // so this proves nothing was sent *to this invitee* regardless of ambient
+    // volume. `summary.refused` is deliberately not asserted here — LAN-181,
+    // F-W1: the repaired seed (F-A1) means this same sweep call also claims
+    // and refuses whatever ambient jobs are genuinely due elsewhere, which
+    // that counter does not distinguish from this fixture. The claim this test
+    // makes — that a started event's own rung is never even attempted — is
+    // what the two reads below prove directly against the job's own row.
     expect(sent).toHaveLength(0);
-    expect(summary.refused).toBe(0);
 
     const jobs = await jobsFor(target.eventId);
     const invitation = jobs.find((job) => job.job_type === "invitation")!;
@@ -480,7 +543,7 @@ describe("a due rung", () => {
 
 describe("time-based backoff", () => {
   it("schedules the next automatic attempt after a retryable failure", async () => {
-    const target = await fixture();
+    const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
 
     await runMessagingSweep({ source: CONFIGURED, transport: failingTransport() });
 
@@ -493,7 +556,7 @@ describe("time-based backoff", () => {
   });
 
   it("does not re-attempt before the backoff has elapsed", async () => {
-    const target = await fixture();
+    const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
     await runMessagingSweep({ source: CONFIGURED, transport: failingTransport() });
 
     const { sent, transport } = acceptingTransport();
@@ -508,12 +571,17 @@ describe("time-based backoff", () => {
   });
 
   it("re-attempts once the backoff has elapsed, automatically", async () => {
-    const target = await fixture();
+    const target = await fixture({ invitationOffsetHours: EXTREME_OVERDUE_HOURS });
     await runMessagingSweep({ source: CONFIGURED, transport: failingTransport() });
 
+    // Deliberately far in the past, not merely "elapsed" — the same
+    // crowd-out risk applies to this second claim as to the first, and
+    // `next_attempt_at` is what `readDueJobs` orders this job by once set.
     await observer.query(
-      "update public.notification_jobs set next_attempt_at = now() - interval '1 minute' where id = $1",
-      [target.invitationJobId],
+      `update public.notification_jobs
+          set next_attempt_at = now() + ($2 || ' hours')::interval
+        where id = $1`,
+      [target.invitationJobId, String(EXTREME_OVERDUE_HOURS)],
     );
 
     const { transport } = acceptingTransport();
@@ -535,7 +603,11 @@ describe("time-based backoff", () => {
     // visible, needing a roster fix rather than a retry. Retrying it
     // automatically would burn the ceiling and hide the cause behind "failed 5
     // times".
-    const target = await fixture({ phone: null, email: null });
+    const target = await fixture({
+      phone: null,
+      email: null,
+      invitationOffsetHours: EXTREME_OVERDUE_HOURS,
+    });
 
     await runMessagingSweep({ source: CONFIGURED, transport: acceptingTransport().transport });
 
@@ -1022,12 +1094,29 @@ async function noticeFixture(
       );
     }
 
+    // `scheduled_for` is deliberately explicit rather than left to default —
+    // LAN-181, F-W1. `recordNoticesOwedIn` leaves it null, which `readDueJobs`
+    // falls back to `created_at` for: "just now", the least overdue row the
+    // sweep could see, and this suite's own ambient competition (the repaired
+    // seed's live ladder, F-A1) can crowd it out of a single batch exactly the
+    // way `EXTREME_OVERDUE_HOURS` guards against elsewhere. This fixture has
+    // no dispatch-anchor guard to respect (unlike `fixture()`'s invitation/
+    // reminder rungs), so there is no reason not to seed it already-overdue.
     const job = await observer.query<{ id: string }>(
       `insert into public.notification_jobs
-         (idempotency_key, job_type, status, invitation_id, event_id, person_id, template_variables)
-       values ($1, $2::public.notification_job_type, 'pending', $3, $4, $5, '{}'::jsonb)
+         (idempotency_key, job_type, status, invitation_id, event_id, person_id,
+          template_variables, scheduled_for)
+       values ($1, $2::public.notification_job_type, 'pending', $3, $4, $5, '{}'::jsonb,
+               now() + ($6 || ' hours')::interval)
        returning id`,
-      [`${MARKER}:${eventId}:${options.jobType}`, options.jobType, invitationId, eventId, personId],
+      [
+        `${MARKER}:${eventId}:${options.jobType}`,
+        options.jobType,
+        invitationId,
+        eventId,
+        personId,
+        String(EXTREME_OVERDUE_HOURS),
+      ],
     );
 
     if (cancelled) {
@@ -1123,11 +1212,15 @@ describe("OWNER-LAN173-03 -- the cancellation notice's token-free dispatch", () 
   it("reaches a terminal state on the first sweep rather than looping, and a second sweep touches it no further", async () => {
     const target = await noticeFixture({ jobType: "cancellation_notice" });
 
-    const first = await runMessagingSweep({
+    await runMessagingSweep({
       source: CONFIGURED,
       transport: acceptingTransport().transport,
     });
-    expect(first.refused).toBe(0);
+    // `first.refused` is not asserted — LAN-181, F-W1: this same call also
+    // claims and refuses whatever ambient jobs are genuinely due elsewhere in
+    // the repaired seed (F-A1), and that global counter does not distinguish
+    // them from this fixture. `afterFirst` below, read from the job's own row,
+    // is what proves this specific notice succeeded.
 
     const afterFirst = await jobRow(target.jobId);
     expect(afterFirst.status).toBe("processing");
@@ -1234,10 +1327,14 @@ describe("OWNER-LAN173-03 -- the schedule-change notice's ordinary dispatch", ()
     );
 
     const { sent, transport } = acceptingTransport();
-    const summary = await runMessagingSweep({ source: CONFIGURED, transport });
+    await runMessagingSweep({ source: CONFIGURED, transport });
 
+    // `summary.refused` is not asserted — LAN-181, F-W1: the same rationale as
+    // the cancellation-notice block above. This notice's own job is excluded
+    // from `due` by the cancelled-event guard regardless of what else the
+    // sweep claims and refuses elsewhere, which the two reads below prove
+    // directly.
     expect(sent).toHaveLength(0);
-    expect(summary.refused).toBe(0);
 
     const job = await jobRow(target.jobId);
     expect(job.status).toBe("pending");

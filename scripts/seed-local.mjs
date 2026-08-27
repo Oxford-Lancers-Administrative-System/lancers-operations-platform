@@ -2228,6 +2228,45 @@ for (const membership of walkUps) {
 
 // --- Notification jobs and delivery results --------------------------------
 
+/**
+ * `notification_jobs.person_id`, read the same way every real write path
+ * derives it (`messaging-scheduler.ts`'s own
+ * `coalesce(i.person_id, m.person_id)`) — OWNER-LAN173-06. Most invitations
+ * here are issued to a season membership rather than to a raw person (every
+ * player is), so `invitation.person_id` alone is `null` far more often than
+ * not; the membership's own `person_id` is where the real identity lives.
+ * This is fixture data only — the constraint the migration enforces
+ * (`num_nonnulls(invitation_id, event_id, person_id) >= 1`) never required a
+ * *correct* `person_id`, only a non-null one somewhere on the row, which is
+ * exactly how `scripts/seed-local.mjs`'s own held reminder carried a `null`
+ * one unnoticed.
+ *
+ * Defined before every loop that needs it (LAN-181, F-B2) — every job this
+ * seed creates, historical or live, carries a real `person_id`, the same way
+ * every real job-creation path does.
+ */
+const membershipPersonId = new Map(
+  memberships.map((membership) => [membership.id, membership.person_id]),
+);
+function invitationPersonId(invitation) {
+  return invitation.person_id ?? membershipPersonId.get(invitation.season_membership_id) ?? null;
+}
+
+// LAN-181, F-B2: moved up alongside `invitationPersonId` — `addFailedAttempts`
+// and `addDeliveredAttempt` below (both hoisted function declarations) close
+// over these, and both are now called from the bulk historical loop that
+// starts immediately after this section.
+let deliveryAttemptsSeeded = 0;
+const shiftMinutes = (iso, count) =>
+  new Date(new Date(iso).getTime() + count * 60000).toISOString();
+/**
+ * `delivery.ts`'s own `BACKOFF_MINUTES`, cumulative — the offset of each
+ * automatic re-attempt from the first, so a multi-attempt job's
+ * `delivery_attempts` rows land the same shape apart that the real backoff
+ * schedule would produce rather than an arbitrary spacing.
+ */
+const BACKOFF_OFFSETS_MINUTES = [0, 5, 20, 80, 320];
+
 const jobEvents = invitedEvents.slice(0, 6);
 let jobSequence = 0;
 let failedJobs = 0;
@@ -2251,7 +2290,7 @@ for (const event of jobEvents) {
       status: kind === "pending" ? "ready" : kind,
       invitation_id: invitation.id,
       event_id: event.id,
-      person_id: null,
+      person_id: invitationPersonId(invitation),
       channel: kind === "pending" ? null : "whatsapp",
       scheduled_for: scheduledFor,
       claimed_at: kind === "completed" || kind === "failed" ? scheduledFor : null,
@@ -2300,6 +2339,9 @@ for (const event of jobEvents) {
           : null,
         occurred_at: scheduledFor,
       });
+      // LAN-181, F-B2. A manual send has no provider attempt to show — an
+      // operator posted it by hand — so only the automated path gets one.
+      if (!manual) addDeliveredAttempt(job, { channel: "whatsapp", provider: "whatsapp-business" });
     }
 
     if (kind === "failed") {
@@ -2318,6 +2360,14 @@ for (const event of jobEvents) {
           occurred_at: new Date(new Date(scheduledFor).getTime() + attempt * 900000).toISOString(),
         });
       }
+      // LAN-181, F-B2. Per-attempt diagnostics for this job's own three
+      // attempts, alongside the history `delivery_results` above already keeps.
+      addFailedAttempts(job, {
+        channel: "whatsapp",
+        provider: "whatsapp-business",
+        count: 3,
+        reason: job.last_error,
+      });
     }
   }
 }
@@ -2369,17 +2419,6 @@ const NO_USABLE_NUMBER_REASON =
 const NO_USABLE_EMAIL_REASON =
   "This person has no usable email address on their record, so the email step could not be " +
   "attempted. Adding one is a change to their roster entry, not a delivery repair.";
-
-const shiftMinutes = (iso, count) =>
-  new Date(new Date(iso).getTime() + count * 60000).toISOString();
-
-/**
- * `delivery.ts`'s own `BACKOFF_MINUTES`, cumulative — the offset of each
- * automatic re-attempt from the first, so a multi-attempt job's
- * `delivery_attempts` rows land the same shape apart that the real backoff
- * schedule would produce rather than an arbitrary spacing.
- */
-const BACKOFF_OFFSETS_MINUTES = [0, 5, 20, 80, 320];
 
 /**
  * `delivery_attempts` for one job that never succeeded — one row per attempt,
@@ -2446,26 +2485,6 @@ const LADDER_STORIES = [
 /** Whoever currently holds the President's seat. Escalation resolves an office. */
 const escalationRecipient = people[1];
 
-/**
- * `notification_jobs.person_id`, read the same way every real write path
- * derives it (`messaging-scheduler.ts`'s own
- * `coalesce(i.person_id, m.person_id)`) — OWNER-LAN173-06. Most invitations
- * here are issued to a season membership rather than to a raw person (every
- * player is), so `invitation.person_id` alone is `null` far more often than
- * not; the membership's own `person_id` is where the real identity lives.
- * This is fixture data only — the constraint the migration enforces
- * (`num_nonnulls(invitation_id, event_id, person_id) >= 1`) never required a
- * *correct* `person_id`, only a non-null one somewhere on the row, which is
- * exactly how `scripts/seed-local.mjs`'s own held reminder carried a `null`
- * one unnoticed.
- */
-const membershipPersonId = new Map(
-  memberships.map((membership) => [membership.id, membership.person_id]),
-);
-function invitationPersonId(invitation) {
-  return invitation.person_id ?? membershipPersonId.get(invitation.season_membership_id) ?? null;
-}
-
 let laddersSeeded = 0;
 let remindersSeeded = 0;
 let flagsSeeded = 0;
@@ -2481,7 +2500,6 @@ let noChannelEvent = null;
 let noChannelInvitee = null;
 let heldEvent = null;
 let heldInvitee = null;
-let deliveryAttemptsSeeded = 0;
 
 jobEvents.forEach((event, index) => {
   const story = LADDER_STORIES[index % LADDER_STORIES.length];
@@ -2554,12 +2572,11 @@ jobEvents.forEach((event, index) => {
       // a no-channel refusal reading **Failed** rather than **Retryable** at
       // `attempt_count` below the ceiling. Correction round 3.
       let rejected = false;
-      // OWNER-LAN173-06: every other rung here is `person_id: null` by
-      // default — a story below sets it wherever that rung is the one meant
-      // to be found by name (held, no channel, WhatsApp unresponsive) or fed
-      // to the per-attempt diagnostics table, exactly as every real
-      // job-creation path derives it.
-      let personId = null;
+      // OWNER-LAN173-06, and LAN-181 F-B2: every rung here carries a real
+      // `person_id`, the same way every real job-creation path derives it —
+      // not only the ones a story below finds by name (held, no channel,
+      // WhatsApp unresponsive) or feeds to the per-attempt diagnostics table.
+      let personId = invitationPersonId(invitation);
 
       if (!due) {
         // Queued, and there is nothing else to say about it.
@@ -2688,6 +2705,8 @@ jobEvents.forEach((event, index) => {
       remindersSeeded += 1;
       if (heldAt) heldJobs += 1;
 
+      const provider = channel === "email" ? "resend" : "whatsapp-business";
+
       if (status === "completed") {
         add("delivery_results", {
           id: uuid(),
@@ -2695,12 +2714,15 @@ jobEvents.forEach((event, index) => {
           attempt_number: 1,
           outcome: "delivered",
           channel,
-          provider: channel === "email" ? "resend" : "whatsapp-business",
+          provider,
           provider_message_id: channel === "email" ? uuid() : `wamid.${uuid().replace(/-/g, "")}`,
           actor_person_id: null,
           detail: null,
           occurred_at: dueAt,
         });
+        // LAN-181, F-B2. Every completed rung's own accepted attempt, not
+        // only the ones a named story below feeds to the diagnostics table.
+        addDeliveredAttempt(job, { channel, provider });
       }
 
       if (status === "failed") {
@@ -2712,26 +2734,18 @@ jobEvents.forEach((event, index) => {
           // see the `rejected` declaration above. Correction round 3.
           outcome: rejected ? "rejected" : "failed",
           channel,
-          provider: channel === "email" ? "resend" : "whatsapp-business",
+          provider,
           provider_message_id: null,
           actor_person_id: null,
           detail: lastError,
           occurred_at: dueAt,
         });
-      }
-
-      // The per-attempt diagnostics table (W6, correction round 3): every
-      // attempt this ladder recorded, on the specific jobs named above so an
-      // operator opening "View diagnostics" finds several attempts on one
-      // channel and a retrying job mid-backoff, alongside the not-dispatched
-      // and fallback rows seeded after this loop's own invitee blocks.
-      if (story === "genuine_failure" && position === 0 && (rung === 1 || rung === 2)) {
-        addFailedAttempts(job, {
-          channel,
-          provider: "whatsapp-business",
-          count: attempts,
-          reason: lastError,
-        });
+        // LAN-181, F-B2: the per-attempt diagnostics table (W6, correction
+        // round 3) — every attempt this ladder recorded, on every failed rung,
+        // not only the ones a named story below feeds to it (this already
+        // covers `genuine_failure`'s own rungs 1 and 2, at their own
+        // `attempts` count and reason).
+        addFailedAttempts(job, { channel, provider, count: attempts, reason: lastError });
       }
     }
 
@@ -2773,6 +2787,11 @@ jobEvents.forEach((event, index) => {
         // is being overwritten to "no channel" above; its results are too.
         rows.delivery_results = rows.delivery_results.filter(
           (result) => result.notification_job_id !== invitationJob.id,
+        );
+        // LAN-181, F-B2: the same collision, now that the same `weighted()`
+        // history also writes a `delivery_attempts` row (`attempt_number: 1`).
+        rows.delivery_attempts = rows.delivery_attempts.filter(
+          (attempt) => attempt.notification_job_id !== invitationJob.id,
         );
 
         // `recordUndeliverableIn` writes an `outcome: 'rejected'` result for
@@ -2840,6 +2859,11 @@ jobEvents.forEach((event, index) => {
         // gave it has to go first.
         rows.delivery_results = rows.delivery_results.filter(
           (result) => result.notification_job_id !== invitationJob.id,
+        );
+        // LAN-181, F-B2: same collision, now that `kind` also writes a
+        // `delivery_attempts` row.
+        rows.delivery_attempts = rows.delivery_attempts.filter(
+          (attempt) => attempt.notification_job_id !== invitationJob.id,
         );
         add("delivery_results", {
           id: uuid(),
@@ -2970,6 +2994,8 @@ jobEvents.forEach((event, index) => {
         detail: null,
         occurred_at: escalationAt,
       });
+      // LAN-181, F-B2.
+      addDeliveredAttempt(escalationJob, { channel: "whatsapp", provider: "whatsapp-business" });
 
       unanswered.forEach((invitation, position) => {
         // One flag is already resolved, so the follow-up queue carries both an
@@ -2992,6 +3018,257 @@ jobEvents.forEach((event, index) => {
     }
   }
 });
+
+// --- The live ladder: approved events still ahead of the frame's own now ---
+//
+// Fixture repair, mission M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY.
+// `jobEvents` above is six *historical* recruitment events, each already
+// resolved into a terminal story (`LADDER_STORIES`) so a reviewer can look at
+// them once and see the whole shape of a chase. None of them can ever be
+// "due" again — `readDueJobs` deliberately excludes a job whose event has
+// already started — so a freshly seeded database carried no plan and no job
+// on any of the other 97 approved events, `.lancers-runtime/delivery-sink/`
+// was never created, and no genuine answer link ever existed to walk W2
+// against.
+//
+// This section is additive, not a replacement: `jobEvents`, `LADDER_STORIES`
+// and every crafted state above are untouched, so the held ladder, the two
+// named delivery exceptions, the retried failure, the cancelled rung and the
+// escalation all stay exactly where they are. What follows instead freezes a
+// real, live ladder — the same shape `scheduleEventLadderIn` freezes at
+// approval, one invitation rung and three reminder rungs per invitee — on
+// every approved event whose start is still ahead of `NOW`, except a
+// deliberate handful left alone (see `planLessEvents` below). Every date is
+// computed from `NOW` and the event's own schedule, both of which move
+// together under the frame's slide, so a rung "due now" today is still due
+// (or has become an ordinary future rung, or has been dispatched for real by
+// whatever ran the ticker) whenever this is looked at again.
+const jobEventIds = new Set(jobEvents.map((event) => event.id));
+const futureApprovedEvents = invitedEvents.filter((event) => {
+  if (event.status !== "approved" || jobEventIds.has(event.id)) return false;
+  if (!event.scheduled_on) return false;
+  const startsAt = at(day(event.scheduled_on), event.starts_at ?? "19:00:00");
+  return new Date(startsAt).getTime() > NOW.getTime();
+});
+
+// A small, clearly-intended set carries no plan at all — production
+// genuinely contains events approved before the messaging feature existed,
+// and a reviewer has to be able to see that state rather than mistake a
+// universally-populated dataset for evidence that every approved event gets
+// a ladder. Fixed at the end of the (deterministic) list, not drawn, so this
+// set is the same set on every run.
+const FUTURE_PLANLESS_COUNT = 4;
+const planLessEvents = futureApprovedEvents.slice(-FUTURE_PLANLESS_COUNT);
+const planLessIds = new Set(planLessEvents.map((event) => event.id));
+const liveLadderEvents = futureApprovedEvents.filter((event) => !planLessIds.has(event.id));
+
+let liveLaddersSeeded = 0;
+let liveInvitationJobsSeeded = 0;
+let liveReminderJobsSeeded = 0;
+let dueInvitationJobsSeeded = 0;
+let dueJobsSeeded = 0;
+let firstDueEvent = null;
+
+// LAN-181, F-B2. Walk B found no invitee anywhere in the seed who is
+// mid-ladder, unanswered and not yet past the escalation threshold — every
+// candidate had either finished its ladder (the six historical stories) or
+// already crossed the threshold (every one of them is on an already-started
+// event, so its response deadline has necessarily already passed too). A
+// numbered chase position (`chasePositionLabel`) needs exactly that state,
+// and it needs an event whose *escalation* is still ahead of `NOW`, which
+// only a future approved event can be. The first invitee below whose event
+// qualifies is picked, deterministically, and marked as: invitation and the
+// first WhatsApp reminder sent, no answer, the next reminder still pending,
+// nothing escalated.
+let midChaseSeeded = false;
+let midChaseEvent = null;
+let midChaseInvitee = null;
+
+for (const event of liveLadderEvents) {
+  const invitations = invitationsByEvent.get(event.id) ?? [];
+  if (invitations.length === 0) continue;
+
+  const defaults = MESSAGING_DEFAULTS[event.event_type] ?? MESSAGING_DEFAULTS.practice;
+  const startsAt = at(day(event.scheduled_on), event.starts_at ?? "19:00:00");
+  const deadlineAt = shiftHours(startsAt, -24 * defaults.rsvpByDays);
+  const invitationAt = shiftHours(startsAt, -24 * defaults.leadDays);
+  const escalationAt = shiftHours(deadlineAt, 12);
+  const eligibleForMidChase = !midChaseSeeded && new Date(escalationAt).getTime() > NOW.getTime();
+
+  add("event_messaging_plans", {
+    id: uuid(),
+    event_id: event.id,
+    rsvp_by_days: defaults.rsvpByDays,
+    invitation_lead_days: defaults.leadDays,
+    reminder_cadence_hours: 24,
+    whatsapp_reminder_count: 2,
+    email_reminder_count: 1,
+    escalation_hours: 12,
+    response_deadline_at: deadlineAt,
+    invitation_at: invitationAt,
+    escalation_at: escalationAt,
+    dispatches_immediately: false,
+    late_approval: false,
+    whatsapp_reminders_scheduled: 2,
+    email_reminders_scheduled: 1,
+    frozen_at: event.approved_at,
+    frozen_by_person_id: event.approved_by_person_id ?? null,
+  });
+  liveLaddersSeeded += 1;
+
+  const templateVariables = JSON.stringify({
+    event_name: event.name,
+    scheduled_on: event.scheduled_on,
+  });
+
+  for (const invitation of invitations) {
+    const personId = invitationPersonId(invitation);
+
+    // Rung 0. `event-approval.ts`'s own insert, frozen with its anchor
+    // already resolved rather than in the two steps approval and
+    // `scheduleEventLadderIn` take, since this seed writes both in one pass.
+    const invitationDue = new Date(invitationAt).getTime() <= NOW.getTime();
+    const invitationJob = add("notification_jobs", {
+      id: uuid(),
+      idempotency_key: `invitation:${invitation.id}:invitation`,
+      job_type: "invitation",
+      status: "pending",
+      invitation_id: invitation.id,
+      event_id: event.id,
+      person_id: personId,
+      channel: "whatsapp",
+      scheduled_for: invitationAt,
+      claimed_at: null,
+      claimed_by: null,
+      attempt_count: 0,
+      last_error: null,
+      template_variables: templateVariables,
+      cancelled_reason: null,
+      created_at: event.approved_at,
+      updated_at: event.approved_at,
+      held_at: null,
+      held_reason: null,
+      held_by_person_id: null,
+      next_attempt_at: null,
+      ladder_rung: 0,
+      automatic_attempts: 0,
+    });
+    liveInvitationJobsSeeded += 1;
+    if (invitationDue) {
+      dueInvitationJobsSeeded += 1;
+      dueJobsSeeded += 1;
+      firstDueEvent ??= event;
+    }
+
+    // Rungs 1-3: the fixed ladder, whatsapp/whatsapp/email, counting forward
+    // from the invitation on the cadence — the same `REQ-ladder-order` and
+    // `REQ-count-forward` the crafted stories above follow.
+    let firstReminderJob = null;
+    for (const rung of [1, 2, 3]) {
+      const channel = rung <= 2 ? "whatsapp" : "email";
+      const dueAt = shiftHours(invitationAt, rung * 24);
+      if (new Date(dueAt).getTime() <= NOW.getTime()) dueJobsSeeded += 1;
+      const reminderJob = add("notification_jobs", {
+        id: uuid(),
+        idempotency_key: `invitation:${invitation.id}:reminder:${rung}`,
+        job_type: "reminder",
+        status: "pending",
+        invitation_id: invitation.id,
+        event_id: event.id,
+        person_id: personId,
+        channel,
+        scheduled_for: dueAt,
+        claimed_at: null,
+        claimed_by: null,
+        attempt_count: 0,
+        last_error: null,
+        template_variables: templateVariables,
+        cancelled_reason: null,
+        created_at: event.approved_at,
+        updated_at: event.approved_at,
+        held_at: null,
+        held_reason: null,
+        held_by_person_id: null,
+        next_attempt_at: null,
+        ladder_rung: rung,
+        automatic_attempts: 0,
+      });
+      liveReminderJobsSeeded += 1;
+      if (rung === 1) firstReminderJob = reminderJob;
+    }
+
+    // LAN-181, F-B2. The chosen invitee's invitation and first WhatsApp
+    // reminder are marked sent — completed, with the same attempt shape a
+    // real dispatch leaves — so `chasePositionLabel` has an unanswered,
+    // mid-ladder, not-yet-escalated invitee to read a numbered position for.
+    // Rungs 2 and 3 stay `pending`, exactly as seeded above. "Unanswered"
+    // has to be checked, not assumed: the RSVP responses seeded far above
+    // this loop already answer the large majority of invitations, so the
+    // first invitee of a qualifying event is very likely one of them.
+    const midChaseAnswered = rows.rsvp_responses.some(
+      (response) => response.invitation_id === invitation.id,
+    );
+    if (eligibleForMidChase && !midChaseSeeded && !midChaseAnswered) {
+      midChaseSeeded = true;
+      midChaseEvent = event;
+      midChaseInvitee = invitation;
+
+      invitationJob.status = "completed";
+      invitationJob.claimed_at = invitationAt;
+      invitationJob.claimed_by = "system: automated delivery";
+      invitationJob.attempt_count = 1;
+      invitationJob.automatic_attempts = 1;
+      add("delivery_results", {
+        id: uuid(),
+        notification_job_id: invitationJob.id,
+        attempt_number: 1,
+        outcome: "delivered",
+        channel: "whatsapp",
+        provider: "whatsapp-business",
+        provider_message_id: `wamid.${uuid().replace(/-/g, "")}`,
+        actor_person_id: null,
+        detail: null,
+        occurred_at: invitationAt,
+      });
+      addDeliveredAttempt(invitationJob, { channel: "whatsapp", provider: "whatsapp-business" });
+
+      firstReminderJob.status = "completed";
+      firstReminderJob.claimed_at = firstReminderJob.scheduled_for;
+      firstReminderJob.claimed_by = "system: automated delivery";
+      firstReminderJob.attempt_count = 1;
+      firstReminderJob.automatic_attempts = 1;
+      add("delivery_results", {
+        id: uuid(),
+        notification_job_id: firstReminderJob.id,
+        attempt_number: 1,
+        outcome: "delivered",
+        channel: "whatsapp",
+        provider: "whatsapp-business",
+        provider_message_id: `wamid.${uuid().replace(/-/g, "")}`,
+        actor_person_id: null,
+        detail: null,
+        occurred_at: firstReminderJob.scheduled_for,
+      });
+      addDeliveredAttempt(firstReminderJob, { channel: "whatsapp", provider: "whatsapp-business" });
+    }
+  }
+}
+
+if (dueJobsSeeded === 0) {
+  throw new Error(
+    "The repaired seed produced zero due invitation/reminder jobs on a future approved " +
+      "event — the live ladder this fixture repair exists to seed would leave the delivery " +
+      `sink empty. Frame: shift ${SHIFT_DAYS}d, notional now ${NOW.toISOString()}.`,
+  );
+}
+
+if (!midChaseSeeded) {
+  throw new Error(
+    "LAN-181, F-B2: no future approved event's escalation was still ahead of NOW, so the " +
+      "mid-ladder, unanswered, not-yet-escalated invitee this fixture repair exists to seed " +
+      `was never created. Frame: shift ${SHIFT_DAYS}d, notional now ${NOW.toISOString()}.`,
+  );
+}
 
 // --- Monday review ---------------------------------------------------------
 
@@ -4226,6 +4503,17 @@ try {
     counts("  WhatsApp unresponsive, carried by email", whatsappUnresponsiveInvitee ? 1 : 0),
   );
   console.log(counts("  escalations to the President", escalationsSeeded));
+  // Fixture repair, mission M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY.
+  // The live ladder on approved future events, alongside the historical
+  // stories above rather than folded into their counts, so a reviewer can
+  // tell the two apart: the crafted six are frozen and can never dispatch
+  // again, and this is the ladder the ticker's very next tick actually acts
+  // on.
+  console.log(counts("  live ladders (future approved events)", liveLaddersSeeded));
+  console.log(counts("    invitation jobs", liveInvitationJobsSeeded));
+  console.log(counts("    reminder rungs", liveReminderJobsSeeded));
+  console.log(counts("    due right now", dueJobsSeeded));
+  console.log(counts("  approved events left without messaging", planLessEvents.length));
   console.log(counts("delivery attempts (per-attempt diagnostics)", deliveryAttemptsSeeded));
   console.log(counts("nonresponse flags", flagsSeeded));
   console.log(counts("weekly report snapshots", rows.weekly_reports.length));
@@ -4282,6 +4570,17 @@ try {
     `  ${"per-attempt diagnostics".padEnd(34)} any of the three events above\n${" ".repeat(37)}` +
       `/operate/events/<id>/delivery — "View diagnostics"`,
   );
+  // Fixture repair, mission M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY.
+  if (firstDueEvent) {
+    showDeliveryAs("genuinely due now (npm run messaging:ticker)", firstDueEvent, undefined);
+  }
+  if (planLessEvents[0]) {
+    showDeliveryAs("no messaging (approved before the feature)", planLessEvents[0], undefined);
+  }
+  // LAN-181, F-B2.
+  if (midChaseEvent) {
+    showDeliveryAs("mid-ladder, unanswered, not yet escalated", midChaseEvent, midChaseInvitee);
+  }
 
   console.log("\nNo real person, contact detail or club record is present in this dataset.");
 } catch (error) {
