@@ -1,0 +1,1657 @@
+{
+  "mission_id": "M-PEOPLE-AND-ROSTER",
+  "ledger_version": 2,
+  "stage": "pr_open",
+  "baseline": {
+    "branch": "main",
+    "commit": "2115bfed9d08ab9146fe00f002d6337cae9796a2"
+  },
+  "approvals": {
+    "boundary": {
+      "words": "Yeah, looks fine. This is approved.",
+      "date": "2026-08-26",
+      "by": "Brian Schuster"
+    },
+    "boundary_amendment": {
+      "words": "Approved, approved, go.",
+      "date": "2026-08-26",
+      "by": "Brian Schuster",
+      "change": "Withdrew the club-role-assignment deviation; that scope returns to Mission 1 and the underlying observation becomes a packet finding."
+    },
+    "overview": {
+      "words": "Approved, approved, go.",
+      "date": "2026-08-26",
+      "by": "Brian Schuster"
+    },
+    "inventory": {
+      "words": "Okay, I think this is good.",
+      "date": "2026-08-26",
+      "by": "Brian Schuster",
+      "count": 8
+    },
+    "field_inventory": {
+      "words": "Approved let's move on.",
+      "date": "2026-08-26",
+      "by": "Brian Schuster"
+    }
+  },
+  "workflows": [
+    {
+      "id": "W1",
+      "name": "Look up any person the club holds",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Okay, here you go. I approve.",
+          "date": "2026-08-26"
+        },
+        "mock": {
+          "words": "Otherwise, Workflow 1 looks good to me. I approve.",
+          "date": "2026-08-26",
+          "by": "Brian Schuster"
+        }
+      },
+      "amendments": [
+        {
+          "id": "W1-A1",
+          "status": "applied",
+          "summary": "The missing-data queue has no entry point. Proposed: the Missing count becomes a link, and/or a Missing data entry joins Administration. Both amend approved W1."
+        },
+        {
+          "id": "W1-A2",
+          "status": "applied",
+          "summary": "The Verified mark is struck from every surface. Nothing here verifies a mailbox, so the claim was false."
+        },
+        {
+          "id": "W1-A3",
+          "status": "applied",
+          "summary": "The People list has no Add a person control, so W3's create surface is reachable from nowhere."
+        },
+        {
+          "id": "W1-A4",
+          "status": "applied",
+          "summary": "W1-05's Roles row has no route to Administration - Roles, though W1's own handoff claims one. Load-bearing since roles left W3."
+        },
+        {
+          "id": "W1-A5",
+          "status": "applied",
+          "summary": "W2-06 renders On WhatsApp on the person record and W1-05 does not. Two approved mockups disagree about what the record holds."
+        },
+        {
+          "id": "W1-A6",
+          "status": "applied",
+          "summary": "Per-person history absorbed from the struck W8: the record's What changed panel carries the full history and its field and actor filters. No separate route."
+        }
+      ]
+    },
+    {
+      "id": "W2",
+      "name": "Correct a person's record",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Make these changes and I'm now approving.",
+          "date": "2026-08-27",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "Make these changes and I'm now approving.",
+          "date": "2026-08-27",
+          "by": "Brian Schuster"
+        }
+      }
+    },
+    {
+      "id": "W3",
+      "name": "Add or link a person who holds no membership",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Okay, W-3 is approved.",
+          "date": "2026-08-27",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "Okay, W-3 is approved.",
+          "date": "2026-08-27",
+          "by": "Brian Schuster"
+        }
+      }
+    },
+    {
+      "id": "W4",
+      "name": "Merge two records for the same human",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "W4 approved.",
+          "date": "2026-08-27",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "W4 approved.",
+          "date": "2026-08-27",
+          "by": "Brian Schuster"
+        }
+      }
+    },
+    {
+      "id": "W5",
+      "name": "Work this season's roster",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "w5 approved, killer",
+          "date": "2026-08-27",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "w5 approved, killer",
+          "date": "2026-08-27",
+          "by": "Brian Schuster"
+        }
+      }
+    },
+    {
+      "id": "W6",
+      "name": "Open one player's record",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Looks fantastic, W6 approved.",
+          "date": "2026-08-27",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "Looks fantastic, W6 approved.",
+          "date": "2026-08-27",
+          "by": "Brian Schuster"
+        }
+      }
+    },
+    {
+      "id": "W7",
+      "name": "Work the missing-data queue",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "W-7 is approved. Everything's approved.",
+          "date": "2026-08-27",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "W-7 is approved. Everything's approved.",
+          "date": "2026-08-27",
+          "by": "Brian Schuster"
+        }
+      }
+    }
+  ],
+  "mockup_hub": "generated",
+  "decision_coverage": {
+    "sources": [
+      {
+        "id": "SRC-task-08",
+        "ref": "https://app.notion.com/p/3bd488886d57812e9534cb00102abef8",
+        "version": "Owner-approved 2026-08-15; owner note added 2026-08-26; fetched 2026-08-26. Numbers no decision ids of its own, so T08- ids are assigned by this intake and anchored to its sections and decision log.",
+        "decision_ids": [
+          "T08-person-minted-at-first-identity",
+          "T08-minimum-to-mint",
+          "T08-duplicate-check-before-create",
+          "T08-persons-without-membership",
+          "T08-unassigned-person-permitted",
+          "T08-person-vs-membership",
+          "T08-alumni-derived-with-override",
+          "T08-people-surface-for-non-players",
+          "T08-deliberate-non-display",
+          "T08-source-confidence-per-field",
+          "T08-dual-email-kinds",
+          "T08-academic-fields",
+          "T08-kit-ownership",
+          "T08-blues-counts",
+          "T08-channel-presence",
+          "T08-emergency-contact-in-release-one",
+          "T08-emergency-contact-structural-lockdown",
+          "T08-contact-corrections-supersede",
+          "T08-disputed-flag",
+          "T08-every-edit-audited",
+          "T08-authority-matrix",
+          "T08-merge-preserves-both",
+          "T08-merges-four-role-only",
+          "T08-aliases-non-display",
+          "T08-roster-surface-columns",
+          "T08-roster-search-filters-sort",
+          "T08-roster-four-role-only",
+          "T08-column-visibility-by-grant",
+          "T08-condensed-mobile-voice-call-only",
+          "T08-player-detail-contents",
+          "T08-coaches-see-football-only",
+          "T08-missing-and-disputed-first-class",
+          "T08-audit-history-on-the-record",
+          "T08-read-back-on-mobile-capture",
+          "T08-no-player-logins",
+          "T08-dob-restricted",
+          "T08-owner-note-2026-08-26",
+          "T08-season-association-consent-flow",
+          "T08-season-scoped-approval",
+          "T08-no-auto-fire-on-seeds",
+          "T08-number-safety-decline",
+          "T08-export-excludes-emergency-contact",
+          "T08-migration-flags",
+          "T08-inventory-extensible",
+          "T08-excluded-fields",
+          "T08-media-and-health"
+        ]
+      },
+      {
+        "id": "SRC-task-09",
+        "ref": "https://app.notion.com/p/3bd488886d578196a9a4cd9b25d59d1b",
+        "version": "Owner-approved 2026-08-15; amended 2026-08-25/26; fetched 2026-08-26. Its own D1-D12 ids are qualified by source.",
+        "decision_ids": [
+          "T09-D2-four-entry-doors",
+          "T09-D3-welcome-at-every-door",
+          "T09-D4-funnel-is-a-pipeline",
+          "T09-D5-single-human-gate",
+          "T09-D6-reversal-to-inactive",
+          "T09-D8-turnout-is-attendance",
+          "T09-D9-president-owns-pipeline",
+          "T09-D10-no-automatic-timeout",
+          "T09-D11-recruits-audience",
+          "T09-D1-intake-at-scale",
+          "T09-D7-dedup-before-create",
+          "T09-walk-up-dedup-drift",
+          "T09-prospect-retention"
+        ]
+      },
+      {
+        "id": "SRC-task-10",
+        "ref": "https://app.notion.com/p/3bd488886d5781078f48f13a47c529c6",
+        "version": "Owner-approved 2026-08-15; reconciled 2026-08-17; fetched 2026-08-26. Its own R-series ids are qualified by source.",
+        "decision_ids": [
+          "T10-R1-twelve-item-inventory",
+          "T10-R2-V-verification-classes",
+          "T10-R3-G-nothing-gates",
+          "T10-R5-status-ladder",
+          "T10-R6-onboarding-counts-as-player",
+          "T10-R2-E-no-mid-season-expiry",
+          "T10-per-player-activity-log",
+          "T10-item-9-contact-academic-rollup",
+          "T10-item-8-comms-group-access",
+          "T10-roster-filters-by-item-status",
+          "T10-activation-is-a-human-gate",
+          "T10-status-colours"
+        ]
+      },
+      {
+        "id": "SRC-task-11",
+        "ref": "https://app.notion.com/p/3bd488886d578157b520db77cf5ca50c",
+        "version": "Owner-approved 2026-08-15; reconciled 2026-08-17; amended 2026-08-26; fetched 2026-08-26.",
+        "decision_ids": [
+          "T11-2-3-one-open-request",
+          "T11-3-cadence-and-caps",
+          "T11-M2-onboarding-opened",
+          "T11-M3-operator-nudge",
+          "T11-M4-standing-condition",
+          "T11-M5-active-maintenance",
+          "T11-M6-disputed-targeted-request",
+          "T11-4-refused-state",
+          "T11-M1-prospect-staged-follow-up",
+          "T11-5-provenance-ranked-resolution",
+          "T11-7-queue-consumed-not-redefined",
+          "T11-2-1-who-is-in-the-loop"
+        ]
+      },
+      {
+        "id": "SRC-task-07",
+        "ref": "https://app.notion.com/p/3bc488886d5781e4be86d85e7f65558c",
+        "version": "Owner-approved 2026-08-14; amended 2026-08-15 and 2026-08-26; fetched 2026-08-26.",
+        "decision_ids": [
+          "T07-D6-consent-capture",
+          "T07-enforcement-refuse-without-basis",
+          "T07-retention-schedule",
+          "T07-erasure-and-redaction",
+          "T07-subject-access-export",
+          "T07-audit-coverage-review-surface",
+          "T07-cutover-checklist",
+          "T07-under-18-deferred",
+          "T07-correction-workflow-operator-executable",
+          "T07-free-text-discipline",
+          "T07-consent-precedence-on-merge",
+          "T07-meaningful-transitions"
+        ]
+      },
+      {
+        "id": "SRC-task-16",
+        "ref": "https://app.notion.com/p/3c0488886d5781f9bb86d38b79d57dac",
+        "version": "Owner-approved 2026-08-18; fetched 2026-08-26.",
+        "decision_ids": [
+          "T16-settings-display-name-only",
+          "T16-parked-change-email",
+          "T16-no-authorization-change"
+        ]
+      },
+      {
+        "id": "SRC-portfolio-v2-row-5",
+        "ref": "https://app.notion.com/p/3bb488886d578126a88cdd747f590a01",
+        "version": "Portfolio v2 approved by Brian Schuster 2026-08-26; fetched 2026-08-26T13:41Z.",
+        "decision_ids": [
+          "PV2-two-surfaces",
+          "PV2-lan-147-absorbed",
+          "PV2-missing-data-queue-defined-here",
+          "PV2-substrate-gating",
+          "PV2-backwards-looking-rule",
+          "PV2-testable-workflow-set",
+          "PV2-no-messaging-in-m5",
+          "PV2-minimal-season-bootstrap"
+        ]
+      },
+      {
+        "id": "SRC-lan-174",
+        "ref": "https://linear.app/brian-schuster/issue/LAN-174",
+        "version": "Done 2026-08-26; fetched 2026-08-26.",
+        "decision_ids": [
+          "LAN174-recruits-never-chased",
+          "LAN174-person-removal-out",
+          "LAN174-carry-forward-is-not-a-shortcut",
+          "LAN174-csv-import-acceptable",
+          "LAN174-roster-scoped-not-owned-by-season",
+          "LAN174-building-on-shipped-missions",
+          "LAN174-count-by-capacity-omits-recruits"
+        ]
+      },
+      {
+        "id": "SRC-lan-147",
+        "ref": "https://linear.app/brian-schuster/issue/LAN-147",
+        "version": "Backlog, updated 2026-08-26; fetched 2026-08-26.",
+        "decision_ids": [
+          "LAN147-Q1-correct-a-person",
+          "LAN147-Q2-merge-duplicates",
+          "LAN147-Q6-person-surface-wanted",
+          "LAN147-Q3-remove-a-person",
+          "LAN147-Q4-who-may-do-it",
+          "LAN147-Q5-before-real-data"
+        ]
+      },
+      {
+        "id": "SRC-lan-146",
+        "ref": "https://linear.app/brian-schuster/issue/LAN-146",
+        "version": "Deferred-findings triage surface; dispositions taken from the portfolio's Mission 5 intake note of 2026-08-26.",
+        "decision_ids": [
+          "LAN146-A1-duplicate-check-untested",
+          "LAN146-A2-any-operator-contact-reads"
+        ]
+      },
+      {
+        "id": "SRC-authority-manifest",
+        "ref": "https://app.notion.com/p/3bf488886d57818aa53ec09f4fc5f757",
+        "version": "Published 2026-08-17; re-derived for Portfolio v2 on 2026-08-26; fetched 2026-08-26.",
+        "decision_ids": [
+          "AM-R3-roster-side",
+          "AM-R2-record-side",
+          "AM-scope-4-people-roster-half",
+          "AM-R10-applied-slice",
+          "AM-section-8-exclusions",
+          "AM-stewart-provenance-gate"
+        ]
+      },
+      {
+        "id": "SRC-owner-session",
+        "ref": "https://app.notion.com/p/3bb488886d578126a88cdd747f590a01",
+        "version": "Owner working session with Brian Schuster, 2026-08-26, recorded in this ledger's stage commits.",
+        "decision_ids": [
+          "OS-formalwear-is-seasonal",
+          "OS-whatsapp-is-the-channel",
+          "OS-blues-are-seasonal-awards",
+          "OS-pipeline-status-rebuilt",
+          "OS-supersede-od3-single-inactive",
+          "OS-recruit-standing-visible",
+          "OS-recruit-stage-fields-unenumerated",
+          "OS-season-bootstrap-to-m7",
+          "OS-no-club-role-assignment",
+          "OS-self-service-to-m7",
+          "OS-channel-presence-is-a-person-record",
+          "OS-channel-presence-is-a-season-record",
+          "OS-four-role-narrowing-confirmed",
+          "OS-seed-extension-in-scope",
+          "OS-per-person-history-here",
+          "OS-merge-operator-seat-refusal",
+          "OS-merge-prospect-collision",
+          "OS-field-coverage-rule"
+        ]
+      }
+    ],
+    "decisions": [
+      {
+        "id": "T08-person-minted-at-first-identity",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "A durable Person exists the moment any workflow records a name; the add-or-link path is where this mission mints one."
+      },
+      {
+        "id": "T08-minimum-to-mint",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "Given name plus one contact point where the workflow can collect it; family name stays nullable because 26% of real records are first-name-only."
+      },
+      {
+        "id": "T08-duplicate-check-before-create",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "The deliberate check runs before creation on this mission's own add-or-link path. The recruitment doors that also call it are Mission 6's."
+      },
+      {
+        "id": "T08-persons-without-membership",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "Coaches, committee members and outside contacts need Person records that never hold a roster membership."
+      },
+      {
+        "id": "T08-unassigned-person-permitted",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "A Person may exist with no role and no membership at all \u2014 the potential coach case."
+      },
+      {
+        "id": "T08-person-vs-membership",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "The Person endures; a season membership is participation in one season. This is why People shows everyone and the roster shows only players.",
+        "also_referenced_by": ["W5"]
+      },
+      {
+        "id": "T08-alumni-derived-with-override",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Alumni standing derives from membership history with the operator override; graduation never deletes or archives a Person."
+      },
+      {
+        "id": "T08-people-surface-for-non-players",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Roster and player detail are membership-keyed, so a person-keyed list and detail page are required for everyone who has no membership."
+      },
+      {
+        "id": "T08-deliberate-non-display",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Aliases, merge machinery, superseded contact values and anything the viewer's role does not grant are absent from the surface, not merely hidden."
+      },
+      {
+        "id": "T08-source-confidence-per-field",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Every field displays its provenance class so player-provided never looks operator-confirmed.",
+        "also_referenced_by": ["W6"]
+      },
+      {
+        "id": "T08-dual-email-kinds",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "College and personal email are two distinct dated kinds; contact_point_kind on main is only ('email','phone'), so this mission carries the split."
+      },
+      {
+        "id": "T08-academic-fields",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "College, matriculation year, expected graduation and degree field are durable person facts in Release One."
+      },
+      {
+        "id": "T08-kit-ownership",
+        "source_id": "SRC-task-08",
+        "disposition": "superseded",
+        "superseded_by": "SRC-owner-session:OS-formalwear-is-seasonal",
+        "reason": "Tie, bowtie and socks held as durable person facts. Brian moved them to the season on 2026-08-26.",
+        "approval": {
+          "words": "where this all belongs in the season is not a durable person record thing. We'll just reask them every season if they have this.",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-formalwear-is-seasonal",
+        "source_id": "SRC-owner-session",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "Formalwear ownership is asked each season rather than carried, matching Task 10 R1b's rule that the full checklist regenerates for everyone every season. Removes Task 10 item 3's 'not applicable if already recorded' carve-out for returners, which Mission 7's intake must reconcile.",
+        "approval": {
+          "words": "We'll just reask them every season if they have this.",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-whatsapp-is-the-channel",
+        "source_id": "SRC-owner-session",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "Channel presence is named concretely: is the person on WhatsApp and in this season's group. Email is assumed, being universal and already a durable contact point.",
+        "evidence": "Brian, 2026-08-26: WhatsApp is the actual channel that matters and email should be assumed. The seam is Task 09 D3's community-group invite at every recruit door. Presence remains distinct from consent per Task 08 row 8 \u2014 it records where somebody already is, never that they agreed to be messaged, which stays Mission 8's."
+      },
+      {
+        "id": "T08-blues-counts",
+        "source_id": "SRC-task-08",
+        "disposition": "superseded",
+        "superseded_by": "SRC-owner-session:OS-blues-are-seasonal-awards",
+        "reason": "Half and Full Blue held as cumulative durable counts. It was the inventory's only cumulative count and Brian rejected the shape.",
+        "approval": {
+          "words": "no other record here is a cumulative count at this point, so I don't really like that\u2026 I think for the season record, half blue, full blue for the season makes sense.",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "T08-channel-presence",
+        "source_id": "SRC-task-08",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "Dated per-channel presence, distinct from consent. Brian ruled 2026-08-26 that a named group is a season record: the number is durable, being in this season's group is not. Task 09 D3 fires the community-group invite at every recruit door, so Mission 6 is the first user and builds it; Mission 7 extends it for the season welcome, item 8's derivation and the Secretary's add/remove. Anchored to person and season, which recruits already have through recruitment_prospects.",
+        "evidence": "Dated per-channel presence, distinct from consent. Brian ruled 2026-08-26 that a named group is a season record: the number is durable, being in this season's group is not. Task 09 D3 fires the community-group invite at every recruit door, so Mission 6 is the first user and builds it; Mission 7 extends it for the season welcome, item 8's derivation and the Secretary's add/remove. Anchored to person and season, which recruits already have through recruitment_prospects."
+      },
+      {
+        "id": "T08-emergency-contact-in-release-one",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "One per person, four-role only, never on the roster grid."
+      },
+      {
+        "id": "T08-emergency-contact-structural-lockdown",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Third-party personal data: never a Person row, never a contact point, never reachable by audience or messaging machinery, out of leadership exports by default."
+      },
+      {
+        "id": "T08-contact-corrections-supersede",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Corrections supersede rather than overwrite, preserving dated history and one preferred value per kind."
+      },
+      {
+        "id": "T08-disputed-flag",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "A contested value is flagged `disputed \u2014 awaiting verification` with the operator's reason recorded."
+      },
+      {
+        "id": "T08-every-edit-audited",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Every edit is attributable and audited (invariant M2)."
+      },
+      {
+        "id": "OS-blues-are-seasonal-awards",
+        "source_id": "SRC-owner-session",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "An award happens in a season, so it is two flags on the season record; the cumulative total the club looks at derives from history rather than being stored.",
+        "approval": {
+          "words": "for the season record, half blue, full blue for the season makes sense",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-pipeline-status-rebuilt",
+        "source_id": "SRC-owner-session",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "One status drives the whole pipeline, assembled from two records: the prospect record while somebody is a recruit, the membership from the flip onward. Recruit / Onboarding / Active / Inactive / Departed / Archived. carried_forward, confirmed and withdrawn are struck \u2014 entry already carries the returner fact, confirming is an action rather than a state, and a recruit who says no is declined on the prospect record and never receives a membership. Eight values become five. The frozen model's refusal to store recruits as memberships is honoured: the roster still means people on the team.",
+        "approval": {
+          "words": "there's one status that should tell us what the player is at, and it drives the entire thing\u2026 carried forward should be just struck entirely.",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-supersede-od3-single-inactive",
+        "source_id": "SRC-owner-session",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "OD-3 (resolved 2026-08-18) confirmed single-inactive offboarding with withdrawn and departed unused. Superseded: inactive means still on the team and possibly returning; departed means gone, struck off, with an offboarding to run. Recorded as a dated supersession of a resolved owner decision, and it makes membership_status a frozen-model vocabulary change reaching event audiences, the weekly report, the roster and Mission 4's messaging, delivered as a new type and a data migration.",
+        "approval": {
+          "words": "Okay, yes, we're superseding that, and that should be decided.",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-recruit-standing-visible",
+        "source_id": "SRC-owner-session",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Person detail shows that somebody is a recruit and where they stand, read-only. A person with no visible standing is a name floating in a list. Every stage transition, the notes and the recruits list stay Mission 6's.",
+        "approval": {
+          "words": "I want you to synthesize this and see what that looks like now.",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-recruit-stage-fields-unenumerated",
+        "source_id": "SRC-owner-session",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "The 8/5 staged model's football background, experience and gear ownership have never been written down by anyone: Task 08 pushes them to Task 09, Task 09 references and never lists them, and the 2026-08-26 amendment defers enumeration to Mission 6's intake. Recorded here so the gap is not lost.",
+        "evidence": "The 8/5 staged model's football background, experience and gear ownership have never been written down by anyone: Task 08 pushes them to Task 09, Task 09 references and never lists them, and the 2026-08-26 amendment defers enumeration to Mission 6's intake. Recorded here so the gap is not lost."
+      },
+      {
+        "id": "T08-authority-matrix",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "The view/edit matrix by information category is this mission's to implement; \u00a76 is the controlling table.",
+        "also_referenced_by": ["W1", "W5", "W6"]
+      },
+      {
+        "id": "T08-merge-preserves-both",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "A merge is audited and preserves both source identities; the losing row is never deleted (invariant I6)."
+      },
+      {
+        "id": "T08-merges-four-role-only",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "Merges are executed by the four-role group only, fully audited."
+      },
+      {
+        "id": "T08-aliases-non-display",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "Aliases are dedupe evidence and an operator surface, never roster display."
+      },
+      {
+        "id": "T08-roster-surface-columns",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "The approved default column set for the wide command surface, replacing the four columns shipped in the slice."
+      },
+      {
+        "id": "T08-roster-search-filters-sort",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "Search by name/known-as/alias; combinable immediate filters; every column sortable."
+      },
+      {
+        "id": "T08-roster-four-role-only",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "In Release One the roster and player detail are reachable by the four-role group only; coaches keep the narrow LAN-110 tool.",
+        "also_referenced_by": ["W1"]
+      },
+      {
+        "id": "T08-column-visibility-by-grant",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "Column visibility is a function of the viewer's category grants, so widening access later drops restricted columns automatically."
+      },
+      {
+        "id": "T08-condensed-mobile-voice-call-only",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "The mobile quick action is voice call only. A one-tap WhatsApp deep link would be manual sending outside the pipeline's consent checks, which R12/R15 prohibit.",
+        "also_referenced_by": ["W6"]
+      },
+      {
+        "id": "T08-player-detail-contents",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "The authoritative individual view: identity, dated contacts, presence, academics, restricted fields, membership state and history, items with provenance, assignments, availability, eligibility, kit, Blues, consent state, and this record's change history."
+      },
+      {
+        "id": "T08-coaches-see-football-only",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "Coaches never see contact values, academic detail, DOB, emergency contact, consent or administrative data."
+      },
+      {
+        "id": "T08-missing-and-disputed-first-class",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W7",
+        "reason": "`not recorded` is explicit, visible and never defaulted, and never conflated with 'No' \u2014 the lesson of the 2023 workbook's defaulting Rookie column."
+      },
+      {
+        "id": "T08-audit-history-on-the-record",
+        "source_id": "SRC-task-08",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "\u00a75 places the audit/history of changes on the record it describes. Reassigned 2026-08-27 when W8 was struck from the inventory and per-person history became a section of the person record."
+      },
+      {
+        "id": "T08-read-back-on-mobile-capture",
+        "source_id": "SRC-task-08",
+        "disposition": "shared_cross_mission",
+        "shared_owners": [
+          "M-PEOPLE-AND-ROSTER",
+          "M-RECRUITMENT",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
+        ],
+        "reason": "Every mobile-capture path includes read-back before anything fires. It binds this mission's operator capture and edit paths even though nothing here sends, as the portfolio's Mission 5 intake note records.",
+        "evidence": "Every mobile-capture path includes read-back before anything fires. It binds this mission's operator capture and edit paths even though nothing here sends, as the portfolio's Mission 5 intake note records."
+      },
+      {
+        "id": "T08-no-player-logins",
+        "source_id": "SRC-task-08",
+        "disposition": "shared_cross_mission",
+        "shared_owners": [
+          "M-PEOPLE-AND-ROSTER",
+          "M-RECRUITMENT",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
+        ],
+        "reason": "No player logins in Release One; player interaction is signed links only. This mission therefore builds no player-facing surface at all.",
+        "evidence": "No player logins in Release One; player interaction is signed links only. This mission therefore builds no player-facing surface at all."
+      },
+      {
+        "id": "T08-dob-restricted",
+        "source_id": "SRC-task-08",
+        "disposition": "shared_cross_mission",
+        "shared_owners": [
+          "M-PEOPLE-AND-ROSTER",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+          "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"
+        ],
+        "reason": "DOB is a durable person fact captured at onboarding and flagging under-18. This mission holds and displays it; Mission 7 captures it; Mission 8 owns the under-18 policy.",
+        "evidence": "DOB is a durable person fact captured at onboarding and flagging under-18. This mission holds and displays it; Mission 7 captures it; Mission 8 owns the under-18 policy."
+      },
+      {
+        "id": "T08-owner-note-2026-08-26",
+        "source_id": "SRC-task-08",
+        "disposition": "shared_cross_mission",
+        "shared_owners": [
+          "M-PEOPLE-AND-ROSTER",
+          "M-RECRUITMENT",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+          "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"
+        ],
+        "reason": "The dated owner note routes this brief's surfaces, inventory, authority matrix, merge and queue definition to Mission 5, the consent flow to Mission 7 under Mission 8's policy, and recruit-door opt-in to Mission 6.",
+        "evidence": "The dated owner note routes this brief's surfaces, inventory, authority matrix, merge and queue definition to Mission 5, the consent flow to Mission 7 under Mission 8's policy, and recruit-door opt-in to Mission 6."
+      },
+      {
+        "id": "T08-season-association-consent-flow",
+        "source_id": "SRC-task-08",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "The season welcome + consent flow is implemented by Mission 7 as capture mechanics; the 2026-08-26 owner note says so explicitly.",
+        "evidence": "The season welcome + consent flow is implemented by Mission 7 as capture mechanics; the 2026-08-26 owner note says so explicitly."
+      },
+      {
+        "id": "T08-season-scoped-approval",
+        "source_id": "SRC-task-08",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "Communication approval is per-season and re-collected each season. Capture is Mission 7's, policy Mission 8's.",
+        "evidence": "Communication approval is per-season and re-collected each season. Capture is Mission 7's, policy Mission 8's."
+      },
+      {
+        "id": "T08-no-auto-fire-on-seeds",
+        "source_id": "SRC-task-08",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "A record's existence never triggers messaging; only deliberate season association does. Nothing in this mission sends, so the rule binds where the sending lives.",
+        "evidence": "A record's existence never triggers messaging; only deliberate season association does. Nothing in this mission sends, so the rule binds where the sending lives."
+      },
+      {
+        "id": "T08-number-safety-decline",
+        "source_id": "SRC-task-08",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "Decline blocks dispatch and enqueues the Secretary-owned remove-from-groups action. This mission supplies the presence record that action edits.",
+        "evidence": "Decline blocks dispatch and enqueues the Secretary-owned remove-from-groups action. This mission supplies the presence record that action edits."
+      },
+      {
+        "id": "T08-export-excludes-emergency-contact",
+        "source_id": "SRC-task-08",
+        "disposition": "other_mission",
+        "other_mission": "M-LEADERSHIP-REPORTING-AND-EXPORTS",
+        "reason": "The G4 complete-data export carries the full inventory minus emergency contact. Defined here as a contract, built in Mission 10.",
+        "evidence": "The G4 complete-data export carries the full inventory minus emergency contact. Defined here as a contract, built in Mission 10."
+      },
+      {
+        "id": "T08-migration-flags",
+        "source_id": "SRC-task-08",
+        "disposition": "delegated_to_mission_lead",
+        "reason": "\u00a78 identifies likely migrations by capability and explicitly designs none. Schema shape is the Mission Lead's.",
+        "evidence": "\u00a78 identifies likely migrations by capability and explicitly designs none. Schema shape is the Mission Lead's."
+      },
+      {
+        "id": "T08-inventory-extensible",
+        "source_id": "SRC-task-08",
+        "disposition": "excluded",
+        "reason": "A governance rule about how future fields are added by owner decision, not a Release-One behaviour. Recorded as an invariant in 01-overview rather than built.",
+        "evidence": "A governance rule about how future fields are added by owner decision, not a Release-One behaviour. Recorded as an invariant in 01-overview rather than built."
+      },
+      {
+        "id": "T08-excluded-fields",
+        "source_id": "SRC-task-08",
+        "disposition": "excluded",
+        "reason": "Home address, nationality and kit size have no source evidence and no decision; \u00a71 excludes them explicitly, and each would be a fresh owner decision.",
+        "evidence": "Home address, nationality and kit size have no source evidence and no decision; \u00a71 excludes them explicitly, and each would be a fresh owner decision."
+      },
+      {
+        "id": "T08-media-and-health",
+        "source_id": "SRC-task-08",
+        "disposition": "excluded",
+        "reason": "Health narratives, statistics, media and photos are \u00a71 guardrail exclusions; the schema cannot hold health data by design.",
+        "evidence": "Health narratives, statistics, media and photos are \u00a71 guardrail exclusions; the schema cannot hold health data by design."
+      },
+      {
+        "id": "T09-D2-four-entry-doors",
+        "source_id": "SRC-task-09",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "The four capture doors and their name+mobile minimum are Mission 6's funnel scope.",
+        "evidence": "The four capture doors and their name+mobile minimum are Mission 6's funnel scope."
+      },
+      {
+        "id": "T09-D3-welcome-at-every-door",
+        "source_id": "SRC-task-09",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "The WhatsApp welcome and group invite at every door is messaging, excluded here without exception.",
+        "evidence": "The WhatsApp welcome and group invite at every door is messaging, excluded here without exception."
+      },
+      {
+        "id": "T09-D4-funnel-is-a-pipeline",
+        "source_id": "SRC-task-09",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "The recruits list and the identified/engaged/committed stages are Mission 6's. People shows a prospect as a person; their funnel stage does not render here.",
+        "evidence": "The recruits list and the identified/engaged/committed stages are Mission 6's. People shows a prospect as a person; their funnel stage does not render here."
+      },
+      {
+        "id": "T09-D5-single-human-gate",
+        "source_id": "SRC-task-09",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "The Monday flip by President/VP/Secretary/GM belongs to the funnel.",
+        "evidence": "The Monday flip by President/VP/Secretary/GM belongs to the funnel."
+      },
+      {
+        "id": "T09-D6-reversal-to-inactive",
+        "source_id": "SRC-task-09",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "Reversal of a conversion is a leadership act on the funnel.",
+        "evidence": "Reversal of a conversion is a leadership act on the funnel."
+      },
+      {
+        "id": "T09-D8-turnout-is-attendance",
+        "source_id": "SRC-task-09",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "Recruitment-event turnout supersedes Register F4's aggregate headcount; event scope, not person scope.",
+        "evidence": "Recruitment-event turnout supersedes Register F4's aggregate headcount; event scope, not person scope."
+      },
+      {
+        "id": "T09-D9-president-owns-pipeline",
+        "source_id": "SRC-task-09",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "Pipeline ownership is a funnel role, not a People or Roster authority.",
+        "evidence": "Pipeline ownership is a funnel role, not a People or Roster authority."
+      },
+      {
+        "id": "T09-D10-no-automatic-timeout",
+        "source_id": "SRC-task-09",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "No automatic timeout ever removes anyone; the surrounding chase is Missions 6 and 7's.",
+        "evidence": "No automatic timeout ever removes anyone; the surrounding chase is Missions 6 and 7's."
+      },
+      {
+        "id": "T09-D11-recruits-audience",
+        "source_id": "SRC-task-09",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "The derived Recruits audience and the recruits-on-top attendance sheet are event surfaces owned by Mission 6.",
+        "evidence": "The derived Recruits audience and the recruits-on-top attendance sheet are event surfaces owned by Mission 6."
+      },
+      {
+        "id": "T09-D1-intake-at-scale",
+        "source_id": "SRC-task-09",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "The composed LAN-85 intake mechanism moved to Mission 7 as CSV import, per the 2026-08-26 amendment and Brian's decision this session.",
+        "evidence": "The composed LAN-85 intake mechanism moved to Mission 7 as CSV import, per the 2026-08-26 amendment and Brian's decision this session."
+      },
+      {
+        "id": "T09-D7-dedup-before-create",
+        "source_id": "SRC-task-09",
+        "disposition": "shared_cross_mission",
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-RECRUITMENT"],
+        "reason": "Dedup-before-create is the locked R2 rule at every door. This mission builds the matching and merge machinery and applies it on its own add-or-link path; Mission 6 wires its four doors to it and decides per-door behaviour.",
+        "evidence": "Dedup-before-create is the locked R2 rule at every door. This mission builds the matching and merge machinery and applies it on its own add-or-link path; Mission 6 wires its four doors to it and decides per-door behaviour."
+      },
+      {
+        "id": "T09-walk-up-dedup-drift",
+        "source_id": "SRC-task-09",
+        "disposition": "shared_cross_mission",
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-RECRUITMENT"],
+        "reason": "The shipped operator walk-up path creates a person with no interactive check, wider than the LAN-110 coach-only exception. Recorded as documented drift, reconciled at Mission 6's intake; the duplicates it produces are what this mission's merge resolves.",
+        "evidence": "The shipped operator walk-up path creates a person with no interactive check, wider than the LAN-110 coach-only exception. Recorded as documented drift, reconciled at Mission 6's intake; the duplicates it produces are what this mission's merge resolves."
+      },
+      {
+        "id": "T09-prospect-retention",
+        "source_id": "SRC-task-09",
+        "disposition": "other_mission",
+        "other_mission": "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
+        "reason": "Retention for lapsed and declined prospect records is delegated to Clint through Task 07.",
+        "evidence": "Retention for lapsed and declined prospect records is delegated to Clint through Task 07."
+      },
+      {
+        "id": "T10-R1-twelve-item-inventory",
+        "source_id": "SRC-task-10",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "The twelve-item checklist and its per-item behaviour are Mission 7's; this mission displays items and their provenance.",
+        "evidence": "The twelve-item checklist and its per-item behaviour are Mission 7's; this mission displays items and their provenance."
+      },
+      {
+        "id": "T10-R2-V-verification-classes",
+        "source_id": "SRC-task-10",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "Trust, verify, derived and operator classes are per-season configuration owned by the onboarding mission.",
+        "evidence": "Trust, verify, derived and operator classes are per-season configuration owned by the onboarding mission."
+      },
+      {
+        "id": "T10-R3-G-nothing-gates",
+        "source_id": "SRC-task-10",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "No onboarding item ever blocks any action. A tracker, not a gatekeeper.",
+        "evidence": "No onboarding item ever blocks any action. A tracker, not a gatekeeper."
+      },
+      {
+        "id": "T10-R5-status-ladder",
+        "source_id": "SRC-task-10",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "The confirm action carries a member straight into `onboarding`; `confirmed` is an action, not a resting status.",
+        "evidence": "The confirm action carries a member straight into `onboarding`; `confirmed` is an action, not a resting status."
+      },
+      {
+        "id": "T10-R6-onboarding-counts-as-player",
+        "source_id": "SRC-task-10",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "Onboarding memberships count as players for event audiences \u2014 an audience-derivation change owned where onboarding lives.",
+        "evidence": "Onboarding memberships count as players for event audiences \u2014 an audience-derivation change owned where onboarding lives."
+      },
+      {
+        "id": "T10-R2-E-no-mid-season-expiry",
+        "source_id": "SRC-task-10",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "Items reset only at the season boundary.",
+        "evidence": "Items reset only at the season boundary."
+      },
+      {
+        "id": "T10-per-player-activity-log",
+        "source_id": "SRC-task-10",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "The running log of messages, nudges and actions belongs with the machinery that produces them.",
+        "evidence": "The running log of messages, nudges and actions belongs with the machinery that produces them."
+      },
+      {
+        "id": "T10-item-9-contact-academic-rollup",
+        "source_id": "SRC-task-10",
+        "disposition": "shared_cross_mission",
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
+        "reason": "Item 9 is a derived rollup whose missing pieces ARE the missing-data queue \u2014 Task 10's own words, one source of truth, no double-counting. This mission defines that queue; Mission 7 derives the item from it.",
+        "evidence": "Item 9 is a derived rollup whose missing pieces ARE the missing-data queue \u2014 Task 10's own words, one source of truth, no double-counting. This mission defines that queue; Mission 7 derives the item from it."
+      },
+      {
+        "id": "T10-item-8-comms-group-access",
+        "source_id": "SRC-task-10",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "The comms-group item derives from season consent plus presence in the season's groups. Both the derivation and the group records it reads sit outside this mission after the 2026-08-26 ruling that a group is a season record.",
+        "evidence": "The comms-group item derives from season consent plus presence in the season's groups. Both the derivation and the group records it reads sit outside this mission after the 2026-08-26 ruling that a group is a season record."
+      },
+      {
+        "id": "T10-roster-filters-by-item-status",
+        "source_id": "SRC-task-10",
+        "disposition": "shared_cross_mission",
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
+        "reason": "Roster filtering by item status is committed in Task 08's surface map and built here; the item states it filters on are Mission 7's.",
+        "evidence": "Roster filtering by item status is committed in Task 08's surface map and built here; the item states it filters on are Mission 7's."
+      },
+      {
+        "id": "T10-activation-is-a-human-gate",
+        "source_id": "SRC-task-10",
+        "disposition": "shared_cross_mission",
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
+        "reason": "Activation by the core four already ships on the surface this mission redesigns. The control is preserved here unchanged; changes to onboarding behaviour are Mission 7's.",
+        "evidence": "Activation by the core four already ships on the surface this mission redesigns. The control is preserved here unchanged; changes to onboarding behaviour are Mission 7's."
+      },
+      {
+        "id": "T10-status-colours",
+        "source_id": "SRC-task-10",
+        "disposition": "shared_cross_mission",
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
+        "reason": "Onboarding yellow, active green on the roster \u2014 a display decision on this mission's surface.",
+        "evidence": "Onboarding yellow, active green on the roster \u2014 a display decision on this mission's surface."
+      },
+      {
+        "id": "T11-2-3-one-open-request",
+        "source_id": "SRC-task-11",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "At most one open collection request per person, ever. Task 11 \u00a71 states the division outright: Task 08 defined the state and queue, Task 11 defines the chase. The request record is Mission 7's, not this mission's.",
+        "evidence": "At most one open collection request per person, ever. Task 11 \u00a71 states the division outright: Task 08 defined the state and queue, Task 11 defines the chase. The request record is Mission 7's, not this mission's."
+      },
+      {
+        "id": "T11-3-cadence-and-caps",
+        "source_id": "SRC-task-11",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "Bounded automation then a human; Delivered-only cap counting; suppression and quiet hours.",
+        "evidence": "Bounded automation then a human; Delivered-only cap counting; suppression and quiet hours."
+      },
+      {
+        "id": "T11-M2-onboarding-opened",
+        "source_id": "SRC-task-11",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "A collection moment, therefore a send.",
+        "evidence": "A collection moment, therefore a send."
+      },
+      {
+        "id": "T11-M3-operator-nudge",
+        "source_id": "SRC-task-11",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "The operator-initiated nudge is the Release-One floor for follow-up and lives with the sending machinery.",
+        "evidence": "The operator-initiated nudge is the Release-One floor for follow-up and lives with the sending machinery."
+      },
+      {
+        "id": "T11-M4-standing-condition",
+        "source_id": "SRC-task-11",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "Automated cadence during the onboarding window.",
+        "evidence": "Automated cadence during the onboarding window."
+      },
+      {
+        "id": "T11-M5-active-maintenance",
+        "source_id": "SRC-task-11",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "The mid-season maintenance cycle for a season-associated person whose data goes stale \u2014 this is the moment that answers how a coach updates their own record.",
+        "evidence": "The mid-season maintenance cycle for a season-associated person whose data goes stale \u2014 this is the moment that answers how a coach updates their own record."
+      },
+      {
+        "id": "T11-M6-disputed-targeted-request",
+        "source_id": "SRC-task-11",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "A targeted request for a disputed fact. This mission raises the flag; Mission 7 asks about it.",
+        "evidence": "A targeted request for a disputed fact. This mission raises the flag; Mission 7 asks about it."
+      },
+      {
+        "id": "T11-4-refused-state",
+        "source_id": "SRC-task-11",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "Per-fact `refused` is a request-experience state layered onto the queue by the chase.",
+        "evidence": "Per-fact `refused` is a request-experience state layered onto the queue by the chase."
+      },
+      {
+        "id": "T11-M1-prospect-staged-follow-up",
+        "source_id": "SRC-task-11",
+        "disposition": "superseded",
+        "superseded_by": "SRC-lan-174:LAN174-recruits-never-chased",
+        "reason": "Dissolved by the 2026-08-25 decision that recruits are never chased; the dated amendment on the Task 11 brief records it.",
+        "approval": {
+          "words": "recruits are never chased \u2014 one message, ever",
+          "date": "2026-08-25"
+        }
+      },
+      {
+        "id": "T11-5-provenance-ranked-resolution",
+        "source_id": "SRC-task-11",
+        "disposition": "shared_cross_mission",
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
+        "reason": "A player submission never silently overwrites an operator-confirmed, externally verified or derived value; it flags `disputed \u2014 awaiting verification` and returns to the queue for a four-role operator to resolve. This mission builds the flag, the queue and the resolution surface; Mission 7 builds the ingestion that raises it.",
+        "evidence": "A player submission never silently overwrites an operator-confirmed, externally verified or derived value; it flags `disputed \u2014 awaiting verification` and returns to the queue for a four-role operator to resolve. This mission builds the flag, the queue and the resolution surface; Mission 7 builds the ingestion that raises it."
+      },
+      {
+        "id": "T11-7-queue-consumed-not-redefined",
+        "source_id": "SRC-task-11",
+        "disposition": "shared_cross_mission",
+        "shared_owners": [
+          "M-PEOPLE-AND-ROSTER",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+          "M-LEADERSHIP-REPORTING-AND-EXPORTS"
+        ],
+        "reason": "The queue is Task 08's missing/disputed queue plus Task 10's item queue, consumed rather than redefined. Defined here, chased in Mission 7, surfaced in Mission 10's Monday review.",
+        "evidence": "The queue is Task 08's missing/disputed queue plus Task 10's item queue, consumed rather than redefined. Defined here, chased in Mission 7, surfaced in Mission 10's Monday review."
+      },
+      {
+        "id": "T11-2-1-who-is-in-the-loop",
+        "source_id": "SRC-task-11",
+        "disposition": "shared_cross_mission",
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
+        "reason": "Players, coaches and committee members are all chased for person-level data and supply and correct it through signed links. This is why no self-service settings surface is needed anywhere, and why this mission's operator correction path is the interim answer.",
+        "evidence": "Players, coaches and committee members are all chased for person-level data and supply and correct it through signed links. This is why no self-service settings surface is needed anywhere, and why this mission's operator correction path is the interim answer."
+      },
+      {
+        "id": "T07-D6-consent-capture",
+        "source_id": "SRC-task-07",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "Consent and contact-preference capture; no consent column exists in the schema and this mission adds none.",
+        "evidence": "Consent and contact-preference capture; no consent column exists in the schema and this mission adds none."
+      },
+      {
+        "id": "T07-enforcement-refuse-without-basis",
+        "source_id": "SRC-task-07",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "The pipeline's refuse-without-basis check is built where dispatch lives.",
+        "evidence": "The pipeline's refuse-without-basis check is built where dispatch lives."
+      },
+      {
+        "id": "T07-retention-schedule",
+        "source_id": "SRC-task-07",
+        "disposition": "other_mission",
+        "other_mission": "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
+        "reason": "Retention defaults and the reviewed season-close run are Mission 8's, including the flagged rows for membership-less persons that this mission's People surface makes concrete.",
+        "evidence": "Retention defaults and the reviewed season-close run are Mission 8's, including the flagged rows for membership-less persons that this mission's People surface makes concrete."
+      },
+      {
+        "id": "T07-erasure-and-redaction",
+        "source_id": "SRC-task-07",
+        "disposition": "other_mission",
+        "other_mission": "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
+        "reason": "Erasure, redaction and destructive person removal are Mission 8's by the owner decision of 2026-08-25.",
+        "evidence": "Erasure, redaction and destructive person removal are Mission 8's by the owner decision of 2026-08-25."
+      },
+      {
+        "id": "T07-subject-access-export",
+        "source_id": "SRC-task-07",
+        "disposition": "other_mission",
+        "other_mission": "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
+        "reason": "The per-person 'Export this person's data' action sits on this mission's surface but is Mission 8's to build.",
+        "evidence": "The per-person 'Export this person's data' action sits on this mission's surface but is Mission 8's to build."
+      },
+      {
+        "id": "T07-audit-coverage-review-surface",
+        "source_id": "SRC-task-07",
+        "disposition": "other_mission",
+        "other_mission": "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
+        "reason": "The filterable operator view over audit_events with its per-category coverage check is Mission 8's; per-person history on the record is this mission's.",
+        "evidence": "The filterable operator view over audit_events with its per-category coverage check is Mission 8's; per-person history on the record is this mission's."
+      },
+      {
+        "id": "T07-cutover-checklist",
+        "source_id": "SRC-task-07",
+        "disposition": "other_mission",
+        "other_mission": "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
+        "reason": "The real-data cutover product side.",
+        "evidence": "The real-data cutover product side."
+      },
+      {
+        "id": "T07-under-18-deferred",
+        "source_id": "SRC-task-07",
+        "disposition": "other_mission",
+        "other_mission": "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
+        "reason": "Under-18 handling needs a fresh owner decision; a flagged person cannot be activated or messaged. Cannot arise here because no DOB is captured and no real data exists.",
+        "evidence": "Under-18 handling needs a fresh owner decision; a flagged person cannot be activated or messaged. Cannot arise here because no DOB is captured and no real data exists."
+      },
+      {
+        "id": "T07-correction-workflow-operator-executable",
+        "source_id": "SRC-task-07",
+        "disposition": "shared_cross_mission",
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"],
+        "reason": "R13's acceptance is that correction is executable without an engineer, and \u00a73 places the act on the existing person surface with actor, before/after and reason audited. This mission builds that surface and its audit; Mission 8 owns the rights-based request intake and the erasure path.",
+        "evidence": "R13's acceptance is that correction is executable without an engineer, and \u00a73 places the act on the existing person surface with actor, before/after and reason audited. This mission builds that surface and its audit; Mission 8 owns the rights-based request intake and the erasure path."
+      },
+      {
+        "id": "T07-free-text-discipline",
+        "source_id": "SRC-task-07",
+        "disposition": "shared_cross_mission",
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"],
+        "reason": "Correction reasons and merge reasons are four-role restricted, age out on the schedule, and never flow verbatim into reports. This mission creates both fields, so the rule binds it directly.",
+        "evidence": "Correction reasons and merge reasons are four-role restricted, age out on the schedule, and never flow verbatim into reports. This mission creates both fields, so the rule binds it directly."
+      },
+      {
+        "id": "T07-consent-precedence-on-merge",
+        "source_id": "SRC-task-07",
+        "disposition": "shared_cross_mission",
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"],
+        "reason": "An open Task 07 follow-up. This mission's merge preserves both records and picks no winner, surfacing the conflict rather than resolving it, so Mission 8 can decide precedence without a migration to undo.",
+        "evidence": "An open Task 07 follow-up. This mission's merge preserves both records and picks no winner, surfacing the conflict rather than resolving it, so Mission 8 can decide precedence without a migration to undo."
+      },
+      {
+        "id": "T07-meaningful-transitions",
+        "source_id": "SRC-task-07",
+        "disposition": "shared_cross_mission",
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"],
+        "reason": "Corrections and merges are named meaningful transitions that must demonstrably produce audit events at cutover.",
+        "evidence": "Corrections and merges are named meaningful transitions that must demonstrably produce audit events at cutover."
+      },
+      {
+        "id": "T16-settings-display-name-only",
+        "source_id": "SRC-task-16",
+        "disposition": "other_mission",
+        "other_mission": "M-APP-SHELL-ACCOUNT-AND-TRUST",
+        "reason": "The settings page shows email and roles and permits display-name changes only. It is not a place to edit a person record.",
+        "evidence": "The settings page shows email and roles and permits display-name changes only. It is not a place to edit a person record."
+      },
+      {
+        "id": "T16-parked-change-email",
+        "source_id": "SRC-task-16",
+        "disposition": "other_mission",
+        "other_mission": "M-APP-SHELL-ACCOUNT-AND-TRUST",
+        "reason": "Change-email and notification preferences are parked with a promotion rule requiring review against Task 06's account boundary.",
+        "evidence": "Change-email and notification preferences are parked with a promotion rule requiring review against Task 06's account boundary."
+      },
+      {
+        "id": "T16-no-authorization-change",
+        "source_id": "SRC-task-16",
+        "disposition": "other_mission",
+        "other_mission": "M-APP-SHELL-ACCOUNT-AND-TRUST",
+        "reason": "Task 16 hard-excludes any change to roles or capability grants.",
+        "evidence": "Task 16 hard-excludes any change to roles or capability grants."
+      },
+      {
+        "id": "PV2-two-surfaces",
+        "source_id": "SRC-portfolio-v2-row-5",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "People and Roster as two four-role surfaces over one record is the row's own description of this mission.",
+        "also_referenced_by": ["W5"]
+      },
+      {
+        "id": "PV2-lan-147-absorbed",
+        "source_id": "SRC-portfolio-v2-row-5",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "LAN-147 is absorbed into this mission's acceptance criteria; durable Person view and correction are primary.",
+        "also_referenced_by": ["W1"]
+      },
+      {
+        "id": "PV2-missing-data-queue-defined-here",
+        "source_id": "SRC-portfolio-v2-row-5",
+        "disposition": "workflow",
+        "workflow": "W7",
+        "reason": "The row assigns the queue's definition here, its chase to Mission 7 and its surfacing to Mission 10."
+      },
+      {
+        "id": "PV2-substrate-gating",
+        "source_id": "SRC-portfolio-v2-row-5",
+        "disposition": "shared_cross_mission",
+        "shared_owners": [
+          "M-PEOPLE-AND-ROSTER",
+          "M-RECRUITMENT",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+          "M-FOOTBALL-ASSIGNMENTS-AND-AVAILABILITY"
+        ],
+        "reason": "A surface renders a field only where its substrate exists on main at build time; consent state and availability are absent at this mission's acceptance by design.",
+        "evidence": "A surface renders a field only where its substrate exists on main at build time; consent state and availability are absent at this mission's acceptance by design."
+      },
+      {
+        "id": "PV2-backwards-looking-rule",
+        "source_id": "SRC-portfolio-v2-row-5",
+        "disposition": "shared_cross_mission",
+        "shared_owners": [
+          "M-PEOPLE-AND-ROSTER",
+          "M-RECRUITMENT",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
+        ],
+        "reason": "Missions may amend, extend or supersede what earlier missions shipped, via dated superseding notes. This is what permits redesigning the shipped roster and player detail.",
+        "evidence": "Missions may amend, extend or supersede what earlier missions shipped, via dated superseding notes. This is what permits redesigning the shipped roster and player detail."
+      },
+      {
+        "id": "PV2-testable-workflow-set",
+        "source_id": "SRC-portfolio-v2-row-5",
+        "disposition": "shared_cross_mission",
+        "shared_owners": [
+          "M-PEOPLE-AND-ROSTER",
+          "M-RECRUITMENT",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
+        ],
+        "reason": "A mission ships a workflow set Brian can walk end to end at its close using only itself and what shipped before it. With import in Mission 7 that walk is against seeded data.",
+        "evidence": "A mission ships a workflow set Brian can walk end to end at its close using only itself and what shipped before it. With import in Mission 7 that walk is against seeded data."
+      },
+      {
+        "id": "PV2-no-messaging-in-m5",
+        "source_id": "SRC-portfolio-v2-row-5",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "The row states this mission ships no messaging of any kind; first contact is the WhatsApp accept built in Missions 6 and 7.",
+        "evidence": "The row states this mission ships no messaging of any kind; first contact is the WhatsApp accept built in Missions 6 and 7."
+      },
+      {
+        "id": "PV2-minimal-season-bootstrap",
+        "source_id": "SRC-portfolio-v2-row-5",
+        "disposition": "superseded",
+        "superseded_by": "SRC-owner-session:OS-season-bootstrap-to-m7",
+        "reason": "The row assigned this mission a minimal season row and left its mechanism an open owner decision. Brian moved both to Mission 7's import this session.",
+        "approval": {
+          "words": "the import is the season bootstrap for now\u2026 Season Bootstrap will move with 7",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "LAN174-recruits-never-chased",
+        "source_id": "SRC-lan-174",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "A recruit receives exactly one message, ever. Mission 6 owns the rule and ships the capacity suppression against Mission 4's shipped ladder.",
+        "evidence": "A recruit receives exactly one message, ever. Mission 6 owns the rule and ships the capacity suppression against Mission 4's shipped ladder."
+      },
+      {
+        "id": "LAN174-person-removal-out",
+        "source_id": "SRC-lan-174",
+        "disposition": "other_mission",
+        "other_mission": "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
+        "reason": "Correction and merge are in; destructive removal is an erasure decision belonging to Mission 8.",
+        "evidence": "Correction and merge are in; destructive removal is an erasure decision belonging to Mission 8."
+      },
+      {
+        "id": "LAN174-carry-forward-is-not-a-shortcut",
+        "source_id": "SRC-lan-174",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "An imported player is a fresh durable record for the season with no inherited state.",
+        "evidence": "An imported player is a fresh durable record for the season with no inherited state."
+      },
+      {
+        "id": "LAN174-csv-import-acceptable",
+        "source_id": "SRC-lan-174",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "CSV, never SQL, as the way existing players arrive until Mission 11's rollover.",
+        "evidence": "CSV, never SQL, as the way existing players arrive until Mission 11's rollover."
+      },
+      {
+        "id": "LAN174-roster-scoped-not-owned-by-season",
+        "source_id": "SRC-lan-174",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "Showing this season's squad needs a season to exist; it does not need open, close or rollover to be built."
+      },
+      {
+        "id": "LAN174-building-on-shipped-missions",
+        "source_id": "SRC-lan-174",
+        "disposition": "shared_cross_mission",
+        "shared_owners": [
+          "M-PEOPLE-AND-ROSTER",
+          "M-RECRUITMENT",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
+        ],
+        "reason": "Extending or amending a delivered mission is normal work; a delivered mission is never frozen.",
+        "evidence": "Extending or amending a delivered mission is normal work; a delivered mission is never frozen."
+      },
+      {
+        "id": "LAN174-count-by-capacity-omits-recruits",
+        "source_id": "SRC-lan-174",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Recorded here only as evidence that prospect-persons are real people in the system; the audit-count fix itself is Mission 6's by the 2026-08-26 decision."
+      },
+      {
+        "id": "LAN147-Q1-correct-a-person",
+        "source_id": "SRC-lan-147",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "The common, safe case and the one the triage says is almost certainly first if only one is built."
+      },
+      {
+        "id": "LAN147-Q2-merge-duplicates",
+        "source_id": "SRC-lan-147",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "Deciding which record survives and re-pointing memberships, attendance and RSVP history at it."
+      },
+      {
+        "id": "LAN147-Q6-person-surface-wanted",
+        "source_id": "SRC-lan-147",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Answered yes: a person-keyed list and detail view, which Task 08 \u00a75 had already approved."
+      },
+      {
+        "id": "LAN147-Q3-remove-a-person",
+        "source_id": "SRC-lan-147",
+        "disposition": "other_mission",
+        "other_mission": "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
+        "reason": "Removal, whether delete or archive, is erasure and belongs to Mission 8 by the owner decision of 2026-08-25.",
+        "evidence": "Removal, whether delete or archive, is erasure and belongs to Mission 8 by the owner decision of 2026-08-25."
+      },
+      {
+        "id": "LAN147-Q4-who-may-do-it",
+        "source_id": "SRC-lan-147",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Answered by Task 08 \u00a76's authority matrix: the four-role group corrects, and merges are four-role only.",
+        "also_referenced_by": ["W4"]
+      },
+      {
+        "id": "LAN147-Q5-before-real-data",
+        "source_id": "SRC-lan-147",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Answered by sequence rather than by rule: this mission precedes Mission 7's import, so correction exists before any real record arrives."
+      },
+      {
+        "id": "LAN146-A1-duplicate-check-untested",
+        "source_id": "SRC-lan-146",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "The member-facing duplicate check is unbound by tests. Absorbed here because the duplicate check is core machinery of this mission."
+      },
+      {
+        "id": "LAN146-A2-any-operator-contact-reads",
+        "source_id": "SRC-lan-146",
+        "disposition": "superseded",
+        "superseded_by": "SRC-task-08:T08-authority-matrix",
+        "reason": "An interim slice ruling that any linked operator may read contact values. Task 08 \u00a76's four-role matrix supersedes it when this mission ships; this is a deliberate narrowing of a shipped surface, not a conflict.",
+        "approval": {
+          "words": "Yep, F5 narrows. It should only be the core four that get to see this information, as I call them.",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "AM-R3-roster-side",
+        "source_id": "SRC-authority-manifest",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "Roster and seasonal membership lifecycle; the roster half is this mission's, the season side Mission 11's."
+      },
+      {
+        "id": "AM-R2-record-side",
+        "source_id": "SRC-authority-manifest",
+        "disposition": "shared_cross_mission",
+        "shared_owners": [
+          "M-PEOPLE-AND-ROSTER",
+          "M-RECRUITMENT",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
+        ],
+        "reason": "Recruitment intake and returner verification: the record side here, the recruitment side Mission 6's, the completion side Mission 7's.",
+        "evidence": "Recruitment intake and returner verification: the record side here, the recruitment side Mission 6's, the completion side Mission 7's."
+      },
+      {
+        "id": "AM-scope-4-people-roster-half",
+        "source_id": "SRC-authority-manifest",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Scope 4 was split on 2026-08-26; the people and roster half is this mission's primary coverage.",
+        "also_referenced_by": ["W5"]
+      },
+      {
+        "id": "AM-R10-applied-slice",
+        "source_id": "SRC-authority-manifest",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Role-based least-privilege applied to this mission's surfaces; the model itself is Mission 1's and is not reopened."
+      },
+      {
+        "id": "AM-section-8-exclusions",
+        "source_id": "SRC-authority-manifest",
+        "disposition": "excluded",
+        "reason": "The dated Release-One exclusion list stands: advanced roster views, bulk operations, preset exports, longitudinal history, walk-up reconciliation tooling and the rest remain out.",
+        "evidence": "The dated Release-One exclusion list stands: advanced roster views, bulk operations, preset exports, longitudinal history, walk-up reconciliation tooling and the rest remain out."
+      },
+      {
+        "id": "AM-stewart-provenance-gate",
+        "source_id": "SRC-authority-manifest",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "Master Table provenance and current operational use is a delegated Stewart gate on evidence quality, non-blocking, and bites where real records arrive.",
+        "evidence": "Master Table provenance and current operational use is a delegated Stewart gate on evidence quality, non-blocking, and bites where real records arrive."
+      },
+      {
+        "id": "OS-season-bootstrap-to-m7",
+        "source_id": "SRC-owner-session",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "The minimal season bootstrap leaves this mission and travels with Mission 7's import, closing the row's open decision.",
+        "evidence": "The seam is the season row itself: this mission's roster reads a season it never creates, and Mission 7's import creates the season and the memberships in the same operation. Recorded as the boundary's one portfolio deviation.",
+        "approval": {
+          "words": "the import is the season bootstrap for now\u2026 Season Bootstrap will move with 7, basically, right to get it open, but it'll be done with an import, so that settles it one way or the other.",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-no-club-role-assignment",
+        "source_id": "SRC-owner-session",
+        "disposition": "other_mission",
+        "other_mission": "M-OPERATOR-ADMIN-WITHOUT-SQL",
+        "reason": "Recording who holds a club role is Mission 1's surface and is not reopened here.",
+        "evidence": "The seam is role_assignments: event-audience.ts:200 resolves coaches and committee members to invitations only through that table, and operator-invitations.ts:1571 is its sole writer on main. This mission adds a Person through W3 and stops there; granting the role or the login stays with Mission 1. Carried into the packet as a finding, not as scope.",
+        "approval": {
+          "words": "there is no club role assignment here. That shouldn't be touched in this. It's already been done",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-self-service-to-m7",
+        "source_id": "SRC-owner-session",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "A person editing their own record rides Mission 7's signed link like everyone else. No settings surface is built anywhere for it.",
+        "evidence": "Task 11 \u00a72.1 places players, coaches and committee members in one collection loop for person-level data, and \u00a77's role table records that they supply and correct their own data via signed links. Moment M5 covers a season-associated person's data going stale mid-season, M6 a targeted correction. The seam is that this mission's operator correction path (W2) is the interim answer until Mission 7 ships.",
+        "approval": {
+          "words": "Okay, let's handle it that way for now.",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-channel-presence-is-a-person-record",
+        "source_id": "SRC-owner-session",
+        "disposition": "superseded",
+        "superseded_by": "SRC-owner-session:OS-channel-presence-is-a-season-record",
+        "reason": "An intermediate reading in the same session: reachability and group membership both treated as durable. Brian corrected it within the hour.",
+        "approval": {
+          "words": "If there's a channel presence, I think the channel presence deserves to be part of a season record.",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-channel-presence-is-a-season-record",
+        "source_id": "SRC-owner-session",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "Contact information is durable; membership of a season's communication group is not. A named group is a season record, anchored to person and season so recruits are covered without a membership.",
+        "evidence": "Brian, 2026-08-26: a season will have an element saying we communicate via WhatsApp, and the record is grabbed then. The seam is Task 09 D3, which fires the community-group invite at every recruit door \u2014 Mission 6 is the first user, Mission 7 extends it. This mission keeps only the durable contact points and the contactability indicators built on them."
+      },
+      {
+        "id": "OS-four-role-narrowing-confirmed",
+        "source_id": "SRC-owner-session",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "Only the core four see this information; the narrowing of the shipped surfaces is deliberate.",
+        "also_referenced_by": ["W1", "W6"]
+      },
+      {
+        "id": "OS-seed-extension-in-scope",
+        "source_id": "SRC-owner-session",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Extending the synthetic seed where a People or Roster journey needs a case it lacks, so the mission is reviewable at close.",
+        "also_referenced_by": ["W5"]
+      },
+      {
+        "id": "OS-per-person-history-here",
+        "source_id": "SRC-owner-session",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Per-person change history is part of the audit trail and inseparable from correction and merge, so it sits here rather than in Mission 3's general audit browser. Reassigned 2026-08-27 when W8 was struck from the inventory and per-person history became a section of the person record."
+      },
+      {
+        "id": "OS-merge-operator-seat-refusal",
+        "source_id": "SRC-owner-session",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "A merge is refused when the losing record holds an active operator seat; the seat is ended first through Mission 1's existing flow. Silently transferring a login is not acceptable.",
+        "approval": {
+          "words": "Merge is fine.",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-merge-prospect-collision",
+        "source_id": "SRC-owner-session",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "Two prospect rows for one human in one season are combined onto the survivor \u2014 earliest first-contact date, furthest-along status \u2014 because recruitment_prospects_one_per_person_per_season would otherwise make exactly the duplicate case merge exists for impossible. Recorded as a seam Mission 6 inherits.",
+        "approval": {
+          "words": "Merge is fine.",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-field-coverage-rule",
+        "source_id": "SRC-owner-session",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Build every row of the inventory that is neither onboarding-specific nor recruitment-specific, coaching-adjacent fields included; Mission 9 layers on top."
+      }
+    ]
+  },
+  "next_action": "Wait for required checks at the final SHA, then Brian merges. Merging is packet approval",
+  "pr": {
+    "number": 96,
+    "url": "https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/pull/96",
+    "sha": "fe9de45"
+  }
+}

@@ -1,0 +1,837 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W1 · Look up any person the club holds</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --warn: #663c00;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: var(--grey100);
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #212121;
+        color: #fff;
+        padding: 10px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .sheet {
+        max-width: 880px;
+        margin: 26px auto 100px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 10px 30px 34px;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.12rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 1rem;
+        margin: 20px 0 6px;
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        display: block;
+        overflow-x: auto;
+        margin: 14px 0;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+        white-space: nowrap;
+      }
+      a {
+        color: var(--primary);
+      }
+      @media (max-width: 720px) {
+        .sheet {
+          margin: 14px 10px 60px;
+          padding: 6px 16px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        W1 · Look up any person the club holds<span>M-PEOPLE-AND-ROSTER · specification</span>
+      </div>
+      <div>
+        <a href="../mockups/W1-look-up-any-person-the-club-holds.html">Mockup</a
+        ><a href="../mockups/index.html">Hub</a
+        ><a href="../specifications.html">All specifications</a>
+      </div>
+    </div>
+    <div class="sheet">
+      <h1>W1 — Look up any person the club holds</h1>
+      <ul>
+        <li>
+          Purpose/intended outcome: an operator finds any human connected to the club and reads what
+          is known about them. Today this is impossible — no person route exists anywhere in the
+          application, and a Person can only be reached through a membership or an operator seat.
+        </li>
+        <li>
+          Primary actor: a four-role operator — President, Vice-President, Secretary, General
+          Manager.
+        </li>
+        <li>
+          Trigger: &quot;who is this, and what do we have on them?&quot; A coach names somebody at
+          Monday review; a person rings the Secretary; a recruit turns up at training; an alumnus
+          needs reaching.
+        </li>
+        <li>Entry point: <strong>People</strong> in the operate navigation, beside Roster.</li>
+        <li>
+          Route/placement: <code>/operate/people</code> for the list,
+          <code>/operate/people/[personId]</code> for the record. Neither exists on
+          <code>main</code>; nothing occupies the path.
+        </li>
+        <li>
+          Controlling source: Task 08 §5 (People surface for non-players, approved with that brief)
+          and §6 (authority); LAN-147 questions 1 and 6; the field inventory approved 2026-08-26.
+        </li>
+        <li>
+          User-visible result: the person&#39;s durable record, showing what is known, what is
+          <code>not recorded</code>, what is <code>disputed — awaiting verification</code>, and how
+          confident each value is.
+        </li>
+      </ul>
+      <h2>Required actions</h2>
+      <p><strong>The list.</strong></p>
+      <ul>
+        <li>
+          Show every person with a <strong>tie to the season in view</strong>: a season membership
+          in any status, a prospect record, a season-scoped role assignment, or a committee-year
+          role in the committee year <strong>paired with</strong> that season.
+        </li>
+        <li>
+          Search by first name, last name, or alias — including an alias that is not the
+          person&#39;s display name.
+        </li>
+        <li>Sort on every column that can be meaningfully ordered.</li>
+        <li>
+          Filter thinly: standing, and missing required data. The roster is the surface that carries
+          the full filter set; People is for finding one human.
+        </li>
+        <li>
+          Widen to <strong>everyone the club has ever held</strong>, deliberately and reversibly.
+          This is the rare path, not a mode the surface sits in — Brian expects it perhaps once in a
+          while and mostly from the General Manager.
+        </li>
+        <li>Open a person.</li>
+      </ul>
+      <p>
+        <strong>The record.</strong> The thirteen durable person facts from the approved field
+        inventory, plus:
+      </p>
+      <ul>
+        <li>aliases, with the display name identified;</li>
+        <li>standing on the pipeline ladder, read-only;</li>
+        <li>role assignments covering any season, read-only;</li>
+        <li>
+          alumni standing, derived, with its operator override visible as an override —
+          <strong>the derivation already exists</strong> as the <code>person_standing</code> view,
+          which computes live-membership counts and honours <code>past_member_override</code>; this
+          workflow surfaces it rather than inventing it;
+        </li>
+        <li>the under-18 flag where date of birth is recorded;</li>
+        <li>a list of the person&#39;s season records, each linking to its player detail;</li>
+        <li>the change history for this record (<code>W8</code>).</li>
+      </ul>
+      <p>
+        Every field displays its <strong>source/confidence class</strong> — player-provided,
+        operator-confirmed, externally verified, derived — so unequal information never looks equal.
+      </p>
+      <h2>State transitions</h2>
+      <p>
+        <strong>None. This workflow is read-only.</strong> It writes nothing and changes nothing.
+        Correction is <code>W2</code>, merging is <code>W4</code>, and adding is <code>W3</code>.
+      </p>
+      <h2>Handoffs</h2>
+      <ul>
+        <li>To <code>W2</code> when a value is wrong or missing.</li>
+        <li>
+          To <code>W4</code> when the person on screen turns out to be a duplicate of another.
+        </li>
+        <li>To <code>W6</code> when the operator opens one of the person&#39;s season records.</li>
+        <li>To <code>W8</code> when the question is how a value came to be what it is.</li>
+        <li>
+          To Mission 1&#39;s operator administration when the question is about a login or a club
+          role, neither of which this surface grants or edits.
+        </li>
+      </ul>
+      <h2>Dependencies and mission boundaries</h2>
+      <ul>
+        <li>
+          <strong>Season scoping is the shape, not a default.</strong> Brian, 2026-08-26:
+          <em
+            >&quot;the only people that should show up within that season are the people that only
+            have records or ties for that particular season… When I go to the people record, I&#39;m
+            not seeing every person ever.&quot;</em
+          >
+          The <strong>person record is season-agnostic</strong>; its
+          <strong>appearance in the list</strong> requires a tie. This is the same
+          person-versus-season test applied to a surface rather than a field.
+        </li>
+        <li>
+          <strong
+            >A committee year is paired to one season, deliberately, and dates do not enter into
+            it.</strong
+          >
+          Brian, 2026-08-26:
+          <em
+            >&quot;AGM 2026-2027 is only ever associated with that season… If AGM happens in fucking
+            November of 2026 for the 2027 year, they can sit there, but it has no bearing on the
+            current season at all.&quot;</em
+          >
+          The four-role group holds committee-year roles, not season roles, so without this rule the
+          people who run the club appear in no season&#39;s list. Nothing in the schema pairs the
+          two cycles and no schema change is made: the pairing is derived from the shared label,
+          refusing rather than guessing when no counterpart exists. Accepted as technical debt, in
+          Brian&#39;s words
+          <em>&quot;that&#39;s fucking technical debt. We&#39;ll live with that.&quot;</em> Date
+          overlap was considered and rejected — an AGM that drifts into another season does not drag
+          its committee into that season&#39;s records.
+        </li>
+        <li>
+          Prospect standing renders read-only; every stage transition, the recruits list and the
+          notes are Mission 6&#39;s.
+        </li>
+        <li>
+          <strong>On WhatsApp</strong> and consent state do not render at this mission&#39;s
+          acceptance — no substrate exists on <code>main</code>. Their absence is by design.
+        </li>
+        <li>
+          The subject-access export action Task 07 §3 places on this surface is Mission 8&#39;s to
+          build and does not render here.
+        </li>
+        <li>
+          Role assignments render read-only. Granting a role or a login stays Mission 1&#39;s.
+        </li>
+        <li>
+          Seasonal facts — the ladder position, milestones, positions, jersey, onboarding,
+          formalwear, Blues, eligibility, participation — are <strong>not on this page</strong>.
+          They live on player detail, keyed to a membership. A person with four seasons has one
+          person record and four season records.
+        </li>
+      </ul>
+      <h2>Exceptions and recovery</h2>
+      <ul>
+        <li>
+          <strong>Nothing found.</strong> An empty result says so plainly and offers the
+          widen-to-all action, because the commonest cause is that the person belongs to another
+          season.
+        </li>
+        <li>
+          <strong>A person who is almost nothing.</strong> First name and a phone and no more — the
+          legacy record the source data says is 26% of the club. It renders as a real record with
+          <code>not recorded</code> stated on each absent field, never as an error and never with a
+          defaulted value.
+        </li>
+        <li>
+          <strong>A person with no tie to any season.</strong> Task 08 §2 permits an unassigned
+          Person — a potential coach, an outside contact. They appear in no season&#39;s list and
+          are reachable only through the widened view or a direct link. Recorded as a known
+          consequence of season scoping, not a defect.
+        </li>
+        <li>
+          <strong>A merged-away duplicate.</strong> Never listed and never offered. The shipped
+          matching already excludes them, for the reason <code>roster.ts</code> gives: offering one
+          invites an operator to resurrect a record the club has already decided is a duplicate.
+          Reaching its id directly redirects to the surviving record.
+        </li>
+        <li>
+          <strong>An operator outside the four-role group.</strong> The refusal names the capability
+          required and exposes nothing. The data is absent from the DOM and the payload, not hidden
+          in it (LAN-75 contract).
+        </li>
+      </ul>
+      <h2>Safety, privacy, consent, and authority boundaries</h2>
+      <ul>
+        <li>Four-role only, for both the list and the record.</li>
+        <li>Anything the viewer&#39;s role does not grant is absent from the DOM and payload.</li>
+        <li>
+          Emergency contact is visible here and locked down structurally: never a Person row, never
+          a contact point, never reachable by any audience or messaging machinery, out of leadership
+          exports by default.
+        </li>
+        <li>
+          Date of birth and emergency contact are four-role only and never appear on any list.
+        </li>
+        <li>
+          Nothing on this surface sends a message, records a lawful basis, or offers a channel
+          action beyond the voice call Task 08 §5 permits.
+        </li>
+        <li>
+          The duplicate-check disclosure rule applies to search as it does to matching: a search
+          discloses names and contact details of people who are not its subject, which is why the
+          capability is asserted on the query, not the screen.
+        </li>
+      </ul>
+      <h2>Acceptance evidence</h2>
+      <p>Against seeded synthetic data, an operator can:</p>
+      <ol>
+        <li>
+          find a <strong>coach who holds no membership</strong>, from the coach&#39;s own name;
+        </li>
+        <li>
+          find a <strong>first-name-only legacy person</strong>, and see every absent field stated
+          as <code>not recorded</code> rather than blank or defaulted;
+        </li>
+        <li>find somebody by an <strong>alias that is not their display name</strong>;</li>
+        <li>open a <strong>recruit</strong> and see their standing, without any funnel control;</li>
+        <li>
+          confirm a <strong>merged-away duplicate</strong> appears nowhere and its direct link lands
+          on the survivor;
+        </li>
+        <li>
+          confirm the list holds <strong>only people tied to the season in view</strong>, and that
+          widening reveals the others;
+        </li>
+        <li>
+          confirm an operator <strong>outside the four-role group</strong> is refused, with no
+          person data in the response payload;
+        </li>
+        <li>read every field&#39;s <strong>source/confidence class</strong> on the record.</li>
+      </ol>
+      <h2>Core decisions</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Decision</th>
+            <th>Classification</th>
+            <th>Governing evidence or recommended default</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              People is scoped to the season in view; the person record itself is season-agnostic
+            </td>
+            <td><code>locked</code></td>
+            <td>Brian, 2026-08-26</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Routes <code>/operate/people</code> and <code>/operate/people/[personId]</code></td>
+            <td><code>locked</code></td>
+            <td>Brian, 2026-08-26 — &quot;as far as the routes, they make sense&quot;</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>
+              List columns: name (alias-aware) · standing · what they are to the club ·
+              contactability · missing-data flag
+            </td>
+            <td><code>locked</code></td>
+            <td>Approved with the workflow, 2026-08-27, having been judged rendered</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Default view is the current season; widening is deliberate and reversible</td>
+            <td><code>locked</code></td>
+            <td>Brian, 2026-08-26</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>
+              Filters stay thin — standing and missing-required-data only; sorting is aggressive
+            </td>
+            <td><code>locked</code></td>
+            <td>
+              Brian, 2026-08-26 — &quot;keep the filter thin for now… we should be able to sort
+              aggressively&quot;
+            </td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>A committee-year role counts as a tie to the seasons its period overlaps</td>
+            <td><code>locked</code></td>
+            <td>Approved with the workflow, 2026-08-27</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>No season picker; the surface follows the current season as the roster does</td>
+            <td><code>locked</code></td>
+            <td>Approved with the workflow, 2026-08-27; also his ruling of 2026-08-26</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Four-role only; unauthorised data absent from DOM and payload</td>
+            <td><code>locked</code></td>
+            <td>Task 08 §6; LAN-75 contract; supersedes LAN-146 A2</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Merged-away people are never listed and never offered</td>
+            <td><code>locked</code></td>
+            <td>Invariant I6; the shipped matching already excludes them</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Seasonal facts are absent from person detail and live on player detail</td>
+            <td><code>locked</code></td>
+            <td>The approved field inventory</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Prospect standing renders read-only</td>
+            <td><code>locked</code></td>
+            <td>Brian, 2026-08-26; every transition is Mission 6&#39;s</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Query shape, indexing and pagination</td>
+            <td><code>delegated to Mission Lead</code></td>
+            <td>No product meaning; the club holds hundreds of people, not millions</td>
+            <td>Delegated</td>
+          </tr>
+        </tbody>
+      </table>
+      <h2>Brian approval</h2>
+      <ul>
+        <li>Exact words: &quot;Okay, here you go. I approve.&quot;</li>
+        <li>Date: 2026-08-26</li>
+        <li>By: Brian Schuster</li>
+      </ul>
+      <p>Specification approved. Mockups not yet built or approved.</p>
+      <p>
+        Approved after two rulings recorded above: a committee year pairs to the season sharing its
+        label and dates are irrelevant, and there is no season picker anywhere in the application.
+        One decision remains <code>proposed</code> by design — the list columns, which Brian
+        approved in principle and asked to judge rendered.
+      </p>
+      <h2>Mockup review — round one, 2026-08-26</h2>
+      <p>
+        Brian reviewed the ten screens. Nothing below overwrites the approved specification above;
+        it records what his review decided and what it superseded.
+      </p>
+      <h3>Decided, and applied to the mockups</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Decision</th>
+            <th>His words</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              People is an <strong>Administration</strong> destination, not a fourth entry beside
+              Roster
+            </td>
+            <td>
+              &quot;People should be considered an administrative task. It&#39;s not something that
+              falls into the top left.&quot;
+            </td>
+          </tr>
+          <tr>
+            <td>
+              An operator outside the four-role group never sees the entry; the server guard behind
+              it is unchanged
+            </td>
+            <td>
+              &quot;If you&#39;re an operator outside the four roles, you just never see this page.
+              It&#39;s just something that never pops up for you.&quot;
+            </td>
+          </tr>
+          <tr>
+            <td>The widen action is <strong>See people outside this season</strong></td>
+            <td>
+              &quot;We need a more clear way of saying see people outside of the season… Everyone
+              the club has ever held is a weird language there.&quot;
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <strong>No narrative text in any surface.</strong> Labels, values and states, plus the
+              sentence an empty or refusal state needs
+            </td>
+            <td>
+              &quot;The narrative text is I hate it. Every place I see it, I fucking hate it. The UI
+              shouldn&#39;t have narrative text anywhere.&quot;
+            </td>
+          </tr>
+          <tr>
+            <td>
+              The four source-and-confidence labels are replaced by who supplied the value, and a
+              <code>Verified</code> mark
+            </td>
+            <td>
+              &quot;We don&#39;t need the labels. However, I like seeing if it&#39;s externally
+              verified versus not… Who provided the detail would be important: who did it?&quot;
+            </td>
+          </tr>
+          <tr>
+            <td>
+              A coach is part of the season. <code>No membership</code> is struck; standing is empty
+              and the role names the tie
+            </td>
+            <td>
+              &quot;If a person gets added as a coach, they are part of this season. They are a
+              member of this season. They&#39;re just not a player… I don&#39;t see the error.&quot;
+            </td>
+          </tr>
+          <tr>
+            <td>
+              The <code>Open →</code> control on each season row is struck; the season label is the
+              link and carries its own standing
+            </td>
+            <td>
+              &quot;I don&#39;t know what &#39;open&#39; means… it&#39;s not clear to me what that
+              &#39;open&#39; button does.&quot;
+            </td>
+          </tr>
+          <tr>
+            <td>The record&#39;s layout stands for now</td>
+            <td>
+              &quot;I don&#39;t like the record as it sits here. We&#39;ll keep it as is for now.
+              The people record shouldn&#39;t be used that often, so I think that&#39;s fine.&quot;
+            </td>
+          </tr>
+          <tr>
+            <td><code>W1-02</code> is accepted as it stands</td>
+            <td>&quot;The W1-02 is fine.&quot;</td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Contact</strong> is struck as a category of person. A person is a player, a
+              coach, an executive committee member, or nothing
+            </td>
+            <td>
+              &quot;We wouldn&#39;t have a contact there. Contacts are just addresses and something
+              else. They&#39;re either somebody who is a player, a coach, an executive committee
+              member, or nothing.&quot;
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Last name is required at every rung</strong>, superseding the same-day
+              recommendation that left it out
+            </td>
+            <td>
+              &quot;Last name should be mandatory, and this is the right place to handle that… first
+              name, last name, mobile. Then we can go chase the other stuff.&quot;
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <h3>Superseded by this review</h3>
+      <p>
+        <strong><code>disputed — awaiting verification</code> is struck from this surface.</strong>
+        Brian, 2026-08-26:
+        <em
+          >&quot;There shouldn&#39;t be a dispute here. It should just see the latest record…
+          They&#39;re the operator. Nothing goes higher than the operator.&quot;</em
+        >
+        The field shows the current value and who set it. This supersedes Task 08 §6&#39;s
+        contested-value rule and the matching sentence in <code>01-overview.md</code>&#39;s
+        cross-cutting invariants, both of which predate it. Neither is overwritten; both need a
+        dated amendment.
+      </p>
+      <p>
+        <strong>The recruitment facts leave the person record.</strong> Brian, 2026-08-26:
+        <em
+          >&quot;There&#39;s nothing on here related to recruits. There should be nothing here
+          related to the recruit process. It&#39;s a person record.&quot;</em
+        >
+        Source, first contact, committed and conversion were <code>display</code> on person detail
+        in the approved field inventory and are now absent from this surface entirely; they are
+        Mission 6&#39;s, on Mission 6&#39;s surface. The <strong>standing</strong> survives, because
+        that is what the person is, and no control on the page moves it.
+        <code>field-inventory.md</code> needs the dated amendment.
+      </p>
+      <h3>Still open after round one</h3>
+      <ul>
+        <li>
+          <strong>The list columns.</strong> Unchanged since the specification: approved in
+          principle, to be judged rendered. <code>W1-01</code>&#39;s table head.
+        </li>
+        <li><strong>Widen-to-everyone: four-role or General-Manager-only.</strong> Unchanged.</li>
+        <li>
+          <strong
+            >Whether <code>W1-04</code> shows only the people outside the season, or one list of
+            everybody.</strong
+          >
+          Drawn as outside-only, which is the literal reading of his words.
+        </li>
+        <li>
+          <strong>Whether <code>W1-08</code> still earns a screen</strong> now that the recruitment
+          block is gone.
+        </li>
+        <li>
+          <strong
+            ><code>00-boundary.md</code> and this specification still say &quot;outside
+            contact&quot;</strong
+          >
+          where they describe an unassigned Person. The word is now wrong and needs the same dated
+          amendment as the two supersessions above. Deferred on his word: &quot;You can just update
+          this after the fact.&quot;
+        </li>
+        <li>
+          <strong>One garbled dictation line</strong> — &quot;The player, certainly, the change to
+          see what it is shouldn&#39;t be here&quot; — is unresolved and awaiting his restatement.
+        </li>
+      </ul>
+      <h2>Amendment raised 2026-08-27 — the missing-data queue has no way in</h2>
+      <p>
+        <code>W7</code>&#39;s queue is reached from nowhere. This workflow is approved with an
+        Administration group of <strong>People · Operators · Roles</strong> and a Missing column
+        that renders a count rather than a link, so nothing on an approved screen opens the queue.
+        <code>W7</code>&#39;s specification claimed a navigation entry; it was asserted and never
+        drawn.
+      </p>
+      <p>Two routes are proposed, both of which amend this approved workflow:</p>
+      <ul>
+        <li>
+          <strong>The count becomes a link</strong>, on <code>W1-01</code>&#39;s People list and on
+          the roster. This is the route an operator falls into — they are looking at somebody and
+          click the number beside them.
+        </li>
+        <li>
+          <strong>A Missing data entry joins Administration.</strong> This is the route
+          <code>W7</code>&#39;s own trigger describes: an hour to spend usefully, starting from no
+          particular person.
+        </li>
+      </ul>
+      <p>
+        Recommendation: <strong>both</strong>, because they answer different questions.
+        <code>W7-06</code> draws them. Not applied to this workflow&#39;s mockup until Brian
+        decides, so the approved record stands unchanged in the meantime.
+      </p>
+      <p>
+        <strong>A consequence to weigh with it:</strong> the Administration group would go from
+        three entries to four, taking the phone bottom bar from six destinations to seven.
+        <code>W7-06</code>&#39;s 375px frame shows what that does — <em>Missing…</em> and
+        <em>Operat…</em> both truncate.
+      </p>
+      <h2>Amendment W1-A2, applied 2026-08-27 — the verification mark is struck</h2>
+      <p>
+        <code>Verified</code> is removed from every surface in this mission. Brian, 2026-08-27:
+        <em>&quot;No verification link at all.&quot;</em>
+      </p>
+      <p>
+        It was asserted and never sourced. Nothing in this application verifies that somebody holds
+        a mailbox: <code>contact_points</code> on <code>main</code> carries no verified column, no
+        confirm-by-link flow exists anywhere, and this mission sends nothing. The mark had also
+        spread to the college, the matriculation year and the expected graduation, which are not
+        addresses and which nothing verifies either. Showing it was a false statement on screen.
+      </p>
+      <p>
+        A value now carries <strong>who supplied it</strong> and nothing more. A real verification
+        flow requires sending and belongs to Mission 7 or Mission 8; it is not deferred work in this
+        mission, because this mission never had it.
+      </p>
+      <p>
+        Applied rather than left open, because it removes a claim rather than adding a design.
+        <code>W1-05</code> and every other record surface are rebuilt without it.
+      </p>
+      <h2>Amendment W1-A3 raised 2026-08-27 — the People list has no Add a person control</h2>
+      <p>
+        <code>W3</code> creates a person at <code>/operate/people/new</code>, and nothing on an
+        approved screen opens it. The People list header carries only the season action; the
+        roster&#39;s equivalent header carries <strong>Add player</strong>.
+      </p>
+      <p>
+        Proposed: an <strong>Add a person</strong> button in <code>W1-01</code>&#39;s header, in the
+        same place. Recorded rather than applied, because <code>W1</code> is approved.
+      </p>
+      <h2>Amendments W1-A4 and W1-A5, raised 2026-08-27 by a sweep</h2>
+      <p>
+        Brian asked whether other workflows depend on something W1 does not have. Two more, found by
+        checking every workflow&#39;s claimed entry point and handoff against what
+        <code>W1</code>&#39;s mockup actually renders.
+      </p>
+      <p>
+        <strong>W1-A4 — the Roles row goes nowhere.</strong> This workflow&#39;s own handoffs say
+        <em
+          >&quot;To Mission 1&#39;s operator administration when the question is about a login or a
+          club role&quot;</em
+        >, and <code>W1-05</code> renders the person&#39;s roles as read-only text with no route to
+        Administration → Roles. It was a minor omission when raised; it became load-bearing on
+        2026-08-27, when roles left <code>W3</code>. The person record is now the only surface in
+        this mission that shows what somebody&#39;s roles are, and it cannot reach the place they
+        are changed. Proposed: an <strong>Assign a role</strong> link on that row, exactly as
+        <code>W3-03</code> now carries.
+      </p>
+      <p>
+        <strong>W1-A5 — two approved mockups disagree about the record.</strong>
+        <code>W2-06</code> renders <strong>On WhatsApp · 2026-27</strong> on the person record,
+        because <code>W2-05</code> needs somewhere for its consequence to land.
+        <code>W1-05</code> has no such row. Both are approved. One of them is wrong: either the row
+        belongs on the record and <code>W1-05</code> is missing it, or it does not and
+        <code>W2-06</code> invented it. Recommendation: it belongs, because a value this mission
+        tells the operator about must be readable afterwards — but it has no substrate on
+        <code>main</code>, so it renders only when Mission 6 builds it.
+      </p>
+      <p>Neither is applied. <code>W1</code> is approved and stays as it is until Brian decides.</p>
+      <h2>All four amendments applied, 2026-08-27</h2>
+      <p>
+        Brian: <em>&quot;Can you fix those, or have they already been fixed?&quot;</em> They had not
+        been. <code>W1-A1</code>, <code>A3</code>, <code>A4</code> and <code>A5</code> are now
+        applied to this workflow&#39;s mockup, with the recommendation given against each:
+      </p>
+      <ul>
+        <li>
+          <strong>A1 — both routes.</strong> The Missing count on <code>W1-01</code> is a link into
+          the queue, and <strong>Missing data</strong> joins the Administration group. They answer
+          different questions: the count is the route an operator falls into, the entry is the route
+          for an hour spent usefully.
+        </li>
+        <li>
+          <strong>A3 — Add a person</strong> in the <code>W1-01</code> header, beside the season
+          action, where the roster carries <strong>Add player</strong>.
+        </li>
+        <li>
+          <strong>A4 — Assign a role →</strong> on <code>W1-05</code>&#39;s Roles row, reaching
+          Administration → Roles. This workflow still grants nothing; it routes.
+        </li>
+        <li>
+          <strong>A5 — On WhatsApp · 2026-27</strong> on the person record, between the mobile
+          number and the emails. It renders <code>not recorded</code> until Mission 6 builds the
+          substrate, and it is what <code>W2-05</code>&#39;s consequence lands on.
+        </li>
+      </ul>
+      <p>
+        <strong>The cost, as flagged when A1 was raised:</strong> Administration now holds four
+        entries, so the phone bottom bar carries seven destinations and two of them truncate.
+        Accepted with the amendment rather than discovered later.
+      </p>
+      <p>
+        <code>A2</code> was applied on the same day. No amendment against this workflow remains
+        open.
+      </p>
+      <h2>Amendment W1-A6, applied 2026-08-27 — per-person history moves here</h2>
+      <p>
+        <code>W8</code> is struck from the frozen inventory and its content is absorbed into this
+        workflow. Brian:
+        <em
+          >&quot;Honestly, this feels like just an audit trail at the bottom of the people
+          record&quot;</em
+        >, and then
+        <em>&quot;Yeah, that&#39;s fine. Remove the workflow, add it to the other ones.&quot;</em>
+      </p>
+      <p>
+        <strong>What this workflow now owns.</strong> The <code>What changed</code> panel on the
+        person record expands in place to the <strong>whole</strong> history — every recorded
+        change, newest first, each naming the field, what it went from and to, when, who, and the
+        reason where <code>W2</code> required one. A merge reads as
+        <strong>one event</strong> naming what it moved. A superseded contact point reads as
+        kept-and-dated rather than deleted. The <strong>field and actor filters</strong> come with
+        it: they were the separate page&#39;s only real argument, and losing them was the one cost
+        of the strike, so they moved rather than being dropped. <code>W1-11</code> and
+        <code>W1-12</code> draw it.
+      </p>
+      <p>
+        <strong>What is gone.</strong> The route <code>/operate/people/[personId]/history</code>,
+        and nothing else. The history is a section, not a destination.
+      </p>
+      <p>
+        <strong>Where the rest went.</strong> <code>W6</code> links here rather than duplicating.
+        Mission 3 keeps the general audit browser, unchanged — this was always the per-person view.
+        The two decisions the coverage table assigned to <code>W8</code> — Task 08 §5&#39;s
+        audit-on-the-record, and the owner ruling that per-person history belongs with the mission
+        that writes it — are reassigned to this workflow.
+      </p>
+    </div>
+  </body>
+</html>
