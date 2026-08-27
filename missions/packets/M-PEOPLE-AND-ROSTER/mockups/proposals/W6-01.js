@@ -21,7 +21,11 @@
  */
 (() => {
   const NR = '<span style="color:rgba(0,0,0,0.38);font-style:italic">not recorded</span>';
-  const LADDER = { Confirmed: "Onboarding", "Carried forward": "Onboarding", Withdrawn: "Departed" };
+  const LADDER = {
+    Confirmed: "Onboarding",
+    "Carried forward": "Onboarding",
+    Withdrawn: "Departed",
+  };
   const TONE = {
     Active: ["#2e7d32", "#fff"],
     Onboarding: ["#0288d1", "#fff"],
@@ -37,13 +41,17 @@
     `<a href="#" style="color:#0b3d91;text-decoration:none;font-weight:600;font-size:0.875rem">${t}</a>`;
 
   const body = document.body.innerText;
-  const statusRaw = (/^(Active|Inactive|Onboarding|Confirmed|Carried forward|Withdrawn|Departed|Archived)$/m.exec(body) || [])[1] || "Active";
+  const statusRaw =
+    (/^(Active|Inactive|Onboarding|Confirmed|Carried forward|Withdrawn|Departed|Archived)$/m.exec(
+      body,
+    ) || [])[1] || "Active";
   const standing = LADDER[statusRaw] ?? statusRaw;
   const entry = (/Returning|New/.exec(body) || ["—"])[0];
   const email = (/[\w.+-]+@[\w.-]+\.example/.exec(body) || [])[0] || null;
   const name = (() => {
-    const hs = Array.from(document.querySelectorAll("h1,h2,h3,.MuiTypography-h4,.MuiTypography-h5"))
-      .map((h) => h.textContent.trim());
+    const hs = Array.from(
+      document.querySelectorAll("h1,h2,h3,.MuiTypography-h4,.MuiTypography-h5"),
+    ).map((h) => h.textContent.trim());
     return hs.find((t) => t && !/^Lancers Operations$/.test(t)) || "";
   })();
   const departed = standing === "Departed" || standing === "Archived";
@@ -62,7 +70,9 @@
     <div style="display:grid;grid-template-columns:210px 1fr;gap:4px 16px;padding:9px 0;border-bottom:1px solid rgba(0,0,0,0.12);align-items:baseline">
       <div style="color:rgba(0,0,0,0.6);font-size:0.875rem">${label}</div>
       <div style="min-width:0;overflow-wrap:anywhere">${value}${
-        note ? `<div style="font-size:0.75rem;color:rgba(0,0,0,0.6);margin-top:2px">${note}</div>` : ""
+        note
+          ? `<div style="font-size:0.75rem;color:rgba(0,0,0,0.6);margin-top:2px">${note}</div>`
+          : ""
       }</div>
     </div>`;
 
@@ -92,7 +102,13 @@
     .filter((c) => /ONBOARDING ITEMS/i.test(c.innerText))
     .flatMap((c) =>
       Array.from(c.querySelectorAll("*"))
-        .filter((el) => el.children.length === 0 && /^(Subscription invoiced|Subscription paid|Kit sorted|BUCS Play registration|Hudl access|Squad photo|Comms groups joined)$/.test(el.textContent.trim()))
+        .filter(
+          (el) =>
+            el.children.length === 0 &&
+            /^(Subscription invoiced|Subscription paid|Kit sorted|BUCS Play registration|Hudl access|Squad photo|Comms groups joined)$/.test(
+              el.textContent.trim(),
+            ),
+        )
         .map((el) => el.textContent.trim()),
     );
   const STATE = {
@@ -110,7 +126,11 @@
       .join("") || row("Items", NR);
 
   const seasonRows =
-    row("Status", editable(chip(standing)), departed ? "This season is over. Nothing here changes it." : null) +
+    row(
+      "Status",
+      editable(chip(standing)),
+      departed ? "This season is over. Nothing here changes it." : null,
+    ) +
     row("Entry", editable(entry)) +
     row("Confirmed", editable((/Confirmed (\d+ \w+ \d{4})/.exec(body) || [null, "—"])[1])) +
     row("Activated", editable((/Activated (\d+ \w+ \d{4})/.exec(body) || [null, "—"])[1])) +
@@ -142,8 +162,7 @@
     })
     .join("");
 
-  const seasonsRows =
-    `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.12)">
+  const seasonsRows = `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.12)">
        <div>${link("2025-26")}<div style="font-size:0.8125rem;color:rgba(0,0,0,0.6)">Blue 24</div></div>${chip("Archived")}
      </div>
      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0">

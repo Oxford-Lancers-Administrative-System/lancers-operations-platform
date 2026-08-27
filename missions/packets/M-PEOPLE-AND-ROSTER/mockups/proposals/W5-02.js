@@ -20,7 +20,11 @@
  */
 (() => {
   const NR = '<span style="color:rgba(0,0,0,0.26);font-style:italic">—</span>';
-  const LADDER = { Confirmed: "Onboarding", "Carried forward": "Onboarding", Withdrawn: "Departed" };
+  const LADDER = {
+    Confirmed: "Onboarding",
+    "Carried forward": "Onboarding",
+    Withdrawn: "Departed",
+  };
   const TONE = {
     Active: ["#2e7d32", "#fff"],
     Onboarding: ["#0288d1", "#fff"],
@@ -68,8 +72,16 @@
       band: "#0b3d91",
       ink: "#fff",
       cols: [
-        "Status", "Entry", "Positions", "Blue #", "White #",
-        "Coach group", "Formalwear", "Blues", "Eligibility", "Availability",
+        "Status",
+        "Entry",
+        "Positions",
+        "Blue #",
+        "White #",
+        "Coach group",
+        "Formalwear",
+        "Blues",
+        "Eligibility",
+        "Availability",
       ],
     },
   ];
@@ -147,14 +159,22 @@
     const VALUES = {
       Player: name,
       College: college ?? NR,
-      Matric: NR, Grad: NR, Degree: NR,
+      Matric: NR,
+      Grad: NR,
+      Degree: NR,
       Contactable: contact.length ? contact.join(" ") : NR,
       Missing: missing ? warn(String(missing)) : NR,
       Onboarding: onboarding,
       Status: chip(LADDER[status] ?? status),
       Entry: entry,
-      Positions: NR, "Blue #": NR, "White #": NR, "Coach group": NR,
-      Formalwear: NR, Blues: NR, Eligibility: NR, Availability: NR,
+      Positions: NR,
+      "Blue #": NR,
+      "White #": NR,
+      "Coach group": NR,
+      Formalwear: NR,
+      Blues: NR,
+      Eligibility: NR,
+      Availability: NR,
     };
 
     const proto = row.cells[1];
@@ -236,14 +256,23 @@
     ].forEach(({ label, width }) => {
       const el = document.createElement("div");
       el.style.cssText = [
-        "position:relative", "min-width:" + width + "px", "height:" + box.height,
-        "display:flex", "align-items:center", "justify-content:space-between",
-        "gap:8px", "padding:0 14px", "border:1px solid rgba(0,0,0,0.23)",
-        "border-radius:8px", "background:#fff", "font-size:1rem",
+        "position:relative",
+        "min-width:" + width + "px",
+        "height:" + box.height,
+        "display:flex",
+        "align-items:center",
+        "justify-content:space-between",
+        "gap:8px",
+        "padding:0 14px",
+        "border:1px solid rgba(0,0,0,0.23)",
+        "border-radius:8px",
+        "background:#fff",
+        "font-size:1rem",
       ].join(";");
       el.innerHTML =
         '<span style="position:absolute;top:-9px;left:9px;background:#fff;padding:0 6px;font-size:0.75rem;line-height:1;color:rgba(0,0,0,0.6)">' +
-        label + '</span><span>All</span><span style="color:rgba(0,0,0,0.54)">&#9662;</span>';
+        label +
+        '</span><span>All</span><span style="color:rgba(0,0,0,0.54)">&#9662;</span>';
       filterRow.parentNode.appendChild(el);
     });
   }
@@ -268,8 +297,7 @@
   const filtersForm = document.querySelector('[data-testid="roster-filters"]');
   if (filtersForm && CHIPS.length) {
     const bar = document.createElement("div");
-    bar.style.cssText =
-      "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:16px";
+    bar.style.cssText = "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:16px";
     bar.innerHTML =
       '<span style="font-size:0.8125rem;color:rgba(0,0,0,0.6)">Filtered by</span>' +
       CHIPS.map(
