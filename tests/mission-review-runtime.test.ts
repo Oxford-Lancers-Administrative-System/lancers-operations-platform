@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 import { appendEvent, nextActions, reduce, replayState } from "../scripts/mission/lib/state.mjs";
 import {
@@ -34,7 +35,7 @@ import {
   reclamationDefects,
   releaseReviewRuntime,
 } from "../scripts/mission/lib/runtime-broker.mjs";
-import { loadRules } from "../scripts/mission/merge-gate.mjs";
+import { deriveChangedFiles, loadRules } from "../scripts/mission/merge-gate.mjs";
 import type { ContractJob, MissionState, ReviewContract } from "./helpers/mission-invocations";
 import { healthFor, jobResultsFor, withReviewInvocations } from "./helpers/mission-invocations";
 
@@ -171,7 +172,6 @@ async function invoke(
   packageId: string,
   {
     head = SHA,
-    files = SERVICE_DIFF,
     round = 1,
     agentId = "reviewer-fresh-1",
     invocationId = "inv-1",
@@ -182,12 +182,19 @@ async function invoke(
   } = {},
 ) {
   const state = replay(m);
+  // The harness derives this from the repository; a helper that declared its own
+  // list would only produce a hash the validator refuses.
+  const derived = deriveChangedFiles(m.repo, head) as {
+    files: { status: string; path: string }[];
+    source: "derived" | "unknown";
+  };
   const contract = buildPackageReviewContract({
     state,
     packageId,
     headSha: head,
     round,
-    files,
+    files: derived.files,
+    diffSource: derived.source,
     rules,
     findingIds,
   });
@@ -198,7 +205,8 @@ async function invoke(
     package_id: packageId,
     head_sha: head,
     round,
-    changed_files: files,
+    changed_files: derived.files,
+    diff_source: derived.source,
     ...(findingIds.length > 0 ? { finding_ids: findingIds } : {}),
     contract,
     contract_hash: contractHash(contract),
@@ -339,6 +347,7 @@ describe("generating the review contract from durable sources", () => {
       packageId,
       headSha: SHA,
       files: PUBLIC_DIFF,
+      diffSource: "unknown",
       rules,
     });
     const trimmed = {
@@ -358,6 +367,7 @@ describe("generating the review contract from durable sources", () => {
         head_sha: SHA,
         round: 1,
         changed_files: PUBLIC_DIFF,
+        diff_source: "unknown",
         contract: trimmed,
         contract_hash: contractHash(trimmed),
       }),
@@ -429,11 +439,16 @@ describe("brokering the runtime", () => {
     await built(m, packageId);
 
     const state = replay(m);
+    const derived = deriveChangedFiles(m.repo, SHA) as {
+      files: typeof SERVICE_DIFF;
+      source: "derived" | "unknown";
+    };
     const contract = buildPackageReviewContract({
       state,
       packageId,
       headSha: SHA,
-      files: SERVICE_DIFF,
+      files: derived.files,
+      diffSource: derived.source,
       rules,
     });
     await m.raw({
@@ -443,7 +458,8 @@ describe("brokering the runtime", () => {
       package_id: packageId,
       head_sha: SHA,
       round: 1,
-      changed_files: SERVICE_DIFF,
+      changed_files: derived.files,
+      diff_source: derived.source,
       contract,
       contract_hash: contractHash(contract),
     });
@@ -484,11 +500,16 @@ describe("brokering the runtime", () => {
     const packageId = plan.packages[0].id;
     await built(m, packageId);
     const state = replay(m);
+    const derived = deriveChangedFiles(m.repo, SHA) as {
+      files: typeof SERVICE_DIFF;
+      source: "derived" | "unknown";
+    };
     const contract = buildPackageReviewContract({
       state,
       packageId,
       headSha: SHA,
-      files: SERVICE_DIFF,
+      files: derived.files,
+      diffSource: derived.source,
       rules,
     });
     await m.raw({
@@ -498,7 +519,8 @@ describe("brokering the runtime", () => {
       package_id: packageId,
       head_sha: SHA,
       round: 1,
-      changed_files: SERVICE_DIFF,
+      changed_files: derived.files,
+      diff_source: derived.source,
       contract,
       contract_hash: contractHash(contract),
     });
@@ -755,9 +777,7 @@ describe("what a clear receipt has to prove", () => {
     const state = replay(m);
     const visualPackage = packageWithVisual(state, "ui");
     await built(m, visualPackage.id);
-    const invocation = await invoke(m, visualPackage.id, {
-      files: [{ status: "M", path: "src/app/events/page.tsx" }],
-    });
+    const invocation = await invoke(m, visualPackage.id);
     const rendered = (invocation.contract as ReviewContract).jobs.filter(
       (job: ContractJob) => job.evidence === "rendered",
     );
@@ -1007,9 +1027,7 @@ describe("owner-ready promotion and reclamation", () => {
     const state = replay(m);
     const visualPackage = packageWithVisual(state, "ui");
     await built(m, visualPackage.id);
-    const invocation = await invoke(m, visualPackage.id, {
-      files: [{ status: "M", path: "src/app/events/page.tsx" }],
-    });
+    const invocation = await invoke(m, visualPackage.id);
     await m.raw({
       type: "review-receipt",
       package_id: visualPackage.id,
@@ -1184,6 +1202,248 @@ describe("owner-ready promotion and reclamation", () => {
   });
 });
 
+/**
+ * Round 1, R-001. The reviewer's injection showed the guarantee was only half
+ * there: the validator re-derived the contract faithfully from `changed_files`,
+ * but `changed_files` was whatever the requesting Lead declared, so an
+ * understated list produced a self-consistent weaker contract. These two cases
+ * are the fix's regression: the list comes from the repository, and a diff that
+ * cannot be read fails closed rather than empty.
+ */
+describe("where the exact-head diff comes from", () => {
+  /** A real repository with a base branch and one commit on top of it. */
+  function repository(changed: Record<string, string>) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "lancers-review-git-"));
+    temporary.push(root);
+    const repo = path.join(root, "repo");
+    fs.mkdirSync(repo, { recursive: true });
+    const git = (...args: string[]) => {
+      const result = spawnSync("git", args, { cwd: repo, encoding: "utf8" });
+      if (result.status !== 0) throw new Error(result.stderr || result.stdout);
+      return result.stdout.trim();
+    };
+    git("init", "-q", "-b", "main");
+    git("config", "user.email", "synthetic@lancers.test");
+    git("config", "user.name", "Synthetic");
+    fs.writeFileSync(path.join(repo, "README.md"), "base\n");
+    git("add", "-A");
+    git("commit", "-q", "-m", "base");
+    // The package's change lives on its own branch, so `main...head` is the
+    // package's own diff and not an empty range.
+    git("checkout", "-q", "-b", "feat/synthetic");
+    for (const [file, contents] of Object.entries(changed)) {
+      const target = path.join(repo, file);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, contents);
+    }
+    git("add", "-A");
+    git("commit", "-q", "-m", "the package's change");
+    const headSha = git("rev-parse", "HEAD");
+    const env = { ...process.env, LANCERS_MISSION_ROOT: path.join(root, "state") };
+    let tick = 1_700_000_000_000;
+    const raw = (event: object) => appendEvent(repo, MISSION, event, { env, now: (tick += 1000) });
+    return {
+      repo,
+      env,
+      raw,
+      headSha,
+      packet,
+      append: withReviewInvocations(repo, MISSION, env, raw),
+    };
+  }
+
+  it("reads the diff from the repository and ignores the list the request declared", async () => {
+    // The real change touches a migration. The request will claim it touched
+    // only a document — the Mission 4 shape, and exactly what the reviewer's
+    // injection proved was accepted before this fix.
+    const m = repository({
+      "supabase/migrations/20260101000000_synthetic.sql": "-- synthetic\n",
+      "docs/synthetic-note.md": "note\n",
+    });
+    await readyMission(m);
+    // The nonvisual package: a `ui` one is equipped for the browser whatever
+    // its diff says, which would hide the difference this case is about.
+    const packageId = packageWithVisual(replay(m), "nonvisual").id;
+    await built(m, packageId, m.headSha);
+
+    const state = replay(m);
+    const understated = [{ status: "M", path: "docs/synthetic-note.md" }];
+    const declared = buildPackageReviewContract({
+      state,
+      packageId,
+      headSha: m.headSha,
+      files: understated,
+      rules,
+    });
+    expect(declared.classification?.sensitive).toEqual([]);
+    expect(declared.capabilities).not.toContain("database");
+
+    await expect(
+      m.raw({
+        type: "review-invocation-requested",
+        invocation_id: "inv-understated",
+        role: "package-reviewer",
+        package_id: packageId,
+        head_sha: m.headSha,
+        round: 1,
+        changed_files: understated,
+        diff_source: "derived",
+        contract: declared,
+        contract_hash: contractHash(declared),
+      }),
+    ).rejects.toThrow(/exact contract the harness derives/);
+
+    // The honest request is accepted, and what the journal records is the
+    // repository's answer — the migration is there, whatever was declared.
+    const truthful = buildPackageReviewContract({
+      state,
+      packageId,
+      headSha: m.headSha,
+      files: deriveChangedFiles(m.repo, m.headSha).files,
+      rules,
+    });
+    const after = await m.raw({
+      type: "review-invocation-requested",
+      invocation_id: "inv-true",
+      role: "package-reviewer",
+      package_id: packageId,
+      head_sha: m.headSha,
+      round: 1,
+      changed_files: understated,
+      contract: truthful,
+      contract_hash: contractHash(truthful),
+    });
+    const recorded = after.reviewInvocations["inv-true"];
+    expect(recorded.contract.classification.sensitive).toContain(
+      "supabase/migrations/20260101000000_synthetic.sql",
+    );
+    expect(recorded.contract.capabilities).toContain("database");
+    expect(recorded.contract.reviewer_required).toBe(true);
+  });
+
+  it("fails closed when this checkout cannot read the head's diff", async () => {
+    const m = fixture();
+    await readyMission(m);
+    const packageId = plan.packages[0].id;
+    await built(m, packageId);
+    const invocation = await invoke(m, packageId);
+    const recorded = replay(m).reviewInvocations[invocation.invocationId];
+
+    // Not an empty diff: an unreadable one is read as every classifier surface
+    // at once, so the review is maximally equipped rather than minimally.
+    expect(recorded.contract.diff_source).toBe("unknown");
+    expect(recorded.contract.reviewer_required).toBe(true);
+    expect(recorded.contract.capabilities).toEqual(
+      expect.arrayContaining([
+        "database",
+        "database-reset-seed",
+        "application",
+        "browser-375",
+        "browser-desktop",
+        "public-session",
+        "transport-seam",
+      ]),
+    );
+  });
+});
+
+/**
+ * Round 1, R-002. Nothing runs after `mission-finalized`, so a runtime that is
+ * still held at that moment is held forever — ADR 0033's leaked-slot failure,
+ * moved to mission close.
+ */
+describe("finalizing a mission that still holds a runtime", () => {
+  async function merged(m: ReturnType<typeof fixture>) {
+    await readyMission(m);
+    for (const pkg of plan.packages) {
+      await m.raw({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
+      await m.raw({ type: "package-reclaimed", package_id: pkg.id, merge_sha: SHA });
+    }
+  }
+
+  const closeout = {
+    type: "mission-closeout",
+    outcome: "delivered",
+    notion_record: "notion://synthetic/mission-record",
+    shipped: plan.packages.map((pkg: { id: string }) => ({
+      linear_issue_id: `LAN-${pkg.id}`,
+      pr_number: 42,
+      sha: SHA,
+    })),
+    owner_actions: "none",
+    next_action: "none",
+  };
+
+  it("refuses while a brokered runtime is still held, and accepts once it is released", async () => {
+    const m = fixture();
+    await merged(m);
+    const state = replay(m);
+    const contract = buildWalkerContract({ state, headSha: SHA });
+    await m.raw({
+      type: "review-invocation-requested",
+      invocation_id: "inv-walk",
+      role: "workflow-walker",
+      head_sha: SHA,
+      round: 1,
+      contract,
+      contract_hash: contractHash(contract),
+    });
+    await m.raw({
+      type: "review-runtime-ready",
+      invocation_id: "inv-walk",
+      role: "workflow-walker",
+      runtime_id: "rt-walk01",
+      state: "ready",
+      lease_slot: "mission-walk-1",
+      implementation_slot: "mission-implementation",
+      health: healthFor(contract as unknown as ReviewContract, SHA),
+    });
+    await m.raw({
+      type: "walker-dispatched",
+      invocation_id: "inv-walk",
+      agent_id: "walker-fresh-1",
+      session_id: "session-walk",
+    });
+    await m.raw({
+      type: "integrated-review",
+      mode: "workflow-walker",
+      head_sha: SHA,
+      result: "clear",
+      report: "reviews/final-smoke.json",
+      invocation_id: "inv-walk",
+      runtime_id: "rt-walk01",
+      agent_id: "walker-fresh-1",
+      contract_hash: contractHash(contract),
+      job_results: jobResultsFor(contract as unknown as ReviewContract),
+    });
+    await m.raw(closeout);
+
+    await expect(
+      m.raw({ type: "mission-finalized", stack_disposition: "retired mission-stack-0" }),
+    ).rejects.toThrow(/rt-walk01 is still held[\s\S]*nothing runs after this event/);
+
+    await m.raw({
+      type: "review-runtime-released",
+      runtime_id: "rt-walk01",
+      reclamation: {
+        runtime_id: "rt-walk01",
+        lease_slot: "mission-walk-1",
+        lease_released: true,
+        application_stopped: true,
+        worktree_clean: true,
+        unpushed_commits: 0,
+        slot_reusable: true,
+        reported_active: false,
+      },
+    });
+    const finalized = await m.raw({
+      type: "mission-finalized",
+      stack_disposition: "retired mission-stack-0",
+    });
+    expect(finalized.terminal).toMatchObject({ state: "finalized" });
+  });
+});
+
 describe("Mission 4's exact failure shapes", () => {
   it("refuses the LAN-173 shape: the Lead deterministically clearing a fixture change", async () => {
     const m = fixture();
@@ -1191,11 +1451,16 @@ describe("Mission 4's exact failure shapes", () => {
     const state = replay(m);
     const nonvisual = packageWithVisual(state, "nonvisual");
     await built(m, nonvisual.id);
+    const derived = deriveChangedFiles(m.repo, SHA) as {
+      files: typeof SEED_DIFF;
+      source: "derived" | "unknown";
+    };
     const contract = buildPackageReviewContract({
       state: replay(m),
       packageId: nonvisual.id,
       headSha: SHA,
-      files: SEED_DIFF,
+      files: derived.files,
+      diffSource: derived.source,
       rules,
     });
     await m.raw({
@@ -1205,7 +1470,8 @@ describe("Mission 4's exact failure shapes", () => {
       package_id: nonvisual.id,
       head_sha: SHA,
       round: 1,
-      changed_files: SEED_DIFF,
+      changed_files: derived.files,
+      diff_source: derived.source,
       contract,
       contract_hash: contractHash(contract),
     });

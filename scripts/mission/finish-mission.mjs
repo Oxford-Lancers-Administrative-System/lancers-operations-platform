@@ -30,6 +30,7 @@ import { mergeProof, worktreeDefects } from "./lib/merge-proof.mjs";
 import {
   coordinatorStatus,
   detachMissionLease,
+  implementationRecord,
   retireMissionLease,
 } from "../lib/local-supabase-coordinator.mjs";
 
@@ -264,9 +265,11 @@ try {
   // Retire the stack only when this was its last attachment. Whoever detaches
   // last does it, so a mission whose acquiring worktree is already gone can
   // still be tidied up.
-  let stack = Object.values(coordinatorStatus(repoPath).slots).find(
-    (record) => record.missionId === missionId,
-  );
+  // LAN-179: "the mission's stack" means its implementation stack. A review
+  // runtime carries the same `missionId`, and once the implementation record has
+  // been retired it is deleted outright, so an unfiltered lookup would find a
+  // stray review lease and report its disposition as the mission's.
+  let stack = implementationRecord(coordinatorStatus(repoPath), missionId);
   // The Lead's own repository is an attachment too — `acquireMissionLease` puts
   // it in the list — and nothing else will ever let go of it.
   if (stack) {
@@ -275,9 +278,7 @@ try {
     } catch {
       // Already detached.
     }
-    stack = Object.values(coordinatorStatus(repoPath).slots).find(
-      (record) => record.missionId === missionId,
-    );
+    stack = implementationRecord(coordinatorStatus(repoPath), missionId);
   }
   let disposition = "no mission-owned stack was allocated";
   if (stack) {

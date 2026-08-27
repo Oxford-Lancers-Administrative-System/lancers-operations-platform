@@ -25,6 +25,7 @@ import {
   contractHash,
 } from "../../scripts/mission/lib/review-contract.mjs";
 import { replayState } from "../../scripts/mission/lib/state.mjs";
+import { deriveChangedFiles } from "../../scripts/mission/merge-gate.mjs";
 import type { MissionState } from "../../scripts/mission/lib/state.mjs";
 import type { ReviewContract, ContractJob } from "../../scripts/mission/lib/review-contract.mjs";
 
@@ -43,11 +44,17 @@ type Receipt = Record<string, unknown> & {
   blocking_finding_ids?: string[];
 };
 
-/** A diff that classifies the way this package's declared visual class does. */
-function changedFiles(visual: string) {
-  return visual === "nonvisual"
-    ? [{ status: "M", path: "src/lib/services/events.ts" }]
-    : [{ status: "M", path: "src/app/events/page.tsx" }];
+/**
+ * The diff the harness will derive for this head, asked the same way
+ * `prepareJournalEvent` asks. Since LAN-179 round 1 the journalled contract is
+ * generated from the repository rather than from a declared list, so a helper
+ * that guessed would simply produce a hash the validator refuses.
+ */
+function derivedDiff(repo: string, headSha: string) {
+  return deriveChangedFiles(repo, headSha) as {
+    files: { status: string; path: string }[];
+    source: "derived" | "unknown";
+  };
 }
 
 const VIEWPORTS = [
@@ -120,13 +127,14 @@ export function withReviewInvocations<T>(
     const pkg = state.packages?.[packageId];
     if (!pkg) return;
     const headSha = (receipt.reviewed_head_sha ?? pkg.head_sha) as string;
-    const files = changedFiles(pkg.visual);
+    const derived = derivedDiff(repo, headSha);
     const contract = buildPackageReviewContract({
       state,
       packageId,
       headSha,
       round: receipt.round ?? 1,
-      files,
+      files: derived.files,
+      diffSource: derived.source,
     }) as ReviewContract;
     sequence += 1;
     const invocationId = `inv-${packageId}-${sequence}`;
@@ -137,7 +145,8 @@ export function withReviewInvocations<T>(
       package_id: packageId,
       head_sha: headSha,
       round: receipt.round ?? 1,
-      changed_files: files,
+      changed_files: derived.files,
+      diff_source: derived.source,
       contract,
       contract_hash: contractHash(contract),
     });
@@ -290,10 +299,6 @@ export function cliReviewFlow(
   } = {},
 ) {
   const sequence = options.sequence ?? 1;
-  const files = changedFiles(options.visual ?? "nonvisual");
-  const filesPath = path.join(repo, `review-files-${packageId}-${sequence}.txt`);
-  fs.writeFileSync(filesPath, files.map((entry) => `${entry.status}\t${entry.path}`).join("\n"));
-
   const requested = run(
     "review",
     "request",
@@ -301,8 +306,6 @@ export function cliReviewFlow(
     packageId,
     "--head",
     headSha,
-    "--files",
-    filesPath,
     "--round",
     String(options.round ?? 1),
   );

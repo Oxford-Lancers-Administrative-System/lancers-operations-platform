@@ -47,7 +47,12 @@ import {
 } from "./lib/review-contract.mjs";
 import { provisionReviewRuntime, releaseReviewRuntime } from "./lib/runtime-broker.mjs";
 import { repositoryExecutors } from "./runtime-broker-executors.mjs";
-import { deriveGitVisualFiles, evaluateProspectiveMissionGate, loadRules } from "./merge-gate.mjs";
+import {
+  deriveChangedFiles,
+  deriveGitVisualFiles,
+  evaluateProspectiveMissionGate,
+  loadRules,
+} from "./merge-gate.mjs";
 import { parseNameStatus } from "../fast-lane/classify.mjs";
 import { coordinatorStatus, implementationRecord } from "../lib/local-supabase-coordinator.mjs";
 
@@ -721,12 +726,15 @@ async function main() {
           };
         } else {
           const packageId = args[1];
-          if (!packageId || !flags.files) {
+          if (!packageId) {
             fail(
-              "Usage: mission review request <mission-id> <package-id> --head <sha> --files <git name-status file> [--round N] [--finding-ids R-001,R-002]",
+              "Usage: mission review request <mission-id> <package-id> --head <sha> [--round N] [--finding-ids R-001,R-002]",
             );
           }
-          const files = parseNameStatus(fs.readFileSync(flags.files, "utf8"));
+          // The diff is read from the repository, never declared. An
+          // underivable one classifies as unknown, which produces the maximal
+          // contract rather than the emptiest.
+          const derived = deriveChangedFiles(repoPath, head);
           const findingIds = flags["finding-ids"]
             ? String(flags["finding-ids"]).split(",").filter(Boolean)
             : [];
@@ -736,7 +744,8 @@ async function main() {
             packageId,
             headSha: head,
             round,
-            files,
+            files: derived.files,
+            diffSource: derived.source,
             rules: loadRules(),
             findingIds,
           });
@@ -747,7 +756,9 @@ async function main() {
             package_id: packageId,
             head_sha: head,
             round,
-            changed_files: files,
+            changed_files: derived.files,
+            diff_source: derived.source,
+            diff_basis: derived.detail,
             ...(findingIds.length > 0 ? { finding_ids: findingIds } : {}),
             contract,
             contract_hash: contractHash(contract),
@@ -763,6 +774,7 @@ async function main() {
             {
               invocation_id: invocationId,
               role: event.role,
+              diff_source: event.diff_source ?? "n/a",
               capabilities: event.contract.capabilities,
               jobs: event.contract.jobs.map((entry) => entry.id),
               reviewer_required: event.contract.reviewer_required,

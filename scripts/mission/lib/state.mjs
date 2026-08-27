@@ -47,7 +47,12 @@ import {
 } from "./review-contract.mjs";
 import { RUNTIME_STATES, healthDefects, reclamationDefects } from "./runtime-broker.mjs";
 import { parseNameStatus } from "../../fast-lane/classify.mjs";
-import { buildMissionReceipt, classifyVisualDelta, loadRules } from "../merge-gate.mjs";
+import {
+  buildMissionReceipt,
+  classifyVisualDelta,
+  deriveChangedFiles,
+  loadRules,
+} from "../merge-gate.mjs";
 
 export const MAX_ACTIVE_WORKERS = 2;
 export const LEAD_TTL_MS = 120_000;
@@ -335,7 +340,11 @@ function deriveRequestedContract(event, state) {
     packageId: event.package_id,
     headSha: event.head_sha,
     round: event.round,
+    // `changed_files` and `diff_source` are written by `prepareJournalEvent`
+    // from the repository, overwriting whatever the caller supplied. Reading
+    // them here is reading the machine's answer, not the Lead's.
     files: Array.isArray(event.changed_files) ? event.changed_files : [],
+    diffSource: event.diff_source === "derived" ? "derived" : "unknown",
     rules: loadRules(),
     findingIds: Array.isArray(event.finding_ids) ? event.finding_ids : [],
   });
@@ -1647,10 +1656,13 @@ export function validateEvent(event, state) {
             `The request covers ${event.head_sha ?? "no head"}, not ${event.package_id}'s current head ${pkg.head_sha ?? "no head"}. A correction head receives its own invocation.`,
           );
         }
-        if (!Array.isArray(event.changed_files) || event.changed_files.length === 0) {
+        if (!["derived", "unknown"].includes(event.diff_source)) {
           errors.push(
-            "A package review request carries the exact-head diff its contract is classified from.",
+            'A package review request\'s diff is read from the repository, not declared. `diff_source` is written by the harness as "derived" or "unknown"; a request that carries neither did not go through it.',
           );
+        }
+        if (event.diff_source === "derived" && !Array.isArray(event.changed_files)) {
+          errors.push("A derived diff records the changed files it found.");
         }
         const open = Object.values(state.reviewInvocations).find(
           (invocation) =>
@@ -2121,6 +2133,18 @@ export function validateEvent(event, state) {
       }
       if (state.activeWorkers.length > 0) {
         errors.push("Workers are still running.");
+      }
+      // LAN-179. A review or walker runtime holds a coordinator lease, a
+      // worktree beside the repository and possibly a supervised application.
+      // `nextActions` recommends releasing it, but a recommendation is what the
+      // first live mission already had; finalizing over one would move ADR
+      // 0033's leaked-slot failure from mid-mission to mission close, where
+      // nothing runs afterwards to notice.
+      const heldRuntimes = liveReviewRuntimes(state).map((runtime) => runtime.runtime_id);
+      if (heldRuntimes.length > 0) {
+        errors.push(
+          `${heldRuntimes.join(", ")} is still held. A mission is finalized only when every brokered review and walker runtime has been released, abandoned or recorded as a provisioning failure — nothing runs after this event to reclaim one.`,
+        );
       }
       if (!isNonEmptyString(event.stack_disposition)) {
         errors.push(
@@ -3364,6 +3388,21 @@ export function packageLifecycle(state, pkg) {
 }
 
 function prepareJournalEvent(repoPath, event, state) {
+  // LAN-179 round 1, R-001. The exact-head diff a review contract is generated
+  // from is read here, from the repository, and overwrites whatever the caller
+  // declared — the same rule the visual carry-forward classifier below already
+  // follows. Without it the validator's re-derivation proved only that the
+  // journaled contract was a faithful function of a list the Lead chose, which
+  // is not the guarantee this ticket exists to make.
+  if (event.type === "review-invocation-requested" && event.role === "package-reviewer") {
+    const derived = deriveChangedFiles(repoPath, event.head_sha);
+    return {
+      ...event,
+      changed_files: derived.files,
+      diff_source: derived.source,
+      diff_basis: derived.detail,
+    };
+  }
   if (event.type !== "pr-opened") return event;
   const previousHead = state.packages[event.package_id]?.head_sha;
   if (!previousHead || previousHead === event.head_sha) return event;

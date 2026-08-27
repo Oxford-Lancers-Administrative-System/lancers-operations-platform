@@ -171,14 +171,22 @@ review verdict.
 
 ### The contract is generated, not written
 
-`mission review request` classifies the exact-head diff through the checked-in
-`reviewContract` rules in `.github/mission-merge-rules.json` and derives the
-capabilities and the job set from durable state: the package's `requirement_ids`
-against the packet, the sensitive-path intersection, the rendered classifier, the
+`mission review request` reads the package's own diff from the repository —
+`<base>...<head>`, so the package's changes and not everything that landed on the
+base branch since — and classifies it through the checked-in `reviewContract`
+rules in `.github/mission-merge-rules.json`. The capabilities and the job set
+come from that plus durable state: the package's `requirement_ids` against the
+packet, the sensitive-path intersection, the rendered classifier, the
 public-token surfaces, the transport seam, and any changed seed or fixture
-source. The state machine re-derives the same contract when the request is
-appended and refuses any difference — so a Lead may add a diagnostic question and
-can never remove a generated capability or job.
+source. The state machine re-reads the diff itself when the request is appended,
+overwrites whatever the request declared, re-derives the contract and refuses any
+difference — so a Lead may add a diagnostic question and can never remove a
+generated capability or job, nor narrow one by understating the diff.
+
+A diff this checkout cannot read is not an empty diff. It is recorded as
+`diff_source: "unknown"` and classified as every surface at once, so the review
+is maximally equipped rather than minimally; deterministic clearance is
+unreachable in that state.
 
 Deterministic clearance survives only while the sensitive, rendered and evidence
 union is empty; the classifier output is journaled either way. A seed or fixture
@@ -217,7 +225,9 @@ desktop and 375px state manifest, and `owner_commands: 0`. Brian runs nothing.
 
 Every terminal path — clear, blocked, provisioning failure, abandonment, obsolete
 head, mission stop — asks for a release, and the frontier says so without the
-Lead remembering. A release records the slot, that the lease went back, that the
+Lead remembering. `mission-finalized` refuses while any brokered runtime is still
+held: nothing runs after that event, so a runtime held at that moment is held for
+good. A release records the slot, that the lease went back, that the
 application stopped, that the slot is reusable, that status no longer reports it
 active, and that the checkout was clean with nothing unpushed. Cleanup refuses a
 runtime whose invocation is still live and refuses to reclaim work that would be
@@ -226,7 +236,7 @@ destroyed.
 ### Commands
 
 ```
-npm run mission -- review request M-<id> WP-<pkg> --head <sha> --files <name-status file> \
+npm run mission -- review request M-<id> WP-<pkg> --head <sha> \
     [--round N] [--finding-ids R-001,R-002]
 npm run mission -- review provision M-<id> --invocation <id> [--attempt N] [--outcome <file>]
 npm run mission -- review dispatch M-<id> --invocation <id> --agent <id> --session <id>
@@ -247,6 +257,16 @@ The original `mission review M-<id> WP-<pkg> --receipt <file>` still files a
 receipt; a subcommand name can never be a mission id, so both forms are exact.
 
 ### The honest limit
+
+Two other boundaries are enforcement rather than proof. The refusal of
+substitution language is a keyword vocabulary transcribed from Mission 4's
+accepted receipts: it fails safe — a false positive forces a reviewer to reword an
+honest narrative or record a block, never the reverse — but a paraphrase sharing
+none of its keywords is not structurally ruled out. And the check that a runtime's
+slot is not the implementation stack's is enforced against the live coordinator
+registry by the broker before any event is written; the same comparison in the
+journal validator is a coherence check on two self-reported fields, not a second
+independent boundary.
 
 The host exposes no way to prove that a reviewer is a genuinely fresh model
 context, and a pid proves nothing — every agent in one session shares it. What

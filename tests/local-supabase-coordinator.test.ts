@@ -150,6 +150,31 @@ describe("review-purpose mission stacks", () => {
     ).rejects.toThrow(/Missing, invalid, stale, or mismatched/);
   });
 
+  /**
+   * LAN-179 round 1, R-002. `retireRecord` deletes a mission-scoped record
+   * outright once it is retired, so after the implementation stack goes a bare
+   * `find(record => record.missionId === missionId)` returns whatever is left —
+   * which is a review runtime. Anything asking for "the mission's stack" has to
+   * ask this way instead.
+   */
+  it("never mistakes a leftover review runtime for the mission's stack", async () => {
+    const f = fixture();
+    const stack = await allocate(f);
+    await allocate(f, { purpose: "review", runtimeId: "rt-abcdef01" });
+    await detachMissionLease({ missionId: MISSION, repoPath: f.repo, env: f.env });
+    await retireMissionLease({
+      missionId: MISSION,
+      repoPath: f.repo,
+      env: f.env,
+      stopProject: () => {},
+    });
+    const registry = coordinatorStatus(f.repo, f.env);
+    const records = Object.values(registry.slots) as { slot: string; missionId?: string }[];
+    expect(records.some((record) => record.slot === stack.slot)).toBe(false);
+    expect(records.find((record) => record.missionId === MISSION)).toBeTruthy();
+    expect(implementationRecord(registry, MISSION)).toBeNull();
+  });
+
   it("refuses a review lease that is not bound to a broker runtime id", async () => {
     const f = fixture();
     await expect(allocate(f, { purpose: "review" })).rejects.toThrow(

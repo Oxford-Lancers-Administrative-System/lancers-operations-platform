@@ -102,6 +102,29 @@ function intersect(files, globs) {
  */
 
 /** @param {ChangedFile[]} files @param {Record<string, any>} [rules] */
+/**
+ * What a diff nobody could read is treated as touching.
+ *
+ * LAN-179 round 1, R-001. `deriveChangedFiles` answers `unknown` when this
+ * checkout cannot resolve the head against the base branch. An unknown diff is
+ * not an empty diff: reading it as empty would hand the weakest possible
+ * contract to exactly the case where nothing is known, so it is read as every
+ * classifier surface at once and the review is maximally equipped.
+ */
+export const UNCLASSIFIED = "(unclassified diff)";
+
+export function unknownClassification() {
+  return {
+    sensitive: [UNCLASSIFIED],
+    visual: [UNCLASSIFIED],
+    database: [UNCLASSIFIED],
+    public: [UNCLASSIFIED],
+    transport: [UNCLASSIFIED],
+    evidence: [UNCLASSIFIED],
+  };
+}
+
+/** @param {ChangedFile[]} files @param {Record<string, any>} [rules] */
 export function classifyReviewSurfaces(files, rules = loadRules()) {
   const contractRules = rules.reviewContract ?? {};
   const sensitive = new Set([
@@ -350,7 +373,8 @@ export function contractHash(contract) {
  */
 /**
  * @param {{ state: Record<string, any>, packageId: string, headSha: string, round?: number,
- *   files?: ChangedFile[], rules?: Record<string, any>, findingIds?: string[] }} input
+ *   files?: ChangedFile[], rules?: Record<string, any>, findingIds?: string[],
+ *   diffSource?: "derived" | "unknown" }} input
  * @returns {ReviewContract}
  */
 export function buildPackageReviewContract({
@@ -361,10 +385,12 @@ export function buildPackageReviewContract({
   files = [],
   rules = loadRules(),
   findingIds = [],
+  diffSource = "derived",
 }) {
   const pkg = state?.packages?.[packageId];
   if (!pkg) throw new Error(`No planned package ${packageId}.`);
-  const classification = classifyReviewSurfaces(files, rules);
+  const classification =
+    diffSource === "derived" ? classifyReviewSurfaces(files, rules) : unknownClassification();
   const capabilities = packageCapabilities(classification, pkg.visual);
   const jobs = packageJobs({
     pkg,
@@ -385,6 +411,7 @@ export function buildPackageReviewContract({
     package_id: packageId,
     head_sha: headSha,
     round,
+    diff_source: diffSource,
     reviewer_required: reviewerRequired,
     classification,
     capabilities,
