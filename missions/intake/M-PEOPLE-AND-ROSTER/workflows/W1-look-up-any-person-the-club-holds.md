@@ -289,3 +289,28 @@ equivalent header carries **Add player**.
 
 Proposed: an **Add a person** button in `W1-01`'s header, in the same place.
 Recorded rather than applied, because `W1` is approved.
+
+## Amendments W1-A4 and W1-A5, raised 2026-08-27 by a sweep
+
+Brian asked whether other workflows depend on something W1 does not have. Two
+more, found by checking every workflow's claimed entry point and handoff against
+what `W1`'s mockup actually renders.
+
+**W1-A4 — the Roles row goes nowhere.** This workflow's own handoffs say _"To
+Mission 1's operator administration when the question is about a login or a club
+role"_, and `W1-05` renders the person's roles as read-only text with no route to
+Administration → Roles. It was a minor omission when raised; it became
+load-bearing on 2026-08-27, when roles left `W3`. The person record is now the
+only surface in this mission that shows what somebody's roles are, and it cannot
+reach the place they are changed. Proposed: an **Assign a role** link on that
+row, exactly as `W3-03` now carries.
+
+**W1-A5 — two approved mockups disagree about the record.** `W2-06` renders
+**On WhatsApp · 2026-27** on the person record, because `W2-05` needs somewhere
+for its consequence to land. `W1-05` has no such row. Both are approved. One of
+them is wrong: either the row belongs on the record and `W1-05` is missing it, or
+it does not and `W2-06` invented it. Recommendation: it belongs, because a value
+this mission tells the operator about must be readable afterwards — but it has
+no substrate on `main`, so it renders only when Mission 6 builds it.
+
+Neither is applied. `W1` is approved and stays as it is until Brian decides.

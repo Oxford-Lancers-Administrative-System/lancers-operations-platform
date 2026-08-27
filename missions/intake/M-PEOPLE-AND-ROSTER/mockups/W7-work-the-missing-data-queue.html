@@ -1446,19 +1446,32 @@
         { name: "Percival Oakhanger", standing: null, is: "Head Coach · 2026-27", gaps: ["personal email"] },
       ];
 
+      /* A row has to go somewhere. The name opens the record; the action opens
+         the correction and comes back to the next row. Without both, this
+         queue is a list to read rather than a list to work. */
       const queueTable = (rows) =>
         dataTable(
-          ["Name", "Standing", "To the club", "Missing"],
-          rows.map((r) => [`<span class="bold">${r.name}</span>`, standingChip(r.standing), r.is, gaps(r.gaps)]),
+          ["Name", "Standing", "To the club", "Missing", ""],
+          rows.map((r) => [
+            `<a class="golink" href="#">${r.name}</a>`,
+            standingChip(r.standing),
+            r.is,
+            gaps(r.gaps),
+            `<button class="btn btn-outlined btn-sm">Correct</button>`,
+          ]),
           3,
         );
 
       const queueCards = (rows) =>
         cardList(
           rows.map((r) => ({
-            title: r.name,
+            title: `<a class="golink" href="#">${r.name}</a>`,
             sub: r.is,
-            chips: [r.standing ? standingChip(r.standing) : "", ...r.gaps.map((g) => `<span class="chip chip-warn">${g}</span>`)],
+            chips: [
+              r.standing ? standingChip(r.standing) : "",
+              ...r.gaps.map((g) => `<span class="chip chip-warn">${g}</span>`),
+              `<button class="btn btn-outlined btn-sm">Correct</button>`,
+            ],
           })),
         );
 
@@ -1569,6 +1582,7 @@
             "Acceptance 7: no value appears anywhere. A row says <em>emergency contact</em>; it never shows one",
             "Bertram carries eight gaps after last name became required. Percival, a coach, is chased for a personal email and nothing academic",
             "Sorted by how much is missing; every column sorts",
+            "<strong>Fixed 2026-08-27:</strong> a row had no link on it at all. The name now opens the record and <em>Correct</em> opens the edit surface — W2-10 is where that lands, and it could not be reached from here before",
           ],
           "oxfordlancers.example/operate/people/missing", W701),
         S("W7-02", "Filtered to one missing fact",
