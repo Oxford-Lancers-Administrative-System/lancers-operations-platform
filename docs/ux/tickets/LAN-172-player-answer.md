@@ -231,6 +231,45 @@ own words are the click already recorded it. Left unchanged this round;
 recorded here, and in this round's own receipt, as a residual item for
 Brian's attention — not decided silently.
 
+**Correction round 8 (OWNER-LAN172-22): the gate was also consuming the
+player's own interaction with the form it renders.** Round 7's listener
+fired on the _first_ qualifying event of any kind, with no check of where
+it happened — so the very click needed to focus the reason box, or open a
+question's Select, satisfied the gate and submitted the default before the
+player could type or choose anything. Every player answering through the
+WhatsApp link was silently limited to whatever the token's own default
+encoded; the reason field and the event's own questions — the exact fields
+round 5 (OWNER-LAN172-12, OWNER-LAN172-13) put on this same page so a player
+would not have to click twice — were unreachable. Brian's own framing of the
+gap: "fires on a real interaction" was right, but missed the corollary that
+the gate must not consume the player's interaction with the form itself.
+
+The fix does not weaken Q-30: `page.tsx`'s two `<form>` elements (the shared
+confirm form, and the small "Plans changed?" / "Change to Yes" form) are the
+whole of this page's actual controls, so `target.closest("form")` on the
+first qualifying event's own target is the entire test. Directed at either
+form — focusing the reason field, opening a question control, typing,
+pressing the visible submit button — the listener disengages without
+submitting, and the player's own eventual, deliberate click reaches the
+ordinary, unmodified `<form>` mechanism this component has never touched.
+Directed elsewhere — a passive scroll, a tap on blank space while reading —
+still submits the default, exactly as Q-30 asked. The disengagement is
+permanent for that page load, not a skip of one event: without that, a
+later ambient event (the page scrolling under a mobile keyboard while the
+player is mid-type) could still fire the default submit and discard
+whatever they had already started typing.
+
+Proved live against the real local stack, on a fresh token: clicking
+directly into the reason field leaves the page exactly where it was, with
+nothing recorded; typing a real reason and then clicking "Give a reason and
+continue" deliberately records that exact reason in one write and redirects
+to the durable page — see the pull request for the exact commands, output
+and screenshots at desktop and true 375px. Every property Q-30 established
+was re-proved unchanged: the write never fires from rendering alone, at
+most once per mount, listeners removed on unmount, the GET writes nothing,
+the POST is refused without the GET's cookie, and the token stays single-use
+and idempotent.
+
 ## Owner-resolved contract — Q-10, button labels
 
 Alphanumerics and spaces only, no em dashes: **"Yes view details"** and
@@ -656,6 +695,32 @@ ticket), `REQ-attendance-not-absence`, `REQ-plain-first-contact`,
       asserts the token's own encoded answer before any write lands, which
       interaction-gating widens the window for — see this ticket's own Q-11
       section above and this round's receipt for the reasoning.
+- [x] **Correction round 8 (OWNER-LAN172-22): the gate no longer consumes
+      the player's own interaction with the form.** The first qualifying
+      event's own target now decides whether it submits — directed at
+      either of the page's two `<form>` elements (focusing the reason
+      field, opening a question control, pressing the visible submit
+      button), the listener disengages without submitting, permanently for
+      that page load, and the player's own eventual deliberate submit
+      completes it through the ordinary `<form>` mechanism; directed
+      elsewhere, it still submits the default exactly as Q-30 asked. Proved
+      by test (25 cases) that a form-directed event never submits, that
+      disengagement survives a later ambient event, and that every Q-30
+      property still holds (never on mount alone, at most once, listeners
+      removed on unmount, remount/Strict-Mode idempotent); proved live
+      against the real stack that clicking into the reason field records
+      nothing and leaves the page in place, and that typing a real reason
+      and deliberately submitting records exactly that content in one
+      write, at desktop and true 375px. A related, independent defect found
+      in the same walk (OWNER-LAN172-21) is not a UX-behaviour change and is
+      not recorded here: `scripts/seed-local.mjs` was timing a seeded
+      answer's `responded_at` against its event's own future deadline
+      rather than the seed's own clock, which let roughly half of the
+      seeded roster's already-answered upcoming invitations sit
+      timestamped ahead of any real click — permanently winning
+      `current_rsvp`'s `order by responded_at desc` no matter how many
+      honest answers were appended afterward. Fixed at the seed, not in any
+      LAN-172 route; see the pull request and this round's receipt.
 
 ## Boundaries
 

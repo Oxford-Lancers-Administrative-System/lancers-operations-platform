@@ -1935,8 +1935,21 @@ for (const invitation of invitations) {
     continue;
   }
 
+  // OWNER-LAN172-21. A seeded response's own `responded_at` must never sit
+  // in the future relative to this seed's own `NOW` (which, after the slide
+  // at the bottom of this file, is real today). `public.current_rsvp` picks
+  // the standing answer by `order by responded_at desc`, so a future-dated
+  // seed row permanently outranks every honest, real-`now()` click any
+  // later test or real player makes on the same invitation, no matter how
+  // many real answers get appended afterward — timing the answer relative
+  // to the event's own (possibly future) deadline let exactly that happen
+  // for every already-answered upcoming event. Anchoring to
+  // `min(deadline, NOW)` instead means a future deadline can no longer push
+  // the answer into the future; a past deadline (an event that has already
+  // happened) computes exactly as before, unaffected.
+  const answerableBy = deadline ? Math.min(deadline.getTime(), NOW.getTime()) : NOW.getTime();
   const answeredAt = deadline
-    ? new Date(deadline.getTime() - intBetween(1, 96) * 3600000)
+    ? new Date(answerableBy - intBetween(1, 96) * 3600000)
     : new Date(NOW.getTime() - intBetween(1, 240) * 3600000);
 
   let response = outcome === "yes" ? "yes" : "no";
@@ -1974,8 +1987,13 @@ for (const invitation of invitations) {
   });
 
   // A changed answer supersedes the previous one; both are retained forever.
+  // OWNER-LAN172-21: `answeredAt` is now always at least an hour before
+  // `NOW` (both branches above use a minimum one-hour offset), so capping
+  // the revision at `NOW` minus one minute both keeps it from landing in
+  // the future and guarantees it still sorts after `answeredAt` — the
+  // "supersedes" this comment promises.
   if (chance(0.03)) {
-    const revisedAt = new Date(answeredAt.getTime() + 6 * 3600000);
+    const revisedAt = new Date(Math.min(answeredAt.getTime() + 6 * 3600000, NOW.getTime() - 60000));
     const revised = response === "yes" ? "no" : "yes";
     add("rsvp_responses", {
       id: uuid(),

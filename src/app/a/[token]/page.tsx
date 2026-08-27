@@ -284,16 +284,22 @@ function Confirm({
         No-path section: "the reason field belongs on that page."
 
         Owner correction round 6 (OWNER-LAN172-17), gated by Q-30 in round 7
-        (LAN-172-r5-F1): this exact form is what `AutoSubmitOnInteraction`
-        below submits itself, in a JS-capable browser, the moment the player
-        first interacts with the page — a real pointer, key, touch or scroll,
-        never on mount alone (an unconditional mount-fire let any JS-executing
-        automated visitor, including a security scanner, complete this write
-        with no human action at all — exactly what REQ-no-false-rsvp forbids).
+        (LAN-172-r5-F1), corrected again by OWNER-LAN172-22 in round 8: this
+        exact form is what `AutoSubmitOnInteraction` below submits itself, in
+        a JS-capable browser, the moment the player's first interaction with
+        the page lands *outside* this form — a real pointer, key, touch or
+        scroll, never on mount alone (an unconditional mount-fire let any
+        JS-executing automated visitor, including a security scanner,
+        complete this write with no human action at all — exactly what
+        REQ-no-false-rsvp forbids). An interaction directed at this form's
+        own controls instead — focusing the reason field, opening the
+        question select, pressing this form's own submit button — never
+        triggers it (round 8: the gate was firing on the very click needed to
+        reach either field, so a player could never actually use them).
         `id={ANSWER_FORM_ID}` is how that component finds this form; nothing
         else about the form changes for that purpose, so the unmodified
         visible button remains Q-11's own fallback — for no JavaScript, and
-        now also for a human who reads without ever touching the screen.
+        for a human who only ever touches this form's own fields.
 
         Owner correction round 6 (OWNER-LAN172-18): `enforceRequired={false}`
         below means a blank required question never blocks this submit,

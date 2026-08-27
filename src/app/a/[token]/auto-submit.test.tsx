@@ -1,6 +1,8 @@
 /**
  * `AutoSubmitOnInteraction` in isolation — LAN-172, OWNER-LAN172-17,
- * interaction-gated by Q-30 (correction round 7, LAN-172-r5-F1).
+ * interaction-gated by Q-30 (round 7, LAN-172-r5-F1), corrected again by
+ * OWNER-LAN172-22 (round 8): the gate must not consume the player's own
+ * interaction with the form.
  *
  * Proved against a plain `<form>` with `HTMLFormElement.prototype.requestSubmit`
  * spied, never against the real `submitAnswer` server action — `page.tsx`'s
@@ -9,9 +11,13 @@
  * nothing, the POST needs the GET's cookie, the token is single-use and
  * idempotent) is proved in `actions.test.ts` and
  * `player-answer-tokens.test.ts` against the one write this component only
- * ever triggers, never duplicates. What is under test here is narrower and
- * exactly what Q-30 asks for: the write must never fire from rendering
- * alone, and must fire exactly once after a genuine interaction signal.
+ * ever triggers, never duplicates. What is under test here is exactly what
+ * Q-30 and round 8 both ask for: the write must never fire from rendering
+ * alone; it must fire exactly once after a genuine interaction that is not
+ * directed at the form's own controls; and an interaction that IS directed
+ * at the form (focusing a field, opening a control, pressing the visible
+ * submit button) must never trigger it, leaving the player free to complete
+ * and submit the form themselves.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, cleanup as rtlCleanup } from "@testing-library/react";
@@ -22,12 +28,24 @@ afterEach(() => {
   rtlCleanup();
 });
 
-function formAndTrigger(formId: string) {
+/**
+ * A form standing in for `page.tsx`'s own shared confirm-and-follow-up
+ * form: a text field (the reason box / a question's own input) and a
+ * submit button, both real controls a player would actually touch — plus
+ * an element outside the form, standing in for the rest of the page
+ * (`page.tsx`'s heading, fact box, banner) a passive interaction might land
+ * on instead.
+ */
+function pageWithFormAndElsewhere(formId: string) {
   return (
     <>
       <form id={formId}>
-        <input type="hidden" name="token" value="t" />
+        <input type="text" name="reason" data-testid="reason-field" />
+        <button type="submit" data-testid="submit-button">
+          Save
+        </button>
       </form>
+      <div data-testid="elsewhere">Heading and fact box live out here</div>
       <AutoSubmitOnInteraction formId={formId} />
     </>
   );
@@ -35,6 +53,11 @@ function formAndTrigger(formId: string) {
 
 function spySubmit() {
   return vi.spyOn(HTMLFormElement.prototype, "requestSubmit").mockImplementation(() => {});
+}
+
+/** Dispatches a real, bubbling event directly on `element`, as a trusted browser event would. */
+function fireOn(element: Element, type: string): void {
+  element.dispatchEvent(new Event(type, { bubbles: true }));
 }
 
 /** Every named category Brian approved (Q-30): pointer, key, touch, scroll. */
@@ -53,7 +76,7 @@ describe("OWNER-LAN172-17 / Q-30 — the write never fires from rendering alone"
   it("does not submit the form merely by mounting — no event dispatched at all", () => {
     const submitSpy = spySubmit();
 
-    render(formAndTrigger("answer-form"));
+    render(pageWithFormAndElsewhere("answer-form"));
 
     expect(submitSpy).not.toHaveBeenCalled();
     submitSpy.mockRestore();
@@ -62,8 +85,8 @@ describe("OWNER-LAN172-17 / Q-30 — the write never fires from rendering alone"
   it("still does not submit after a re-render with no interaction in between", () => {
     const submitSpy = spySubmit();
 
-    const { rerender } = render(formAndTrigger("answer-form"));
-    rerender(formAndTrigger("answer-form"));
+    const { rerender } = render(pageWithFormAndElsewhere("answer-form"));
+    rerender(pageWithFormAndElsewhere("answer-form"));
 
     expect(submitSpy).not.toHaveBeenCalled();
     submitSpy.mockRestore();
@@ -72,21 +95,21 @@ describe("OWNER-LAN172-17 / Q-30 — the write never fires from rendering alone"
   it("does not submit on an unmount/remount pair (React Strict Mode's double-invoked effect) with no interaction in between", () => {
     const submitSpy = spySubmit();
 
-    const { unmount } = render(formAndTrigger("answer-form"));
+    const { unmount } = render(pageWithFormAndElsewhere("answer-form"));
     unmount();
-    render(formAndTrigger("answer-form"));
+    render(pageWithFormAndElsewhere("answer-form"));
 
     expect(submitSpy).not.toHaveBeenCalled();
     submitSpy.mockRestore();
   });
 });
 
-describe("OWNER-LAN172-17 / Q-30 — the write fires once, and only once, after a genuine interaction", () => {
-  it.each(QUALIFYING_EVENTS)("submits after a %s event", (type) => {
+describe("OWNER-LAN172-17 / Q-30 — the write fires once, and only once, after a genuine interaction elsewhere on the page", () => {
+  it.each(QUALIFYING_EVENTS)("submits after a %s event dispatched outside the form", (type) => {
     const submitSpy = spySubmit();
-    render(formAndTrigger("answer-form"));
+    const { getByTestId } = render(pageWithFormAndElsewhere("answer-form"));
 
-    window.dispatchEvent(new Event(type));
+    fireOn(getByTestId("elsewhere"), type);
 
     expect(submitSpy).toHaveBeenCalledTimes(1);
     submitSpy.mockRestore();
@@ -94,11 +117,12 @@ describe("OWNER-LAN172-17 / Q-30 — the write fires once, and only once, after 
 
   it("submits only once when several qualifying events arrive in a burst — a real touch dispatches both touchstart and pointerdown", () => {
     const submitSpy = spySubmit();
-    render(formAndTrigger("answer-form"));
+    const { getByTestId } = render(pageWithFormAndElsewhere("answer-form"));
+    const elsewhere = getByTestId("elsewhere");
 
-    window.dispatchEvent(new Event("touchstart"));
-    window.dispatchEvent(new Event("pointerdown"));
-    window.dispatchEvent(new Event("pointermove"));
+    fireOn(elsewhere, "touchstart");
+    fireOn(elsewhere, "pointerdown");
+    fireOn(elsewhere, "pointermove");
 
     expect(submitSpy).toHaveBeenCalledTimes(1);
     submitSpy.mockRestore();
@@ -106,11 +130,12 @@ describe("OWNER-LAN172-17 / Q-30 — the write fires once, and only once, after 
 
   it("does not submit again on a later event once it has already fired", () => {
     const submitSpy = spySubmit();
-    render(formAndTrigger("answer-form"));
+    const { getByTestId } = render(pageWithFormAndElsewhere("answer-form"));
+    const elsewhere = getByTestId("elsewhere");
 
-    window.dispatchEvent(new Event("keydown"));
-    window.dispatchEvent(new Event("scroll"));
-    window.dispatchEvent(new Event("keydown"));
+    fireOn(elsewhere, "keydown");
+    fireOn(elsewhere, "scroll");
+    fireOn(elsewhere, "keydown");
 
     expect(submitSpy).toHaveBeenCalledTimes(1);
     submitSpy.mockRestore();
@@ -119,15 +144,16 @@ describe("OWNER-LAN172-17 / Q-30 — the write fires once, and only once, after 
   it("never submits a form some other id names", () => {
     const submitSpy = spySubmit();
 
-    render(
+    const { getByTestId } = render(
       <>
         <form id="answer-form">
           <input type="hidden" name="token" value="t" />
         </form>
+        <div data-testid="elsewhere" />
         <AutoSubmitOnInteraction formId="a-different-id" />
       </>,
     );
-    window.dispatchEvent(new Event("keydown"));
+    fireOn(getByTestId("elsewhere"), "keydown");
 
     expect(submitSpy).not.toHaveBeenCalled();
     submitSpy.mockRestore();
@@ -144,18 +170,87 @@ describe("OWNER-LAN172-17 / Q-30 — the write fires once, and only once, after 
   });
 });
 
+describe("OWNER-LAN172-22 — an interaction directed at the form's own controls never triggers the auto-submit", () => {
+  it("does not submit when the reason field is focused/clicked", () => {
+    const submitSpy = spySubmit();
+    const { getByTestId } = render(pageWithFormAndElsewhere("answer-form"));
+
+    fireOn(getByTestId("reason-field"), "pointerdown");
+
+    expect(submitSpy).not.toHaveBeenCalled();
+    submitSpy.mockRestore();
+  });
+
+  it("does not submit while typing into the reason field", () => {
+    const submitSpy = spySubmit();
+    const { getByTestId } = render(pageWithFormAndElsewhere("answer-form"));
+
+    fireOn(getByTestId("reason-field"), "keydown");
+
+    expect(submitSpy).not.toHaveBeenCalled();
+    submitSpy.mockRestore();
+  });
+
+  it("does not submit when the visible submit button itself is pressed — the native form submission handles it instead", () => {
+    const submitSpy = spySubmit();
+    const { getByTestId } = render(pageWithFormAndElsewhere("answer-form"));
+
+    fireOn(getByTestId("submit-button"), "pointerdown");
+
+    expect(submitSpy).not.toHaveBeenCalled();
+    submitSpy.mockRestore();
+  });
+
+  it("disengages entirely after a form-directed event — a later interaction elsewhere no longer fires it either", () => {
+    // Without this, a later ambient event (the page scrolling under a mobile
+    // keyboard while the player is mid-type) could still auto-submit the
+    // default and discard whatever they had already started typing.
+    const submitSpy = spySubmit();
+    const { getByTestId } = render(pageWithFormAndElsewhere("answer-form"));
+
+    fireOn(getByTestId("reason-field"), "pointerdown");
+    fireOn(getByTestId("elsewhere"), "scroll");
+    fireOn(getByTestId("elsewhere"), "keydown");
+
+    expect(submitSpy).not.toHaveBeenCalled();
+    submitSpy.mockRestore();
+  });
+
+  it("the player can still focus the reason field, then deliberately submit it themselves, with exactly one write from their own submit", () => {
+    // This component never calls requestSubmit() for the deliberate path —
+    // proved by the previous tests. What this proves is the other half: a
+    // real click on the visible submit button still reaches the form's own
+    // native submission mechanism (jsdom's own request-submit-on-click),
+    // completely unaffected by this component having run first.
+    const { getByTestId } = render(pageWithFormAndElsewhere("answer-form"));
+    const form = document.getElementById("answer-form");
+    if (!(form instanceof HTMLFormElement)) throw new Error("form did not render");
+    let submitCount = 0;
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      submitCount += 1;
+    });
+
+    fireOn(getByTestId("reason-field"), "pointerdown");
+    getByTestId("reason-field").dispatchEvent(new Event("focus", { bubbles: true }));
+    (getByTestId("submit-button") as HTMLButtonElement).click();
+
+    expect(submitCount).toBe(1);
+  });
+});
+
 describe("OWNER-LAN172-17 / Q-30 — idempotent under remount, Strict Mode, and mid-flight reload", () => {
-  it("an interaction on a fresh mount after Strict Mode's synchronous mount→cleanup→mount still fires exactly once", () => {
+  it("an interaction outside the form on a fresh mount after Strict Mode's synchronous mount→cleanup→mount still fires exactly once", () => {
     // Strict Mode invokes this exact sequence synchronously in development,
     // on the same component instance, before any real interaction could
     // plausibly arrive. Simulated directly: mount, unmount (cleanup runs,
     // listeners removed), mount again — then one real interaction.
     const submitSpy = spySubmit();
 
-    const { unmount } = render(formAndTrigger("answer-form"));
+    const { unmount } = render(pageWithFormAndElsewhere("answer-form"));
     unmount();
-    render(formAndTrigger("answer-form"));
-    window.dispatchEvent(new Event("keydown"));
+    const { getByTestId } = render(pageWithFormAndElsewhere("answer-form"));
+    fireOn(getByTestId("elsewhere"), "keydown");
 
     expect(submitSpy).toHaveBeenCalledTimes(1);
     submitSpy.mockRestore();
@@ -170,8 +265,8 @@ describe("OWNER-LAN172-17 / Q-30 — idempotent under remount, Strict Mode, and 
     // itself does not misbehave (double-fire, throw) around that unmount.
     const submitSpy = spySubmit();
 
-    const { unmount } = render(formAndTrigger("answer-form"));
-    window.dispatchEvent(new Event("keydown"));
+    const { getByTestId, unmount } = render(pageWithFormAndElsewhere("answer-form"));
+    fireOn(getByTestId("elsewhere"), "keydown");
     expect(submitSpy).toHaveBeenCalledTimes(1);
 
     expect(() => unmount()).not.toThrow();
@@ -186,7 +281,7 @@ describe("OWNER-LAN172-17 / Q-30 — idempotent under remount, Strict Mode, and 
     const addSpy = vi.spyOn(window, "addEventListener");
     const removeSpy = vi.spyOn(window, "removeEventListener");
 
-    const { unmount } = render(formAndTrigger("answer-form"));
+    const { unmount } = render(pageWithFormAndElsewhere("answer-form"));
     const addedTypes = addSpy.mock.calls.map(([type]) => type);
     for (const type of QUALIFYING_EVENTS) expect(addedTypes).toContain(type);
 
@@ -205,14 +300,14 @@ describe("OWNER-LAN172-17 / Q-30 — idempotent under remount, Strict Mode, and 
   it("a second, independent mount (a fresh navigation to the same URL) gets its own fresh guard and needs its own interaction", () => {
     const submitSpy = spySubmit();
 
-    const first = render(formAndTrigger("answer-form"));
-    window.dispatchEvent(new Event("keydown"));
+    const first = render(pageWithFormAndElsewhere("answer-form"));
+    fireOn(first.getByTestId("elsewhere"), "keydown");
     expect(submitSpy).toHaveBeenCalledTimes(1);
     first.unmount();
 
-    render(formAndTrigger("answer-form"));
+    const second = render(pageWithFormAndElsewhere("answer-form"));
     expect(submitSpy).toHaveBeenCalledTimes(1);
-    window.dispatchEvent(new Event("keydown"));
+    fireOn(second.getByTestId("elsewhere"), "keydown");
     expect(submitSpy).toHaveBeenCalledTimes(2);
 
     submitSpy.mockRestore();
@@ -223,7 +318,7 @@ describe("OWNER-LAN172-17 / Q-30 — passive listeners never block scrolling or 
   it("attaches every listener with passive: true", () => {
     const addSpy = vi.spyOn(window, "addEventListener");
 
-    render(formAndTrigger("answer-form"));
+    render(pageWithFormAndElsewhere("answer-form"));
 
     for (const call of addSpy.mock.calls) {
       const options = call[2];
