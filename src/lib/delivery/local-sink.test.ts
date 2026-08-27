@@ -47,7 +47,29 @@ const DEPLOYED = {
   WHATSAPP_MESSAGE_MODE: "text",
 };
 
-function templateBody(name: string, parameters: string[]): string {
+/** The two Yes/No button components `invitation` and `reminder` now declare. */
+function answerButtons(): Record<string, unknown>[] {
+  return [
+    {
+      type: "button",
+      sub_type: "url",
+      index: "0",
+      parameters: [{ type: "text", text: "y.token" }],
+    },
+    {
+      type: "button",
+      sub_type: "url",
+      index: "1",
+      parameters: [{ type: "text", text: "n.token" }],
+    },
+  ];
+}
+
+function templateBody(
+  name: string,
+  parameters: string[],
+  extraComponents: Record<string, unknown>[] = answerButtons(),
+): string {
   return JSON.stringify({
     messaging_product: "whatsapp",
     recipient_type: "individual",
@@ -58,12 +80,15 @@ function templateBody(name: string, parameters: string[]): string {
       language: { code: "en_GB" },
       components: [
         { type: "body", parameters: parameters.map((text) => ({ type: "text", text })) },
+        ...extraComponents,
       ],
     },
   });
 }
 
-const FOUR = ["Jamie", "Michaelmas week 3", "Wednesday 14 October, 20:00", "https://x.example/r/a"];
+// LAN-172: the invitation's body carries three parameters now — the link left
+// body copy entirely and travels on the two buttons `answerButtons()` adds.
+const THREE = ["Jamie", "Michaelmas week 3", "Wednesday 14 October, 20:00"];
 
 function collecting() {
   const written: SinkRecord[] = [];
@@ -115,7 +140,7 @@ describe("validating against the declared registry", () => {
 
     const response = await sink(GRAPH, {
       method: "POST",
-      body: templateBody(TEMPLATE_NAMES.invitation, FOUR),
+      body: templateBody(TEMPLATE_NAMES.invitation, THREE),
     });
 
     expect(response.status).toBe(200);
@@ -137,7 +162,7 @@ describe("validating against the declared registry", () => {
 
     const response = await sink(GRAPH, {
       method: "POST",
-      body: templateBody(TEMPLATE_NAMES.invitation, FOUR.slice(0, 3)),
+      body: templateBody(TEMPLATE_NAMES.invitation, THREE.slice(0, 2)),
     });
 
     expect(response.status).toBe(400);
@@ -146,14 +171,14 @@ describe("validating against the declared registry", () => {
     // that accepted this would let a reordering pass every local test and fail
     // for the first time in front of the club.
     expect(body.error.code).toBe(132_000);
-    expect(body.error.message).toContain("4 body parameters");
+    expect(body.error.message).toContain("3 body parameters");
   });
 
   it("refuses a template nobody has declared", async () => {
     const { sink } = collecting();
     const response = await sink(GRAPH, {
       method: "POST",
-      body: templateBody("some_template_we_invented", FOUR),
+      body: templateBody("some_template_we_invented", THREE),
     });
     expect(response.status).toBe(400);
     expect(((await response.json()) as { error: { code: number } }).error.code).toBe(132_001);
@@ -163,11 +188,57 @@ describe("validating against the declared registry", () => {
     const { sink } = collecting();
     const response = await sink(GRAPH, {
       method: "POST",
-      body: templateBody(TEMPLATE_NAMES.invitation, ["Jamie", "", "when", "url"]),
+      body: templateBody(TEMPLATE_NAMES.invitation, ["Jamie", "", "when"]),
     });
     expect(response.status).toBe(400);
     expect(((await response.json()) as { error: { message: string } }).error.message).toContain(
       "eventName",
+    );
+  });
+
+  it("refuses a button missing its dynamic URL suffix", async () => {
+    const { sink } = collecting();
+    const response = await sink(GRAPH, {
+      method: "POST",
+      body: templateBody(TEMPLATE_NAMES.invitation, THREE, [
+        {
+          type: "button",
+          sub_type: "url",
+          index: "0",
+          parameters: [{ type: "text", text: "y.token" }],
+        },
+        // Button 1 (No) is missing entirely — Meta would refuse this exactly
+        // as it refuses a missing body parameter.
+      ]),
+    });
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { error: { code: number; message: string } };
+    expect(body.error.code).toBe(132_000);
+    expect(body.error.message).toContain("button 1");
+  });
+
+  it("refuses a Quick Reply where a URL button was declared", async () => {
+    const { sink } = collecting();
+    const response = await sink(GRAPH, {
+      method: "POST",
+      body: templateBody(TEMPLATE_NAMES.invitation, THREE, [
+        {
+          type: "button",
+          sub_type: "quick_reply",
+          index: "0",
+          parameters: [{ type: "payload", payload: "yes" }],
+        },
+        {
+          type: "button",
+          sub_type: "url",
+          index: "1",
+          parameters: [{ type: "text", text: "n.token" }],
+        },
+      ]),
+    });
+    expect(response.status).toBe(400);
+    expect(((await response.json()) as { error: { message: string } }).error.message).toContain(
+      "Quick Reply",
     );
   });
 

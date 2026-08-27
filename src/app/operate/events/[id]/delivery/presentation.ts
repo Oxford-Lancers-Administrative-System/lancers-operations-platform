@@ -63,15 +63,49 @@ export const DELIVERY_STATE_COLOURS: Readonly<
   cancelled: "default",
 });
 
-/** The RSVP column. Response language from § 6, never delivery language. */
-export const RESPONSE_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  responded_yes: "Attending",
-  responded_no: "Not attending",
-  awaiting_response: "Outstanding",
-  expired_without_response: "No response",
-  cancelled: "Cancelled",
-  not_solicited: "No response asked for",
-});
+/**
+ * W6's two named exceptions to the plain five-state vocabulary above —
+ * `REQ-no-channel-backstop` and `REQ-whatsapp-outage-visible`. Both replace
+ * what would otherwise render as an undifferentiated **Failed**, on this
+ * screen and on the participation table's own Delivery column
+ * (`src/app/participation/presentation.ts` carries the identical two
+ * strings, for the same reason `DELIVERY_LABELS` there already duplicates
+ * this file's five rather than importing them — `docs/ux/standards.md` rule
+ * 7 asks the two surfaces to agree, not to share one module).
+ */
+export const NOT_DISPATCHED_NO_CHANNEL = "Not dispatched — no channel";
+export const WHATSAPP_UNRESPONSIVE = "WhatsApp unresponsive";
+
+export const NEEDS_ATTENTION_HEADING = "Needs attention";
+export const NEEDS_ATTENTION_NOTE =
+  "The system retries and falls back to email on its own. Only a missing route needs a person.";
+export const OPEN_THEIR_RECORD = "Open their record";
+export const NO_ACTION_NEEDED = "No action needed";
+
+/** The one row shape both exceptions read — `DeliveryRow`'s relevant fields. */
+export interface DeliveryExceptionFacts {
+  readonly state: DeliveryState;
+  readonly noUsableRoute: boolean;
+  readonly whatsappUnresponsive: boolean;
+}
+
+/** The chip's actual text, once the two exceptions are applied. */
+export function deliveryRowLabel(row: DeliveryExceptionFacts): string {
+  if (row.noUsableRoute) return NOT_DISPATCHED_NO_CHANNEL;
+  if (row.whatsappUnresponsive) return WHATSAPP_UNRESPONSIVE;
+  return DELIVERY_STATE_LABELS[row.state];
+}
+
+/** The chip's actual colour, once the two exceptions are applied. */
+export function deliveryRowColour(
+  row: DeliveryExceptionFacts,
+): "default" | "info" | "success" | "warning" | "error" {
+  if (row.noUsableRoute) return "error";
+  // Reached — the club's own channel failed and that stays visible, but it is
+  // not the same alarm as a person nothing has reached at all.
+  if (row.whatsappUnresponsive) return "warning";
+  return DELIVERY_STATE_COLOURS[row.state];
+}
 
 export const TOKEN_LABELS: Readonly<Record<string, string>> = Object.freeze({
   live: "Live",
@@ -122,12 +156,17 @@ export const OVERVIEW_FACTS: readonly { label: string; value: string; note: stri
 
 export const DIAGNOSTICS_HEADING = "Delivery diagnostics";
 
+/**
+ * OWNER-LAN173-02, W6-02. The mockup draws one table on this page — per
+ * attempt, not per invitee — so the standing note says what that table is
+ * rather than a claim (RSVP independence) that belonged to the table this
+ * correction removed.
+ */
 export const DIAGNOSTICS_NOTE =
-  "Provider-neutral statuses are queued, attempted, delivered, failed and retryable. " +
-  "RSVP remains independent.";
+  "Every attempt on every channel, including the automatic email fallback. No message content " +
+  "is shown.";
 
 export const SEARCH_LABEL = "Search invitees";
-export const OPEN_SELECTED_ISSUE = "Open selected issue";
 
 /**
  * The five provider-neutral states offered as filters — `held` and
@@ -162,6 +201,28 @@ export function matchesStatusFilter(state: DeliveryState, filter: string): boole
   if (filter === "") return true;
   if (filter === "attention") return state === "failed" || state === "retryable";
   return state === filter;
+}
+
+/**
+ * OWNER-LAN173-02's Status filter, read against one **attempt**'s own
+ * recorded outcome rather than against a `DeliveryState` — an attempt row has
+ * no job-level "queued" or "retryable" of its own, only what the provider (or
+ * the club, before ever offering it) actually returned.
+ *
+ * "attention" mirrors {@link matchesStatusFilter}'s failed+retryable pairing
+ * with the two outcomes that mean the same thing at the attempt level:
+ * `failed` and `rejected` are both a refusal, one retryable and one not.
+ * "queued" and "retryable" match no recorded attempt on purpose — a queued or
+ * awaiting-retry job has not produced an attempt yet, so the honest answer to
+ * "show me its queued/retryable attempts" is none, not a guess.
+ */
+export function matchesAttemptStatusFilter(outcome: string, filter: string): boolean {
+  if (filter === "") return true;
+  if (filter === "attention" || filter === "failed")
+    return outcome === "failed" || outcome === "rejected";
+  if (filter === "delivered") return outcome === "delivered";
+  if (filter === "attempted") return outcome === "attempted" || outcome === "sent";
+  return false;
 }
 
 // --- UX-52 -----------------------------------------------------------------
@@ -235,19 +296,6 @@ export function describeRetryability(
 
 function countAttempts(attempts: number): string {
   return attempts === 1 ? "1 attempt" : `${attempts} attempts`;
-}
-
-/**
- * The Retry column on UX-51.
- *
- * The wireframe distinguishes a queued row, which is waiting for its first
- * send, from a failed one that will be tried again — "Scheduled" and
- * "Retryable" respectively — and shows an em dash where neither applies.
- */
-export function describeRetryColumn(state: DeliveryState, retryable: boolean): string {
-  if (state === "queued") return "Scheduled";
-  if (state === "held") return "Held";
-  return retryable ? "Retryable" : "—";
 }
 
 /** The date format the wireframes use: "12 Oct, 18:04". */

@@ -16,6 +16,7 @@ import {
   applyParticipationView,
   participationSortHref,
   participationSortState,
+  type EventFactsBase,
   type OperatorParticipationPerson,
   type Participation,
   type ParticipationFilters,
@@ -36,11 +37,14 @@ import {
   everyoneAsked,
   NOBODY_ASKED,
   NO_MATCHING_PEOPLE,
+  NOT_DISPATCHED_NO_CHANNEL,
   NOTHING,
   presenceLabel,
   SORTABLE_NOTE,
   TABLE_HEADINGS,
+  WHATSAPP_UNRESPONSIVE,
 } from "./presentation";
+import { RecordAnswerControl } from "./record-answer";
 
 /**
  * The participation table, at whichever tier is reading — W7's centre.
@@ -110,6 +114,53 @@ function AnswerChip({ person }: { person: ParticipationPerson }) {
   );
 }
 
+/**
+ * The Answer cell's whole story — W3, LAN-170.
+ *
+ * OWNER-LAN170-05 (correction round 3): `RecordAnswerControl` replaces the
+ * chip entirely on a row it offers itself against — it never stacks beside
+ * it. Brian: stacking a "No answer" chip above a control in one narrow cell
+ * "tries to fit the button there in some way," and the absence of an answer
+ * chip is itself the signal that there is no answer, so every cell in this
+ * column holds exactly one element. A row the control is not offered against
+ * — because it already carries an answer, is a walk-up, or the reader is not
+ * an operator — is unaffected and still renders the chip exactly as before.
+ * It renders only for an operator, only against a real invitation (never a
+ * walk-up, who was never asked), and only where `answer` is `null` — a row
+ * that already carries an answer never gets it, which is the whole of
+ * "superseding is out of scope" enforced at the surface that offers the
+ * control at all.
+ */
+function AnswerCell({
+  operator,
+  event,
+  person,
+  questions,
+}: {
+  operator: boolean;
+  event: Pick<EventFactsBase, "id" | "name" | "scheduledOn" | "startsAt" | "endsAt">;
+  person: ParticipationPerson;
+  questions: readonly ParticipationQuestion[];
+}) {
+  const invitationId = operator
+    ? ((person as OperatorParticipationPerson).invitationId ?? null)
+    : null;
+  const offerRecording = operator && person.answer === null && !person.isWalkUp && invitationId;
+
+  if (offerRecording) {
+    return (
+      <RecordAnswerControl
+        event={event}
+        invitationId={invitationId}
+        displayName={person.displayName}
+        questions={questions}
+      />
+    );
+  }
+
+  return <AnswerChip person={person} />;
+}
+
 function AttendanceChip({ presence }: { presence: AttendancePresence | null }) {
   if (presence === null) {
     return (
@@ -121,7 +172,42 @@ function AttendanceChip({ presence }: { presence: AttendancePresence | null }) {
   return <Chip size="small" label={presenceLabel(presence)} color={PRESENCE_COLOURS[presence]} />;
 }
 
-function DeliveryCell({ state, isWalkUp }: { state: string | null; isWalkUp: boolean }) {
+/**
+ * The Delivery cell's own label and colour, once W6's two named exceptions to
+ * the plain five-state vocabulary are applied — `REQ-no-channel-backstop` and
+ * `REQ-whatsapp-outage-visible`. Both replace what would otherwise read as an
+ * undifferentiated **Failed** chip; neither changes `person.delivery` itself,
+ * which stays the provider-neutral state `docs/ux/standards.md` rule 7 shares
+ * with the delivery screen.
+ */
+function deliveryChipLabel(person: OperatorParticipationPerson, state: string): string {
+  if (person.noUsableRoute) return NOT_DISPATCHED_NO_CHANNEL;
+  if (person.whatsappUnresponsive) return WHATSAPP_UNRESPONSIVE;
+  return DELIVERY_LABELS[state] ?? state;
+}
+
+function deliveryChipColour(
+  person: OperatorParticipationPerson,
+  state: string,
+): "success" | "error" | "warning" | "default" {
+  if (person.noUsableRoute) return "error";
+  // Reached, and the club's own channel failed — visible, not a failure the
+  // operator can do anything about (W6). Warning, not error: the message got
+  // through.
+  if (person.whatsappUnresponsive) return "warning";
+  if (state === "delivered") return "success";
+  if (state === "failed") return "error";
+  return "default";
+}
+
+function DeliveryCell({
+  person,
+  isWalkUp,
+}: {
+  person: OperatorParticipationPerson;
+  isWalkUp: boolean;
+}) {
+  const state = person.delivery ?? null;
   // W157-F7. "Nothing queued" is a statement about delivering an invitation,
   // and a walk-up was never invited — there is no invitation whose delivery
   // could be queued or not. Every other empty cell in a walk-up's row reads
@@ -140,13 +226,24 @@ function DeliveryCell({ state, isWalkUp }: { state: string | null; isWalkUp: boo
       </Typography>
     );
   }
-  const label = DELIVERY_LABELS[state] ?? state;
   return (
-    <Chip
-      size="small"
-      label={label}
-      color={state === "delivered" ? "success" : state === "failed" ? "error" : "default"}
-    />
+    <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
+      <Chip
+        size="small"
+        label={deliveryChipLabel(person, state)}
+        color={deliveryChipColour(person, state)}
+      />
+      {/*
+        W4's chase position — the rung already sent and the next one due, or
+        Chase stopped / Escalated to the President. `null` for an answered row,
+        a walk-up, or anybody `noUsableRoute` already explains.
+      */}
+      {person.chasePosition ? (
+        <Typography variant="caption" color="text.secondary" data-testid="chase-position">
+          {person.chasePosition}
+        </Typography>
+      ) : null}
+    </Stack>
   );
 }
 
@@ -191,22 +288,33 @@ function DiscrepancyMark({ person }: { person: ParticipationPerson }) {
   );
 }
 
-function SortableHeading({
-  basePath,
-  filters,
+/**
+ * The generic column-heading link and arrow — every other bit of
+ * `SortableHeading` below is participation's own href/state, computed from
+ * `ParticipationFilters`. Exported so another sortable table on this branch
+ * can render the identical markup and interaction from its own href/state
+ * rather than a second copy of this JSX — the Follow-ups queue
+ * (OWNER-LAN173-05) is the first other caller, pairing it with
+ * `@/lib/services/participation-view`'s generic `sortColumnHref`/
+ * `sortColumnState`.
+ */
+export function SortableColumnHeading({
   column,
   label,
+  href,
+  active,
+  direction,
 }: {
-  basePath: string;
-  filters: ParticipationFilters;
   column: string;
   label: string;
+  href: string;
+  active: boolean;
+  direction: "asc" | "desc";
 }) {
-  const { active, direction } = participationSortState(filters, column);
   return (
     <TableCell sortDirection={active ? direction : false}>
       <Link
-        href={participationSortHref(basePath, filters, column)}
+        href={href}
         data-sort={column}
         style={{ color: "inherit", textDecoration: "none" }}
         // R157C-B1. Sorting re-orders the rows already on screen; it must not
@@ -224,6 +332,29 @@ function SortableHeading({
         </TableSortLabel>
       </Link>
     </TableCell>
+  );
+}
+
+function SortableHeading({
+  basePath,
+  filters,
+  column,
+  label,
+}: {
+  basePath: string;
+  filters: ParticipationFilters;
+  column: string;
+  label: string;
+}) {
+  const { active, direction } = participationSortState(filters, column);
+  return (
+    <SortableColumnHeading
+      column={column}
+      label={label}
+      href={participationSortHref(basePath, filters, column)}
+      active={active}
+      direction={direction}
+    />
   );
 }
 
@@ -245,6 +376,11 @@ export function ParticipationTable({
   const { questions } = participation;
   const people = applyParticipationView(participation.people, filters, questions);
   const total = participation.people.length;
+  // Common to both tiers' event-facts shape (`EventFactsBase`) — LAN-170's
+  // recording dialog needs the event's identity (OWNER-LAN170-09: `id`, and
+  // now `name`/`scheduledOn`/`startsAt`/`endsAt` for its subtitle) and the
+  // table otherwise never reads any of it.
+  const event = participation.event;
 
   return (
     <Paper variant="outlined" data-testid="participation-table" data-tier={participation.tier}>
@@ -341,7 +477,12 @@ export function ParticipationTable({
                 </Stack>
                 <Stack direction="row" spacing={1.25} sx={{ mt: 0.5, flexWrap: "wrap", gap: 0.75 }}>
                   <LabeledField label={TABLE_HEADINGS.answer}>
-                    <AnswerChip person={person} />
+                    <AnswerCell
+                      operator={operator}
+                      event={event}
+                      person={person}
+                      questions={questions}
+                    />
                   </LabeledField>
                   <LabeledField label={TABLE_HEADINGS.attendance}>
                     <AttendanceChip presence={person.presence} />
@@ -349,7 +490,7 @@ export function ParticipationTable({
                   {operator ? (
                     <LabeledField label={TABLE_HEADINGS.delivery}>
                       <DeliveryCell
-                        state={(person as OperatorParticipationPerson).delivery ?? null}
+                        person={person as OperatorParticipationPerson}
                         isWalkUp={person.isWalkUp}
                       />
                     </LabeledField>
@@ -455,13 +596,18 @@ export function ParticipationTable({
                     {operator ? (
                       <TableCell data-testid="delivery-cell">
                         <DeliveryCell
-                          state={(person as OperatorParticipationPerson).delivery ?? null}
+                          person={person as OperatorParticipationPerson}
                           isWalkUp={person.isWalkUp}
                         />
                       </TableCell>
                     ) : null}
                     <TableCell>
-                      <AnswerChip person={person} />
+                      <AnswerCell
+                        operator={operator}
+                        event={event}
+                        person={person}
+                        questions={questions}
+                      />
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" color="text.secondary">

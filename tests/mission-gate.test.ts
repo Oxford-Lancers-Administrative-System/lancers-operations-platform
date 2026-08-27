@@ -17,6 +17,11 @@ import { reduce } from "../scripts/mission/lib/state.mjs";
 const rules = loadRules();
 const HEAD = "a".repeat(40);
 const OTHER = "b".repeat(40);
+const uxConformance = {
+  mockup_states: ["events filter — desktop", "events filter — measured 375px"],
+  comparison_method: "Rendered both live states and compared structure and copy.",
+  result: "clear",
+};
 
 const receipt = (overrides: object = {}) => ({
   mission_id: "M-SYNTHETIC-REHEARSAL",
@@ -28,6 +33,7 @@ const receipt = (overrides: object = {}) => ({
   reviewed_head_sha: HEAD,
   review_result: "clear",
   visual: "approved",
+  ux_conformance: uxConformance,
   open_owner_questions: 0,
   ...overrides,
 });
@@ -169,6 +175,17 @@ describe("the guarded mission merge gate", () => {
     expect(receiptDefects(receipt({ open_owner_questions: 1 })).join("\n")).toMatch(
       /open_owner_questions: 0/,
     );
+  });
+
+  it("refuses approved visual work without named mockup comparison evidence", () => {
+    expect(receiptDefects(receipt({ ux_conformance: undefined })).join("\n")).toMatch(
+      /requires clear ux_conformance/,
+    );
+    expect(
+      receiptDefects(receipt({ ux_conformance: { ...uxConformance, comparison_method: "" } })).join(
+        "\n",
+      ),
+    ).toMatch(/requires clear ux_conformance/);
   });
 
   it("accepts a mission-security receipt only with integrated coverage evidence", () => {
@@ -359,6 +376,7 @@ describe("the journal-side conjuncts the Lead checks before publishing a receipt
           round: 1,
           result: "clear",
           ci_state: "green",
+          ux_conformance: uxConformance,
         },
       },
       {
@@ -422,7 +440,7 @@ describe("the journal-side conjuncts the Lead checks before publishing a receipt
     expect(extractReceipt(verdict.receipt_block, rules)).toEqual(verdict.receipt);
   });
 
-  it("accepts mission-level security review and visual approval covering the package head", () => {
+  it("does not let mission-level security coverage replace visual package conformance", () => {
     const state = base();
     state.packages["WP-events-filter"].review = null;
     state.packages["WP-events-filter"].visual_approved = false;
@@ -442,8 +460,7 @@ describe("the journal-side conjuncts the Lead checks before publishing a receipt
         evidence: "mission review",
       },
     ];
-    expect(journalConjuncts(state, "WP-events-filter", HEAD)).toEqual([]);
-    expect(journalConjuncts(state, "WP-events-filter", OTHER).join("\n")).toMatch(
+    expect(journalConjuncts(state, "WP-events-filter", HEAD).join("\n")).toMatch(
       /no clear package review or mission-level security-tier review/i,
     );
   });

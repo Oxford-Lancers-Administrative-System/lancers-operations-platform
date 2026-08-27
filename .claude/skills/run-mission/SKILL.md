@@ -26,7 +26,7 @@ Require one exact `M-<id>`. Generate one UUID in `LANCERS_MISSION_LEAD_ID` for
 this Lead session and never reuse it. Run:
 
 ```bash
-npm run mission -- resume M-<id>
+npm run mission -- resume M-<id> [--token <token>]
 ```
 
 For a new mission, Brian supplies the approved packet:
@@ -34,6 +34,12 @@ For a new mission, Brian supplies the approved packet:
 ```bash
 npm run mission -- init M-<id> --packet <file>
 ```
+
+Resume opens the epoch the harness derives; a closed one needs its one-use token
+and a Lead identity that did not close it. Work from the dossier the resume
+prints, never a narrative handoff. At a boundary, close the epoch and stop; only
+an explicit owner message authorizes `epoch adjust`, which records Brian's words
+verbatim. `docs/mission-harness.md` governs epochs.
 
 The CLI owns the append-only journal, fence, refusals, lifecycle, and executable
 frontier. Record every transition through it when it occurs; never reconstruct
@@ -71,7 +77,7 @@ estimated duration are not package boundaries. Present packages, concurrency,
 critical path, and owner cost; record Brian's approval before creating Linear
 issues, branches, or worktrees.
 
-After approval, take the `plan-approved` phase stop. On the fresh resume, run one
+After approval, close the planning epoch and stop. On the fresh resume, run one
 read-only Linear preflight, then use the write-ahead `sync-intent`/`sync-result`
 pair. Reconcile a pending intent before retrying so a crash cannot duplicate an
 issue. No worker starts before its package has a Linear issue.
@@ -123,10 +129,14 @@ route-changing path before owner review.
 
 For each package, run affected tests and `npm run typecheck`; exact-head CI is
 the per-PR backstop. Before owner handoff, derive the PR diff's sensitive-path
-intersection. An empty intersection is recorded directly and launches no
-reviewer. A non-empty intersection receives one bounded Sonnet security-tier
-review at that package head. Non-security code receives no independent review.
-Security review allows one full pass and at most two correction passes.
+intersection and visual class. When both are empty, record deterministic
+clearance without a reviewer. Otherwise run one bounded Sonnet `package-gate`
+review at that package head: sensitive paths receive security review; visual
+work is rendered and compared with every approved mockup state at desktop and
+measured 375px. Mockups govern structure and copy; application conventions
+govern styling. A structural or copy departure without an answered `Q-` decision
+blocks. One review covers the union and allows one full pass plus at most two
+correction passes.
 Authentication, authorization, privacy, security, integrity, migration, RLS,
 transaction, and unauthorized external-effect findings block; an unresolved
 blocker never ages into approval.
@@ -143,7 +153,7 @@ review gate disposition, and never authorizes correction of an advisory. Re-run
 `correction` for the same active worker to replace its scope in place; never
 abandon a healthy worker merely to re-scope it.
 
-Only after targeted checks, required security review, exact-head CI, and the
+Only after targeted checks, required package-gate review, exact-head CI, and the
 prepared environment are clear may the package enter owner walkthrough. A head
 change returns to these machine checks. The classifier alone carries owner
 approval across a proven non-rendered delta; a rendered or unclassifiable delta
@@ -200,9 +210,9 @@ acceptance pending`, or `Incomplete`. Merged code or a completed owner action is
 not acceptance without the linked verification. Name every pending criterion,
 owner action, remaining verification, and next actor.
 
-For usage exhaustion, owner stop, or blocking drift, record `mission stop`; a
-fresh Lead resumes from the journal. Wait for agent completion notifications—
-never poll.
+For usage exhaustion, owner stop, or blocking drift, record `mission stop` and
+close the epoch; a fresh Lead resumes from the journal. Wait for agent
+completion notifications—never poll.
 
 ## Boundaries
 

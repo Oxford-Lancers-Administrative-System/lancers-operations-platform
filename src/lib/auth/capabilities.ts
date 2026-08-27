@@ -664,6 +664,19 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
    * It is a lead derivation and it is cheap to narrow: separation of duties, or
    * a dedicated delivery role, is an edit to one array in this file. It is
    * flagged in LAN-78's pull request as the assumption it is.
+   *
+   * ## LAN-171 reuses this grant for a second surface
+   *
+   * `/operate/admin/messaging` — the messaging schedule W7 describes and ADR
+   * 0036 authorizes — is gated on this capability rather than on
+   * `role_management`. The reasoning is the same derivation one step further
+   * along again: setting the policy that decides when an approved event chases
+   * its audience belongs with the four roles who already approve that event and
+   * repair its delivery, not with the narrower seat that administers operator
+   * accounts and role assignments. `ADMINISTRATION_DESTINATIONS`
+   * (`src/app/operate/destinations.ts`) is explicit that this is a deliberate
+   * second capability inside one navigation group, not a widening of
+   * `role_management` itself.
    */
   delivery_administration: capability({
     key: "delivery_administration",
@@ -675,7 +688,9 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
       "from slice-ux.md § 3, which names delivery among the surfaces a coaching seat never " +
       "receives. Recorded as an assumption on LAN-78 and narrowed by editing this list. " +
       "Brian, 15 August 2026 (LAN-124) added it_officer, the administrative seat that " +
-      "holds every capability in this file.",
+      "holds every capability in this file. Lead, 25 August 2026 (LAN-171): reused, unchanged, " +
+      "to gate the messaging schedule page ADR 0036 authorizes — recorded as the assumption it " +
+      "is on LAN-171's pull request.",
   }),
 
   /**

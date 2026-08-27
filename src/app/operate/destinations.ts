@@ -87,28 +87,62 @@ export const COACH_DESTINATIONS: readonly Destination[] = Object.freeze([
  * Brian's intake decision of 18 August 2026 is a decision about *placement*
  * rather than about capability: "Administration is a low-frequency privileged
  * area at the bottom of the left application sidebar, immediately above
- * user/account controls", holding "Operators and Roles" and nothing else. The
- * reviewed prototype draws the same thing — a rule, the word Administration,
- * then the two entries, then the signed-in account.
+ * user/account controls". It held "Operators and Roles" and nothing else at
+ * the time; W5 and W7 have since each added one more entry, and the reviewed
+ * prototype's shape survives them — a rule, the word Administration, then
+ * the entries, then the signed-in account.
  *
- * So it is a **second list** rather than two more entries in `DESTINATIONS`.
+ * So it is a **second list** rather than more entries in `DESTINATIONS`.
  * The separator and the caption are the decision, and a flat list cannot carry
  * them; `ShellNav` renders this one under its own heading.
  *
- * Both require `role_management`, which is `REQ-role-management-authority`'s
- * capability and is held by three seats. That has one consequence this file has
- * not had before: these two entries are **not** shown to every operator, where
- * Roster, Events and Report are. That is a courtesy and never a boundary —
- * `src/app/operate/admin/**` gates itself on the same capability, and a
- * Secretary who types the URL is refused by the page, not by this list.
- * Hiding it matters anyway, because a low-frequency privileged area advertised
- * to everybody who cannot open it is an invitation to try.
+ * Three different capabilities now govern the four entries, in this order:
+ *
+ *   * **Follow-ups** — W5, `capability: null`. The workflow's primary actor
+ *     is "the President, and any operator working follow-ups", not a
+ *     privileged subset — the same floor Roster and Events already use.
+ *     Placed first, above Operators, per the approved `W5-01` mockup.
+ *   * **Operators**, **Roles** — `role_management`,
+ *     `REQ-role-management-authority`'s capability, held by three seats.
+ *   * **Messaging schedule** — LAN-171, `delivery_administration`. The four
+ *     calendar roles who already approve events and repair their delivery
+ *     are the ones who set the policy deciding when those events chase; the
+ *     Treasurer and coaching seats are excluded from it for the same
+ *     recorded reason `delivery_administration` excludes them elsewhere. Not
+ *     `role_management` — changing when the club messages people is not
+ *     account or role administration. Ordered Operators, Messaging schedule,
+ *     Roles among themselves, matching the approved `W7-02` mockup's own
+ *     sidebar.
+ *
+ * None of the four is shown to every operator, where Roster, Events and
+ * Report are — except Follow-ups, which (like them) is `capability: null`
+ * and so is shown to every seated operator alongside them; it is only
+ * grouped under this heading, not gated by it. That grouping is a courtesy
+ * and never a boundary either way — `src/app/operate/admin/**` gates itself
+ * on the same capabilities, and an operator who types the URL is refused by
+ * the page, not by this list. Hiding Operators, Roles and Messaging schedule
+ * matters anyway, because a low-frequency privileged area advertised to
+ * everybody who cannot open it is an invitation to try.
  */
 export const ADMINISTRATION_DESTINATIONS: readonly Destination[] = Object.freeze([
+  /**
+   * W5. "Shown as a Follow-ups item under Administration, above Operators" —
+   * the mockup's own placement, and `capability: null` rather than
+   * `role_management`: the workflow's primary actor is "the President, and
+   * any operator working follow-ups", not the three seats Operators and Roles
+   * are narrowed to. `readFollowUpsQueue`'s own floor is
+   * `requireGeneralOperator()`, the same as the participation table's.
+   */
+  Object.freeze({ href: "/operate/admin/follow-ups", label: "Follow-ups", capability: null }),
   Object.freeze({
     href: "/operate/admin/operators",
     label: "Operators",
     capability: "role_management" as CapabilityKey,
+  }),
+  Object.freeze({
+    href: "/operate/admin/messaging",
+    label: "Messaging schedule",
+    capability: "delivery_administration" as CapabilityKey,
   }),
   Object.freeze({
     href: "/operate/admin/roles",

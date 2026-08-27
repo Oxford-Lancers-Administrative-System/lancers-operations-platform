@@ -375,6 +375,53 @@ const CONSTRAINT_MESSAGES: Readonly<Record<string, Mapping>> = {
         "exactly one.",
       { rule: "weekly_reports_first_version_supersedes_nothing", context },
     ),
+
+  // LAN-171. The messaging schedule page validates each field itself before
+  // writing, so an operator should never reach these from the running
+  // application — they are the backstop for a script, a retry racing a widened
+  // bound, or a future caller this page does not anticipate.
+  messaging_schedules_rsvp_by_is_sane: (context) =>
+    new ConstraintViolated("The RSVP deadline has to be between 0 and 60 days before the event.", {
+      rule: "messaging_schedules_rsvp_by_is_sane",
+      context,
+    }),
+
+  messaging_schedules_invitation_lead_is_sane: (context) =>
+    new ConstraintViolated(
+      "The first invitation has to go out between 0 and 120 days before the event.",
+      { rule: "messaging_schedules_invitation_lead_is_sane", context },
+    ),
+
+  messaging_schedules_invitation_precedes_the_deadline: (context) =>
+    new ConstraintViolated(
+      "The invitation has to go out on or before the RSVP deadline it is chasing — it cannot " +
+        "ask people to answer by a date that has already passed when they are asked.",
+      { rule: "messaging_schedules_invitation_precedes_the_deadline", context },
+    ),
+
+  messaging_schedules_cadence_is_positive: (context) =>
+    new ConstraintViolated("The reminder cadence has to be between 1 and 720 hours.", {
+      rule: "messaging_schedules_cadence_is_positive",
+      context,
+    }),
+
+  messaging_schedules_whatsapp_reminders_are_sane: (context) =>
+    new ConstraintViolated("The number of WhatsApp reminders has to be between 0 and 10.", {
+      rule: "messaging_schedules_whatsapp_reminders_are_sane",
+      context,
+    }),
+
+  messaging_schedules_email_reminders_are_sane: (context) =>
+    new ConstraintViolated("The number of email reminders has to be between 0 and 10.", {
+      rule: "messaging_schedules_email_reminders_are_sane",
+      context,
+    }),
+
+  messaging_schedules_escalation_is_sane: (context) =>
+    new ConstraintViolated(
+      "The President's escalation has to be between 0 and 720 hours after the RSVP deadline.",
+      { rule: "messaging_schedules_escalation_is_sane", context },
+    ),
 };
 
 /**

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import { ConstraintViolated, type Tx } from "@/lib/db";
 
 /**
@@ -119,4 +121,64 @@ export async function recordAudit(tx: Tx, record: AuditRecord): Promise<Recorded
 
   const row = result.rows[0];
   return { id: row.id, occurredAt: row.occurred_at };
+}
+
+// ---------------------------------------------------------------------------
+// Deriving an entity id for a natural-keyed table
+// ---------------------------------------------------------------------------
+
+/**
+ * A fixed namespace for {@link deriveEntityIdFromNaturalKey}, per UUIDv5's
+ * own requirement (RFC 4122 §4.3) for *some* namespace to mix into the hash.
+ * The value is arbitrary and carries no meaning of its own; the only property
+ * that matters is that it never changes. Changing it would re-derive a
+ * different id for every natural key already on file, silently breaking every
+ * existing audit row's link to the subject it describes.
+ */
+const AUDIT_NATURAL_KEY_NAMESPACE = "d2719c9b-b8b1-4e3e-9c3c-9b9f6b6c9a01";
+
+function uuidV5(namespace: string, name: string): string {
+  const namespaceBytes = Buffer.from(namespace.replace(/-/g, ""), "hex");
+  const nameBytes = Buffer.from(name, "utf8");
+  const hash = createHash("sha1")
+    .update(Buffer.concat([namespaceBytes, nameBytes]))
+    .digest();
+  const bytes = Buffer.from(hash.subarray(0, 16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x50; // version 5
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // RFC 4122 variant
+  const hex = bytes.toString("hex");
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20),
+  ].join("-");
+}
+
+/**
+ * A deterministic `uuid` for an entity whose own primary key is not one.
+ *
+ * `audit_events.entity_id` is `uuid not null`, and until LAN-171 every audited
+ * table (`events`, `people`, `seasons`, …) was itself uuid-keyed, so the
+ * entity's own id always was a legal `entity_id`. `public.messaging_schedules`
+ * is the first exception (OWNER-LAN171-01): its primary key is
+ * `public.event_type`, a plain enum label like `"practice"`, and passing that
+ * straight through made Postgres reject the audit insert — rolling back the
+ * schedule change with it, silently, on every save.
+ *
+ * UUIDv5 (RFC 4122 §4.3) rather than a random id, because the point is
+ * reproducibility: the same `(entityTable, naturalKey)` must always name the
+ * same audit subject, so a reader can find every change to "practice"'s
+ * messaging schedule by deriving the id again rather than by having recorded
+ * it somewhere. `entityTable` is folded into the hashed name — not only
+ * carried in the separate `entity_table` column — so two different tables
+ * that happened to share a natural key never collide on the same derived id.
+ *
+ * This does not widen `audit_events.entity_id` to text, and it is not a
+ * migration: the column stays a real `uuid`, and every existing uuid-keyed
+ * caller is unaffected.
+ */
+export function deriveEntityIdFromNaturalKey(entityTable: string, naturalKey: string): string {
+  return uuidV5(AUDIT_NATURAL_KEY_NAMESPACE, `${entityTable}:${naturalKey}`);
 }

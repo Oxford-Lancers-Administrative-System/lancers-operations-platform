@@ -100,6 +100,13 @@ describe("approved workflows and roles", () => {
       ]);
     }
   });
+
+  it("keeps mockup conformance structural and leaves styling to the application", () => {
+    const reviewer = read(agentFiles["code-reviewer"]);
+    expect(reviewer).toMatch(/compare sections and order, row facts and order/);
+    expect(reviewer).toMatch(/application—not the mockup—governs button variants/);
+    expect(reviewer).toMatch(/structural\s+or copy departure blocks/);
+  });
 });
 
 describe("protected authority", () => {

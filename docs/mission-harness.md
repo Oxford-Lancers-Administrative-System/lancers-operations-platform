@@ -28,6 +28,121 @@ An invalid, `not_ready`, or unapproved packet is refused outright. To
 is enough — the Lead replays durable state and continues; no chat history is
 needed or used.
 
+## Lead epochs
+
+A **Lead epoch** is the bounded assignment one Mission Lead holds. The harness
+derives it from durable state before the Lead acts and refuses mission mutations
+outside it. Mission 4 is why: one Lead ran from plan approval through five
+packages and every merge with the recycle still owed, because the rule was prose.
+
+| Phase                 | Derived when                                      | Ends when                                    |
+| --------------------- | ------------------------------------------------- | -------------------------------------------- |
+| `planning`            | No approved plan                                  | Brian's approval is recorded                 |
+| `post-plan-boundary`  | Plan approved, recycle not yet taken              | A fresh Lead opens the first execution epoch |
+| `implementation-wave` | Live packages remain                              | Every package in the wave has merged         |
+| `integration`         | All live packages merged, mission smoke not clear | The integrated smoke is clear                |
+| `acceptance-cutover`  | Smoke clear, owner decisions still open           | Every open owner decision is answered        |
+| `closeout`            | Nothing but closeout remains                      | The mission is finalized                     |
+
+An **execution wave** is at most two implementation packages taken from the
+executable frontier in plan order, anything already carrying a worker first, and
+obeying the same collision, migration and dependency rules as dispatch.
+`lead-epoch-opened` is validated against the derived definition, so a Lead
+cannot name itself an extra package or skip the recycle.
+
+### Boundaries are fences, not advice
+
+A boundary is reached by the state, not by the Lead agreeing to it: the moment
+the plan is approved, the planning epoch is boundary-pending, and red health
+reaches one too. Past it the epoch may finish what is already running and always
+takes owner answers, checkpoints, annotations and reclamation; it may not
+synchronize, dispatch, start a correction outside an already-active one,
+progress an out-of-scope package, file the integrated review, or write the
+closeout. `mission epoch drain` pins that to the work active when draining
+began. A revised approved packet is the owner's contract arriving rather than
+new execution, so a boundary accepts it and a closed epoch does not. Reads and
+the pure `--check` paths never append.
+
+### The handover
+
+`mission epoch close` issues a **one-use resume token**, writes a dossier
+generated from reduced state beside the journal, and releases the Lead fence.
+The next epoch needs that unspent token **and a different Lead identity**; the
+token is consumed on open, and a closed epoch never reopens. The outgoing Lead
+writes no handover of its own — the dossier is a projection of state, so no
+heartbeat or superseded narration reaches the next one.
+
+**What this proves, and what it does not.** The epoch records a host-provided
+Claude session identifier when one exists. When none does — the case today — the
+fallback is a fresh `LANCERS_MISSION_LEAD_ID` plus the token, from a session
+Brian started. That is harness-level fencing and a user-started handshake, **not**
+proof of a fresh model context, and a pid is never offered as evidence of one.
+
+### Health: green, yellow, red
+
+Deterministic, from journal evidence alone; every reason carries a code and the
+event index that produced it. No model self-assessment counts.
+
+- **Yellow** — four hours old, six owner answers, a blocked review or running
+  correction, or one merge from the wave's exit condition.
+- **Red** — six hours old, ten owner answers, a corrected or disputed Lead entry,
+  an abandoned worker, a third review round on one lineage, a replaced session, a
+  reused or absent Lead identity, or the Lead filing a worker's evidence.
+
+Yellow recommends a fresh Lead and leaves the work available; red fences the
+epoch until Brian authorizes continuing. Thresholds are `EPOCH_LIMITS` in
+[`epochs.mjs`](../scripts/mission/lib/epochs.mjs).
+
+**Green means no recorded pressure signal, never that the Lead's context is
+proved healthy.** No host exposes context-usage telemetry, so that signal reads
+`unknown` and is reported as unknown, never as evidence of health.
+
+### Adjusting an epoch — Brian's call, never the bot's
+
+The Lead may recommend one from journal evidence; only an explicit owner message
+authorizes filing, and the event records Brian's words.
+
+**`--extend-current`** keeps this Lead for one bounded unit: one adjacent
+eligible package or one already-active correction cycle, never both. Once per
+epoch, green only unless Brian names every current reason code as accepted risk.
+It never crosses into the walker, cutover or closeout, and it expires when that
+work stabilizes or after two hours, after which the fence returns by itself.
+
+**`--recut-future`** regroups later waves within the approved dependency graph
+and collision rules; it keeps no session alive, so it costs no budget and may be
+filed at any health. Neither form changes approved packages, requirements, the
+dependency DAG or acceptance criteria, and accepting a risk never relabels a red
+epoch green.
+
+At a boundary every owner-facing surface offers the same three choices — fresh
+Lead (recommended), pause or stop, or an owner-approved adjustment — with the
+health reasons and scope behind them.
+
+### Existing journals
+
+Journals written before epochs replay unchanged and are never rewritten; no
+epoch is invented for work already done. The next mutating resume bootstraps one
+from current reduced state; until then status stays readable and the CLI refuses
+mission work with an instruction. A Mission 4-shaped journal bootstraps to
+`post-plan-boundary` — a fresh Lead before any further implementation.
+
+### Commands
+
+```
+npm run mission -- epoch status M-<id> [--json]
+npm run mission -- epoch boundary M-<id> --reason <what was met>
+npm run mission -- epoch drain M-<id> [--packages WP-a,WP-b]
+npm run mission -- epoch close M-<id> [--reason <why>]
+npm run mission -- epoch adjust M-<id> --extend-current --package WP-x \
+    --by Brian --authorization "<Brian's words>" --reason <why> [--accept-risk <codes>]
+npm run mission -- epoch adjust M-<id> --recut-future --waves <file.json> \
+    --by Brian --authorization "<Brian's words>" --reason <why>
+npm run mission -- resume M-<id> --token <token>
+```
+
+`mission init` opens the planning epoch as it records the packet, so there is
+never a window in which a Lead is unbounded.
+
 ## Finishing a mission
 
 `/run-mission` stops short of closeout, for the reason `/start-issue` does:
@@ -153,14 +268,16 @@ the Linear issue, required outcome, linked criterion or gate, remaining human
 and agent work, and next actor. Questions Brian can answer in the conversation
 remain in **Need from Brian** and never enter the owner-action section.
 
-**Visual review keeps ADR 0020's protected environment and follows ADR 0035.**
-Targeted checks, exact-head CI, and any triggered security review finish before
-Brian opens a visual package's live `review-ready` environment, with one URL,
-the fixed login and zero commands. `visual-approve` records the exact package
-head he checked. At that unchanged head no reviewer or worker runs afterwards;
-the deterministic merge gate is next. A rendered head change returns through
-machine checks and one affected-surface walkthrough, while a classifier-proven
-non-rendered delta carries the owner evidence forward.
+**Visual review keeps ADR 0020's protected environment and follows ADR 0037.**
+Targeted checks and exact-head CI precede one package gate. It reviews the union
+of sensitive paths and, for visual work, every approved mockup state at desktop
+and measured 375px. Mockups govern structure and copy; application conventions
+govern styling. An empty union launches no reviewer. Only then does Brian open
+the live `review-ready` environment with one URL, the fixed login and zero
+commands. `visual-approve` records the exact package head he checked. At that
+unchanged head no reviewer or worker runs afterwards; the deterministic merge
+gate is next. A rendered head change repeats the affected evidence, while a
+classifier-proven non-rendered delta carries the owner approval forward.
 
 Each approved issue merges immediately. After all mission issues are on `main`,
 one bounded Sonnet walker smoke-tests the predetermined end-to-end journeys and
@@ -239,7 +356,9 @@ every read.
   (a still-live prior Lead is refused; a dead one is reclaimed after its
   heartbeat expires), replays the journal, and reports the reconstructed
   state and next actions before doing anything. Because the fence is written
-  by `mission init`, this holds from the mission's first event.
+  by `mission init` and moves with each epoch, this holds from the mission's
+  first event. The lost Lead's epoch is closed as lost — not as finished — and
+  the fresh Lead opens the epoch the harness derives.
 - **Claude usage ran out:** the Lead checkpointed and stopped durably
   (`mission stop --reason usage-exhausted`). When capacity returns, a fresh
   session resumes exactly as above. There is no automatic wake-up in v1.
@@ -315,7 +434,8 @@ with the missing work named; a package blocks rather than pretends.
 
 ## Known limitations in v1
 
-- One Lead per mission; at most two implementation workers and at most three
+- One Lead per mission, bounded by one epoch at a time; at most two
+  implementation workers and at most three
   concurrent implementers, reviewers and walkers per mission. There
   is no harness-level mission count. Each active mission owns a uniquely ported
   disposable local database; the standing non-mission stack remains available.
@@ -343,6 +463,9 @@ Independent commands are batched; long output goes to `/tmp/out.log` with only
 its last 20 lines shown, and a diff stat precedes a full diff.
 
 The Lead stops and a fresh Lead resumes after plan approval, before durable
-execution begins. Every resume reconciles the journal against GitHub first. The
-Lead delegates repository investigation to the bounded read-only scout and
-waits for completion notifications instead of polling.
+execution begins — and after each execution wave, before the integrated walker,
+and before cutover and closeout. Those boundaries are enforced by the state
+machine, not by this paragraph; see **Lead epochs** above. Every resume
+reconciles the journal against GitHub first. The Lead delegates repository
+investigation to the bounded read-only scout and waits for completion
+notifications instead of polling.

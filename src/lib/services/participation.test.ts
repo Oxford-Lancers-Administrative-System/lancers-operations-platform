@@ -24,6 +24,7 @@ import type { Client } from "pg";
 
 import { closePool, withTransaction } from "@/lib/db";
 import { todayInClubZone } from "@/lib/club-time";
+import { NO_USABLE_NUMBER_REASON } from "@/lib/delivery/phone";
 import { approveEvent, saveEventAudience } from "./event-approval";
 import { listAudienceCatalogueIn, type AudienceCatalogue } from "./event-audience";
 import { createEventDraft, type EventDraftInput } from "./events";
@@ -34,7 +35,7 @@ import {
   readClubLinkParticipation,
 } from "./participation";
 import { issueClubLinkIn, deriveClubLinkToken } from "./club-link";
-import { summariseQuestion } from "./participation-view";
+import { summariseQuestion, type OperatorParticipation } from "./participation-view";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const NAME_MARKER = "LAN157ParticipationSuite";
@@ -405,6 +406,70 @@ describe("the participation table", () => {
     expect(view.people).toHaveLength(5);
   });
 
+  /**
+   * OWNER-LAN173-06 (correction round 2). `scheduleEventLadderIn` creates the
+   * invitation anchor and every reminder rung inside `approveEvent`'s own
+   * transaction, so `created_at` -- `now()`, transaction-start time -- ties
+   * across a whole ladder in real use, not only here. `DELIVERY_LATERAL` used
+   * to order by `created_at desc` alone, so a tie had no tiebreaker at all:
+   * this reproduces the exact scenario a correction-round SQL walk found on a
+   * real seeded event -- an invitation already `completed` and a later
+   * reminder the club held -- and pins the fix (`NOTIFICATION_JOB_RECENCY_ORDER`
+   * in `./delivery.ts`) rather than the shape of any one query.
+   */
+  it("reads Held, not the tied invitation job's Delivered, for a later reminder the club held", async () => {
+    const staged = await scenario();
+    const tiedAt = "2026-03-01T09:00:00.000Z";
+
+    // `approveEvent` (inside `scenario()`) already inserted its own real
+    // `invitation` job for every invitee -- distinct from `scenario()`'s own
+    // separately-keyed one this suite uses to give the operator tier a state
+    // to print. Both cleared here so this fixture controls exactly the two
+    // rows the scenario is about: one invitation, delivered, and the one
+    // later reminder the club held.
+    await observer.query(
+      `delete from public.notification_jobs where invitation_id = $1 and job_type = 'invitation'`,
+      [staged.invitations[0].id],
+    );
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, channel,
+          created_at, scheduled_for, ladder_rung)
+       values ($1, 'invitation', 'completed', $2, $3, 'whatsapp',
+               $4::timestamptz, $4::timestamptz, 0)`,
+      [
+        `${NAME_MARKER}:invitation:${staged.invitations[0].id}`,
+        staged.invitations[0].id,
+        staged.eventId,
+        tiedAt,
+      ],
+    );
+
+    // Its first reminder: tied `created_at`, a later `scheduled_for` and a
+    // higher rung -- genuinely the ladder's most recent job -- held rather
+    // than sent.
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, channel,
+          created_at, scheduled_for, ladder_rung, held_at, held_reason, held_by_person_id)
+       values ($1, 'reminder', 'pending', $2, $3, 'whatsapp',
+               $4::timestamptz, $5::timestamptz, 1, $4::timestamptz,
+               'The venue changed after this reminder was queued.', $6)`,
+      [
+        `${NAME_MARKER}:held:${staged.invitations[0].id}`,
+        staged.invitations[0].id,
+        staged.eventId,
+        tiedAt,
+        "2026-03-02T09:00:00.000Z",
+        actorPersonId,
+      ],
+    );
+
+    const view = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
+    const person = view.people.find((one) => one.invitationId === staged.invitations[0].id)!;
+    expect(person.delivery).toBe("held");
+  });
+
   it("reads nothing queued as nothing queued, never as a failure", async () => {
     // `DELIVERY_STATE_EXPRESSION` ends in `else 'failed'`, which is right for a
     // job and very wrong for the absence of one: without the `j.id is null`
@@ -437,6 +502,156 @@ describe("the participation table", () => {
     const view = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
     expect(view.people).toHaveLength(5);
     expect(view.headline.invited).toBe(5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-173-r1-F1 -- the automatic email fallback's exclusion from the new
+// chase-position and delivery-exception derivations. Independent review found
+// `readChaseJobsIn`, `readEscalatedInvitationsIn`, and the
+// noUsableRoute/whatsappUnresponsive/chasePosition derivation with zero
+// database-backed coverage: `participation.test.ts`'s own diff was empty and
+// `participation/screens.test.tsx` mocks the service outright.
+// ---------------------------------------------------------------------------
+
+describe("the automatic email fallback is excluded from the chase and delivery-exception reads", () => {
+  /**
+   * `rows[1]` deliberately, not `rows[0]` -- `scenario()` gives `rows[0]` its
+   * own completed job, and this describe block writes its own jobs onto a
+   * fresh invitee to avoid the two colliding.
+   */
+  async function personFor(staged: Scenario, view: OperatorParticipation) {
+    const target = staged.invitations[1];
+    return {
+      target,
+      row: () => view.people.find((person) => person.invitationId === target.id)!,
+    };
+  }
+
+  it("reads the same chase position with or without the fallback shadow job -- readChaseJobsIn excludes it", async () => {
+    const staged = await scenario();
+    const invitationId = staged.invitations[1].id;
+
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, channel, ladder_rung)
+       values ($1, 'invitation', 'failed', $2, $3, 'whatsapp', 0)`,
+      [`${NAME_MARKER}:${invitationId}:original`, invitationId, staged.eventId],
+    );
+    await observer.query(
+      `insert into public.delivery_results
+         (notification_job_id, attempt_number, outcome, channel, provider, detail)
+       select id, 1, 'rejected', 'whatsapp', 'meta-whatsapp-cloud', 'not a WhatsApp account'
+         from public.notification_jobs where idempotency_key = $1`,
+      [`${NAME_MARKER}:${invitationId}:original`],
+    );
+
+    const before = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
+    const beforePosition = (await personFor(staged, before)).row().chasePosition;
+
+    // The fallback shadow job, keyed by convention exactly as
+    // `scheduleWhatsAppFallbackIn` keys it -- a second job for the same
+    // invitation, on a different channel, that `readChaseJobsIn` must not
+    // count as a second rung of the ladder.
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, channel, ladder_rung,
+          claimed_at, claimed_by)
+       values ($1, 'invitation', 'processing', $2, $3, 'email', 0, now(), $4)`,
+      [
+        `${NAME_MARKER}:${invitationId}:original:email-fallback`,
+        invitationId,
+        staged.eventId,
+        NAME_MARKER,
+      ],
+    );
+
+    const after = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
+    const afterPosition = (await personFor(staged, after)).row().chasePosition;
+
+    expect(afterPosition).toBe(beforePosition);
+  });
+
+  it("derives noUsableRoute from the original job's own recorded failure, not the fallback's", async () => {
+    const staged = await scenario();
+    const invitationId = staged.invitations[1].id;
+
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, channel, last_error)
+       values ($1, 'invitation', 'failed', $2, $3, 'whatsapp', $4)`,
+      [
+        `${NAME_MARKER}:${invitationId}:original`,
+        invitationId,
+        staged.eventId,
+        NO_USABLE_NUMBER_REASON,
+      ],
+    );
+    await observer.query(
+      `insert into public.delivery_results
+         (notification_job_id, attempt_number, outcome, channel, provider, detail)
+       select id, 1, 'rejected', 'whatsapp', 'meta-whatsapp-cloud', $2
+         from public.notification_jobs where idempotency_key = $1`,
+      [`${NAME_MARKER}:${invitationId}:original`, NO_USABLE_NUMBER_REASON],
+    );
+
+    const view = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
+    const row = (await personFor(staged, view)).row();
+    expect(row.noUsableRoute).toBe(true);
+    // W4's exceptions table: nothing to chase for somebody the club has never
+    // reached at all.
+    expect(row.chasePosition).toBeNull();
+  });
+
+  it("reads whatsappUnresponsive only once the fallback job itself completes, not merely exists", async () => {
+    const staged = await scenario();
+    const invitationId = staged.invitations[1].id;
+
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, channel)
+       values ($1, 'invitation', 'failed', $2, $3, 'whatsapp')`,
+      [`${NAME_MARKER}:${invitationId}:original`, invitationId, staged.eventId],
+    );
+    await observer.query(
+      `insert into public.delivery_results
+         (notification_job_id, attempt_number, outcome, channel, provider, detail)
+       select id, 1, 'rejected', 'whatsapp', 'meta-whatsapp-cloud', 'not a WhatsApp account'
+         from public.notification_jobs where idempotency_key = $1`,
+      [`${NAME_MARKER}:${invitationId}:original`],
+    );
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, channel,
+          claimed_at, claimed_by)
+       values ($1, 'invitation', 'processing', $2, $3, 'email', now(), $4)`,
+      [
+        `${NAME_MARKER}:${invitationId}:original:email-fallback`,
+        invitationId,
+        staged.eventId,
+        NAME_MARKER,
+      ],
+    );
+
+    const stillSending = await withTransaction((tx) =>
+      buildOperatorParticipationIn(tx, staged.eventId),
+    );
+    expect((await personFor(staged, stillSending)).row().whatsappUnresponsive).toBe(false);
+
+    await observer.query(
+      `update public.notification_jobs set status = 'completed'
+        where idempotency_key = $1`,
+      [`${NAME_MARKER}:${invitationId}:original:email-fallback`],
+    );
+
+    const delivered = await withTransaction((tx) =>
+      buildOperatorParticipationIn(tx, staged.eventId),
+    );
+    const row = (await personFor(staged, delivered)).row();
+    expect(row.whatsappUnresponsive).toBe(true);
+    // The person was reached -- the club's primary channel failed and that
+    // stays visible, distinct from noUsableRoute (nobody reached at all).
+    expect(row.noUsableRoute).toBe(false);
   });
 });
 
@@ -552,6 +767,26 @@ describe("the club-link tier", () => {
     // Nor any of the five delivery states, anywhere in the payload.
     for (const state of ["queued", "attempted", "delivered", "retryable"]) {
       expect(JSON.stringify(club), state).not.toContain(`"${state}"`);
+    }
+  });
+
+  it("carries an invitation id for LAN-170 to record against, while the club-link payload does not", async () => {
+    const staged = await scenario();
+
+    const [operator, club] = await withTransaction(async (tx) => [
+      await buildOperatorParticipationIn(tx, staged.eventId),
+      await buildClubLinkParticipationIn(tx, staged.eventId),
+    ]);
+
+    // The positive control: an invited, non-walk-up person carries a real id.
+    expect(operator.people.some((one) => typeof one.invitationId === "string")).toBe(true);
+
+    // The assertion — same shape as the `delivery` proof above, and for the
+    // same reason: a club-link reader records nothing, so nothing here should
+    // hand them the id `RecordAnswerControl` would write against.
+    expect(JSON.stringify(club)).not.toContain('"invitationId"');
+    for (const person of club.people) {
+      expect(Object.keys(person)).not.toContain("invitationId");
     }
   });
 

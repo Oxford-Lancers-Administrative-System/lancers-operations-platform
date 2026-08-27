@@ -21,7 +21,7 @@
  * `src/lib/services/event-amendment.test.ts`.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -65,6 +65,13 @@ vi.mock("@/lib/services/event-approval", async (importOriginal) => {
     // file's cancelled/approved fixtures reach; proved in `screens.test.tsx`.
     readEventAudienceGroupSummary: vi.fn(),
   };
+});
+// LAN-171. Reads a real transaction; this file's fixtures are not about an
+// approved event's committed plan, which is proved in `messaging-schedule.test.ts`
+// and `event-approval.test.ts`.
+vi.mock("@/lib/services/messaging-schedule", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/messaging-schedule")>();
+  return { ...actual, readFrozenMessagingPlan: vi.fn().mockResolvedValue(null) };
 });
 vi.mock("@/lib/services/event-amendment", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/event-amendment")>();
@@ -475,11 +482,13 @@ describe("where the one tick starts", () => {
     expect(panel).not.toContain("put it in the description");
   });
 
-  it("says the messages already queued are held, and only when some are", async () => {
+  it("says the messages already queued are held, then resumed, and only when some are", async () => {
     await reviewAfterChanging("Venue", "University Parks");
 
+    // W8: held is never a resting state — the same save that holds these
+    // resumes them, so the sentence says both halves.
     expect(flatten(screen.getByTestId("queued-messages").textContent)).toBe(
-      "Saving holds 2 queued messages.",
+      "Saving holds 2 queued messages, then resumes them.",
     );
   });
 
@@ -494,6 +503,20 @@ describe("where the one tick starts", () => {
     expect(flatten(screen.getByTestId("amend-review-step").textContent)).not.toContain(
       "Messages already queued",
     );
+  });
+
+  // W8, REQ-reschedule-recomputes, acceptance #7 — "the application says a
+  // reschedule is happening".
+  it("says a reschedule is happening when the date moves, and says nothing when it does not", async () => {
+    const rescheduled = await reviewAfterChanging("Date", "2099-12-25");
+    expect(within(rescheduled).getByTestId("reschedule-recomputes-note").textContent).toContain(
+      "reschedule is happening",
+    );
+
+    cleanup();
+
+    const notRescheduled = await reviewAfterChanging("Venue", "University Parks");
+    expect(within(notRescheduled).queryByTestId("reschedule-recomputes-note")).toBeNull();
   });
 });
 

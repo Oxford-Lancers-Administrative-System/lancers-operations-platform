@@ -25,6 +25,18 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 
 import { validateDecomposition, validatePacket, validatePackage } from "./packet.mjs";
+import {
+  ADJUSTMENT_KINDS,
+  BOUNDARY_PERMITTED_CLASSES,
+  EPOCH_EVENT_TYPES,
+  EPOCH_LIMITS,
+  EVENT_ACTION_CLASSES,
+  PACKAGE_SCOPED_CLASSES,
+  PHASE_PERMITS,
+  buildResumeDossier,
+  emptyEpochSignals,
+  epochHealth,
+} from "./epochs.mjs";
 import { parseNameStatus } from "../../fast-lane/classify.mjs";
 import { buildMissionReceipt, classifyVisualDelta, loadRules } from "../merge-gate.mjs";
 
@@ -64,9 +76,20 @@ export const EVENT_TYPES = [
   "mission-abandoned",
   "mission-stopped",
   "mission-resumed",
+  ...EPOCH_EVENT_TYPES,
 ];
 
 export const PHASE_BOUNDARIES = ["plan-approved"];
+
+export {
+  ADJUSTMENT_KINDS,
+  EPOCH_LIMITS,
+  EPOCH_PHASES,
+  EPOCH_STATUSES,
+  EVENT_ACTION_CLASSES,
+  HEALTH_COLORS,
+  PHASE_PERMITS,
+} from "./epochs.mjs";
 
 function repositoryIdentity(repoPath) {
   try {
@@ -187,16 +210,28 @@ export function missionReviewCovers(state, pkg, headSha = pkg?.head_sha) {
   );
 }
 
+function uxConformanceClear(review) {
+  return Boolean(
+    review?.ux_conformance?.result === "clear" &&
+    Array.isArray(review.ux_conformance.mockup_states) &&
+    review.ux_conformance.mockup_states.length > 0 &&
+    review.ux_conformance.mockup_states.every(isNonEmptyString) &&
+    isNonEmptyString(review.ux_conformance.comparison_method),
+  );
+}
+
 export function missionVisualApprovalCovers(state, pkg, headSha = pkg?.head_sha) {
   return state.missionVisualApprovals.some((approval) => packageHeadCovers(approval, pkg, headSha));
 }
 
 function reviewCovers(state, pkg, headSha = pkg?.head_sha) {
+  const packageReview =
+    pkg?.review?.result === "clear" &&
+    pkg.review.ci_state === "green" &&
+    pkg.review.reviewed_head_sha === headSha &&
+    (pkg.visual === "nonvisual" || uxConformanceClear(pkg.review));
   return Boolean(
-    (pkg?.review?.result === "clear" &&
-      pkg.review.ci_state === "green" &&
-      pkg.review.reviewed_head_sha === headSha) ||
-    missionReviewCovers(state, pkg, headSha),
+    packageReview || (pkg?.visual === "nonvisual" && missionReviewCovers(state, pkg, headSha)),
   );
 }
 
@@ -286,6 +321,32 @@ function uxDefects(receipt, packageId) {
     defects.push(
       `${packageId}: ux_sources.ticket_contract must be a durable contract at docs/ux/tickets/<LINEAR-ID>-<slug>.md. If the packet was the only contract, delivery writes the implemented one there.`,
     );
+  }
+  return defects;
+}
+
+function uxConformanceDefects(receipt, packageId) {
+  const evidence = receipt.ux_conformance;
+  if (evidence === null || typeof evidence !== "object" || Array.isArray(evidence)) {
+    return [
+      `${packageId}: a clear visual review records \`ux_conformance\` with the approved mockup states and comparison method.`,
+    ];
+  }
+  const defects = [];
+  if (
+    !Array.isArray(evidence.mockup_states) ||
+    evidence.mockup_states.length === 0 ||
+    !evidence.mockup_states.every(isNonEmptyString)
+  ) {
+    defects.push(`${packageId}: ux_conformance.mockup_states names every compared state.`);
+  }
+  if (!isNonEmptyString(evidence.comparison_method)) {
+    defects.push(
+      `${packageId}: ux_conformance.comparison_method says how desktop and measured 375px were compared.`,
+    );
+  }
+  if (evidence.result !== "clear") {
+    defects.push(`${packageId}: ux_conformance.result is \"clear\" before owner handoff.`);
   }
   return defects;
 }
@@ -480,6 +541,297 @@ function answeredQuestionNaming(state, packageId) {
 }
 
 /**
+ * Whether this package could legitimately be worked on in the next wave.
+ *
+ * Deliberately independent of the Linear preflight and of worker slots. The
+ * wave is an *assignment*, derived once when the epoch opens — before the
+ * preflight and the synchronization that assignment then performs. Deriving it
+ * from `nextActions` would have made the first execution epoch open with an
+ * empty scope, because nothing is dispatchable until a preflight that has not
+ * happened yet.
+ */
+function waveEligible(state, pkg) {
+  if (!pkg || ["removed", "merged"].includes(pkg.status)) return false;
+  if (pkg.driftStopped) return false;
+  if (openQuestionsAffecting(state, pkg.id).length > 0) return false;
+  return (pkg.depends_on ?? []).every((dep) => dependencyUsable(state, dep).usable);
+}
+
+/**
+ * The packages an execution wave may be cut from, in plan order, with anything
+ * already carrying a worker first — a rotation drains running work, it never
+ * strands it outside the next scope.
+ */
+export function waveCandidates(state) {
+  const order = Object.keys(state.packages);
+  const active = state.activeWorkers.map((worker) => worker.package_id);
+  return [
+    ...new Set([
+      ...order.filter((id) => active.includes(id)),
+      ...order.filter((id) => waveEligible(state, state.packages[id])),
+    ]),
+  ];
+}
+
+/** The scheduling law a wave obeys however it was grouped. */
+function waveInternalRefusals(state, wave, label) {
+  const errors = [];
+  const domains = new Map();
+  let migrationOwners = 0;
+  for (const id of wave) {
+    const pkg = state.packages[id];
+    if (!pkg) {
+      errors.push(`${label} names ${id}, which is not planned.`);
+      continue;
+    }
+    if (domains.has(pkg.collision_domain)) {
+      errors.push(
+        `${label} runs ${id} beside ${domains.get(pkg.collision_domain)} in collision domain "${pkg.collision_domain}"; colliding work is serialized.`,
+      );
+    } else {
+      domains.set(pkg.collision_domain, id);
+    }
+    if (pkg.migration_owner) migrationOwners += 1;
+  }
+  if (migrationOwners > 1) {
+    errors.push(
+      `${label} holds ${migrationOwners} migration-owning packages; only one runs at a time.`,
+    );
+  }
+  return errors;
+}
+
+function nextWave(state) {
+  const candidates = waveCandidates(state);
+  // An owner-approved re-cut only regroups these same packages; it can never
+  // introduce one, so intersecting with the candidates is safe and keeps a
+  // stale re-cut from resurrecting finished work.
+  const planned = (state.epochPlan.futureWaves ?? [])
+    .map((wave) => wave.filter((id) => candidates.includes(id)))
+    .find((wave) => wave.length > 0);
+  return (planned ?? candidates).slice(0, EPOCH_LIMITS.wavePackages);
+}
+
+/**
+ * The epoch the harness would open right now, derived from durable state alone.
+ *
+ * `lead-epoch-opened` is validated against this, so a Lead cannot name itself
+ * extra packages, skip the post-plan recycle, or promote itself out of an
+ * execution wave into the integrated walker.
+ */
+export function deriveEpochDefinition(state) {
+  const definition = (phase, scope, exit_condition) => ({
+    phase,
+    scope,
+    exit_condition,
+    permitted_action_classes: PHASE_PERMITS[phase] ?? [],
+  });
+
+  if (!state.planApproved) {
+    return definition(
+      "planning",
+      { packages: [], gate: "plan-approval" },
+      "Brian's approval of the decomposition is recorded. Nothing durable is created in this epoch.",
+    );
+  }
+  // Mission 4's exact shape: the plan was approved and the same Lead carried
+  // straight on into execution. The recycle is owed before anything durable.
+  if (!state.phaseRecycles.includes("plan-approved")) {
+    return definition(
+      "post-plan-boundary",
+      { packages: [], gate: "post-plan-recycle" },
+      "A fresh Lead opens the first execution epoch. This epoch performs no durable execution.",
+    );
+  }
+
+  const live = Object.values(state.packages).filter((pkg) => pkg.status !== "removed");
+  if (live.length === 0 || live.some((pkg) => pkg.status !== "merged")) {
+    const packages = nextWave(state);
+    return definition(
+      "implementation-wave",
+      { packages, gate: null },
+      packages.length === 0
+        ? "No package on the approved frontier is eligible; a fresh epoch re-derives the frontier once the blocker clears."
+        : `${packages.join(" and ")} ${packages.length === 1 ? "has" : "have"} merged to main.`,
+    );
+  }
+  if (!finalMissionSmokeClear(state)) {
+    return definition(
+      "integration",
+      { packages: [], gate: "mission-workflow-smoke" },
+      "The one integrated mission workflow smoke is clear at the current main head.",
+    );
+  }
+  const open = Object.values(state.questions).filter((question) => question.status === "open");
+  if (open.length > 0) {
+    return definition(
+      "acceptance-cutover",
+      { packages: [], gate: "owner-acceptance" },
+      `Every open owner decision (${open.map((question) => question.id).join(", ")}) is answered.`,
+    );
+  }
+  return definition(
+    "closeout",
+    { packages: [], gate: "mission-closeout" },
+    "The closeout is written into the existing Notion mission record and the mission is finalized.",
+  );
+}
+
+/**
+ * Whether the epoch has met its exit condition, from state rather than from the
+ * Lead's assent. This is what makes the fence executable: nothing has to be
+ * recorded for plan approval to close the planning epoch's execution window.
+ */
+function exitConditionMet(state, epoch) {
+  switch (epoch.phase) {
+    case "planning":
+      return state.planApproved
+        ? "the plan is approved, and the post-plan recycle is owed before anything durable is created"
+        : null;
+    case "post-plan-boundary":
+      return "this epoch exists only to hand the mission to a fresh Lead";
+    case "implementation-wave": {
+      const scope = epoch.scope?.packages ?? [];
+      if (scope.length === 0) return "this wave holds no eligible package";
+      return scope.every((id) => ["merged", "removed"].includes(state.packages[id]?.status))
+        ? `every package in this wave (${scope.join(", ")}) has merged`
+        : null;
+    }
+    case "integration":
+      return finalMissionSmokeClear(state) ? "the integrated mission smoke is clear" : null;
+    case "acceptance-cutover":
+      return Object.values(state.questions).every((question) => question.status === "answered")
+        ? "every open owner decision is answered"
+        : null;
+    case "closeout":
+      return state.terminal ? `the mission is ${state.terminal.state}` : null;
+    default:
+      return null;
+  }
+}
+
+const extensions = (epoch) =>
+  (epoch.adjustments ?? []).filter((adjustment) => adjustment.kind === "extend-current");
+
+/**
+ * The epoch as it stands at one instant: its recorded facts, the status derived
+ * from the exit condition and health, and the health evidence itself.
+ *
+ * Status is computed rather than stored so that `reduce` stays a pure function
+ * of the journal. Validation asks for the view at the incoming event's own
+ * timestamp; the owner-facing surfaces ask for it at the wall clock.
+ */
+export function epochView(state, { now = Date.now() } = {}) {
+  const epoch = state.epoch;
+  if (!epoch) return null;
+  const health = epochHealth(epoch, state, { now });
+  const granted = extensions(epoch);
+  const live = granted.filter((adjustment) => Date.parse(adjustment.expires_at) > now);
+  const extension = live.at(-1) ?? null;
+  const accepted = new Set(extension?.accepted_reason_codes ?? []);
+
+  let status = "open";
+  let boundary_reason = null;
+  if (epoch.closed) {
+    status = "closed";
+    boundary_reason = epoch.closed.reason;
+  } else if (epoch.draining) {
+    status = "draining";
+    boundary_reason = epoch.boundary?.reason ?? "already-active in-scope work is draining";
+  } else if (epoch.boundary) {
+    status = "boundary-pending";
+    boundary_reason = epoch.boundary.reason;
+  } else {
+    const met = exitConditionMet(state, epoch);
+    const unaccepted = health.red
+      .map((reason) => reason.code)
+      .filter((code) => !accepted.has(code));
+    if (met) {
+      status = "boundary-pending";
+      boundary_reason = `The exit condition is satisfied: ${met}.`;
+    } else if (granted.length > 0 && !extension) {
+      // An extension is a moved boundary, not a removed one. When it lapses the
+      // fence comes back without anyone having to remember to put it back.
+      status = "boundary-pending";
+      boundary_reason = `The owner-approved extension expired at ${granted.at(-1).expires_at}.`;
+    } else if (unaccepted.length > 0) {
+      status = "boundary-pending";
+      boundary_reason = `Health is red (${unaccepted.join(", ")}); continuing needs Brian's explicit risk-accepting authorization.`;
+    }
+  }
+
+  return {
+    ...epoch,
+    status,
+    boundary_reason,
+    health,
+    extension,
+    adjustments_used: granted.length,
+    next: deriveEpochDefinition(state),
+  };
+}
+
+/** A correction dispatch that re-scopes the worker already correcting in place. */
+function isCorrectionRescope(state, event) {
+  const active = activeWorkerFor(state, event.package_id);
+  return Boolean(active && active.kind === "correction" && active.worker_id === event.worker_id);
+}
+
+/**
+ * The one central path every state-changing event passes through.
+ *
+ * Three questions, in order: does this phase permit this class of work at all;
+ * has the epoch reached a boundary that only lets running work finish; and is
+ * the named package inside the assignment the harness derived.
+ */
+function epochRefusals(event, state, view) {
+  const epoch = state.epoch;
+  const actionClass = EVENT_ACTION_CLASSES[event.type];
+  if (actionClass === "always") return [];
+  const where = `Lead epoch ${epoch.epoch_id} (${epoch.phase}, ${view.status})`;
+  if (actionClass === undefined) {
+    return [
+      `${where} has no action class for "${event.type}"; an unclassified event is refused, never waved through.`,
+    ];
+  }
+  if (view.status === "closed") {
+    return [
+      `${where} is closed. A fresh Lead opens the next epoch — \`mission resume ${state.packet?.mission_id ?? "<mission-id>"} --token <token>\` from a new session — before any further mission mutation.`,
+    ];
+  }
+
+  const errors = [];
+  const permitted = new Set(epoch.permitted_action_classes ?? []);
+  const rescoping = actionClass === "correction-dispatch" && isCorrectionRescope(state, event);
+  if (!permitted.has(actionClass) && !rescoping) {
+    errors.push(
+      `${where} permits ${permitted.size > 0 ? `only the ${[...permitted].join(", ")} action ${permitted.size === 1 ? "class" : "classes"}` : "no action class"} beyond status, owner decisions and reclamation; "${event.type}" is ${actionClass} work.`,
+    );
+  } else if (
+    view.status !== "open" &&
+    !BOUNDARY_PERMITTED_CLASSES.includes(actionClass) &&
+    !rescoping
+  ) {
+    errors.push(
+      `${where} reached its boundary — ${view.boundary_reason} It may drain already-active in-scope work and accept owner decisions, but "${event.type}" starts new ${actionClass} work. Continue with a fresh Lead, pause the mission, or record an owner-approved epoch adjustment.`,
+    );
+  }
+
+  if (event.package_id && PACKAGE_SCOPED_CLASSES.includes(actionClass)) {
+    const draining = view.status === "draining";
+    const scope = draining ? (epoch.draining?.packages ?? []) : (epoch.scope?.packages ?? []);
+    if (!scope.includes(event.package_id)) {
+      errors.push(
+        draining
+          ? `${event.package_id} was not active and in scope when draining began (${scope.join(", ") || "nothing was"}); draining accepts completion evidence only for that work.`
+          : `${event.package_id} is outside this epoch's scope (${scope.join(", ") || "no package"}). The harness derives the wave from durable state; a Lead never enlarges its own assignment.`,
+      );
+    }
+  }
+  return errors;
+}
+
+/**
  * Validate one event against the current replayed state. Returns every
  * refusal; the event is appended only when the list is empty. This is the
  * control plane's constitution at runtime — each rule here has a matching
@@ -504,6 +856,21 @@ export function validateEvent(event, state) {
   if (stopped && !stopAllowed.includes(event.type)) {
     errors.push(
       `The mission is stopped (${state.stopped.reason}); only resume, checkpoint, heartbeat and owner answers are accepted.`,
+    );
+  }
+
+  // One central epoch validation path. It is inert until a journal adopts an
+  // epoch — existing journals replay unchanged and are never rewritten — and
+  // binding from the moment one is opened. The CLI refuses mutating commands on
+  // an initialized mission that has not bootstrapped one yet.
+  if (state.epoch && !EPOCH_EVENT_TYPES.includes(event.type)) {
+    const at = Date.parse(event.at);
+    errors.push(
+      ...epochRefusals(
+        event,
+        state,
+        epochView(state, { now: Number.isFinite(at) ? at : Date.now() }),
+      ),
     );
   }
 
@@ -920,8 +1287,10 @@ export function validateEvent(event, state) {
           `Review receipt covers ${receipt.reviewed_head_sha ?? "no head"}, not current package head ${pkg.head_sha ?? "no head"}.`,
         );
       }
-      if (!["full", "correction", "security-tier"].includes(receipt.review_mode)) {
-        errors.push('Review receipt mode is "full", "correction", or "security-tier".');
+      if (!["full", "correction", "security-tier", "package-gate"].includes(receipt.review_mode)) {
+        errors.push(
+          'Review receipt mode is "full", "correction", "security-tier", or "package-gate".',
+        );
       }
       if (!Number.isInteger(receipt.round) || receipt.round < 1) {
         errors.push("Review receipt round is a positive integer.");
@@ -932,13 +1301,16 @@ export function validateEvent(event, state) {
       if (receipt.ci_state !== "green") {
         errors.push('Review receipt ci_state is "green" at reviewed_head_sha.');
       }
-      if (receipt.review_mode === "security-tier") {
+      if (["security-tier", "package-gate"].includes(receipt.review_mode)) {
         if (!Array.isArray(receipt.sensitive_paths)) {
-          errors.push("A security-tier receipt records its sensitive-path intersection.");
+          errors.push("A package-gate receipt records its sensitive-path intersection.");
         }
         if (!isNonEmptyString(receipt.report)) {
-          errors.push("A security-tier receipt records its on-disk report path.");
+          errors.push("A package-gate receipt records its on-disk report path.");
         }
+      }
+      if (pkg.visual !== "nonvisual" && receipt.result === "clear") {
+        errors.push(...uxConformanceDefects(receipt, event.package_id));
       }
       break;
     }
@@ -1373,6 +1745,358 @@ export function validateEvent(event, state) {
       break;
     }
 
+    case "lead-epoch-opened": {
+      if (!isNonEmptyString(event.epoch_id) || !/^E-[A-Za-z0-9-]+$/.test(event.epoch_id)) {
+        errors.push("An epoch id must match E-<slug>.");
+      } else if ([...state.epochHistory, state.epoch].some((e) => e?.epoch_id === event.epoch_id)) {
+        errors.push(
+          `Epoch ${event.epoch_id} already exists; epochs are append-only and never reopened.`,
+        );
+      }
+      if (!isNonEmptyString(event.lead_id)) {
+        errors.push("An epoch records the Lead identity it is attached to.");
+      }
+      if (!Number.isInteger(event.pid) || event.pid <= 0) {
+        errors.push("An epoch records the live pid of the session holding it.");
+      }
+      const previous = state.epoch;
+      if (previous && !previous.closed) {
+        errors.push(
+          `Lead epoch ${previous.epoch_id} is still open; close it at its boundary before opening the next.`,
+        );
+      }
+      if (previous?.closed) {
+        // The handshake, and the honest limit of it: this proves a different
+        // recorded identity presented a token issued once. It is harness-level
+        // fencing plus a user-started fresh session, not proof of model context.
+        const token = state.resumeToken;
+        if (!token || token.spent) {
+          errors.push(
+            "The one-use resume token issued when the previous epoch closed has already been spent; a reused token is refused.",
+          );
+        } else if (event.resume_token !== token.token) {
+          const alreadySpent = [...state.epochHistory, previous].some(
+            (e) => e.closed?.resume_token === event.resume_token,
+          );
+          errors.push(
+            alreadySpent
+              ? "That resume token was spent when a later epoch opened. A token is one use; the current epoch's close issued a new one."
+              : "A resume presents the one-use token issued when the previous epoch closed.",
+          );
+        }
+        if (event.lead_id === previous.lead_id) {
+          errors.push(
+            `Lead ${event.lead_id} closed epoch ${previous.epoch_id}; the same session cannot resume its own closed epoch. Start a fresh session with a new LANCERS_MISSION_LEAD_ID.`,
+          );
+        }
+      } else if (event.resume_token !== undefined) {
+        errors.push(
+          "A first or bootstrapped epoch presents no resume token; none has been issued.",
+        );
+      }
+      const derived = deriveEpochDefinition(state);
+      if (event.phase !== derived.phase) {
+        errors.push(
+          `The harness derives ${derived.phase} from current mission state; this epoch claims ${event.phase ?? "no phase"}.`,
+        );
+      } else {
+        if (JSON.stringify(event.scope) !== JSON.stringify(derived.scope)) {
+          errors.push(
+            `A Lead does not choose or enlarge its own assignment. The derived ${derived.phase} scope is ${JSON.stringify(derived.scope)}.`,
+          );
+        }
+        if (event.exit_condition !== derived.exit_condition) {
+          errors.push("An epoch records the exit condition the harness derived, verbatim.");
+        }
+        const permits = PHASE_PERMITS[derived.phase] ?? [];
+        if (JSON.stringify(event.permitted_action_classes ?? []) !== JSON.stringify(permits)) {
+          errors.push(
+            `The permitted action classes for ${derived.phase} are fixed: ${permits.join(", ") || "none beyond the always-permitted classes"}.`,
+          );
+        }
+      }
+      if (!isNonEmptyString(event.dossier)) {
+        errors.push(
+          "An epoch opens against a machine-generated dossier; record its path in the mission state directory.",
+        );
+      }
+      if (!Number.isInteger(event.dossier_source_index)) {
+        errors.push("An epoch records the journal index its dossier was generated from.");
+      }
+      break;
+    }
+
+    case "lead-epoch-boundary-reached": {
+      const epoch = state.epoch;
+      if (!epoch || epoch.closed) {
+        errors.push("There is no open Lead epoch to bring to a boundary.");
+        break;
+      }
+      if (epoch.boundary) {
+        errors.push(
+          `Lead epoch ${epoch.epoch_id} already reached its boundary at ${epoch.boundary.at}.`,
+        );
+      }
+      if (!isNonEmptyString(event.reason)) {
+        errors.push("A boundary records the exit condition or safety threshold that was met.");
+      }
+      break;
+    }
+
+    case "lead-epoch-draining": {
+      const epoch = state.epoch;
+      if (!epoch || epoch.closed) {
+        errors.push("There is no open Lead epoch to drain.");
+        break;
+      }
+      if (epoch.draining) errors.push(`Lead epoch ${epoch.epoch_id} is already draining.`);
+      const at = Date.parse(event.at);
+      const view = epochView(state, { now: Number.isFinite(at) ? at : Date.now() });
+      if (view.status === "open") {
+        errors.push(
+          `Lead epoch ${epoch.epoch_id} has not reached a boundary; draining pins a boundary to the work that was already running, and there is no boundary yet.`,
+        );
+      }
+      if (!Array.isArray(event.packages)) {
+        errors.push("Draining records the packages that were active and in scope when it began.");
+      } else {
+        for (const id of event.packages) {
+          if (!(epoch.scope?.packages ?? []).includes(id)) {
+            errors.push(`${id} is not in this epoch's scope, so this epoch cannot drain it.`);
+          }
+        }
+      }
+      break;
+    }
+
+    case "lead-epoch-adjusted": {
+      const epoch = state.epoch;
+      if (!epoch) {
+        errors.push("There is no Lead epoch to adjust.");
+        break;
+      }
+      if (epoch.closed) {
+        errors.push(
+          `Lead epoch ${epoch.epoch_id} is closed. A closed epoch is never reopened; a fresh epoch is required.`,
+        );
+        break;
+      }
+      if (!ADJUSTMENT_KINDS.includes(event.kind)) {
+        errors.push(`An epoch adjustment is one of ${ADJUSTMENT_KINDS.join(", ")}.`);
+        break;
+      }
+      if (!isNonEmptyString(event.approved_by)) {
+        errors.push("An epoch adjustment records who approved it.");
+      }
+      if (!isNonEmptyString(event.authorization)) {
+        errors.push(
+          "An epoch adjustment records Brian's own words, or durable evidence of them. The agent may propose; only an explicit owner message authorizes filing.",
+        );
+      }
+      if (!isNonEmptyString(event.reason)) {
+        errors.push("An epoch adjustment records why it was asked for.");
+      }
+      if (event.source_epoch_id !== epoch.epoch_id) {
+        errors.push(`An epoch adjustment names its source epoch (${epoch.epoch_id}).`);
+      }
+      const at = Date.parse(event.at);
+      const now = Number.isFinite(at) ? at : Date.now();
+      const health = epochView(state, { now }).health;
+      // The snapshot is the machine's reading. Accepting a risk never relabels
+      // it: a journal that called a red epoch green would be the one lie this
+      // whole mechanism exists to prevent.
+      if (event.health?.color !== health.color) {
+        errors.push(
+          `The adjustment records the health the harness computed (${health.color}); an accepted risk is never relabelled.`,
+        );
+      }
+      const codes = health.reasons.map((reason) => reason.code);
+      if (JSON.stringify(event.health?.reason_codes ?? []) !== JSON.stringify(codes)) {
+        errors.push(
+          `The adjustment records the exact reason codes behind that colour: ${codes.join(", ") || "none"}.`,
+        );
+      }
+
+      if (event.kind === "extend-current") {
+        if (event.target_epoch_id !== epoch.epoch_id) {
+          errors.push("extend-current targets the current epoch.");
+        }
+        if (extensions(epoch).length >= epoch.adjustment_budget) {
+          errors.push(
+            `Lead epoch ${epoch.epoch_id} has already used its one normal extension. A second is refused whatever its health; continue with a fresh Lead.`,
+          );
+        }
+        if (epoch.phase !== "implementation-wave") {
+          errors.push(
+            `extend-current continues an execution wave. Epoch ${epoch.epoch_id} is ${epoch.phase}, and an extension never crosses into the integrated walker, cutover or closeout.`,
+          );
+        }
+        if (health.color !== "green") {
+          const accepted = Array.isArray(event.accepted_reason_codes)
+            ? event.accepted_reason_codes
+            : [];
+          const missing = codes.filter((code) => !accepted.includes(code));
+          if (missing.length > 0) {
+            errors.push(
+              `Health is ${health.color}. Continuing needs an explicit exception naming every current reason; ${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} unaccepted.`,
+            );
+          }
+        }
+        const before = epoch.scope?.packages ?? [];
+        const after = Array.isArray(event.new_scope?.packages) ? event.new_scope.packages : null;
+        const correcting = isNonEmptyString(event.correction_package_id);
+        if (!after) {
+          errors.push("extend-current records the new scope it produces.");
+        } else {
+          const dropped = before.filter((id) => !after.includes(id));
+          const added = after.filter((id) => !before.includes(id));
+          if (dropped.length > 0) {
+            errors.push(`An extension never drops work already assigned (${dropped.join(", ")}).`);
+          }
+          if (added.length > 1) {
+            errors.push(
+              `A normal extension adds exactly one adjacent eligible package; this adds ${added.length} (${added.join(", ")}).`,
+            );
+          }
+          if (added.length === 1) {
+            if (!waveEligible(state, state.packages[added[0]])) {
+              errors.push(
+                `${added[0]} is not eligible on the approved frontier, so it is not adjacent work this epoch may absorb.`,
+              );
+            }
+            errors.push(
+              ...waveInternalRefusals(
+                state,
+                [
+                  ...before.filter(
+                    (id) => !["merged", "removed"].includes(state.packages[id]?.status),
+                  ),
+                  added[0],
+                ],
+                "The extended wave",
+              ),
+            );
+          }
+          if (added.length === 0 && !correcting) {
+            errors.push(
+              "A normal extension adds one adjacent eligible package or finishes one already-active correction cycle; this adds neither.",
+            );
+          }
+          if (added.length === 1 && correcting) {
+            errors.push(
+              `A normal extension is one bounded unit of work: an adjacent eligible package (${added[0]}) or an already-active correction cycle (${event.correction_package_id}), never both.`,
+            );
+          }
+        }
+        if (correcting) {
+          const active = activeWorkerFor(state, event.correction_package_id);
+          if (!active || active.kind !== "correction") {
+            errors.push(
+              `${event.correction_package_id} has no already-active correction cycle to finish.`,
+            );
+          }
+        }
+        const expires = Date.parse(event.expires_at ?? "");
+        if (!Number.isFinite(expires)) {
+          errors.push("An extension records when it expires.");
+        } else if (expires > now + EPOCH_LIMITS.extensionMs) {
+          errors.push(
+            `An extension runs until the named work stabilizes or ${EPOCH_LIMITS.extensionMs / 3_600_000} hours, whichever comes first.`,
+          );
+        }
+        if (!isNonEmptyString(event.new_exit_condition)) {
+          errors.push("An extension records the exit condition it produces.");
+        }
+      }
+
+      if (event.kind === "recut-future") {
+        // Re-cutting keeps the same session going nowhere: it changes only how
+        // later waves are grouped, so it costs no extension budget and can be
+        // filed at any health.
+        const waves = Array.isArray(event.future_waves) ? event.future_waves : null;
+        if (!waves) {
+          errors.push(
+            "recut-future records the proposed future waves as an array of package-id arrays.",
+          );
+          break;
+        }
+        const current = epoch.scope?.packages ?? [];
+        const remaining = Object.values(state.packages)
+          .filter((pkg) => !["removed", "merged"].includes(pkg.status) && !current.includes(pkg.id))
+          .map((pkg) => pkg.id);
+        const named = waves.flat();
+        if (new Set(named).size !== named.length) {
+          errors.push("A package appears in exactly one proposed wave.");
+        }
+        for (const id of named) {
+          if (!remaining.includes(id)) {
+            errors.push(
+              `${id} is not a future package on the approved plan. Re-cutting regroups future waves; it never changes the approved packages, requirements, dependency DAG or acceptance criteria.`,
+            );
+          }
+        }
+        for (const id of remaining) {
+          if (!named.includes(id)) {
+            errors.push(`${id} is dropped by this re-cut; regrouping never removes approved work.`);
+          }
+        }
+        for (const [position, wave] of waves.entries()) {
+          const label = `Proposed wave ${position + 1}`;
+          if (!Array.isArray(wave) || wave.length === 0) {
+            errors.push(`${label} is an array of at least one package id.`);
+            continue;
+          }
+          if (wave.length > EPOCH_LIMITS.wavePackages) {
+            errors.push(
+              `${label} holds ${wave.length} packages; an execution wave is at most ${EPOCH_LIMITS.wavePackages}.`,
+            );
+          }
+          errors.push(...waveInternalRefusals(state, wave, label));
+          for (const id of wave) {
+            for (const dep of state.packages[id]?.depends_on ?? []) {
+              if (state.packages[dep]?.status === "merged" || current.includes(dep)) continue;
+              const depWave = waves.findIndex((candidate) => candidate.includes(dep));
+              if (depWave === -1 || depWave >= position) {
+                errors.push(
+                  `${label} runs ${id}, which depends on ${dep}, no later than ${dep} itself; the approved dependency order is not re-cut.`,
+                );
+              }
+            }
+          }
+        }
+      }
+      break;
+    }
+
+    case "lead-epoch-closed": {
+      const epoch = state.epoch;
+      if (!epoch) {
+        errors.push("There is no Lead epoch to close.");
+        break;
+      }
+      if (epoch.closed) {
+        errors.push(
+          `Lead epoch ${epoch.epoch_id} is already closed; a closed epoch never reopens.`,
+        );
+        break;
+      }
+      if (!isNonEmptyString(event.resume_token)) {
+        errors.push("Closing an epoch issues the one-use resume token the next Lead presents.");
+      } else if (
+        [...state.epochHistory, epoch].some((e) => e.closed?.resume_token === event.resume_token)
+      ) {
+        errors.push("A resume token is issued once; reissuing a spent token is refused.");
+      }
+      if (!isNonEmptyString(event.reason)) errors.push("Closing an epoch records why it ended.");
+      if (!isNonEmptyString(event.dossier)) {
+        errors.push("Closing an epoch writes the generated resume dossier and records its path.");
+      }
+      if (!Number.isInteger(event.dossier_source_index)) {
+        errors.push("Closing an epoch records the journal index its dossier was generated from.");
+      }
+      break;
+    }
+
     default:
       break;
   }
@@ -1406,9 +2130,22 @@ export function validateEvent(event, state) {
  *   closeout: Record<string, any> | null,
  *   reclaimed: string[],
  *   terminal: { at: string, state: "finalized" | "abandoned" } | null,
+ *   epoch: Record<string, any> | null,
+ *   epochHistory: Array<Record<string, any>>,
+ *   epochPlan: { futureWaves: string[][], recut: Record<string, any> | null },
+ *   resumeToken: { token: string, epoch_id: string, spent: boolean } | null,
  *   eventCount: number,
  * }} MissionState
- * @typedef {{ action: string, detail: string, package_id?: string, question_id?: string }} MissionAction
+ * @typedef {{
+ *   action: string,
+ *   detail: string,
+ *   package_id?: string,
+ *   question_id?: string,
+ *   health?: Record<string, any>,
+ *   current_scope?: string[],
+ *   next_scope?: string[],
+ *   draining?: string[],
+ * }} MissionAction
  */
 
 function emptyState() {
@@ -1436,8 +2173,22 @@ function emptyState() {
     closeout: null,
     reclaimed: [],
     terminal: null,
+    epoch: null,
+    epochHistory: [],
+    epochPlan: { futureWaves: [], recut: null },
+    resumeToken: null,
     eventCount: 0,
   };
+}
+
+/**
+ * Health evidence is accumulated as the journal replays rather than recomputed
+ * from raw events later, so `validateEvent` — which sees only state — can read
+ * the same colour the owner-facing surfaces do.
+ */
+function recordEpochSignal(state, key, entry) {
+  if (!state.epoch || state.epoch.closed) return;
+  state.epoch.signals[key].push(entry);
 }
 
 /**
@@ -1456,6 +2207,12 @@ export function reduce(events) {
         if (event.lead_id) state.lead = { lead_id: event.lead_id, pid: event.pid, at: event.at };
         break;
       case "lead-heartbeat":
+        if (state.epoch && !state.epoch.closed && event.lead_id !== state.epoch.lead_id) {
+          recordEpochSignal(state, "sessionReplacements", {
+            event_index: index,
+            lead_id: event.lead_id,
+          });
+        }
         state.lead = { lead_id: event.lead_id, pid: event.pid, at: event.at };
         break;
       case "plan-recorded": {
@@ -1524,6 +2281,12 @@ export function reduce(events) {
       }
       case "worker-dispatched": {
         const pkg = state.packages[event.package_id];
+        if (state.epoch && event.worker_id === state.epoch.lead_id) {
+          recordEpochSignal(state, "leadFiledDelegatedEvidence", {
+            event_index: index,
+            package_id: event.package_id,
+          });
+        }
         pkg.worker_id = event.worker_id;
         pkg.worktree = event.worktree;
         pkg.branch = event.branch;
@@ -1565,6 +2328,12 @@ export function reduce(events) {
       case "worker-receipt": {
         const pkg = state.packages[event.package_id];
         const worker = activeWorkerFor(state, event.package_id);
+        if (state.epoch && event.worker_id === state.epoch.lead_id) {
+          recordEpochSignal(state, "leadFiledDelegatedEvidence", {
+            event_index: index,
+            package_id: event.package_id,
+          });
+        }
         pkg.receipts.push({
           at: event.at,
           worker_id: event.worker_id,
@@ -1598,6 +2367,10 @@ export function reduce(events) {
       }
       case "worker-abandoned": {
         const pkg = state.packages[event.package_id];
+        recordEpochSignal(state, "workerAbandoned", {
+          event_index: index,
+          package_id: event.package_id,
+        });
         state.activeWorkers = state.activeWorkers.filter(
           (worker) => worker.package_id !== event.package_id,
         );
@@ -1643,6 +2416,13 @@ export function reduce(events) {
       }
       case "review-receipt": {
         const pkg = state.packages[event.package_id];
+        if (state.epoch && !state.epoch.closed) {
+          const rounds = state.epoch.signals.reviewRounds;
+          rounds[event.package_id] = [
+            ...(rounds[event.package_id] ?? []),
+            { event_index: index, round: event.receipt?.round ?? 0 },
+          ];
+        }
         pkg.gate_passed = null;
         pkg.review = { at: event.at, ...event.receipt };
         if (event.receipt.result === "clear" && pkg.status === "implemented") {
@@ -1740,6 +2520,11 @@ export function reduce(events) {
         break;
       }
       case "journal-annotation":
+        recordEpochSignal(state, "leadAnnotations", {
+          event_index: index,
+          target_event: event.target_event,
+          disposition: event.disposition,
+        });
         state.annotations.push({
           at: event.at,
           target_event: event.target_event,
@@ -1764,6 +2549,10 @@ export function reduce(events) {
         break;
       case "owner-answer": {
         const question = state.questions[event.question_id];
+        recordEpochSignal(state, "ownerAnswers", {
+          event_index: index,
+          question_id: event.question_id,
+        });
         question.status = "answered";
         question.answer = {
           text: event.answer,
@@ -1826,7 +2615,141 @@ export function reduce(events) {
         break;
       case "mission-resumed":
         state.stopped = null;
+        if (state.epoch && !state.epoch.closed && event.lead_id !== state.epoch.lead_id) {
+          recordEpochSignal(state, "sessionReplacements", {
+            event_index: index,
+            lead_id: event.lead_id,
+          });
+        }
         state.lead = { lead_id: event.lead_id, pid: event.pid, at: event.at };
+        break;
+      case "lead-epoch-opened": {
+        if (state.epoch) state.epochHistory.push(state.epoch);
+        if (state.resumeToken && state.resumeToken.token === event.resume_token) {
+          state.resumeToken = {
+            ...state.resumeToken,
+            spent: true,
+            spent_at: event.at,
+            spent_by: event.epoch_id,
+          };
+        }
+        state.epoch = {
+          epoch_id: event.epoch_id,
+          mission_id: event.mission_id ?? state.packet?.mission_id ?? null,
+          lead_id: event.lead_id,
+          session_identity: event.session_identity ?? null,
+          context_usage_source: event.context_usage_source ?? null,
+          opened_at: event.at,
+          opening_event_index: index,
+          opening_head: event.opening_head ?? null,
+          phase: event.phase,
+          scope: event.scope,
+          permitted_action_classes: event.permitted_action_classes ?? [],
+          exit_condition: event.exit_condition,
+          adjustment_budget: EPOCH_LIMITS.adjustmentBudget,
+          adjustments: [],
+          dossier: event.dossier ?? null,
+          dossier_source_index: event.dossier_source_index ?? null,
+          bootstrapped: Boolean(event.bootstrapped),
+          session_identity_reused: state.epochHistory.some(
+            (epoch) => epoch.lead_id === event.lead_id,
+          ),
+          signals: emptyEpochSignals(),
+          boundary: null,
+          draining: null,
+          closed: null,
+        };
+        // The fence moves with the assignment. Closing released it; opening
+        // takes it, so there is no window in which the mission is unfenced.
+        state.lead = { lead_id: event.lead_id, pid: event.pid, at: event.at };
+        break;
+      }
+      case "lead-epoch-boundary-reached":
+        state.epoch.boundary = { at: event.at, reason: event.reason, event_index: index };
+        break;
+      case "lead-epoch-draining":
+        state.epoch.draining = {
+          at: event.at,
+          packages: event.packages ?? [],
+          event_index: index,
+        };
+        state.epoch.boundary = state.epoch.boundary ?? {
+          at: event.at,
+          reason: "already-active in-scope work is draining",
+          event_index: index,
+        };
+        break;
+      case "lead-epoch-adjusted": {
+        const adjustment = {
+          at: event.at,
+          event_index: index,
+          kind: event.kind,
+          old_scope: event.old_scope ?? null,
+          new_scope: event.new_scope ?? null,
+          old_exit_condition: event.old_exit_condition ?? null,
+          new_exit_condition: event.new_exit_condition ?? null,
+          health: event.health ?? null,
+          accepted_reason_codes: event.accepted_reason_codes ?? [],
+          approved_by: event.approved_by,
+          authorization: event.authorization,
+          reason: event.reason,
+          limit: event.limit ?? null,
+          expires_at: event.expires_at ?? null,
+          source_epoch_id: event.source_epoch_id,
+          target_epoch_id: event.target_epoch_id ?? null,
+          correction_package_id: event.correction_package_id ?? null,
+          future_waves: event.future_waves ?? null,
+        };
+        state.epoch.adjustments.push(adjustment);
+        if (event.kind === "extend-current") {
+          // The prior definition is not rewritten — it stays in the adjustment
+          // above — but the live fence moves to what Brian authorized.
+          state.epoch.scope = event.new_scope ?? state.epoch.scope;
+          state.epoch.exit_condition = event.new_exit_condition ?? state.epoch.exit_condition;
+          state.epoch.boundary = null;
+          state.epoch.draining = null;
+        } else {
+          state.epochPlan = {
+            futureWaves: event.future_waves ?? [],
+            recut: { at: event.at, by: event.approved_by, reason: event.reason },
+          };
+        }
+        break;
+      }
+      case "lead-epoch-closed":
+        state.epoch.closed = {
+          at: event.at,
+          reason: event.reason,
+          resume_token: event.resume_token,
+          dossier: event.dossier ?? null,
+          dossier_source_index: event.dossier_source_index ?? null,
+          event_index: index,
+        };
+        state.resumeToken = {
+          token: event.resume_token,
+          epoch_id: state.epoch.epoch_id,
+          phase: state.epoch.phase,
+          mission_id: state.epoch.mission_id,
+          issued_at: event.at,
+          spent: false,
+        };
+        // The outgoing Lead surrenders the fence with its assignment, so the
+        // fresh session is not locked out by the dead Lead's heartbeat TTL.
+        state.lead = null;
+        // Closing this epoch *is* the post-plan recycle. One milestone, one
+        // representation: there is no second lifecycle to keep in step.
+        //
+        // `post-plan-boundary` counts as well as `planning`, because that is
+        // the phase an existing Mission 4-shaped journal bootstraps into — and
+        // an epoch whose only purpose is to hand the mission on must be able to
+        // discharge the very milestone it exists for.
+        if (
+          ["planning", "post-plan-boundary"].includes(state.epoch.phase) &&
+          state.planApproved &&
+          !state.phaseRecycles.includes("plan-approved")
+        ) {
+          state.phaseRecycles.push("plan-approved");
+        }
         break;
       default:
         break;
@@ -1947,7 +2870,7 @@ export function leadLeaseAvailable(state, { leadId, now = Date.now(), probe = pr
  * after the previous Lead dies.
  */
 /** @param {MissionState} state @returns {MissionAction[]} */
-export function nextActions(state) {
+function ordinaryActions(state) {
   const actions = [];
   if (!state.initialized) return [{ action: "init", detail: "Validate and record the packet." }];
   if (state.stopped) {
@@ -2028,10 +2951,10 @@ export function nextActions(state) {
       pkg.pr_number
     ) {
       actions.push({
-        action: "security-clearance",
+        action: "package-gate",
         package_id: pkg.id,
         detail:
-          "Before owner handoff, derive this exact-head diff's sensitive-path intersection. Record an empty deterministic clearance without a reviewer, or run one bounded Sonnet security review when the intersection is non-empty.",
+          "Derive the exact-head sensitive-path intersection and visual class. Record deterministic clearance only when both are empty; otherwise run one bounded Sonnet package-gate review.",
       });
     }
     if (
@@ -2143,4 +3066,129 @@ export function nextActions(state) {
     });
   }
   return actions;
+}
+
+/**
+ * What an epoch at its boundary offers Brian: exactly three choices, and the
+ * evidence behind them.
+ *
+ * The recommendation is fixed and is not the bot's judgement — a fresh Lead is
+ * always the default, an adjustment always needs Brian, and neither the wording
+ * nor the ordering changes with how confident anything feels.
+ */
+function boundaryActions(state, view) {
+  const health = view.health;
+  const codes = health.reasons.map((reason) => reason.code);
+  const missionId = state.packet?.mission_id ?? "<mission-id>";
+  const scope = view.scope?.packages ?? [];
+  const nextScope = view.next.scope?.packages ?? [];
+  const draining = view.status === "draining" ? (view.draining?.packages ?? []) : [];
+
+  const actions = [
+    {
+      action: "continue-fresh-lead",
+      detail: `Recommended. Epoch ${view.epoch_id} (${view.phase}) reached its boundary — ${view.boundary_reason} Health is ${health.color}${codes.length > 0 ? ` (${codes.join(", ")})` : ""}. Close it to issue the one-use resume token — \`npm run mission -- epoch close ${missionId}\` — then start a new session with a fresh LANCERS_MISSION_LEAD_ID and run \`npm run mission -- resume ${missionId} --token <token>\`. The next epoch the harness derives is ${view.next.phase}${nextScope.length > 0 ? ` over ${nextScope.join(" and ")}` : ""}.`,
+      health: {
+        color: health.color,
+        reasons: health.reasons.map((reason) => ({
+          code: reason.code,
+          detail: reason.detail,
+          event_index: reason.event_index,
+        })),
+        unknown: health.unknown,
+      },
+      current_scope: scope,
+      next_scope: nextScope,
+      draining,
+    },
+    {
+      action: "pause-or-stop-mission",
+      detail: `Pause here. \`npm run mission -- stop ${missionId} --reason owner-stop --detail <why>\` checkpoints and stops durably; the journal keeps the frontier and a fresh Lead resumes from it whenever you choose.`,
+    },
+    {
+      action: "adjust-epoch",
+      detail: `Owner approval required, and only you can authorize it. \`epoch adjust ${missionId} --extend-current\` keeps this Lead for one adjacent eligible package or one already-active correction cycle — once per epoch, green only unless you record an exception naming ${codes.length > 0 ? `the current reasons (${codes.join(", ")})` : "the current reasons"}, expiring when that work stabilizes or after ${EPOCH_LIMITS.extensionMs / 3_600_000} hours. \`--recut-future\` regroups later waves only. Neither changes the approved packages, requirements, dependency DAG or acceptance criteria, and neither crosses into the integrated walker, cutover or closeout.`,
+    },
+  ];
+
+  // Work that was already running still finishes; a rotation drains it rather
+  // than killing it merely to change Leads.
+  const inScope = view.status === "draining" ? draining : scope;
+  for (const worker of state.activeWorkers) {
+    if (!inScope.includes(worker.package_id)) continue;
+    actions.push({
+      action: "drain",
+      package_id: worker.package_id,
+      detail: `Collect ${worker.worker_id}'s ${worker.kind} receipt and its exact-head evidence. No new dispatch is accepted.`,
+    });
+  }
+  const drainable = ["package-gate", "owner-walkthrough", "merge-gate", "request-merge"];
+  for (const action of ordinaryActions(state)) {
+    if (
+      action.package_id &&
+      inScope.includes(action.package_id) &&
+      drainable.includes(action.action)
+    ) {
+      actions.push(action);
+    }
+    // Reclamation is never fenced: giving a resource back is always safe.
+    if (action.action === "reclaim") actions.push(action);
+  }
+  return actions;
+}
+
+/**
+ * The executable frontier, bounded by the current Lead epoch.
+ *
+ * Outside a boundary this is exactly what it always was. At a boundary it
+ * becomes the three owner choices plus the work that is draining, because
+ * nothing else is permitted until Brian decides.
+ */
+/** @param {MissionState} state @returns {MissionAction[]} */
+export function nextActions(state, options = {}) {
+  // A finished mission owes nothing, and a stopped one owes a resume. Neither
+  // is a boundary to offer Brian three choices about.
+  if (!state.initialized || state.stopped || state.terminal || !state.epoch) {
+    return ordinaryActions(state);
+  }
+  const view = epochView(state, options);
+  if (view.status === "closed") {
+    const missionId = state.packet?.mission_id ?? "<mission-id>";
+    return [
+      {
+        action: "open-epoch",
+        detail: `Lead epoch ${view.epoch_id} is closed (${view.boundary_reason}). A different Lead session opens the next (${view.next.phase}) epoch with the one-use token: \`npm run mission -- resume ${missionId} --token ${state.resumeToken?.spent ? "<already spent — the token is one use>" : (state.resumeToken?.token ?? "<token>")}\`.`,
+      },
+    ];
+  }
+  if (view.status !== "open") return boundaryActions(state, view);
+  const actions = ordinaryActions(state);
+  if (view.health.color === "yellow") {
+    // Yellow is a recommendation, not a fence. The work below stays available;
+    // this says plainly that a fresh Lead is the better move, and that the
+    // alternative needs Brian rather than the Lead's own judgement.
+    const codes = view.health.reasons.map((reason) => reason.code);
+    actions.unshift({
+      action: "recycle-lead",
+      detail: `Health is yellow (${codes.join(", ")}). A fresh Lead is recommended. An owner-approved extension of epoch ${view.epoch_id} is available instead, but at yellow it must name every current reason as an accepted risk, and only Brian can authorize it.`,
+      health: {
+        color: view.health.color,
+        reasons: view.health.reasons.map((reason) => ({
+          code: reason.code,
+          detail: reason.detail,
+          event_index: reason.event_index,
+        })),
+        unknown: view.health.unknown,
+      },
+    });
+  }
+  return actions;
+}
+
+/**
+ * The dossier for a fresh Lead, generated from reduced state at this instant.
+ */
+export function resumeDossier(state, { now = Date.now() } = {}) {
+  const view = state.epoch ? epochView(state, { now }) : null;
+  return buildResumeDossier(state, { now, epoch: view, actions: nextActions(state, { now }) });
 }

@@ -30,6 +30,7 @@ import {
   FILTER_DELIVERY_LABEL,
   FILTER_SEARCH_LABEL,
   FILTERS_COMBINE,
+  NEEDS_ATTENTION_FILTER_LABEL,
   NOT_RECORDED,
   PRESENCE_LABELS,
   WALK_UP_LABEL,
@@ -211,6 +212,7 @@ export function ParticipationFilterBar({
           value={filters.delivery}
           minWidth={150}
           options={[
+            { value: "attention", label: NEEDS_ATTENTION_FILTER_LABEL },
             ...Object.entries(DELIVERY_LABELS).map(([value, label]) => ({ value, label })),
             { value: "none", label: DELIVERY_NOT_QUEUED },
           ]}

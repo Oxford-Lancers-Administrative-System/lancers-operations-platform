@@ -31,6 +31,7 @@ import {
   dispatchJob,
   MAX_ATTEMPTS,
   readEventDelivery,
+  readEventDeliveryDiagnostics,
   retryDelivery,
   revokeAndReissue,
 } from "./delivery";
@@ -151,6 +152,13 @@ afterEach(async () => {
   await observer.query(
     `delete from public.rsvp_access_tokens where invitation_id in ${invitations}`,
     [scope],
+  );
+  // LAN-172: `invitation` and `reminder` dispatch now also mints a Yes and a
+  // No one-time answer token per job, keyed to the person rather than the
+  // invitation — deleted here for the same reason `rsvp_access_tokens` is.
+  await observer.query(
+    "delete from public.person_access_tokens where person_id in (select id from public.people where given_name = $1)",
+    [MARKER],
   );
   await observer.query(`delete from public.invitations where event_id in ${events}`, [scope]);
   await observer.query(`delete from public.event_audience_members where event_id in ${events}`, [
@@ -434,7 +442,11 @@ describe("dispatching after approval", () => {
     expect(delivered.rows[0].count).toBe("0");
   });
 
-  it("issues exactly one live token, carried into the message", async () => {
+  it("issues exactly one live rsvp_access_token, kept for delivery_attempts' own bookkeeping", async () => {
+    // LAN-172: the invitation's WhatsApp body no longer carries this token at
+    // all — the club's two answer buttons do, minted separately below — but
+    // `delivery_attempts.rsvp_access_token_id` still keys its per-attempt
+    // record on one, so one is still issued on every dispatch.
     const { eventId, invitationId } = await fixture();
     const transport = accepts();
     await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
@@ -445,31 +457,49 @@ describe("dispatching after approval", () => {
       [invitationId],
     );
     expect(live.rows[0].count).toBe("1");
-
-    const [, init] = transport.mock.calls[0] as unknown as [string, RequestInit];
-    const body = JSON.parse(init.body as string) as {
-      template: { components: { parameters: { text: string }[] }[] };
-    };
-    const link = body.template.components[0].parameters[3].text;
-    expect(link).toMatch(/^https:\/\/lancers\.example\.org\/rsvp\/[A-Za-z0-9_-]{43}$/);
   });
 
-  it("never stores the link it sent", async () => {
-    const { eventId, invitationId } = await fixture();
+  it("carries a one-time Yes and No answer token on the message's two buttons", async () => {
+    // LAN-172, Q-11: the WhatsApp button's dynamic suffix is the whole token,
+    // never a full URL — Meta supplies the fixed prefix the approved template
+    // already carries.
+    const { eventId } = await fixture();
     const transport = accepts();
     await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
 
     const [, init] = transport.mock.calls[0] as unknown as [string, RequestInit];
     const body = JSON.parse(init.body as string) as {
-      template: { components: { parameters: { text: string }[] }[] };
+      template: { components: { type: string; index?: string; parameters: { text: string }[] }[] };
     };
-    const token = body.template.components[0].parameters[3].text.split("/").pop() as string;
+    const buttons = body.template.components.filter((c) => c.type === "button");
+    expect(buttons).toHaveLength(2);
+    const yesSuffix = buttons.find((b) => b.index === "0")?.parameters[0].text;
+    const noSuffix = buttons.find((b) => b.index === "1")?.parameters[0].text;
+    expect(yesSuffix).toMatch(/^y\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/);
+    expect(noSuffix).toMatch(/^n\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/);
+  });
 
-    for (const table of ["rsvp_access_tokens", "delivery_attempts", "audit_events"]) {
+  it("never stores the plaintext answer token it sent", async () => {
+    const { eventId } = await fixture();
+    const transport = accepts();
+    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
+
+    const [, init] = transport.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as {
+      template: { components: { type: string; index?: string; parameters: { text: string }[] }[] };
+    };
+    const token = body.template.components.find((c) => c.type === "button" && c.index === "0")
+      ?.parameters[0].text as string;
+
+    for (const table of [
+      "rsvp_access_tokens",
+      "person_access_tokens",
+      "delivery_attempts",
+      "audit_events",
+    ]) {
       const rows = await observer.query(`select * from public.${table}`);
       expect(JSON.stringify(rows.rows)).not.toContain(token);
     }
-    void invitationId;
   });
 
   it("sends nothing and says why when delivery is not configured", async () => {
@@ -1461,3 +1491,241 @@ async function anyPerson(): Promise<string> {
   );
   return result.rows[0].id;
 }
+
+/**
+ * LAN-173-r1-F1. `CONFIGURED`'s WhatsApp-only settings plus the email leg the
+ * fallback needs — a distinct constant rather than an addition to `CONFIGURED`
+ * so every existing WhatsApp-only test keeps proving what it always has.
+ */
+const CONFIGURED_WITH_EMAIL: EnvironmentSource = {
+  ...CONFIGURED,
+  EMAIL_API_KEY: "not-a-real-key",
+  EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
+  DELIVERY_EMAIL_ALLOWLIST: "lan173.fallback@example.test",
+};
+
+async function addEmail(personId: string, email = "lan173.fallback@example.test") {
+  await observer.query(
+    `insert into public.contact_points (person_id, kind, raw_value, normalised_value)
+     values ($1, 'email', $2, $2)`,
+    [personId, email],
+  );
+}
+
+/**
+ * Refuses every WhatsApp send with a fixed, non-retryable Meta code and
+ * accepts every email send -- the shape every fallback test below needs,
+ * since `dispatchFallbackBestEffort` reuses the same `options.transport` for
+ * the fallback's own send that the original WhatsApp attempt used. A single
+ * `refuses(...)` transport would fail the fallback's email too, proving
+ * nothing about the fallback itself.
+ */
+function refusesWhatsAppAcceptsEmail() {
+  let serial = 0;
+  return vi.fn(async (url: string) => {
+    if (url.endsWith("/emails")) {
+      serial += 1;
+      return new Response(JSON.stringify({ id: `${PROVIDER_MESSAGE_PREFIX}EMAIL.${serial}` }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return new Response(JSON.stringify({ error: { code: 131026, fbtrace_id: "trace" } }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
+    });
+  });
+}
+
+async function fallbackJobFor(eventId: string) {
+  const result = await observer.query<{
+    id: string;
+    status: string;
+    idempotency_key: string;
+    last_error: string | null;
+  }>(
+    `select id, status::text as status, idempotency_key, last_error
+       from public.notification_jobs
+      where event_id = $1 and idempotency_key like '%:email-fallback'`,
+    [eventId],
+  );
+  return result.rows;
+}
+
+/**
+ * LAN-173-r1-F1 -- the significant test-coverage gap independent review found:
+ * "add real database-backed tests, at minimum for the fallback's consent
+ * gate, its at-most-once creation, and its exclusion from readEventDelivery,
+ * readFollowUpsQueue, and readPeopleIn's 'most recent job' reads." This
+ * describe block is the delivery.ts half of that; follow-ups.test.ts and
+ * participation.test.ts carry the other two readers.
+ *
+ * 131026 ("not a WhatsApp account") is Meta's own non-retryable code —
+ * `RETRYABLE_PROVIDER_CODES` in whatsapp-cloud.ts does not carry it — so one
+ * `dispatchJob` call reaches the terminal branch that triggers the fallback,
+ * with no need to spend the attempt ceiling first.
+ */
+describe("the automatic email fallback -- LAN-173-r1-F1", () => {
+  it("creates and sends exactly one email fallback when WhatsApp fails terminally", async () => {
+    const { eventId, jobId, personId } = await fixture();
+    await addEmail(personId);
+
+    await dispatchJob(jobId, {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: refusesWhatsAppAcceptsEmail(),
+    });
+
+    const fallbacks = await fallbackJobFor(eventId);
+    expect(fallbacks).toHaveLength(1);
+    expect(fallbacks[0].status).toBe("processing");
+
+    const attempt = await observer.query<{ channel: string; provider: string }>(
+      `select channel::text as channel, provider
+         from public.delivery_attempts
+        where notification_job_id = $1`,
+      [fallbacks[0].id],
+    );
+    expect(attempt.rows).toHaveLength(1);
+    expect(attempt.rows[0].channel).toBe("email");
+  });
+
+  it("never sends the fallback on a channel the person has not consented to: no email on file", async () => {
+    // The consent gate the fallback shares with every other email job:
+    // `selectEmailAddress` -> `emailPermitted`, exactly the path an ordinary
+    // email rung takes. No email contact_points row means nothing to send to.
+    const { eventId, jobId } = await fixture();
+
+    await dispatchJob(jobId, {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: refusesWhatsAppAcceptsEmail(),
+    });
+
+    const fallbacks = await fallbackJobFor(eventId);
+    expect(fallbacks).toHaveLength(1);
+    expect(fallbacks[0].status).toBe("failed");
+    expect(fallbacks[0].last_error).toMatch(/no usable/i);
+
+    // A concluded-immediately attempt row exists for the evidence table
+    // (`recordUndeliverableIn`'s own job), but the provider was never asked —
+    // the refusal happens before the send, exactly as `selectEmailAddress`'s
+    // own comment states, and the recorded outcome says so.
+    const attempt = await observer.query<{ outcome: string }>(
+      `select r.outcome::text as outcome
+         from public.delivery_results r
+        where r.notification_job_id = $1`,
+      [fallbacks[0].id],
+    );
+    expect(attempt.rows).toHaveLength(1);
+    expect(attempt.rows[0].outcome).toBe("rejected");
+  });
+
+  it("never sends the fallback to an email outside this deployment's allowlist", async () => {
+    const { eventId, jobId, personId } = await fixture();
+    await addEmail(personId, "not-allowlisted@example.test");
+
+    await dispatchJob(jobId, {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: refusesWhatsAppAcceptsEmail(),
+    });
+
+    const fallbacks = await fallbackJobFor(eventId);
+    expect(fallbacks).toHaveLength(1);
+    expect(fallbacks[0].status).toBe("failed");
+    expect(fallbacks[0].last_error).toMatch(/restricted to an approved list/i);
+  });
+
+  it("creates at most one fallback row, however many times the original job is retried", async () => {
+    const { eventId, jobId, personId } = await fixture();
+    await addEmail(personId);
+
+    // Two independent terminal failures of the same original WhatsApp job --
+    // the shape a genuinely retried transaction, or two racing sweeps, would
+    // produce. Both reach `scheduleWhatsAppFallbackIn` with the identical
+    // idempotency key, because it is derived from the original job's own key,
+    // not from the attempt.
+    await dispatchJob(jobId, {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: refusesWhatsAppAcceptsEmail(),
+    });
+    await retryDelivery(await anyPerson(), jobId, {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: refuses(131026),
+    });
+
+    const fallbacks = await fallbackJobFor(eventId);
+    expect(fallbacks).toHaveLength(1);
+  });
+
+  it("cannot widen who is messaged: the fallback carries the same person and invitation as the original", async () => {
+    const { eventId, jobId, personId, invitationId } = await fixture();
+    await addEmail(personId);
+
+    await dispatchJob(jobId, {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: refusesWhatsAppAcceptsEmail(),
+    });
+
+    const fallbacks = await observer.query<{ person_id: string; invitation_id: string }>(
+      `select person_id, invitation_id from public.notification_jobs
+        where event_id = $1 and idempotency_key like '%:email-fallback'`,
+      [eventId],
+    );
+    expect(fallbacks.rows).toHaveLength(1);
+    expect(fallbacks.rows[0].person_id).toBe(personId);
+    expect(fallbacks.rows[0].invitation_id).toBe(invitationId);
+  });
+
+  it("is excluded from readEventDelivery's per-invitee rows -- one row, not two, for the same invitee", async () => {
+    const { eventId, personId, jobId } = await fixture();
+    await addEmail(personId);
+
+    await dispatchJob(jobId, {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: refusesWhatsAppAcceptsEmail(),
+    });
+    const fallbacks = await fallbackJobFor(eventId);
+    expect(fallbacks[0].status).toBe("processing");
+
+    // W6's own exception, `REQ-whatsapp-outage-visible`: the fallback's
+    // status decides "WhatsApp unresponsive", and that reads the fallback
+    // job reaching `completed` -- a provider callback, not merely accepted.
+    const fallbackAttempt = await observer.query<{ provider_message_id: string }>(
+      "select provider_message_id from public.delivery_attempts where notification_job_id = $1",
+      [fallbacks[0].id],
+    );
+    await applyProviderCallback(
+      "resend",
+      {
+        providerEventId: `${PROVIDER_MESSAGE_PREFIX}FALLBACK:delivered`,
+        providerMessageId: fallbackAttempt.rows[0].provider_message_id,
+        providerStatus: "delivered",
+        outcome: "delivered",
+        detail: null,
+      },
+      { signatureVerified: true },
+    );
+
+    const delivery = await readEventDelivery(eventId);
+    // Still one invitee, not two -- `readEventDelivery` is scoped to
+    // `job_type = 'invitation'`, and the fallback copies that job_type but is
+    // excluded by its idempotency_key suffix.
+    expect(delivery.rows).toHaveLength(1);
+    expect(delivery.rows[0].whatsappUnresponsive).toBe(true);
+  });
+
+  it("is included, as its own row, in readEventDeliveryDiagnostics's per-attempt evidence", async () => {
+    const { eventId, personId, jobId } = await fixture();
+    await addEmail(personId);
+
+    await dispatchJob(jobId, {
+      source: CONFIGURED_WITH_EMAIL,
+      transport: refusesWhatsAppAcceptsEmail(),
+    });
+
+    const attempts = await readEventDeliveryDiagnostics(eventId);
+    // The original WhatsApp attempt and the fallback's own email attempt --
+    // exactly the two rows R15's evidence names, on two different channels.
+    expect(attempts).toHaveLength(2);
+    expect(attempts.map((attempt) => attempt.channel).sort()).toEqual(["email", "whatsapp"]);
+  });
+});

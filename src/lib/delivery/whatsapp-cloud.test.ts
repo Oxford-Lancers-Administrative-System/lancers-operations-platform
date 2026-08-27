@@ -48,11 +48,14 @@ const config = (overrides: Partial<OutboundConfig> = {}): OutboundConfig => ({
 });
 
 const MESSAGE: InvitationMessage = {
+  kind: "invitation",
   recipient: "447700900123",
   inviteeName: "Alex",
   eventName: "Team Practice",
   whenLabel: "Wednesday 19 November, 19:00",
   rsvpUrl: "https://lancers.example.org/rsvp/abc123",
+  yesUrl: "https://lancers.example.org/a/y.11111111-1111-1111-1111-111111111111.abc",
+  noUrl: "https://lancers.example.org/a/n.11111111-1111-1111-1111-111111111111.xyz",
 };
 
 function respond(status: number, body: unknown): Response {
@@ -63,7 +66,7 @@ function respond(status: number, body: unknown): Response {
 }
 
 describe("the request body", () => {
-  it("sends the approved template with its four parameters in order", () => {
+  it("sends the approved template with its three body parameters in order", () => {
     const body = buildMessageBody(config(), MESSAGE) as Record<string, never>;
     expect(body.messaging_product).toBe("whatsapp");
     expect(body.to).toBe("447700900123");
@@ -72,29 +75,81 @@ describe("the request body", () => {
     const template = body.template as unknown as {
       name: string;
       language: { code: string };
-      components: { type: string; parameters: { text: string }[] }[];
+      components: {
+        type: string;
+        sub_type?: string;
+        index?: string;
+        parameters: { text: string }[];
+      }[];
     };
     expect(template.name).toBe("event_invitation");
     expect(template.language.code).toBe("en_GB");
 
     // The order is the contract the club's Meta template is built against.
     // Reordering these silently produces "a Wednesday 19 November on Team
-    // Practice", which no test of the transport would catch.
-    expect(template.components[0].parameters.map((parameter) => parameter.text)).toEqual([
+    // Practice", which no test of the transport would catch. LAN-172: the
+    // link left the body entirely — it is carried by the two buttons below.
+    const body_component = template.components.find((c) => c.type === "body");
+    expect(body_component?.parameters.map((parameter) => parameter.text)).toEqual([
       "Alex",
       "Team Practice",
       "Wednesday 19 November, 19:00",
-      "https://lancers.example.org/rsvp/abc123",
     ]);
   });
 
-  it("sends free-form text carrying the link, only in the loopback test mode", () => {
+  it("sends the two answer buttons as URL buttons carrying only the token suffix", () => {
+    // LAN-172, Q-11: Meta's button component takes the dynamic *suffix* of the
+    // approved template's URL, never the whole address — the fixed prefix is
+    // part of the template Meta approved. Sending the full URL here would be
+    // the reordering mistake's cousin: a message that looks right and carries
+    // a doubled path.
+    const body = buildMessageBody(config(), MESSAGE) as {
+      template: {
+        components: {
+          type: string;
+          sub_type?: string;
+          index?: string;
+          parameters: { text: string }[];
+        }[];
+      };
+    };
+    const buttons = body.template.components.filter((c) => c.type === "button");
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]).toMatchObject({
+      sub_type: "url",
+      index: "0",
+      parameters: [{ text: "y.11111111-1111-1111-1111-111111111111.abc" }],
+    });
+    expect(buttons[1]).toMatchObject({
+      sub_type: "url",
+      index: "1",
+      parameters: [{ text: "n.11111111-1111-1111-1111-111111111111.xyz" }],
+    });
+  });
+
+  it("carries no full URL string on either button — the suffix only", () => {
+    const body = buildMessageBody(config(), MESSAGE);
+    const serialised = JSON.stringify(body);
+    expect(serialised).not.toContain("https://lancers.example.org/a/");
+  });
+
+  it("sends no buttons for a kind that carries a single link, not two answers", () => {
+    const body = buildMessageBody(config(), { ...MESSAGE, kind: "nudge" }) as {
+      template: { components: { type: string }[] };
+    };
+    expect(body.template.components.some((c) => c.type === "button")).toBe(false);
+  });
+
+  it("sends free-form text carrying the Yes link, only in the loopback test mode", () => {
+    // The free-text loopback affordance predates the two-button answer shape
+    // and still carries one link — `yesUrl` is what it prefers now, and it
+    // falls back to `rsvpUrl` for any caller that has not supplied one.
     const body = buildMessageBody(
       config({ localTest: { recipientOverride: null, messageMode: "text" } }),
       MESSAGE,
     ) as Record<string, never>;
     expect(body.type).toBe("text");
-    expect((body.text as unknown as { body: string }).body).toContain(MESSAGE.rsvpUrl);
+    expect((body.text as unknown as { body: string }).body).toContain(MESSAGE.yesUrl);
   });
 
   it("redirects to the test recipient only when the override is set", () => {
@@ -208,17 +263,18 @@ describe("LAN-124 — a template that takes no parameters", () => {
     expect(body.template).not.toHaveProperty("components");
   });
 
-  it("still sends the four-parameter body for the club's own template", () => {
+  it("still sends the three-parameter body plus two buttons for the club's own template", () => {
     const body = buildMessageBody(config(), MESSAGE) as {
-      template: { components: { parameters: { text: string }[] }[] };
+      template: { components: { type: string; parameters: { text: string }[] }[] };
     };
 
-    expect(body.template.components[0].parameters.map((p) => p.text)).toEqual([
+    const bodyComponent = body.template.components.find((c) => c.type === "body");
+    expect(bodyComponent?.parameters.map((p) => p.text)).toEqual([
       "Alex",
       "Team Practice",
       "Wednesday 19 November, 19:00",
-      "https://lancers.example.org/rsvp/abc123",
     ]);
+    expect(body.template.components.filter((c) => c.type === "button")).toHaveLength(2);
   });
 
   it("carries no RSVP link in the parameterless shape, which is the whole limitation", () => {

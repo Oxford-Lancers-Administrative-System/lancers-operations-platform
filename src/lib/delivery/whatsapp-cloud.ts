@@ -140,7 +140,8 @@ export function buildMessageBody(
         preview_url: true,
         body:
           `${message.inviteeName}, the Oxford Lancers have a ${message.eventName} ` +
-          `on ${message.whenLabel}.\n\nPlease tell us whether you can make it:\n${message.rsvpUrl}`,
+          `on ${message.whenLabel}.\n\nPlease tell us whether you can make it:\n` +
+          (message.yesUrl ?? message.rsvpUrl),
       },
     };
   }
@@ -181,6 +182,41 @@ export function buildMessageBody(
   // fail on a developer machine instead of arriving at Meta as `132000`, or
   // worse, arriving at a player as a correctly-delivered message with its
   // sentences swapped.
+  const template = templateFor(message);
+  const components: Record<string, unknown>[] = [
+    {
+      type: "body",
+      parameters: template.parameters(message).map((text) => ({ type: "text", text })),
+    },
+  ];
+
+  // LAN-172, Q-11: `invitation` and `reminder` carry two URL buttons rather
+  // than a link in body text. Meta's button component takes only the URL's
+  // *dynamic suffix* — the approved template supplies the fixed prefix — so
+  // the token, and nothing else, is what gets sent as each button's parameter.
+  // Index order (`"0"`, `"1"`) is Yes then No, matching the two approved
+  // actions and matching what `escalationCarriesNoPersonalData`'s sibling
+  // reasoning would call the same contract: the order is declared, not
+  // implied, and is asserted on by `local-sink.ts`.
+  const buttons = template.buttonUrls?.(message);
+  if (buttons) {
+    const [yesUrl, noUrl] = buttons;
+    components.push(
+      {
+        type: "button",
+        sub_type: "url",
+        index: "0",
+        parameters: [{ type: "text", text: suffixOf(yesUrl) }],
+      },
+      {
+        type: "button",
+        sub_type: "url",
+        index: "1",
+        parameters: [{ type: "text", text: suffixOf(noUrl) }],
+      },
+    );
+  }
+
   return {
     messaging_product: "whatsapp",
     recipient_type: "individual",
@@ -189,19 +225,15 @@ export function buildMessageBody(
     template: {
       name: templateName,
       language: { code: config.templateLanguage },
-      components: [
-        {
-          type: "body",
-          parameters: templateFor(message)
-            .parameters(message)
-            .map((text) => ({
-              type: "text",
-              text,
-            })),
-        },
-      ],
+      components,
     },
   };
+}
+
+/** The last path segment of a URL — the one-time token, for a button's dynamic suffix. */
+function suffixOf(url: string): string {
+  const path = new URL(url).pathname;
+  return path.slice(path.lastIndexOf("/") + 1);
 }
 
 /** Meta's success shape, as far as this adapter is willing to look at it. */

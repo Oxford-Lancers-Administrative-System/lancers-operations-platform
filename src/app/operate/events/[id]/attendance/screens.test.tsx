@@ -59,6 +59,13 @@ vi.mock("@/lib/services/event-approval", async (importOriginal) => {
     readEventAudience: vi.fn(),
   };
 });
+// LAN-171. Reads a real transaction; this file's fixtures are not about an
+// approved event's committed plan, which is proved in `messaging-schedule.test.ts`
+// and `event-approval.test.ts`.
+vi.mock("@/lib/services/messaging-schedule", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/messaging-schedule")>();
+  return { ...actual, readFrozenMessagingPlan: vi.fn().mockResolvedValue(null) };
+});
 // LAN-156. The event detail reads its change history; this file is about the
 // register panel, so the reader is stubbed empty and is proved in
 // `../change-screens.test.tsx` and `src/lib/services/event-amendment.test.ts`.
