@@ -1,0 +1,1768 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W1 · Look up any person the club holds — mockup</title>
+    <style>
+      /* ------------------------------------------------------------------ *
+       * Token provenance. Everything visual here is taken from the running
+       * application at `main` @ ceff8ef, not invented:
+       *
+       *   src/theme.ts              primary #0b3d91, radius 8, MUI light
+       *                             palette, typography scale
+       *   MUI v9 defaults           Paper (outlined), Button, Chip, Alert,
+       *                             TextField (small), Table (small)
+       *   src/app/operate/layout.tsx        the shell head and sign-out
+       *   src/app/operate/shell-nav.tsx     the grey.900 sidebar, its phone
+       *                                     bottom bar, the signed-in block
+       *   src/app/operate/roster/page.tsx   the list idiom: outlined table
+       *                                     from md up, cards below it
+       *   src/app/operate/list-filters.tsx  the search bar, the phone
+       *                                     "Filters" collapse
+       *
+       * Nothing here is a redesign. Where this drawing and the application
+       * disagree on a visual treatment, the application decides.
+       * ------------------------------------------------------------------ */
+      :root {
+        --primary: #0b3d91;
+        --primary-hover: #082c69;
+        --primary-outline: rgba(11, 61, 145, 0.5);
+        --primary-tint: rgba(11, 61, 145, 0.04);
+        --text-primary: rgba(0, 0, 0, 0.87);
+        --text-secondary: rgba(0, 0, 0, 0.6);
+        --text-disabled: rgba(0, 0, 0, 0.38);
+        --divider: rgba(0, 0, 0, 0.12);
+        --outline: rgba(0, 0, 0, 0.23);
+        --paper: #ffffff;
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --grey200: #eeeeee;
+        --grey400: #bdbdbd;
+        --grey800: #424242;
+        --grey900: #212121;
+        --info-bg: #e5f6fd;
+        --info-text: #014361;
+        --info-icon: #0288d1;
+        --warn-bg: #fff4e5;
+        --warn-text: #663c00;
+        --warn-icon: #ed6c02;
+        --radius: 8px;
+        --shadow-1:
+          0 3px 1px -2px rgba(0, 0, 0, 0.2), 0 2px 2px 0 rgba(0, 0, 0, 0.14),
+          0 1px 5px 0 rgba(0, 0, 0, 0.12);
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "Geist Sans", system-ui, "Helvetica Neue",
+          Arial, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+
+      body {
+        margin: 0;
+        background: #e7e9ee;
+        font-family: var(--font);
+        color: var(--text-primary);
+      }
+
+      /* ---------------------------- page frame --------------------------- */
+
+      .page {
+        max-width: 1560px;
+        margin: 0 auto;
+        padding: 40px 32px 96px;
+      }
+
+      .page-head {
+        margin-bottom: 40px;
+        max-width: 900px;
+      }
+
+      .page-head h1 {
+        font-size: 1.75rem;
+        line-height: 1.3;
+        font-weight: 800;
+        margin: 0 0 8px;
+      }
+
+      .page-head p {
+        margin: 0 0 8px;
+        font-size: 0.9375rem;
+        line-height: 1.55;
+        color: var(--text-secondary);
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 16px;
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid rgba(0, 0, 0, 0.14);
+      }
+
+      .legend span {
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      /* ------------------------------ screens ---------------------------- */
+
+      .screen {
+        margin-top: 64px;
+      }
+
+      .screen-head {
+        position: relative;
+        border-top: 2px solid var(--grey900);
+        padding-top: 26px;
+        margin-bottom: 20px;
+        max-width: 1180px;
+      }
+
+      /* the corner tab */
+      .screen-head .tab {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform: translateY(-100%);
+        background: var(--grey900);
+        color: #fff;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        padding: 6px 14px;
+        border-radius: 6px 6px 0 0;
+      }
+
+      .screen-head h2 {
+        font-size: 1.125rem;
+        font-weight: 700;
+        margin: 0 0 6px;
+      }
+
+      .screen-head p {
+        margin: 0;
+        font-size: 0.875rem;
+        line-height: 1.55;
+        color: var(--text-secondary);
+        max-width: 82ch;
+      }
+
+      .screen-head .clock {
+        display: inline-block;
+        margin-top: 10px;
+        font-size: 0.75rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 999px;
+        padding: 4px 12px;
+      }
+
+      .pair {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 32px;
+      }
+
+      .frame {
+        background: var(--paper);
+        border: 1px solid rgba(0, 0, 0, 0.18);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 12px 32px rgba(16, 24, 40, 0.12);
+      }
+
+      .frame.desktop {
+        width: 922px;
+        max-width: 100%;
+      }
+
+      .frame.phone {
+        width: 377px;
+        border-radius: 20px;
+      }
+
+      .chrome {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 34px;
+        padding: 0 12px;
+        background: var(--grey100);
+        border-bottom: 1px solid var(--divider);
+      }
+
+      .dots {
+        display: flex;
+        gap: 5px;
+      }
+
+      .dots i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--grey400);
+        display: block;
+      }
+
+      .url {
+        flex: 1;
+        min-width: 0;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 999px;
+        font-size: 0.6875rem;
+        color: var(--text-secondary);
+        padding: 3px 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .frame-badge {
+        font-size: 0.625rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        color: var(--text-secondary);
+        white-space: nowrap;
+      }
+
+      .viewport {
+        overflow: hidden;
+      }
+
+      .viewport.desktop-vp {
+        width: 1280px;
+        zoom: 0.72;
+      }
+
+      .viewport.phone-vp {
+        width: 375px;
+      }
+
+      /* --------------------------- the app shell ------------------------- */
+
+      .app {
+        display: flex;
+        align-items: stretch;
+        min-height: 760px;
+        background: #fff;
+        font-size: 16px;
+      }
+
+      .phone .app {
+        flex-direction: column;
+        min-height: 700px;
+      }
+
+      nav.shell {
+        background: var(--grey900);
+        color: #fff;
+        flex-shrink: 0;
+        width: 226px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .phone nav.shell {
+        width: 100%;
+        order: 2;
+        position: sticky;
+        bottom: 0;
+      }
+
+      .nav-head {
+        padding: 24px 24px 16px;
+      }
+
+      .phone .nav-head {
+        display: none;
+      }
+
+      .nav-head .over {
+        font-size: 0.75rem;
+        letter-spacing: 0.08333em;
+        text-transform: uppercase;
+        line-height: 1.4;
+        color: var(--grey400);
+      }
+
+      .nav-head .sec {
+        font-size: 1.25rem;
+        font-weight: 700;
+        line-height: 1.6;
+      }
+
+      ul.nav-list {
+        list-style: none;
+        margin: 0;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        width: 100%;
+      }
+
+      .phone ul.nav-list {
+        flex-direction: row;
+        padding: 0;
+        gap: 0;
+      }
+
+      ul.nav-list li {
+        display: flex;
+      }
+
+      ul.nav-list a {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 48px;
+        width: 100%;
+        padding: 6px 16px;
+        border-radius: 8px;
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .phone ul.nav-list li {
+        flex: 1;
+      }
+
+      .phone ul.nav-list a {
+        align-items: center;
+        border-radius: 0;
+        padding: 6px 8px;
+      }
+
+      ul.nav-list a.sel {
+        background: var(--grey800);
+      }
+
+      .nav-label {
+        font-size: 1rem;
+        line-height: 1.5;
+      }
+
+      .nav-detail {
+        font-size: 0.875rem;
+        line-height: 1.43;
+        color: var(--grey400);
+      }
+
+      .phone .nav-detail {
+        display: none;
+      }
+
+      main.shell {
+        flex-grow: 1;
+        min-width: 0;
+        padding: 32px 32px 32px;
+      }
+
+      .phone main.shell {
+        order: 1;
+        padding: 24px 16px 24px;
+      }
+
+      .shell-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      .phone .shell-head {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .shell-head .brand {
+        font-size: 1.5rem;
+        line-height: 1.334;
+        font-weight: 800;
+      }
+
+      .content {
+        max-width: 900px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+
+      /* --------------------------- MUI primitives ------------------------ */
+
+      .h5 {
+        font-size: 1.5rem;
+        line-height: 1.334;
+        font-weight: 700;
+        margin: 0;
+      }
+
+      .h6 {
+        font-size: 1.25rem;
+        line-height: 1.6;
+        font-weight: 500;
+        margin: 0;
+      }
+
+      .body1 {
+        font-size: 1rem;
+        line-height: 1.5;
+        margin: 0;
+      }
+
+      .body2 {
+        font-size: 0.875rem;
+        line-height: 1.43;
+        margin: 0;
+      }
+
+      .sec {
+        color: var(--text-secondary);
+      }
+
+      .bold {
+        font-weight: 600;
+      }
+
+      .over {
+        font-size: 0.75rem;
+        line-height: 2.66;
+        letter-spacing: 0.08333em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        margin: 0;
+      }
+
+      .paper {
+        background: var(--paper);
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        padding: 24px;
+      }
+
+      .phone .paper {
+        padding: 16px;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .g1 {
+        gap: 8px;
+      }
+      .g2 {
+        gap: 16px;
+      }
+      .g3 {
+        gap: 24px;
+      }
+
+      .row {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .grid2 {
+        display: grid;
+        gap: 24px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid2tight {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid3 {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .phone .grid2,
+      .phone .grid2tight,
+      .phone .grid3 {
+        grid-template-columns: 1fr;
+      }
+
+      .metrics {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(2, minmax(0, 160px));
+      }
+
+      .phone .metrics {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .divider {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        margin: 0;
+        width: 100%;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-family: inherit;
+        font-size: 0.875rem;
+        font-weight: 500;
+        letter-spacing: 0.02857em;
+        text-transform: uppercase;
+        line-height: 1.75;
+        padding: 6px 16px;
+        min-height: 44px;
+        border-radius: var(--radius);
+        cursor: pointer;
+        text-decoration: none;
+      }
+
+      .btn-contained {
+        background: var(--primary);
+        color: #fff;
+        border: none;
+        box-shadow: var(--shadow-1);
+      }
+
+      .btn-outlined {
+        background: transparent;
+        color: var(--primary);
+        border: 1px solid var(--primary-outline);
+      }
+
+      .btn-text {
+        background: transparent;
+        color: var(--primary);
+        border: none;
+        padding: 6px 8px;
+      }
+
+      .btn-text.danger {
+        color: #d32f2f;
+      }
+
+      .btn-sm {
+        min-height: 36px;
+      }
+
+      .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        max-width: 420px;
+      }
+
+      .btn-row {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .phone .btn-row {
+        flex-direction: column;
+      }
+
+      /* A pair of short actions stays side by side at 375 — Brian, 2026-08-21:
+         "if buttons can be side by side, they generally should be". */
+      .phone .btn-row.inline {
+        flex-direction: row;
+        gap: 8px;
+      }
+
+      .phone .btn-row.inline .btn {
+        width: auto;
+        flex: 1;
+      }
+
+      .phone .btn-row .btn {
+        width: 100%;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        height: 24px;
+        padding: 0 10px;
+        border-radius: 16px;
+        background: rgba(0, 0, 0, 0.08);
+        font-size: 0.8125rem;
+        line-height: 1;
+        color: var(--text-primary);
+        white-space: nowrap;
+      }
+
+      .chip-outline {
+        background: transparent;
+        border: 1px solid var(--outline);
+      }
+
+      .chip-warn {
+        background: transparent;
+        border: 1px solid rgba(237, 108, 2, 0.6);
+        color: var(--warn-text);
+      }
+
+      .chip-info {
+        background: transparent;
+        border: 1px solid rgba(2, 136, 209, 0.5);
+        color: var(--info-text);
+      }
+
+      .chip-proposed {
+        background: transparent;
+        border: 1px dashed var(--outline);
+        color: var(--text-secondary);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-size: 0.6875rem;
+        font-weight: 600;
+      }
+
+      .alert {
+        display: flex;
+        gap: 12px;
+        padding: 8px 16px;
+        border-radius: var(--radius);
+        font-size: 0.875rem;
+        line-height: 1.43;
+      }
+
+      .alert svg {
+        flex-shrink: 0;
+        margin-top: 7px;
+      }
+
+      .alert-info {
+        background: var(--info-bg);
+        color: var(--info-text);
+      }
+
+      .alert-info svg {
+        fill: var(--info-icon);
+      }
+
+      .alert-warn {
+        background: var(--warn-bg);
+        color: var(--warn-text);
+      }
+
+      .alert-warn svg {
+        fill: var(--warn-icon);
+      }
+
+      /* text field / select / switch, as MUI outlined controls */
+
+      .field {
+        position: relative;
+        border: 1px solid var(--outline);
+        border-radius: var(--radius);
+        padding: 14px;
+        font-size: 1rem;
+        line-height: 1.4375;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 56px;
+      }
+
+      .field .lab {
+        position: absolute;
+        top: -9px;
+        left: 9px;
+        background: #fff;
+        padding: 0 6px;
+        font-size: 0.75rem;
+        line-height: 1;
+        color: var(--text-secondary);
+      }
+
+      .field.focused {
+        border: 2px solid var(--primary);
+        padding: 13px;
+      }
+
+      .field.focused .lab {
+        color: var(--primary);
+      }
+
+      .field.disabled {
+        background: var(--grey50);
+        border-color: var(--divider);
+        color: var(--text-secondary);
+      }
+
+      .field .caret {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+      }
+
+      .radio {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        cursor: default;
+      }
+
+      .radio .dot {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 2px solid var(--text-secondary);
+        flex-shrink: 0;
+        margin-top: 1px;
+        position: relative;
+      }
+
+      .radio.on .dot {
+        border-color: var(--primary);
+      }
+
+      .radio.on .dot::after {
+        content: "";
+        position: absolute;
+        inset: 3px;
+        border-radius: 50%;
+        background: var(--primary);
+      }
+
+      .switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .track {
+        width: 34px;
+        height: 14px;
+        border-radius: 7px;
+        background: rgba(0, 0, 0, 0.38);
+        position: relative;
+        flex-shrink: 0;
+      }
+
+      .thumb {
+        position: absolute;
+        top: -3px;
+        left: -1px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #fafafa;
+        box-shadow: var(--shadow-1);
+      }
+
+      .switch.on .track {
+        background: rgba(11, 61, 145, 0.5);
+      }
+
+      .switch.on .thumb {
+        left: 15px;
+        background: var(--primary);
+      }
+
+      .qbox {
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        padding: 16px;
+        background: var(--grey50);
+      }
+
+      .truncation {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--text-secondary);
+        font-size: 0.8125rem;
+        font-style: italic;
+      }
+
+      .truncation::before,
+      .truncation::after {
+        content: "";
+        flex: 1;
+        border-top: 1px dashed var(--outline);
+      }
+      /* --- The breakpoint layer. `.viewport` is the query container, so a
+             frame switches between the wide table and the phone cards on its
+             own width rather than the browser window's. --- */
+      .viewport {
+        container-type: inline-size;
+      }
+      .scroll-x {
+        overflow-x: auto;
+      }
+      .narrow-only {
+        display: none;
+      }
+      @container (max-width: 760px) {
+        .wide-only {
+          display: none;
+        }
+        .narrow-only {
+          display: block;
+        }
+      }
+      .tbl {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .tbl th,
+      .tbl td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--divider);
+        vertical-align: top;
+      }
+      .tbl thead th {
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .tbl tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      .tbl .num,
+      .tbl th.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .tile {
+        border-radius: 4px;
+        padding: 5px 7px;
+        margin-bottom: 4px;
+      }
+      .field-inline {
+        display: inline-flex;
+        align-items: center;
+        padding: 7px 12px;
+        border: 1px solid var(--outline);
+        border-radius: var(--radius);
+        font-size: 13px;
+        color: var(--text-secondary);
+        background: var(--paper);
+      }
+      .fact {
+        min-width: 0;
+      }
+      }
+      /* --- W2 additions: the disposition banding required by
+             mockup-conventions.md § 1. Current and proposed are labelled
+             identically on every screen and banded in their own colour. --- */
+      .side {
+        border-radius: 8px;
+        padding: 10px 10px 12px;
+      }
+      .side.current {
+        background: #eceff1;
+        border: 1px solid #90a4ae;
+      }
+      .side.proposed {
+        background: #e8f0fe;
+        border: 1px solid var(--primary-outline);
+      }
+      .side-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 3px 9px;
+        border-radius: 999px;
+        margin-bottom: 8px;
+      }
+      .side.current .side-label {
+        background: #90a4ae;
+        color: #fff;
+      }
+      .side.proposed .side-label {
+        background: var(--primary);
+        color: #fff;
+      }
+      .side .none {
+        border: 1px dashed #90a4ae;
+        border-radius: 6px;
+        padding: 22px 14px;
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 13px;
+        background: #fff;
+      }
+      .disposition {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 3px 9px;
+        border-radius: 4px;
+        border: 1px solid var(--outline);
+        color: var(--text-secondary);
+        margin-left: 8px;
+      }
+      .disposition.new {
+        background: #e8f0fe;
+        border-color: var(--primary);
+        color: var(--primary);
+      }
+      .disposition.modified {
+        background: #fff4e5;
+        border-color: #ed6c02;
+        color: #663c00;
+      }
+      .deltas {
+        margin: 10px 0 0;
+        padding-left: 18px;
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+      .deltas li {
+        margin: 3px 0;
+      }
+      .subpanel {
+        border: 1px solid var(--divider);
+        border-radius: 8px;
+        padding: 14px;
+        background: #fff;
+      }
+
+      /* --- W1 additions. Built from the tokens above; no new colour, and no
+             component the application does not already render. --- */
+
+      /* The sidebar's Administration group and signed-in block, both of which
+         shell-nav.tsx draws and the earlier mission's mockups omitted. */
+      .nav-rule {
+        border-top: 1px solid var(--grey800);
+        margin: 8px 8px 6px;
+      }
+      .nav-group {
+        color: var(--grey400);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 0 16px 4px;
+      }
+      .nav-foot {
+        margin-top: auto;
+        border-top: 1px solid var(--grey800);
+        padding: 14px 22px;
+      }
+      .nav-foot .who {
+        font-size: 0.875rem;
+        font-weight: 600;
+      }
+      .nav-foot .cap {
+        font-size: 0.75rem;
+        color: var(--grey400);
+      }
+      .phone .nav-rule,
+      .phone .nav-group,
+      .phone .nav-foot {
+        display: none;
+      }
+
+      /* A field's source and confidence class. Task 08 §4 names four; they are
+         a caption beside the value, never colour on its own. */
+      .prov {
+        display: inline-block;
+        font-size: 11px;
+        line-height: 1.5;
+        letter-spacing: 0.02em;
+        color: var(--text-secondary);
+        border: 1px solid var(--divider);
+        border-radius: 4px;
+        padding: 0 5px;
+        white-space: nowrap;
+      }
+      .prov.derived {
+        border-style: dashed;
+      }
+
+      /* `not recorded` is explicit, visible and never defaulted. */
+      .notrec {
+        color: var(--text-disabled);
+        font-style: italic;
+      }
+      .disputed {
+        color: var(--warn-text);
+        font-weight: 600;
+      }
+
+      /* One labelled fact on the person record. */
+      .frow {
+        display: grid;
+        grid-template-columns: 190px 1fr;
+        gap: 4px 16px;
+        padding: 9px 0;
+        border-bottom: 1px solid var(--divider);
+        align-items: baseline;
+      }
+      .frow:last-child {
+        border-bottom: 0;
+      }
+      .frow .flab {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+      }
+      .frow .fval {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 8px;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      .phone .frow {
+        grid-template-columns: 1fr;
+        gap: 2px;
+      }
+
+      /* The section head inside an outlined Paper. */
+      .shead {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 6px;
+      }
+      .shead h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 700;
+      }
+
+      /* Sortable column header — a link, as the roster's already is. */
+      .sortable {
+        color: inherit;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .sortable .arw {
+        opacity: 0;
+        font-size: 10px;
+      }
+      .sortable.on .arw {
+        opacity: 1;
+      }
+      .sortable.on {
+        color: var(--text-primary);
+      }
+
+      /* The phone list card, matching roster/page.tsx's MemberCard. */
+      .percard {
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        background: #fff;
+        padding: 14px;
+        margin-bottom: 10px;
+      }
+      .percard:last-child {
+        margin-bottom: 0;
+      }
+      .percard .pname {
+        font-size: 0.875rem;
+        font-weight: 700;
+      }
+      .chiprow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      /* The alias a search matched, and the widened-view banner. */
+      .aka {
+        color: var(--text-secondary);
+        font-size: 0.8125rem;
+      }
+      .widened {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        border: 1px solid var(--outline);
+        border-radius: var(--radius);
+        background: var(--grey50);
+        padding: 10px 14px;
+      }
+      .seasonrow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--divider);
+      }
+      .seasonrow:last-child {
+        border-bottom: 0;
+      }
+      a.golink {
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.875rem;
+        white-space: nowrap;
+      }
+
+      /* The roster's own status chips are MUI filled colour chips, not the
+         outlined ones the earlier mockups used: roster/page.tsx passes
+         `color={membershipStatusColour(status)}` to a small `Chip`. Same
+         mapping here — active success, onboarding info, inactive warning,
+         everything else default. Colour never carries the state on its own;
+         the label always says it. */
+      .chip.ok {
+        background: #2e7d32;
+        color: #fff;
+      }
+      .chip.inf {
+        background: #0288d1;
+        color: #fff;
+      }
+      .chip.wrn {
+        background: #ed6c02;
+        color: #fff;
+      }
+
+      /* Six destinations in a 375px bottom bar. `shell-nav.tsx` gives each
+         entry `flex: 1` and centres it, so they share the width rather than
+         overflowing — which is what this shows, including how little room
+         "Operators" is left. That consequence is real and belongs on the
+         screen rather than being drawn away. */
+      .phone ul.nav-list li {
+        flex: 1 1 0;
+        min-width: 0;
+      }
+      .phone ul.nav-list a {
+        padding: 0 2px;
+        text-align: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+      .phone .nav-label {
+        font-size: 11px;
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        width: 100%;
+      }
+
+
+      /* A history entry's before-value. Struck through and muted, because the
+         entry has to read as one thing that happened rather than two values. */
+      .chg-line {
+        font-size: 0.875rem;
+        overflow-wrap: anywhere;
+      }
+      .was {
+        color: var(--text-secondary);
+        text-decoration: line-through;
+      }
+
+      /* A two-column comparison is unreadable in a 375px frame. It stacks,
+         and the field label stays above both values. */
+      @container (max-width: 760px) {
+        .grid2,
+        .grid2tight {
+          grid-template-columns: 1fr;
+        }
+        .frow {
+          grid-template-columns: 1fr !important;
+          gap: 6px;
+        }
+        .qbox {
+          padding: 12px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-head">
+        <h1>W3 · Add or link a person who holds no membership</h1>
+        <p>
+          A human the club deals with who is not a player gets a record, and the club does not end
+          up holding them twice. <strong>This surface creates people and nothing else.</strong> It
+          assigns no role, grants no login and creates no membership — a role is assigned in
+          Administration → Roles, which already exists. <code>/operate/people/new</code> and its
+          parent do not exist on <code>main</code>.
+        </p>
+        <p>
+          <strong>Reading this review.</strong>
+          <span class="side-label" style="background: #90a4ae; color: #fff"
+            >Current — on main today</span
+          >
+          and
+          <span class="side-label" style="background: var(--primary); color: #fff"
+            >Proposed — this mission</span
+          >. Every screen is <span class="disposition new">New</span>.
+        </p>
+        <div class="legend">
+          <span
+            ><strong>One primary action, top right, on every screen.</strong> Row-level choices sit
+            on their row. Nothing is duplicated at the bottom of the page</span
+          >
+          <span
+            >The duplicate check is what this workflow exists to settle: what it shows, and what the
+            operator must answer before anything is created</span
+          >
+          <span>All names and numbers are the synthetic local dataset</span>
+        </div>
+      </header>
+      <div id="screens"></div>
+    </div>
+    <script>
+      /* ------------------------------------------------------------------ *
+       * Shared component layer. Every screen below is rendered from data
+       * through these, so the wide table and the 375px cards can never drift
+       * apart, and a change to the list columns is made in exactly one place.
+       *
+       * No sentence inside an application frame explains anything. Labels,
+       * values and states only; the explanation is in the screen head.
+       * ------------------------------------------------------------------ */
+
+      const proposedTag = `<span class="chip chip-proposed">Proposed</span>`;
+      const INFO_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>`;
+      const WARN_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.99 19.53 19H4.47L12 5.99M12 2 1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z"/></svg>`;
+      const alert = (severity, html) =>
+        `<div class="alert alert-${severity}">${severity === "warn" ? WARN_ICON : INFO_ICON}<div>${html}</div></div>`;
+
+      /* `not recorded` is explicit, visible and never defaulted — Task 08 §6,
+         and the lesson of the 2023 workbook's defaulting Rookie column. It is
+         the whole of what an empty field says. */
+      const NR = `<span class="notrec">not recorded</span>`;
+
+      /*
+       * Who supplied a value. Brian, 2026-08-26: the four-class vocabulary made
+       * no sense to him — "player provided does" — and what he wants instead is
+       * *who did it*.
+       *
+       * There is deliberately no `Verified` mark. Brian, 2026-08-27: "no
+       * verification link at all." Nothing here verifies that somebody holds a
+       * mailbox — `contact_points` on `main` has no verified column, no
+       * confirm-by-link flow exists, and this mission sends nothing — so
+       * claiming it on screen would be a false statement. A real verification
+       * flow needs sending, and belongs to Mission 7 or Mission 8.
+       */
+      const by = (who) => `<span class="prov">${who}</span>`;
+      const PLAYER = by("Player");
+
+      const frow = (label, value) =>
+        `<div class="frow"><div class="flab">${label}</div><div class="fval">${value}</div></div>`;
+
+      const paper = (title, body, action = "") => `
+        <div class="paper">
+          <div class="shead">
+            <h3>${title}</h3>
+            ${action}
+          </div>
+          ${body}
+        </div>`;
+
+      /* ---------------------------- the shell ---------------------------- */
+
+      /*
+       * `src/app/operate/shell-nav.tsx` and `src/app/operate/layout.tsx`: the
+       * grey.900 sidebar from md up and a fixed bottom bar below it, the
+       * Administration group, the signed-in block, and the head carrying
+       * "Lancers Operations" with sign-out.
+       *
+       * **People is an Administration destination**, not a fourth entry beside
+       * Roster. Brian, 2026-08-26: "People should be considered an
+       * administrative task. It's not something that falls into the top left."
+       *
+       * It is also resolved server-side per operator, the way LAN-110 already
+       * resolves the coach shell, so an operator outside the four-role group
+       * never sees the entry at all — "it's just something that never pops up
+       * for you". The server guard behind it does not move: hiding a link stays
+       * a courtesy and never an authorization boundary.
+       */
+      const operatorShell = (content, options = {}) => {
+        const {
+          selected = "People",
+          who = "Caspian Hallowfield",
+          caption = "Authorized operator",
+          admin = ["People", "Missing data", "Operators", "Roles"],
+        } = options;
+        const item = (label) =>
+          `<li><a href="#" class="${label === selected ? "sel" : ""}"${
+            label === selected ? ' aria-current="page"' : ""
+          }><span class="nav-label">${label}</span></a></li>`;
+        return `
+        <div class="app">
+          <nav class="shell" aria-label="Operator">
+            <div class="nav-head">
+              <div class="over" style="color:var(--grey400)">Lancers</div>
+              <div class="sec" style="color:#fff">Operations</div>
+            </div>
+            <ul class="nav-list">
+              ${item("Roster")}${item("Events")}${item("Report")}
+              ${admin.length ? `<li class="nav-rule" aria-hidden="true"></li><li class="nav-group">Administration</li>` : ""}
+              ${admin.map(item).join("")}
+            </ul>
+            <div class="nav-foot">
+              <div class="who">${who}</div>
+              <div class="cap">${caption}</div>
+            </div>
+          </nav>
+          <main class="shell">
+            <div class="shell-head">
+              <div style="min-width:0">
+                <p class="brand">Lancers Operations</p>
+                <p class="body2 sec">Signed in as ${who}</p>
+              </div>
+              <div><button class="btn btn-outlined btn-sm">Sign out</button></div>
+            </div>
+            <div class="content">${content}</div>
+          </main>
+        </div>`;
+      };
+
+      /* -------------------- shared list primitives ----------------------- */
+
+      /* `roster/presentation.ts`'s mapping: active success, onboarding info,
+         inactive warning, everything else default. */
+      const standingChip = (standing) => {
+        if (!standing) return `<span class="sec">—</span>`;
+        const tone =
+          standing === "Active"
+            ? " ok"
+            : standing === "Onboarding"
+              ? " inf"
+              : standing === "Inactive"
+                ? " wrn"
+                : "";
+        return `<span class="chip${tone}">${standing}</span>`;
+      };
+
+      const sortHead = (label, on = false, dir = "▲") =>
+        `<a class="sortable${on ? " on" : ""}" href="#">${label}<span class="arw">${dir}</span></a>`;
+
+      /* One table, one card list, from one row set — so the 1280 and the 375
+         frames can never drift apart. */
+      const dataTable = (headers, rows, sortedIndex = 0) => `
+        <div class="paper wide-only" style="padding:0">
+          <div class="scroll-x">
+            <table class="tbl">
+              <thead><tr>${headers
+                .map((h, i) => `<th>${sortHead(h, i === sortedIndex)}</th>`)
+                .join("")}</tr></thead>
+              <tbody>
+                ${rows.map((cells) => `<tr>${cells.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+
+      const cardList = (cards) => `
+        <div class="narrow-only">
+          ${cards
+            .map(
+              (c) => `
+            <div class="percard">
+              <div class="pname">${c.title}</div>
+              ${c.sub ? `<div class="aka">${c.sub}</div>` : ""}
+              <div class="chiprow">${c.chips.join("")}</div>
+            </div>`,
+            )
+            .join("")}
+        </div>`;
+
+      const pageHead = (title, subline, action = "") => `
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div style="min-width:0">
+            <p class="h6" style="margin:0">${title}</p>
+            <p class="body2 sec" style="margin:2px 0 0">${subline}</p>
+          </div>
+          ${action}
+        </div>`;
+
+      const searchBar = (placeholder, term = "", filters = []) => `
+        <div class="row g2 wide-only" style="flex-wrap:wrap">
+          <span class="field-inline" style="flex:1;min-width:240px">
+            ${term ? `<span class="bold">${term}</span>` : placeholder}
+          </span>
+          ${filters.map((f) => `<span class="field-inline">${f}</span>`).join("")}
+        </div>
+        <div class="narrow-only">
+          <div class="row g2" style="align-items:center">
+            <span class="field-inline" style="flex:1">
+              ${term ? `<span class="bold">${term}</span>` : placeholder}
+            </span>
+            ${filters.length ? `<button class="btn btn-outlined btn-sm">Filters</button>` : ""}
+          </div>
+        </div>`;
+
+      /* A labelled text field, as MUI renders a small outlined TextField. */
+      const field = (label, value, opts = {}) => `
+        <div class="field${opts.focused ? " focused" : ""}${opts.disabled ? " disabled" : ""}"
+             style="${opts.style ?? ""}">
+          <span class="lab">${label}</span>
+          <span style="min-width:0;overflow-wrap:anywhere">${value}</span>
+          ${opts.right ?? ""}
+        </div>`;
+
+      /* One primary action, top right, on every screen of this workflow. */
+      const addHead = (action, sub = "") => `
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div style="min-width:0">
+            <p class="body2 sec" style="margin:0"><a class="golink" href="#">← People</a></p>
+            <p class="h5" style="margin:4px 0 0">Add a person</p>
+            ${sub ? `<p class="body2 sec" style="margin:2px 0 0">${sub}</p>` : ""}
+          </div>
+          <div class="row g2">
+            <button class="btn btn-text">Cancel</button>
+            <button class="btn btn-contained">${action}</button>
+          </div>
+        </div>`;
+
+      const section = (title, body) => paper(title, `<div class="stack g3">${body}</div>`);
+
+      const req = (label) => `${label} <span style="color:#c62828">*</span>`;
+
+      const addField = (label, value, o = {}) => `
+        <div>
+          <div class="field${o.focused ? " focused" : ""}"
+               style="${o.invalid ? "border-color:#c62828;border-width:2px;padding:13px" : ""}">
+            <span class="lab" style="${o.invalid ? "color:#c62828" : ""}">${label}</span>
+            <span style="min-width:0;overflow-wrap:anywhere;${value ? "" : "color:rgba(0,0,0,0.38)"}">${value || "—"}</span>
+          </div>
+          ${o.error ? `<div style="color:#c62828;font-size:0.75rem;margin-top:4px">${o.error}</div>` : ""}
+        </div>`;
+
+      const addForm = (v = {}) =>
+        section(
+          "Who they are",
+          addField(req("First name"), v.first ?? "Percival", v.firstOpts ?? {}) +
+            addField(req("Last name"), v.last ?? "Oakhanger", v.lastOpts ?? {}) +
+            addField("Mobile phone", v.mobile ?? "+44 7700 900314", v.mobileOpts ?? {}) +
+            addField("Personal email", v.email ?? "", v.emailOpts ?? {}),
+        );
+
+      /* A candidate: enough to tell people apart, and what matched. The choice
+         lives on the row it belongs to. */
+      const candidate = (name, detail, matched) => `
+        <div class="seasonrow">
+          <div style="min-width:0">
+            <div class="bold">${name}</div>
+            <div class="aka">${detail}</div>
+            <div class="chiprow">${matched.map((m) => `<span class="chip chip-warn">matched ${m}</span>`).join("")}</div>
+          </div>
+          <button class="btn btn-outlined btn-sm">This is them</button>
+        </div>`;
+
+      const W301 = operatorShell(`
+        <div class="stack g3">
+          ${addHead("Check for duplicates")}
+          ${addForm()}
+        </div>`);
+
+      const W302 = operatorShell(`
+        <div class="stack g3">
+          ${addHead("Create Percival Oakhanger", "2 people could already be this person")}
+          ${paper(
+            "Already in the club",
+            candidate("Percival Oakhanger", "Head Coach · last season 2024-25 · +44 7700 900314", [
+              "first name",
+              "last name",
+              "mobile",
+            ]) +
+              candidate("P. Oakhanger", "No season, no role · percival.oakhanger@example.com", [
+                "last name",
+              ]),
+          )}
+          ${addForm()}
+        </div>`);
+
+      const W303 = operatorShell(`
+        <div class="stack g3">
+          <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <div style="min-width:0">
+              <p class="body2 sec" style="margin:0"><a class="golink" href="#">← People</a></p>
+              <p class="h5" style="margin:4px 0 0">Percival Oakhanger</p>
+            </div>
+            <div class="row g2"><button class="btn btn-outlined">Correct this record</button></div>
+          </div>
+          ${paper(
+            "How to reach them",
+            frow("Mobile phone", `+44 7700 900314 ${by("Caspian Hallowfield")}`) +
+              frow("Personal email", `percival.oakhanger@example.com ${by("Norbert Mereworth")}`),
+          )}
+          ${paper("Roles", `<p class="body2 sec" style="margin:0">None</p>`, `<a class="golink" href="#">Assign a role →</a>`)}
+        </div>`);
+
+      const W304 = operatorShell(`
+        <div class="stack g3">
+          ${addHead("Create anyway", "Percival Oakhanger already holds this mobile number")}
+          ${section("Why this is a different person", addField(req("Reason"), "Father and son, same phone", { focused: true }))}
+          ${addForm()}
+        </div>`);
+
+      const W305 = operatorShell(`
+        <div class="stack g3">
+          ${addHead("Check for duplicates", "2 required fields")}
+          ${section(
+            "Who they are",
+            addField(req("First name"), "Percival") +
+              addField(req("Last name"), "", { focused: true, invalid: true, error: "Required" }) +
+              addField(req("Mobile phone"), "", { invalid: true, error: "Required" }) +
+              addField("Personal email", ""),
+          )}
+        </div>`);
+
+      const W306 = operatorShell(`
+        <div class="stack g3">
+          ${addHead("Create Holly Jarrowdale", "1 person could already be this person")}
+          ${paper(
+            "Already in the club",
+            candidate("Hollis Jarrowdale", "Player · 2026-27 · also “Holly” · +44 7700 900988", [
+              "alias",
+              "last name",
+            ]),
+          )}
+          ${section(
+            "Who they are",
+            addField(req("First name"), "Holly") +
+              addField(req("Last name"), "Jarrowdale") +
+              addField("Mobile phone", "") +
+              addField("Personal email", "holly.j@example.com"),
+          )}
+        </div>`);
+
+      const W307 = operatorShell(`
+        <div class="stack g3">
+          ${pageHead("People", "Outside the 2026-27 season · 203 people", `<button class="btn btn-outlined">Back to this season</button>`)}
+          <div class="widened">
+            <span class="body2"><span class="bold">People outside the 2026-27 season.</span></span>
+            <button class="btn btn-outlined">Back to this season</button>
+          </div>
+          ${searchBar("Search name or alias", "", ["Status: All ▾", "Missing data: All ▾"])}
+          ${dataTable(
+            ["Name", "Status", "To the club", "Contactable", "Missing"],
+            [
+              [
+                `<span class="bold">Percival Oakhanger</span><div class="aka">added just now</div>`,
+                `<span class="sec">—</span>`,
+                `<span class="sec">—</span>`,
+                `<span class="chip chip-outline">Mobile</span>`,
+                `<span class="chip chip-warn">1 missing</span>`,
+              ],
+              [
+                `<span class="bold">Kestrel Caldicott</span><div class="aka">Last season 2019-20</div>`,
+                `<span class="sec">—</span>`,
+                "Alumnus",
+                `<span class="chip chip-outline">Email</span>`,
+                `<span class="sec">—</span>`,
+              ],
+            ],
+          )}
+          ${cardList([
+            {
+              title: "Percival Oakhanger",
+              sub: "added just now",
+              chips: [`<span class="chip chip-warn">1 missing</span>`],
+            },
+            {
+              title: "Kestrel Caldicott",
+              sub: "Last season 2019-20",
+              chips: [`<span class="chip chip-outline">Alumnus</span>`],
+            },
+          ])}
+        </div>`);
+
+      /* ------------------------------ screens ---------------------------- */
+
+      const CLOCK = "Now: Tuesday, 27 October 2026, 09:15";
+      const NONE = "New surface, nothing to compare";
+      const S = (id, title, blurb, deltas, url, proposed) => ({
+        id,
+        title,
+        disposition: "new",
+        blurb,
+        deltas,
+        clockTag: CLOCK,
+        url,
+        now: null,
+        nowNone: NONE,
+        proposed,
+      });
+
+      const SCREENS = [
+        S(
+          "W3-01",
+          "Add a person",
+          `A name and a way to reach them. Nothing else. <strong>Changed 2026-08-27:</strong> the
+           role section is gone — this surface creates people, and roles are assigned in
+           Administration → Roles.`,
+          [
+            "<strong>Changed:</strong> <em>What they are to the club</em> is removed. Brian: this is where people get created; roles get assigned where roles get assigned",
+            "First name, last name and one contact point are required, marked on the field rather than described in a sentence",
+            "One primary action, top right. <em>Check for duplicates</em>, because nothing is created until the check has been answered",
+            "<strong>This screen has no way in yet.</strong> W1-01's People list carries no <em>Add a person</em> button, so nothing opens it — recorded as amendment <strong>W1-A3</strong>, the same shape of gap as the missing-data queue's",
+          ],
+          "oxfordlancers.example/operate/people/new",
+          W301,
+        ),
+        S(
+          "W3-02",
+          "Somebody already in the club could be this person",
+          `The screen this workflow exists for. Each candidate says what matched, and the choice to
+           link sits on the row it belongs to.`,
+          [
+            "<strong>Changed:</strong> one primary action, top right. The second Create at the bottom of the page is gone",
+            "<strong>Changed:</strong> the <em>Stop</em> button is gone. Cancel is the way out and always was",
+            "<strong>Changed:</strong> the explanatory sentences are gone. The count sits under the title and the panel is titled <em>Already in the club</em>",
+            "<strong>Changed:</strong> the form stays on screen below the candidates, so this is visibly the same page as W3-01 rather than a second one",
+            "Acceptance 2: the existing record is shown before anything is created",
+            "What matched is named per candidate, so the operator can judge rather than guess",
+          ],
+          "oxfordlancers.example/operate/people/new",
+          W302,
+        ),
+        S(
+          "W3-03",
+          "This is them — nothing is created",
+          `Linking opens the existing record. Their roles are shown as what they are: empty, with the
+           route to where roles are assigned.`,
+          [
+            "Acceptance 3: no Person row is written, and the operator lands on the record that already existed",
+            "<strong>Changed:</strong> the role is not added here. The record shows Roles as empty and links to Administration → Roles",
+            "<strong>Changed:</strong> the “nothing was created” notice is gone. The operator is on a record that plainly already has history",
+          ],
+          "oxfordlancers.example/operate/people/9d21c744",
+          W303,
+        ),
+        S(
+          "W3-04",
+          "Creating over an exact contact-point match",
+          `A shared number is the strongest duplicate signal the club has, so creating anyway is an
+           explicit act with a reason attached.`,
+          [
+            "Acceptance 4: both records end up present and the decision is audited",
+            "<strong>Changed:</strong> the reason is a required field, not a warning banner",
+            "The audited rejection is what lets a later merge see the decision was deliberate",
+            "<strong>Decide:</strong> requiring a reason at all. The alternative is a plain confirm",
+          ],
+          "oxfordlancers.example/operate/people/new",
+          W304,
+        ),
+        S(
+          "W3-05",
+          "Required fields",
+          `<strong>Changed:</strong> no sentence explaining what is missing. The fields say
+           <em>Required</em> and the count sits under the title.`,
+          [
+            "Acceptance 5: the save is refused and the operator can see exactly which fields",
+            "<strong>Changed:</strong> “A first name is not enough. Add a last name and one contact point.” is gone",
+            "The required marks are on every screen, not only this one, so the rule is visible before it is broken",
+          ],
+          "oxfordlancers.example/operate/people/new",
+          W305,
+        ),
+        S(
+          "W3-06",
+          "An alias match, and a merged-away record that is never offered",
+          `The check matches aliases as well as names. A record that was merged away is never
+           offered — the survivor is offered in its place.`,
+          [
+            "Acceptance 6: “Holly Jarrowdale” was merged into Hollis Jarrowdale and does not appear; Hollis does",
+            "<strong>Changed:</strong> same single top-right action, same panel, no bottom buttons",
+            "Offering a merged-away record invites an operator to resurrect something the club has already decided is a duplicate",
+          ],
+          "oxfordlancers.example/operate/people/new",
+          W306,
+        ),
+        S(
+          "W3-07",
+          "Where the new person actually lands",
+          `<strong>Rewritten 2026-08-27.</strong> This screen used to claim the new coach appeared in
+           this season's list. With roles out of this workflow that is no longer true, and the
+           honest answer matters: <strong>everybody created here lands outside the season</strong>
+           until a role or a membership gives them a tie to it.`,
+          [
+            "A person with no role and no membership has no tie to any season, so the season list does not hold them. Task 08 §2 permits exactly this",
+            "<strong>This is the consequence of taking roles out</strong>, shown rather than hidden. The previous version of this screen was wrong the moment that decision was made",
+            "<strong>Decide:</strong> is that acceptable, or should creating a person offer to open Roles straight afterwards? Adding somebody and then not finding them is the failure mode to weigh",
+            "Percival shows 1 missing — a personal email, which the required set asks of a non-player",
+          ],
+          "oxfordlancers.example/operate/people?scope=outside",
+          W307,
+        ),
+      ];
+      const frame = (screen, html, kind) => `
+        <div class="frame ${kind}">
+          <div class="chrome">
+            ${kind === "desktop" ? `<span class="dots"><i></i><i></i><i></i></span>` : ""}
+            <span class="url">${screen.url}</span>
+            <span class="frame-badge">${screen.id} · ${kind === "desktop" ? "DESKTOP 1280" : "375"}</span>
+          </div>
+          <div class="viewport ${kind}-vp ${kind}">${html}</div>
+        </div>`;
+
+      const sideBlock = (screen, which) => {
+        const isCurrent = which === "current";
+        const html = isCurrent ? screen.now : screen.proposed;
+        const label = isCurrent ? "Current — on main today" : "Proposed — this mission";
+        const inner = html
+          ? `<div class="pair">${frame(screen, html, "desktop")}${frame(screen, html, "phone")}</div>`
+          : `<div class="none">${screen.nowNone}</div>`;
+        return `
+          <div class="side ${which}">
+            <span class="side-label">${label}</span>
+            ${inner}
+          </div>`;
+      };
+
+      document.getElementById("screens").innerHTML = SCREENS.map(
+        (screen) => `
+        <section class="screen">
+          <div class="screen-head">
+            <span class="tab">${screen.id}</span>
+            <h2>${screen.id} · ${screen.title}<span class="disposition ${screen.disposition}">${screen.disposition}</span></h2>
+            <p>${screen.blurb}</p>
+            <ul class="deltas">${screen.deltas.map((d) => `<li>${d}</li>`).join("")}</ul>
+            ${screen.clockTag ? `<span class="clock">${screen.clockTag}</span>` : ""}
+          </div>
+          ${sideBlock(screen, "current")}
+          <div style="height:12px"></div>
+          ${sideBlock(screen, "proposed")}
+        </section>`,
+      ).join("");
+    </script>
+  </body>
+</html>

@@ -1,0 +1,326 @@
+{
+  "screens": [
+    {
+      "id": "W5-01",
+      "route": "/operate/roster",
+      "headSha": "694755f830fc96ed4b427a2e19479bb6128b714e",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-PEOPLE-AND-ROSTER/mockups/proposals/W5-01.js",
+        "sha256": "9e5763df7fe751a08c6d8cce4ab57c802cd08715b571a19985f22f44c1200b15",
+        "bytes": 12725
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-01-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-01-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-01-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-01-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-08-27T19:01:28.643Z"
+    },
+    {
+      "id": "W5-02",
+      "route": "/operate/roster?status=active&entry=returning",
+      "headSha": "694755f830fc96ed4b427a2e19479bb6128b714e",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-PEOPLE-AND-ROSTER/mockups/proposals/W5-02.js",
+        "sha256": "9e5763df7fe751a08c6d8cce4ab57c802cd08715b571a19985f22f44c1200b15",
+        "bytes": 12725
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-02-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-02-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-02-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-02-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-08-27T19:01:32.881Z"
+    },
+    {
+      "id": "W5-03",
+      "route": "/operate/roster?q=Brindlewood",
+      "headSha": "694755f830fc96ed4b427a2e19479bb6128b714e",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-PEOPLE-AND-ROSTER/mockups/proposals/W5-03.js",
+        "sha256": "9e5763df7fe751a08c6d8cce4ab57c802cd08715b571a19985f22f44c1200b15",
+        "bytes": 12725
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-03-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-03-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-03-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-03-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-08-27T19:01:36.559Z"
+    },
+    {
+      "id": "W5-04",
+      "route": "/operate/roster?q=zzzznobody",
+      "headSha": "694755f830fc96ed4b427a2e19479bb6128b714e",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-PEOPLE-AND-ROSTER/mockups/proposals/W5-04.js",
+        "sha256": "9e5763df7fe751a08c6d8cce4ab57c802cd08715b571a19985f22f44c1200b15",
+        "bytes": 12725
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-04-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-04-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-04-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-04-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-08-27T19:01:40.145Z"
+    },
+    {
+      "id": "W5-05",
+      "route": "/operate/roster",
+      "headSha": "694755f830fc96ed4b427a2e19479bb6128b714e",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-PEOPLE-AND-ROSTER/mockups/proposals/W5-05.js",
+        "sha256": "c9f7b3e94563c7592998e2c8e2a473225d8e74bc270e4fa03102ccc032a22fa2",
+        "bytes": 12772
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-05-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-05-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-05-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-05-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-08-27T19:01:45.079Z"
+    },
+    {
+      "id": "W6-01",
+      "route": "/operate/roster/31dfc005-a9c9-45c1-8082-2012c9d3a6de",
+      "headSha": "694755f830fc96ed4b427a2e19479bb6128b714e",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-PEOPLE-AND-ROSTER/mockups/proposals/W6-01.js",
+        "sha256": "c467763d898752cfd3d0cd50657f7c8d0d8ad3777f5c32d72bebf47cb76daa67",
+        "bytes": 8622
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W6-01-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W6-01-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W6-01-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W6-01-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-08-27T19:01:49.468Z"
+    },
+    {
+      "id": "W6-02",
+      "route": "/operate/roster/dd456f0e-bd86-43e6-9213-52cd1e7e23b1",
+      "headSha": "694755f830fc96ed4b427a2e19479bb6128b714e",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-PEOPLE-AND-ROSTER/mockups/proposals/W6-02.js",
+        "sha256": "c467763d898752cfd3d0cd50657f7c8d0d8ad3777f5c32d72bebf47cb76daa67",
+        "bytes": 8622
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W6-02-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W6-02-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W6-02-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W6-02-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-08-27T19:01:53.502Z"
+    }
+  ]
+}

@@ -1,0 +1,1293 @@
+{
+  "packet_version": 1,
+  "mission_id": "M-PEOPLE-AND-ROSTER",
+  "status": "not_ready",
+  "title": "People & Roster",
+  "objective": "Every human the Oxford Lancers hold is findable, readable, correctable and de-duplicable by the four-role group, and this season's squad is a working command surface rather than a four-column list. An operator can find any person by name or alias; open a record that states what is known, what is not recorded, and who supplied each value; correct any of it with the change attributed and the old value superseded rather than erased; add a coach or committee member who holds no membership; merge two records for the same human without losing either identity; work a real missing-data list; and read the whole history of a person on the record it describes. Missions 6 and 7 then add their stages \u2014 recruit doors and funnel, onboarding and consent \u2014 to these surfaces rather than inventing their own.",
+  "why_now": "Nothing downstream can be specified until this exists: Missions 6 and 7 both write to the durable person record, both call the duplicate check, and both display their stages on the People and Roster surfaces. The gap is live rather than theoretical \u2014 on 2026-08-21 Brian created person records against the deployed application while testing operator invitations and could neither correct nor remove them (LAN-147); there is no person surface, no update operation anywhere in the service layer, and the only correction path today is hand-written SQL, which the working agreement reserves to Brian and forbids to every agent. A shipped decision is also due to be superseded: the vertical slice let any linked operator read contact values as an interim ruling, and Task 08 \u00a76's four-role matrix supersedes it when this mission ships.",
+  "non_goals": [
+    "No recruitment doors, funnel stages or recruit-stage fields; Mission 6 owns them, and nothing about the recruit process renders on a person record",
+    "No onboarding behaviour, collection requests or per-fact refused state; Mission 7 owns the chase, and this mission defines the queue it consumes",
+    "No consent capture, lawful basis, erasure or subject-access export; Missions 7 and 8",
+    "No season creation, opening, closing or rollover, and no season picker anywhere; Mission 11",
+    "No club-role or login grants; Administration and Roles already exist and are Mission 1's",
+    "No import of any kind; this mission closes walkable against seeded data only, and the season bootstrap and import moved to Mission 7 on 2026-08-26",
+    "No message composed, scheduled or sent, and no channel action beyond the voice call Task 08 \u00a75 permits",
+    "No football semantics; Mission 9 owns what positions, jersey and coach group mean, and this mission gives them somewhere to live",
+    "No eligibility semantics; Mission 11",
+    "No real member data in any environment, and no hosted migration",
+    "No Mission Lead work packages, worker assignment or implementation sequencing in this packet",
+    "No execution before Brian merges a ready packet version"
+  ],
+  "sources": [
+    {
+      "id": "SRC-task-08",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bd488886d57812e9534cb00102abef8",
+      "version": "approved 2026-08-15; owner-amended 2026-08-26; fetched 2026-08-26T13:34Z"
+    },
+    {
+      "id": "SRC-portfolio-v2-row-5",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bb488886d578126a88cdd747f590a01",
+      "version": "Portfolio v2 approved by Brian Schuster 2026-08-26; fetched 2026-08-26T13:41Z"
+    },
+    {
+      "id": "SRC-authority-manifest",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bf488886d57818aa53ec09f4fc5f757",
+      "version": "published 2026-08-17"
+    },
+    {
+      "id": "SRC-lan-174",
+      "kind": "linear",
+      "ref": "https://linear.app/brian-schuster/issue/LAN-174",
+      "version": "Done 2026-08-26"
+    },
+    {
+      "id": "SRC-lan-147",
+      "kind": "linear",
+      "ref": "https://linear.app/brian-schuster/issue/LAN-147",
+      "version": "Backlog, updated 2026-08-26"
+    },
+    {
+      "id": "SRC-lan-146",
+      "kind": "linear",
+      "ref": "https://linear.app/brian-schuster/issue/LAN-146",
+      "version": "deferred-findings triage surface"
+    },
+    {
+      "id": "SRC-main",
+      "kind": "github",
+      "ref": "main",
+      "version": "ceff8ef, observed 2026-08-27"
+    },
+    {
+      "id": "SRC-owner-session",
+      "kind": "document",
+      "ref": "Owner working sessions, 2026-08-26 and 2026-08-27",
+      "version": "2026-08-27"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-person-record",
+      "text": "A durable Person record carrying the thirteen approved person facts: first name, last name, aliases with one flagged as the display name, college email, personal email, mobile phone, college, matriculation year, expected graduation, degree field, date of birth, and a five-field emergency contact. Known-as is struck and collapses into alias, dropping the shipped known_as column.",
+      "source_id": "SRC-task-08"
+    },
+    {
+      "id": "REQ-status-ladder",
+      "text": "One status the operator sees, assembled from two records: Recruit from the prospect record, then Onboarding, Active, Inactive, Departed and Archived from the membership. Five stored membership values; carried_forward, confirmed and withdrawn are struck. This supersedes OD-3 and is a frozen-model vocabulary change requiring a new enum type and a data migration that drops and recreates twelve dependent views.",
+      "source_id": "SRC-owner-session"
+    },
+    {
+      "id": "REQ-status-naming",
+      "text": "The ladder is called Status on every surface. Standing was never an approved term and collided with alumni standing on the same record; renamed 2026-08-27.",
+      "source_id": "SRC-owner-session"
+    },
+    {
+      "id": "REQ-required-set",
+      "text": "Required-ness depends on where the person stands. Recruit: first name, last name, mobile. Coach, committee member or alumnus: those plus personal email. Onboarding, active or inactive player: those plus college, matriculation year, expected graduation, degree field, date of birth and emergency contact. Last name is required at every rung, amended 2026-08-27; roughly a quarter of the club will flag for it, which is the intent.",
+      "source_id": "SRC-owner-session"
+    },
+    {
+      "id": "REQ-contact-validation",
+      "text": "Every phone and email is validated before a save is offered, per field, naming the rule. A number is valid if it parses with its country code; only a bare national number defaults to UK. Correct numbers must never be refused, and the negative cases are acceptance criteria in their own right.",
+      "source_id": "SRC-owner-session"
+    },
+    {
+      "id": "REQ-supersede",
+      "text": "Contact values supersede rather than overwrite, preserving dated history and one preferred value per kind. Every other field overwrites, and its previous value survives in the person's history.",
+      "source_id": "SRC-task-08"
+    },
+    {
+      "id": "REQ-no-disputed",
+      "text": "There is no contested-value state. The record shows the current value and who set it, because nothing goes higher than the operator. This supersedes Task 08 \u00a76's disputed-awaiting-verification rule and the matching invariant in the mission overview.",
+      "source_id": "SRC-owner-session"
+    },
+    {
+      "id": "REQ-no-verification-mark",
+      "text": "No value carries a verification mark. Nothing in this application verifies that somebody holds a mailbox: contact_points has no verified column, no confirm-by-link flow exists, and this mission sends nothing. A value carries who supplied it and nothing more.",
+      "source_id": "SRC-owner-session"
+    },
+    {
+      "id": "REQ-whatsapp-seam",
+      "text": "Where the mobile number being replaced is on WhatsApp for the active season, the correction surface says so before the save and states that the group membership ends and a rejoin will be asked for. It never claims the new number is or is not on WhatsApp. On WhatsApp has no substrate on main; Mission 6 verifies and Mission 4 must not send into an unverified presence.",
+      "source_id": "SRC-owner-session"
+    },
+    {
+      "id": "REQ-duplicate-check",
+      "text": "A duplicate check runs before any person is created, matching first name, last name, aliases, every email and every phone. Its result must be answered: this is them, this is somebody new, or stop. Merged-away records are never offered. Creating over an exact contact-point match requires a reason, and rejected candidates are audited.",
+      "source_id": "SRC-task-08"
+    },
+    {
+      "id": "REQ-create-without-roles",
+      "text": "The add-person surface creates people and nothing else: no role, no login, no membership. Roles are assigned at /operate/admin/roles. A person created here has no tie to any season and appears only outside it until a role or a membership gives them one.",
+      "source_id": "SRC-owner-session"
+    },
+    {
+      "id": "REQ-merge",
+      "text": "A merge preserves both identities and never deletes the losing row, which is marked merged and points at the survivor. The comparison is field by field with every difference marked; a reason is required; what will move is shown before it moves; there is no undo. An active operator seat on the losing record, and two memberships in one season, both refuse the merge. Duplicate prospect rows combine onto the survivor with the earliest first-contact date and the furthest-along status.",
+      "source_id": "SRC-task-08"
+    },
+    {
+      "id": "REQ-board",
+      "text": "The roster is a board of eighteen columns in three labelled, tinted groups \u2014 Person, Onboarding, Season \u2014 wide, scrolling sideways inside its own container, with the player column pinned. Season facts edit in the cell: one click opens the value, a dropdown appears only where the value set is fixed, the change commits on its own, and every commit writes an audit event without asking for a reason. Person facts render and open the person record instead.",
+      "source_id": "SRC-owner-session"
+    },
+    {
+      "id": "REQ-board-substrate",
+      "text": "This mission builds the storage for the columns that have none: positions, jersey, coach group, formalwear, Blues, eligibility and availability. Mission 9 still owns what the football fields mean. Jersey is two columns \u2014 Blue # and White # \u2014 and the model is provisional: two kits, several numbers per player in one kit for about 8%, and numbers that are not unique.",
+      "source_id": "SRC-owner-session"
+    },
+    {
+      "id": "REQ-filtering",
+      "text": "Filtering is three things: a pinned set of Status, Availability and Missing onboarding data; a filter control in every other column header; and a Filtered by bar carrying every active filter as a removable chip with Clear all. A pinned control and its column header are one filter with two controls, each reflecting the other. Saved views are deferred.",
+      "source_id": "SRC-owner-session"
+    },
+    {
+      "id": "REQ-player-detail",
+      "text": "Player detail carries the same Person, Onboarding and Season banding as the board, edits season facts in place with the same interaction, renders person facts and routes them to the person record, and retires the per-item Resolve/SAVE pair. The separate Membership status card folds into the Status field, taking the shipped activation control with it.",
+      "source_id": "SRC-owner-session"
+    },
+    {
+      "id": "REQ-missing-queue",
+      "text": "The missing-data queue lists every person with at least one required fact absent, naming which facts per row rather than a count, and never displaying a value. It filters by which fact is missing and by where the person stands. Its rows open the record and the correction. It is reached from a linked count on the roster and the People list, and from a Missing data entry in Administration.",
+      "source_id": "SRC-portfolio-v2-row-5"
+    },
+    {
+      "id": "REQ-history-on-record",
+      "text": "Per-person history is a section of the person record, not a route. The What changed panel expands in place to every recorded change with its field and actor filters. A merge reads as one event naming what it moved; a superseded contact point reads as kept-and-dated. Player detail links rather than duplicating. W8 was struck from the frozen inventory on 2026-08-27 and absorbed here.",
+      "source_id": "SRC-owner-session"
+    },
+    {
+      "id": "REQ-authority",
+      "text": "Every surface in this mission is four-role only \u2014 President, Vice-President, Secretary, General Manager. Anything the viewer's role does not grant is absent from the DOM and the payload, not hidden in it. Column visibility is a function of category grants, so widening access later drops restricted columns automatically.",
+      "source_id": "SRC-task-08"
+    },
+    {
+      "id": "REQ-restricted-fields",
+      "text": "Date of birth and emergency contact never appear on any list, board or queue. Emergency contact is third-party personal data and is locked down structurally: never a Person row, never a contact point, never reachable by any audience or messaging machinery, and out of leadership exports by default. Raw email and phone leave the roster grid, replaced by contactability indicators.",
+      "source_id": "SRC-task-08"
+    },
+    {
+      "id": "REQ-not-recorded",
+      "text": "not recorded is explicit, visible and never defaulted, and never conflated with No \u2014 the lesson of the 2023 workbook's defaulting Rookie column. A derived value that cannot be derived says so rather than answering.",
+      "source_id": "SRC-task-08"
+    },
+    {
+      "id": "REQ-no-narrative",
+      "text": "No surface carries narrative or explanatory prose. Labels, values and states, plus the single sentence an empty, refusal or error state genuinely needs.",
+      "source_id": "SRC-owner-session"
+    },
+    {
+      "id": "REQ-audit",
+      "text": "Every edit is attributable and audited \u2014 actor, timestamp, field, before, after, and the reason where one was required. A reason is required to change an existing person value and never to fill an empty one. Cell edits on the board and on player detail write audit events and ask for no reason.",
+      "source_id": "SRC-task-08"
+    },
+    {
+      "id": "REQ-entry-points",
+      "text": "Every route this mission's workflows claim exists on the screen that claims it: Add a person and the linked missing count on the People list, Assign a role on the person record, the Missing data entry in Administration, and the person record's own history section. Five amendments against the approved W1 were raised by a sweep on 2026-08-27 and all are applied.",
+      "source_id": "SRC-owner-session"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "DEC-w1-01",
+      "workflow": "W1",
+      "text": "People is scoped to the season in view; the person record itself is season-agnostic",
+      "classification": "locked",
+      "source": "Brian, 2026-08-26",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w1-02",
+      "workflow": "W1",
+      "text": "Routes /operate/people and /operate/people/[personId]",
+      "classification": "locked",
+      "source": "Brian, 2026-08-26 \u2014 \"as far as the routes, they make sense\"",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w1-03",
+      "workflow": "W1",
+      "text": "List columns: name (alias-aware) \u00b7 standing \u00b7 what they are to the club \u00b7 contactability \u00b7 missing-data flag",
+      "classification": "locked",
+      "source": "Approved with the workflow, 2026-08-27, having been judged rendered",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w1-04",
+      "workflow": "W1",
+      "text": "Default view is the current season; widening is deliberate and reversible",
+      "classification": "locked",
+      "source": "Brian, 2026-08-26",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w1-05",
+      "workflow": "W1",
+      "text": "Filters stay thin \u2014 standing and missing-required-data only; sorting is aggressive",
+      "classification": "locked",
+      "source": "Brian, 2026-08-26 \u2014 \"keep the filter thin for now\u2026 we should be able to sort aggressively\"",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w1-06",
+      "workflow": "W1",
+      "text": "A committee-year role counts as a tie to the seasons its period overlaps",
+      "classification": "locked",
+      "source": "Approved with the workflow, 2026-08-27",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w1-07",
+      "workflow": "W1",
+      "text": "No season picker; the surface follows the current season as the roster does",
+      "classification": "locked",
+      "source": "Approved with the workflow, 2026-08-27; also his ruling of 2026-08-26",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w1-08",
+      "workflow": "W1",
+      "text": "Four-role only; unauthorised data absent from DOM and payload",
+      "classification": "locked",
+      "source": "Task 08 \u00a76; LAN-75 contract; supersedes LAN-146 A2",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w1-09",
+      "workflow": "W1",
+      "text": "Merged-away people are never listed and never offered",
+      "classification": "locked",
+      "source": "Invariant I6; the shipped matching already excludes them",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w1-10",
+      "workflow": "W1",
+      "text": "Seasonal facts are absent from person detail and live on player detail",
+      "classification": "locked",
+      "source": "The approved field inventory",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w1-11",
+      "workflow": "W1",
+      "text": "Prospect standing renders read-only",
+      "classification": "locked",
+      "source": "Brian, 2026-08-26; every transition is Mission 6's",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w1-12",
+      "workflow": "W1",
+      "text": "Query shape, indexing and pagination",
+      "classification": "delegated to Mission Lead",
+      "source": "No product meaning; the club holds hundreds of people, not millions",
+      "status": "Delegated"
+    },
+    {
+      "id": "DEC-w2-01",
+      "workflow": "W2",
+      "text": "disputed \u2014 awaiting verification is struck; the record shows the current value and who set it",
+      "classification": "locked",
+      "source": "Brian, 2026-08-26. Supersedes Task 08 \u00a76, 01-overview.md's invariant, and this workflow's frozen-inventory line",
+      "status": "Settled, amendments pending"
+    },
+    {
+      "id": "DEC-w2-02",
+      "workflow": "W2",
+      "text": "One edit surface at /operate/people/[personId]/edit, sectioned as the record reads",
+      "classification": "locked",
+      "source": "Approved with the workflow, 2026-08-27",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w2-03",
+      "workflow": "W2",
+      "text": "A reason is required to change an existing value, and never to fill an empty one",
+      "classification": "locked",
+      "source": "Approved with the workflow, 2026-08-27; Task 07 \u00a73 requires the reason audited",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w2-04",
+      "workflow": "W2",
+      "text": "Contact values supersede; every other field overwrites, with the previous value in the history",
+      "classification": "locked",
+      "source": "Task 08 \u00a74",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w2-05",
+      "workflow": "W2",
+      "text": "An email already held by another person refuses the save and offers the merge",
+      "classification": "locked",
+      "source": "Approved with the workflow, 2026-08-27; Task 09 D7's rule on the correction path",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w2-06",
+      "workflow": "W2",
+      "text": "A concurrent edit refuses rather than wins",
+      "classification": "locked",
+      "source": "Approved with the workflow, 2026-08-27",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w2-07",
+      "workflow": "W2",
+      "text": "Emergency contact is edited here and locked down structurally",
+      "classification": "locked",
+      "source": "Task 08 \u00a74 and \u00a76",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w2-08",
+      "workflow": "W2",
+      "text": "The college/personal email split is a migration this mission carries",
+      "classification": "locked",
+      "source": "contactpointkind on main is ('email','phone')",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w2-09",
+      "workflow": "W2",
+      "text": "Phone and email are validated before the save is offered, per field, naming the rule",
+      "classification": "locked",
+      "source": "Brian, 2026-08-27",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w2-10",
+      "workflow": "W2",
+      "text": "A correct number is never refused; the negative cases are acceptance criteria in their own right",
+      "classification": "locked",
+      "source": "Brian, 2026-08-27 \u2014 \"negative cases so that correct numbers don't get invalidated\"",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w2-11",
+      "workflow": "W2",
+      "text": "A number from any country is valid; only a bare national number defaults to UK",
+      "classification": "locked",
+      "source": "Brian, 2026-08-27 \u2014 the club's people come from all over the world",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w2-12",
+      "workflow": "W2",
+      "text": "No Verified mark on any value; a value carries who supplied it",
+      "classification": "locked",
+      "source": "Brian, 2026-08-27 \u2014 \"no verification link at all\". Nothing here verifies a mailbox, so claiming it would be false",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w2-13",
+      "workflow": "W2",
+      "text": "Changing a number that is on WhatsApp for the active season raises it before the save",
+      "classification": "locked",
+      "source": "Brian, 2026-08-27",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w2-14",
+      "workflow": "W2",
+      "text": "Whether the save also sends the rejoin request, or only marks it needed",
+      "classification": "delegated to Mission Lead",
+      "source": "Carried, not settled. This mission sends nothing; dispatch is Mission 4's, and marking it needed keeps that true",
+      "status": "Carried"
+    },
+    {
+      "id": "DEC-w2-15",
+      "workflow": "W2",
+      "text": "Field-level permissioning within the four-role group",
+      "classification": "delegated to Mission Lead",
+      "source": "Task 08 \u00a76 grants the group uniformly; no source splits it further",
+      "status": "Delegated"
+    },
+    {
+      "id": "DEC-w2-16",
+      "workflow": "W2",
+      "text": "Validation messages, field order within a section, and the save control's placement",
+      "classification": "delegated to Mission Lead",
+      "source": "No product meaning",
+      "status": "Delegated"
+    },
+    {
+      "id": "DEC-w3-01",
+      "workflow": "W3",
+      "text": "One primary action, top right, on every screen; row choices sit on their row",
+      "classification": "locked",
+      "source": "Brian, 2026-08-27",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w3-02",
+      "workflow": "W3",
+      "text": "The minimum to mint is first name, last name and one contact point",
+      "classification": "locked",
+      "source": "Task 08 \u00a74 as amended 2026-08-26; last name became required at every rung the same day",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w3-03",
+      "workflow": "W3",
+      "text": "The duplicate check runs before creation and its result must be answered",
+      "classification": "locked",
+      "source": "Task 09 D7",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w3-04",
+      "workflow": "W3",
+      "text": "A role \u2014 season or committee year \u2014 is captured at creation rather than on a second visit",
+      "classification": "superseded",
+      "source": "Superseded 2026-08-27: roles left this workflow entirely. Administration \u2192 Roles assigns them",
+      "status": "Superseded"
+    },
+    {
+      "id": "DEC-w3-05",
+      "workflow": "W3",
+      "text": "Minting over an exact contact-point match requires an explicit override",
+      "classification": "locked",
+      "source": "Approved with the workflow, 2026-08-27, as a required reason rather than a confirm",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w3-06",
+      "workflow": "W3",
+      "text": "Rejected duplicate candidates are audited, not discarded",
+      "classification": "locked",
+      "source": "Approved with the workflow, 2026-08-27",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w3-07",
+      "workflow": "W3",
+      "text": "This path never creates a membership",
+      "classification": "locked",
+      "source": "The frozen model: the roster means people on the team",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w3-08",
+      "workflow": "W3",
+      "text": "No login or club role with authority is granted here",
+      "classification": "locked",
+      "source": "Task 08 \u00a76; Mission 1 owns the seat",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w3-09",
+      "workflow": "W3",
+      "text": "Whether the three duplicate-check implementations are consolidated",
+      "classification": "delegated to Mission Lead",
+      "source": "Recorded as deliberate duplication at inventory freeze; no product meaning either way",
+      "status": "Delegated"
+    },
+    {
+      "id": "DEC-w3-10",
+      "workflow": "W3",
+      "text": "Candidate ordering and how many are shown",
+      "classification": "delegated to Mission Lead",
+      "source": "The club holds hundreds of people, not millions",
+      "status": "Delegated"
+    },
+    {
+      "id": "DEC-w4-01",
+      "workflow": "W4",
+      "text": "Both identities preserved; the losing row is never deleted",
+      "classification": "locked",
+      "source": "Invariant I6; Task 08 \u00a72",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w4-02",
+      "workflow": "W4",
+      "text": "Field-by-field choice rather than \"survivor wins\"",
+      "classification": "locked",
+      "source": "Approved as drawn, 2026-08-27. The older record is often the more complete and the newer the more correct; assuming either loses data",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w4-03",
+      "workflow": "W4",
+      "text": "A reason is required",
+      "classification": "locked",
+      "source": "Task 08 \u00a76",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w4-04",
+      "workflow": "W4",
+      "text": "An active operator seat on the losing record refuses the merge",
+      "classification": "locked",
+      "source": "Brian, 2026-08-26",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w4-05",
+      "workflow": "W4",
+      "text": "Two memberships in one season refuse the merge",
+      "classification": "locked",
+      "source": "Approved as drawn, 2026-08-27. Merging them silently would rewrite a season's squad; the roster is where that is resolved",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w4-06",
+      "workflow": "W4",
+      "text": "Duplicate prospect rows combine: earliest first contact, furthest-along status",
+      "classification": "locked",
+      "source": "Brian, 2026-08-26; recorded as a seam Mission 6 inherits",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w4-07",
+      "workflow": "W4",
+      "text": "Consent-record precedence",
+      "classification": "delegated to Mission Lead",
+      "source": "No consent substrate exists on main; Mission 8 decides the rule and this workflow records the edge",
+      "status": "Deferred to Mission 8"
+    },
+    {
+      "id": "DEC-w4-08",
+      "workflow": "W4",
+      "text": "No undo",
+      "classification": "locked",
+      "source": "Approved as drawn, 2026-08-27. The losing row surviving is what makes manual repair possible; a real undo would be a second destructive path",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w4-09",
+      "workflow": "W4",
+      "text": "Which references are re-pointed, and in what order",
+      "classification": "delegated to Mission Lead",
+      "source": "Mechanical; the set is every foreign key to people",
+      "status": "Delegated"
+    },
+    {
+      "id": "DEC-w5-01",
+      "workflow": "W5",
+      "text": "The default column set",
+      "classification": "superseded",
+      "source": "Superseded 2026-08-27 by the eighteen-column board and its Person/Onboarding/Season grouping",
+      "status": "Superseded"
+    },
+    {
+      "id": "DEC-w5-02",
+      "workflow": "W5",
+      "text": "Raw email and phone come off the grid, replaced by indicators",
+      "classification": "locked",
+      "source": "Task 08 \u00a75",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w5-03",
+      "workflow": "W5",
+      "text": "Filters combine and apply immediately",
+      "classification": "locked",
+      "source": "Task 08 \u00a75",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w5-04",
+      "workflow": "W5",
+      "text": "No season picker; the roster follows the active season",
+      "classification": "locked",
+      "source": "Brian, 2026-08-26",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w5-05",
+      "workflow": "W5",
+      "text": "Column visibility is derived from category grants, not special-cased",
+      "classification": "locked",
+      "source": "Task 08 \u00a76",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w5-06",
+      "workflow": "W5",
+      "text": "The mobile quick action is voice call only",
+      "classification": "locked",
+      "source": "Task 08 \u00a75; R12 and R15 prohibit manual sending outside the pipeline",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w5-07",
+      "workflow": "W5",
+      "text": "The grid shows the predominant jersey number, not every number a player holds",
+      "classification": "superseded",
+      "source": "Superseded 2026-08-27: the board carries Blue # and White # as separate columns; the model stays provisional",
+      "status": "Superseded"
+    },
+    {
+      "id": "DEC-w5-08",
+      "workflow": "W5",
+      "text": "Availability renders only under an availability grant",
+      "classification": "locked",
+      "source": "Task 08 \u00a76",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w5-09",
+      "workflow": "W5",
+      "text": "Page size, column widths, and the sort's default column",
+      "classification": "delegated to Mission Lead",
+      "source": "No product meaning",
+      "status": "Delegated"
+    },
+    {
+      "id": "DEC-w6-01",
+      "workflow": "W6",
+      "text": "Durable facts render as the person's, with a route to the person record",
+      "classification": "locked",
+      "source": "Approved as drawn, 2026-08-27. A durable fact is editable in exactly one place in the mission",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w6-02",
+      "workflow": "W6",
+      "text": "The rebuilt five-value stored ladder, with recruit living on the prospect record",
+      "classification": "locked",
+      "source": "Brian, 2026-08-26; supersedes OD-3",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w6-03",
+      "workflow": "W6",
+      "text": "Formalwear is seasonal and reasked each season",
+      "classification": "locked",
+      "source": "Brian, 2026-08-26; matches Task 10 R1b",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w6-04",
+      "workflow": "W6",
+      "text": "Blues are seasonal awards; the total derives",
+      "classification": "locked",
+      "source": "Brian, 2026-08-26",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w6-05",
+      "workflow": "W6",
+      "text": "The shipped activation control is preserved as the only write",
+      "classification": "locked",
+      "source": "Task 08 \u00a75",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w6-06",
+      "workflow": "W6",
+      "text": "Season facts edit in place, with the board's interaction",
+      "classification": "locked",
+      "source": "Brian, 2026-08-27",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w6-07",
+      "workflow": "W6",
+      "text": "The sections are banded Person \u00b7 Onboarding \u00b7 Season, matching the board",
+      "classification": "locked",
+      "source": "Brian, 2026-08-27",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w6-08",
+      "workflow": "W6",
+      "text": "The per-item Resolve \u2026 / SAVE pair is retired; an item edits like any other value",
+      "classification": "locked",
+      "source": "Brian, 2026-08-27",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w6-09",
+      "workflow": "W6",
+      "text": "The separate Membership status card is folded into the Standing field",
+      "classification": "locked",
+      "source": "Approved as drawn, 2026-08-27, taking the shipped activation control with it",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w6-10",
+      "workflow": "W6",
+      "text": "A departed membership hides the activation control rather than disabling it",
+      "classification": "locked",
+      "source": "Approved as drawn, 2026-08-27. A disabled control invites the question of how to enable it; an absent one answers it",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w6-11",
+      "workflow": "W6",
+      "text": "Section order: Person, Onboarding, Season, then seasons and history",
+      "classification": "locked",
+      "source": "Approved as drawn, 2026-08-27",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w6-12",
+      "workflow": "W6",
+      "text": "Which of Mission 9's football fields render read-only versus not at all",
+      "classification": "delegated to Mission Lead",
+      "source": "The rule is substrate-on-main; the enumeration is mechanical",
+      "status": "Delegated"
+    },
+    {
+      "id": "DEC-w7-01",
+      "workflow": "W7",
+      "text": "The queue names which facts are missing per row, not a count",
+      "classification": "locked",
+      "source": "Approved as drawn, 2026-08-27",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w7-02",
+      "workflow": "W7",
+      "text": "disputed is not a category here",
+      "classification": "locked",
+      "source": "Brian, 2026-08-26, struck the state. The frozen inventory's line for this workflow needs the dated amendment",
+      "status": "Settled, amendment pending"
+    },
+    {
+      "id": "DEC-w7-03",
+      "workflow": "W7",
+      "text": "The queue shows an absence and never a value",
+      "classification": "locked",
+      "source": "Approved as drawn, 2026-08-27. It keeps date of birth and emergency contact off a routine screen entirely",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w7-04",
+      "workflow": "W7",
+      "text": "Filter by which fact is missing",
+      "classification": "locked",
+      "source": "Approved as drawn, 2026-08-27",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w7-05",
+      "workflow": "W7",
+      "text": "The queue's entry point: a linked count, an Administration entry, or both",
+      "classification": "locked",
+      "source": "Settled 2026-08-27 as both routes, applied as amendment W1-A1",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w7-06",
+      "workflow": "W7",
+      "text": "Season-scoped by default, with the same widen action as People",
+      "classification": "locked",
+      "source": "Brian, 2026-08-26, on People; the queue is the same population",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w7-07",
+      "workflow": "W7",
+      "text": "No refused or not applicable state; a row that cannot be satisfied persists",
+      "classification": "locked",
+      "source": "Approved as drawn, 2026-08-27. Task 11 \u00a71 puts the per-fact refused state in Mission 7; inventing one here would pre-empt it",
+      "status": "Settled, gap accepted"
+    },
+    {
+      "id": "DEC-w7-08",
+      "workflow": "W7",
+      "text": "Onboarding completeness is not in this queue",
+      "classification": "locked",
+      "source": "Mission 7 owns it; the roster carries it as its own column",
+      "status": "Settled"
+    },
+    {
+      "id": "DEC-w7-09",
+      "workflow": "W7",
+      "text": "Page size, ordering within an equal count, and the flag's exact placement on the roster",
+      "classification": "delegated to Mission Lead",
+      "source": "No product meaning",
+      "status": "Delegated"
+    }
+  ],
+  "baseline": {
+    "branch": "main",
+    "commit": "0d5913233ff7a7a774cec9be9e1d663668822b8e"
+  },
+  "repository_drift": {
+    "startup_rule": "The Mission Lead compares current main to the baseline and runs the canonical harness drift checks before planning or dispatch. A newer main is acceptable only when this packet's meaning, feasibility, invariants, interfaces and acceptance are unchanged by it.",
+    "stop_rule": "Stop and raise a packet revision when main has changed /operate/roster or /operate/roster/[membershipId], when membership_status or contact_points has moved under this mission, or when any surface this packet locks has been altered by another mission. W5 and W6 are photographed surfaces: a change to either must be re-photographed before the affected packages are dispatched, not merely re-read.",
+    "known_drift": [
+      "Mission 4 (LAN-169 to LAN-173) executed during this intake. Its surface is messaging and scheduling, which this mission does not touch; inspected and confirmed harmless.",
+      "#94 gates implementation packages against their approved mockups at merge time (ADR 0037). It constrains execution rather than intake, and this mission produces the mockups it will be gated against."
+    ]
+  },
+  "gates": {
+    "owner": [
+      "Brian merges this packet before any execution begins.",
+      "Eleven Notion amendments applied on 2026-08-26 are verified; the amendments this intake raised on 2026-08-27 \u2014 the struck contested-value state, the struck verification mark, recruitment facts leaving the person record, and the Status rename \u2014 are recorded in the ledger and still need their dated Notion notes."
+    ],
+    "external": [
+      "None. This mission sends nothing, integrates with nothing, and requires no credential or third-party account."
+    ]
+  },
+  "merge_envelope": {
+    "auto_merge_classes": [],
+    "owner_gated": [
+      "schema-migration",
+      "rls-auth-security",
+      "secrets-credentials",
+      "deployment-production-data",
+      "whatsapp-external-configuration",
+      "highest-risk",
+      "visual-without-approval",
+      "Every package in this mission. It changes a frozen-model enum, drops a shipped column, redesigns two shipped surfaces and narrows access on surfaces already in use."
+    ]
+  },
+  "workflow_matrix": [
+    {
+      "id": "W1",
+      "name": "Look up any person the club holds",
+      "actor": "a four-role operator \u2014 President, Vice-President, Secretary, General Manager.",
+      "trigger": "\"who is this, and what do we have on them?\" A coach names somebody at Monday review; a person rings the Secretary; a recruit turns up at training; an alumnus needs reaching.",
+      "entry_point": "People in the operate navigation, beside Roster.",
+      "placement": "/operate/people for the list, /operate/people/[personId] for the record. Neither exists on main; nothing occupies the path.",
+      "actions": [
+        "Show every person with a tie to the season in view: a season membership in",
+        "Search by first name, last name, or alias \u2014 including an alias that is not the",
+        "Sort on every column that can be meaningfully ordered.",
+        "Filter thinly: standing, and missing required data. The roster is the surface",
+        "Widen to everyone the club has ever held, deliberately and reversibly.",
+        "Open a person.",
+        "aliases, with the display name identified;",
+        "standing on the pipeline ladder, read-only;",
+        "role assignments covering any season, read-only;",
+        "alumni standing, derived, with its operator override visible as an override \u2014",
+        "the under-18 flag where date of birth is recorded;",
+        "a list of the person's season records, each linking to its player detail;"
+      ],
+      "state_transitions": [],
+      "handoffs": [
+        "To W2 when a value is wrong or missing.",
+        "To W4 when the person on screen turns out to be a duplicate of another.",
+        "To W6 when the operator opens one of the person's season records.",
+        "To W8 when the question is how a value came to be what it is.",
+        "To Mission 1's operator administration when the question is about a login or a"
+      ],
+      "exceptions": [
+        "Nothing found. An empty result says so plainly and offers the widen-to-all",
+        "A person who is almost nothing. First name and a phone and no more \u2014 the",
+        "A person with no tie to any season. Task 08 \u00a72 permits an unassigned",
+        "A merged-away duplicate. Never listed and never offered. The shipped",
+        "An operator outside the four-role group. The refusal names the capability"
+      ],
+      "user_visible_result": "the person's durable record, showing what is known, what is not recorded, what is disputed \u2014 awaiting verification, and how confident each value is.",
+      "acceptance": [
+        "find a coach who holds no membership, from the coach's own name;",
+        "find a first-name-only legacy person, and see every absent field stated",
+        "find somebody by an alias that is not their display name;",
+        "open a recruit and see their standing, without any funnel control;",
+        "confirm a merged-away duplicate appears nowhere and its direct link",
+        "confirm the list holds only people tied to the season in view, and that",
+        "confirm an operator outside the four-role group is refused, with no",
+        "read every field's source/confidence class on the record."
+      ],
+      "source_id": "SRC-task-08",
+      "classification": "locked"
+    },
+    {
+      "id": "W2",
+      "name": "Correct a person's record",
+      "actor": "a four-role operator \u2014 President, Vice-President, Secretary, General Manager.",
+      "trigger": "somebody changes their number; a name was mis-keyed at a sign-up table; the missing-data queue says seven facts are absent; a graduate's college address stops working.",
+      "entry_point": "Correct this record on the person record (W1-05), and every row of the missing-data queue (W7).",
+      "placement": "/operate/people/[personId]/edit. Neither the route nor its parent exists on main; nothing occupies the path.",
+      "actions": [
+        "Edit every durable person fact the field inventory marks build: first name,",
+        "One edit surface, sectioned exactly as the record reads \u2014 who they are,",
+        "Contact values supersede rather than overwrite. Replacing a mobile or an",
+        "Every other field overwrites, because a corrected date of birth is not a",
+        "Fill a field that reads not recorded without a reason. Change a field that",
+        "Flag an alias as the display name, add an alias, and remove one.",
+        "Validate every phone and email before the save is offered. An email must be",
+        "Check the number against WhatsApp before saving it. Where the number being",
+        "Return to where the operator came from \u2014 the record, or the next row of the"
+      ],
+      "state_transitions": [
+        "A person fact goes from not recorded to a value, or from one value to",
+        "A contact point goes from preferred to superseded, and a new one becomes",
+        "Every save appends one audit event: actor, timestamp, field, before, after,",
+        "No membership, prospect, role or seat state changes here. Correcting a"
+      ],
+      "handoffs": [
+        "To W1 on save, or to W7 when the operator arrived from the queue.",
+        "To W4 when the reason a value looks wrong is that this is the same human",
+        "To W8 when the question is what the value used to be.",
+        "To Mission 1 when the correction wanted is to a login or a club role.",
+        "To Mission 7 when the correction is a person editing their own record through",
+        "To Mission 8 when the request is erasure or a subject-access export rather"
+      ],
+      "exceptions": [
+        "A value that two people disagree about. The operator enters what they",
+        "Validation, and the negative cases that matter more. Brian, 2026-08-27:",
+        "A phone number that will not normalise. The raw value is preserved",
+        "An email that already belongs to another person. The save is refused and",
+        "A concurrent edit. The second save is refused with what changed underneath",
+        "An operator outside the four-role group. They never reach this route: the"
+      ],
+      "user_visible_result": "the record now says the right thing, the change is on the person's history with a name and a date against it, and no previous contact value has been destroyed.",
+      "acceptance": [
+        "fill a first-name-only legacy record's last name and watch its",
+        "change a mobile number, be shown the normalised value before saving, and",
+        "change a personal email and be required to give a reason, where filling",
+        "add an alias and flag it as the display name, and see the list's name",
+        "be refused when saving an email that already belongs to another person,",
+        "be refused a concurrent save, and be told what moved underneath them;",
+        "read the whole edit back on the person's history with their own name against",
+        "confirm that nothing they did moved the person on the ladder;",
+        "be refused a malformed email and a malformed number, per field, with the",
+        "save every correct form of a number \u2014 +44 and national, spaced and",
+        "change a number that is on WhatsApp for the active season and be told,",
+        "change a number that is not on WhatsApp for the season and see no such"
+      ],
+      "source_id": "SRC-task-08",
+      "classification": "locked"
+    },
+    {
+      "id": "W3",
+      "name": "Add or link a person who holds no membership",
+      "actor": "a four-role operator \u2014 President, Vice-President, Secretary, General Manager.",
+      "trigger": "a new Head Coach arrives; the AGM elects a Treasurer who has never played; somebody needs to be reachable and there is nowhere to put them.",
+      "entry_point": "Add a person on the People list (W1-01).",
+      "placement": "/operate/people/new. Neither the route nor its parent exists on main; nothing occupies the path.",
+      "actions": [
+        "Take a first name, a last name and one contact point. Those are the minimum to",
+        "Run the duplicate check before creating anything. Match on first name,",
+        "Show what the check found: each candidate with enough to tell them apart, and",
+        "Offer three answers, and require one: this is them \u2014 link and stop;",
+        "Land on the new or linked record."
+      ],
+      "state_transitions": [
+        "A Person row is created, or none is and an existing one is opened.",
+        "One audit event records the creation, the duplicate candidates that were shown,",
+        "No membership is created. This path never puts anybody on the roster."
+      ],
+      "handoffs": [
+        "To W1 on the resulting record.",
+        "To W2 to fill anything beyond the minimum.",
+        "To W4 when the operator recognises the duplicate only after minting.",
+        "To Mission 1 to grant a login or a club role that carries authority \u2014 this",
+        "To the returner intake on the roster when the person being added is a player;",
+        "To Mission 6's recruitment doors, which call the same matching and decide their"
+      ],
+      "exceptions": [
+        "An exact match on a contact point. Treated as a near-certainty: the",
+        "A merged-away record matches. It is never offered. The survivor is offered",
+        "A match that is a different human. Minting proceeds and the fact that the",
+        "Nothing typed but a first name. The save is refused, naming what is",
+        "The person already holds a membership. The check surfaces them, linking"
+      ],
+      "user_visible_result": "a Person exists \u2014 either newly minted, or the existing record the duplicate check surfaced \u2014 and it was never silently created and never silently merged.",
+      "acceptance": [
+        "mint a person and find them outside this season, with no role and no",
+        "type a name that already exists and be shown the existing record before",
+        "choose this is them and land on the existing record with nothing created;",
+        "choose this is somebody new over a near match, and find both records",
+        "be refused on a first name alone;",
+        "confirm a merged-away record is never offered and its survivor is;",
+        "confirm no role assignment was created by any path through this workflow;",
+        "confirm no membership was created by any path through this workflow."
+      ],
+      "source_id": "SRC-task-08",
+      "classification": "locked"
+    },
+    {
+      "id": "W4",
+      "name": "Merge two records for the same human",
+      "actor": "a four-role operator \u2014 President, Vice-President, Secretary, General Manager.",
+      "trigger": "two rows with the same phone number; a returner entered fresh who was already there under a nickname; the duplicate check in W3 was answered wrong six months ago.",
+      "entry_point": "Merge\u2026 on the person record (W1-05).",
+      "placement": "/operate/people/[personId]/merge. Neither the route nor its parent exists on main; nothing occupies the path.",
+      "actions": [
+        "Find the other record, by the same search W1 uses.",
+        "Show the two side by side, field by field, with every value that differs",
+        "Choose which record survives, and for each differing field, which value it",
+        "Require a reason.",
+        "Show what will move before it moves: memberships, prospect records, role",
+        "Merge."
+      ],
+      "state_transitions": [
+        "One record becomes the survivor. The other is marked merged, dated, with the",
+        "Every reference to the losing person is re-pointed at the survivor.",
+        "Chosen field values are written onto the survivor, each one an ordinary audited",
+        "Contact points from both records are kept; one per kind stays preferred.",
+        "The losing row is never deleted, so imported rows keep their provenance."
+      ],
+      "handoffs": [
+        "To W1 on the survivor.",
+        "To W8 for the merge event and everything it moved.",
+        "To W2 when the merge is done and a value still needs fixing.",
+        "To Mission 1 when the losing record holds an operator seat, which must be",
+        "To Mission 6 for the recruitment consequences of a merged prospect pair."
+      ],
+      "exceptions": [
+        "The losing record holds an active operator seat. Refused, naming what must",
+        "Both records hold a membership in the same season. Refused. Two",
+        "Both records hold a prospect row in the same season. Combined by the rule",
+        "The operator picks the wrong survivor. There is no undo. The confirmation",
+        "One of the two is already merged away. Refused; the survivor is offered"
+      ],
+      "user_visible_result": "one surviving record, every reference re-pointed, the losing row kept and pointing at the survivor, and a merge event naming who, when and why.",
+      "acceptance": [
+        "find the duplicate from the survivor's record and see the two side by side",
+        "choose per field which value survives, including keeping the older one;",
+        "be refused without a reason;",
+        "see what will move before it moves, and find it moved afterwards;",
+        "confirm the losing row still exists, marked merged, pointing at the",
+        "be refused when the losing record holds an active operator seat, and be",
+        "be refused when both records hold a membership in the same season;",
+        "merge a duplicate prospect pair and find the earliest first-contact date",
+        "read the whole merge on the survivor's history as one event."
+      ],
+      "source_id": "SRC-task-08",
+      "classification": "locked"
+    },
+    {
+      "id": "W5",
+      "name": "Work this season's roster",
+      "actor": "a four-role operator \u2014 President, Vice-President, Secretary, General Manager.",
+      "trigger": "Monday review; the week before a fixture; subs chasing; kit ordering; \"how many actives do we actually have?\"",
+      "entry_point": "Roster in the operate navigation, where it already is.",
+      "placement": "/operate/roster. This surface exists on main and is redesigned, not extended \u2014 portfolio rule 3, backwards-looking.",
+      "actions": [
+        "Show every membership in the season in view, in any status.",
+        "Carry every column the season has, eighteen of them: player, standing,",
+        "Be a board, not a list. Wide, scrolling sideways inside its own container,",
+        "Sort and filter on every column.",
+        "Group the columns and band them: Person, Onboarding, Season. Brian,",
+        "Take the raw email and phone off the grid. Task 08 \u00a75 puts contactability",
+        "Search by first name, last name and alias.",
+        "Combinable filters, applied immediately: standing, entry, onboarding",
+        "Sort on every column that can be meaningfully ordered.",
+        "Open a player (W6), and add a player through the door that already exists.",
+        "Render column visibility from the viewer's category grants, so widening access"
+      ],
+      "state_transitions": [
+        "Editing is spreadsheet editing. Brian, 2026-08-27: \"They should click it,",
+        "Season facts edit in the cell \u2014 standing, entry, positions, jersey,",
+        "Person facts do not edit here. College, matriculation year, expected"
+      ],
+      "handoffs": [
+        "To W6 on opening a player.",
+        "To W7 from the missing-data flag.",
+        "To W1 when the person being looked for is not a player.",
+        "To the shipped returner intake for adding a player, which is not rebuilt here.",
+        "To Mission 9 for what positions, jersey and availability mean; this workflow",
+        "To Mission 7 for onboarding behaviour; the grid shows completeness and the",
+        "To Mission 11 for anything about the season itself \u2014 opening it, closing it,"
+      ],
+      "exceptions": [
+        "A filter matches nothing, and the season has no memberships at all.",
+        "A player with almost nothing recorded. They appear with not recorded in",
+        "A very wide grid on a narrow screen. The condensed card view Task 08 \u00a75",
+        "An operator outside the four-role group. Refused, exposing nothing. A"
+      ],
+      "user_visible_result": "the season's squad as a working command surface, carrying the approved column set rather than the six columns the slice shipped.",
+      "acceptance": [
+        "see the approved column set, and confirm raw email and phone are gone;",
+        "combine filters \u2014 onboarding incomplete and missing data and active \u2014",
+        "sort every sortable column, and keep the sort through a refresh and the",
+        "search by an alias and find the player;",
+        "open a player and come back;",
+        "see the condensed view at a measured 375px, with voice call as the only",
+        "see both empty states and tell them apart;",
+        "confirm a coach reaches nothing here."
+      ],
+      "source_id": "SRC-task-08",
+      "classification": "locked"
+    },
+    {
+      "id": "W6",
+      "name": "Open one player's record",
+      "actor": "a four-role operator \u2014 President, Vice-President, Secretary, General Manager.",
+      "trigger": "a question about one person that the grid cannot answer \u2014 where they are on onboarding, what they were awarded, why they went inactive, what they have been to the club across four seasons.",
+      "entry_point": "a row on the roster (W5), and a season row on the person record (W1-05).",
+      "placement": "/operate/roster/[membershipId]. This surface exists on main and is redesigned, not extended.",
+      "actions": [
+        "Separate the person from the season, visibly. Durable facts render as the",
+        "Show the season's standing on the rebuilt ladder, its milestone dates \u2014",
+        "Show the full status history for this membership: from, to, when, who, why.",
+        "Show onboarding items with per-item provenance, and the completeness the",
+        "Show positions, jersey, availability, eligibility, formalwear and Blues for",
+        "Show this season's RSVP and attendance history, read-only, from Mission 2.",
+        "Preserve the shipped activation control, which is the one thing on this",
+        "Band the sections Person \u00b7 Onboarding \u00b7 Season, the same three groups and",
+        "Show the derived Blues total across seasons, and the derived",
+        "Link to the person's change history, which is now a section of the person"
+      ],
+      "state_transitions": [
+        "Season facts edit in place, with the interaction W5 uses: one click opens",
+        "Person facts render and route to the person record. Changing one is an",
+        "Onboarding items are edited the same way, which retires the per-item",
+        "The separate Membership status card is folded in. Standing is a season"
+      ],
+      "handoffs": [
+        "To W1-05 for the person behind the season.",
+        "To W5 back to the grid.",
+        "To the person record's history section for the change history.",
+        "To W2 for correcting a durable person fact.",
+        "To Mission 7 for onboarding behaviour and the collection request.",
+        "To Mission 9 for what positions, jersey, coach group and availability mean.",
+        "To Mission 11 for eligibility records.",
+        "To Mission 2, whose RSVP and attendance history is displayed and never edited."
+      ],
+      "exceptions": [
+        "A membership with no onboarding items at all. A real configuration state,",
+        "A departed or archived membership. Renders in full, read-only, with the",
+        "A person with almost nothing recorded. Every absent field states not",
+        "A membership whose person was merged away. The route resolves to the",
+        "A coach reaching this route. Refused. Coaches never see contact values,"
+      ],
+      "user_visible_result": "one season's membership in full, with the durable person facts shown as the person's and linked to the person record rather than duplicated onto the season.",
+      "acceptance": [
+        "tell a durable fact from a seasonal one without being told which is which;",
+        "read the full status history for the membership, with actor and reason;",
+        "see onboarding items with per-item provenance;",
+        "see formalwear and Blues as this season's, and the Blues total derived",
+        "activate an onboarding membership through the shipped control, and find",
+        "open a departed membership and find it complete and read-only, with no",
+        "reach the person record and come back;",
+        "confirm a coach is refused with no player data in the payload;",
+        "see the record at a measured 375px without losing the person/season"
+      ],
+      "source_id": "SRC-task-08",
+      "classification": "locked"
+    },
+    {
+      "id": "W7",
+      "name": "Work the missing-data queue",
+      "actor": "a four-role operator \u2014 President, Vice-President, Secretary, General Manager.",
+      "trigger": "the week before a fixture and nobody knows who has an emergency contact; the Secretary has an hour and wants it spent usefully; the roster shows a flag against eleven people.",
+      "entry_point": "both routes, settled 2026-08-27 as amendment W1-A1. The Missing count on the roster and on W1-01's People list is a link into this queue, and Missing data is an entry in the Administration group. The count is the route an operator falls into; the entry is the route for an hour spent usefully. This specification previously asserted the entry alone, and no screen drew it.",
+      "placement": "/operate/people/missing. Neither the route nor its parent exists on main; nothing occupies the path.",
+      "actions": [
+        "List every person with at least one required fact not recorded, scoped to",
+        "Say which facts, per row. A count alone sends the operator to the record to",
+        "Filter by which fact is missing \u2014 everybody with no emergency contact,",
+        "Filter by where the person stands, since the required set depends on it.",
+        "Sort by how much is missing, and by name.",
+        "Go straight to correction (W2) and come back to the next row.",
+        "Show the total, and the total for the current filter."
+      ],
+      "state_transitions": [],
+      "handoffs": [
+        "To W2 for every fix, returning to the queue afterwards.",
+        "To W1 when the operator wants the whole record rather than the gap.",
+        "To Mission 7 for the chase itself \u2014 the request, the cadence, the reminder, and",
+        "To Mission 10 for surfacing the queue's totals in the leadership report."
+      ],
+      "exceptions": [
+        "Nobody is missing anything. The empty state says so plainly and is a good",
+        "A filter matches nothing. Different copy, and a way to clear the filter,",
+        "A person missing everything. They render as one row with the whole list of",
+        "A fact that cannot be collected. There is no refused or not applicable",
+        "An operator outside the four-role group. The destination is absent from"
+      ],
+      "user_visible_result": "a filtered list of people, each row saying exactly which required facts are absent, and a way into correcting each one.",
+      "acceptance": [
+        "see a real list, not a count, with the missing facts named on every row;",
+        "filter to everybody with no emergency contact and get a workable batch;",
+        "see that the required set differs by rung \u2014 a recruit missing only a last",
+        "confirm the first-name-only cohort appears, roughly a quarter of the",
+        "go to correction and return to the queue with that row gone;",
+        "see the empty state when a filter matches nothing, distinguished from the",
+        "confirm no value is ever displayed, only the name of what is absent;",
+        "confirm an operator outside the four-role group is refused."
+      ],
+      "source_id": "SRC-task-08",
+      "classification": "locked"
+    }
+  ],
+  "delegated_to_mission_lead": [
+    "W1: Query shape, indexing and pagination",
+    "W2: Whether the save also sends the rejoin request, or only marks it needed",
+    "W2: Field-level permissioning within the four-role group",
+    "W2: Validation messages, field order within a section, and the save control's placement",
+    "W3: Whether the three duplicate-check implementations are consolidated",
+    "W3: Candidate ordering and how many are shown",
+    "W4: Consent-record precedence",
+    "W4: Which references are re-pointed, and in what order",
+    "W5: Page size, column widths, and the sort's default column",
+    "W6: Which of Mission 9's football fields render read-only versus not at all",
+    "W7: Page size, ordering within an equal count, and the flag's exact placement on the roster",
+    "Internal service and module boundaries within the existing repository architecture",
+    "Component choice and visual composition within the locked routes, columns, actions and states",
+    "Query shape, indexing and pagination; the club holds hundreds of people, not millions",
+    "The order in which the enum migration recreates its twelve dependent views"
+  ],
+  "nonblocking_unknowns": [
+    {
+      "unknown": "Where missing data belongs. Brian named a dissatisfaction on 2026-08-27 without a replacement: missing data as its own column does not make sense to him, and he could not think of a better place.",
+      "handling": "Build as drawn \u2014 the Administration entry and the linked count. Do not invent a third placement. Raise it again if implementation surfaces a natural home."
+    },
+    {
+      "unknown": "The column group order puts Status and Entry in the Season block, off the first screen, and they are what an operator scans.",
+      "handling": "Build as drawn. The cost is recorded in W5's acceptance; a reorder is a mockup amendment, not an implementation choice."
+    },
+    {
+      "unknown": "Whether eighteen columns is the right number.",
+      "handling": "Build eighteen. Every column is independently sortable and filterable, so removing one later costs nothing structural."
+    },
+    {
+      "unknown": "Whether saving a changed mobile number also sends the WhatsApp rejoin request, or only marks it needed.",
+      "handling": "Mark it needed. This mission sends nothing; dispatch is Mission 4's. Do not build a send path."
+    },
+    {
+      "unknown": "The jersey model is provisional \u2014 two kits, non-unique numbers, several per player for about 8%, plus a predominant designation and a note.",
+      "handling": "Build Blue # and White # on the board and the fuller editor on player detail. Mission 9 may remodel; the storage must not assume one number per player."
+    },
+    {
+      "unknown": "The enum migration maps carried_forward and confirmed onto onboarding, which leaves status-history rows reading Onboarding to Onboarding.",
+      "handling": "Unresolved and Brian's. Migrate them as no-ops unless he directs otherwise; do not silently collapse or rewrite historical rows."
+    },
+    {
+      "unknown": "The recruit-stage field set has never been enumerated by anyone.",
+      "handling": "Not this mission's. Mission 6 enumerates it at its intake; do not invent fields."
+    }
+  ],
+  "escalation_rules": {
+    "permitted_clarifications": [
+      "Copy, validation detail and visual composition that do not alter actor authority, route placement, state transitions, the column set, safety or acceptance",
+      "Defect fixes that restore this packet's locked behaviour without changing scope"
+    ],
+    "requires_packet_revision": [
+      "Any change to who may see or edit a field, or to what is absent from the DOM and payload",
+      "Putting date of birth or emergency contact on any list, board or queue",
+      "Adding, removing or renaming a column, a status rung, or a required fact",
+      "Anything that sends a message, records a lawful basis, or writes to a hosted environment",
+      "Any departure from an approved mockup's structure or copy",
+      "Any change to the enum migration's mapping or to what happens to historical status rows"
+    ]
+  },
+  "completion_evidence": [
+    "Canonical packet validation passes and Brian merges this packet version before execution",
+    "npm run verify passes, and the migration-touching packages also pass db:reset, db:seed, types:generate and check:rls",
+    "The enum migration applies from empty, recreates all twelve dependent views, and the 25 view assertions across seven test files pass",
+    "Every acceptance criterion in the workflow matrix is demonstrated against seeded synthetic data",
+    "The approved mockups' structure and copy are matched by the built surfaces, which #94 gates at merge",
+    "W5 and W6 are re-photographed if main moved their surfaces",
+    "No secret, no real member data and no unauthorized club concept is added"
+  ],
+  "blockers": [
+    {
+      "id": "BLK-notion-amendments",
+      "text": "Four decisions taken on 2026-08-27 are recorded in the ledger and not yet in Notion, so the controlling corpus still contradicts this packet. Task 08 \u00a76 still describes a contested-value state that is struck; the source/confidence vocabulary still implies a verification mark that nothing backs; Task 08 \u00a74's recruitment facts are still shown on person detail; and the ladder is still called standing rather than status. An implementer reading Notion would build four things this packet forbids.",
+      "owner_action": "Brian applies the four dated amendments, or authorises the packet as the controlling record for execution with Notion reconciled afterwards.",
+      "blocks": "packet readiness only; every workflow is approved and every mockup accepted"
+    }
+  ],
+  "approval": {
+    "approved_by": "Brian Schuster",
+    "date": "2026-08-27",
+    "evidence": "Approved workflow by workflow across 2026-08-26 and 2026-08-27, each with its own acceptance record carrying his exact words: W1 'Otherwise, Workflow 1 looks good to me. I approve.'; W2 'Make these changes and I'm now approving.'; W3 'Okay, W-3 is approved.'; W4 'W4 approved.'; W5 'w5 approved, killer'; W6 'Looks fantastic, W6 approved.'; W7 'W-7 is approved. Everything's approved.' The frozen inventory was amended from eight workflows to seven on 2026-08-27 on his instruction, 'Yeah, that's fine. Remove the workflow, add it to the other ones.' Packet approval is Brian's merge of this packet version."
+  }
+}

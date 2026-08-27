@@ -34,15 +34,6 @@ export function describeWorkflow(workflow, ledgerRoot) {
   const mocks = listFiles(path.join(ledgerRoot, "mockups")).filter((name) =>
     new RegExp(`^${workflow.id}-.+\\.html$`).test(name),
   );
-  // A specification is markdown, and a browser shows markdown as plain text.
-  // Where a rendered sibling exists beside it, that is what a reader should be
-  // sent to. Missions without one are unaffected and their hubs are unchanged.
-  const renderedSpec =
-    specs.length === 1 &&
-    fs.existsSync(path.join(ledgerRoot, "workflows", specs[0].replace(/\.md$/, ".html")))
-      ? specs[0].replace(/\.md$/, ".html")
-      : null;
-
   const acceptanceFile = path.join("acceptance", `${workflow.id}.md`);
   const acceptance = fs.existsSync(path.join(ledgerRoot, acceptanceFile)) ? acceptanceFile : null;
 
@@ -79,7 +70,7 @@ export function describeWorkflow(workflow, ledgerRoot) {
     name: workflow.name,
     state: workflow.state,
     stale: workflow.stale === true,
-    spec: specs.length === 1 ? path.posix.join("..", "workflows", renderedSpec ?? specs[0]) : null,
+    spec: specs.length === 1 ? path.posix.join("..", "workflows", specs[0]) : null,
     mock: mocks.length === 1 ? mocks[0] : null,
     acceptance: acceptance ? path.posix.join("..", ...acceptanceFile.split(path.sep)) : null,
     screens,
