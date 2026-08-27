@@ -35,14 +35,18 @@ vi.mock("@/lib/services/rsvp", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/rsvp")>();
   return { ...actual, readSignedRsvpPageIn: vi.fn() };
 });
-// OWNER-LAN172-17. `AutoSubmitOnMount` is a client component whose effect
-// would otherwise fire on every `render()` in this file, calling the real
-// (unmocked-here) `submitAnswer` server action mid-test. Its own behaviour —
-// that it fires `requestSubmit()` on the form it names, exactly once — is
-// proved in isolation by `auto-submit.test.tsx`; what this file proves is
-// only that the screen wires it to the right form id and gates it on `busy`.
+// OWNER-LAN172-17, interaction-gated by Q-30 (round 7). `AutoSubmitOnInteraction`
+// is a client component that only submits after a genuine interaction event,
+// so stubbing it is not strictly required to keep this file's plain
+// `render()` calls from invoking the real (unmocked-here) `submitAnswer`
+// action — but stubbing keeps this file about the screen, not the listener.
+// Its own behaviour — that it never fires from mounting alone, fires exactly
+// once after a qualifying interaction, and survives remount/Strict-Mode
+// double-invocation without double-firing — is proved in isolation by
+// `auto-submit.test.tsx`; what this file proves is only that the screen
+// wires it to the right form id and gates it on `busy`.
 vi.mock("./auto-submit", () => ({
-  AutoSubmitOnMount: ({ formId }: { formId: string }) => (
+  AutoSubmitOnInteraction: ({ formId }: { formId: string }) => (
     <div data-testid="auto-submit-stub" data-form-id={formId} />
   ),
 }));

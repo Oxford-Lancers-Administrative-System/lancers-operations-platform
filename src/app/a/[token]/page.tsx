@@ -25,7 +25,7 @@ import {
 import { readSignedRsvpPageIn, type SignedRsvpPage } from "@/lib/services/rsvp";
 import { formatDeadline, formatEventDate, formatEventTime } from "@/app/rsvp/[token]/presentation";
 
-import { AutoSubmitOnMount } from "./auto-submit";
+import { AutoSubmitOnInteraction } from "./auto-submit";
 import { QuestionField } from "./question-field";
 import { submitAnswer } from "./actions";
 import { ANSWER_FORM_ID, ERROR_PARAM } from "./params";
@@ -283,12 +283,17 @@ function Confirm({
         W2 line 61: the Yes landing "asks applicable event questions"; the
         No-path section: "the reason field belongs on that page."
 
-        Owner correction round 6 (OWNER-LAN172-17): this exact form is what
-        `AutoSubmitOnMount` below submits itself, in a JS-capable browser, the
-        instant this page mounts — the WhatsApp tap is the whole interaction.
-        `id={ANSWER_FORM_ID}` is how that component finds it; nothing else
-        about this form changes for that purpose, so the unmodified visible
-        button remains Q-11's own no-JS fallback, unchanged in wording.
+        Owner correction round 6 (OWNER-LAN172-17), gated by Q-30 in round 7
+        (LAN-172-r5-F1): this exact form is what `AutoSubmitOnInteraction`
+        below submits itself, in a JS-capable browser, the moment the player
+        first interacts with the page — a real pointer, key, touch or scroll,
+        never on mount alone (an unconditional mount-fire let any JS-executing
+        automated visitor, including a security scanner, complete this write
+        with no human action at all — exactly what REQ-no-false-rsvp forbids).
+        `id={ANSWER_FORM_ID}` is how that component finds this form; nothing
+        else about the form changes for that purpose, so the unmodified
+        visible button remains Q-11's own fallback — for no JavaScript, and
+        now also for a human who reads without ever touching the screen.
 
         Owner correction round 6 (OWNER-LAN172-18): `enforceRequired={false}`
         below means a blank required question never blocks this submit,
@@ -370,14 +375,16 @@ function Confirm({
       </Box>
 
       {/*
-        Owner correction round 6 (OWNER-LAN172-17). `busy` means an earlier
-        automated submit was already refused as rate-limited and redirected
-        back here — auto-firing again immediately would only hammer the same
-        limiter in a client-side loop, so this one case is left to the
-        visible button (and the human reading `BUSY_MESSAGE` above) instead.
-        Every other load fires once, per `AutoSubmitOnMount`'s own guard.
+        Owner correction round 6 (OWNER-LAN172-17), interaction-gated by Q-30
+        in round 7. `busy` means an earlier submit was already refused as
+        rate-limited and redirected back here — arming the listener again
+        immediately would let the player's very next scroll retry against the
+        same limiter with no pause to read `BUSY_MESSAGE`, so this one case is
+        left to the visible button instead. Every other load arms the
+        listener once and waits for a genuine interaction, per
+        `AutoSubmitOnInteraction`'s own guard.
       */}
-      {!busy ? <AutoSubmitOnMount formId={ANSWER_FORM_ID} /> : null}
+      {!busy ? <AutoSubmitOnInteraction formId={ANSWER_FORM_ID} /> : null}
 
       {/*
         W2's Yes-path bullet, quoted verbatim: "Changing to No remains

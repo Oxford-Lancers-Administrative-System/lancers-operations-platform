@@ -172,6 +172,65 @@ fallback Q-11 always described. Guarded off while a throttled retry's own
 `BUSY_MESSAGE` banner is showing, so a rate-limited client cannot re-trigger
 itself in a loop.
 
+**Correction round 7 (Q-30, LAN-172-r5-F1): the auto-submit itself defeated
+the gate it was built to satisfy.** Round 6's `requestSubmit()` fired
+unconditionally on mount. The gate cookie is set unconditionally too, on
+every GET — presence, not value, is the whole check, exactly as this
+section's own paragraph above says — which was safe only as long as
+nothing but a human's own click could turn that GET's cookie into a POST.
+Firing on mount alone collapsed that: any JS-executing visitor that renders
+this page — including the well-documented class of corporate link/email
+security scanners that render full JavaScript in headless Chromium
+specifically to catch dynamic phishing behaviour — carries the same cookie
+back on the same-origin POST its own script fires, with no human action at
+all. `REQ-no-false-rsvp` names a security scanner explicitly as an actor
+that must never produce an authoritative response, so this was a release-
+gate violation, caught in correction review round 5 (LAN-172-r5-F1) before
+merge, not a cosmetic gap.
+
+Brian's resolution, recorded as **Q-30**, chose explicitly among three
+options put to him and picked **option (c)**: gate the submit on a genuine
+human-interaction signal a fetcher does not produce, rather than (a)
+declaring this population already accepted as out of Q-11's scope, or (b) a
+different mechanism entirely. His words: _"And option C."_
+`src/app/a/[token]/auto-submit.tsx` now attaches passive listeners for
+`pointerdown`, `pointermove`, `mousemove`, `keydown`, `touchstart`,
+`touchmove`, `scroll` and `wheel` — Brian's own named categories (pointer,
+key, touch, scroll) — and submits on the first one to arrive, never on mount.
+This is not the user-agent heuristic Q-11 already forbade: that ruled out
+guessing _who_ a visitor is from a string it sends; this is direct evidence
+of _what actually happened_ in the browser, stronger evidence of a human
+than "the cookie came back" ever was. The GET still writes nothing; the POST
+is still checked against exactly the same cookie; the token is still
+single-use and idempotent regardless (`consumeAnswerTokenIn`'s row lock,
+unchanged). A visitor who never produces a qualifying signal — no
+JavaScript, or a human who reads without ever touching the screen — still
+sees the page's own single visible button: Q-11's fallback, now covering a
+slightly wider population than before, by design.
+
+Proved live, headless, end to end, against the real local stack: a fresh
+token rendered with zero simulated interaction, then observed idle, records
+nothing and never consumes the token; a second, independent fresh token
+rendered and given exactly one genuine interaction (a real Playwright mouse
+move, dispatched the way OS input is, not a page-authored fake) records
+exactly one response, consumes the token once, and redirects to the durable
+page — see the pull request for the exact commands and output.
+
+**Deliberately left unchanged: `/a/[token]`'s heading and "Your answer" fact
+box still describe the token's own encoded answer immediately, before any
+interaction or write.** Interaction-gating can only widen the window before
+a real write lands compared to round 6 (a passive reader who never scrolls
+or taps now stays on the fallback indefinitely, which is the intended
+consequence of Q-30, not a flaw in it), so this reopens exactly the tension
+the original walk report first named for this copy. Addressing it was
+correction review round 5's own explicit invitation ("decide this
+deliberately and say... how you handled it"), not part of Q-30's own ask
+(gate the write, not redesign the page), and reversing it would touch an
+explicit prior owner decision (round 5, OWNER-LAN172-13) that this ticket's
+own words are the click already recorded it. Left unchanged this round;
+recorded here, and in this round's own receipt, as a residual item for
+Brian's attention — not decided silently.
+
 ## Owner-resolved contract — Q-10, button labels
 
 Alphanumerics and spaces only, no em dashes: **"Yes view details"** and
@@ -486,13 +545,17 @@ ticket), `REQ-attendance-not-absence`, `REQ-plain-first-contact`,
       created, and that a GET writes nothing —
       `player-answer-tokens.test.ts`'s "makes no write at all on a valid
       read" and "is idempotent" cases.
-- [x] A player's answer is standing before the player has to do anything else
-      — in a JS-capable browser, the landing page's own script fires the
-      POST's cookie-gated write the instant it mounts (`auto-submit.tsx`,
-      correction round 6, OWNER-LAN172-17); the GET itself still only reads.
-      Rounds 1 through 5 shipped the page believing this and saying so, but
-      never built the auto-submit that makes it true — every player was
-      actually on the no-JS fallback until this round.
+- [x] A player's answer is standing without a second tap for a real,
+      JS-capable browser that does anything at all with the page — the
+      landing page's own script fires the POST's cookie-gated write on the
+      first genuine interaction (`auto-submit.tsx`, correction round 6,
+      OWNER-LAN172-17, interaction-gated by Q-30 in round 7 after
+      LAN-172-r5-F1 established that firing on mount alone let an automated
+      scanner complete the write with no human action); the GET itself still
+      only reads. Rounds 1 through 5 shipped the page believing this and
+      saying so, but never built the auto-submit that makes it true; round
+      6's own unconditional version made it true for every visitor, human or
+      not, which is what round 7 corrects.
 - [x] A No is standing from the click with "No reason given"; adding a reason
       appends without editing history.
 - [x] Either answer cancels later player-facing jobs and clears an un-actioned
@@ -559,19 +622,40 @@ ticket), `REQ-attendance-not-absence`, `REQ-plain-first-contact`,
       the exact states compared and their screenshots.
 - [x] **Correction round 6, building the "one interaction" model in full
       (four findings):** `/a/[token]` auto-submits its own cookie-gated POST
-      on mount, in a JS-capable browser, so the WhatsApp tap alone records the
-      answer, with the visible button unchanged as the no-JS fallback
-      (OWNER-LAN172-17); a blank required question never blocks that submit,
-      auto-fired or manual, because `QuestionField`'s `enforceRequired` is
-      `false` on this surface alone (OWNER-LAN172-18); `changeToYes` no longer
-      accepts or honours a `close` flag, so a revising Change to Yes opens the
-      panel exactly like a fresh one, never hiding a newly-outstanding
-      question behind a premature close (OWNER-LAN172-19); the `?open=`
-      invitation renders exactly once, filtered out of its own row section
-      rather than appearing there a second time (OWNER-LAN172-20). Q-11's
-      release gate, cross-person isolation, and every round 1–5 finding above
-      are unchanged and re-verified — see the pull request for the injection-
-      proof cycle per fix and the desktop/true-375px states compared.
+      in a JS-capable browser (unconditionally on mount as first shipped;
+      corrected to interaction-gated by round 7, below), so the WhatsApp tap
+      alone records the answer, with the visible button unchanged as the
+      no-JS fallback (OWNER-LAN172-17); a blank required question never
+      blocks that submit, auto-fired or manual, because `QuestionField`'s
+      `enforceRequired` is `false` on this surface alone (OWNER-LAN172-18);
+      `changeToYes` no longer accepts or honours a `close` flag, so a
+      revising Change to Yes opens the panel exactly like a fresh one, never
+      hiding a newly-outstanding question behind a premature close
+      (OWNER-LAN172-19); the `?open=` invitation renders exactly once,
+      filtered out of its own row section rather than appearing there a
+      second time (OWNER-LAN172-20). Q-11's release gate, cross-person
+      isolation, and every round 1–5 finding above are unchanged and
+      re-verified — see the pull request for the injection-proof cycle per
+      fix and the desktop/true-375px states compared.
+- [x] **Correction round 7 (Q-30, LAN-172-r5-F1): the auto-submit itself is
+      gated on a genuine interaction, not fired on mount.** Correction review
+      round 5 established that an unconditional mount-fire let any
+      JS-executing automated visitor — a real, named population under
+      `REQ-no-false-rsvp`, corporate security scanners that render full
+      JavaScript — complete the cookie-gated write with no human action, a
+      release-gate violation caught before merge. Brian's own chosen
+      resolution (option (c) of three put to him): fire only after a real
+      pointer, key, touch or scroll event, never on mount alone. Proved by
+      test that the write does not fire from rendering alone, fires exactly
+      once after a qualifying event, and stays correct under remount, React
+      Strict Mode's double-invoked effect, and an unmount mid-flight; proved
+      live, headless, against the real stack, that zero interaction records
+      nothing at all while one genuine interaction records exactly one
+      response. The GET, the cookie check, and the token's single use are
+      unchanged. Left deliberately unaddressed: `/a/[token]`'s heading still
+      asserts the token's own encoded answer before any write lands, which
+      interaction-gating widens the window for — see this ticket's own Q-11
+      section above and this round's receipt for the reasoning.
 
 ## Boundaries
 
