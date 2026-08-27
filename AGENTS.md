@@ -202,6 +202,9 @@ Review is always Sonnet and capped there. No agent self-escalates above its cap.
 A mission runs at most three agents concurrently, including at most two
 implementation workers.
 
+The Lead holds one harness-derived epoch at a time and never mutates a mission
+past its boundary; only Brian extends one. `docs/mission-harness.md` governs.
+
 Exactly five user-invoked workflows and three subagents are approved:
 
 | Role                     | Contract                                  |

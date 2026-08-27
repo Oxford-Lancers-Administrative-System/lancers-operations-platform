@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { appendEvent, replayState } from "../scripts/mission/lib/state.mjs";
 import { coordinatorPaths, coordinatorStatus } from "../scripts/lib/local-supabase-coordinator.mjs";
@@ -15,6 +15,10 @@ const sourcePlan = JSON.parse(
   fs.readFileSync(path.join(__dirname, "fixtures", "mission", "three-package-plan.json"), "utf8"),
 );
 const MISSION = packet.mission_id as string;
+
+// Real git repositories, real child processes, and since LAN-178 a Lead epoch
+// handover before the merge can be recorded. Slow by construction, not hung.
+vi.setConfig({ testTimeout: 60_000 });
 const roots: string[] = [];
 
 afterEach(() => {
@@ -189,6 +193,34 @@ function recordMissionStack(input: Awaited<ReturnType<typeof fixture>>) {
 describe("finish-mission executable reclamation", () => {
   it("auto-reclaims through the real merge-record command", async () => {
     const input = await fixture(false, false);
+    // This journal predates Lead epochs and carries Mission 4's shape: a plan
+    // approved, and execution continued under the same Lead without the
+    // recycle. Adopting an epoch projects it onto the post-plan boundary, so
+    // the merge cannot be recorded until a fresh Lead takes the mission on
+    // (LAN-178 §8). Nothing in its history is rewritten.
+    const cli = path.join(__dirname, "..", "scripts", "mission", "cli.mjs");
+    const mission = (env: NodeJS.ProcessEnv, ...args: string[]) =>
+      spawnSync(process.execPath, [cli, ...args], { cwd: input.repo, env, encoding: "utf8" });
+
+    const adopted = mission(input.env, "resume", MISSION);
+    expect(adopted.status, adopted.stderr).toBe(0);
+    expect(JSON.parse(adopted.stdout).epoch).toMatchObject({
+      phase: "post-plan-boundary",
+      bootstrapped: true,
+    });
+
+    const closed = mission(input.env, "epoch", "close", MISSION);
+    expect(closed.status, closed.stderr).toBe(0);
+    const token = /--token (\S+)/.exec(closed.stdout)?.[1];
+    expect(token, closed.stdout).toBeTruthy();
+    const fresh = { ...input.env, LANCERS_MISSION_LEAD_ID: "lead-finish-rehearsal-2" };
+    const resumed = mission(fresh, "resume", MISSION, "--token", String(token));
+    expect(resumed.status, resumed.stderr).toBe(0);
+    expect(JSON.parse(resumed.stdout).epoch).toMatchObject({
+      phase: "implementation-wave",
+      scope: { packages: [input.packageId] },
+    });
+
     const result = spawnSync(
       process.execPath,
       [
@@ -201,7 +233,7 @@ describe("finish-mission executable reclamation", () => {
         "--route",
         "owner",
       ],
-      { cwd: input.repo, env: input.env, encoding: "utf8" },
+      { cwd: input.repo, env: fresh, encoding: "utf8" },
     );
     expect(result.status, result.stderr).toBe(0);
     expect(result.stdout).toMatch(/Merge recorded for WP-rehearsal/);

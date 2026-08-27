@@ -90,6 +90,7 @@ describe("mission lane containment", () => {
       "scripts/mission/gate-cli.mjs",
       "scripts/mission/cli.mjs",
       "scripts/mission/lib/state.mjs",
+      "scripts/mission/lib/epochs.mjs",
       "tests/mission-gate.test.ts",
       "tests/mission-governance.test.ts",
       "tests/mission-state.test.ts",

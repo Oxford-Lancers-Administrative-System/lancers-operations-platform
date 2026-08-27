@@ -14,6 +14,8 @@ import {
 } from "../scripts/mission/merge-gate.mjs";
 
 const CLI = path.join(__dirname, "..", "scripts", "mission", "cli.mjs");
+const PACKET_FILE = path.join(__dirname, "fixtures", "mission", "approved-packet.json");
+const PLAN_FILE = path.join(__dirname, "fixtures", "mission", "three-package-plan.json");
 const packet = JSON.parse(
   fs.readFileSync(path.join(__dirname, "fixtures", "mission", "approved-packet.json"), "utf8"),
 );
@@ -292,5 +294,106 @@ describe("representative mission rehearsals", () => {
     expect(parsed.state.packages).toEqual(before.packages);
     expect(parsed.state.questions).toEqual(before.questions);
     expect(parsed.next_actions).toEqual(nextActions(before));
+  });
+
+  /**
+   * The rotation, end to end, in real processes.
+   *
+   * Each Lead is a separate child process with its own identity and no memory
+   * of the last one. What crosses each boundary is the journal, the one-use
+   * token and a generated dossier — never a conversation.
+   */
+  it("rotates the Lead at every boundary and carries the mission in durable state alone", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "lancers-epoch-rehearsal-"));
+    temporary.push(root);
+    const repo = path.join(root, "repo");
+    fs.mkdirSync(repo, { recursive: true });
+    const base = { ...process.env, LANCERS_MISSION_ROOT: path.join(root, "state") };
+    const lead =
+      (leadId: string) =>
+      (...args: string[]) =>
+        spawnSync(process.execPath, [CLI, ...args], {
+          cwd: repo,
+          env: { ...base, LANCERS_MISSION_LEAD_ID: leadId },
+          encoding: "utf8",
+        });
+
+    // First Lead: plan and get it approved. Nothing durable is created.
+    const planner = lead("lead-rotation-1");
+    expect(planner("init", MISSION, "--packet", PACKET_FILE).status).toBe(0);
+    expect(planner("plan", MISSION, "--packages", PLAN_FILE).status).toBe(0);
+    expect(
+      planner("approve-plan", MISSION, "--by", "Brian", "--evidence", "checkpoint 1").status,
+    ).toBe(0);
+
+    const closed = planner("epoch", "close", MISSION);
+    expect(closed.status, closed.stderr).toBe(0);
+    const token = /--token (\S+)/.exec(closed.stdout)?.[1] as string;
+
+    // Second Lead: a different process, a different identity, no shared memory.
+    const implementer = lead("lead-rotation-2");
+    const resumed = implementer("resume", MISSION, "--token", token);
+    expect(resumed.status, resumed.stderr).toBe(0);
+    const handover = JSON.parse(resumed.stdout);
+    expect(handover.epoch).toMatchObject({
+      epoch_id: "E-2",
+      phase: "implementation-wave",
+      lead_id: "lead-rotation-2",
+      scope: { packages: [PACKAGE, "WP-attendance-export"] },
+    });
+
+    // The dossier it was handed is a projection of state, not a narration.
+    const dossier = JSON.parse(fs.readFileSync(handover.epoch.dossier, "utf8"));
+    expect(dossier.mission_id).toBe(MISSION);
+    expect(JSON.stringify(dossier)).not.toMatch(/heartbeat/);
+    expect(dossier.next_permitted_actions.length).toBeGreaterThan(0);
+
+    expect(implementer("preflight", MISSION, "--detail", "read-only teams query").status).toBe(0);
+    for (const [index, id] of [PACKAGE, "WP-attendance-export", "WP-report-footer"].entries()) {
+      expect(implementer("sync-intent", MISSION, id).status).toBe(0);
+      expect(implementer("sync-result", MISSION, id, `LAN-${901 + index}`).status).toBe(0);
+    }
+
+    const dispatch = (id: string) =>
+      implementer(
+        "dispatch",
+        MISSION,
+        id,
+        "--worker",
+        `worker-${id}`,
+        "--worktree",
+        `.claude/worktrees/${id}`,
+        "--branch",
+        `feat/${id}`,
+        "--brief",
+        PACKET_FILE,
+      );
+    expect(dispatch(PACKAGE).status).toBe(0);
+    // The third package is on the approved plan and outside this assignment.
+    const outside = dispatch("WP-report-footer");
+    expect(outside.status).toBe(1);
+    expect(outside.stderr).toMatch(/outside this epoch's scope/);
+
+    // The first Lead is gone, and its identity no longer works on the mission.
+    const ghost = planner("heartbeat", MISSION);
+    expect(ghost.status).toBe(1);
+    expect(ghost.stderr).toMatch(/fenced to another live Lead/);
+
+    // A third process, holding nothing at all, reads the same mission.
+    const observer = spawnSync(process.execPath, [CLI, "status", MISSION, "--json"], {
+      cwd: repo,
+      env: base,
+      encoding: "utf8",
+    });
+    expect(observer.status, observer.stderr).toBe(0);
+    const seen = JSON.parse(observer.stdout);
+    expect(seen.epoch).toMatchObject({ epoch_id: "E-2", status: "open" });
+    expect(seen.state.epochHistory).toHaveLength(1);
+    expect(seen.state.epochHistory[0]).toMatchObject({
+      epoch_id: "E-1",
+      phase: "planning",
+      lead_id: "lead-rotation-1",
+    });
+    expect(seen.state.phaseRecycles).toEqual(["plan-approved"]);
   });
 });
