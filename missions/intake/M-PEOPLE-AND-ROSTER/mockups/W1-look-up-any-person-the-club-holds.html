@@ -1,0 +1,2410 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W1 · Look up any person the club holds — mockup</title>
+    <style>
+      /* ------------------------------------------------------------------ *
+       * Token provenance. Everything visual here is taken from the running
+       * application at `main` @ ceff8ef, not invented:
+       *
+       *   src/theme.ts              primary #0b3d91, radius 8, MUI light
+       *                             palette, typography scale
+       *   MUI v9 defaults           Paper (outlined), Button, Chip, Alert,
+       *                             TextField (small), Table (small)
+       *   src/app/operate/layout.tsx        the shell head and sign-out
+       *   src/app/operate/shell-nav.tsx     the grey.900 sidebar, its phone
+       *                                     bottom bar, the signed-in block
+       *   src/app/operate/roster/page.tsx   the list idiom: outlined table
+       *                                     from md up, cards below it
+       *   src/app/operate/list-filters.tsx  the search bar, the phone
+       *                                     "Filters" collapse
+       *
+       * Nothing here is a redesign. Where this drawing and the application
+       * disagree on a visual treatment, the application decides.
+       * ------------------------------------------------------------------ */
+      :root {
+        --primary: #0b3d91;
+        --primary-hover: #082c69;
+        --primary-outline: rgba(11, 61, 145, 0.5);
+        --primary-tint: rgba(11, 61, 145, 0.04);
+        --text-primary: rgba(0, 0, 0, 0.87);
+        --text-secondary: rgba(0, 0, 0, 0.6);
+        --text-disabled: rgba(0, 0, 0, 0.38);
+        --divider: rgba(0, 0, 0, 0.12);
+        --outline: rgba(0, 0, 0, 0.23);
+        --paper: #ffffff;
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --grey200: #eeeeee;
+        --grey400: #bdbdbd;
+        --grey800: #424242;
+        --grey900: #212121;
+        --info-bg: #e5f6fd;
+        --info-text: #014361;
+        --info-icon: #0288d1;
+        --warn-bg: #fff4e5;
+        --warn-text: #663c00;
+        --warn-icon: #ed6c02;
+        --radius: 8px;
+        --shadow-1:
+          0 3px 1px -2px rgba(0, 0, 0, 0.2), 0 2px 2px 0 rgba(0, 0, 0, 0.14),
+          0 1px 5px 0 rgba(0, 0, 0, 0.12);
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "Geist Sans", system-ui, "Helvetica Neue",
+          Arial, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+
+      body {
+        margin: 0;
+        background: #e7e9ee;
+        font-family: var(--font);
+        color: var(--text-primary);
+      }
+
+      /* ---------------------------- page frame --------------------------- */
+
+      .page {
+        max-width: 1560px;
+        margin: 0 auto;
+        padding: 40px 32px 96px;
+      }
+
+      .page-head {
+        margin-bottom: 40px;
+        max-width: 900px;
+      }
+
+      .page-head h1 {
+        font-size: 1.75rem;
+        line-height: 1.3;
+        font-weight: 800;
+        margin: 0 0 8px;
+      }
+
+      .page-head p {
+        margin: 0 0 8px;
+        font-size: 0.9375rem;
+        line-height: 1.55;
+        color: var(--text-secondary);
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 16px;
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid rgba(0, 0, 0, 0.14);
+      }
+
+      .legend span {
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      /* ------------------------------ screens ---------------------------- */
+
+      .screen {
+        margin-top: 64px;
+      }
+
+      .screen-head {
+        position: relative;
+        border-top: 2px solid var(--grey900);
+        padding-top: 26px;
+        margin-bottom: 20px;
+        max-width: 1180px;
+      }
+
+      /* the corner tab */
+      .screen-head .tab {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform: translateY(-100%);
+        background: var(--grey900);
+        color: #fff;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        padding: 6px 14px;
+        border-radius: 6px 6px 0 0;
+      }
+
+      .screen-head h2 {
+        font-size: 1.125rem;
+        font-weight: 700;
+        margin: 0 0 6px;
+      }
+
+      .screen-head p {
+        margin: 0;
+        font-size: 0.875rem;
+        line-height: 1.55;
+        color: var(--text-secondary);
+        max-width: 82ch;
+      }
+
+      .screen-head .clock {
+        display: inline-block;
+        margin-top: 10px;
+        font-size: 0.75rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 999px;
+        padding: 4px 12px;
+      }
+
+      .pair {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 32px;
+      }
+
+      .frame {
+        background: var(--paper);
+        border: 1px solid rgba(0, 0, 0, 0.18);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 12px 32px rgba(16, 24, 40, 0.12);
+      }
+
+      .frame.desktop {
+        width: 922px;
+        max-width: 100%;
+      }
+
+      .frame.phone {
+        width: 377px;
+        border-radius: 20px;
+      }
+
+      .chrome {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 34px;
+        padding: 0 12px;
+        background: var(--grey100);
+        border-bottom: 1px solid var(--divider);
+      }
+
+      .dots {
+        display: flex;
+        gap: 5px;
+      }
+
+      .dots i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--grey400);
+        display: block;
+      }
+
+      .url {
+        flex: 1;
+        min-width: 0;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 999px;
+        font-size: 0.6875rem;
+        color: var(--text-secondary);
+        padding: 3px 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .frame-badge {
+        font-size: 0.625rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        color: var(--text-secondary);
+        white-space: nowrap;
+      }
+
+      .viewport {
+        overflow: hidden;
+      }
+
+      .viewport.desktop-vp {
+        width: 1280px;
+        zoom: 0.72;
+      }
+
+      .viewport.phone-vp {
+        width: 375px;
+      }
+
+      /* --------------------------- the app shell ------------------------- */
+
+      .app {
+        display: flex;
+        align-items: stretch;
+        min-height: 760px;
+        background: #fff;
+        font-size: 16px;
+      }
+
+      .phone .app {
+        flex-direction: column;
+        min-height: 700px;
+      }
+
+      nav.shell {
+        background: var(--grey900);
+        color: #fff;
+        flex-shrink: 0;
+        width: 226px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .phone nav.shell {
+        width: 100%;
+        order: 2;
+        position: sticky;
+        bottom: 0;
+      }
+
+      .nav-head {
+        padding: 24px 24px 16px;
+      }
+
+      .phone .nav-head {
+        display: none;
+      }
+
+      .nav-head .over {
+        font-size: 0.75rem;
+        letter-spacing: 0.08333em;
+        text-transform: uppercase;
+        line-height: 1.4;
+        color: var(--grey400);
+      }
+
+      .nav-head .sec {
+        font-size: 1.25rem;
+        font-weight: 700;
+        line-height: 1.6;
+      }
+
+      ul.nav-list {
+        list-style: none;
+        margin: 0;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        width: 100%;
+      }
+
+      .phone ul.nav-list {
+        flex-direction: row;
+        padding: 0;
+        gap: 0;
+      }
+
+      ul.nav-list li {
+        display: flex;
+      }
+
+      ul.nav-list a {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 48px;
+        width: 100%;
+        padding: 6px 16px;
+        border-radius: 8px;
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .phone ul.nav-list li {
+        flex: 1;
+      }
+
+      .phone ul.nav-list a {
+        align-items: center;
+        border-radius: 0;
+        padding: 6px 8px;
+      }
+
+      ul.nav-list a.sel {
+        background: var(--grey800);
+      }
+
+      .nav-label {
+        font-size: 1rem;
+        line-height: 1.5;
+      }
+
+      .nav-detail {
+        font-size: 0.875rem;
+        line-height: 1.43;
+        color: var(--grey400);
+      }
+
+      .phone .nav-detail {
+        display: none;
+      }
+
+      main.shell {
+        flex-grow: 1;
+        min-width: 0;
+        padding: 32px 32px 32px;
+      }
+
+      .phone main.shell {
+        order: 1;
+        padding: 24px 16px 24px;
+      }
+
+      .shell-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      .phone .shell-head {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .shell-head .brand {
+        font-size: 1.5rem;
+        line-height: 1.334;
+        font-weight: 800;
+      }
+
+      .content {
+        max-width: 900px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+
+      /* --------------------------- MUI primitives ------------------------ */
+
+      .h5 {
+        font-size: 1.5rem;
+        line-height: 1.334;
+        font-weight: 700;
+        margin: 0;
+      }
+
+      .h6 {
+        font-size: 1.25rem;
+        line-height: 1.6;
+        font-weight: 500;
+        margin: 0;
+      }
+
+      .body1 {
+        font-size: 1rem;
+        line-height: 1.5;
+        margin: 0;
+      }
+
+      .body2 {
+        font-size: 0.875rem;
+        line-height: 1.43;
+        margin: 0;
+      }
+
+      .sec {
+        color: var(--text-secondary);
+      }
+
+      .bold {
+        font-weight: 600;
+      }
+
+      .over {
+        font-size: 0.75rem;
+        line-height: 2.66;
+        letter-spacing: 0.08333em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        margin: 0;
+      }
+
+      .paper {
+        background: var(--paper);
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        padding: 24px;
+      }
+
+      .phone .paper {
+        padding: 16px;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .g1 {
+        gap: 8px;
+      }
+      .g2 {
+        gap: 16px;
+      }
+      .g3 {
+        gap: 24px;
+      }
+
+      .row {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .grid2 {
+        display: grid;
+        gap: 24px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid2tight {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid3 {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .phone .grid2,
+      .phone .grid2tight,
+      .phone .grid3 {
+        grid-template-columns: 1fr;
+      }
+
+      .metrics {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(2, minmax(0, 160px));
+      }
+
+      .phone .metrics {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .divider {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        margin: 0;
+        width: 100%;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-family: inherit;
+        font-size: 0.875rem;
+        font-weight: 500;
+        letter-spacing: 0.02857em;
+        text-transform: uppercase;
+        line-height: 1.75;
+        padding: 6px 16px;
+        min-height: 44px;
+        border-radius: var(--radius);
+        cursor: pointer;
+        text-decoration: none;
+      }
+
+      .btn-contained {
+        background: var(--primary);
+        color: #fff;
+        border: none;
+        box-shadow: var(--shadow-1);
+      }
+
+      .btn-outlined {
+        background: transparent;
+        color: var(--primary);
+        border: 1px solid var(--primary-outline);
+      }
+
+      .btn-text {
+        background: transparent;
+        color: var(--primary);
+        border: none;
+        padding: 6px 8px;
+      }
+
+      .btn-text.danger {
+        color: #d32f2f;
+      }
+
+      .btn-sm {
+        min-height: 36px;
+      }
+
+      .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        max-width: 420px;
+      }
+
+      .btn-row {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .phone .btn-row {
+        flex-direction: column;
+      }
+
+      /* A pair of short actions stays side by side at 375 — Brian, 2026-08-21:
+         "if buttons can be side by side, they generally should be". */
+      .phone .btn-row.inline {
+        flex-direction: row;
+        gap: 8px;
+      }
+
+      .phone .btn-row.inline .btn {
+        width: auto;
+        flex: 1;
+      }
+
+      .phone .btn-row .btn {
+        width: 100%;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        height: 24px;
+        padding: 0 10px;
+        border-radius: 16px;
+        background: rgba(0, 0, 0, 0.08);
+        font-size: 0.8125rem;
+        line-height: 1;
+        color: var(--text-primary);
+        white-space: nowrap;
+      }
+
+      .chip-outline {
+        background: transparent;
+        border: 1px solid var(--outline);
+      }
+
+      .chip-warn {
+        background: transparent;
+        border: 1px solid rgba(237, 108, 2, 0.6);
+        color: var(--warn-text);
+      }
+
+      .chip-info {
+        background: transparent;
+        border: 1px solid rgba(2, 136, 209, 0.5);
+        color: var(--info-text);
+      }
+
+      .chip-proposed {
+        background: transparent;
+        border: 1px dashed var(--outline);
+        color: var(--text-secondary);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-size: 0.6875rem;
+        font-weight: 600;
+      }
+
+      .alert {
+        display: flex;
+        gap: 12px;
+        padding: 8px 16px;
+        border-radius: var(--radius);
+        font-size: 0.875rem;
+        line-height: 1.43;
+      }
+
+      .alert svg {
+        flex-shrink: 0;
+        margin-top: 7px;
+      }
+
+      .alert-info {
+        background: var(--info-bg);
+        color: var(--info-text);
+      }
+
+      .alert-info svg {
+        fill: var(--info-icon);
+      }
+
+      .alert-warn {
+        background: var(--warn-bg);
+        color: var(--warn-text);
+      }
+
+      .alert-warn svg {
+        fill: var(--warn-icon);
+      }
+
+      /* text field / select / switch, as MUI outlined controls */
+
+      .field {
+        position: relative;
+        border: 1px solid var(--outline);
+        border-radius: var(--radius);
+        padding: 14px;
+        font-size: 1rem;
+        line-height: 1.4375;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 56px;
+      }
+
+      .field .lab {
+        position: absolute;
+        top: -9px;
+        left: 9px;
+        background: #fff;
+        padding: 0 6px;
+        font-size: 0.75rem;
+        line-height: 1;
+        color: var(--text-secondary);
+      }
+
+      .field.focused {
+        border: 2px solid var(--primary);
+        padding: 13px;
+      }
+
+      .field.focused .lab {
+        color: var(--primary);
+      }
+
+      .field.disabled {
+        background: var(--grey50);
+        border-color: var(--divider);
+        color: var(--text-secondary);
+      }
+
+      .field .caret {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+      }
+
+      .radio {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        cursor: default;
+      }
+
+      .radio .dot {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 2px solid var(--text-secondary);
+        flex-shrink: 0;
+        margin-top: 1px;
+        position: relative;
+      }
+
+      .radio.on .dot {
+        border-color: var(--primary);
+      }
+
+      .radio.on .dot::after {
+        content: "";
+        position: absolute;
+        inset: 3px;
+        border-radius: 50%;
+        background: var(--primary);
+      }
+
+      .switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .track {
+        width: 34px;
+        height: 14px;
+        border-radius: 7px;
+        background: rgba(0, 0, 0, 0.38);
+        position: relative;
+        flex-shrink: 0;
+      }
+
+      .thumb {
+        position: absolute;
+        top: -3px;
+        left: -1px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #fafafa;
+        box-shadow: var(--shadow-1);
+      }
+
+      .switch.on .track {
+        background: rgba(11, 61, 145, 0.5);
+      }
+
+      .switch.on .thumb {
+        left: 15px;
+        background: var(--primary);
+      }
+
+      .qbox {
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        padding: 16px;
+        background: var(--grey50);
+      }
+
+      .truncation {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--text-secondary);
+        font-size: 0.8125rem;
+        font-style: italic;
+      }
+
+      .truncation::before,
+      .truncation::after {
+        content: "";
+        flex: 1;
+        border-top: 1px dashed var(--outline);
+      }
+      /* --- The breakpoint layer. `.viewport` is the query container, so a
+             frame switches between the wide table and the phone cards on its
+             own width rather than the browser window's. --- */
+      .viewport {
+        container-type: inline-size;
+      }
+      .scroll-x {
+        overflow-x: auto;
+      }
+      .narrow-only {
+        display: none;
+      }
+      @container (max-width: 760px) {
+        .wide-only {
+          display: none;
+        }
+        .narrow-only {
+          display: block;
+        }
+      }
+      .tbl {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .tbl th,
+      .tbl td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--divider);
+        vertical-align: top;
+      }
+      .tbl thead th {
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .tbl tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      .tbl .num,
+      .tbl th.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .tile {
+        border-radius: 4px;
+        padding: 5px 7px;
+        margin-bottom: 4px;
+      }
+      .field-inline {
+        display: inline-flex;
+        align-items: center;
+        padding: 7px 12px;
+        border: 1px solid var(--outline);
+        border-radius: var(--radius);
+        font-size: 13px;
+        color: var(--text-secondary);
+        background: var(--paper);
+      }
+      .fact {
+        min-width: 0;
+      }
+      }
+      /* --- W2 additions: the disposition banding required by
+             mockup-conventions.md § 1. Current and proposed are labelled
+             identically on every screen and banded in their own colour. --- */
+      .side {
+        border-radius: 8px;
+        padding: 10px 10px 12px;
+      }
+      .side.current {
+        background: #eceff1;
+        border: 1px solid #90a4ae;
+      }
+      .side.proposed {
+        background: #e8f0fe;
+        border: 1px solid var(--primary-outline);
+      }
+      .side-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 3px 9px;
+        border-radius: 999px;
+        margin-bottom: 8px;
+      }
+      .side.current .side-label {
+        background: #90a4ae;
+        color: #fff;
+      }
+      .side.proposed .side-label {
+        background: var(--primary);
+        color: #fff;
+      }
+      .side .none {
+        border: 1px dashed #90a4ae;
+        border-radius: 6px;
+        padding: 22px 14px;
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 13px;
+        background: #fff;
+      }
+      .disposition {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 3px 9px;
+        border-radius: 4px;
+        border: 1px solid var(--outline);
+        color: var(--text-secondary);
+        margin-left: 8px;
+      }
+      .disposition.new {
+        background: #e8f0fe;
+        border-color: var(--primary);
+        color: var(--primary);
+      }
+      .disposition.modified {
+        background: #fff4e5;
+        border-color: #ed6c02;
+        color: #663c00;
+      }
+      .deltas {
+        margin: 10px 0 0;
+        padding-left: 18px;
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+      .deltas li {
+        margin: 3px 0;
+      }
+      .subpanel {
+        border: 1px solid var(--divider);
+        border-radius: 8px;
+        padding: 14px;
+        background: #fff;
+      }
+
+      /* --- W1 additions. Built from the tokens above; no new colour, and no
+             component the application does not already render. --- */
+
+      /* The sidebar's Administration group and signed-in block, both of which
+         shell-nav.tsx draws and the earlier mission's mockups omitted. */
+      .nav-rule {
+        border-top: 1px solid var(--grey800);
+        margin: 8px 8px 6px;
+      }
+      .nav-group {
+        color: var(--grey400);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 0 16px 4px;
+      }
+      .nav-foot {
+        margin-top: auto;
+        border-top: 1px solid var(--grey800);
+        padding: 14px 22px;
+      }
+      .nav-foot .who {
+        font-size: 0.875rem;
+        font-weight: 600;
+      }
+      .nav-foot .cap {
+        font-size: 0.75rem;
+        color: var(--grey400);
+      }
+      .phone .nav-rule,
+      .phone .nav-group,
+      .phone .nav-foot {
+        display: none;
+      }
+
+      /* A field's source and confidence class. Task 08 §4 names four; they are
+         a caption beside the value, never colour on its own. */
+      .prov {
+        display: inline-block;
+        font-size: 11px;
+        line-height: 1.5;
+        letter-spacing: 0.02em;
+        color: var(--text-secondary);
+        border: 1px solid var(--divider);
+        border-radius: 4px;
+        padding: 0 5px;
+        white-space: nowrap;
+      }
+      .prov.derived {
+        border-style: dashed;
+      }
+
+      /* `not recorded` is explicit, visible and never defaulted. */
+      .notrec {
+        color: var(--text-disabled);
+        font-style: italic;
+      }
+      .disputed {
+        color: var(--warn-text);
+        font-weight: 600;
+      }
+
+      /* One labelled fact on the person record. */
+      .frow {
+        display: grid;
+        grid-template-columns: 190px 1fr;
+        gap: 4px 16px;
+        padding: 9px 0;
+        border-bottom: 1px solid var(--divider);
+        align-items: baseline;
+      }
+      .frow:last-child {
+        border-bottom: 0;
+      }
+      .frow .flab {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+      }
+      .frow .fval {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 8px;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      .phone .frow {
+        grid-template-columns: 1fr;
+        gap: 2px;
+      }
+
+      /* The section head inside an outlined Paper. */
+      .shead {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 6px;
+      }
+      .shead h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 700;
+      }
+
+      /* Sortable column header — a link, as the roster's already is. */
+      .sortable {
+        color: inherit;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .sortable .arw {
+        opacity: 0;
+        font-size: 10px;
+      }
+      .sortable.on .arw {
+        opacity: 1;
+      }
+      .sortable.on {
+        color: var(--text-primary);
+      }
+
+      /* The phone list card, matching roster/page.tsx's MemberCard. */
+      .percard {
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        background: #fff;
+        padding: 14px;
+        margin-bottom: 10px;
+      }
+      .percard:last-child {
+        margin-bottom: 0;
+      }
+      .percard .pname {
+        font-size: 0.875rem;
+        font-weight: 700;
+      }
+      .chiprow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      /* The alias a search matched, and the widened-view banner. */
+      .aka {
+        color: var(--text-secondary);
+        font-size: 0.8125rem;
+      }
+      .widened {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        border: 1px solid var(--outline);
+        border-radius: var(--radius);
+        background: var(--grey50);
+        padding: 10px 14px;
+      }
+      .seasonrow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--divider);
+      }
+      .seasonrow:last-child {
+        border-bottom: 0;
+      }
+      a.golink {
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.875rem;
+        white-space: nowrap;
+      }
+
+      /* The roster's own status chips are MUI filled colour chips, not the
+         outlined ones the earlier mockups used: roster/page.tsx passes
+         `color={membershipStatusColour(status)}` to a small `Chip`. Same
+         mapping here — active success, onboarding info, inactive warning,
+         everything else default. Colour never carries the state on its own;
+         the label always says it. */
+      .chip.ok {
+        background: #2e7d32;
+        color: #fff;
+      }
+      .chip.inf {
+        background: #0288d1;
+        color: #fff;
+      }
+      .chip.wrn {
+        background: #ed6c02;
+        color: #fff;
+      }
+
+      /* Six destinations in a 375px bottom bar. `shell-nav.tsx` gives each
+         entry `flex: 1` and centres it, so they share the width rather than
+         overflowing — which is what this shows, including how little room
+         "Operators" is left. That consequence is real and belongs on the
+         screen rather than being drawn away. */
+      .phone ul.nav-list li {
+        flex: 1 1 0;
+        min-width: 0;
+      }
+      .phone ul.nav-list a {
+        padding: 0 2px;
+        text-align: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+      .phone .nav-label {
+        font-size: 11px;
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        width: 100%;
+      }
+
+
+      /* A history entry's before-value. Struck through and muted, because the
+         entry has to read as one thing that happened rather than two values. */
+      .chg-line {
+        font-size: 0.875rem;
+        overflow-wrap: anywhere;
+      }
+      .was {
+        color: var(--text-secondary);
+        text-decoration: line-through;
+      }
+
+      /* A two-column comparison is unreadable in a 375px frame. It stacks,
+         and the field label stays above both values. */
+      @container (max-width: 760px) {
+        .grid2,
+        .grid2tight {
+          grid-template-columns: 1fr;
+        }
+        .frow {
+          grid-template-columns: 1fr !important;
+          gap: 6px;
+        }
+        .qbox {
+          padding: 12px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-head">
+        <h1>W1 · Look up any person the club holds</h1>
+        <p>
+          An operator finds any human connected to the club and reads what is known about them.
+          Today that is impossible: no person route exists anywhere in the application, and a Person
+          can only be reached through a membership or an operator seat. Both surfaces this workflow
+          introduces —
+          <code>/operate/people</code> and <code>/operate/people/[personId]</code> — are new, and
+          nothing occupies either path on <code>main</code>.
+        </p>
+        <p>
+          <strong>Reading this review.</strong> Every screen shows two sides, always labelled the
+          same way and always banded the same way:
+          <span class="side-label" style="background: #90a4ae; color: #fff"
+            >Current — on main today</span
+          >
+          and
+          <span class="side-label" style="background: var(--primary); color: #fff"
+            >Proposed — this mission</span
+          >. Each screen head also states whether the surface is
+          <span class="disposition new">New</span> or
+          <span class="disposition modified">Modified</span>.
+        </p>
+        <p>
+          <strong
+            >Every screen here is New, so every current side reads “New surface, nothing to
+            compare”.</strong
+          >
+          That is the grounding rule, not an omission: a surface that does not exist is drawn on
+          both sides, and a surface that exists is photographed on both sides. Never one of each.
+          <code>W5</code> and <code>W6</code> redesign the roster, which does exist, so those
+          screens will be photographs.
+        </p>
+        <p>
+          <strong>What binds, and what does not.</strong> The mockup owns structure and copy — which
+          sections exist and in what order, what each row carries, which controls exist and where
+          they sit, which states get their own screen. The application owns style: button variants,
+          colour, typography, spacing and shared formatters come from <code>src/theme.ts</code> and
+          MUI defaults. An ugly control here means “a control goes here”.
+        </p>
+        <p>
+          <strong>Second round.</strong> Every screen head marks what changed since your review with
+          <strong>Changed:</strong>. The largest change is not on any one screen: no sentence inside
+          an application frame explains anything any more. Labels, values and states only, plus the
+          one sentence an empty or refusal state genuinely needs. Three screens carry a
+          <strong>Decide:</strong> line where a change opened a question I should not answer for
+          you.
+        </p>
+        <div class="legend">
+          <span
+            >Still open: the <strong>list columns</strong>, <code>W1-01</code>'s table head, which
+            you approved in principle and asked to judge rendered</span
+          >
+          <span
+            >Status is the rebuilt six-rung ladder — Recruit · Onboarding · Active · Inactive ·
+            Departed · Archived</span
+          >
+          <span>All names, colleges and numbers are the synthetic local dataset</span>
+        </div>
+      </header>
+      <div id="screens"></div>
+    </div>
+    <script>
+      /* ------------------------------------------------------------------ *
+       * Shared component layer. Every screen below is rendered from data
+       * through these, so the wide table and the 375px cards can never drift
+       * apart, and a change to the list columns is made in exactly one place.
+       *
+       * No sentence inside an application frame explains anything. Labels,
+       * values and states only; the explanation is in the screen head.
+       * ------------------------------------------------------------------ */
+
+      const proposedTag = `<span class="chip chip-proposed">Proposed</span>`;
+      const INFO_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>`;
+      const WARN_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.99 19.53 19H4.47L12 5.99M12 2 1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z"/></svg>`;
+      const alert = (severity, html) =>
+        `<div class="alert alert-${severity}">${severity === "warn" ? WARN_ICON : INFO_ICON}<div>${html}</div></div>`;
+
+      /* `not recorded` is explicit, visible and never defaulted — Task 08 §6,
+         and the lesson of the 2023 workbook's defaulting Rookie column. It is
+         the whole of what an empty field says. */
+      const NR = `<span class="notrec">not recorded</span>`;
+
+      /*
+       * Who supplied a value, and whether it was checked against something
+       * outside the club. Brian, 2026-08-26: the four-class vocabulary made no
+       * sense to him — "player provided does", and "I like seeing if it's
+       * externally verified versus not", but operator-confirmed against
+       * externally-verified was a distinction without a difference, and what he
+       * wants instead is *who did it*.
+       *
+       * So a value carries at most two marks: the name of whoever put it there
+       * (or "Player" when the person supplied it themselves), and Verified when
+       * it was checked externally. Nothing else.
+       */
+      const by = (who) => `<span class="prov">${who}</span>`;
+      const PLAYER = by("Player");
+
+      /*
+       * There is no `Verified` mark. Brian, 2026-08-27: "no verification link
+       * at all." Nothing in this application verifies that somebody holds a
+       * mailbox — `contact_points` on `main` has no verified column, no
+       * confirm-by-link flow exists, and this mission sends nothing — so a
+       * value carries who supplied it and nothing more. A real verification
+       * flow needs sending, and belongs to Mission 7 or Mission 8.
+       */
+
+      const frow = (label, value) =>
+        `<div class="frow"><div class="flab">${label}</div><div class="fval">${value}</div></div>`;
+
+      const paper = (title, body, action = "") => `
+        <div class="paper">
+          <div class="shead">
+            <h3>${title}</h3>
+            ${action}
+          </div>
+          ${body}
+        </div>`;
+
+      /* ---------------------------- the shell ---------------------------- */
+
+      /*
+       * `src/app/operate/shell-nav.tsx` and `src/app/operate/layout.tsx`: the
+       * grey.900 sidebar from md up and a fixed bottom bar below it, the
+       * Administration group, the signed-in block, and the head carrying
+       * "Lancers Operations" with sign-out.
+       *
+       * **People is an Administration destination**, not a fourth entry beside
+       * Roster. Brian, 2026-08-26: "People should be considered an
+       * administrative task. It's not something that falls into the top left."
+       *
+       * It is also resolved server-side per operator, the way LAN-110 already
+       * resolves the coach shell, so an operator outside the four-role group
+       * never sees the entry at all — "it's just something that never pops up
+       * for you". The server guard behind it does not move: hiding a link stays
+       * a courtesy and never an authorization boundary.
+       */
+      const operatorShell = (content, options = {}) => {
+        const {
+          selected = "People",
+          who = "Caspian Hallowfield",
+          caption = "Authorized operator",
+          admin = ["People", "Missing data", "Operators", "Roles"],
+        } = options;
+        const item = (label) =>
+          `<li><a href="#" class="${label === selected ? "sel" : ""}"${
+            label === selected ? ' aria-current="page"' : ""
+          }><span class="nav-label">${label}</span></a></li>`;
+        return `
+        <div class="app">
+          <nav class="shell" aria-label="Operator">
+            <div class="nav-head">
+              <div class="over" style="color:var(--grey400)">Lancers</div>
+              <div class="sec" style="color:#fff">Operations</div>
+            </div>
+            <ul class="nav-list">
+              ${item("Roster")}${item("Events")}${item("Report")}
+              ${admin.length ? `<li class="nav-rule" aria-hidden="true"></li><li class="nav-group">Administration</li>` : ""}
+              ${admin.map(item).join("")}
+            </ul>
+            <div class="nav-foot">
+              <div class="who">${who}</div>
+              <div class="cap">${caption}</div>
+            </div>
+          </nav>
+          <main class="shell">
+            <div class="shell-head">
+              <div style="min-width:0">
+                <p class="brand">Lancers Operations</p>
+                <p class="body2 sec">Signed in as ${who}</p>
+              </div>
+              <div><button class="btn btn-outlined btn-sm">Sign out</button></div>
+            </div>
+            <div class="content">${content}</div>
+          </main>
+        </div>`;
+      };
+
+      /* ------------------------- the People list ------------------------- */
+
+      /*
+       * One cast, used on every screen of this workflow. Names, colleges and
+       * numbers are the synthetic local dataset (`scripts/seed-local.mjs`).
+       *
+       *   standing   the ladder, or null for somebody who holds no membership
+       *              and no prospect record. A coach's tie to the season is a
+       *              role, so their standing column is simply empty — the
+       *              ladder describes players and says nothing about them
+       *   is         what they are to the club, and for a season role, when
+       *   mob/mail   contactability indicators. Raw contact values never
+       *              appear on a list — Task 08 §5
+       *   missing    counted against the required set for where this person
+       *              stands on the ladder
+       */
+      const SEASON_PEOPLE = [
+        { name: "Alaric Ashcombe", standing: "Active", is: "Player", mob: 1, mail: 1, missing: 0 },
+        { name: "Bertram", standing: "Active", is: "Player", mob: 1, mail: 0, missing: 8 },
+        {
+          name: "Caspian Hallowfield",
+          standing: null,
+          is: "Secretary · 2026-27",
+          mob: 1,
+          mail: 1,
+          missing: 0,
+        },
+        {
+          name: "Dashiell Draycott",
+          standing: "Onboarding",
+          is: "Player",
+          mob: 1,
+          mail: 1,
+          missing: 2,
+        },
+        {
+          name: "Emrys Fairhurst",
+          standing: "Recruit",
+          is: "Recruit",
+          mob: 1,
+          mail: 0,
+          missing: 0,
+        },
+        {
+          name: "Fenwick Gorsemoor",
+          standing: null,
+          is: "Head Coach · 2026-27",
+          mob: 1,
+          mail: 1,
+          missing: 0,
+        },
+        {
+          name: "Gideon Inglewhite",
+          standing: "Inactive",
+          is: "Player",
+          mob: 1,
+          mail: 1,
+          missing: 1,
+        },
+        {
+          name: "Hollis Jarrowdale",
+          aka: "Holly",
+          standing: "Active",
+          is: "Player · Gameday Secretary",
+          mob: 1,
+          mail: 1,
+          missing: 0,
+        },
+        {
+          name: "Ignatius Kirkbride",
+          standing: "Departed",
+          is: "Player",
+          mob: 0,
+          mail: 1,
+          missing: 0,
+        },
+        { name: "Jarrah Lanthorne", standing: "Active", is: "Player", mob: 1, mail: 1, missing: 0 },
+        {
+          name: "Marlowe Ravenscar-Pike",
+          standing: "Onboarding",
+          is: "Player",
+          mob: 1,
+          mail: 0,
+          missing: 3,
+        },
+        {
+          name: "Norbert Mereworth",
+          standing: "Recruit",
+          is: "Recruit",
+          mob: 1,
+          mail: 0,
+          missing: 0,
+        },
+      ];
+
+      /* `roster/presentation.ts`'s own mapping: active success, onboarding
+         info, inactive warning, everything else default. Recruit is not a
+         membership status at all and takes the default. */
+      const standingChip = (standing) => {
+        if (standing === null) return `<span class="sec">—</span>`;
+        const tone =
+          standing === "Active"
+            ? " ok"
+            : standing === "Onboarding"
+              ? " inf"
+              : standing === "Inactive"
+                ? " wrn"
+                : "";
+        return `<span class="chip${tone}">${standing}</span>`;
+      };
+
+      const contactCell = (p) => {
+        const bits = [];
+        if (p.mob) bits.push(`<span class="chip chip-outline">Mobile</span>`);
+        if (p.mail) bits.push(`<span class="chip chip-outline">Email</span>`);
+        return bits.length ? bits.join(" ") : `<span class="sec">—</span>`;
+      };
+
+      /* The count is a link into the queue — amendment W1-A1, applied. It is
+         the route an operator falls into: they are looking at somebody and
+         click the number beside them. */
+      const missingCell = (p) =>
+        p.missing
+          ? `<a class="golink" href="#"><span class="chip chip-warn">${p.missing} missing</span></a>`
+          : `<span class="sec">—</span>`;
+
+      const nameCell = (p, matched) => `
+        <span class="bold">${p.name}</span>
+        ${
+          matched && p.aka
+            ? `<div class="aka">matched alias “${p.aka}”</div>`
+            : p.aka
+              ? `<div class="aka">also “${p.aka}”</div>`
+              : ""
+        }
+        ${p.era ? `<div class="aka">${p.era}</div>` : ""}`;
+
+      /* Every column that can be meaningfully ordered is sortable — Brian,
+         2026-08-26: "we should be able to sort aggressively". A link, as
+         `roster/page.tsx`'s SortableHeader already is, so the order is in the
+         URL and survives the back button. */
+      const sortHead = (label, on = false, dir = "▲") =>
+        `<a class="sortable${on ? " on" : ""}" href="#">${label}<span class="arw">${dir}</span></a>`;
+
+      const peopleTable = (rows, matched = false) => `
+        <div class="paper wide-only" style="padding:0">
+          <div class="scroll-x">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>${sortHead("Name", true)}</th>
+                  <th>${sortHead("Status")}</th>
+                  <th>${sortHead("To the club")}</th>
+                  <th>${sortHead("Contactable")}</th>
+                  <th>${sortHead("Missing")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows
+                  .map(
+                    (p) => `
+                  <tr>
+                    <td>${nameCell(p, matched)}</td>
+                    <td>${standingChip(p.standing)}</td>
+                    <td>${p.is}</td>
+                    <td>${contactCell(p)}</td>
+                    <td>${missingCell(p)}</td>
+                  </tr>`,
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+
+      const peopleCards = (rows, matched = false) => `
+        <div class="narrow-only">
+          ${rows
+            .map(
+              (p) => `
+            <div class="percard">
+              <div class="pname">${p.name}</div>
+              ${matched && p.aka ? `<div class="aka">matched alias “${p.aka}”</div>` : p.aka ? `<div class="aka">also “${p.aka}”</div>` : ""}
+              ${p.era ? `<div class="aka">${p.era}</div>` : ""}
+              <div class="chiprow">
+                ${p.standing === null ? "" : standingChip(p.standing)}
+                ${p.is === p.standing ? "" : `<span class="chip chip-outline">${p.is}</span>`}
+                ${p.missing ? `<span class="chip chip-warn">${p.missing} missing</span>` : ""}
+              </div>
+            </div>`,
+            )
+            .join("")}
+        </div>`;
+
+      /* Search, then two thin filters. Brian, 2026-08-26: "keep the filter
+         thin for now". The phone collapses everything but search behind one
+         `Filters` button, which is what `list-filters.tsx` already does. */
+      const filterBar = (term = "") => `
+        <div class="row g2 wide-only" style="flex-wrap:wrap">
+          <span class="field-inline" style="flex:1;min-width:240px">
+            ${term ? `<span class="bold">${term}</span>` : "Search name or alias"}
+          </span>
+          <span class="field-inline">Status: All ▾</span>
+          <span class="field-inline">Missing data: All ▾</span>
+        </div>
+        <div class="narrow-only">
+          <div class="row g2" style="align-items:center">
+            <span class="field-inline" style="flex:1">
+              ${term ? `<span class="bold">${term}</span>` : "Search name or alias"}
+            </span>
+            <button class="btn btn-outlined btn-sm">Filters</button>
+          </div>
+        </div>`;
+
+      const listHead = (subline, action) => `
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div style="min-width:0">
+            <p class="h6" style="margin:0">People</p>
+            <p class="body2 sec" style="margin:2px 0 0">${subline}</p>
+          </div>
+          ${action}
+        </div>`;
+
+      /* Brian, 2026-08-26: "we need a more clear way of saying see people
+         outside of the season… Everyone the club has ever held is a weird
+         language there." */
+      const OUTSIDE_BTN = `<button class="btn btn-outlined">See people outside this season</button>`;
+
+      /* Amendment W1-A3, applied: the list had no way to create a person, so
+         `/operate/people/new` was reachable from nowhere. The roster's header
+         already carries `Add player` in this position. */
+      const LIST_ACTIONS = `
+        <div class="row g2" style="flex-wrap:wrap">
+          ${OUTSIDE_BTN}<button class="btn btn-contained">Add a person</button>
+        </div>`;
+
+      /* --------------------------- list screens -------------------------- */
+
+      const W101 = operatorShell(`
+        <div class="stack g3">
+          ${listHead("Season 2026-27 · 12 people", LIST_ACTIONS)}
+          ${filterBar()}
+          ${peopleTable(SEASON_PEOPLE)}
+          ${peopleCards(SEASON_PEOPLE)}
+        </div>`);
+
+      const HOLLIS_ROW = SEASON_PEOPLE.find((p) => p.aka === "Holly");
+
+      const W102 = operatorShell(`
+        <div class="stack g3">
+          ${listHead("Season 2026-27 · 1 of 12 match “Holly”", LIST_ACTIONS)}
+          ${filterBar("Holly")}
+          ${peopleTable([HOLLIS_ROW], true)}
+          ${peopleCards([HOLLIS_ROW], true)}
+        </div>`);
+
+      /*
+       * `roster/page.tsx`'s EmptyRoster idiom — an outlined Paper carrying its
+       * own recovery. Empty-state copy is the one place a sentence belongs in
+       * a surface, and it is one sentence.
+       */
+      const W103 = operatorShell(`
+        <div class="stack g3">
+          ${listHead("Season 2026-27 · no match for “Kestrel”", "")}
+          ${filterBar("Kestrel")}
+          <div class="paper">
+            <div class="stack g2" style="max-width:640px">
+              <p class="h6" style="margin:0">Nobody in this season matches “Kestrel”</p>
+              <p class="body1 sec" style="margin:0">
+                People outside the 2026-27 season are not in this list.
+              </p>
+              <div class="row g2" style="flex-wrap:wrap">
+                <button class="btn btn-contained">See people outside this season</button>
+                <button class="btn btn-outlined">Clear search</button>
+              </div>
+            </div>
+          </div>
+        </div>`);
+
+      const OUTSIDE_PEOPLE = [
+        {
+          name: "Kestrel Caldicott",
+          standing: null,
+          is: "Alumnus",
+          era: "Last season 2019-20",
+          mob: 0,
+          mail: 1,
+          missing: 0,
+        },
+        {
+          name: "Osgood Thornbury",
+          standing: null,
+          is: `<span class="sec">—</span>`,
+          era: "No season, no role",
+          mob: 1,
+          mail: 1,
+          missing: 0,
+        },
+        {
+          name: "Percival Oakhanger",
+          standing: null,
+          is: "Head Coach · 2024-25",
+          era: "Last season 2024-25",
+          mob: 1,
+          mail: 1,
+          missing: 1,
+        },
+      ];
+
+      const W104 = operatorShell(`
+        <div class="stack g3">
+          ${listHead("Outside the 2026-27 season · 202 people", "")}
+          <div class="widened">
+            <span class="body2"><span class="bold">People outside the 2026-27 season.</span></span>
+            <button class="btn btn-outlined">Back to this season</button>
+          </div>
+          ${filterBar()}
+          ${peopleTable(OUTSIDE_PEOPLE)}
+          ${peopleCards(OUTSIDE_PEOPLE)}
+        </div>`);
+
+      /* ------------------------- the person record ----------------------- */
+
+      /*
+       * One record layout, filled from data, so the people below cannot drift
+       * into different pages. Sections in this order: who they are, how to
+       * reach them, academic, restricted, where they stand, their seasons,
+       * what changed.
+       *
+       * Nothing in it explains itself. Every sentence that used to sit inside
+       * this frame is either gone or has moved to the screen head.
+       */
+      const recordHead = (p) => `
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div style="min-width:0">
+            <p class="body2 sec" style="margin:0">
+              <a class="golink" href="#">← People</a>
+            </p>
+            <p class="h5" style="margin:4px 0 0">${p.name}</p>
+            <div class="chiprow">
+              ${p.standing === null ? "" : standingChip(p.standing)}
+              <span class="chip chip-outline">${p.is}</span>
+            </div>
+          </div>
+          <div class="row g2" style="flex-wrap:wrap">
+            <button class="btn btn-outlined">Correct this record</button>
+            <button class="btn btn-text">Merge…</button>
+          </div>
+        </div>`;
+
+      const personRecord = (p) => `
+        <div class="stack g3">
+          ${recordHead(p)}
+          ${p.banner ?? ""}
+          ${paper(
+            "Who they are",
+            frow("First name", p.first) + frow("Last name", p.last) + frow("Aliases", p.aliases),
+          )}
+          ${paper(
+            "How to reach them",
+            frow("Mobile phone", p.mobile) +
+              frow("On WhatsApp · 2026-27", p.whatsapp ?? NR) +
+              frow("Personal email", p.personalEmail) +
+              frow("College email", p.collegeEmail),
+          )}
+          ${paper(
+            "Academic",
+            frow("College", p.college) +
+              frow("Matriculation year", p.matric) +
+              frow("Expected graduation", p.graduation) +
+              frow("Degree field", p.degree),
+          )}
+          ${paper(
+            "Restricted",
+            frow("Date of birth", p.dob) +
+              frow("Under 18", p.under18) +
+              frow("Emergency contact", p.emergency),
+          )}
+          ${paper(
+            "Where they stand",
+            frow("Status", p.standingDetail) +
+              frow("Alumni standing", p.alumniDetail) +
+              frow("Roles", p.roles),
+          )}
+          ${paper("Their seasons", p.seasons)}
+          ${paper(
+            "What changed",
+            p.history,
+            `<a class="golink" href="#">Show all ${p.changeCount ?? "14"} →</a>`,
+          )}
+        </div>`;
+
+      /*
+       * A season row is one link, not a row with an Open button beside it.
+       * Brian, 2026-08-26: "I don't know what 'open' means… it's not clear to
+       * me what that 'open' button does." The season's own standing sits on
+       * the row, so an archived season reads as archived rather than as
+       * something to act on.
+       */
+      const seasonRow = (label, standing, note) => `
+        <div class="seasonrow">
+          <div style="min-width:0">
+            <a class="golink" href="#">${label}</a>
+            <div class="aka">${note}</div>
+          </div>
+          ${standingChip(standing)}
+        </div>`;
+
+      const changeRow = (what, when, who) => `
+        <div class="seasonrow">
+          <div style="min-width:0">
+            <div class="body2">${what}</div>
+            <div class="aka">${when} · ${who}</div>
+          </div>
+        </div>`;
+
+      /*
+       * Hollis Jarrowdale — a complete record. The contested-value state is
+       * gone: Brian, 2026-08-26, "there shouldn't be a dispute here. It should
+       * just see the latest record… they're the operator. Nothing goes higher
+       * than the operator." So the field shows the value that is current, and
+       * who put it there.
+       */
+      const HOLLIS = {
+        name: "Hollis Jarrowdale",
+        standing: "Active",
+        is: "Player · Gameday Secretary",
+        first: `Hollis ${by("Caspian Hallowfield")}`,
+        last: `Jarrowdale ${by("Caspian Hallowfield")}`,
+        aliases: `<span class="bold">Holly</span> <span class="chip chip-outline">display name</span> ${by("Caspian Hallowfield")}
+          <span style="width:100%"></span>H.J. ${PLAYER}`,
+        mobile: `+44 7700 900412 ${by("Caspian Hallowfield")}`,
+        personalEmail: `holly.jarrowdale@example.com ${by("Caspian Hallowfield")}`,
+        whatsapp: `<span class="chip ok">In the 2026-27 group</span>`,
+        collegeEmail: `hollis.jarrowdale@hallamshire.ox.ac.example`,
+        college: `Hallamshire ${by("Caspian Hallowfield")}`,
+        matric: `2024 ${PLAYER}`,
+        graduation: `2027 ${PLAYER}`,
+        degree: `Engineering Science ${PLAYER}`,
+        dob: `4 March 2005 ${PLAYER}`,
+        under18: `No`,
+        emergency: `Alwyn Winterbourne · Parent
+          <span style="width:100%"></span>+44 7700 900198 · alwyn.winterbourne@example.com ${PLAYER}`,
+        standingDetail: `${standingChip("Active")} <span class="body2 sec">2026-27</span>`,
+        alumniDetail: `Current member`,
+        roles: `Gameday Secretary · committee year 2026-27
+          <span style="width:100%"></span>Gameday Secretary · committee year 2025-26 <span class="chip chip-outline">ended</span>
+          <span style="width:100%"></span><a class="golink" href="#">Assign a role →</a>`,
+        seasons:
+          seasonRow("2026-27", "Active", "Blue 24") +
+          seasonRow("2025-26", "Archived", "Blue 24 · Half Blue awarded") +
+          seasonRow("2024-25", "Archived", "Blue 31"),
+        history:
+          changeRow("Personal email changed", "24 August 2026, 09:12", "Caspian Hallowfield") +
+          changeRow("Mobile phone changed", "3 August 2026, 17:40", "Caspian Hallowfield") +
+          changeRow(
+            "Alias “Holly” set as the display name",
+            "12 October 2025, 11:02",
+            "Norbert Mereworth",
+          ),
+      };
+
+      const W105 = operatorShell(personRecord(HOLLIS));
+
+      /* The legacy record the source data says is 26% of the club: a first
+         name, a phone, and nothing else. Every absent field says `not
+         recorded` and the page says nothing else about it. */
+      const BERTRAM = {
+        name: "Bertram",
+        standing: "Active",
+        is: "Player",
+        first: `Bertram ${by("Norbert Mereworth")}`,
+        last: NR,
+        aliases: NR,
+        mobile: `+44 7700 900233 ${by("Norbert Mereworth")}`,
+        personalEmail: NR,
+        collegeEmail: NR,
+        college: NR,
+        matric: NR,
+        graduation: NR,
+        degree: NR,
+        dob: NR,
+        under18: NR,
+        emergency: NR,
+        standingDetail: `${standingChip("Active")} <span class="body2 sec">2026-27</span>`,
+        alumniDetail: `Current member`,
+        roles: NR,
+        seasons: seasonRow("2026-27", "Active", "No jersey recorded"),
+        history: changeRow("Person created", "2 September 2026, 08:31", "Norbert Mereworth"),
+        banner: alert("warn", "8 required facts are missing."),
+      };
+
+      const W106 = operatorShell(personRecord(BERTRAM));
+
+      /*
+       * A coach. Brian, 2026-08-26: "if a person gets added as a coach, they
+       * are part of this season. They are a member of this season. They're
+       * just not a player."
+       *
+       * So nothing on this record calls him an exception. His standing column
+       * is empty because the ladder describes players; his tie to 2026-27 is
+       * the coaching role, and his season row says so.
+       */
+      const FENWICK = {
+        name: "Fenwick Gorsemoor",
+        standing: null,
+        is: "Head Coach · 2026-27",
+        first: `Fenwick ${by("Caspian Hallowfield")}`,
+        last: `Gorsemoor ${by("Caspian Hallowfield")}`,
+        aliases: NR,
+        mobile: `+44 7700 900871 ${by("Caspian Hallowfield")}`,
+        personalEmail: `fenwick.gorsemoor@example.com ${by("Caspian Hallowfield")}`,
+        collegeEmail: NR,
+        college: NR,
+        matric: NR,
+        graduation: NR,
+        degree: NR,
+        dob: NR,
+        under18: NR,
+        emergency: NR,
+        standingDetail: `<span class="sec">—</span>`,
+        alumniDetail: `Never a member`,
+        roles: `Head Coach · season 2026-27
+          <span style="width:100%"></span>Head Coach · season 2025-26 <span class="chip chip-outline">ended</span>`,
+        seasons:
+          seasonRow("2026-27", null, "Head Coach") + seasonRow("2025-26", null, "Head Coach"),
+        history: changeRow(
+          "Head Coach assignment recorded for 2026-27",
+          "18 August 2026, 14:05",
+          "Caspian Hallowfield",
+        ),
+      };
+
+      const W107 = operatorShell(personRecord(FENWICK));
+
+      /*
+       * A recruit. Brian, 2026-08-26: "There's nothing on here related to
+       * recruits. There should be nothing here related to the recruit process.
+       * It's a person record." So the source, first-contact, committed and
+       * conversion facts are gone from this surface entirely — they are
+       * Mission 6's, on Mission 6's surface. What survives is the standing,
+       * because that is what the person is, and there is no control that moves
+       * it.
+       */
+      const EMRYS = {
+        name: "Emrys Fairhurst",
+        standing: "Recruit",
+        is: "Recruit",
+        first: `Emrys ${PLAYER}`,
+        last: `Fairhurst ${PLAYER}`,
+        aliases: NR,
+        mobile: `+44 7700 900556 ${PLAYER}`,
+        personalEmail: NR,
+        collegeEmail: NR,
+        college: NR,
+        matric: NR,
+        graduation: NR,
+        degree: NR,
+        dob: NR,
+        under18: NR,
+        emergency: NR,
+        standingDetail: `${standingChip("Recruit")} <span class="body2 sec">2026-27</span>`,
+        alumniDetail: `Never a member`,
+        roles: NR,
+        seasons: `<p class="body2 sec" style="margin:0">None</p>`,
+        history: changeRow("Person created", "2 October 2026, 16:22", "Marlowe Ravenscar-Pike"),
+      };
+
+      const W108 = operatorShell(personRecord(EMRYS));
+
+      /* A merged-away duplicate is never listed and never offered. Its id
+         still resolves, to the survivor, and the notice is one sentence. */
+      const MERGED = {
+        ...HOLLIS,
+        banner: alert(
+          "info",
+          "“Holly Jarrowdale” was merged into this record on 3 October 2025 by Caspian Hallowfield.",
+        ),
+      };
+
+      const W109 = operatorShell(personRecord(MERGED));
+
+      /*
+       * An operator outside the four-role group. Brian, 2026-08-26: "if you're
+       * an operator outside the four roles, you just never see this page. It's
+       * just something that never pops up for you."
+       *
+       * So People is absent from their navigation — resolved server-side, the
+       * way LAN-110 already resolves the coach shell. The refusal behind it
+       * does not move: reaching the route directly still refuses, and no
+       * person data is in the payload. A hidden link stays a courtesy and
+       * never an authorization boundary.
+       */
+      const W110 = operatorShell(
+        `
+        <div style="display:flex;justify-content:center;padding:32px 8px">
+          <div class="paper" style="max-width:640px;width:100%;padding:28px">
+            <div class="stack g3" style="align-items:flex-start">
+              <p class="h5" style="margin:0;font-weight:700">You do not have access to this action</p>
+              <p class="body1 sec" style="margin:0">
+                Your operator profile is active, but your current role assignments do not permit
+                this action.
+              </p>
+              ${alert("warn", "This action requires one of these roles: President, Vice-President, Secretary or General Manager.")}
+              ${alert("info", "Authorization is enforced by the service action independently of whether a navigation item was visible.")}
+              <div class="row g2" style="flex-wrap:wrap">
+                <button class="btn btn-contained">Return to an authorized area</button>
+                <button class="btn btn-outlined">Sign out</button>
+              </div>
+            </div>
+          </div>
+        </div>`,
+        { selected: "", who: "Quillon Sedgewick", caption: "Authorized operator", admin: [] },
+      );
+
+      /*
+       * W8 was struck on 2026-08-27 and its content lives here. The record's
+       * What changed panel expands in place to the whole history, with the field
+       * and actor filters that were the separate page's only real argument.
+       * There is no /history route.
+       */
+      const histEntry = (field, from, to, when, who, reason = null, chips = []) => `
+        <div class="seasonrow">
+          <div style="min-width:0">
+            <div class="body2"><span class="bold">${field}</span></div>
+            <div class="chg-line" style="margin-top:2px">
+              <span class="was">${from}</span><span class="sec"> → </span><span>${to}</span>
+            </div>
+            <div class="aka">${when} · ${who}</div>
+            ${reason ? `<div class="aka">Reason: ${reason}</div>` : ""}
+            ${chips.length ? `<div class="chiprow">${chips.map((c) => `<span class="chip chip-outline">${c}</span>`).join("")}</div>` : ""}
+          </div>
+        </div>`;
+
+      const historySection = (sub, filters, rows) =>
+        operatorShell(`
+        <div class="stack g3">
+          <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <div style="min-width:0">
+              <p class="body2 sec" style="margin:0"><a class="golink" href="#">← People</a></p>
+              <p class="h5" style="margin:4px 0 0">Hollis Jarrowdale</p>
+              <div class="chiprow">
+                ${standingChip("Active")}<span class="chip chip-outline">Player · Gameday Secretary</span>
+              </div>
+            </div>
+            <div class="row g2" style="flex-wrap:wrap">
+              <button class="btn btn-outlined">Correct this record</button>
+              <button class="btn btn-text">Merge…</button>
+            </div>
+          </div>
+          <p class="body2 sec" style="margin:0">The rest of the record is above. This is its last panel.</p>
+          ${paper(
+            `What changed · ${sub}`,
+            `<div class="row g2" style="flex-wrap:wrap;margin-bottom:6px">${filters
+              .map((f) => `<span class="field-inline">${f}</span>`)
+              .join("")}</div>` + rows,
+            `<a class="golink" href="#">Collapse</a>`,
+          )}
+        </div>`);
+
+      const W111 = historySection(
+        "14 changes",
+        ["Field: All ▾", "Changed by: All ▾"],
+        histEntry(
+          "Mobile phone",
+          "+44 7700 900412",
+          "+44 7700 900988",
+          "26 October 2026, 09:18",
+          "Caspian Hallowfield",
+          "New number, told me at training",
+        ) +
+          histEntry(
+            "Personal email",
+            `<span class="notrec">not recorded</span>`,
+            "holly.jarrowdale@example.com",
+            "24 August 2026, 09:12",
+            "Caspian Hallowfield",
+          ) +
+          `<div class="seasonrow">
+             <div style="min-width:0">
+               <div class="body2"><span class="bold">Merged “Holly Jarrowdale” into this record</span></div>
+               <div class="aka">3 October 2025, 09:22 · Caspian Hallowfield</div>
+               <div class="chiprow">
+                 <span class="chip chip-outline">3 memberships</span>
+                 <span class="chip chip-outline">18 RSVPs</span>
+                 <span class="chip chip-outline">7 history entries</span>
+               </div>
+             </div>
+           </div>` +
+          histEntry(
+            "Aliases",
+            "Holly",
+            "Holly (display name)",
+            "12 October 2025, 11:02",
+            "Norbert Mereworth",
+          ) +
+          histEntry(
+            "Expected graduation",
+            "2026",
+            "2027",
+            "4 March 2025, 14:30",
+            "Norbert Mereworth",
+            "Repeated a year",
+          ),
+      );
+
+      const W112 = historySection(
+        "3 of 14",
+        ["Field: Personal email ▾", "Changed by: All ▾"],
+        histEntry(
+          "Personal email",
+          "holly.j@example.com",
+          "holly.jarrowdale@example.com",
+          "26 October 2026, 09:25",
+          "Caspian Hallowfield",
+          "Prefers the full form",
+        ) +
+          histEntry(
+            "Personal email",
+            `<span class="notrec">not recorded</span>`,
+            "holly.j@example.com",
+            "3 October 2025, 09:22",
+            "Caspian Hallowfield",
+            null,
+            ["from the merge"],
+          ) +
+          histEntry(
+            "Personal email",
+            "hollis.j@example.com",
+            `<span class="notrec">not recorded</span>`,
+            "18 January 2025, 08:04",
+            "Zenas Yaxlington",
+            "Bounced, address was wrong",
+            ["seat ended 30 June 2025"],
+          ),
+      );
+
+      /* ------------------------------ screens ---------------------------- */
+
+      const CLOCK = "Now: Monday, 26 October 2026, 09:15";
+      const NONE = "New surface, nothing to compare";
+
+      const SCREENS = [
+        {
+          id: "W1-01",
+          title: "People — the season in view",
+          disposition: "new",
+          blurb: `The list an operator lands on. It holds everybody with a tie to the season in view —
+            a season membership in any status, a prospect record, a season-scoped role assignment,
+            or a committee-year role in the committee year paired with that season. People is an
+            <strong>Administration</strong> destination, not a fourth entry beside Roster.`,
+          deltas: [
+            "<strong>This is the open decision.</strong> The five columns — name, standing, what they are to the club, contactability, missing — are the set you approved in principle and asked to judge rendered",
+            "<strong>Changed since your review:</strong> People moved into Administration, under the rule in the sidebar",
+            "<strong>Changed:</strong> a coach or a committee member's standing column is now empty rather than reading <em>No membership</em>. The ladder describes players; what they are to the club carries the role and the season it covers",
+            "<strong>Changed:</strong> the widen action is now <em>See people outside this season</em>",
+            "<strong>Changed:</strong> the disputed count is gone from the Missing column",
+            "Two thin filters, standing and missing data; every column sorts. The roster carries the full filter set",
+            "375px: the table becomes cards and everything but search collapses behind one <em>Filters</em> button, which is what the roster already does",
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/people",
+          now: null,
+          nowNone: NONE,
+          proposed: W101,
+        },
+        {
+          id: "W1-02",
+          title: "Found by an alias that is not the display name",
+          disposition: "new",
+          blurb: `Search covers first name, last name and every alias — including one that is not the
+            person's display name. The row says which alias matched. You approved this screen as it
+            stood; only the widen button's wording has changed on it.`,
+          deltas: [
+            "Acceptance 3: “Holly” is an alias, the display name is Hollis Jarrowdale, and the row states the match",
+            "A search discloses names and contact indicators of people who are not its subject, which is why the capability is asserted on the query and not on the screen",
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/people?q=Holly",
+          now: null,
+          nowNone: NONE,
+          proposed: W102,
+        },
+        {
+          id: "W1-03",
+          title: "Nothing found in this season",
+          disposition: "new",
+          blurb: `An empty result carries its own recovery. Empty-state copy is the one place a
+            sentence belongs inside a surface, and it is now one sentence.`,
+          deltas: [
+            "The outlined-Paper empty state the roster already uses, with the recovery inside it",
+            "<strong>Changed:</strong> the explanatory second sentence is gone, and the action is <em>See people outside this season</em>",
+            "The header action is absent while the empty state is showing — <code>roster/page.tsx</code> already refuses to put one primary action on a screen twice",
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/people?q=Kestrel",
+          now: null,
+          nowNone: NONE,
+          proposed: W103,
+        },
+        {
+          id: "W1-04",
+          title: "People outside this season",
+          disposition: "new",
+          blurb: `The rare path, taken deliberately and reversibly. This is the screen your wording
+            changed: it now says what it is for — reaching somebody whose record needs changing who
+            has no tie to the season in view.`,
+          deltas: [
+            "<strong>Changed:</strong> “Everyone the club has ever held” is gone everywhere. The action, the banner and the count all say <em>outside this season</em>",
+            "<strong>Decide:</strong> it is drawn as <em>only</em> the people outside 2026-27 — 202 of the club's 214. The alternative is one list of all 214 with the season people still in it. Outside-only is the literal reading of what you asked for and makes the list shorter; it costs a second look if you are not sure which side somebody is on",
+            "Acceptance 6: the season list holds only people tied to 2026-27, and this is where the others are",
+            "<strong>Changed:</strong> <em>Contact</em> is gone as a category. A person is a player, a coach, an executive committee member, or nothing — Osgood Thornbury is nothing, and his column is empty rather than inventing a word for him",
+            "<strong>Open:</strong> whether this action is four-role or General-Manager-only. Drawn as four-role, because narrowing it would invent an authority split inside that group which Task 08 §6 does not make",
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/people?scope=outside",
+          now: null,
+          nowNone: NONE,
+          proposed: W104,
+        },
+        {
+          id: "W1-05",
+          title: "The person record",
+          disposition: "new",
+          blurb: `The durable person record: the thirteen person facts, aliases, standing, roles,
+            alumni standing, the person's seasons and what changed. You said to keep the layout as
+            it stands for now, so what has changed here is what is <em>on</em> it, not how it is
+            arranged.`,
+          deltas: [
+            "<strong>Changed:</strong> every explanatory sentence inside the frame is gone",
+            "<strong>Changed:</strong> the four source-and-confidence labels are gone. A value now carries who put it there, or <em>Player</em> when the person supplied it",
+            "<strong>Corrected 2026-08-27:</strong> the <em>Verified</em> mark is gone. Nothing in this application verifies that somebody holds a mailbox — no verified column, no confirm-by-link flow, and this mission sends nothing — so claiming it on screen was a false statement. A value carries who supplied it and nothing more; a real verification flow needs sending and belongs to Mission 7 or 8",
+            "<strong>Changed:</strong> <em>disputed — awaiting verification</em> is gone. The field shows the current value and who set it, because nothing goes higher than the operator. <strong>This supersedes Task 08 §6 and an approved invariant in <code>01-overview.md</code></strong>",
+            "<strong>Changed:</strong> the <em>Open →</em> button on each season is gone. The season label is the link, and the season's own standing sits on the row — 2025-26 reads Archived, not Active",
+            "Aliases are one concept with one of them flagged as the display name — known-as is gone",
+            "Correcting a value is W2, merging is W4, and the full history is W8",
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/people/4f8c21a6",
+          now: null,
+          nowNone: NONE,
+          proposed: W105,
+        },
+        {
+          id: "W1-06",
+          title: "A person who is almost nothing",
+          disposition: "new",
+          blurb: `A first name and a phone number and no more — the legacy record the source data says
+            is 26% of the club. It renders as a real record, never as an error and never with a
+            defaulted value.`,
+          deltas: [
+            "Acceptance 2: every absent field states <em>not recorded</em>. Nothing is blank and nothing is defaulted",
+            "<strong>Changed:</strong> the banner is now five words. The paragraph explaining what is required and why last name is not counted has moved to the specification, where it belongs",
+            "<strong>Changed:</strong> Under 18 reads <em>not recorded</em> rather than a sentence about why it cannot be derived",
+            "<strong>Changed:</strong> last name is now required at every rung, so Bertram counts eight missing facts rather than seven. Roughly a quarter of the club flags for it the day the queue opens, which is now the intent rather than the objection",
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/people/7b1e04d9",
+          now: null,
+          nowNone: NONE,
+          proposed: W106,
+        },
+        {
+          id: "W1-07",
+          title: "A coach",
+          disposition: "new",
+          blurb: `You said a coach is part of the season — a member of it, just not a player. That is
+            what the model already does, and this screen was saying it badly. Nothing here calls him
+            an exception any more.`,
+          deltas: [
+            "<strong>Changed:</strong> <em>No membership</em> is gone. Standing is empty, because the ladder describes players, and what he is to the club reads <em>Head Coach · 2026-27</em>",
+            "<strong>Changed:</strong> <em>Their seasons</em> now lists 2026-27 and 2025-26 with his role on each, instead of saying he has none",
+            "<strong>Changed:</strong> the three sentences explaining that an unassigned Person is permitted are gone",
+            "Acceptance 1: found from the coach's own name, which is impossible today",
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/people/2c9a77f1",
+          now: null,
+          nowNone: NONE,
+          proposed: W107,
+        },
+        {
+          id: "W1-08",
+          title: "A recruit",
+          disposition: "new",
+          blurb: `Nothing about the recruitment process is on this page any more. What is left is a
+            person who happens to stand at Recruit, and no control that moves them.`,
+          deltas: [
+            "<strong>Changed:</strong> the whole recruitment block is gone — source, first contact, committed, conversion. <strong>This changes the approved field inventory</strong>, which had all four as <em>display</em> on person detail",
+            "<strong>Changed:</strong> the banner explaining that nothing more is chased of a recruit is gone",
+            "Acceptance 4: the standing reads <em>Recruit</em> and there is no control anywhere on the page that advances, declines or reassigns them",
+            "<strong>Decide:</strong> with the recruitment facts gone, this screen now differs from W1-06 only by the standing chip. It earns its place only as proof that no funnel control exists — say the word and it comes out",
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/people/8d40b3ec",
+          now: null,
+          nowNone: NONE,
+          proposed: W108,
+        },
+        {
+          id: "W1-09",
+          title: "A merged-away duplicate's link lands on the survivor",
+          disposition: "new",
+          blurb: `A merged record appears in no list and is offered by no search. Its id still
+            resolves, to the survivor, and says so in one sentence.`,
+          deltas: [
+            "Acceptance 5: the direct link redirects to the surviving record and states what happened",
+            "<strong>Changed:</strong> the notice is one sentence naming who merged and when. The paragraph about preserved identities has moved to the specification",
+            "<strong>Changed:</strong> the survivor's record no longer carries a disputed email, so the question you raised on this screen does not arise",
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/people/1a55e0b7",
+          now: null,
+          nowNone: NONE,
+          proposed: W109,
+        },
+        {
+          id: "W1-10",
+          title: "An operator outside the four-role group",
+          disposition: "new",
+          blurb: `People never appears in their navigation — the destinations are resolved server-side
+            per operator, the way LAN-110 already resolves the coach shell. This is the route reached
+            directly, which is the only way they get here.`,
+          deltas: [
+            "<strong>Changed:</strong> the sidebar has no People entry and no Administration group at all. It does not pop up for them",
+            "Acceptance 7: no person data is in the response payload. It is absent from the DOM, not hidden in it (the LAN-75 contract). Hiding the link stays a courtesy and is never the boundary",
+            "The refusal names the roles the action requires and never names what the reader holds",
+            "<strong>Flagging:</strong> the second alert — “Authorization is enforced by the service action…” — is shipped UX-05 copy on <code>main</code>, not this mission's. It is narrative text in a surface. Left as it is because redrawing a shipped screen is not this workflow's job; worth a ticket",
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/people",
+          now: null,
+          nowNone: NONE,
+          proposed: W110,
+        },
+        {
+          id: "W1-11",
+          title: "The whole history, on the record",
+          disposition: "new",
+          blurb: `<strong>Added 2026-08-27, when W8 was struck.</strong> The <em>What changed</em>
+            panel expands in place to every recorded change, with the field and actor filters.
+            There is no separate history route any more.`,
+          deltas: [
+            "Brian: “this feels like just an audit trail at the bottom of the people record” — and then “remove the workflow, add it to the other ones”",
+            "Every entry says field, from, to, when and who, and the reason where W2 required one. A fill reads <code>not recorded → value</code>",
+            "A merge reads as <strong>one event</strong> naming what it moved, not a scatter of forty corrections",
+            "The filters are what made a separate page arguable. They came with the content rather than being lost with the route",
+            "Player detail links here rather than duplicating it",
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/people/4f8c21a6",
+          now: null,
+          nowNone: NONE,
+          proposed: W111,
+        },
+        {
+          id: "W1-12",
+          title: "Filtered to one field",
+          disposition: "new",
+          blurb: `The whole life of one value — usually the real question. Not “what happened to
+            this person” but “why is this email what it is”.`,
+          deltas: [
+            "Three entries, two operators and a merge, in the order they happened",
+            "<strong>This is the capability the struck page existed for</strong>, and it survives the strike",
+            "The count reads 3 of 14, so a filtered view is never mistaken for the whole record",
+            "A departed actor's name stays, with the date their seat ended. An audit trail that forgets who did something is not one",
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/people/4f8c21a6",
+          now: null,
+          nowNone: NONE,
+          proposed: W112,
+        },
+      ];
+
+      const frame = (screen, html, kind) => `
+        <div class="frame ${kind}">
+          <div class="chrome">
+            ${kind === "desktop" ? `<span class="dots"><i></i><i></i><i></i></span>` : ""}
+            <span class="url">${screen.url}</span>
+            <span class="frame-badge">${screen.id} · ${kind === "desktop" ? "DESKTOP 1280" : "375"}</span>
+          </div>
+          <div class="viewport ${kind}-vp ${kind}">${html}</div>
+        </div>`;
+
+      const sideBlock = (screen, which) => {
+        const isCurrent = which === "current";
+        const html = isCurrent ? screen.now : screen.proposed;
+        const label = isCurrent ? "Current — on main today" : "Proposed — this mission";
+        const inner = html
+          ? `<div class="pair">${frame(screen, html, "desktop")}${frame(screen, html, "phone")}</div>`
+          : `<div class="none">${screen.nowNone}</div>`;
+        return `
+          <div class="side ${which}">
+            <span class="side-label">${label}</span>
+            ${inner}
+          </div>`;
+      };
+
+      document.getElementById("screens").innerHTML = SCREENS.map(
+        (screen) => `
+        <section class="screen">
+          <div class="screen-head">
+            <span class="tab">${screen.id}</span>
+            <h2>${screen.id} · ${screen.title}<span class="disposition ${screen.disposition}">${screen.disposition}</span></h2>
+            <p>${screen.blurb}</p>
+            <ul class="deltas">${screen.deltas.map((d) => `<li>${d}</li>`).join("")}</ul>
+            ${screen.clockTag ? `<span class="clock">${screen.clockTag}</span>` : ""}
+          </div>
+          ${sideBlock(screen, "current")}
+          <div style="height:12px"></div>
+          ${sideBlock(screen, "proposed")}
+        </section>`,
+      ).join("");
+    </script>
+  </body>
+</html>

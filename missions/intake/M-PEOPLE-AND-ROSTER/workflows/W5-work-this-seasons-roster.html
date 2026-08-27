@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W5 · Work this season's roster</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --warn: #663c00;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: var(--grey100);
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #212121;
+        color: #fff;
+        padding: 10px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .sheet {
+        max-width: 880px;
+        margin: 26px auto 100px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 10px 30px 34px;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.12rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 1rem;
+        margin: 20px 0 6px;
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        display: block;
+        overflow-x: auto;
+        margin: 14px 0;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+        white-space: nowrap;
+      }
+      a {
+        color: var(--primary);
+      }
+      @media (max-width: 720px) {
+        .sheet {
+          margin: 14px 10px 60px;
+          padding: 6px 16px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        W5 · Work this season's roster<span>M-PEOPLE-AND-ROSTER · specification</span>
+      </div>
+      <div>
+        <a href="../mockups/W5-work-this-seasons-roster.html">Mockup</a
+        ><a href="../mockups/index.html">Hub</a
+        ><a href="../specifications.html">All specifications</a>
+      </div>
+    </div>
+    <div class="sheet">
+      <h1>W5 — Work this season&#39;s roster</h1>
+      <ul>
+        <li>
+          Purpose/intended outcome: an operator sees the whole squad at once and works across it —
+          who is where on the ladder, who is missing something, who plays what — instead of opening
+          forty records one at a time.
+        </li>
+        <li>
+          Primary actor: a four-role operator — President, Vice-President, Secretary, General
+          Manager.
+        </li>
+        <li>
+          Trigger: Monday review; the week before a fixture; subs chasing; kit ordering; &quot;how
+          many actives do we actually have?&quot;
+        </li>
+        <li>
+          Entry point: <strong>Roster</strong> in the operate navigation, where it already is.
+        </li>
+        <li>
+          Route/placement: <code>/operate/roster</code>.
+          <strong>This surface exists on <code>main</code></strong> and is redesigned, not extended
+          — portfolio rule 3, backwards-looking.
+        </li>
+        <li>
+          Controlling source: Task 08 §5 (the wide command surface, its column set, search,
+          combinable filters, sortable columns, and the condensed mobile view); §6 (four-role only;
+          column visibility as a function of category grants); the field inventory approved
+          2026-08-26; LAN-174 (roster is season-scoped without needing the season lifecycle).
+        </li>
+        <li>
+          User-visible result: the season&#39;s squad as a working command surface, carrying the
+          approved column set rather than the six columns the slice shipped.
+        </li>
+      </ul>
+      <h2>Required actions</h2>
+      <ul>
+        <li>Show every membership in the season in view, in any status.</li>
+        <li>
+          <strong>Carry every column the season has</strong>, eighteen of them: player, standing,
+          entry, college, matriculation year, expected graduation, degree field, positions, Blue #,
+          White #, coach group, onboarding, formalwear, Blues, eligibility, availability,
+          contactability and the missing-data flag — replacing today&#39;s Member · Status · Entry ·
+          Email · Phone · Onboarding.
+        </li>
+        <li>
+          <strong>Be a board, not a list.</strong> Wide, scrolling sideways inside its own
+          container, with the player column pinned so a row stays identifiable at column sixteen.
+        </li>
+        <li><strong>Sort and filter on every column.</strong></li>
+        <li>
+          <strong>Group the columns and band them</strong>: Person, Onboarding, Season. Brian,
+          2026-08-27:
+          <em
+            >&quot;I want to have the columns grouped together so that they&#39;re kind of
+            color-coded… That would make it really easy to know which columns are available versus
+            not.&quot;</em
+          >
+          The band is labelled, so colour never carries the meaning alone. Onboarding is one column
+          today; Mission 7 adds the rest.
+        </li>
+        <li>
+          <strong>Take the raw email and phone off the grid.</strong> Task 08 §5 puts contactability
+          indicators there, not values. This is a deliberate narrowing of what a routine screen
+          discloses.
+        </li>
+        <li>Search by first name, last name and alias.</li>
+        <li>
+          <strong>Combinable filters</strong>, applied immediately: standing, entry, onboarding
+          completeness, missing data, college, position.
+        </li>
+        <li>Sort on every column that can be meaningfully ordered.</li>
+        <li>
+          Open a player (<code>W6</code>), and add a player through the door that already exists.
+        </li>
+        <li>
+          Render column visibility from the viewer&#39;s category grants, so widening access later
+          drops restricted columns rather than needing a special case.
+        </li>
+      </ul>
+      <h2>State transitions</h2>
+      <p>
+        <strong>Rewritten 2026-08-27. This workflow now writes, and the board is why.</strong>
+        Brian:
+        <em
+          >&quot;any position needs to be editable from here… everything is editable from this
+          thing, from this screen.&quot;</em
+        >
+      </p>
+      <p>Two kinds of cell, and the difference is the person-versus-season test again:</p>
+      <ul>
+        <li>
+          <p>
+            <strong>Editing is spreadsheet editing.</strong> Brian, 2026-08-27:
+            <em
+              >&quot;They should click it, and they should come up… I click the button, and then it
+              goes and updates automatically.&quot;</em
+            >
+            One click opens the cell; the change commits on its own; there is no save button and no
+            confirmation step.
+          </p>
+          <ul>
+            <li>
+              <strong>A dropdown only where the value set is fixed</strong> — positions, coach
+              group, standing, entry, formalwear, Blues, eligibility, availability. Free entry
+              everywhere else, which today means the jersey numbers.
+            </li>
+            <li>
+              <strong>Every commit writes an audit event</strong> — actor, timestamp, field, before,
+              after — and <strong>no reason is asked for</strong>. Brian:
+              <em
+                >&quot;It doesn&#39;t mean they have to give a reason. It should be part of the
+                audit trail.&quot;</em
+              >
+              The reason belongs to <code>W2</code>, where a durable person fact is being
+              overwritten; nothing on this board overwrites one.
+            </li>
+            <li>
+              The audit event lands on the person&#39;s history (<code>W8</code>) like every other
+              edit, so a season change made here is answerable in the same place as a correction
+              made anywhere else.
+            </li>
+          </ul>
+        </li>
+        <li>
+          <p>
+            <strong>Season facts edit in the cell</strong> — standing, entry, positions, jersey,
+            coach group, formalwear, Blues, eligibility, availability. No reason is asked for,
+            because nothing prior is being overwritten: they belong to this season and this season
+            only. Each edit is audited.
+          </p>
+        </li>
+        <li>
+          <p>
+            <strong>Person facts do not edit here.</strong> College, matriculation year, expected
+            graduation and degree field render on the board and open the person record. Brian:
+            <em
+              >&quot;anything that needs to be edited there needs to be edited in the people thing
+              there because it is an override… The columns for the people data should be more
+              deliberate, where you can&#39;t just willy-nilly change that, but you should show as
+              much as you possibly can.&quot;</em
+            >
+            <code>W2</code>&#39;s rules then apply — a reason when a value is replaced, contacts
+            superseding, every edit audited.
+          </p>
+        </li>
+      </ul>
+      <p>
+        Onboarding items remain read-only here; Mission 7 owns their behaviour. Activation stays on
+        player detail, through the control that already exists.
+      </p>
+      <h2>Handoffs</h2>
+      <ul>
+        <li>To <code>W6</code> on opening a player.</li>
+        <li>To <code>W7</code> from the missing-data flag.</li>
+        <li>To <code>W1</code> when the person being looked for is not a player.</li>
+        <li>To the shipped returner intake for adding a player, which is not rebuilt here.</li>
+        <li>
+          To Mission 9 for what positions, jersey and availability mean; this workflow places them
+          and Mission 9 gives them semantics.
+        </li>
+        <li>
+          To Mission 7 for onboarding behaviour; the grid shows completeness and the filter, and
+          owns neither.
+        </li>
+        <li>
+          To Mission 11 for anything about the season itself — opening it, closing it, rolling it
+          over.
+        </li>
+      </ul>
+      <h2>Dependencies and mission boundaries</h2>
+      <ul>
+        <li>
+          <strong>This mission now builds the columns it shows.</strong> Positions, jersey, coach
+          group, formalwear, Blues, eligibility and availability have no storage on
+          <code>main</code>. Brian, 2026-08-27:
+          <em
+            >&quot;I don&#39;t care if most of the columns don&#39;t exist yet. The point is,
+            we&#39;re building those columns right now… we should just build everything that
+            we&#39;re going to build in this package here.&quot;</em
+          >
+          This is scope this mission did not have, taken deliberately. Mission 9 still owns what
+          positions, jersey and coach group <strong>mean</strong>; this mission gives them somewhere
+          to live.
+        </li>
+        <li>
+          <strong>Jersey is two columns and the model is provisional.</strong> Blue # and White #,
+          with the fuller editor on player detail. Two kits, several numbers per player in one kit
+          for about 8%, numbers that are not unique. Brian:
+          <em>&quot;however we have the data, we&#39;ll figure it out for the kit.&quot;</em>
+        </li>
+        <li>
+          <strong>Date of birth and emergency contact are not on this board and cannot be.</strong>
+          Task 08 §6 and the cross-cutting invariants lock them off every list. This is the one
+          limit on showing everything, and it is not negotiable here.
+        </li>
+        <li>
+          <strong>The status enum changes underneath this surface.</strong> The rebuilt ladder is
+          five stored values, and twelve views depend on the column, so the migration drops and
+          recreates every one of them. Measured, not estimated, in <code>field-inventory.md</code>.
+        </li>
+        <li>
+          <strong>No season picker.</strong> The roster follows the active season as ambient
+          context, which is how it already behaves. Choosing an arbitrary season is Mission
+          11&#39;s.
+        </li>
+        <li>
+          Jersey is not one value — two kits, several numbers per player in one kit, numbers that
+          are not unique, a predominant designation and a note. Mission 9 owns the model; this grid
+          shows the predominant number.
+        </li>
+        <li>
+          Availability renders only for a viewer holding availability read, which is moot while the
+          roster is four-role. The mechanism is built anyway, because it is what makes the
+          grant-driven column visibility real.
+        </li>
+        <li>
+          Coaching group and responsible coach have no substrate on <code>main</code> and do not
+          render at this mission&#39;s acceptance.
+        </li>
+        <li>Consent state and channel presence likewise.</li>
+      </ul>
+      <h2>Every filter this board could carry</h2>
+      <p>
+        Brian asked for the full set, 2026-08-27. This is what the data supports, not what is drawn
+        — six are drawn on <code>W5-02</code>.
+      </p>
+      <p>
+        Alumni standing is <strong>not</strong> among them, struck 2026-08-27. Everybody on this
+        board holds a membership in the season being viewed, so the derivation returns the same
+        answer for all of them. It filters usefully on People (<code>W1</code>), where the
+        population is mixed, and means nothing here.
+      </p>
+      <p><strong>Person</strong> — the operator narrows by who somebody is:</p>
+      <ul>
+        <li>College · Matriculation year · Expected graduation · Degree field</li>
+        <li>Has a mobile · Has a personal email · Has a college email</li>
+        <li>Has an alias</li>
+        <li>
+          Missing data: <strong>yes or no</strong> — Brian, 2026-08-27. The column still carries the
+          count; the filter is binary, because &quot;who is incomplete&quot; is the question and
+          &quot;who is incomplete by exactly two things&quot; is not
+        </li>
+        <li>
+          Missing a <strong>named</strong> fact specifically (no emergency contact, no personal
+          email)
+        </li>
+      </ul>
+      <p>
+        <strong>Onboarding</strong> — Mission 7 owns the behaviour; the filters are this
+        mission&#39;s:
+      </p>
+      <ul>
+        <li>Complete · required items outstanding · only optional outstanding · no items</li>
+        <li>
+          A named item outstanding (subscription invoiced, subscription paid, kit sorted, BUCS Play,
+          Hudl, squad photo, comms groups)
+        </li>
+      </ul>
+      <p><strong>Season</strong> — everything the membership carries:</p>
+      <ul>
+        <li>Standing (the six-rung ladder) · Entry (new · returning)</li>
+        <li>Position (O · D · ST) · has a jersey number · a specific number · which kit</li>
+        <li>Coach group · responsible coach</li>
+        <li>Formalwear (tie · bowtie · socks, each owned or not)</li>
+        <li>Blues (half · full · none)</li>
+        <li>Eligibility status, by competition</li>
+        <li>Availability (green · orange · red), where the viewer holds availability read</li>
+      </ul>
+      <p><strong>Cross-cutting:</strong></p>
+      <ul>
+        <li>
+          Under 18 — <strong>derived</strong> from date of birth. The value stays off the board; the
+          boolean is a filter, which is a decision worth making deliberately rather than assuming
+        </li>
+        <li>Constitutional membership — an existing derived view</li>
+        <li>The season itself: this season, or the outside-this-season view</li>
+      </ul>
+      <p>
+        <strong>Never filterable, because they are never on a list:</strong> date of birth as a
+        value, and emergency contact. Task 08 §6.
+      </p>
+      <h2>Filtering across eighteen columns — the options</h2>
+      <p>
+        Brian asked, 2026-08-27, whether there is a better way than a row of dropdowns above the
+        board. Four shapes, and they combine.
+      </p>
+      <p>
+        <strong>1. A pinned set above the board.</strong> The three or four an operator always
+        reaches for — standing, entry, missing data. Cheap, discoverable, and it is what the roster
+        already does. It does not scale past about five before the bar is wider than the screen.
+      </p>
+      <p>
+        <strong>2. A filter control in each column header.</strong> The filter lives with the thing
+        it filters, and it scales to any number of columns because it costs no extra space. Its one
+        real flaw: a filter set on a column that is scrolled off screen is invisible, so a board can
+        be silently filtered and look empty for no visible reason.
+      </p>
+      <p>
+        <strong>3. An active-filter bar.</strong> Whatever is set shows as a removable chip under
+        the header, whichever column it came from. This is what fixes (2)&#39;s flaw, and it is not
+        optional if (2) is built.
+      </p>
+      <p>
+        <strong>4. Saved views.</strong> &quot;Active players with no emergency contact&quot; named,
+        saved and reopened. This is the one that pays for itself on repeated work, and the only one
+        that survives the filter set growing to thirty.
+      </p>
+      <p>
+        <strong>Settled 2026-08-27: 1 + 2 + 3, built. 4 deferred.</strong> Brian:
+        <em
+          >&quot;I liked a pin set of the most important ones… Then I think controlling the column
+          header somehow to show this… and then it shows at the top that that&#39;s been filtered
+          by, and then it&#39;s a removable chip. Let&#39;s do those three.&quot;</em
+        >
+      </p>
+      <ul>
+        <li>
+          <strong>Pinned: three.</strong> Status, Availability,
+          <strong>Missing onboarding data</strong>. Amended 2026-08-27: Entry leaves the pinned set
+          — <em>&quot;entry status: yes, entry: no&quot;</em> — and filters from its own column
+          header like the other fifteen. The separate Onboarding filter goes with it, because the
+          useful question is not what onboarding state somebody is in but
+          <strong>what onboarding data is missing</strong>, which is one filter, not two. The search
+          field takes the space they give back.
+        </li>
+        <li><strong>Every other column filters from a caret in its own header.</strong></li>
+        <li>
+          <strong>A pinned control and its column header are the same filter.</strong> Brian,
+          2026-08-27:
+          <em
+            >&quot;if I change availability, I can change it on the column itself if I wanted to,
+            but if I change it on the column, it changes in the hard-coded filter as well.&quot;</em
+          >
+          Two controls, one filter, each reflecting the other, and the chip does not record which
+          one set it — because once it is set, that stops mattering. <code>W5-01</code> shows
+          Availability set from its column and showing in the pinned control.
+        </li>
+        <li>
+          <strong>A <code>Filtered by</code> bar</strong> under the controls carries every active
+          filter as a removable chip, whichever control set it, with <code>Clear all</code>. It is
+          <strong>not optional</strong>: <code>W5-01</code> shows <em>Coach group: Offense</em> set
+          on a column scrolled far off to the right, and without the bar the board would look
+          mysteriously short with nothing to say why.
+        </li>
+        <li>
+          <strong>Saved views are deferred</strong>, not rejected — worth building once the board is
+          real and the recurring combinations are known rather than guessed.
+        </li>
+      </ul>
+      <p>
+        <strong>Not recommended: a filter drawer</strong>, listing all thirty in one panel. It reads
+        well in a specification and is slow to use, because every filter costs the same number of
+        clicks whether it is the one you use daily or the one you use annually.
+      </p>
+      <p>
+        <strong>Not recommended either: query tokens</strong> in the search box (<code
+          >college:Hallamshire position:ST</code
+        >). Powerful, fast for whoever learns it, and undiscoverable for everybody else — which on a
+        surface four people share is the wrong trade.
+      </p>
+      <h2>Exceptions and recovery</h2>
+      <ul>
+        <li>
+          <strong>A filter matches nothing</strong>, and
+          <strong>the season has no memberships at all</strong>. Different copy for each, both
+          carrying the smallest authorized recovery, which is what the shipped surface already does
+          and what the state contract requires.
+        </li>
+        <li>
+          <strong>A player with almost nothing recorded.</strong> They appear with
+          <code>not recorded</code> in each empty cell and the missing flag set, never as a blank
+          row.
+        </li>
+        <li>
+          <strong>A very wide grid on a narrow screen.</strong> The condensed card view Task 08 §5
+          describes, and the mobile quick action is <strong>voice call only</strong> — a one-tap
+          WhatsApp link would be manual sending outside the pipeline&#39;s consent checks, which R12
+          and R15 prohibit.
+        </li>
+        <li>
+          <strong>An operator outside the four-role group.</strong> Refused, exposing nothing. A
+          coach keeps the narrow LAN-110 attendance tool and reaches nothing here.
+        </li>
+      </ul>
+      <h2>Safety, privacy, consent, and authority boundaries</h2>
+      <ul>
+        <li>Four-role only, for the grid and every column on it.</li>
+        <li><strong>Contact values leave this surface.</strong> Indicators only.</li>
+        <li>Date of birth and emergency contact never appear on any list, this one included.</li>
+        <li>
+          Column visibility is a function of the viewer&#39;s category grants; anything not granted
+          is absent from the DOM and the payload, not hidden in it.
+        </li>
+        <li>
+          The only channel action is a voice call. Nothing here composes, schedules or sends a
+          message.
+        </li>
+        <li>No destructive action.</li>
+      </ul>
+      <h2>Acceptance evidence</h2>
+      <p>Against seeded synthetic data, an operator can:</p>
+      <ol>
+        <li>
+          see the <strong>approved column set</strong>, and confirm raw email and phone are gone;
+        </li>
+        <li>
+          <strong>combine filters</strong> — onboarding incomplete <em>and</em> missing data
+          <em>and</em> active — and get a real list;
+        </li>
+        <li>
+          <strong>sort every sortable column</strong>, and keep the sort through a refresh and the
+          back button;
+        </li>
+        <li>search by an <strong>alias</strong> and find the player;</li>
+        <li>open a player and come back;</li>
+        <li>
+          see the <strong>condensed view at a measured 375px</strong>, with voice call as the only
+          quick action;
+        </li>
+        <li>see both <strong>empty states</strong> and tell them apart;</li>
+        <li>confirm a coach reaches <strong>nothing</strong> here.</li>
+      </ol>
+      <h2>Core decisions</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Decision</th>
+            <th>Classification</th>
+            <th>Governing evidence or recommended default</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>The default column set</td>
+            <td><code>superseded</code></td>
+            <td>
+              <strong>Superseded 2026-08-27</strong> by the eighteen-column board and its
+              Person/Onboarding/Season grouping
+            </td>
+            <td>Superseded</td>
+          </tr>
+          <tr>
+            <td>Raw email and phone come off the grid, replaced by indicators</td>
+            <td><code>locked</code></td>
+            <td>Task 08 §5</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Filters combine and apply immediately</td>
+            <td><code>locked</code></td>
+            <td>Task 08 §5</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>No season picker; the roster follows the active season</td>
+            <td><code>locked</code></td>
+            <td>Brian, 2026-08-26</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Column visibility is derived from category grants, not special-cased</td>
+            <td><code>locked</code></td>
+            <td>Task 08 §6</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>The mobile quick action is voice call only</td>
+            <td><code>locked</code></td>
+            <td>Task 08 §5; R12 and R15 prohibit manual sending outside the pipeline</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>The grid shows the predominant jersey number, not every number a player holds</td>
+            <td><code>superseded</code></td>
+            <td>
+              <strong>Superseded 2026-08-27</strong>: the board carries Blue # and White # as
+              separate columns; the model stays provisional
+            </td>
+            <td>Superseded</td>
+          </tr>
+          <tr>
+            <td>Availability renders only under an availability grant</td>
+            <td><code>locked</code></td>
+            <td>Task 08 §6</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Page size, column widths, and the sort&#39;s default column</td>
+            <td><code>delegated to Mission Lead</code></td>
+            <td>No product meaning</td>
+            <td>Delegated</td>
+          </tr>
+        </tbody>
+      </table>
+      <h2>Brian approval</h2>
+      <ul>
+        <li>Exact words: &quot;w5 approved, killer&quot;</li>
+        <li>Date: 2026-08-27</li>
+        <li>By: Brian Schuster</li>
+      </ul>
+    </div>
+  </body>
+</html>

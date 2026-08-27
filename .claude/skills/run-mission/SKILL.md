@@ -26,7 +26,7 @@ Require one exact `M-<id>`. Generate one UUID in `LANCERS_MISSION_LEAD_ID` for
 this Lead session and never reuse it. Run:
 
 ```bash
-npm run mission -- resume M-<id>
+npm run mission -- resume M-<id> [--token <token>]
 ```
 
 For a new mission, Brian supplies the approved packet:
@@ -34,6 +34,12 @@ For a new mission, Brian supplies the approved packet:
 ```bash
 npm run mission -- init M-<id> --packet <file>
 ```
+
+Resume opens the epoch the harness derives; a closed one needs its one-use token
+and a Lead identity that did not close it. Work from the dossier the resume
+prints, never a narrative handoff. At a boundary, close the epoch and stop; only
+an explicit owner message authorizes `epoch adjust`, which records Brian's words
+verbatim. `docs/mission-harness.md` governs epochs.
 
 The CLI owns the append-only journal, fence, refusals, lifecycle, and executable
 frontier. Record every transition through it when it occurs; never reconstruct
@@ -71,7 +77,7 @@ estimated duration are not package boundaries. Present packages, concurrency,
 critical path, and owner cost; record Brian's approval before creating Linear
 issues, branches, or worktrees.
 
-After approval, take the `plan-approved` phase stop. On the fresh resume, run one
+After approval, close the planning epoch and stop. On the fresh resume, run one
 read-only Linear preflight, then use the write-ahead `sync-intent`/`sync-result`
 pair. Reconcile a pending intent before retrying so a crash cannot duplicate an
 issue. No worker starts before its package has a Linear issue.
@@ -204,9 +210,9 @@ acceptance pending`, or `Incomplete`. Merged code or a completed owner action is
 not acceptance without the linked verification. Name every pending criterion,
 owner action, remaining verification, and next actor.
 
-For usage exhaustion, owner stop, or blocking drift, record `mission stop`; a
-fresh Lead resumes from the journal. Wait for agent completion notifications—
-never poll.
+For usage exhaustion, owner stop, or blocking drift, record `mission stop` and
+close the epoch; a fresh Lead resumes from the journal. Wait for agent
+completion notifications—never poll.
 
 ## Boundaries
 

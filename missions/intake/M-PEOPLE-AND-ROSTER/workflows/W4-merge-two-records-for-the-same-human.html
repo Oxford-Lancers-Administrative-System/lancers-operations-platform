@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W4 · Merge two records for the same human</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --warn: #663c00;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: var(--grey100);
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #212121;
+        color: #fff;
+        padding: 10px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .sheet {
+        max-width: 880px;
+        margin: 26px auto 100px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 10px 30px 34px;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.12rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 1rem;
+        margin: 20px 0 6px;
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        display: block;
+        overflow-x: auto;
+        margin: 14px 0;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+        white-space: nowrap;
+      }
+      a {
+        color: var(--primary);
+      }
+      @media (max-width: 720px) {
+        .sheet {
+          margin: 14px 10px 60px;
+          padding: 6px 16px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        W4 · Merge two records for the same human<span>M-PEOPLE-AND-ROSTER · specification</span>
+      </div>
+      <div>
+        <a href="../mockups/W4-merge-two-records-for-the-same-human.html">Mockup</a
+        ><a href="../mockups/index.html">Hub</a
+        ><a href="../specifications.html">All specifications</a>
+      </div>
+    </div>
+    <div class="sheet">
+      <h1>W4 — Merge two records for the same human</h1>
+      <ul>
+        <li>
+          Purpose/intended outcome: the club holds one person twice; afterwards it holds them once,
+          both identities are preserved, everything that pointed at either record points at the
+          survivor, and the whole thing is answerable.
+        </li>
+        <li>
+          Primary actor: a four-role operator — President, Vice-President, Secretary, General
+          Manager.
+        </li>
+        <li>
+          Trigger: two rows with the same phone number; a returner entered fresh who was already
+          there under a nickname; the duplicate check in <code>W3</code> was answered wrong six
+          months ago.
+        </li>
+        <li>Entry point: <strong>Merge…</strong> on the person record (<code>W1-05</code>).</li>
+        <li>
+          Route/placement: <code>/operate/people/[personId]/merge</code>. Neither the route nor its
+          parent exists on <code>main</code>; nothing occupies the path.
+        </li>
+        <li>
+          Controlling source: Task 08 §2 and invariant I6 (both identities preserved, the losing row
+          never deleted); §6 (four-role only, fully audited); LAN-147 question 2; the owner session
+          of 2026-08-26 for the operator-seat and prospect-collision edges.
+        </li>
+        <li>
+          User-visible result: one surviving record, every reference re-pointed, the losing row kept
+          and pointing at the survivor, and a merge event naming who, when and why.
+        </li>
+      </ul>
+      <h2>Required actions</h2>
+      <ul>
+        <li>Find the other record, by the same search <code>W1</code> uses.</li>
+        <li>
+          <strong>Show the two side by side, field by field</strong>, with every value that differs
+          marked. This is the screen the whole workflow exists for.
+        </li>
+        <li>
+          Choose which record survives, and for each differing field, which value it keeps. Neither
+          is assumed to be right because it is older or newer.
+        </li>
+        <li>Require a reason.</li>
+        <li>
+          Show what will move before it moves: memberships, prospect records, role assignments,
+          contact points, RSVP and attendance history, audit history.
+        </li>
+        <li>Merge.</li>
+      </ul>
+      <h2>State transitions</h2>
+      <ul>
+        <li>
+          One record becomes the survivor. The other is marked merged, dated, with the
+          operator&#39;s id and the reason, and <code>merged_into_person_id</code> set.
+        </li>
+        <li>Every reference to the losing person is re-pointed at the survivor.</li>
+        <li>
+          Chosen field values are written onto the survivor, each one an ordinary audited correction
+          so the change history reads honestly.
+        </li>
+        <li>Contact points from both records are kept; one per kind stays preferred.</li>
+        <li>
+          <strong>The losing row is never deleted</strong>, so imported rows keep their provenance.
+        </li>
+      </ul>
+      <h2>Handoffs</h2>
+      <ul>
+        <li>To <code>W1</code> on the survivor.</li>
+        <li>To <code>W8</code> for the merge event and everything it moved.</li>
+        <li>To <code>W2</code> when the merge is done and a value still needs fixing.</li>
+        <li>
+          To Mission 1 when the losing record holds an operator seat, which must be ended there
+          first.
+        </li>
+        <li>To Mission 6 for the recruitment consequences of a merged prospect pair.</li>
+      </ul>
+      <h2>Dependencies and mission boundaries</h2>
+      <ul>
+        <li>
+          <strong>A losing record holding an active operator seat refuses the merge.</strong> The
+          seat is ended first through Mission 1&#39;s existing flow. Brian, 2026-08-26: silently
+          transferring a login is not acceptable.
+        </li>
+        <li>
+          <strong
+            ><code>recruitment_prospects_one_per_person_per_season</code> makes the duplicate case
+            impossible to merge naively.</strong
+          >
+          Two prospect rows for one human in one season are combined onto the survivor, taking the
+          earliest first-contact date and the furthest-along status. Recorded as a seam Mission 6
+          inherits.
+        </li>
+        <li>
+          <strong>Consent-record precedence is unresolved and stays unresolved</strong>, because no
+          consent substrate exists on <code>main</code>. Mission 8 decides it; this workflow records
+          the edge rather than inventing a rule.
+        </li>
+        <li>
+          Aliases from both records survive on the survivor as dedupe evidence, never as roster
+          display.
+        </li>
+        <li>
+          Merged-away records are excluded from every list and every duplicate check, which the
+          shipped matching already does.
+        </li>
+      </ul>
+      <h2>Exceptions and recovery</h2>
+      <ul>
+        <li>
+          <strong>The losing record holds an active operator seat.</strong> Refused, naming what
+          must happen first, with a route to it.
+        </li>
+        <li>
+          <strong>Both records hold a membership in the same season.</strong> Refused. Two
+          memberships for one human in one season is a roster question, not a person question, and
+          merging them silently would rewrite a season&#39;s squad.
+        </li>
+        <li>
+          <strong>Both records hold a prospect row in the same season.</strong> Combined by the rule
+          above, and the operator is shown the result before it is written.
+        </li>
+        <li>
+          <strong>The operator picks the wrong survivor.</strong> There is no undo. The confirmation
+          states what will move, and the losing row survives pointing at the survivor, which is what
+          makes a manual repair possible at all.
+        </li>
+        <li>
+          <strong>One of the two is already merged away.</strong> Refused; the survivor is offered
+          instead.
+        </li>
+      </ul>
+      <h2>Safety, privacy, consent, and authority boundaries</h2>
+      <ul>
+        <li>Four-role only, and fully audited — Task 08 §6.</li>
+        <li>
+          The comparison screen shows two people&#39;s contact details, academic detail, date of
+          birth and emergency contact side by side. It is the single most disclosing screen in this
+          mission, which is why it is reached only from a record the operator already holds and
+          never from a list.
+        </li>
+        <li>Nothing here sends a message or records a lawful basis.</li>
+        <li><strong>Nothing is deleted, ever</strong> — invariant I6.</li>
+        <li>A merge is one audited event, not a sequence of silent corrections.</li>
+      </ul>
+      <h2>Acceptance evidence</h2>
+      <p>Against seeded synthetic data, an operator can:</p>
+      <ol>
+        <li>
+          find the duplicate from the survivor&#39;s record and see the two
+          <strong>side by side with every difference marked</strong>;
+        </li>
+        <li>
+          <strong>choose per field</strong> which value survives, including keeping the older one;
+        </li>
+        <li>be <strong>refused</strong> without a reason;</li>
+        <li>see <strong>what will move</strong> before it moves, and find it moved afterwards;</li>
+        <li>
+          confirm the <strong>losing row still exists</strong>, marked merged, pointing at the
+          survivor, and appearing in no list and no duplicate check;
+        </li>
+        <li>
+          be <strong>refused</strong> when the losing record holds an active operator seat, and be
+          told what to do first;
+        </li>
+        <li>be <strong>refused</strong> when both records hold a membership in the same season;</li>
+        <li>
+          merge a <strong>duplicate prospect pair</strong> and find the earliest first-contact date
+          and the furthest-along status on the survivor;
+        </li>
+        <li>read the whole merge on the survivor&#39;s history as one event.</li>
+      </ol>
+      <h2>Core decisions</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Decision</th>
+            <th>Classification</th>
+            <th>Governing evidence or recommended default</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Both identities preserved; the losing row is never deleted</td>
+            <td><code>locked</code></td>
+            <td>Invariant I6; Task 08 §2</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Field-by-field choice rather than &quot;survivor wins&quot;</td>
+            <td><code>locked</code></td>
+            <td>
+              Approved as drawn, 2026-08-27. The older record is often the more complete and the
+              newer the more correct; assuming either loses data
+            </td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>A reason is required</td>
+            <td><code>locked</code></td>
+            <td>Task 08 §6</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>An active operator seat on the losing record refuses the merge</td>
+            <td><code>locked</code></td>
+            <td>Brian, 2026-08-26</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Two memberships in one season refuse the merge</td>
+            <td><code>locked</code></td>
+            <td>
+              Approved as drawn, 2026-08-27. Merging them silently would rewrite a season&#39;s
+              squad; the roster is where that is resolved
+            </td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Duplicate prospect rows combine: earliest first contact, furthest-along status</td>
+            <td><code>locked</code></td>
+            <td>Brian, 2026-08-26; recorded as a seam Mission 6 inherits</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Consent-record precedence</td>
+            <td><code>delegated to Mission Lead</code></td>
+            <td>
+              No consent substrate exists on <code>main</code>; Mission 8 decides the rule and this
+              workflow records the edge
+            </td>
+            <td>Deferred to Mission 8</td>
+          </tr>
+          <tr>
+            <td>No undo</td>
+            <td><code>locked</code></td>
+            <td>
+              Approved as drawn, 2026-08-27. The losing row surviving is what makes manual repair
+              possible; a real undo would be a second destructive path
+            </td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Which references are re-pointed, and in what order</td>
+            <td><code>delegated to Mission Lead</code></td>
+            <td>Mechanical; the set is every foreign key to <code>people</code></td>
+            <td>Delegated</td>
+          </tr>
+        </tbody>
+      </table>
+      <h2>Brian approval</h2>
+      <ul>
+        <li>Exact words: &quot;W4 approved.&quot;</li>
+        <li>Date: 2026-08-27</li>
+        <li>By: Brian Schuster</li>
+      </ul>
+    </div>
+  </body>
+</html>
