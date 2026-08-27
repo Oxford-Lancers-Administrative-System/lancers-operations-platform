@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { readJournal, reduce, missionPaths, nextActions } from "../scripts/mission/lib/state.mjs";
+import { cliReviewFlow } from "./helpers/mission-invocations";
 
 const CLI = path.join(__dirname, "..", "scripts", "mission", "cli.mjs");
 const PACKET = path.join(__dirname, "fixtures", "mission", "approved-packet.json");
@@ -171,6 +172,14 @@ describe("mission CLI", () => {
     const review = path.join(m.repo, "review.json");
     const reviewReport = path.join(m.repo, "package-gate.md");
     fs.writeFileSync(reviewReport, "No sensitive or visual scope.\n");
+    const invocation = cliReviewFlow(
+      m.run,
+      m.repo,
+      MISSION,
+      "WP-attendance-export",
+      "a".repeat(40),
+      { env: m.env },
+    );
     fs.writeFileSync(
       review,
       JSON.stringify({
@@ -182,6 +191,11 @@ describe("mission CLI", () => {
         ci_state: "green",
         sensitive_paths: [],
         report: reviewReport,
+        invocation_id: invocation.invocation_id,
+        runtime_id: invocation.runtime_id,
+        agent_id: invocation.agent_id,
+        contract_hash: invocation.contract_hash,
+        job_results: invocation.job_results,
       }),
     );
     const beforeReviewCheck = readJournal(journal).length;
@@ -199,6 +213,13 @@ describe("mission CLI", () => {
 
     const blockedReview = JSON.parse(fs.readFileSync(review, "utf8"));
     blockedReview.result = "blocked";
+    blockedReview.job_results = (blockedReview.job_results as Record<string, unknown>[]).map(
+      (entry, index) => (index === 0 ? { ...entry, result: "block" } : entry),
+    );
+    blockedReview.findings = [
+      { id: "R-001", affected_jobs: [blockedReview.job_results[0].job_id] },
+      { id: "R-002", affected_jobs: [blockedReview.job_results[0].job_id] },
+    ];
     fs.writeFileSync(review, JSON.stringify(blockedReview));
     expect(m.run("review", MISSION, "WP-attendance-export", "--receipt", review).status).toBe(0);
     expect(
@@ -378,6 +399,9 @@ describe("mission CLI", () => {
           round: 1,
           result: "clear",
           ci_state: "green",
+          ...cliReviewFlow(m.run, m.repo, MISSION, "WP-attendance-export", HEAD, {
+            env: m.env,
+          }),
         }),
       ).status,
     ).toBe(0);
@@ -847,6 +871,9 @@ describe("mission CLI", () => {
           round: 1,
           result: "clear",
           ci_state: "green",
+          ...cliReviewFlow(m.run, m.repo, MISSION, "WP-attendance-export", HEAD, {
+            env: m.env,
+          }),
         }),
       ).status,
     ).toBe(0);

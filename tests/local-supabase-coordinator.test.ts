@@ -16,6 +16,7 @@ import {
   coordinatorPaths,
   coordinatorStatus,
   findOwningSessionPid,
+  implementationRecord,
   markConfigApplied,
   missionSlot,
   releaseLease as releaseLeaseRaw,
@@ -85,6 +86,79 @@ function fixture() {
 
 afterEach(() => {
   for (const root of temporary.splice(0)) fs.rmSync(root, { recursive: true, force: true });
+});
+
+/**
+ * LAN-179. A review runtime is a mission stack with a different purpose: the
+ * broker takes one per invocation, keyed by its runtime id, and it is never the
+ * stack the implementation workers share. Every rule below exists so a reviewer
+ * resetting its database cannot destroy what an implementer is working against.
+ */
+describe("review-purpose mission stacks", () => {
+  const MISSION = "M-SYNTHETIC-REHEARSAL";
+  const HEAD = "a".repeat(40);
+
+  const allocate = (
+    fixtureValue: ReturnType<typeof fixture>,
+    extra: Record<string, unknown> = {},
+  ) =>
+    acquireMissionLease({
+      missionId: MISSION,
+      repoPath: fixtureValue.repo,
+      baseCommit: HEAD,
+      migrationHead: 7,
+      pid: process.pid,
+      env: fixtureValue.env,
+      portProbe: async () => false,
+      ...extra,
+    });
+
+  it("keeps every implementation worker on one shared stack", async () => {
+    const f = fixture();
+    const stack = await allocate(f);
+    const again = await allocate(f);
+    expect(again.slot).toBe(stack.slot);
+    expect(again.applicationPort).toBe(stack.applicationPort);
+    expect(implementationRecord(coordinatorStatus(f.repo, f.env), MISSION)?.slot).toBe(stack.slot);
+  });
+
+  it("gives a review runtime a different stack, ports and record", async () => {
+    const f = fixture();
+    const stack = await allocate(f);
+    const review = await allocate(f, { purpose: "review", runtimeId: "rt-abcdef01" });
+    expect(review.slot).not.toBe(stack.slot);
+    expect(review.applicationPort).not.toBe(stack.applicationPort);
+    expect(review.purpose).toBe("review");
+    // Asking again for the implementation stack still returns the stack.
+    expect((await allocate(f)).slot).toBe(stack.slot);
+    expect(implementationRecord(coordinatorStatus(f.repo, f.env), MISSION)?.slot).toBe(stack.slot);
+  });
+
+  it("refuses to attach an implementation worker to a review runtime", async () => {
+    const f = fixture();
+    await allocate(f);
+    const review = await allocate(f, { purpose: "review", runtimeId: "rt-abcdef01" });
+    const worker = path.join(path.dirname(f.repo), "worker");
+    fs.mkdirSync(worker, { recursive: true });
+    await expect(
+      attachMissionLease({
+        missionId: MISSION,
+        repoPath: worker,
+        token: review.token,
+        env: f.env,
+      }),
+    ).rejects.toThrow(/Missing, invalid, stale, or mismatched/);
+  });
+
+  it("refuses a review lease that is not bound to a broker runtime id", async () => {
+    const f = fixture();
+    await expect(allocate(f, { purpose: "review" })).rejects.toThrow(
+      /bound to the broker's runtime id/,
+    );
+    await expect(allocate(f, { purpose: "sightseeing", runtimeId: "rt-abcdef01" })).rejects.toThrow(
+      /purpose is one of/,
+    );
+  });
 });
 
 describe("two-slot local Supabase coordinator", () => {

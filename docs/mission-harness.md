@@ -143,6 +143,119 @@ npm run mission -- resume M-<id> --token <token>
 `mission init` opens the planning epoch as it records the packet, so there is
 never a window in which a Lead is unbounded.
 
+## Review runtimes and the evidence they owe
+
+Since LAN-179 the Mission Lead no longer owns a reviewer's environment. It asks
+for a **capability profile**; a broker allocates, prepares, health-proves and
+reclaims the runtime. The chain is one invariant:
+
+> required capabilities → broker provision → fresh assigned actor executes →
+> structured evidence → state gate → deterministic cleanup
+
+### Who gets what
+
+Implementation workers keep sharing the one mission stack, under the same
+mutation-serialization rules. Every **review invocation** — including each
+correction round — gets its own freshly prepared, exact-head runtime on a
+coordinator slot whose purpose is `review`, never the implementation stack. The
+integrated walker gets its own runtime at the current `main` head. A review
+runtime cannot be attached to by an implementation worker, so a reviewer's reset
+can never destroy what an implementer is working against.
+
+Capacity is refused, never borrowed. When no slot is free the invocation records
+`waiting-for-capacity` and keeps its identity and contract. The infrastructure
+states — `ready`, `waiting-for-capacity`, `provisioning-failed`, `unhealthy`,
+`abandoned`, `released` — share no vocabulary with `clear` and `blocked`, because
+the failure this replaces was a missing runtime arriving at the journal wearing a
+review verdict.
+
+### The contract is generated, not written
+
+`mission review request` classifies the exact-head diff through the checked-in
+`reviewContract` rules in `.github/mission-merge-rules.json` and derives the
+capabilities and the job set from durable state: the package's `requirement_ids`
+against the packet, the sensitive-path intersection, the rendered classifier, the
+public-token surfaces, the transport seam, and any changed seed or fixture
+source. The state machine re-derives the same contract when the request is
+appended and refuses any difference — so a Lead may add a diagnostic question and
+can never remove a generated capability or job.
+
+Deterministic clearance survives only while the sensitive, rendered and evidence
+union is empty; the classifier output is journaled either way. A seed or fixture
+change is review-affecting even though no component changed.
+
+The walker's contract carries **every** completion criterion in the packet, as
+stable ordinal ids (`CE-001`…) with the text preserved verbatim, plus one job per
+workflow-matrix id. A nonempty `jobs_completed` string is no longer accepted in
+its place. A targeted re-walk may contain only the criteria the blocked smoke's
+findings named in `affected_jobs`.
+
+### What a clear receipt has to prove
+
+Invocation, runtime, agent identity, contract hash and exact head must all match
+what was dispatched, and there must be one job result for every contract job —
+set equality, so an omission is refused rather than summarized away. Each result
+records what was executed, the assertion outcome, an evidence reference, the
+synthetic scenario ids, its evidence kind, and — for a rendered job — the width
+each browser context actually measured (exactly 375, and at least 1280). A job
+whose contract says `live` cannot be discharged by static reasoning, and a
+passing job cannot be described as skipped, not performed, or blocked by a busy
+port, lease or slot. A blocked receipt names findings, and every blocked job is
+named by one.
+
+The reviewer or walker identity may not be the Mission Lead's, may not be an
+implementer of the work, and may not be an identity that already held an
+invocation on this mission.
+
+### Owner-ready environments
+
+A promotion is accepted only from a machine-cleared invocation at the exact head,
+and records the environment id, its URL, the fixed local review identity, the
+desktop and 375px state manifest, and `owner_commands: 0`. Brian runs nothing.
+
+### Reclamation
+
+Every terminal path — clear, blocked, provisioning failure, abandonment, obsolete
+head, mission stop — asks for a release, and the frontier says so without the
+Lead remembering. A release records the slot, that the lease went back, that the
+application stopped, that the slot is reusable, that status no longer reports it
+active, and that the checkout was clean with nothing unpushed. Cleanup refuses a
+runtime whose invocation is still live and refuses to reclaim work that would be
+destroyed.
+
+### Commands
+
+```
+npm run mission -- review request M-<id> WP-<pkg> --head <sha> --files <name-status file> \
+    [--round N] [--finding-ids R-001,R-002]
+npm run mission -- review provision M-<id> --invocation <id> [--attempt N] [--outcome <file>]
+npm run mission -- review dispatch M-<id> --invocation <id> --agent <id> --session <id>
+npm run mission -- review status M-<id> [--invocation <id>]
+npm run mission -- review abandon M-<id> --invocation <id> --reason <why>
+npm run mission -- review receipt M-<id> WP-<pkg> --file <review.json> [--check]
+npm run mission -- walker request M-<id> --head <sha> [--affected CE-003,CE-011]
+npm run mission -- walker dispatch M-<id> --invocation <id> --agent <id> --session <id>
+npm run mission -- walker receipt M-<id> --file <integrated-review.json> [--check]
+npm run mission -- runtime status M-<id>
+npm run mission -- runtime promote M-<id> --invocation <id> --environment <id> --url <url> \
+    --identity <review account> --states <manifest file>
+npm run mission -- runtime release M-<id> --runtime <id>
+npm run mission -- runtime cleanup-stale M-<id>
+```
+
+The original `mission review M-<id> WP-<pkg> --receipt <file>` still files a
+receipt; a subcommand name can never be a mission id, so both forms are exact.
+
+### The honest limit
+
+The host exposes no way to prove that a reviewer is a genuinely fresh model
+context, and a pid proves nothing — every agent in one session shares it. What
+the harness enforces is the strongest boundary available: a distinct agent and
+session identity per invocation, refused when it is the Lead's, an implementer's,
+or an identity that already reviewed on this mission. That is a real fence
+against the Mission 4 shape; it is not, and is never reported as, proof of a
+fresh model.
+
 ## Finishing a mission
 
 `/run-mission` stops short of closeout, for the reason `/start-issue` does:
@@ -450,6 +563,12 @@ with the missing work named; a package blocks rather than pretends.
   fresh session.
 - Mission state is machine-local: a different machine starts from the
   repository's durable artifacts (PRs, branches, Linear), not the journal.
+- Reviewer and walker freshness is enforced by agent and session identity, not
+  proved: no host signal distinguishes a fresh model context from a reused one.
+- The broker's live provisioning path (worktree, dependencies, database reset and
+  seed, application, health) runs the repository's own guarded commands; its
+  decisions — allocation, queueing, health judgement, reclamation refusals — are
+  what the test suite proves, with the executors injected.
 
 ## Context and turn economy
 

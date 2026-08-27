@@ -31,16 +31,25 @@ import {
   missionPaths,
   nextActions,
   packageLifecycle,
+  liveReviewRuntimes,
   readJournal,
   replayState,
   resumeDossier,
+  reviewQueue,
   validateEvent,
 } from "./lib/state.mjs";
 import { EPOCH_EVENT_TYPES } from "./lib/epochs.mjs";
 import { promoteRule, readRules } from "./lib/owner-rules.mjs";
+import {
+  buildPackageReviewContract,
+  buildWalkerContract,
+  contractHash,
+} from "./lib/review-contract.mjs";
+import { provisionReviewRuntime, releaseReviewRuntime } from "./lib/runtime-broker.mjs";
+import { repositoryExecutors } from "./runtime-broker-executors.mjs";
 import { deriveGitVisualFiles, evaluateProspectiveMissionGate, loadRules } from "./merge-gate.mjs";
 import { parseNameStatus } from "../fast-lane/classify.mjs";
-import { coordinatorStatus } from "../lib/local-supabase-coordinator.mjs";
+import { coordinatorStatus, implementationRecord } from "../lib/local-supabase-coordinator.mjs";
 
 const repoPath = process.cwd();
 const finishMissionScript = import.meta.url.startsWith("file:")
@@ -87,6 +96,25 @@ function parseArguments(argv) {
 }
 
 const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
+
+/** The migration head the coordinator allocates against: how many exist. */
+function migrationHeadCount() {
+  try {
+    return fs
+      .readdirSync(path.join(repoPath, "supabase", "migrations"))
+      .filter((entry) => entry.endsWith(".sql")).length;
+  } catch {
+    return 0;
+  }
+}
+
+/** The coordinator slot the broker just took for this runtime, read back. */
+function currentReviewSlot(runtimeId) {
+  const record = Object.values(coordinatorStatus(repoPath).slots).find(
+    (candidate) => candidate.runtimeId === runtimeId,
+  );
+  return record?.slot;
+}
 
 /**
  * The events a mission that has never adopted a Lead epoch may still record:
@@ -381,7 +409,9 @@ export function renderCheckpoint(state, events, options = {}) {
 async function main() {
   const [command, ...rest] = process.argv.slice(2);
   const { flags, positional } = parseArguments(rest);
-  const missionId = positional[0];
+  // `review`, `walker` and `runtime` lead with a subcommand, so they reassign
+  // this from their own argument list.
+  let missionId = positional[0];
 
   switch (command) {
     case "init": {
@@ -634,26 +664,350 @@ async function main() {
       break;
     }
 
-    case "review": {
-      const [, packageId] = positional;
-      if (!missionId || !packageId || !flags.receipt) {
-        fail("Usage: mission review <mission-id> <package-id> --receipt <file> [--check]");
+    /**
+     * The review invocation surface (LAN-179).
+     *
+     * `request` classifies and generates; `provision` brokers a runtime;
+     * `dispatch` binds a fresh reviewer identity; `receipt` files what that
+     * reviewer returned. The Lead never names a port, a lease or a slot, and
+     * the legacy `mission review <mission> <package> --receipt` form still
+     * works because a package id can never be one of these subcommands.
+     */
+    case "review":
+    case "walker": {
+      const walker = command === "walker";
+      // `mission review request M-... WP-...` leads with its subcommand, while
+      // the original `mission review M-... WP-... --receipt <file>` leads with
+      // the mission. Both are accepted: a subcommand name can never be a
+      // mission id, so the discrimination is exact.
+      const SUBCOMMANDS = ["request", "provision", "dispatch", "status", "abandon", "receipt"];
+      const subcommand = SUBCOMMANDS.includes(positional[0])
+        ? positional[0]
+        : walker
+          ? null
+          : "receipt";
+      const args = SUBCOMMANDS.includes(positional[0]) ? positional.slice(1) : positional;
+      missionId = args[0];
+      if (!missionId) fail(`Usage: mission ${command} <subcommand> <mission-id> ...`);
+
+      if (subcommand === "request") {
+        const state = replayState(repoPath, missionId);
+        const head = flags.head;
+        if (!/^[0-9a-f]{40}$/.test(head ?? "")) {
+          fail(
+            `Usage: mission ${command} request <mission-id>${walker ? "" : " <package-id>"} --head <40-char sha> ...`,
+          );
+        }
+        const invocationId = flags.invocation ?? `inv-${crypto.randomUUID().slice(0, 12)}`;
+        let event;
+        if (walker) {
+          const affected = flags.affected
+            ? String(flags.affected).split(",").filter(Boolean)
+            : undefined;
+          const contract = buildWalkerContract({
+            state,
+            headSha: head,
+            affectedJobIds: affected ?? null,
+          });
+          event = {
+            type: "review-invocation-requested",
+            invocation_id: invocationId,
+            role: "workflow-walker",
+            head_sha: head,
+            round: contract.round,
+            ...(affected ? { affected_job_ids: affected } : {}),
+            contract,
+            contract_hash: contractHash(contract),
+          };
+        } else {
+          const packageId = args[1];
+          if (!packageId || !flags.files) {
+            fail(
+              "Usage: mission review request <mission-id> <package-id> --head <sha> --files <git name-status file> [--round N] [--finding-ids R-001,R-002]",
+            );
+          }
+          const files = parseNameStatus(fs.readFileSync(flags.files, "utf8"));
+          const findingIds = flags["finding-ids"]
+            ? String(flags["finding-ids"]).split(",").filter(Boolean)
+            : [];
+          const round = Number(flags.round ?? 1);
+          const contract = buildPackageReviewContract({
+            state,
+            packageId,
+            headSha: head,
+            round,
+            files,
+            rules: loadRules(),
+            findingIds,
+          });
+          event = {
+            type: "review-invocation-requested",
+            invocation_id: invocationId,
+            role: "package-reviewer",
+            package_id: packageId,
+            head_sha: head,
+            round,
+            changed_files: files,
+            ...(findingIds.length > 0 ? { finding_ids: findingIds } : {}),
+            contract,
+            contract_hash: contractHash(contract),
+          };
+        }
+        if (flags.check === true) {
+          checkWithoutAppending(missionId, event, `Review request ${invocationId}`);
+          break;
+        }
+        await append(missionId, event);
+        console.log(
+          JSON.stringify(
+            {
+              invocation_id: invocationId,
+              role: event.role,
+              capabilities: event.contract.capabilities,
+              jobs: event.contract.jobs.map((entry) => entry.id),
+              reviewer_required: event.contract.reviewer_required,
+              contract_hash: event.contract_hash,
+            },
+            null,
+            2,
+          ),
+        );
+        break;
       }
-      const receipt = readJson(flags.receipt);
+
+      if (subcommand === "provision") {
+        if (!flags.invocation)
+          fail(`Usage: mission ${command} provision <mission-id> --invocation <id> [--attempt N]`);
+        const state = replayState(repoPath, missionId);
+        const invocation = state.reviewInvocations[flags.invocation];
+        if (!invocation) fail(`No invocation ${flags.invocation}.`);
+        const registry = coordinatorStatus(repoPath);
+        const stack = implementationRecord(registry, missionId);
+        // `--outcome` records a broker run that already happened. It is how a
+        // rehearsal proves these decisions without Docker, and how a retry
+        // files an outcome the broker produced in a previous invocation of this
+        // command. The health receipt is validated either way.
+        const outcome = flags.outcome
+          ? readJson(flags.outcome)
+          : await provisionReviewRuntime({
+              invocationId: invocation.invocation_id,
+              role: invocation.role,
+              missionId,
+              headSha: invocation.head_sha,
+              capabilities: invocation.contract.capabilities,
+              attempt: Number(flags.attempt ?? 1),
+              registry,
+              liveRuntimes: liveReviewRuntimes(state).map((runtime) => runtime.runtime_id),
+              executors: repositoryExecutors({
+                repoPath,
+                missionId,
+                baseCommit: invocation.head_sha,
+                migrationHead: migrationHeadCount(),
+              }),
+            });
+        await append(missionId, {
+          type: "review-runtime-ready",
+          invocation_id: invocation.invocation_id,
+          role: invocation.role,
+          ...(invocation.package_id ? { package_id: invocation.package_id } : {}),
+          runtime_id: outcome.runtime_id,
+          state: outcome.state,
+          reason: outcome.reason,
+          health: outcome.health,
+          lease_slot: outcome.lease_slot ?? currentReviewSlot(outcome.runtime_id),
+          implementation_slot: outcome.implementation_slot ?? stack?.slot ?? null,
+        });
+        console.log(JSON.stringify(outcome, null, 2));
+        if (outcome.state !== "ready") process.exitCode = 2;
+        break;
+      }
+
+      if (subcommand === "dispatch") {
+        if (!flags.invocation || !flags.agent || !flags.session) {
+          fail(
+            `Usage: mission ${command} dispatch <mission-id> --invocation <id> --agent <fresh agent id> --session <session id> [--deterministic]`,
+          );
+        }
+        const dispatching = replayState(repoPath, missionId).reviewInvocations[flags.invocation];
+        await append(missionId, {
+          type: walker ? "walker-dispatched" : "reviewer-dispatched",
+          invocation_id: flags.invocation,
+          ...(dispatching?.package_id ? { package_id: dispatching.package_id } : {}),
+          agent_id: flags.agent,
+          session_id: flags.session,
+          ...(flags.deterministic === true ? { deterministic: true } : {}),
+        });
+        console.log(
+          `${walker ? "Walker" : "Reviewer"} ${flags.agent} dispatched against ${flags.invocation}.`,
+        );
+        break;
+      }
+
+      if (subcommand === "abandon") {
+        if (!flags.invocation || !flags.reason) {
+          fail(`Usage: mission ${command} abandon <mission-id> --invocation <id> --reason <why>`);
+        }
+        await append(missionId, {
+          type: "review-invocation-abandoned",
+          invocation_id: flags.invocation,
+          reason: flags.reason,
+        });
+        console.log(`Invocation ${flags.invocation} abandoned; a fresh one may be requested.`);
+        break;
+      }
+
+      if (subcommand === "status") {
+        const state = replayState(repoPath, missionId);
+        const invocations = flags.invocation
+          ? [state.reviewInvocations[flags.invocation]].filter(Boolean)
+          : Object.values(state.reviewInvocations);
+        console.log(
+          JSON.stringify(
+            {
+              invocations,
+              queue: reviewQueue(state),
+              runtimes: Object.values(state.reviewRuntimes),
+              owner_environments: Object.values(state.ownerEnvironments),
+            },
+            null,
+            2,
+          ),
+        );
+        break;
+      }
+
+      if (walker) {
+        // `mission walker receipt` files the integrated review the dispatched
+        // walker returned. The complete job set lives in the receipt; there is
+        // no prose substitute for it.
+        const file = flags.file ?? flags.receipt;
+        if (!file)
+          fail("Usage: mission walker receipt <mission-id> --file <integrated-review.json>");
+        const payload = readJson(file);
+        requireNonEmptyFile(payload.report, "Integrated review report");
+        const event = { ...payload, type: "integrated-review", mode: "workflow-walker" };
+        if (flags.check === true) {
+          checkWithoutAppending(missionId, event, "Integrated walk");
+          break;
+        }
+        await append(missionId, event);
+        console.log(`Integrated walk recorded at ${payload.head_sha}: ${payload.result}.`);
+        break;
+      }
+
+      const packageId = args[1];
+      const file = flags.file ?? flags.receipt;
+      if (!packageId || !file) {
+        fail(
+          "Usage: mission review receipt <mission-id> <package-id> --file <review.json> [--check]",
+        );
+      }
+      const receipt = readJson(file);
       if (["security-tier", "package-gate"].includes(receipt.review_mode)) {
         requireNonEmptyFile(receipt.report, "Package-gate review report");
       }
-      const event = {
-        type: "review-receipt",
-        package_id: packageId,
-        receipt,
-      };
+      const event = { type: "review-receipt", package_id: packageId, receipt };
       if (flags.check === true) {
         checkWithoutAppending(missionId, event, `Review receipt for ${packageId}`);
         break;
       }
       await append(missionId, event);
       console.log(`Review receipt recorded for ${packageId}.`);
+      break;
+    }
+
+    /**
+     * Runtime ownership belongs to the broker, not to the Lead's memory.
+     * `cleanup-stale` is the path that runs without anybody remembering: it
+     * releases every runtime whose invocation is finished and refuses any whose
+     * checkout holds work that was never pushed.
+     */
+    case "runtime": {
+      const [subcommand, runtimeMissionId] = positional;
+      missionId = runtimeMissionId;
+      if (!missionId)
+        fail("Usage: mission runtime <mission-id> <status|release|cleanup-stale|promote>");
+      const state = replayState(repoPath, missionId);
+
+      if (subcommand === "promote") {
+        for (const required of ["invocation", "environment", "url", "identity", "states"]) {
+          if (!flags[required]) {
+            fail(
+              "Usage: mission runtime promote <mission-id> --invocation <id> --environment <id> --url <url> --identity <fixed review account> --states <manifest file>",
+            );
+          }
+        }
+        const invocation = state.reviewInvocations[flags.invocation];
+        await append(missionId, {
+          type: "review-runtime-promoted",
+          invocation_id: flags.invocation,
+          package_id: invocation?.package_id,
+          environment_id: flags.environment,
+          url: flags.url,
+          review_identity: flags.identity,
+          head_sha: invocation?.head_sha,
+          owner_commands: 0,
+          state_manifest: readJson(flags.states),
+        });
+        console.log(
+          `${flags.environment} is owner-ready at ${flags.url}. Brian runs no commands; the broker keeps it alive and releases it on his disposition.`,
+        );
+        break;
+      }
+
+      const targets =
+        subcommand === "release"
+          ? [state.reviewRuntimes[flags.runtime]].filter(Boolean)
+          : subcommand === "cleanup-stale"
+            ? Object.values(state.reviewRuntimes).filter((runtime) => {
+                if (runtime.state === "released") return false;
+                const owner = state.reviewInvocations[runtime.invocation_id];
+                return !owner || !["requested", "dispatched"].includes(owner.disposition);
+              })
+            : null;
+
+      if (targets === null) {
+        console.log(
+          JSON.stringify(
+            {
+              runtimes: Object.values(state.reviewRuntimes),
+              queue: reviewQueue(state),
+              live: liveReviewRuntimes(state).map((runtime) => runtime.runtime_id),
+              owner_environments: Object.values(state.ownerEnvironments),
+            },
+            null,
+            2,
+          ),
+        );
+        break;
+      }
+      if (subcommand === "release" && targets.length === 0) {
+        fail(`No brokered runtime ${flags.runtime ?? "(unnamed)"}.`);
+      }
+      const executors = repositoryExecutors({
+        repoPath,
+        missionId,
+        baseCommit: state.packet?.baseline?.commit ?? "0".repeat(40),
+        migrationHead: migrationHeadCount(),
+      });
+      for (const runtime of targets) {
+        try {
+          const reclamation = await releaseReviewRuntime({
+            runtime,
+            invocation: state.reviewInvocations[runtime.invocation_id] ?? null,
+            executors,
+          });
+          await append(missionId, {
+            type: "review-runtime-released",
+            runtime_id: runtime.runtime_id,
+            reclamation,
+          });
+          console.log(`${runtime.runtime_id} released ${reclamation.lease_slot}.`);
+        } catch (error) {
+          console.warn(`${runtime.runtime_id} was left alone: ${error.message}`);
+          process.exitCode = 2;
+        }
+      }
       break;
     }
 
@@ -1197,7 +1551,7 @@ async function main() {
 
     default:
       fail(
-        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, integrated-review, closeout, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, annotate, rules, merge-record, checkpoint, epoch, heartbeat, stop, resume, status.`,
+        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, integrated-review, closeout, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, annotate, rules, merge-record, checkpoint, epoch, review, walker, runtime, heartbeat, stop, resume, status.`,
       );
   }
 }

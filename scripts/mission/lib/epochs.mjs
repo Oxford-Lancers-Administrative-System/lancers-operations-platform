@@ -31,6 +31,21 @@ export const EPOCH_PHASES = [
  */
 export const EPOCH_STATUSES = ["open", "boundary-pending", "draining", "closed"];
 
+/**
+ * The invocation and runtime lifecycle LAN-179 added, kept beside the epoch
+ * vocabulary because every one of them has to be classified below before the
+ * validator will accept it.
+ */
+export const REVIEW_INVOCATION_EVENT_TYPES = [
+  "review-invocation-requested",
+  "review-runtime-ready",
+  "reviewer-dispatched",
+  "walker-dispatched",
+  "review-invocation-abandoned",
+  "review-runtime-promoted",
+  "review-runtime-released",
+];
+
 export const EPOCH_EVENT_TYPES = [
   "lead-epoch-opened",
   "lead-epoch-boundary-reached",
@@ -112,7 +127,33 @@ export const EVENT_ACTION_CLASSES = {
   "mission-abandoned": "always",
   "mission-stopped": "always",
   "mission-resumed": "always",
+  // LAN-179. Two of these carry a role, and the role decides the class: asking
+  // for a package reviewer is `evidence` work inside an execution wave, while
+  // asking for the integrated walker is `integration` work that belongs to the
+  // integration epoch. One event type would otherwise have to be permitted in
+  // both phases, which would let a wave Lead open the walk.
+  "review-invocation-requested": (event) =>
+    event?.role === "workflow-walker" ? "integration" : "evidence",
+  "review-runtime-ready": (event) =>
+    event?.role === "workflow-walker" ? "integration" : "evidence",
+  "reviewer-dispatched": "evidence",
+  "walker-dispatched": "integration",
+  // Abandoning an invocation and releasing a runtime only give resources back,
+  // so they follow `package-reclaimed`: a fence that stopped a dead mission
+  // being tidied up would protect nothing.
+  "review-invocation-abandoned": "always",
+  "review-runtime-released": "always",
+  "review-runtime-promoted": "progression",
 };
+
+/**
+ * The action class for one event. Most entries are a bare string; the few that
+ * depend on the event's role are a function of it.
+ */
+export function actionClassFor(event) {
+  const entry = EVENT_ACTION_CLASSES[event?.type];
+  return typeof entry === "function" ? entry(event) : entry;
+}
 
 /** The classes whose event names a package, and so must be inside epoch scope. */
 export const PACKAGE_SCOPED_CLASSES = [

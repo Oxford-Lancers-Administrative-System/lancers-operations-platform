@@ -30,6 +30,7 @@ import {
   validateWorkflowInventory,
 } from "../scripts/mission/lib/packet.mjs";
 import { promoteRule, readRules, validateRule } from "../scripts/mission/lib/owner-rules.mjs";
+import { withReviewInvocations } from "./helpers/mission-invocations";
 import { emptyEpochSignals, epochHealth } from "../scripts/mission/lib/epochs.mjs";
 
 const packet = JSON.parse(
@@ -54,8 +55,11 @@ function fixture() {
   fs.mkdirSync(repo, { recursive: true });
   const env = { ...process.env, LANCERS_MISSION_ROOT: path.join(root, "state") };
   let tick = 1_700_000_000_000;
-  const append = (event: object) => appendEvent(repo, MISSION, event, { env, now: (tick += 1000) });
-  return { repo, env, append };
+  const raw = (event: object) => appendEvent(repo, MISSION, event, { env, now: (tick += 1000) });
+  // LAN-179: a receipt now needs a real invocation behind it. These cases are
+  // about everything else, so the helper performs those events for them.
+  const append = withReviewInvocations(repo, MISSION, env, raw);
+  return { repo, env, append, raw };
 }
 
 /**

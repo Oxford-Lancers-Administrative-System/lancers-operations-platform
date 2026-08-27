@@ -30,13 +30,22 @@ import {
   BOUNDARY_PERMITTED_CLASSES,
   EPOCH_EVENT_TYPES,
   EPOCH_LIMITS,
-  EVENT_ACTION_CLASSES,
   PACKAGE_SCOPED_CLASSES,
   PHASE_PERMITS,
+  REVIEW_INVOCATION_EVENT_TYPES,
+  actionClassFor,
   buildResumeDossier,
   emptyEpochSignals,
   epochHealth,
 } from "./epochs.mjs";
+import {
+  INVOCATION_ROLES,
+  buildPackageReviewContract,
+  buildWalkerContract,
+  contractHash,
+  jobResultDefects,
+} from "./review-contract.mjs";
+import { RUNTIME_STATES, healthDefects, reclamationDefects } from "./runtime-broker.mjs";
 import { parseNameStatus } from "../../fast-lane/classify.mjs";
 import { buildMissionReceipt, classifyVisualDelta, loadRules } from "../merge-gate.mjs";
 
@@ -77,6 +86,7 @@ export const EVENT_TYPES = [
   "mission-stopped",
   "mission-resumed",
   ...EPOCH_EVENT_TYPES,
+  ...REVIEW_INVOCATION_EVENT_TYPES,
 ];
 
 export const PHASE_BOUNDARIES = ["plan-approved"];
@@ -262,6 +272,129 @@ function missionWorkflowSmokes(state, afterEventIndex = -1) {
 
 function finalMissionSmokeClear(state) {
   return finalMissionSmoke(state)?.result === "clear";
+}
+
+/**
+ * Every review or walker invocation this mission has opened, newest last.
+ *
+ * LAN-179. Before this, reviewer dispatch left no trace at all: the journal
+ * could not say who reviewed a package, whether their environment was fresh, or
+ * which capabilities they were given. A receipt was therefore accepted on the
+ * strength of its own contents, which is exactly how a review that had done no
+ * live checking cleared a package that depended on them.
+ */
+export const INVOCATION_DISPOSITIONS = [
+  "requested",
+  "dispatched",
+  "completed",
+  "blocked",
+  "abandoned",
+];
+
+/** Runtimes this mission is still holding, so capacity can be counted. */
+export function liveReviewRuntimes(state) {
+  return Object.values(state.reviewRuntimes).filter(
+    (runtime) => !["released", "abandoned", "provisioning-failed"].includes(runtime.state),
+  );
+}
+
+/** The invocations that are waiting for infrastructure rather than a verdict. */
+export function reviewQueue(state) {
+  return Object.values(state.reviewInvocations)
+    .filter((invocation) => invocation.disposition === "requested")
+    .map((invocation) => ({
+      invocation_id: invocation.invocation_id,
+      role: invocation.role,
+      package_id: invocation.package_id ?? null,
+      head_sha: invocation.head_sha,
+      round: invocation.round,
+      runtime_state: invocation.runtime_state ?? "unprovisioned",
+      runtime_id: invocation.runtime_id ?? null,
+      reason: invocation.runtime_reason ?? null,
+    }));
+}
+
+/**
+ * The contract the harness would generate for this request right now.
+ *
+ * The Lead sends its derivation; this recomputes it and the validator refuses
+ * any difference, exactly as `package-gate-passed` re-derives the merge receipt.
+ * That is what makes "the Lead may add a diagnostic question but cannot remove a
+ * generated capability or job" a property of the state machine.
+ */
+function deriveRequestedContract(event, state) {
+  if (event.role === "workflow-walker") {
+    return buildWalkerContract({
+      state,
+      headSha: event.head_sha,
+      affectedJobIds: Array.isArray(event.affected_job_ids) ? event.affected_job_ids : null,
+    });
+  }
+  return buildPackageReviewContract({
+    state,
+    packageId: event.package_id,
+    headSha: event.head_sha,
+    round: event.round,
+    files: Array.isArray(event.changed_files) ? event.changed_files : [],
+    rules: loadRules(),
+    findingIds: Array.isArray(event.finding_ids) ? event.finding_ids : [],
+  });
+}
+
+/**
+ * Whether this agent identity is fresh enough to file this role's evidence.
+ *
+ * The host exposes no way to prove a model context is new, and a pid proves
+ * nothing — every agent in one session shares it. So the harness enforces the
+ * strongest boundary it actually has: an identity that has already acted in
+ * another role, or in an earlier invocation on this mission, is refused. That is
+ * a real fence against the Mission 4 shape, where the Lead derived a package's
+ * fixture clearance itself, and it is deliberately not advertised as proof of a
+ * fresh model.
+ */
+function freshnessRefusals(state, invocation, agentId) {
+  const refusals = [];
+  const where = invocation.role === "workflow-walker" ? "walker" : "reviewer";
+  if (state.lead?.lead_id && agentId === state.lead.lead_id) {
+    refusals.push(
+      `The Mission Lead's own identity cannot be dispatched as the ${where}. The Lead declares what proof is required and reacts to the outcome; it never files the evidence.`,
+    );
+  }
+  const pkg = invocation.package_id ? state.packages[invocation.package_id] : null;
+  const implementers = new Set(
+    [pkg?.worker_id, ...(pkg?.abandoned_workers ?? []).map((entry) => entry.worker_id)].filter(
+      Boolean,
+    ),
+  );
+  if (invocation.role === "workflow-walker") {
+    for (const candidate of Object.values(state.packages)) {
+      if (candidate.worker_id) implementers.add(candidate.worker_id);
+      for (const entry of candidate.abandoned_workers ?? []) implementers.add(entry.worker_id);
+    }
+  }
+  if (implementers.has(agentId)) {
+    refusals.push(
+      `${agentId} implemented this work. An implementer cannot review or walk it; the evidence would be the same agent agreeing with itself.`,
+    );
+  }
+  const priorAgents = Object.values(state.reviewInvocations)
+    .filter((other) => other.invocation_id !== invocation.invocation_id && other.agent_id)
+    .map((other) => other.agent_id);
+  if (priorAgents.includes(agentId)) {
+    refusals.push(
+      `${agentId} already held an invocation on this mission. Every review invocation — including each correction round — receives a fresh identity and a freshly prepared environment.`,
+    );
+  }
+  return refusals;
+}
+
+/** The blocked smoke whose findings a targeted re-walk may be derived from. */
+function lastBlockedSmoke(state) {
+  return (
+    state.integratedReviews
+      .filter((review) => review.mode === "workflow-walker" && review.result === "blocked")
+      .at(-1) ?? null
+  );
 }
 
 export const WORKER_RESULTS = [
@@ -786,7 +919,7 @@ function isCorrectionRescope(state, event) {
  */
 function epochRefusals(event, state, view) {
   const epoch = state.epoch;
-  const actionClass = EVENT_ACTION_CLASSES[event.type];
+  const actionClass = actionClassFor(event);
   if (actionClass === "always") return [];
   const where = `Lead epoch ${epoch.epoch_id} (${epoch.phase}, ${view.status})`;
   if (actionClass === undefined) {
@@ -1312,6 +1445,56 @@ export function validateEvent(event, state) {
       if (pkg.visual !== "nonvisual" && receipt.result === "clear") {
         errors.push(...uxConformanceDefects(receipt, event.package_id));
       }
+
+      // LAN-179. Everything above judges the receipt's own contents. What
+      // follows judges whether the receipt belongs to an invocation the harness
+      // opened, ran in the runtime that invocation was given, and discharged
+      // the contract that invocation was bound to. A receipt with no matching
+      // dispatch is refused outright — that is the Mission 4 shape where the
+      // Lead derived a package's clearance itself.
+      const invocation = state.reviewInvocations[receipt.invocation_id];
+      if (!invocation) {
+        errors.push(
+          `Review receipt names invocation ${receipt.invocation_id ?? "nothing"}, which was never dispatched. Request a review, let the broker prepare its runtime, dispatch a fresh reviewer, and file that reviewer's receipt.`,
+        );
+        break;
+      }
+      if (invocation.role !== "package-reviewer" || invocation.package_id !== event.package_id) {
+        errors.push(
+          `Invocation ${invocation.invocation_id} covers ${invocation.role === "workflow-walker" ? "the integrated walk" : invocation.package_id}, not ${event.package_id}. No agent files another role's receipt.`,
+        );
+        break;
+      }
+      if (invocation.disposition !== "dispatched") {
+        errors.push(
+          `Invocation ${invocation.invocation_id} is ${invocation.disposition}, not dispatched.`,
+        );
+      }
+      if (receipt.agent_id !== invocation.agent_id) {
+        errors.push(
+          `Receipt agent ${receipt.agent_id ?? "(unidentified)"} is not the dispatched reviewer ${invocation.agent_id}.`,
+        );
+      }
+      if (receipt.runtime_id !== invocation.runtime_id) {
+        errors.push(
+          `Receipt runtime ${receipt.runtime_id ?? "(unidentified)"} is not the runtime brokered for this invocation (${invocation.runtime_id}).`,
+        );
+      }
+      if (receipt.contract_hash !== invocation.contract_hash) {
+        errors.push(
+          "Receipt contract hash does not match the contract this invocation was bound to.",
+        );
+      }
+      if (receipt.reviewed_head_sha !== invocation.head_sha) {
+        errors.push(
+          `Receipt covers ${receipt.reviewed_head_sha ?? "no head"}; the invocation was opened at ${invocation.head_sha}.`,
+        );
+      }
+      if (invocation.contract) {
+        errors.push(
+          ...jobResultDefects(receipt, invocation.contract, invocation.capabilities_ready),
+        );
+      }
       break;
     }
 
@@ -1342,10 +1525,52 @@ export function validateEvent(event, state) {
       if (!["clear", "blocked"].includes(event.result)) {
         errors.push('An integrated review result is "clear" or "blocked".');
       }
-      if (event.mode === "workflow-walker" && !isNonEmptyString(event.jobs_completed)) {
-        errors.push(
-          "A workflow walker records the user jobs it completed end to end, not the screens it visited.",
-        );
+      // LAN-179 replaces the free-form summary. A nonempty `jobs_completed`
+      // string is what let the final Mission 4 walk report four journeys for a
+      // packet that named sixteen completion criteria. The contract now carries
+      // every criterion and the receipt answers each one by id.
+      if (event.mode === "workflow-walker") {
+        const invocation = state.reviewInvocations[event.invocation_id];
+        if (!invocation) {
+          errors.push(
+            `The walk names invocation ${event.invocation_id ?? "nothing"}, which was never dispatched. A prose summary of completed jobs is no longer accepted in its place.`,
+          );
+        } else if (invocation.role !== "workflow-walker") {
+          errors.push(
+            `Invocation ${invocation.invocation_id} is a ${invocation.role}; no agent files another role's receipt.`,
+          );
+        } else {
+          if (invocation.disposition !== "dispatched") {
+            errors.push(
+              `Invocation ${invocation.invocation_id} is ${invocation.disposition}, not dispatched.`,
+            );
+          }
+          if (event.agent_id !== invocation.agent_id) {
+            errors.push(
+              `Walk agent ${event.agent_id ?? "(unidentified)"} is not the dispatched walker ${invocation.agent_id}.`,
+            );
+          }
+          if (event.runtime_id !== invocation.runtime_id) {
+            errors.push(
+              `Walk runtime ${event.runtime_id ?? "(unidentified)"} is not the runtime brokered for this invocation (${invocation.runtime_id}).`,
+            );
+          }
+          if (event.contract_hash !== invocation.contract_hash) {
+            errors.push(
+              "The walk's contract hash does not match the contract it was dispatched under.",
+            );
+          }
+          if (event.head_sha !== invocation.head_sha) {
+            errors.push(
+              `The walk covers ${event.head_sha ?? "no head"}; the invocation was opened at ${invocation.head_sha}.`,
+            );
+          }
+          if (invocation.contract) {
+            errors.push(
+              ...jobResultDefects(event, invocation.contract, invocation.capabilities_ready),
+            );
+          }
+        }
       }
       if (event.mode === "workflow-walker" && !isNonEmptyString(event.report)) {
         errors.push("A workflow walker records its on-disk report path.");
@@ -1389,6 +1614,262 @@ export function validateEvent(event, state) {
       ) {
         errors.push("A blocked integrated review names its findings.");
       }
+      break;
+    }
+
+    case "review-invocation-requested": {
+      if (!isNonEmptyString(event.invocation_id)) {
+        errors.push("A review request carries a stable invocation id.");
+      } else if (state.reviewInvocations[event.invocation_id]) {
+        errors.push(`Invocation ${event.invocation_id} already exists.`);
+      }
+      if (!INVOCATION_ROLES.includes(event.role)) {
+        errors.push(`An invocation's role is one of ${INVOCATION_ROLES.join(", ")}.`);
+        break;
+      }
+      if (!/^[0-9a-f]{40}$/.test(event.head_sha ?? "")) {
+        errors.push("A review request records the exact 40-character head it covers.");
+      }
+      if (!Number.isInteger(event.round) || event.round < 1) {
+        errors.push("A review request records its round as a positive integer.");
+      }
+      if (event.role === "package-reviewer") {
+        const pkg = state.packages[event.package_id];
+        if (!pkg) {
+          errors.push(`No planned package ${event.package_id}.`);
+          break;
+        }
+        if (!pkg.pr_number)
+          errors.push(`${event.package_id} has no recorded pull request to review.`);
+        if (pkg.status === "merged") errors.push(`${event.package_id} is already merged.`);
+        if (event.head_sha !== pkg.head_sha) {
+          errors.push(
+            `The request covers ${event.head_sha ?? "no head"}, not ${event.package_id}'s current head ${pkg.head_sha ?? "no head"}. A correction head receives its own invocation.`,
+          );
+        }
+        if (!Array.isArray(event.changed_files) || event.changed_files.length === 0) {
+          errors.push(
+            "A package review request carries the exact-head diff its contract is classified from.",
+          );
+        }
+        const open = Object.values(state.reviewInvocations).find(
+          (invocation) =>
+            invocation.role === "package-reviewer" &&
+            invocation.package_id === event.package_id &&
+            ["requested", "dispatched"].includes(invocation.disposition),
+        );
+        if (open) {
+          errors.push(
+            `${event.package_id} already has a live invocation (${open.invocation_id}); abandon it before requesting another.`,
+          );
+        }
+      } else {
+        const live = Object.values(state.packages).filter((pkg) => pkg.status !== "removed");
+        if (live.length === 0 || live.some((pkg) => pkg.status !== "merged")) {
+          errors.push(
+            "The integrated walk is requested only after every live package has merged to main.",
+          );
+        }
+        if (event.affected_job_ids !== undefined) {
+          const blocked = lastBlockedSmoke(state);
+          if (!blocked) {
+            errors.push(
+              "A targeted re-walk narrows the job set, so it is derived only from a blocked smoke's findings.",
+            );
+          } else {
+            const lineage = new Set(
+              (blocked.findings ?? []).flatMap((finding) => finding?.affected_jobs ?? []),
+            );
+            const unnamed = (event.affected_job_ids ?? []).filter((id) => !lineage.has(id));
+            if (unnamed.length > 0) {
+              errors.push(
+                `${unnamed.join(", ")} is not named by any finding of the blocked smoke; a re-walk contains only the criteria the correction affected.`,
+              );
+            }
+          }
+        }
+      }
+      let derived = null;
+      try {
+        derived = deriveRequestedContract(event, state);
+      } catch (error) {
+        errors.push(`The contract could not be derived: ${error.message}`);
+      }
+      if (derived) {
+        const expected = contractHash(derived);
+        if (contractHash(event.contract ?? null) !== expected) {
+          errors.push(
+            "A review request records the exact contract the harness derives from durable state and the exact-head diff. A capability or job cannot be added, removed or reworded by whoever asked for the review.",
+          );
+        }
+        if (event.contract_hash !== expected) {
+          errors.push("A review request records its contract's hash.");
+        }
+      }
+      break;
+    }
+
+    case "review-runtime-ready": {
+      const invocation = state.reviewInvocations[event.invocation_id];
+      if (!invocation) {
+        errors.push(`No invocation ${event.invocation_id ?? "(unidentified)"}.`);
+        break;
+      }
+      if (invocation.role !== event.role) {
+        errors.push(
+          `Invocation ${invocation.invocation_id} is a ${invocation.role}, not a ${event.role}.`,
+        );
+      }
+      if (invocation.disposition !== "requested") {
+        errors.push(
+          `Invocation ${invocation.invocation_id} is ${invocation.disposition}; a runtime is prepared while it is still waiting.`,
+        );
+      }
+      if (!isNonEmptyString(event.runtime_id)) {
+        errors.push("A brokered runtime carries a stable runtime id.");
+      } else if (
+        state.reviewRuntimes[event.runtime_id] &&
+        state.reviewRuntimes[event.runtime_id].invocation_id !== invocation.invocation_id
+      ) {
+        errors.push(`Runtime ${event.runtime_id} already belongs to another invocation.`);
+      }
+      if (!RUNTIME_STATES.includes(event.state)) {
+        errors.push(`A runtime's state is one of ${RUNTIME_STATES.join(", ")}.`);
+        break;
+      }
+      if (event.state !== "ready") {
+        if (!isNonEmptyString(event.reason)) {
+          errors.push(
+            `A runtime that is ${event.state} records why. An infrastructure state is never a review result; the invocation keeps its identity and contract and waits.`,
+          );
+        }
+        break;
+      }
+      if (!isNonEmptyString(event.lease_slot)) {
+        errors.push("A ready runtime names the coordinator slot it holds.");
+      } else if (event.lease_slot === event.implementation_slot) {
+        errors.push(
+          `${event.lease_slot} is this mission's shared implementation stack. A review never borrows or resets the stack its implementers are using.`,
+        );
+      }
+      errors.push(
+        ...healthDefects(event.health, {
+          capabilities: invocation.contract?.capabilities ?? [],
+          headSha: invocation.head_sha,
+        }),
+      );
+      break;
+    }
+
+    case "reviewer-dispatched":
+    case "walker-dispatched": {
+      const wanted = event.type === "walker-dispatched" ? "workflow-walker" : "package-reviewer";
+      const invocation = state.reviewInvocations[event.invocation_id];
+      if (!invocation) {
+        errors.push(`No invocation ${event.invocation_id ?? "(unidentified)"}.`);
+        break;
+      }
+      if (invocation.role !== wanted) {
+        errors.push(
+          `Invocation ${invocation.invocation_id} is a ${invocation.role}; ${event.type} is refused.`,
+        );
+      }
+      if (invocation.disposition !== "requested") {
+        errors.push(`Invocation ${invocation.invocation_id} is already ${invocation.disposition}.`);
+      }
+      if (invocation.runtime_state !== "ready") {
+        errors.push(
+          `Invocation ${invocation.invocation_id} has ${invocation.runtime_state === undefined ? "no brokered runtime" : `a ${invocation.runtime_state} runtime`}. Nothing is dispatched until the broker proves a healthy runtime at ${invocation.head_sha}; missing capacity waits, and never narrows the review.`,
+        );
+      }
+      if (!isNonEmptyString(event.agent_id) || !isNonEmptyString(event.session_id)) {
+        errors.push("A dispatch records the fresh agent identity and its session identity.");
+        break;
+      }
+      if (invocation.contract?.reviewer_required === false && event.deterministic === true) {
+        // The empty sensitive/rendered/evidence union LAN-148 introduced and
+        // this ticket keeps. The classifier output is journaled either way, so
+        // a later reader sees what the machine concluded, not that somebody
+        // decided nothing needed looking at.
+        break;
+      }
+      if (event.deterministic === true) {
+        errors.push(
+          `${invocation.invocation_id}'s contract requires a reviewer: its sensitive, rendered or evidence classification is not empty. Deterministic clearance is refused.`,
+        );
+      }
+      errors.push(...freshnessRefusals(state, invocation, event.agent_id));
+      break;
+    }
+
+    case "review-invocation-abandoned": {
+      const invocation = state.reviewInvocations[event.invocation_id];
+      if (!invocation) {
+        errors.push(`No invocation ${event.invocation_id ?? "(unidentified)"}.`);
+        break;
+      }
+      if (["completed", "blocked", "abandoned"].includes(invocation.disposition)) {
+        errors.push(`Invocation ${invocation.invocation_id} is already ${invocation.disposition}.`);
+      }
+      if (!isNonEmptyString(event.reason)) {
+        errors.push("Abandoning an invocation records why, so a fresh one may be requested.");
+      }
+      break;
+    }
+
+    case "review-runtime-promoted": {
+      const invocation = state.reviewInvocations[event.invocation_id];
+      if (!invocation) {
+        errors.push(`No invocation ${event.invocation_id ?? "(unidentified)"}.`);
+        break;
+      }
+      const pkg = state.packages[invocation.package_id];
+      if (invocation.role !== "package-reviewer" || !pkg) {
+        errors.push("Only a package review invocation is promoted to an owner-ready environment.");
+        break;
+      }
+      if (invocation.disposition !== "completed" || invocation.result !== "clear") {
+        errors.push(
+          `Brian's walkthrough begins only from a machine-cleared head; invocation ${invocation.invocation_id} is ${invocation.disposition}${invocation.result ? ` (${invocation.result})` : ""}.`,
+        );
+      }
+      if (event.head_sha !== pkg.head_sha || event.head_sha !== invocation.head_sha) {
+        errors.push(
+          `An owner-ready environment serves the exact cleared head ${invocation.head_sha}; ${event.head_sha ?? "no head"} would show Brian something else.`,
+        );
+      }
+      for (const field of ["environment_id", "url", "review_identity"]) {
+        if (!isNonEmptyString(event[field])) {
+          errors.push(`An owner-ready promotion records \`${field}\`.`);
+        }
+      }
+      if (event.owner_commands !== 0) {
+        errors.push(
+          "An owner-ready environment costs Brian zero commands; `owner_commands` records that as 0.",
+        );
+      }
+      if (!Array.isArray(event.state_manifest) || event.state_manifest.length === 0) {
+        errors.push("An owner-ready promotion records the desktop and 375px state manifest.");
+      }
+      break;
+    }
+
+    case "review-runtime-released": {
+      const runtime = state.reviewRuntimes[event.runtime_id];
+      if (!runtime) {
+        errors.push(`No brokered runtime ${event.runtime_id ?? "(unidentified)"}.`);
+        break;
+      }
+      if (runtime.state === "released") {
+        errors.push(`Runtime ${runtime.runtime_id} is already released.`);
+      }
+      const owner = state.reviewInvocations[runtime.invocation_id];
+      if (owner && ["requested", "dispatched"].includes(owner.disposition)) {
+        errors.push(
+          `Invocation ${owner.invocation_id} is still ${owner.disposition} on runtime ${runtime.runtime_id}; cleanup never reclaims capacity somebody is using.`,
+        );
+      }
+      errors.push(...reclamationDefects(event.reclamation, event.runtime_id));
       break;
     }
 
@@ -2129,6 +2610,9 @@ export function validateEvent(event, state) {
  *   annotations: Array<Record<string, any>>,
  *   closeout: Record<string, any> | null,
  *   reclaimed: string[],
+ *   reviewInvocations: Record<string, any>,
+ *   reviewRuntimes: Record<string, any>,
+ *   ownerEnvironments: Record<string, any>,
  *   terminal: { at: string, state: "finalized" | "abandoned" } | null,
  *   epoch: Record<string, any> | null,
  *   epochHistory: Array<Record<string, any>>,
@@ -2173,6 +2657,9 @@ function emptyState() {
     closeout: null,
     reclaimed: [],
     terminal: null,
+    reviewInvocations: {},
+    reviewRuntimes: {},
+    ownerEnvironments: {},
     epoch: null,
     epochHistory: [],
     epochPlan: { futureWaves: [], recut: null },
@@ -2414,6 +2901,86 @@ export function reduce(events) {
         if (previousHead !== event.head_sha) pkg.gate_passed = null;
         break;
       }
+      case "review-invocation-requested":
+        state.reviewInvocations[event.invocation_id] = {
+          invocation_id: event.invocation_id,
+          role: event.role,
+          package_id: event.package_id ?? null,
+          head_sha: event.head_sha,
+          round: event.round,
+          contract: event.contract,
+          contract_hash: event.contract_hash,
+          classification: event.contract?.classification ?? null,
+          opened_at: event.at,
+          opening_event_index: index,
+          disposition: "requested",
+          runtime_id: null,
+          runtime_state: undefined,
+          runtime_reason: null,
+          capabilities_ready: null,
+          agent_id: null,
+          session_id: null,
+          result: null,
+        };
+        break;
+      case "review-runtime-ready": {
+        const invocation = state.reviewInvocations[event.invocation_id];
+        state.reviewRuntimes[event.runtime_id] = {
+          runtime_id: event.runtime_id,
+          invocation_id: event.invocation_id,
+          role: event.role,
+          state: event.state,
+          reason: event.reason ?? null,
+          lease_slot: event.lease_slot ?? null,
+          health: event.health ?? null,
+          at: event.at,
+        };
+        invocation.runtime_id = event.runtime_id;
+        invocation.runtime_state = event.state;
+        invocation.runtime_reason = event.reason ?? null;
+        invocation.capabilities_ready = event.health?.capabilities_ready ?? null;
+        break;
+      }
+      case "reviewer-dispatched":
+      case "walker-dispatched": {
+        const invocation = state.reviewInvocations[event.invocation_id];
+        invocation.disposition = "dispatched";
+        invocation.agent_id = event.agent_id;
+        invocation.session_id = event.session_id;
+        invocation.deterministic = event.deterministic === true;
+        invocation.dispatched_at = event.at;
+        break;
+      }
+      case "review-invocation-abandoned": {
+        const invocation = state.reviewInvocations[event.invocation_id];
+        invocation.disposition = "abandoned";
+        invocation.abandoned = { at: event.at, reason: event.reason };
+        break;
+      }
+      case "review-runtime-promoted": {
+        const invocation = state.reviewInvocations[event.invocation_id];
+        state.ownerEnvironments[event.environment_id] = {
+          environment_id: event.environment_id,
+          invocation_id: event.invocation_id,
+          package_id: invocation.package_id,
+          runtime_id: invocation.runtime_id,
+          head_sha: event.head_sha,
+          url: event.url,
+          review_identity: event.review_identity,
+          state_manifest: event.state_manifest,
+          promoted_at: event.at,
+        };
+        const runtime = state.reviewRuntimes[invocation.runtime_id];
+        if (runtime) runtime.state = "ready";
+        break;
+      }
+      case "review-runtime-released": {
+        const runtime = state.reviewRuntimes[event.runtime_id];
+        runtime.state = "released";
+        runtime.reclamation = event.reclamation;
+        runtime.released_at = event.at;
+        break;
+      }
       case "review-receipt": {
         const pkg = state.packages[event.package_id];
         if (state.epoch && !state.epoch.closed) {
@@ -2425,6 +2992,15 @@ export function reduce(events) {
         }
         pkg.gate_passed = null;
         pkg.review = { at: event.at, ...event.receipt };
+        // LAN-179: the invocation closes with the receipt it was opened for, so
+        // its runtime becomes reclaimable and a correction round has to open a
+        // fresh one with a fresh reviewer.
+        const invocation = state.reviewInvocations[event.receipt.invocation_id];
+        if (invocation) {
+          invocation.disposition = event.receipt.result === "clear" ? "completed" : "blocked";
+          invocation.result = event.receipt.result;
+          invocation.closed_at = event.at;
+        }
         if (event.receipt.result === "clear" && pkg.status === "implemented") {
           pkg.status = "reviewed";
         } else if (event.receipt.result === "blocked" && pkg.status === "implemented") {
@@ -2448,8 +3024,16 @@ export function reduce(events) {
           package_heads: event.package_heads,
           sensitive_paths: event.sensitive_paths ?? null,
           report: event.report ?? null,
+          invocation_id: event.invocation_id ?? null,
+          job_results: event.job_results ?? null,
         };
         state.integratedReviews.push(review);
+        const walker = state.reviewInvocations[event.invocation_id];
+        if (walker) {
+          walker.disposition = event.result === "clear" ? "completed" : "blocked";
+          walker.result = event.result;
+          walker.closed_at = event.at;
+        }
         break;
       }
       case "package-reclaimed": {
@@ -2950,12 +3534,42 @@ function ordinaryActions(state) {
       !reviewCovers(state, pkg) &&
       pkg.pr_number
     ) {
-      actions.push({
-        action: "package-gate",
-        package_id: pkg.id,
-        detail:
-          "Derive the exact-head sensitive-path intersection and visual class. Record deterministic clearance only when both are empty; otherwise run one bounded Sonnet package-gate review.",
-      });
+      const invocation = Object.values(state.reviewInvocations).find(
+        (candidate) =>
+          candidate.role === "package-reviewer" &&
+          candidate.package_id === pkg.id &&
+          candidate.head_sha === pkg.head_sha &&
+          ["requested", "dispatched"].includes(candidate.disposition),
+      );
+      if (!invocation) {
+        actions.push({
+          action: "package-gate",
+          package_id: pkg.id,
+          detail:
+            "Ask the broker for a review runtime. `mission review request` classifies the exact-head diff, generates the capability and job contract, and journals it; the Lead never chooses a port or a lease.",
+        });
+      } else if (invocation.runtime_state !== "ready") {
+        actions.push({
+          action: "await-review-runtime",
+          package_id: pkg.id,
+          detail:
+            invocation.runtime_state === undefined
+              ? `Invocation ${invocation.invocation_id} has no runtime yet. Run \`mission review provision\`; if capacity is busy it records waiting-for-capacity and the review waits.`
+              : `Invocation ${invocation.invocation_id} is ${invocation.runtime_state}${invocation.runtime_reason ? ` (${invocation.runtime_reason})` : ""}. Review waits for infrastructure; it is never narrowed to fit it.`,
+        });
+      } else if (invocation.disposition === "requested") {
+        actions.push({
+          action: "reviewer-dispatch",
+          package_id: pkg.id,
+          detail: `Runtime ${invocation.runtime_id} is healthy at ${invocation.head_sha.slice(0, 12)}. Dispatch one fresh Sonnet reviewer against invocation ${invocation.invocation_id}.`,
+        });
+      } else {
+        actions.push({
+          action: "review-receipt",
+          package_id: pkg.id,
+          detail: `Reviewer ${invocation.agent_id} holds invocation ${invocation.invocation_id}; file the receipt it returns, unchanged.`,
+        });
+      }
     }
     if (
       ["implemented", "reviewed"].includes(pkg.status) &&
@@ -2996,12 +3610,35 @@ function ordinaryActions(state) {
   const allMerged = live.length > 0 && live.every((pkg) => pkg.status === "merged");
   const smoke = finalMissionSmoke(state);
   const smokes = missionWorkflowSmokes(state);
-  if (allMerged && !smoke && smokes.length === 0) {
+  const walkerInvocation = Object.values(state.reviewInvocations).find(
+    (candidate) =>
+      candidate.role === "workflow-walker" &&
+      ["requested", "dispatched"].includes(candidate.disposition),
+  );
+  if (allMerged && !smoke && smokes.length === 0 && !walkerInvocation) {
     actions.push({
       action: "workflow-walker",
       detail:
-        "After every package is on main, run full verification once and one bounded smoke of the predetermined mission journeys at the current main head.",
+        "After every package is on main, run full verification once, then `mission walker request` — the contract carries every completion criterion in the packet, and the Lead cannot substitute a summary for it.",
     });
+  }
+  if (walkerInvocation) {
+    actions.push(
+      walkerInvocation.runtime_state !== "ready"
+        ? {
+            action: "await-walker-runtime",
+            detail: `Walk invocation ${walkerInvocation.invocation_id} is ${walkerInvocation.runtime_state ?? "unprovisioned"}${walkerInvocation.runtime_reason ? ` (${walkerInvocation.runtime_reason})` : ""}. No port and no lease means the walk waits, never that it narrows.`,
+          }
+        : walkerInvocation.disposition === "requested"
+          ? {
+              action: "walker-dispatch",
+              detail: `Dispatch one fresh Sonnet walker against invocation ${walkerInvocation.invocation_id}; it is distinct from every package reviewer and worker.`,
+            }
+          : {
+              action: "walker-receipt",
+              detail: `Walker ${walkerInvocation.agent_id} holds invocation ${walkerInvocation.invocation_id}; file the integrated review it returns.`,
+            },
+    );
   }
   if (allMerged && smoke?.result === "blocked" && smokes.length === 1) {
     actions.push({
@@ -3010,11 +3647,17 @@ function ordinaryActions(state) {
         "Create one corrective issue/PR cycle for the smoke findings; do not reopen merged packages or their owner approvals. After it merges, re-run only the affected journeys once.",
     });
   }
-  if (allMerged && !smoke && smokes.length === 1 && smokes[0].result === "blocked") {
+  if (
+    allMerged &&
+    !smoke &&
+    smokes.length === 1 &&
+    smokes[0].result === "blocked" &&
+    !walkerInvocation
+  ) {
     actions.push({
       action: "workflow-walker",
       detail:
-        "Run the single targeted re-walk of only the journeys affected by the merged smoke correction.",
+        "Request the single targeted re-walk. Its contract is derived from the blocked smoke's finding-to-job lineage and may contain only the criteria that correction affected.",
     });
   }
   if (allMerged && smokes.length >= 2 && smokes.at(-1)?.result === "blocked") {
@@ -3043,6 +3686,15 @@ function ordinaryActions(state) {
         detail: `The mission is ${state.terminal.state}. Nothing further is owed.`,
       },
     ];
+  }
+  for (const runtime of Object.values(state.reviewRuntimes)) {
+    if (runtime.state === "released") continue;
+    const owner = state.reviewInvocations[runtime.invocation_id];
+    if (owner && ["requested", "dispatched"].includes(owner.disposition)) continue;
+    actions.push({
+      action: "release-review-runtime",
+      detail: `Runtime ${runtime.runtime_id} outlived invocation ${runtime.invocation_id}. Release it and record the reclamation proof; capacity is the broker's to give back, never the Lead's to remember.`,
+    });
   }
   for (const pkg of live) {
     if (pkg.status === "merged" && !state.reclaimed.includes(pkg.id)) {

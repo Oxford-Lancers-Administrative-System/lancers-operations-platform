@@ -12,6 +12,7 @@ import {
   journalConjuncts,
   loadRules,
 } from "../scripts/mission/merge-gate.mjs";
+import { withReviewInvocations } from "./helpers/mission-invocations";
 
 const CLI = path.join(__dirname, "..", "scripts", "mission", "cli.mjs");
 const PACKET_FILE = path.join(__dirname, "fixtures", "mission", "approved-packet.json");
@@ -43,8 +44,9 @@ function mission() {
     LANCERS_MISSION_LEAD_ID: "lead-rehearsal-1",
   };
   let tick = 1_700_000_000_000;
-  const append = (event: object) => appendEvent(repo, MISSION, event, { env, now: (tick += 1000) });
-  return { repo, env, append };
+  const raw = (event: object) => appendEvent(repo, MISSION, event, { env, now: (tick += 1000) });
+  const append = withReviewInvocations(repo, MISSION, env, raw);
+  return { repo, env, append, raw };
 }
 
 function git(repo: string, args: string[]) {
