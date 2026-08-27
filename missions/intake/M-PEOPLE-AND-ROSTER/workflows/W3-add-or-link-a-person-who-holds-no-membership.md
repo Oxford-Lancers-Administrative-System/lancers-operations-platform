@@ -140,16 +140,16 @@ Against seeded synthetic data, an operator can:
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- Exact words: "Okay, W-3 is approved."
+- Date: 2026-08-27
+- By: Brian Schuster
 
-## Amendment W1-A3 raised 2026-08-27 — nothing opens this surface
+## Amendment W1-A3 — applied 2026-08-27
 
 `W1-01`'s People list carries no **Add a person** control, so
 `/operate/people/new` is reachable from nowhere. The same shape of gap as the
 missing-data queue's, found the same way: asserted in a specification, never
 drawn on a screen.
 
-Proposed: an **Add a person** button in the People list header, where the roster
-already puts **Add player**. It amends approved `W1` and is recorded rather than
-slipped into a mockup already approved.
+Applied: an **Add a person** button now sits in the People list header, where the
+roster puts **Add player**. `W1-01` carries it.
