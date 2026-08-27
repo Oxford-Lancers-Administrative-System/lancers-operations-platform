@@ -1353,7 +1353,6 @@
         </div>`;
       };
 
-
       /* -------------------- shared list primitives ----------------------- */
 
       /* `roster/presentation.ts`'s mapping: active success, onboarding info,
@@ -1361,7 +1360,13 @@
       const standingChip = (standing) => {
         if (!standing) return `<span class="sec">—</span>`;
         const tone =
-          standing === "Active" ? " ok" : standing === "Onboarding" ? " inf" : standing === "Inactive" ? " wrn" : "";
+          standing === "Active"
+            ? " ok"
+            : standing === "Onboarding"
+              ? " inf"
+              : standing === "Inactive"
+                ? " wrn"
+                : "";
         return `<span class="chip${tone}">${standing}</span>`;
       };
 
@@ -1472,7 +1477,7 @@
           ${mergeHead(`<button class="btn btn-contained">Compare</button>`)}
           ${searchBar("Search name or alias", "Jarrowdale")}
           ${dataTable(
-            ["Name", "Standing", "To the club", "Contactable"],
+            ["Name", "Status", "To the club", "Contactable"],
             [
               [
                 `<span class="bold">Holly Jarrowdale</span><div class="aka">created 14 September 2024</div>`,
@@ -1483,7 +1488,11 @@
             ],
           )}
           ${cardList([
-            { title: "Holly Jarrowdale", sub: "created 14 September 2024", chips: [`<span class="chip chip-outline">Mobile</span>`] },
+            {
+              title: "Holly Jarrowdale",
+              sub: "created 14 September 2024",
+              chips: [`<span class="chip chip-outline">Mobile</span>`],
+            },
           ])}
         </div>`);
 
@@ -1509,11 +1518,31 @@
             "What each record says",
             compare("First name", "Hollis", "Holly", "left") +
               compare("Last name", "Jarrowdale", "Jarrowdale", "left", false) +
-              compare("Mobile phone", "+44 7700 900988", `<span class="notrec">not recorded</span>`, "left") +
-              compare("Personal email", `<span class="notrec">not recorded</span>`, "holly.j@example.com", "right") +
-              compare("College", "Hallamshire", `<span class="notrec">not recorded</span>`, "left") +
+              compare(
+                "Mobile phone",
+                "+44 7700 900988",
+                `<span class="notrec">not recorded</span>`,
+                "left",
+              ) +
+              compare(
+                "Personal email",
+                `<span class="notrec">not recorded</span>`,
+                "holly.j@example.com",
+                "right",
+              ) +
+              compare(
+                "College",
+                "Hallamshire",
+                `<span class="notrec">not recorded</span>`,
+                "left",
+              ) +
               compare("Date of birth", "4 March 2005", "4 March 2005", "left", false) +
-              compare("Emergency contact", "Alwyn Winterbourne · Parent", `<span class="notrec">not recorded</span>`, "left"),
+              compare(
+                "Emergency contact",
+                "Alwyn Winterbourne · Parent",
+                `<span class="notrec">not recorded</span>`,
+                "left",
+              ),
           )}
           ${section("Why", field("Reason", "Same person, entered twice at the 2024 freshers' fair", { focused: true }))}
         </div>`);
@@ -1523,8 +1552,12 @@
           ${mergeHead(`<button class="btn btn-contained">Merge</button>`)}
           ${paper(
             "What each record says",
-            compare("Personal email", `<span class="notrec">not recorded</span>`, "holly.j@example.com", "right") +
-              compare("Aliases", "Holly (display name) · H.J.", "Holly J", "left"),
+            compare(
+              "Personal email",
+              `<span class="notrec">not recorded</span>`,
+              "holly.j@example.com",
+              "right",
+            ) + compare("Aliases", "Holly (display name) · H.J.", "Holly J", "left"),
           )}
           ${alert("info", "Aliases from both records are kept on the survivor as dedupe evidence.")}
         </div>`);
@@ -1542,7 +1575,15 @@
           ${paper(
             "What will move onto Hollis Jarrowdale",
             `<div class="stack g1">
-               ${["3 season memberships", "1 prospect record · 2024-25", "2 role assignments", "1 contact point", "18 RSVPs", "22 attendance records", "7 history entries"]
+               ${[
+                 "3 season memberships",
+                 "1 prospect record · 2024-25",
+                 "2 role assignments",
+                 "1 contact point",
+                 "18 RSVPs",
+                 "22 attendance records",
+                 "7 history entries",
+               ]
                  .map((x) => `<div class="seasonrow"><div class="body2">${x}</div></div>`)
                  .join("")}
              </div>`,
@@ -1631,20 +1672,34 @@
       const CLOCK = "Now: Monday, 26 October 2026, 09:15";
       const NONE = "New surface, nothing to compare";
       const S = (id, title, blurb, deltas, url, proposed) => ({
-        id, title, disposition: "new", blurb, deltas,
-        clockTag: CLOCK, url, now: null, nowNone: NONE, proposed,
+        id,
+        title,
+        disposition: "new",
+        blurb,
+        deltas,
+        clockTag: CLOCK,
+        url,
+        now: null,
+        nowNone: NONE,
+        proposed,
       });
 
       const SCREENS = [
-        S("W4-01", "Find the other record",
+        S(
+          "W4-01",
+          "Find the other record",
           `The same search W1 uses, reached from the record the operator already holds — never from a
            list. That is deliberate: the comparison screen is the most disclosing in this mission.`,
           [
             "Merged-away records are excluded from this search, as they are from every other",
             "The candidate carries when it was created, because that is usually what tells two records of one person apart",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/merge", W401),
-        S("W4-02", "The comparison, field by field",
+          "oxfordlancers.example/operate/people/4f8c21a6/merge",
+          W401,
+        ),
+        S(
+          "W4-02",
+          "The comparison, field by field",
           `The screen the workflow exists for. Both records side by side, every difference marked,
            and a per-field choice of what the survivor keeps.`,
           [
@@ -1654,8 +1709,12 @@
             "Which record survives is its own choice, made above the fields and not implied by them",
             "375px: the two sides stack, and the field label stays above them",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/merge", W402),
-        S("W4-03", "Keeping a value from the losing record",
+          "oxfordlancers.example/operate/people/4f8c21a6/merge",
+          W402,
+        ),
+        S(
+          "W4-03",
+          "Keeping a value from the losing record",
           `The losing record is not the wrong record. Here it holds the only personal email, and the
            survivor keeps it.`,
           [
@@ -1663,15 +1722,23 @@
             "Aliases from both records survive as dedupe evidence, never as roster display",
             "Each kept value is written as an ordinary audited correction, so the change history reads honestly rather than as one opaque event",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/merge", W403),
-        S("W4-04", "A reason is required",
+          "oxfordlancers.example/operate/people/4f8c21a6/merge",
+          W403,
+        ),
+        S(
+          "W4-04",
+          "A reason is required",
           `Task 08 §6 audits the merge with its reason. The merge cannot proceed without one.`,
           [
             "Acceptance 3: refused, in one sentence",
             "The reason is what a reader of the history three months later actually needs",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/merge", W404),
-        S("W4-05", "What will move, before it moves",
+          "oxfordlancers.example/operate/people/4f8c21a6/merge",
+          W404,
+        ),
+        S(
+          "W4-05",
+          "What will move, before it moves",
           `There is no undo. The confirmation states exactly what is about to be re-pointed and what
            happens to the losing row.`,
           [
@@ -1679,8 +1746,12 @@
             "<strong>Decide:</strong> no undo. The losing row surviving is what makes a manual repair possible; a real undo would be a second destructive path",
             "Acceptance 5: the losing row is kept, marked merged, pointing at the survivor, and appears in no list and no duplicate check",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/merge", W405),
-        S("W4-06", "Refused: an operator seat on the losing record",
+          "oxfordlancers.example/operate/people/4f8c21a6/merge",
+          W405,
+        ),
+        S(
+          "W4-06",
+          "Refused: an operator seat on the losing record",
           `Silently transferring a login is not acceptable. The seat is ended first, through Mission
            1's existing flow.`,
           [
@@ -1688,16 +1759,24 @@
             "Your ruling, 2026-08-26",
             "The refusal names the record, not the account or the email",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/merge", W406),
-        S("W4-07", "Refused: two memberships in one season",
+          "oxfordlancers.example/operate/people/4f8c21a6/merge",
+          W406,
+        ),
+        S(
+          "W4-07",
+          "Refused: two memberships in one season",
           `Merging them silently would rewrite a season's squad, so it is refused and sent to the
            roster.`,
           [
             "Acceptance 7: refused, with a route to where it can be resolved",
             "<strong>Decide:</strong> refuse, or ask the operator to pick one membership here. Refusing keeps the roster the only place a season's squad changes",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/merge", W407),
-        S("W4-08", "Duplicate prospect rows are combined",
+          "oxfordlancers.example/operate/people/4f8c21a6/merge",
+          W407,
+        ),
+        S(
+          "W4-08",
+          "Duplicate prospect rows are combined",
           `<code>recruitment_prospects_one_per_person_per_season</code> would otherwise make exactly
            the duplicate case merge exists for impossible.`,
           [
@@ -1705,8 +1784,12 @@
             "Your ruling, 2026-08-26, recorded as a seam Mission 6 inherits",
             "The source is a choice like any other field, because two doors is a real thing that happened",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/merge", W408),
-        S("W4-09", "The merge on the survivor's history",
+          "oxfordlancers.example/operate/people/4f8c21a6/merge",
+          W408,
+        ),
+        S(
+          "W4-09",
+          "The merge on the survivor's history",
           `One event, naming what was merged, what moved and why — not a scatter of forty field
            edits.`,
           [
@@ -1714,7 +1797,9 @@
             "Values taken from the losing record appear as their own entries beneath it, marked as coming from the merge",
             "This is W8's surface; it is shown here to prove the outcome, not redrawn",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/history", W409),
+          "oxfordlancers.example/operate/people/4f8c21a6/history",
+          W409,
+        ),
       ];
       const frame = (screen, html, kind) => `
         <div class="frame ${kind}">

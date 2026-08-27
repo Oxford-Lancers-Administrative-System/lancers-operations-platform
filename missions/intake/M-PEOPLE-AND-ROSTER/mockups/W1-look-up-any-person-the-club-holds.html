@@ -1237,8 +1237,10 @@
           <span class="disposition modified">Modified</span>.
         </p>
         <p>
-          <strong>Every screen here is New, so every current side reads “New surface, nothing to
-          compare”.</strong>
+          <strong
+            >Every screen here is New, so every current side reads “New surface, nothing to
+            compare”.</strong
+          >
           That is the grounding rule, not an omission: a surface that does not exist is drawn on
           both sides, and a surface that exists is photographed on both sides. Never one of each.
           <code>W5</code> and <code>W6</code> redesign the roster, which does exist, so those
@@ -1248,9 +1250,8 @@
           <strong>What binds, and what does not.</strong> The mockup owns structure and copy — which
           sections exist and in what order, what each row carries, which controls exist and where
           they sit, which states get their own screen. The application owns style: button variants,
-          colour, typography, spacing and shared formatters come from
-          <code>src/theme.ts</code> and MUI defaults. An ugly control here means “a control goes
-          here”.
+          colour, typography, spacing and shared formatters come from <code>src/theme.ts</code> and
+          MUI defaults. An ugly control here means “a control goes here”.
         </p>
         <p>
           <strong>Second round.</strong> Every screen head marks what changed since your review with
@@ -1266,7 +1267,7 @@
             you approved in principle and asked to judge rendered</span
           >
           <span
-            >Standing is the rebuilt six-rung ladder — Recruit · Onboarding · Active · Inactive ·
+            >Status is the rebuilt six-rung ladder — Recruit · Onboarding · Active · Inactive ·
             Departed · Archived</span
           >
           <span>All names, colleges and numbers are the synthetic local dataset</span>
@@ -1409,16 +1410,80 @@
       const SEASON_PEOPLE = [
         { name: "Alaric Ashcombe", standing: "Active", is: "Player", mob: 1, mail: 1, missing: 0 },
         { name: "Bertram", standing: "Active", is: "Player", mob: 1, mail: 0, missing: 8 },
-        { name: "Caspian Hallowfield", standing: null, is: "Secretary · 2026-27", mob: 1, mail: 1, missing: 0 },
-        { name: "Dashiell Draycott", standing: "Onboarding", is: "Player", mob: 1, mail: 1, missing: 2 },
-        { name: "Emrys Fairhurst", standing: "Recruit", is: "Recruit", mob: 1, mail: 0, missing: 0 },
-        { name: "Fenwick Gorsemoor", standing: null, is: "Head Coach · 2026-27", mob: 1, mail: 1, missing: 0 },
-        { name: "Gideon Inglewhite", standing: "Inactive", is: "Player", mob: 1, mail: 1, missing: 1 },
-        { name: "Hollis Jarrowdale", aka: "Holly", standing: "Active", is: "Player · Gameday Secretary", mob: 1, mail: 1, missing: 0 },
-        { name: "Ignatius Kirkbride", standing: "Departed", is: "Player", mob: 0, mail: 1, missing: 0 },
+        {
+          name: "Caspian Hallowfield",
+          standing: null,
+          is: "Secretary · 2026-27",
+          mob: 1,
+          mail: 1,
+          missing: 0,
+        },
+        {
+          name: "Dashiell Draycott",
+          standing: "Onboarding",
+          is: "Player",
+          mob: 1,
+          mail: 1,
+          missing: 2,
+        },
+        {
+          name: "Emrys Fairhurst",
+          standing: "Recruit",
+          is: "Recruit",
+          mob: 1,
+          mail: 0,
+          missing: 0,
+        },
+        {
+          name: "Fenwick Gorsemoor",
+          standing: null,
+          is: "Head Coach · 2026-27",
+          mob: 1,
+          mail: 1,
+          missing: 0,
+        },
+        {
+          name: "Gideon Inglewhite",
+          standing: "Inactive",
+          is: "Player",
+          mob: 1,
+          mail: 1,
+          missing: 1,
+        },
+        {
+          name: "Hollis Jarrowdale",
+          aka: "Holly",
+          standing: "Active",
+          is: "Player · Gameday Secretary",
+          mob: 1,
+          mail: 1,
+          missing: 0,
+        },
+        {
+          name: "Ignatius Kirkbride",
+          standing: "Departed",
+          is: "Player",
+          mob: 0,
+          mail: 1,
+          missing: 0,
+        },
         { name: "Jarrah Lanthorne", standing: "Active", is: "Player", mob: 1, mail: 1, missing: 0 },
-        { name: "Marlowe Ravenscar-Pike", standing: "Onboarding", is: "Player", mob: 1, mail: 0, missing: 3 },
-        { name: "Norbert Mereworth", standing: "Recruit", is: "Recruit", mob: 1, mail: 0, missing: 0 },
+        {
+          name: "Marlowe Ravenscar-Pike",
+          standing: "Onboarding",
+          is: "Player",
+          mob: 1,
+          mail: 0,
+          missing: 3,
+        },
+        {
+          name: "Norbert Mereworth",
+          standing: "Recruit",
+          is: "Recruit",
+          mob: 1,
+          mail: 0,
+          missing: 0,
+        },
       ];
 
       /* `roster/presentation.ts`'s own mapping: active success, onboarding
@@ -1427,7 +1492,13 @@
       const standingChip = (standing) => {
         if (standing === null) return `<span class="sec">—</span>`;
         const tone =
-          standing === "Active" ? " ok" : standing === "Onboarding" ? " inf" : standing === "Inactive" ? " wrn" : "";
+          standing === "Active"
+            ? " ok"
+            : standing === "Onboarding"
+              ? " inf"
+              : standing === "Inactive"
+                ? " wrn"
+                : "";
         return `<span class="chip${tone}">${standing}</span>`;
       };
 
@@ -1471,7 +1542,7 @@
               <thead>
                 <tr>
                   <th>${sortHead("Name", true)}</th>
-                  <th>${sortHead("Standing")}</th>
+                  <th>${sortHead("Status")}</th>
                   <th>${sortHead("To the club")}</th>
                   <th>${sortHead("Contactable")}</th>
                   <th>${sortHead("Missing")}</th>
@@ -1522,7 +1593,7 @@
           <span class="field-inline" style="flex:1;min-width:240px">
             ${term ? `<span class="bold">${term}</span>` : "Search name or alias"}
           </span>
-          <span class="field-inline">Standing: All ▾</span>
+          <span class="field-inline">Status: All ▾</span>
           <span class="field-inline">Missing data: All ▾</span>
         </div>
         <div class="narrow-only">
@@ -1600,9 +1671,33 @@
         </div>`);
 
       const OUTSIDE_PEOPLE = [
-        { name: "Kestrel Caldicott", standing: null, is: "Alumnus", era: "Last season 2019-20", mob: 0, mail: 1, missing: 0 },
-        { name: "Osgood Thornbury", standing: null, is: `<span class="sec">—</span>`, era: "No season, no role", mob: 1, mail: 1, missing: 0 },
-        { name: "Percival Oakhanger", standing: null, is: "Head Coach · 2024-25", era: "Last season 2024-25", mob: 1, mail: 1, missing: 1 },
+        {
+          name: "Kestrel Caldicott",
+          standing: null,
+          is: "Alumnus",
+          era: "Last season 2019-20",
+          mob: 0,
+          mail: 1,
+          missing: 0,
+        },
+        {
+          name: "Osgood Thornbury",
+          standing: null,
+          is: `<span class="sec">—</span>`,
+          era: "No season, no role",
+          mob: 1,
+          mail: 1,
+          missing: 0,
+        },
+        {
+          name: "Percival Oakhanger",
+          standing: null,
+          is: "Head Coach · 2024-25",
+          era: "Last season 2024-25",
+          mob: 1,
+          mail: 1,
+          missing: 1,
+        },
       ];
 
       const W104 = operatorShell(`
@@ -1676,16 +1771,12 @@
           )}
           ${paper(
             "Where they stand",
-            frow("Standing", p.standingDetail) +
+            frow("Status", p.standingDetail) +
               frow("Alumni standing", p.alumniDetail) +
               frow("Roles", p.roles),
           )}
           ${paper("Their seasons", p.seasons)}
-          ${paper(
-            "What changed",
-            p.history,
-            `<a class="golink" href="#">Full history →</a>`,
-          )}
+          ${paper("What changed", p.history, `<a class="golink" href="#">Full history →</a>`)}
         </div>`;
 
       /*
@@ -1751,7 +1842,11 @@
         history:
           changeRow("Personal email changed", "24 August 2026, 09:12", "Caspian Hallowfield") +
           changeRow("Mobile phone changed", "3 August 2026, 17:40", "Caspian Hallowfield") +
-          changeRow("Alias “Holly” set as the display name", "12 October 2025, 11:02", "Norbert Mereworth"),
+          changeRow(
+            "Alias “Holly” set as the display name",
+            "12 October 2025, 11:02",
+            "Norbert Mereworth",
+          ),
       };
 
       const W105 = operatorShell(personRecord(HOLLIS));
@@ -1816,8 +1911,13 @@
         alumniDetail: `Never a member`,
         roles: `Head Coach · season 2026-27
           <span style="width:100%"></span>Head Coach · season 2025-26 <span class="chip chip-outline">ended</span>`,
-        seasons: seasonRow("2026-27", null, "Head Coach") + seasonRow("2025-26", null, "Head Coach"),
-        history: changeRow("Head Coach assignment recorded for 2026-27", "18 August 2026, 14:05", "Caspian Hallowfield"),
+        seasons:
+          seasonRow("2026-27", null, "Head Coach") + seasonRow("2025-26", null, "Head Coach"),
+        history: changeRow(
+          "Head Coach assignment recorded for 2026-27",
+          "18 August 2026, 14:05",
+          "Caspian Hallowfield",
+        ),
       };
 
       const W107 = operatorShell(personRecord(FENWICK));

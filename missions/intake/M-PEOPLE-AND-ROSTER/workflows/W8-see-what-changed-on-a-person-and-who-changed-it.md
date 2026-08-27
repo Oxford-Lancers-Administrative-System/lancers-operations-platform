@@ -18,6 +18,38 @@
 - User-visible result: the append-only history of one person, newest first,
   naming actor, date, field, the superseded value and the new one.
 
+## Is this a page, or a panel? — raised 2026-08-27
+
+Brian: _"I don't know how we got to this area… Where did we come from? … Honestly,
+this feels like just an audit trail at the bottom of the people record."_
+
+**The grounding gap was real and it was mine.** Every screen in this mockup
+opened mid-journey, on the history page, with a crumb and no origin. `W8-01` is
+now that origin: the **What changed** panel at the foot of the person record —
+three most recent changes and `Full history →` — which `W1-05` already carries
+and which he already approved. Player detail carries the same link.
+
+**And his instinct is half right.** The panel is where the common question gets
+answered, and it is not this workflow's page. Three shapes:
+
+1. **Panel plus page** — the panel answers "what changed recently" on the record;
+   the page answers "why is this value what it is" with filters and paging. What
+   is drawn.
+2. **Panel only** — no route, no page. The record grows an expandable section.
+   This loses filtering by field and by actor, which `W8-05` shows is the
+   strongest reason the page exists: the whole life of one email, three entries,
+   two operators and a merge. A panel showing the last few entries cannot answer
+   it, and a long history has no paging.
+3. **Page only** — drop the panel. Rejected: the commonest question would then
+   always cost a navigation.
+
+**Recommendation: 1, as drawn.** The page earns its place on filtering and paging
+alone; the panel earns its place because most questions are recent ones.
+
+**If he chooses 2, this stops being a workflow.** Its content moves into `W1` and
+`W6`, and the frozen inventory drops from eight to seven — an inventory
+amendment, not a screen change.
+
 ## Required actions
 
 - List every recorded change to this person, newest first.

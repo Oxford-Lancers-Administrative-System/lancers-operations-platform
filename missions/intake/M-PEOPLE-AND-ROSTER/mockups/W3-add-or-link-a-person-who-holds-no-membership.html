@@ -1219,8 +1219,8 @@
           A human the club deals with who is not a player gets a record, and the club does not end
           up holding them twice. <strong>This surface creates people and nothing else.</strong> It
           assigns no role, grants no login and creates no membership — a role is assigned in
-          Administration → Roles, which already exists.
-          <code>/operate/people/new</code> and its parent do not exist on <code>main</code>.
+          Administration → Roles, which already exists. <code>/operate/people/new</code> and its
+          parent do not exist on <code>main</code>.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1353,7 +1353,6 @@
         </div>`;
       };
 
-
       /* -------------------- shared list primitives ----------------------- */
 
       /* `roster/presentation.ts`'s mapping: active success, onboarding info,
@@ -1361,7 +1360,13 @@
       const standingChip = (standing) => {
         if (!standing) return `<span class="sec">—</span>`;
         const tone =
-          standing === "Active" ? " ok" : standing === "Onboarding" ? " inf" : standing === "Inactive" ? " wrn" : "";
+          standing === "Active"
+            ? " ok"
+            : standing === "Onboarding"
+              ? " inf"
+              : standing === "Inactive"
+                ? " wrn"
+                : "";
         return `<span class="chip${tone}">${standing}</span>`;
       };
 
@@ -1496,7 +1501,10 @@
               "first name",
               "last name",
               "mobile",
-            ]) + candidate("P. Oakhanger", "No season, no role · percival.oakhanger@example.com", ["last name"]),
+            ]) +
+              candidate("P. Oakhanger", "No season, no role · percival.oakhanger@example.com", [
+                "last name",
+              ]),
           )}
           ${addForm()}
         </div>`);
@@ -1542,7 +1550,10 @@
           ${addHead("Create Holly Jarrowdale", "1 person could already be this person")}
           ${paper(
             "Already in the club",
-            candidate("Hollis Jarrowdale", "Player · 2026-27 · also “Holly” · +44 7700 900988", ["alias", "last name"]),
+            candidate("Hollis Jarrowdale", "Player · 2026-27 · also “Holly” · +44 7700 900988", [
+              "alias",
+              "last name",
+            ]),
           )}
           ${section(
             "Who they are",
@@ -1560,9 +1571,9 @@
             <span class="body2"><span class="bold">People outside the 2026-27 season.</span></span>
             <button class="btn btn-outlined">Back to this season</button>
           </div>
-          ${searchBar("Search name or alias", "", ["Standing: All ▾", "Missing data: All ▾"])}
+          ${searchBar("Search name or alias", "", ["Status: All ▾", "Missing data: All ▾"])}
           ${dataTable(
-            ["Name", "Standing", "To the club", "Contactable", "Missing"],
+            ["Name", "Status", "To the club", "Contactable", "Missing"],
             [
               [
                 `<span class="bold">Percival Oakhanger</span><div class="aka">added just now</div>`,
@@ -1581,8 +1592,16 @@
             ],
           )}
           ${cardList([
-            { title: "Percival Oakhanger", sub: "added just now", chips: [`<span class="chip chip-warn">1 missing</span>`] },
-            { title: "Kestrel Caldicott", sub: "Last season 2019-20", chips: [`<span class="chip chip-outline">Alumnus</span>`] },
+            {
+              title: "Percival Oakhanger",
+              sub: "added just now",
+              chips: [`<span class="chip chip-warn">1 missing</span>`],
+            },
+            {
+              title: "Kestrel Caldicott",
+              sub: "Last season 2019-20",
+              chips: [`<span class="chip chip-outline">Alumnus</span>`],
+            },
           ])}
         </div>`);
 
@@ -1591,12 +1610,22 @@
       const CLOCK = "Now: Tuesday, 27 October 2026, 09:15";
       const NONE = "New surface, nothing to compare";
       const S = (id, title, blurb, deltas, url, proposed) => ({
-        id, title, disposition: "new", blurb, deltas,
-        clockTag: CLOCK, url, now: null, nowNone: NONE, proposed,
+        id,
+        title,
+        disposition: "new",
+        blurb,
+        deltas,
+        clockTag: CLOCK,
+        url,
+        now: null,
+        nowNone: NONE,
+        proposed,
       });
 
       const SCREENS = [
-        S("W3-01", "Add a person",
+        S(
+          "W3-01",
+          "Add a person",
           `A name and a way to reach them. Nothing else. <strong>Changed 2026-08-27:</strong> the
            role section is gone — this surface creates people, and roles are assigned in
            Administration → Roles.`,
@@ -1606,8 +1635,12 @@
             "One primary action, top right. <em>Check for duplicates</em>, because nothing is created until the check has been answered",
             "<strong>This screen has no way in yet.</strong> W1-01's People list carries no <em>Add a person</em> button, so nothing opens it — recorded as amendment <strong>W1-A3</strong>, the same shape of gap as the missing-data queue's",
           ],
-          "oxfordlancers.example/operate/people/new", W301),
-        S("W3-02", "Somebody already in the club could be this person",
+          "oxfordlancers.example/operate/people/new",
+          W301,
+        ),
+        S(
+          "W3-02",
+          "Somebody already in the club could be this person",
           `The screen this workflow exists for. Each candidate says what matched, and the choice to
            link sits on the row it belongs to.`,
           [
@@ -1618,8 +1651,12 @@
             "Acceptance 2: the existing record is shown before anything is created",
             "What matched is named per candidate, so the operator can judge rather than guess",
           ],
-          "oxfordlancers.example/operate/people/new", W302),
-        S("W3-03", "This is them — nothing is created",
+          "oxfordlancers.example/operate/people/new",
+          W302,
+        ),
+        S(
+          "W3-03",
+          "This is them — nothing is created",
           `Linking opens the existing record. Their roles are shown as what they are: empty, with the
            route to where roles are assigned.`,
           [
@@ -1627,8 +1664,12 @@
             "<strong>Changed:</strong> the role is not added here. The record shows Roles as empty and links to Administration → Roles",
             "<strong>Changed:</strong> the “nothing was created” notice is gone. The operator is on a record that plainly already has history",
           ],
-          "oxfordlancers.example/operate/people/9d21c744", W303),
-        S("W3-04", "Creating over an exact contact-point match",
+          "oxfordlancers.example/operate/people/9d21c744",
+          W303,
+        ),
+        S(
+          "W3-04",
+          "Creating over an exact contact-point match",
           `A shared number is the strongest duplicate signal the club has, so creating anyway is an
            explicit act with a reason attached.`,
           [
@@ -1637,8 +1678,12 @@
             "The audited rejection is what lets a later merge see the decision was deliberate",
             "<strong>Decide:</strong> requiring a reason at all. The alternative is a plain confirm",
           ],
-          "oxfordlancers.example/operate/people/new", W304),
-        S("W3-05", "Required fields",
+          "oxfordlancers.example/operate/people/new",
+          W304,
+        ),
+        S(
+          "W3-05",
+          "Required fields",
           `<strong>Changed:</strong> no sentence explaining what is missing. The fields say
            <em>Required</em> and the count sits under the title.`,
           [
@@ -1646,8 +1691,12 @@
             "<strong>Changed:</strong> “A first name is not enough. Add a last name and one contact point.” is gone",
             "The required marks are on every screen, not only this one, so the rule is visible before it is broken",
           ],
-          "oxfordlancers.example/operate/people/new", W305),
-        S("W3-06", "An alias match, and a merged-away record that is never offered",
+          "oxfordlancers.example/operate/people/new",
+          W305,
+        ),
+        S(
+          "W3-06",
+          "An alias match, and a merged-away record that is never offered",
           `The check matches aliases as well as names. A record that was merged away is never
            offered — the survivor is offered in its place.`,
           [
@@ -1655,8 +1704,12 @@
             "<strong>Changed:</strong> same single top-right action, same panel, no bottom buttons",
             "Offering a merged-away record invites an operator to resurrect something the club has already decided is a duplicate",
           ],
-          "oxfordlancers.example/operate/people/new", W306),
-        S("W3-07", "Where the new person actually lands",
+          "oxfordlancers.example/operate/people/new",
+          W306,
+        ),
+        S(
+          "W3-07",
+          "Where the new person actually lands",
           `<strong>Rewritten 2026-08-27.</strong> This screen used to claim the new coach appeared in
            this season's list. With roles out of this workflow that is no longer true, and the
            honest answer matters: <strong>everybody created here lands outside the season</strong>
@@ -1667,7 +1720,9 @@
             "<strong>Decide:</strong> is that acceptable, or should creating a person offer to open Roles straight afterwards? Adding somebody and then not finding them is the failure mode to weigh",
             "Percival shows 1 missing — a personal email, which the required set asks of a non-player",
           ],
-          "oxfordlancers.example/operate/people?scope=outside", W307),
+          "oxfordlancers.example/operate/people?scope=outside",
+          W307,
+        ),
       ];
       const frame = (screen, html, kind) => `
         <div class="frame ${kind}">

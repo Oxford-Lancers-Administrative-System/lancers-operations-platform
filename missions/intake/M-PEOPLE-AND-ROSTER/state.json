@@ -198,7 +198,12 @@
       "name": "See what changed on a person and who changed it",
       "state": "spec_draft",
       "stale": false,
-      "feedback": [],
+      "feedback": [
+        {
+          "screen_id": "W8-01",
+          "text": "Decide whether this is a page plus a panel, or only the panel on the record. Choosing the panel drops W8 from the frozen inventory."
+        }
+      ],
       "approvals": {}
     }
   ],
@@ -1649,5 +1654,5 @@
       }
     ]
   },
-  "next_action": "W7 awaits its read; the missing-data placement is deferred and Standing's naming is an open question across every surface"
+  "next_action": "Decide W8: a page plus the record's panel, or only the panel. Then W7 and W8 are the last two reads"
 }

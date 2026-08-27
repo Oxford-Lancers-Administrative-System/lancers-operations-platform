@@ -68,7 +68,7 @@
       band: "#0b3d91",
       ink: "#fff",
       cols: [
-        "Standing", "Entry", "Positions", "Blue #", "White #",
+        "Status", "Entry", "Positions", "Blue #", "White #",
         "Coach group", "Formalwear", "Blues", "Eligibility", "Availability",
       ],
     },
@@ -151,7 +151,7 @@
       Contactable: contact.length ? contact.join(" ") : NR,
       Missing: missing ? warn(String(missing)) : NR,
       Onboarding: onboarding,
-      Standing: chip(LADDER[status] ?? status),
+      Status: chip(LADDER[status] ?? status),
       Entry: entry,
       Positions: NR, "Blue #": NR, "White #": NR, "Coach group": NR,
       Formalwear: NR, Blues: NR, Eligibility: NR, Availability: NR,
@@ -261,7 +261,7 @@
    * the pinned control at the top of the page.
    */
   const CHIPS = [
-    { label: "Standing", value: "Active" },
+    { label: "Status", value: "Active" },
     { label: "Availability", value: "Green" },
     { label: "Coach group", value: "Offense" },
   ];

@@ -110,7 +110,7 @@
       .join("") || row("Items", NR);
 
   const seasonRows =
-    row("Standing", editable(chip(standing)), departed ? "This season is over. Nothing here changes it." : null) +
+    row("Status", editable(chip(standing)), departed ? "This season is over. Nothing here changes it." : null) +
     row("Entry", editable(entry)) +
     row("Confirmed", editable((/Confirmed (\d+ \w+ \d{4})/.exec(body) || [null, "—"])[1])) +
     row("Activated", editable((/Activated (\d+ \w+ \d{4})/.exec(body) || [null, "—"])[1])) +
@@ -136,7 +136,7 @@
         .replace(/Confirmed/g, "Onboarding")
         .replace(/Withdrawn/g, "Departed");
       return `<div style="padding:9px 0;border-bottom:1px solid rgba(0,0,0,0.12)">
-          <div style="font-size:0.875rem"><strong>Standing</strong></div>
+          <div style="font-size:0.875rem"><strong>Status</strong></div>
           <div style="font-size:0.875rem">${clean}</div>
         </div>`;
     })

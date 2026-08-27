@@ -1235,7 +1235,8 @@
         <div class="legend">
           <span
             >A history shows <strong>old values</strong> — superseded numbers, previous emails, a
-            corrected date of birth. It is as disclosing as the record and is guarded identically</span
+            corrected date of birth. It is as disclosing as the record and is guarded
+            identically</span
           >
           <span>Per-person history lives here; Mission 3 keeps the general audit browser</span>
           <span>All names and numbers are the synthetic local dataset</span>
@@ -1350,7 +1351,6 @@
         </div>`;
       };
 
-
       /* -------------------- shared list primitives ----------------------- */
 
       /* `roster/presentation.ts`'s mapping: active success, onboarding info,
@@ -1358,7 +1358,13 @@
       const standingChip = (standing) => {
         if (!standing) return `<span class="sec">—</span>`;
         const tone =
-          standing === "Active" ? " ok" : standing === "Onboarding" ? " inf" : standing === "Inactive" ? " wrn" : "";
+          standing === "Active"
+            ? " ok"
+            : standing === "Onboarding"
+              ? " inf"
+              : standing === "Inactive"
+                ? " wrn"
+                : "";
         return `<span class="chip${tone}">${standing}</span>`;
       };
 
@@ -1457,24 +1463,105 @@
 
       const FILTERS = ["Field: All ▾", "Changed by: All ▾"];
 
+      /* Where this workflow starts. Brian, 2026-08-27: "I don't know how we got
+         to this area… Where did we come from?" Nothing in this mockup showed
+         the panel it expands from, so this is that panel, on the record. */
       const W801 = operatorShell(`
+        <div class="stack g3">
+          <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <div style="min-width:0">
+              <p class="body2 sec" style="margin:0"><a class="golink" href="#">← People</a></p>
+              <p class="h5" style="margin:4px 0 0">Hollis Jarrowdale</p>
+              <div class="chiprow">
+                ${standingChip("Active")}<span class="chip chip-outline">Player · Gameday Secretary</span>
+              </div>
+            </div>
+            <div class="row g2" style="flex-wrap:wrap">
+              <button class="btn btn-outlined">Correct this record</button>
+              <button class="btn btn-text">Merge…</button>
+            </div>
+          </div>
+          <p class="body2 sec" style="margin:0">
+            The rest of the record is above. This is its last panel.
+          </p>
+          ${paper(
+            "What changed",
+            entry(
+              "Mobile phone",
+              "+44 7700 900412",
+              "+44 7700 900988",
+              "26 October 2026, 09:18",
+              "Caspian Hallowfield",
+              "New number, told me at training",
+            ) +
+              entry(
+                "Personal email",
+                `<span class="notrec">not recorded</span>`,
+                "holly.jarrowdale@example.com",
+                "24 August 2026, 09:12",
+                "Caspian Hallowfield",
+              ) +
+              entry(
+                "Degree field",
+                `<span class="notrec">not recorded</span>`,
+                "Engineering Science",
+                "3 August 2026, 17:40",
+                "Caspian Hallowfield",
+              ),
+            `<a class="golink" href="#">Full history →</a>`,
+          )}
+        </div>`);
+
+      const W802 = operatorShell(`
         <div class="stack g3">
           ${histHead("Hollis Jarrowdale", "14 changes")}
           ${searchBar("Search this history", "", FILTERS)}
           ${paper(
             "2026",
-            entry("Mobile phone", "+44 7700 900412", "+44 7700 900988", "26 October 2026, 09:18", "Caspian Hallowfield", "New number, told me at training") +
-              entry("Personal email", `<span class="notrec">not recorded</span>`, "holly.jarrowdale@example.com", "24 August 2026, 09:12", "Caspian Hallowfield") +
-              entry("Degree field", `<span class="notrec">not recorded</span>`, "Engineering Science", "3 August 2026, 17:40", "Caspian Hallowfield"),
+            entry(
+              "Mobile phone",
+              "+44 7700 900412",
+              "+44 7700 900988",
+              "26 October 2026, 09:18",
+              "Caspian Hallowfield",
+              "New number, told me at training",
+            ) +
+              entry(
+                "Personal email",
+                `<span class="notrec">not recorded</span>`,
+                "holly.jarrowdale@example.com",
+                "24 August 2026, 09:12",
+                "Caspian Hallowfield",
+              ) +
+              entry(
+                "Degree field",
+                `<span class="notrec">not recorded</span>`,
+                "Engineering Science",
+                "3 August 2026, 17:40",
+                "Caspian Hallowfield",
+              ),
           )}
           ${paper(
             "2025",
-            entry("Aliases", "Holly", "Holly (display name)", "12 October 2025, 11:02", "Norbert Mereworth") +
-              entry("Expected graduation", "2026", "2027", "4 March 2025, 14:30", "Norbert Mereworth", "Repeated a year"),
+            entry(
+              "Aliases",
+              "Holly",
+              "Holly (display name)",
+              "12 October 2025, 11:02",
+              "Norbert Mereworth",
+            ) +
+              entry(
+                "Expected graduation",
+                "2026",
+                "2027",
+                "4 March 2025, 14:30",
+                "Norbert Mereworth",
+                "Repeated a year",
+              ),
           )}
         </div>`);
 
-      const W802 = operatorShell(`
+      const W803 = operatorShell(`
         <div class="stack g3">
           ${histHead("Hollis Jarrowdale", "14 changes")}
           ${searchBar("Search this history", "", FILTERS)}
@@ -1495,33 +1582,71 @@
                  </div>
                </div>
              </div>` +
-              entry("Personal email", `<span class="notrec">not recorded</span>`, "holly.j@example.com", "26 October 2026, 09:22", "Caspian Hallowfield", null, ["from the merge"]),
-          )}
-        </div>`);
-
-      const W803 = operatorShell(`
-        <div class="stack g3">
-          ${histHead("Hollis Jarrowdale", "14 changes")}
-          ${searchBar("Search this history", "", FILTERS)}
-          ${paper(
-            "Mobile phone",
-            entry("Mobile phone", "+44 7700 900412", "+44 7700 900988", "26 October 2026, 09:18", "Caspian Hallowfield", "New number, told me at training", ["+44 7700 900412 kept, superseded"]),
+              entry(
+                "Personal email",
+                `<span class="notrec">not recorded</span>`,
+                "holly.j@example.com",
+                "26 October 2026, 09:22",
+                "Caspian Hallowfield",
+                null,
+                ["from the merge"],
+              ),
           )}
         </div>`);
 
       const W804 = operatorShell(`
         <div class="stack g3">
-          ${histHead("Hollis Jarrowdale", "3 of 14 changes")}
-          ${searchBar("Search this history", "", ["Field: Personal email ▾", "Changed by: All ▾"])}
+          ${histHead("Hollis Jarrowdale", "14 changes")}
+          ${searchBar("Search this history", "", FILTERS)}
           ${paper(
-            "Personal email",
-            entry("Personal email", "holly.j@example.com", "holly.jarrowdale@example.com", "26 October 2026, 09:25", "Caspian Hallowfield", "Prefers the full form") +
-              entry("Personal email", `<span class="notrec">not recorded</span>`, "holly.j@example.com", "26 October 2026, 09:22", "Caspian Hallowfield", null, ["from the merge"]) +
-              entry("Personal email", "hollis.j@example.com", `<span class="notrec">not recorded</span>`, "18 January 2025, 08:04", "Zenas Yaxlington", "Bounced, address was wrong"),
+            "Mobile phone",
+            entry(
+              "Mobile phone",
+              "+44 7700 900412",
+              "+44 7700 900988",
+              "26 October 2026, 09:18",
+              "Caspian Hallowfield",
+              "New number, told me at training",
+              ["+44 7700 900412 kept, superseded"],
+            ),
           )}
         </div>`);
 
       const W805 = operatorShell(`
+        <div class="stack g3">
+          ${histHead("Hollis Jarrowdale", "3 of 14 changes")}
+          ${searchBar("Search this history", "", ["Field: Personal email ▾", "Changed by: All ▾"])}
+          ${paper(
+            "Personal email",
+            entry(
+              "Personal email",
+              "holly.j@example.com",
+              "holly.jarrowdale@example.com",
+              "26 October 2026, 09:25",
+              "Caspian Hallowfield",
+              "Prefers the full form",
+            ) +
+              entry(
+                "Personal email",
+                `<span class="notrec">not recorded</span>`,
+                "holly.j@example.com",
+                "26 October 2026, 09:22",
+                "Caspian Hallowfield",
+                null,
+                ["from the merge"],
+              ) +
+              entry(
+                "Personal email",
+                "hollis.j@example.com",
+                `<span class="notrec">not recorded</span>`,
+                "18 January 2025, 08:04",
+                "Zenas Yaxlington",
+                "Bounced, address was wrong",
+              ),
+          )}
+        </div>`);
+
+      const W806 = operatorShell(`
         <div class="stack g3">
           ${histHead("Osgood Thornbury", "no changes")}
           <div class="paper">
@@ -1532,14 +1657,30 @@
           </div>
         </div>`);
 
-      const W806 = operatorShell(`
+      const W807 = operatorShell(`
         <div class="stack g3">
           ${histHead("Hollis Jarrowdale", "14 changes")}
           ${searchBar("Search this history", "", ["Field: All ▾", "Changed by: Zenas Yaxlington ▾"])}
           ${paper(
             "Changed by Zenas Yaxlington",
-            entry("Personal email", "hollis.j@example.com", `<span class="notrec">not recorded</span>`, "18 January 2025, 08:04", "Zenas Yaxlington", "Bounced, address was wrong", ["seat ended 30 June 2025"]) +
-              entry("Mobile phone", `<span class="notrec">not recorded</span>`, "+44 7700 900412", "2 September 2024, 19:11", "Zenas Yaxlington", null, ["recorded on Holly Jarrowdale", "seat ended 30 June 2025"]),
+            entry(
+              "Personal email",
+              "hollis.j@example.com",
+              `<span class="notrec">not recorded</span>`,
+              "18 January 2025, 08:04",
+              "Zenas Yaxlington",
+              "Bounced, address was wrong",
+              ["seat ended 30 June 2025"],
+            ) +
+              entry(
+                "Mobile phone",
+                `<span class="notrec">not recorded</span>`,
+                "+44 7700 900412",
+                "2 September 2024, 19:11",
+                "Zenas Yaxlington",
+                null,
+                ["recorded on Holly Jarrowdale", "seat ended 30 June 2025"],
+              ),
           )}
         </div>`);
 
@@ -1548,65 +1689,113 @@
       const CLOCK = "Now: Monday, 26 October 2026, 09:15";
       const NONE = "New surface, nothing to compare";
       const S = (id, title, blurb, deltas, url, proposed) => ({
-        id, title, disposition: "new", blurb, deltas,
-        clockTag: CLOCK, url, now: null, nowNone: NONE, proposed,
+        id,
+        title,
+        disposition: "new",
+        blurb,
+        deltas,
+        clockTag: CLOCK,
+        url,
+        now: null,
+        nowNone: NONE,
+        proposed,
       });
 
       const SCREENS = [
-        S("W8-01", "The history",
-          `Every recorded change to one person, newest first. Each entry says what field, from what,
-           to what, when and who — and the reason where W2 required one.`,
+        S(
+          "W8-01",
+          "Where the history is reached from",
+          `<strong>Added 2026-08-27.</strong> You asked how anyone gets here, and nothing in this
+           mockup showed it. This is the last panel of the person record — the three most recent
+           changes and <em>Full history →</em>. Player detail carries the same link.`,
+          [
+            "<strong>The gap was real and it was mine:</strong> every screen below opened mid-journey with a crumb and no origin",
+            "The panel is on <code>W1-05</code>, which you approved, and on <code>W6-01</code>. It is the answer to “what changed recently” without leaving the record",
+            "<strong>Decide — and this is the bigger question you raised:</strong> is this workflow a page at all, or just this panel? See the specification. Three shapes, and the recommendation is what is drawn",
+            "Nothing else on the record is redrawn here; the head says the rest is above",
+          ],
+          "oxfordlancers.example/operate/people/4f8c21a6",
+          W801,
+        ),
+        S(
+          "W8-02",
+          "The full history",
+          `Every recorded change to one person, newest first, reached from that panel. Each entry
+           says what field, from what, to what, when and who — and the reason where W2 required one.`,
           [
             "Acceptance 1: field, from, to, when and who, on one entry",
-            "Acceptance 2: the reason appears on a change and not on a fill, which is exactly W2's rule seen from the other end",
+            "Acceptance 2: the reason appears on a change and not on a fill, which is W2's rule seen from the other end",
             "A fill reads <code>not recorded → value</code>, so an empty field's history is as legible as a correction's",
-            "Grouped by year rather than paged into anonymity",
+            "<strong>This page exists for what the panel cannot do:</strong> filter by field, filter by actor, and page a long history",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/history", W801),
-        S("W8-02", "A merge is one event",
+          "oxfordlancers.example/operate/people/4f8c21a6/history",
+          W802,
+        ),
+        S(
+          "W8-03",
+          "A merge is one event",
           `A merge read as forty corrections is unreadable and hides the decision that was actually
            made. It reads as one thing that happened, with what it moved beside it.`,
           [
             "Acceptance 3: one event, naming what was merged and what moved",
-            "<strong>Decide:</strong> the values taken from the losing record appear as their own entries beneath it, marked <em>from the merge</em>. The alternative folds them into the merge event and loses the field-level trail",
+            "<strong>Decide:</strong> the values taken from the losing record appear as their own entries beneath it, marked <em>from the merge</em>. The alternative folds them in and loses the field-level trail",
             "This is the same event W4-09 shows from the merge's side",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/history", W802),
-        S("W8-03", "A superseded contact point",
+          "oxfordlancers.example/operate/people/4f8c21a6/history",
+          W803,
+        ),
+        S(
+          "W8-04",
+          "A superseded contact point",
           `A contact value is kept and dated rather than replaced, so the history says so rather than
            implying the old number is gone.`,
           [
             "Acceptance 4: presented as kept-and-dated, not deleted",
-            "The entry carries what happened to the old value, which is the thing a bounced-number investigation actually needs",
+            "The entry carries what happened to the old value, which is what a bounced-number investigation actually needs",
             "Every other field overwrites, and its previous value survives here — which is what makes overwriting recoverable",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/history?field=mobile", W803),
-        S("W8-04", "Filtered to one field",
-          `The whole life of one value, which is usually the question — not “what happened to this
-           person” but “why is this email what it is”.`,
+          "oxfordlancers.example/operate/people/4f8c21a6/history?field=mobile",
+          W804,
+        ),
+        S(
+          "W8-05",
+          "Filtered to one field",
+          `The whole life of one value, which is usually the real question — not “what happened to
+           this person” but “why is this email what it is”.`,
           [
             "Acceptance 5: one field across the whole history",
             "Three entries, two operators and a merge, in the order they happened",
             "The count line says 3 of 14, so the filter cannot be mistaken for the whole record",
+            "<strong>This is the strongest argument for the page.</strong> The panel on the record cannot do it",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/history?field=personal_email", W804),
-        S("W8-05", "An empty history",
+          "oxfordlancers.example/operate/people/4f8c21a6/history?field=personal_email",
+          W805,
+        ),
+        S(
+          "W8-06",
+          "An empty history",
           `A person created before this mission shipped has nothing recorded. That is stated, not
            implied by a blank panel.`,
           [
             "Acceptance 6: stated as empty rather than rendered as nothing",
             "The sentence says <em>since it was created</em>, because “nothing changed” and “we were not recording” are different claims and only one is true",
           ],
-          "oxfordlancers.example/operate/people/6b3f9210/history", W805),
-        S("W8-06", "Filtered to one actor, including a departed one",
-          `An audit trail that forgets who did something because they left is not an audit trail.
-           The name stays, and entries that happened on a merged-away record stay attributed to it.`,
+          "oxfordlancers.example/operate/people/6b3f9210/history",
+          W806,
+        ),
+        S(
+          "W8-07",
+          "Filtered to one actor, including a departed one",
+          `An audit trail that forgets who did something because they left is not an audit trail. The
+           name stays, and entries that happened on a merged-away record stay attributed to it.`,
           [
             "Acceptance 7: the merged-away record's history is on the survivor, still attributed to where it happened",
             "<strong>Decide:</strong> a departed actor's name still appears. The alternative pleases nobody and loses the answer",
             "The seat's end date is shown beside the name, so a reader is not left wondering why they cannot find the operator",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/history?by=zenas", W806),
+          "oxfordlancers.example/operate/people/4f8c21a6/history?by=zenas",
+          W807,
+        ),
       ];
       const frame = (screen, html, kind) => `
         <div class="frame ${kind}">
