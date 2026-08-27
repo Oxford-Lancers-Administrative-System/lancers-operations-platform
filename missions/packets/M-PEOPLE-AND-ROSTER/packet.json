@@ -60,7 +60,7 @@
       "id": "SRC-main",
       "kind": "github",
       "ref": "main",
-      "version": "ceff8ef, observed 2026-08-27"
+      "version": "be4f53d, observed 2026-08-27"
     },
     {
       "id": "SRC-owner-session",
@@ -811,14 +811,15 @@
   ],
   "baseline": {
     "branch": "main",
-    "commit": "0d5913233ff7a7a774cec9be9e1d663668822b8e"
+    "commit": "be4f53d873859f492c396285ad288040187abcf7"
   },
   "repository_drift": {
     "startup_rule": "The Mission Lead compares current main to the baseline and runs the canonical harness drift checks before planning or dispatch. A newer main is acceptable only when this packet's meaning, feasibility, invariants, interfaces and acceptance are unchanged by it.",
     "stop_rule": "Stop and raise a packet revision when main has changed /operate/roster or /operate/roster/[membershipId], when membership_status or contact_points has moved under this mission, or when any surface this packet locks has been altered by another mission. W5 and W6 are photographed surfaces: a change to either must be re-photographed before the affected packages are dispatched, not merely re-read.",
     "known_drift": [
       "Mission 4 (LAN-169 to LAN-173) executed during this intake. Its surface is messaging and scheduling, which this mission does not touch; inspected and confirmed harmless.",
-      "#94 gates implementation packages against their approved mockups at merge time (ADR 0037). It constrains execution rather than intake, and this mission produces the mockups it will be gated against."
+      "#94 gates implementation packages against their approved mockups at merge time (ADR 0037). It constrains execution rather than intake, and this mission produces the mockups it will be gated against.",
+      "main moved to be4f53d (#95 LAN-173, #97 LAN-178) after this packet was assembled and was merged in. Inspected: #95 added the follow-ups chase service and its own teardown fix for person_access_tokens; #97 bounds the Mission Lead to one derived epoch. Neither touches /operate/roster or /operate/roster/[membershipId], so W5 and W6's photographs stand and need no re-shoot."
     ]
   },
   "gates": {
