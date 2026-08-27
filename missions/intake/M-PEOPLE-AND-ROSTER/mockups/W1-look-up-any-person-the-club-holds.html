@@ -1354,7 +1354,7 @@
           selected = "People",
           who = "Caspian Hallowfield",
           caption = "Authorized operator",
-          admin = ["People", "Operators", "Roles"],
+          admin = ["People", "Missing data", "Operators", "Roles"],
         } = options;
         const item = (label) =>
           `<li><a href="#" class="${label === selected ? "sel" : ""}"${
@@ -1438,9 +1438,12 @@
         return bits.length ? bits.join(" ") : `<span class="sec">—</span>`;
       };
 
+      /* The count is a link into the queue — amendment W1-A1, applied. It is
+         the route an operator falls into: they are looking at somebody and
+         click the number beside them. */
       const missingCell = (p) =>
         p.missing
-          ? `<span class="chip chip-warn">${p.missing} missing</span>`
+          ? `<a class="golink" href="#"><span class="chip chip-warn">${p.missing} missing</span></a>`
           : `<span class="sec">—</span>`;
 
       const nameCell = (p, matched) => `
@@ -1545,11 +1548,19 @@
          language there." */
       const OUTSIDE_BTN = `<button class="btn btn-outlined">See people outside this season</button>`;
 
+      /* Amendment W1-A3, applied: the list had no way to create a person, so
+         `/operate/people/new` was reachable from nowhere. The roster's header
+         already carries `Add player` in this position. */
+      const LIST_ACTIONS = `
+        <div class="row g2" style="flex-wrap:wrap">
+          ${OUTSIDE_BTN}<button class="btn btn-contained">Add a person</button>
+        </div>`;
+
       /* --------------------------- list screens -------------------------- */
 
       const W101 = operatorShell(`
         <div class="stack g3">
-          ${listHead("Season 2026-27 · 12 people", OUTSIDE_BTN)}
+          ${listHead("Season 2026-27 · 12 people", LIST_ACTIONS)}
           ${filterBar()}
           ${peopleTable(SEASON_PEOPLE)}
           ${peopleCards(SEASON_PEOPLE)}
@@ -1559,7 +1570,7 @@
 
       const W102 = operatorShell(`
         <div class="stack g3">
-          ${listHead("Season 2026-27 · 1 of 12 match “Holly”", OUTSIDE_BTN)}
+          ${listHead("Season 2026-27 · 1 of 12 match “Holly”", LIST_ACTIONS)}
           ${filterBar("Holly")}
           ${peopleTable([HOLLIS_ROW], true)}
           ${peopleCards([HOLLIS_ROW], true)}
@@ -1646,6 +1657,7 @@
           ${paper(
             "How to reach them",
             frow("Mobile phone", p.mobile) +
+              frow("On WhatsApp · 2026-27", p.whatsapp ?? NR) +
               frow("Personal email", p.personalEmail) +
               frow("College email", p.collegeEmail),
           )}
@@ -1717,6 +1729,7 @@
           <span style="width:100%"></span>H.J. ${PLAYER}`,
         mobile: `+44 7700 900412 ${by("Caspian Hallowfield")}`,
         personalEmail: `holly.jarrowdale@example.com ${by("Caspian Hallowfield")}`,
+        whatsapp: `<span class="chip ok">In the 2026-27 group</span>`,
         collegeEmail: `hollis.jarrowdale@hallamshire.ox.ac.example`,
         college: `Hallamshire ${by("Caspian Hallowfield")}`,
         matric: `2024 ${PLAYER}`,
@@ -1729,7 +1742,8 @@
         standingDetail: `${standingChip("Active")} <span class="body2 sec">2026-27</span>`,
         alumniDetail: `Current member`,
         roles: `Gameday Secretary · committee year 2026-27
-          <span style="width:100%"></span>Gameday Secretary · committee year 2025-26 <span class="chip chip-outline">ended</span>`,
+          <span style="width:100%"></span>Gameday Secretary · committee year 2025-26 <span class="chip chip-outline">ended</span>
+          <span style="width:100%"></span><a class="golink" href="#">Assign a role →</a>`,
         seasons:
           seasonRow("2026-27", "Active", "Blue 24") +
           seasonRow("2025-26", "Archived", "Blue 24 · Half Blue awarded") +

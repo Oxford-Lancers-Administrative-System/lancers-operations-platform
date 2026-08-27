@@ -8,12 +8,12 @@
 - Trigger: the week before a fixture and nobody knows who has an emergency
   contact; the Secretary has an hour and wants it spent usefully; the roster
   shows a flag against eleven people.
-- Entry point: **not yet decided, and not yet drawn anywhere.** Corrected
-  2026-08-27: this specification asserted a **Missing data** navigation entry
-  that no screen renders, and `W1-01`'s Missing column is a chip rather than a
-  link. Two routes are proposed and both amend approved `W1` — see `W7-06`:
-  the count on the roster and on the People list becomes a link, and/or a
-  **Missing data** entry joins the Administration group. Recommendation: both.
+- Entry point: **both routes, settled 2026-08-27** as amendment `W1-A1`. The
+  Missing count on the roster and on `W1-01`'s People list is a link into this
+  queue, and **Missing data** is an entry in the Administration group. The count
+  is the route an operator falls into; the entry is the route for an hour spent
+  usefully. This specification previously asserted the entry alone, and no screen
+  drew it.
 - Route/placement: `/operate/people/missing`. Neither the route nor its parent
   exists on `main`; nothing occupies the path.
 - Controlling source: Task 08 §5 (missing required data); Task 08 §6 (`not

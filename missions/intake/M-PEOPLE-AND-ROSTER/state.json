@@ -56,7 +56,7 @@
       "amendments": [
         {
           "id": "W1-A1",
-          "status": "open",
+          "status": "applied",
           "summary": "The missing-data queue has no entry point. Proposed: the Missing count becomes a link, and/or a Missing data entry joins Administration. Both amend approved W1."
         },
         {
@@ -66,17 +66,17 @@
         },
         {
           "id": "W1-A3",
-          "status": "open",
+          "status": "applied",
           "summary": "The People list has no Add a person control, so W3's create surface is reachable from nowhere."
         },
         {
           "id": "W1-A4",
-          "status": "open",
+          "status": "applied",
           "summary": "W1-05's Roles row has no route to Administration - Roles, though W1's own handoff claims one. Load-bearing since roles left W3."
         },
         {
           "id": "W1-A5",
-          "status": "open",
+          "status": "applied",
           "summary": "W2-06 renders On WhatsApp on the person record and W1-05 does not. Two approved mockups disagree about what the record holds."
         }
       ]
@@ -151,12 +151,7 @@
       "name": "Work the missing-data queue",
       "state": "spec_draft",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W7-06",
-          "text": "Decide the queue's entry point: a linked count, an Administration entry, or both. Either amends approved W1."
-        }
-      ],
+      "feedback": [],
       "approvals": {}
     },
     {
@@ -1676,5 +1671,5 @@
       }
     ]
   },
-  "next_action": "Decide W1-A1, A3, A4 and A5 - four amendments against approved W1, all entry points or fields other workflows depend on"
+  "next_action": "All five W1 amendments are applied. W6's missing history link needs a re-shoot with the application running; then W3 is ready for a second read"
 }

@@ -314,3 +314,28 @@ this mission tells the operator about must be readable afterwards — but it has
 no substrate on `main`, so it renders only when Mission 6 builds it.
 
 Neither is applied. `W1` is approved and stays as it is until Brian decides.
+
+## All four amendments applied, 2026-08-27
+
+Brian: _"Can you fix those, or have they already been fixed?"_ They had not been.
+`W1-A1`, `A3`, `A4` and `A5` are now applied to this workflow's mockup, with the
+recommendation given against each:
+
+- **A1 — both routes.** The Missing count on `W1-01` is a link into the queue,
+  and **Missing data** joins the Administration group. They answer different
+  questions: the count is the route an operator falls into, the entry is the
+  route for an hour spent usefully.
+- **A3 — Add a person** in the `W1-01` header, beside the season action, where
+  the roster carries **Add player**.
+- **A4 — Assign a role →** on `W1-05`'s Roles row, reaching Administration →
+  Roles. This workflow still grants nothing; it routes.
+- **A5 — On WhatsApp · 2026-27** on the person record, between the mobile number
+  and the emails. It renders `not recorded` until Mission 6 builds the
+  substrate, and it is what `W2-05`'s consequence lands on.
+
+**The cost, as flagged when A1 was raised:** Administration now holds four
+entries, so the phone bottom bar carries seven destinations and two of them
+truncate. Accepted with the amendment rather than discovered later.
+
+`A2` was applied on the same day. No amendment against this workflow remains
+open.
