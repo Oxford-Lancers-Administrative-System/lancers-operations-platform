@@ -40,7 +40,10 @@
   field's group is never a guess.
 - Show the derived **Blues total** across seasons, and the derived
   **constitutional membership**.
-- Link to the person's change history (`W8`).
+- Link to the person's change history, which is now a **section of the person
+  record** rather than a workflow of its own — `W8` was struck 2026-08-27 and
+  absorbed into `W1` as amendment `W1-A6`. Player detail links; it does not
+  duplicate.
 
 ## State transitions
 
@@ -66,7 +69,7 @@ those really put in place here."_
 
 - To `W1-05` for the person behind the season.
 - To `W5` back to the grid.
-- To `W8` for the change history.
+- To the person record's history section for the change history.
 - To `W2` for correcting a durable person fact.
 - To Mission 7 for onboarding behaviour and the collection request.
 - To Mission 9 for what positions, jersey, coach group and availability mean.

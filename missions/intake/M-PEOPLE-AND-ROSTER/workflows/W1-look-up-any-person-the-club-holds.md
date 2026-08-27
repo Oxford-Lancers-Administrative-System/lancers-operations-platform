@@ -339,3 +339,28 @@ truncate. Accepted with the amendment rather than discovered later.
 
 `A2` was applied on the same day. No amendment against this workflow remains
 open.
+
+## Amendment W1-A6, applied 2026-08-27 — per-person history moves here
+
+`W8` is struck from the frozen inventory and its content is absorbed into this
+workflow. Brian: _"Honestly, this feels like just an audit trail at the bottom of
+the people record"_, and then _"Yeah, that's fine. Remove the workflow, add it to
+the other ones."_
+
+**What this workflow now owns.** The `What changed` panel on the person record
+expands in place to the **whole** history — every recorded change, newest first,
+each naming the field, what it went from and to, when, who, and the reason where
+`W2` required one. A merge reads as **one event** naming what it moved. A
+superseded contact point reads as kept-and-dated rather than deleted. The **field
+and actor filters** come with it: they were the separate page's only real
+argument, and losing them was the one cost of the strike, so they moved rather
+than being dropped. `W1-11` and `W1-12` draw it.
+
+**What is gone.** The route `/operate/people/[personId]/history`, and nothing
+else. The history is a section, not a destination.
+
+**Where the rest went.** `W6` links here rather than duplicating. Mission 3 keeps
+the general audit browser, unchanged — this was always the per-person view. The
+two decisions the coverage table assigned to `W8` — Task 08 §5's
+audit-on-the-record, and the owner ruling that per-person history belongs with
+the mission that writes it — are reassigned to this workflow.

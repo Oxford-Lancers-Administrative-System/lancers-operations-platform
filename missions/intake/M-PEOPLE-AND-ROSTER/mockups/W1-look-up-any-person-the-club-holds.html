@@ -1776,7 +1776,11 @@
               frow("Roles", p.roles),
           )}
           ${paper("Their seasons", p.seasons)}
-          ${paper("What changed", p.history, `<a class="golink" href="#">Full history →</a>`)}
+          ${paper(
+            "What changed",
+            p.history,
+            `<a class="golink" href="#">Show all ${p.changeCount ?? "14"} →</a>`,
+          )}
         </div>`;
 
       /*
@@ -2002,6 +2006,128 @@
         { selected: "", who: "Quillon Sedgewick", caption: "Authorized operator", admin: [] },
       );
 
+      /*
+       * W8 was struck on 2026-08-27 and its content lives here. The record's
+       * What changed panel expands in place to the whole history, with the field
+       * and actor filters that were the separate page's only real argument.
+       * There is no /history route.
+       */
+      const histEntry = (field, from, to, when, who, reason = null, chips = []) => `
+        <div class="seasonrow">
+          <div style="min-width:0">
+            <div class="body2"><span class="bold">${field}</span></div>
+            <div class="chg-line" style="margin-top:2px">
+              <span class="was">${from}</span><span class="sec"> → </span><span>${to}</span>
+            </div>
+            <div class="aka">${when} · ${who}</div>
+            ${reason ? `<div class="aka">Reason: ${reason}</div>` : ""}
+            ${chips.length ? `<div class="chiprow">${chips.map((c) => `<span class="chip chip-outline">${c}</span>`).join("")}</div>` : ""}
+          </div>
+        </div>`;
+
+      const historySection = (sub, filters, rows) =>
+        operatorShell(`
+        <div class="stack g3">
+          <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <div style="min-width:0">
+              <p class="body2 sec" style="margin:0"><a class="golink" href="#">← People</a></p>
+              <p class="h5" style="margin:4px 0 0">Hollis Jarrowdale</p>
+              <div class="chiprow">
+                ${standingChip("Active")}<span class="chip chip-outline">Player · Gameday Secretary</span>
+              </div>
+            </div>
+            <div class="row g2" style="flex-wrap:wrap">
+              <button class="btn btn-outlined">Correct this record</button>
+              <button class="btn btn-text">Merge…</button>
+            </div>
+          </div>
+          <p class="body2 sec" style="margin:0">The rest of the record is above. This is its last panel.</p>
+          ${paper(
+            `What changed · ${sub}`,
+            `<div class="row g2" style="flex-wrap:wrap;margin-bottom:6px">${filters
+              .map((f) => `<span class="field-inline">${f}</span>`)
+              .join("")}</div>` + rows,
+            `<a class="golink" href="#">Collapse</a>`,
+          )}
+        </div>`);
+
+      const W111 = historySection(
+        "14 changes",
+        ["Field: All ▾", "Changed by: All ▾"],
+        histEntry(
+          "Mobile phone",
+          "+44 7700 900412",
+          "+44 7700 900988",
+          "26 October 2026, 09:18",
+          "Caspian Hallowfield",
+          "New number, told me at training",
+        ) +
+          histEntry(
+            "Personal email",
+            `<span class="notrec">not recorded</span>`,
+            "holly.jarrowdale@example.com",
+            "24 August 2026, 09:12",
+            "Caspian Hallowfield",
+          ) +
+          `<div class="seasonrow">
+             <div style="min-width:0">
+               <div class="body2"><span class="bold">Merged “Holly Jarrowdale” into this record</span></div>
+               <div class="aka">3 October 2025, 09:22 · Caspian Hallowfield</div>
+               <div class="chiprow">
+                 <span class="chip chip-outline">3 memberships</span>
+                 <span class="chip chip-outline">18 RSVPs</span>
+                 <span class="chip chip-outline">7 history entries</span>
+               </div>
+             </div>
+           </div>` +
+          histEntry(
+            "Aliases",
+            "Holly",
+            "Holly (display name)",
+            "12 October 2025, 11:02",
+            "Norbert Mereworth",
+          ) +
+          histEntry(
+            "Expected graduation",
+            "2026",
+            "2027",
+            "4 March 2025, 14:30",
+            "Norbert Mereworth",
+            "Repeated a year",
+          ),
+      );
+
+      const W112 = historySection(
+        "3 of 14",
+        ["Field: Personal email ▾", "Changed by: All ▾"],
+        histEntry(
+          "Personal email",
+          "holly.j@example.com",
+          "holly.jarrowdale@example.com",
+          "26 October 2026, 09:25",
+          "Caspian Hallowfield",
+          "Prefers the full form",
+        ) +
+          histEntry(
+            "Personal email",
+            `<span class="notrec">not recorded</span>`,
+            "holly.j@example.com",
+            "3 October 2025, 09:22",
+            "Caspian Hallowfield",
+            null,
+            ["from the merge"],
+          ) +
+          histEntry(
+            "Personal email",
+            "hollis.j@example.com",
+            `<span class="notrec">not recorded</span>`,
+            "18 January 2025, 08:04",
+            "Zenas Yaxlington",
+            "Bounced, address was wrong",
+            ["seat ended 30 June 2025"],
+          ),
+      );
+
       /* ------------------------------ screens ---------------------------- */
 
       const CLOCK = "Now: Monday, 26 October 2026, 09:15";
@@ -2199,6 +2325,44 @@
           now: null,
           nowNone: NONE,
           proposed: W110,
+        },
+        {
+          id: "W1-11",
+          title: "The whole history, on the record",
+          disposition: "new",
+          blurb: `<strong>Added 2026-08-27, when W8 was struck.</strong> The <em>What changed</em>
+            panel expands in place to every recorded change, with the field and actor filters.
+            There is no separate history route any more.`,
+          deltas: [
+            "Brian: “this feels like just an audit trail at the bottom of the people record” — and then “remove the workflow, add it to the other ones”",
+            "Every entry says field, from, to, when and who, and the reason where W2 required one. A fill reads <code>not recorded → value</code>",
+            "A merge reads as <strong>one event</strong> naming what it moved, not a scatter of forty corrections",
+            "The filters are what made a separate page arguable. They came with the content rather than being lost with the route",
+            "Player detail links here rather than duplicating it",
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/people/4f8c21a6",
+          now: null,
+          nowNone: NONE,
+          proposed: W111,
+        },
+        {
+          id: "W1-12",
+          title: "Filtered to one field",
+          disposition: "new",
+          blurb: `The whole life of one value — usually the real question. Not “what happened to
+            this person” but “why is this email what it is”.`,
+          deltas: [
+            "Three entries, two operators and a merge, in the order they happened",
+            "<strong>This is the capability the struck page existed for</strong>, and it survives the strike",
+            "The count reads 3 of 14, so a filtered view is never mistaken for the whole record",
+            "A departed actor's name stays, with the date their seat ended. An audit trail that forgets who did something is not one",
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/people/4f8c21a6",
+          now: null,
+          nowNone: NONE,
+          proposed: W112,
         },
       ];
 

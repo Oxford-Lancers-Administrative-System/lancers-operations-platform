@@ -78,6 +78,11 @@
           "id": "W1-A5",
           "status": "applied",
           "summary": "W2-06 renders On WhatsApp on the person record and W1-05 does not. Two approved mockups disagree about what the record holds."
+        },
+        {
+          "id": "W1-A6",
+          "status": "applied",
+          "summary": "Per-person history absorbed from the struck W8: the record's What changed panel carries the full history and its field and actor filters. No separate route."
         }
       ]
     },
@@ -189,19 +194,6 @@
         {
           "screen_id": "W7-01",
           "text": "Standing may need renaming on every surface if the word is not carrying the ladder's meaning."
-        }
-      ],
-      "approvals": {}
-    },
-    {
-      "id": "W8",
-      "name": "See what changed on a person and who changed it",
-      "state": "spec_draft",
-      "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W8-01",
-          "text": "Decide whether this is a page plus a panel, or only the panel on the record. Choosing the panel drops W8 from the frozen inventory."
         }
       ],
       "approvals": {}
@@ -754,8 +746,8 @@
         "id": "T08-audit-history-on-the-record",
         "source_id": "SRC-task-08",
         "disposition": "workflow",
-        "workflow": "W8",
-        "reason": "\u00a75 places the audit/history of changes on the record it describes."
+        "workflow": "W1",
+        "reason": "\u00a75 places the audit/history of changes on the record it describes. Reassigned 2026-08-27 when W8 was struck from the inventory and per-person history became a section of the person record."
       },
       {
         "id": "T08-read-back-on-mobile-capture",
@@ -1620,8 +1612,8 @@
         "id": "OS-per-person-history-here",
         "source_id": "SRC-owner-session",
         "disposition": "workflow",
-        "workflow": "W8",
-        "reason": "Per-person change history is part of the audit trail and inseparable from correction and merge, so it sits here rather than in Mission 3's general audit browser."
+        "workflow": "W1",
+        "reason": "Per-person change history is part of the audit trail and inseparable from correction and merge, so it sits here rather than in Mission 3's general audit browser. Reassigned 2026-08-27 when W8 was struck from the inventory and per-person history became a section of the person record."
       },
       {
         "id": "OS-merge-operator-seat-refusal",
@@ -1654,5 +1646,5 @@
       }
     ]
   },
-  "next_action": "Decide W8: a page plus the record's panel, or only the panel. Then W7 and W8 are the last two reads"
+  "next_action": "Seven workflows. W7 is the last one awaiting a read"
 }

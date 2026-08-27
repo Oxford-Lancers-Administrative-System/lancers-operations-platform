@@ -3,7 +3,8 @@
 Definition: one primary actor's end-to-end journey from trigger and entry point to
 one user-visible result.
 
-Eight workflows. Every actor is a four-role operator — President, Vice-President,
+Seven workflows, after `W8` was struck on 2026-08-27 — see Inventory amendments.
+Every actor is a four-role operator — President, Vice-President,
 Secretary or General Manager — because Task 08 §6 restricts every surface in this
 mission to that group and this mission builds nothing player-facing.
 
@@ -38,9 +39,6 @@ mission to that group and this mission builds nothing player-facing.
    incomplete and in what → a real, filterable list of people with required facts
    `not recorded` or `disputed`, per-field indicators, and the roster flag that
    leads into it.
-8. `W8` — **See what changed on a person and who changed it**: an operator needs
-   to know how a value came to be what it is → the append-only change history on
-   the record it describes, naming actor, date and the superseded value.
 
 ## Excluded stages and invariants
 
@@ -88,16 +86,39 @@ re-argued later:
 
 ## Inventory amendments
 
-None.
+**2026-08-27 — `W8` is struck. Eight workflows become seven.**
+
+Brian, having asked how anyone reached it: _"Honestly, this feels like just an
+audit trail at the bottom of the people record."_ Then, on being shown the three
+shapes and their costs: _"Yeah, that's fine. Remove the workflow, add it to the
+other ones."_
+
+**Where it went.** Per-person history is a **section of the person record**, not
+a route. The `What changed` panel that `W1-05` already carried now holds the
+whole history, expandable in place, with the field and actor filters that were
+the page's only real argument. Player detail links to it. Nothing is lost except
+the separate URL.
+
+**What this changed elsewhere.** `W1` absorbs the history requirements as
+amendment `W1-A6`, applied. The two decisions the coverage table assigned to `W8`
+— Task 08 §5's audit-on-the-record, and the owner ruling that per-person history
+sits here rather than in Mission 3's general browser — are reassigned to `W1`
+with the reason recorded. `W6` links rather than duplicating.
+
+The original approval below stands for the other seven; it is amended, not
+replaced.
 
 ## Brian approval
 
-- Exact approved list/count: eight workflows, `W1`–`W8`, in the order and under
-  the names listed above — W1 Look up any person the club holds · W2 Correct a
-  person's record · W3 Add or link a person who holds no membership · W4 Merge
-  two records for the same human · W5 Work this season's roster · W6 Open one
-  player's record · W7 Work the missing-data queue · W8 See what changed on a
-  person and who changed it.
+- Exact approved list/count **as first frozen, 2026-08-26**: eight workflows,
+  `W1`–`W8`, in the order and under the names listed above — W1 Look up any
+  person the club holds · W2 Correct a person's record · W3 Add or link a person
+  who holds no membership · W4 Merge two records for the same human · W5 Work
+  this season's roster · W6 Open one player's record · W7 Work the missing-data
+  queue · W8 See what changed on a person and who changed it.
+- **Amended 2026-08-27 to seven**: `W8` struck, its content absorbed into `W1`.
+  Brian: "Yeah, that's fine. Remove the workflow, add it to the other ones." The
+  approval below is amended, not replaced.
 - Exact words: "Okay, I think this is good."
 - Date: 2026-08-26
 - By: Brian Schuster
