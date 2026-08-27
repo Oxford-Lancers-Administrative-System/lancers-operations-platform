@@ -3613,23 +3613,60 @@
             <p>Two kinds of cell, and the difference is the person-versus-season test again:</p>
             <ul>
               <li>
-                <strong>Season facts edit in the cell</strong> — standing, entry, positions, jersey,
-                coach group, formalwear, Blues, eligibility, availability. No reason is asked for,
-                because nothing prior is being overwritten: they belong to this season and this
-                season only. Each edit is audited.
+                <p>
+                  <strong>Editing is spreadsheet editing.</strong> Brian, 2026-08-27:
+                  <em
+                    >&quot;They should click it, and they should come up… I click the button, and
+                    then it goes and updates automatically.&quot;</em
+                  >
+                  One click opens the cell; the change commits on its own; there is no save button
+                  and no confirmation step.
+                </p>
+                <ul>
+                  <li>
+                    <strong>A dropdown only where the value set is fixed</strong> — positions, coach
+                    group, standing, entry, formalwear, Blues, eligibility, availability. Free entry
+                    everywhere else, which today means the jersey numbers.
+                  </li>
+                  <li>
+                    <strong>Every commit writes an audit event</strong> — actor, timestamp, field,
+                    before, after — and <strong>no reason is asked for</strong>. Brian:
+                    <em
+                      >&quot;It doesn&#39;t mean they have to give a reason. It should be part of
+                      the audit trail.&quot;</em
+                    >
+                    The reason belongs to <code>W2</code>, where a durable person fact is being
+                    overwritten; nothing on this board overwrites one.
+                  </li>
+                  <li>
+                    The audit event lands on the person&#39;s history (<code>W8</code>) like every
+                    other edit, so a season change made here is answerable in the same place as a
+                    correction made anywhere else.
+                  </li>
+                </ul>
               </li>
               <li>
-                <strong>Person facts do not edit here.</strong> College, matriculation year,
-                expected graduation and degree field render on the board and open the person record.
-                Brian:
-                <em
-                  >&quot;anything that needs to be edited there needs to be edited in the people
-                  thing there because it is an override… The columns for the people data should be
-                  more deliberate, where you can&#39;t just willy-nilly change that, but you should
-                  show as much as you possibly can.&quot;</em
-                >
-                <code>W2</code>&#39;s rules then apply — a reason when a value is replaced, contacts
-                superseding, every edit audited.
+                <p>
+                  <strong>Season facts edit in the cell</strong> — standing, entry, positions,
+                  jersey, coach group, formalwear, Blues, eligibility, availability. No reason is
+                  asked for, because nothing prior is being overwritten: they belong to this season
+                  and this season only. Each edit is audited.
+                </p>
+              </li>
+              <li>
+                <p>
+                  <strong>Person facts do not edit here.</strong> College, matriculation year,
+                  expected graduation and degree field render on the board and open the person
+                  record. Brian:
+                  <em
+                    >&quot;anything that needs to be edited there needs to be edited in the people
+                    thing there because it is an override… The columns for the people data should be
+                    more deliberate, where you can&#39;t just willy-nilly change that, but you
+                    should show as much as you possibly can.&quot;</em
+                  >
+                  <code>W2</code>&#39;s rules then apply — a reason when a value is replaced,
+                  contacts superseding, every edit audited.
+                </p>
               </li>
             </ul>
             <p>
@@ -3717,13 +3754,26 @@
               Brian asked for the full set, 2026-08-27. This is what the data supports, not what is
               drawn — six are drawn on <code>W5-02</code>.
             </p>
+            <p>
+              Alumni standing is <strong>not</strong> among them, struck 2026-08-27. Everybody on
+              this board holds a membership in the season being viewed, so the derivation returns
+              the same answer for all of them. It filters usefully on People (<code>W1</code>),
+              where the population is mixed, and means nothing here.
+            </p>
             <p><strong>Person</strong> — the operator narrows by who somebody is:</p>
             <ul>
               <li>College · Matriculation year · Expected graduation · Degree field</li>
               <li>Has a mobile · Has a personal email · Has a college email</li>
               <li>Has an alias</li>
-              <li>Missing data: any, or which fact specifically</li>
-              <li>Alumni standing (current member · past member · never a member)</li>
+              <li>
+                Missing data: <strong>yes or no</strong> — Brian, 2026-08-27. The column still
+                carries the count; the filter is binary, because &quot;who is incomplete&quot; is
+                the question and &quot;who is incomplete by exactly two things&quot; is not
+              </li>
+              <li>
+                Missing a <strong>named</strong> fact specifically (no emergency contact, no
+                personal email)
+              </li>
             </ul>
             <p>
               <strong>Onboarding</strong> — Mission 7 owns the behaviour; the filters are this
@@ -3759,6 +3809,50 @@
             <p>
               <strong>Never filterable, because they are never on a list:</strong> date of birth as
               a value, and emergency contact. Task 08 §6.
+            </p>
+            <h2>Filtering across eighteen columns — the options</h2>
+            <p>
+              Brian asked, 2026-08-27, whether there is a better way than a row of dropdowns above
+              the board. Four shapes, and they combine.
+            </p>
+            <p>
+              <strong>1. A pinned set above the board.</strong> The three or four an operator always
+              reaches for — standing, entry, missing data. Cheap, discoverable, and it is what the
+              roster already does. It does not scale past about five before the bar is wider than
+              the screen.
+            </p>
+            <p>
+              <strong>2. A filter control in each column header.</strong> The filter lives with the
+              thing it filters, and it scales to any number of columns because it costs no extra
+              space. Its one real flaw: a filter set on a column that is scrolled off screen is
+              invisible, so a board can be silently filtered and look empty for no visible reason.
+            </p>
+            <p>
+              <strong>3. An active-filter bar.</strong> Whatever is set shows as a removable chip
+              under the header, whichever column it came from. This is what fixes (2)&#39;s flaw,
+              and it is not optional if (2) is built.
+            </p>
+            <p>
+              <strong>4. Saved views.</strong> &quot;Active players with no emergency contact&quot;
+              named, saved and reopened. This is the one that pays for itself on repeated work, and
+              the only one that survives the filter set growing to thirty.
+            </p>
+            <p>
+              <strong>Recommendation: 1 + 2 + 3, then 4.</strong> The pinned set for what you always
+              want, per-column for the other fifteen, the active-filter bar so nothing is ever
+              filtered invisibly, and saved views once the board is real and the combinations that
+              recur are known rather than guessed.
+            </p>
+            <p>
+              <strong>Not recommended: a filter drawer</strong>, listing all thirty in one panel. It
+              reads well in a specification and is slow to use, because every filter costs the same
+              number of clicks whether it is the one you use daily or the one you use annually.
+            </p>
+            <p>
+              <strong>Not recommended either: query tokens</strong> in the search box (<code
+                >college:Hallamshire position:ST</code
+              >). Powerful, fast for whoever learns it, and undiscoverable for everybody else —
+              which on a surface four people share is the wrong trade.
             </p>
             <h2>Exceptions and recovery</h2>
             <ul>

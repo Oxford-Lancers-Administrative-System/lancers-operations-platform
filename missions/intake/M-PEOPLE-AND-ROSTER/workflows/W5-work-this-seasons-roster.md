@@ -53,6 +53,22 @@ thing, from this screen."_
 
 Two kinds of cell, and the difference is the person-versus-season test again:
 
+- **Editing is spreadsheet editing.** Brian, 2026-08-27: _"They should click it,
+  and they should come up… I click the button, and then it goes and updates
+  automatically."_ One click opens the cell; the change commits on its own; there
+  is no save button and no confirmation step.
+  - **A dropdown only where the value set is fixed** — positions, coach group,
+    standing, entry, formalwear, Blues, eligibility, availability. Free entry
+    everywhere else, which today means the jersey numbers.
+  - **Every commit writes an audit event** — actor, timestamp, field, before,
+    after — and **no reason is asked for**. Brian: _"It doesn't mean they have to
+    give a reason. It should be part of the audit trail."_ The reason belongs to
+    `W2`, where a durable person fact is being overwritten; nothing on this board
+    overwrites one.
+  - The audit event lands on the person's history (`W8`) like every other edit,
+    so a season change made here is answerable in the same place as a correction
+    made anywhere else.
+
 - **Season facts edit in the cell** — standing, entry, positions, jersey,
   coach group, formalwear, Blues, eligibility, availability. No reason is asked
   for, because nothing prior is being overwritten: they belong to this season and
@@ -118,13 +134,20 @@ Activation stays on player detail, through the control that already exists.
 Brian asked for the full set, 2026-08-27. This is what the data supports, not
 what is drawn — six are drawn on `W5-02`.
 
+Alumni standing is **not** among them, struck 2026-08-27. Everybody on this
+board holds a membership in the season being viewed, so the derivation returns
+the same answer for all of them. It filters usefully on People (`W1`), where the
+population is mixed, and means nothing here.
+
 **Person** — the operator narrows by who somebody is:
 
 - College · Matriculation year · Expected graduation · Degree field
 - Has a mobile · Has a personal email · Has a college email
 - Has an alias
-- Missing data: any, or which fact specifically
-- Alumni standing (current member · past member · never a member)
+- Missing data: **yes or no** — Brian, 2026-08-27. The column still carries the
+  count; the filter is binary, because "who is incomplete" is the question and
+  "who is incomplete by exactly two things" is not
+- Missing a **named** fact specifically (no emergency contact, no personal email)
 
 **Onboarding** — Mission 7 owns the behaviour; the filters are this mission's:
 
@@ -152,6 +175,43 @@ what is drawn — six are drawn on `W5-02`.
 
 **Never filterable, because they are never on a list:** date of birth as a value,
 and emergency contact. Task 08 §6.
+
+## Filtering across eighteen columns — the options
+
+Brian asked, 2026-08-27, whether there is a better way than a row of dropdowns
+above the board. Four shapes, and they combine.
+
+**1. A pinned set above the board.** The three or four an operator always
+reaches for — standing, entry, missing data. Cheap, discoverable, and it is what
+the roster already does. It does not scale past about five before the bar is
+wider than the screen.
+
+**2. A filter control in each column header.** The filter lives with the thing it
+filters, and it scales to any number of columns because it costs no extra space.
+Its one real flaw: a filter set on a column that is scrolled off screen is
+invisible, so a board can be silently filtered and look empty for no visible
+reason.
+
+**3. An active-filter bar.** Whatever is set shows as a removable chip under the
+header, whichever column it came from. This is what fixes (2)'s flaw, and it is
+not optional if (2) is built.
+
+**4. Saved views.** "Active players with no emergency contact" named, saved and
+reopened. This is the one that pays for itself on repeated work, and the only one
+that survives the filter set growing to thirty.
+
+**Recommendation: 1 + 2 + 3, then 4.** The pinned set for what you always want,
+per-column for the other fifteen, the active-filter bar so nothing is ever
+filtered invisibly, and saved views once the board is real and the combinations
+that recur are known rather than guessed.
+
+**Not recommended: a filter drawer**, listing all thirty in one panel. It reads
+well in a specification and is slow to use, because every filter costs the same
+number of clicks whether it is the one you use daily or the one you use annually.
+
+**Not recommended either: query tokens** in the search box (`college:Hallamshire
+position:ST`). Powerful, fast for whoever learns it, and undiscoverable for
+everybody else — which on a surface four people share is the wrong trade.
 
 ## Exceptions and recovery
 
