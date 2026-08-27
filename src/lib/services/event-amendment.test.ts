@@ -49,13 +49,7 @@ import {
   type EventDraftInput,
 } from "./events";
 import { readAttendanceBoard, readEventAttendanceSummary } from "./attendance";
-import {
-  dispatchEventInvitations,
-  JOB_HELD_MESSAGE,
-  JOB_HELD_RULE,
-  readEventDelivery,
-  retryDelivery,
-} from "./delivery";
+import { dispatchEventInvitations, readEventDelivery } from "./delivery";
 import { resolveRsvpToken } from "./rsvp-tokens";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
@@ -558,8 +552,21 @@ describe("silencing a change that moved a future date, time or venue", () => {
 // REQ-amend-hold
 // ---------------------------------------------------------------------------
 
-describe("saving an amendment holds the event's unsent messages", () => {
-  it("holds every unsent job, attributed and explained", async () => {
+describe("saving an amendment holds the event's unsent messages, then resumes them", () => {
+  /**
+   * W8, `REQ-resume-follows-notify`, "Held is never a resting state". This is
+   * the whole of what changed: the hold and the resume are now one save, not
+   * one save and an indefinite wait for a later decision nobody was building.
+   * `held_at`, `held_reason` and `held_by_person_id` therefore cannot be
+   * observed non-null from outside this module any more —
+   * `resumeHeldMessagesIn` clears all three together in the same transaction
+   * that set them, exactly the pairing
+   * `notification_jobs_held_pairing` requires — so what these tests prove is
+   * the two-part fact the old ones could not: the hold happened
+   * (`messagesHeld`), and it did not outlive the save (`messagesResumed`, and
+   * every affected job back at `pending`, ready to dispatch again).
+   */
+  it("holds every unsent job, then resumes every one of them", async () => {
     const fixture = await approvedEvent();
 
     const outcome = await amendApprovedEvent(
@@ -570,20 +577,24 @@ describe("saving an amendment holds the event's unsent messages", () => {
     );
 
     expect(outcome.messagesHeld).toBeGreaterThan(0);
+    expect(outcome.messagesResumed).toBe(outcome.messagesHeld);
 
     const invitationJobs = (await jobsFor(fixture.eventId)).filter(
       (job) => job.job_type === "invitation",
     );
     expect(invitationJobs).toHaveLength(6);
     for (const job of invitationJobs) {
-      expect(job.held_at).not.toBeNull();
-      expect(job.held_reason).toContain("Venue");
-      // A hold, not a cancellation — the obligation survives.
+      // Resumed: reads as never held, by every column the pairing constraint
+      // ties together.
+      expect(job.held_at).toBeNull();
+      expect(job.held_reason).toBeNull();
+      // A hold, not a cancellation — the obligation survives, and resuming
+      // puts it back exactly where dispatch found it.
       expect(job.status).toBe("pending");
     }
   });
 
-  it("stops a held message being delivered", async () => {
+  it("resumes deliverability — a message is not stuck once the save completes", async () => {
     const fixture = await approvedEvent();
 
     await amendApprovedEvent(
@@ -593,6 +604,24 @@ describe("saving an amendment holds the event's unsent messages", () => {
       { notify: true },
     );
 
+    // The plan anchors this event's invitation ahead of now — `approvedEvent`
+    // uses a genuinely future date, exactly as W1 promises an event with a
+    // longer lead should. That anchor, not the hold, is why nothing would be
+    // due yet; forcing it into the past isolates the one fact this test is
+    // about — whether the hold itself still blocks dispatch — from that
+    // unrelated timing.
+    await observer.query(
+      `update public.notification_jobs
+          set scheduled_for = now() - interval '1 minute'
+        where event_id = $1 and job_type = 'invitation'`,
+      [fixture.eventId],
+    );
+
+    // If the hold outlived the save, this would be refused with
+    // `JOB_HELD_MESSAGE` — `delivery.test.ts` proves that refusal directly
+    // against a job held by hand. Here the job was held and resumed by the
+    // amendment itself, so dispatch works exactly as it would have before
+    // the amendment was ever saved.
     const transport = vi.fn(async () => new Response("{}", { status: 200 }));
     const summary = await dispatchEventInvitations(fixture.eventId, {
       source: {
@@ -604,88 +633,71 @@ describe("saving an amendment holds the event's unsent messages", () => {
       transport,
     });
 
-    expect(summary).toEqual({ attempted: 0, accepted: 0, refused: 0, skipped: 0 });
-    expect(transport).not.toHaveBeenCalled();
-
-    const attempts = await observer.query<{ count: string }>(
-      `select count(*)::text as count from public.delivery_attempts
-        where notification_job_id in (select id from public.notification_jobs where event_id = $1)`,
-      [fixture.eventId],
-    );
-    expect(Number(attempts.rows[0].count)).toBe(0);
-  });
-
-  it("stops the operator's Retry sending one, as a sentence rather than a shrug", async () => {
-    const fixture = await approvedEvent();
-    await amendApprovedEvent(
-      actorPersonId,
-      fixture.eventId,
-      { ...draft(), venue: "University Parks" },
-      { notify: true },
-    );
-
-    const job = await observer.query<{ id: string }>(
-      `select id from public.notification_jobs
-        where event_id = $1 and job_type = 'invitation' order by id limit 1`,
-      [fixture.eventId],
-    );
-
-    const failure = await serviceFailure(() =>
-      retryDelivery(actorPersonId, job.rows[0].id, {
-        source: {},
-        transport: async () => new Response("{}", { status: 200 }),
-      }),
-    );
-
-    expect(failure.rule).toBe(JOB_HELD_RULE);
-    expect(failure.message).toBe(JOB_HELD_MESSAGE);
-
-    const attempts = await observer.query<{ count: string }>(
-      `select count(*)::text as count from public.delivery_attempts
-        where notification_job_id = $1`,
-      [job.rows[0].id],
-    );
-    expect(Number(attempts.rows[0].count)).toBe(0);
-  });
-
-  it("does not re-attribute a hold that is already on", async () => {
-    const fixture = await approvedEvent();
-
-    await amendApprovedEvent(
-      actorPersonId,
-      fixture.eventId,
-      { ...draft(), venue: "University Parks" },
-      { notify: true },
-    );
-    const first = await jobsFor(fixture.eventId);
-    const firstReason = first.find((job) => job.job_type === "invitation")?.held_reason;
-    expect(firstReason).toContain("Venue");
-
-    await amendApprovedEvent(
-      actorPersonId,
-      fixture.eventId,
-      { ...draft(), venue: "University Parks", description: "Changed again." },
-      { notify: false },
-    );
-
-    // The invitations were already held by the first amendment, and the hold's
-    // attribution is the person who first stopped the message.
-    const after = await jobsFor(fixture.eventId);
-    for (const job of after.filter((job) => job.job_type === "invitation")) {
-      expect(job.held_reason).toBe(firstReason);
-    }
+    // `skipped` is `dispatchEventInvitations`'s own word for "another worker
+    // already held [this], or it had exhausted its attempts" — the batch
+    // loop's name for exactly the state a still-held job would be in. Seeing
+    // it processed as `attempted`, and not `skipped`, is the proof: the loop
+    // reached the claim rather than turning away from a hold. (`transport`
+    // itself is not asserted called: whether the seeded fixture's contact
+    // details clear every later routing check is a fact about the fixture,
+    // not about whether the hold still blocks this job.)
+    expect(summary.attempted).toBeGreaterThan(0);
+    expect(summary.skipped).toBe(0);
   });
 
   /**
-   * R156-B3, the reproduction the reviewer handed to this round. Three
-   * strings on the amend and delivery screens said that notifying, or
-   * pressing Re-notify, releases the hold — `queuedMessagesDetail`,
-   * `describeRetryability` and the delivery held banner. Nothing in the
-   * repository ever clears `held_at`; only Mission 4 decides whether a held
-   * job resumes. Proved here directly: the same job's `held_at`, unmoved,
-   * across a second amendment that *does* notify.
+   * Sequential saves never see a residual hold any more — the first save's
+   * hold is resumed before it returns, and the pairing constraint means a
+   * resumed job's `held_reason` is cleared along with `held_at`, not kept as
+   * a breadcrumb. So the fact worth proving is not "the second save left the
+   * first's attribution alone" (there is nothing of the first's left on the
+   * job row to disturb); it is that each save holds and resumes its own
+   * unsent jobs independently, and that each save's own attribution lives on
+   * in the change history, where `describeHistoryEntry` reads it.
    */
-  it("held_at is unchanged by an amendment that notifies", async () => {
+  it("holds and resumes independently on each save, and each is its own history entry", async () => {
+    const fixture = await approvedEvent();
+
+    const first = await amendApprovedEvent(
+      actorPersonId,
+      fixture.eventId,
+      { ...draft(), venue: "University Parks" },
+      { notify: true },
+    );
+    expect(first.messagesHeld).toBeGreaterThan(0);
+    expect(first.messagesResumed).toBe(first.messagesHeld);
+
+    const second = await amendApprovedEvent(
+      actorPersonId,
+      fixture.eventId,
+      { ...draft(), venue: "University Parks", description: "Changed again." },
+      { notify: false, silenceConfirmed: true },
+    );
+    // The invitations resumed from the first save were unsent again, so the
+    // second save holds — and resumes — them too, plus the notice the first
+    // save created.
+    expect(second.messagesHeld).toBeGreaterThan(0);
+    expect(second.messagesResumed).toBe(second.messagesHeld);
+
+    const after = await jobsFor(fixture.eventId);
+    for (const job of after.filter((job) => job.job_type === "invitation")) {
+      expect(job.held_at).toBeNull();
+      expect(job.held_reason).toBeNull();
+      expect(job.status).toBe("pending");
+    }
+
+    // Each save's own field change is its own entry, in order — the record
+    // an operator reading this event's history actually needs, now that the
+    // job row itself carries no memory of which save held it.
+    const history = await readEventChangeHistory(fixture.eventId);
+    const amendments = history.filter((entry) => entry.kind === "amended");
+    expect(amendments.map((entry) => entry.changes.map((change) => change.label))).toEqual([
+      ["Description"],
+      ["Venue"],
+    ]);
+  });
+
+  it("held_at returns to null after an amendment that notifies, same as one that does not", async () => {
     const fixture = await approvedEvent();
 
     await amendApprovedEvent(
@@ -694,10 +706,10 @@ describe("saving an amendment holds the event's unsent messages", () => {
       { ...draft(), venue: "University Parks" },
       { notify: false, silenceConfirmed: true },
     );
-    const heldAt = (await jobsFor(fixture.eventId)).find(
+    const afterSilent = (await jobsFor(fixture.eventId)).filter(
       (job) => job.job_type === "invitation",
-    )?.held_at;
-    expect(heldAt).not.toBeNull();
+    );
+    for (const job of afterSilent) expect(job.held_at).toBeNull();
 
     await amendApprovedEvent(
       actorPersonId,
@@ -706,16 +718,19 @@ describe("saving an amendment holds the event's unsent messages", () => {
       { notify: true },
     );
 
-    const after = (await jobsFor(fixture.eventId)).filter((job) => job.job_type === "invitation");
-    for (const job of after) {
-      expect(job.held_at).toEqual(heldAt);
-      // Still held, not queued to send — notifying created a fresh notice
-      // job; it did not touch this one.
+    const afterNotified = (await jobsFor(fixture.eventId)).filter(
+      (job) => job.job_type === "invitation",
+    );
+    for (const job of afterNotified) {
+      // Resumed either way — the notify choice decided only whether a
+      // schedule_change_notice was created alongside, never whether these
+      // jobs themselves come back.
+      expect(job.held_at).toBeNull();
       expect(job.status).toBe("pending");
     }
   });
 
-  it("held_at is unchanged by re-notify", async () => {
+  it("re-notify touches no hold of its own — nothing here for it to resume", async () => {
     const fixture = await approvedEvent();
 
     await amendApprovedEvent(
@@ -724,21 +739,19 @@ describe("saving an amendment holds the event's unsent messages", () => {
       { ...draft(), venue: "University Parks" },
       { notify: false, silenceConfirmed: true },
     );
-    const heldAt = (await jobsFor(fixture.eventId)).find(
-      (job) => job.job_type === "invitation",
-    )?.held_at;
-    expect(heldAt).not.toBeNull();
+    const before = (await jobsFor(fixture.eventId)).filter((job) => job.job_type === "invitation");
+    for (const job of before) expect(job.held_at).toBeNull();
 
     await renotifyEvent(actorPersonId, fixture.eventId);
 
     const after = (await jobsFor(fixture.eventId)).filter((job) => job.job_type === "invitation");
     for (const job of after) {
-      expect(job.held_at).toEqual(heldAt);
+      expect(job.held_at).toBeNull();
       expect(job.status).toBe("pending");
     }
   });
 
-  it("holds the change notices an earlier amendment made owing", async () => {
+  it("holds — and resumes — the change notices an earlier amendment made owing", async () => {
     const fixture = await approvedEvent();
 
     await amendApprovedEvent(
@@ -748,9 +761,12 @@ describe("saving an amendment holds the event's unsent messages", () => {
       { notify: true },
     );
 
-    // A notice describing the move to University Parks is now queued. Moving the
-    // event again must stop it, for the same reason the invitations were
-    // stopped: it describes a value that is no longer true.
+    // A notice describing the move to University Parks is now queued,
+    // unheld — the first save never held it, because it did not exist until
+    // that save created it. Moving the event again holds it too, for the
+    // same reason the invitations were held: it describes a value that is no
+    // longer true. It is resumed in the same statement, exactly as
+    // everything else this save touches.
     const second = await amendApprovedEvent(
       actorPersonId,
       fixture.eventId,
@@ -758,13 +774,24 @@ describe("saving an amendment holds the event's unsent messages", () => {
       { notify: true },
     );
 
-    expect(second.messagesHeld).toBe(6);
+    // Larger than the first save's own count on purpose: the first save's 6
+    // invitations and their 12 reminder rungs (practice: `whatsapp_reminder_count`
+    // 2 counts the invitation itself as the first — Q-19 — so one further
+    // WhatsApp reminder plus one email reminder per invitee) all resumed to
+    // `pending` and are unsent again, and the 6 notices the first save
+    // created were never held at all — so the second save holds all 24, not
+    // only the 6 invitations.
+    expect(second.messagesHeld).toBe(24);
+    expect(second.messagesResumed).toBe(24);
 
     const notices = (await jobsFor(fixture.eventId)).filter(
       (job) => job.job_type === "schedule_change_notice",
     );
     expect(notices).toHaveLength(12);
-    expect(notices.filter((job) => job.held_at !== null)).toHaveLength(6);
+    // All resumed — nothing stays held once the save that held it returns,
+    // and the pairing constraint means `held_reason` clears with `held_at`.
+    expect(notices.filter((job) => job.held_at !== null)).toHaveLength(0);
+    expect(notices.filter((job) => job.held_reason !== null)).toHaveLength(0);
   });
 });
 
@@ -810,7 +837,16 @@ describe("the amend screen and the delivery screen agree about one event", () =>
     delivery.counts.failed +
     delivery.counts.retryable;
 
-  it("quotes the number the delivery screen then shows as held", async () => {
+  /**
+   * W8 moves what these three prove without breaking the identity they
+   * exist to guard: `notYetSent` is still true after an amendment, because
+   * held simply stopped being one of the buckets a resumed job can land in.
+   * Brian's original two screens disagreed about whether a message existed
+   * at all (47 vs. 0); the risk after W8 is the same disagreement one level
+   * down — the amend screen saying N were affected while the delivery screen
+   * shows something other than N back among the live states.
+   */
+  it("quotes the number the delivery screen then shows as queued again", async () => {
     const fixture = await approvedEvent();
 
     const before = await readAmendmentContext(fixture.eventId);
@@ -829,22 +865,22 @@ describe("the amend screen and the delivery screen agree about one event", () =>
 
     const deliveryAfter = await readEventDelivery(fixture.eventId);
 
-    // The number the operator was shown before saving is the number the
-    // delivery screen now shows as held. This is the assertion Brian's two
-    // screens would have failed: he saw 47 on one and 0 on the other.
-    expect(deliveryAfter.counts.held).toBe(before.unsentMessages);
-    expect(deliveryAfter.counts.queued).toBe(0);
+    // Resumed, not stuck: the number the operator was shown before saving is
+    // the number the delivery screen shows as queued again afterward, and
+    // none of it is left sitting in Held.
+    expect(deliveryAfter.counts.held).toBe(0);
+    expect(deliveryAfter.counts.queued).toBe(before.unsentMessages);
     expect(notYetSent(deliveryAfter)).toBe(before.unsentMessages);
   });
 
   it("counts invitations only, and never the change notices it created itself", async () => {
     const fixture = await approvedEvent();
 
-    // One amendment, notified: every invitation is held and a change notice per
-    // invitee is created. Those notices are unsent jobs for this event, and on
-    // the operator's next visit to the form the old count reported them as
-    // messages awaiting delivery — against a delivery screen that does not show
-    // them at all, because it reports on invitations.
+    // One amendment, notified: every invitation is held-then-resumed and a
+    // change notice per invitee is created. Those notices are unsent jobs for
+    // this event, and on the operator's next visit to the form the old count
+    // reported them as messages awaiting delivery — against a delivery screen
+    // that does not show them at all, because it reports on invitations.
     await amendApprovedEvent(
       actorPersonId,
       fixture.eventId,
@@ -852,31 +888,33 @@ describe("the amend screen and the delivery screen agree about one event", () =>
       { notify: true },
     );
 
+    // `status = 'pending'` is the unsent marker now — `held_at` no longer
+    // distinguishes anything, since a resumed job and a job that was never
+    // held both read `null` there.
     const jobs = await jobsFor(fixture.eventId);
     const unsentNotices = jobs.filter(
-      (job) => job.job_type === "schedule_change_notice" && job.held_at === null,
+      (job) => job.job_type === "schedule_change_notice" && job.status === "pending",
     );
-    const unsentOfEveryType = jobs.filter(
-      (job) => job.held_at === null || job.job_type === "invitation",
-    );
+    const unsentOfEveryType = jobs.filter((job) => job.status === "pending");
     expect(unsentNotices.length).toBeGreaterThan(0);
 
     const context = await readAmendmentContext(fixture.eventId);
     const delivery = await readEventDelivery(fixture.eventId);
 
-    // The identity still holds after the amendment: the held invitations are
-    // counted by both surfaces…
+    // The identity still holds after the amendment: the resumed invitations
+    // are counted by both surfaces, now as Queued rather than Held…
     expect(context.unsentMessages).toBe(notYetSent(delivery));
-    expect(delivery.counts.held).toBe(context.unsentMessages);
+    expect(delivery.counts.queued).toBe(context.unsentMessages);
+    expect(delivery.counts.held).toBe(0);
 
     // …and the notices are counted by neither. The old count returned
     // `invitations + notices` here, which is what produced two screens
     // describing one event differently.
     expect(context.unsentMessages).toBeLessThan(unsentOfEveryType.length);
-    expect(delivery.rows.some((row) => row.state === "queued")).toBe(false);
+    expect(delivery.rows.some((row) => row.state === "queued")).toBe(true);
   });
 
-  it("shows a held message as Held, and offers no Retry on it", async () => {
+  it("shows a resumed message as Queued, never stuck at Held", async () => {
     const fixture = await approvedEvent();
 
     await amendApprovedEvent(
@@ -888,27 +926,17 @@ describe("the amend screen and the delivery screen agree about one event", () =>
 
     const delivery = await readEventDelivery(fixture.eventId);
     const held = delivery.rows.filter((row) => row.state === "held");
+    const queued = delivery.rows.filter((row) => row.state === "queued");
 
-    expect(held.length).toBeGreaterThan(0);
-    expect(held).toHaveLength(delivery.counts.held);
-
-    // `retryDelivery` throws `JOB_HELD_MESSAGE` at every one of these, so the
-    // button must not be offered — `docs/ux/standards.md` rule 4. Before this
-    // change the row read **Queued** and `retryable` was true.
-    for (const row of held) {
-      expect(row.retryable).toBe(false);
-    }
-
-    // And the refusal is still the refusal, so the screen and the service are
-    // saying the same thing rather than the screen merely hiding a control.
-    const failure = await serviceFailure(() =>
-      retryDelivery(actorPersonId, held[0].jobId, {
-        source: {},
-        transport: async () => new Response("{}", { status: 200 }),
-      }),
-    );
-    expect(failure.rule).toBe(JOB_HELD_RULE);
-    expect(failure.message).toBe(JOB_HELD_MESSAGE);
+    // Before this change the row read **Held**, its own count was
+    // `delivery.counts.held`, and `retryDelivery` refused it —
+    // `delivery.test.ts` proves that refusal directly, against a job held by
+    // hand, so it is not reproved here. What matters on this screen now is
+    // that nothing is left in that state at all.
+    expect(held).toHaveLength(0);
+    expect(delivery.counts.held).toBe(0);
+    expect(queued.length).toBeGreaterThan(0);
+    expect(queued).toHaveLength(delivery.counts.queued);
   });
 });
 

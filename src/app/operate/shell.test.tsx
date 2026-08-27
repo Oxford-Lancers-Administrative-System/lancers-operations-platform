@@ -344,12 +344,13 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     expect(screen.getByRole("link", { name: "Roster" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Events" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Report" })).toBeVisible();
-    // LAN-171: the Secretary holds `delivery_administration` and now also sees
-    // Messaging schedule, the Administration entry that reuses it — see
-    // "LAN-133 — Administration in the shell" below, which is where that
-    // group's own membership is asserted in full. The fourth link here is that
-    // one entry, not a second ordinary destination.
-    expect(screen.getAllByRole("link")).toHaveLength(4);
+    // W5 and LAN-171: the Secretary holds `delivery_administration` (Messaging
+    // schedule reuses it) and, like every seated operator, sees Follow-ups
+    // (`capability: null`) — see "LAN-133 — Administration in the shell" below,
+    // which is where that group's own membership is asserted in full. These two
+    // Administration entries are the fourth and fifth links here, not ordinary
+    // destinations of their own.
+    expect(screen.getAllByRole("link")).toHaveLength(5);
     expect(screen.queryByRole("link", { name: /home/i })).toBeNull();
   });
 
@@ -375,13 +376,14 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     await expect(OperatePage()).rejects.toThrow("REDIRECT:/operate/roster");
   });
 
-  it("shows the same three destinations to an operator who holds no role", async () => {
+  it("shows the same destinations to an operator who holds no role", async () => {
     givenAccess({ state: "active", operator: actor([]) });
 
     render(await OperateLayout(layoutProps(null)));
 
-    // Navigation visibility is not authorization, in either direction.
-    expect(screen.getAllByRole("link")).toHaveLength(3);
+    // Navigation visibility is not authorization, in either direction. Four,
+    // not three, since W5: Follow-ups is `capability: null` too.
+    expect(screen.getAllByRole("link")).toHaveLength(4);
   });
 
   it("names the signed-in operator, and lists none of their roles", async () => {
@@ -988,24 +990,34 @@ describe("LAN-110 — the coach shell", () => {
 });
 
 /**
- * LAN-133 — the Administration group in the sidebar.
+ * LAN-133, extended by W5 and LAN-171 — the Administration group in the
+ * sidebar.
  *
  * `DEC-administration-navigation` puts it "at the bottom of the left
- * application sidebar, immediately above user/account controls", holding
- * Operators and Roles. LAN-171 adds a third entry, **Messaging schedule**,
- * between them, gated on `delivery_administration` rather than
- * `role_management` — the four calendar roles who already approve events and
- * repair their delivery, not only the three seats that administer accounts.
- * Three properties are asserted here, and none of them is authorization:
+ * application sidebar, immediately above user/account controls", and it held
+ * Operators and Roles and nothing else until this round added two more:
+ * **Follow-ups** (W5, above Operators — Brian, 2026-08-25: the queue lives
+ * under Administration, not as a peer of Events) and **Messaging schedule**
+ * (LAN-171, between Operators and Roles, gated on `delivery_administration`
+ * — the four calendar roles who already approve events and repair their
+ * delivery, not only the three seats that administer accounts).
  *
- *   * an administrator sees the entries their capabilities permit, pointing at
- *     the approved routes, after the ordinary destinations and before the
- *     account block;
+ * Follow-ups differs from the other three in the same respect the workflow
+ * itself states: its primary actor is "the President, and any operator
+ * working follow-ups", not a privileged subset — `capability: null`, so it
+ * shows to every seated operator, while Operators, Messaging schedule and
+ * Roles each stay narrowed to their own capability.
+ *
+ * Properties asserted here, and none of them is authorization:
+ *
+ *   * an administrator (`role_management`) sees every entry their
+ *     capabilities permit, in order, after the ordinary destinations and
+ *     before the account block;
  *   * a seat holding `delivery_administration` alone sees Messaging schedule
- *     and nothing else in the group; and
- *   * an operator holding neither capability sees no trace of the group in the
- *     DOM — not a hidden element and not an attribute, because a
- *     server-rendered page ships whatever is in it.
+ *     *and* Follow-ups — the group is not all-or-nothing any more; and
+ *   * an operator holding neither capability still sees Follow-ups alone,
+ *     which is the seam where "no trace of the group" stopped being true for
+ *     anyone with a seat at all.
  *
  * The refusal itself lives on the pages and is asserted in
  * `admin/screens.test.tsx`. A hidden link is a courtesy; those pages are the
@@ -1016,12 +1028,16 @@ describe("LAN-133 — Administration in the shell", () => {
   const ROLE_ADMINISTRATORS = ["president", "general_manager", "it_officer"];
 
   it.each(ROLE_ADMINISTRATORS)(
-    "shows Operators, Messaging schedule and Roles to the %s",
+    "shows Follow-ups, Operators, Messaging schedule and Roles to the %s",
     async (seat) => {
       givenAccess({ state: "active", operator: actor([seat]) });
 
       render(await OperateLayout(layoutProps(null)));
 
+      expect(screen.getByRole("link", { name: "Follow-ups" })).toHaveAttribute(
+        "href",
+        "/operate/admin/follow-ups",
+      );
       expect(screen.getByRole("link", { name: "Operators" })).toHaveAttribute(
         "href",
         "/operate/admin/operators",
@@ -1034,7 +1050,7 @@ describe("LAN-133 — Administration in the shell", () => {
         "href",
         "/operate/admin/roles",
       );
-      expect(screen.getAllByRole("link")).toHaveLength(6);
+      expect(screen.getAllByRole("link")).toHaveLength(7);
     },
   );
 
@@ -1048,6 +1064,7 @@ describe("LAN-133 — Administration in the shell", () => {
       "Roster",
       "Events",
       "Report",
+      "Follow-ups",
       "Operators",
       "Messaging schedule",
       "Roles",
@@ -1067,15 +1084,20 @@ describe("LAN-133 — Administration in the shell", () => {
   // LAN-171. The Vice-President and Secretary hold `delivery_administration`
   // but not `role_management` — `REQ-role-management-authority` excludes them
   // from account and role administration, and that is unchanged. What changes
-  // is that they are no longer excluded from the whole group: they see the one
-  // entry their capability actually permits.
+  // is that they are no longer excluded from the whole group: they see
+  // Messaging schedule, the entry that capability actually permits, plus
+  // Follow-ups (W5), which every seated operator sees regardless.
   it.each(["vice_president", "secretary"])(
-    "shows only Messaging schedule to the %s",
+    "shows Follow-ups and Messaging schedule to the %s, and nothing role_management-only",
     async (seat) => {
       givenAccess({ state: "active", operator: actor([seat]) });
 
       const { container } = render(await OperateLayout(layoutProps(null)));
 
+      expect(screen.getByRole("link", { name: "Follow-ups" })).toHaveAttribute(
+        "href",
+        "/operate/admin/follow-ups",
+      );
       expect(screen.getByRole("link", { name: "Messaging schedule" })).toHaveAttribute(
         "href",
         "/operate/admin/messaging",
@@ -1083,24 +1105,34 @@ describe("LAN-133 — Administration in the shell", () => {
       expect(screen.queryByRole("link", { name: "Operators" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Roles" })).toBeNull();
       expect(container.textContent).toContain("Administration");
-      expect(screen.getAllByRole("link")).toHaveLength(4);
+      expect(screen.getAllByRole("link")).toHaveLength(5);
     },
   );
 
   // The empty string is the operator who holds no seat at all — as legitimate
-  // here as it is for the three ordinary destinations, and just as excluded.
-  // The Treasurer holds neither `role_management` nor `delivery_administration`
-  // (`AGENTS.md`'s no-recorded-decision reasoning), so both stay in the group
-  // that sees nothing.
-  it.each(["treasurer", ""])("shows no trace of it to an operator holding '%s'", async (seat) => {
-    givenAccess({ state: "active", operator: actor(seat === "" ? [] : [seat]) });
+  // here as it is for the three ordinary destinations (`capability: null`
+  // already showed them Roster and Events before this package). The Treasurer
+  // holds neither `role_management` nor `delivery_administration`
+  // (`AGENTS.md`'s no-recorded-decision reasoning), so both are left with only
+  // the one entry `capability: null` gives every seated operator: Follow-ups.
+  it.each(["treasurer", ""])(
+    "shows Follow-ups alone, under Administration, to an operator holding '%s'",
+    async (seat) => {
+      givenAccess({ state: "active", operator: actor(seat === "" ? [] : [seat]) });
 
-    const { container } = render(await OperateLayout(layoutProps(null)));
+      const { container } = render(await OperateLayout(layoutProps(null)));
 
-    expect(screen.getAllByRole("link")).toHaveLength(3);
-    expect(container.innerHTML).not.toContain("Administration");
-    expect(container.innerHTML).not.toContain("/operate/admin");
-  });
+      expect(screen.getByRole("link", { name: "Follow-ups" })).toHaveAttribute(
+        "href",
+        "/operate/admin/follow-ups",
+      );
+      expect(screen.queryByRole("link", { name: "Operators" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Messaging schedule" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Roles" })).toBeNull();
+      expect(container.textContent).toContain("Administration");
+      expect(screen.getAllByRole("link")).toHaveLength(4);
+    },
+  );
 
   it("shows no trace of it to a narrow attendance recorder", async () => {
     givenAccess({ state: "active", operator: actor(["head_coach"]) });

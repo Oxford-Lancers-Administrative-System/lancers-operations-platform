@@ -1267,6 +1267,108 @@ const RECORDED: Awaited<ReturnType<typeof recordOperatorRsvpResponse>> = {
   cancelledJobs: 0,
 };
 
+// ---------------------------------------------------------------------------
+// Chase position and the delivery column's two named exceptions — W4, W6
+// ---------------------------------------------------------------------------
+
+describe("the delivery column's exceptions and chase position", () => {
+  it("shows an unanswered person's chase position beneath the delivery chip", () => {
+    const withChase = {
+      ...OPERATOR,
+      people: [
+        ...PEOPLE,
+        unanswered({ delivery: "delivered", chasePosition: "WhatsApp 2 due Thu 18:00" }),
+      ],
+    };
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={withChase}
+        filters={filters()}
+      />,
+    );
+    expect(container.textContent).toContain("WhatsApp 2 due Thu 18:00");
+  });
+
+  it("shows no chase position for an answered person", () => {
+    // Alaric answered yes and carries no chasePosition — the ordinary case,
+    // matching W4's own exceptions table.
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR}
+        filters={filters()}
+      />,
+    );
+    expect(container.querySelector('[data-testid="chase-position"]')).toBeNull();
+  });
+
+  it("reads Not dispatched — no channel for a person with no usable route, and shows no chase position", () => {
+    const withNoRoute = {
+      ...OPERATOR,
+      people: [
+        ...PEOPLE,
+        unanswered({ delivery: "failed", noUsableRoute: true, chasePosition: null }),
+      ],
+    };
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={withNoRoute}
+        filters={filters()}
+      />,
+    );
+    const row = Array.from(container.querySelectorAll('[data-testid="participation-row"]')).find(
+      (row) => row.textContent?.includes("Gideon Thornbury"),
+    )!;
+    expect(row.textContent).toContain("Not dispatched — no channel");
+    expect(row.textContent).not.toContain("Failed");
+    expect(row.querySelector('[data-testid="chase-position"]')).toBeNull();
+  });
+
+  it("reads WhatsApp unresponsive for a WhatsApp failure the email fallback carried, and keeps counting it", () => {
+    const withFallback = {
+      ...OPERATOR,
+      people: [
+        ...PEOPLE,
+        unanswered({
+          delivery: "failed",
+          whatsappUnresponsive: true,
+          chasePosition: "Email sent · escalation Sat 12:00",
+        }),
+      ],
+    };
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={withFallback}
+        filters={filters()}
+      />,
+    );
+    expect(container.textContent).toContain("WhatsApp unresponsive");
+    // The chase ladder keeps reporting for a reached-by-fallback person —
+    // only a genuine no-channel failure suppresses it.
+    expect(container.textContent).toContain("Email sent · escalation Sat 12:00");
+  });
+
+  it("filters to exactly the failed and retryable people on 'Needs attention'", () => {
+    const withMixedDelivery = {
+      ...OPERATOR,
+      people: [...PEOPLE, unanswered({ delivery: "retryable" })],
+    };
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={withMixedDelivery}
+        filters={filters({ delivery: "attention" })}
+      />,
+    );
+    // Bar Sedgewick (failed) and Gideon Thornbury (retryable) — not the two
+    // delivered rows.
+    expect(renderedNames(container)).toEqual(["Bar Sedgewick", "Gideon Thornbury"]);
+  });
+});
+
 describe("recording an answer in person", () => {
   beforeEach(() => {
     vi.mocked(recordOperatorRsvpResponse).mockReset();

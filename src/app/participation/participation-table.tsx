@@ -37,10 +37,12 @@ import {
   everyoneAsked,
   NOBODY_ASKED,
   NO_MATCHING_PEOPLE,
+  NOT_DISPATCHED_NO_CHANNEL,
   NOTHING,
   presenceLabel,
   SORTABLE_NOTE,
   TABLE_HEADINGS,
+  WHATSAPP_UNRESPONSIVE,
 } from "./presentation";
 import { RecordAnswerControl } from "./record-answer";
 
@@ -170,7 +172,42 @@ function AttendanceChip({ presence }: { presence: AttendancePresence | null }) {
   return <Chip size="small" label={presenceLabel(presence)} color={PRESENCE_COLOURS[presence]} />;
 }
 
-function DeliveryCell({ state, isWalkUp }: { state: string | null; isWalkUp: boolean }) {
+/**
+ * The Delivery cell's own label and colour, once W6's two named exceptions to
+ * the plain five-state vocabulary are applied — `REQ-no-channel-backstop` and
+ * `REQ-whatsapp-outage-visible`. Both replace what would otherwise read as an
+ * undifferentiated **Failed** chip; neither changes `person.delivery` itself,
+ * which stays the provider-neutral state `docs/ux/standards.md` rule 7 shares
+ * with the delivery screen.
+ */
+function deliveryChipLabel(person: OperatorParticipationPerson, state: string): string {
+  if (person.noUsableRoute) return NOT_DISPATCHED_NO_CHANNEL;
+  if (person.whatsappUnresponsive) return WHATSAPP_UNRESPONSIVE;
+  return DELIVERY_LABELS[state] ?? state;
+}
+
+function deliveryChipColour(
+  person: OperatorParticipationPerson,
+  state: string,
+): "success" | "error" | "warning" | "default" {
+  if (person.noUsableRoute) return "error";
+  // Reached, and the club's own channel failed — visible, not a failure the
+  // operator can do anything about (W6). Warning, not error: the message got
+  // through.
+  if (person.whatsappUnresponsive) return "warning";
+  if (state === "delivered") return "success";
+  if (state === "failed") return "error";
+  return "default";
+}
+
+function DeliveryCell({
+  person,
+  isWalkUp,
+}: {
+  person: OperatorParticipationPerson;
+  isWalkUp: boolean;
+}) {
+  const state = person.delivery ?? null;
   // W157-F7. "Nothing queued" is a statement about delivering an invitation,
   // and a walk-up was never invited — there is no invitation whose delivery
   // could be queued or not. Every other empty cell in a walk-up's row reads
@@ -189,13 +226,24 @@ function DeliveryCell({ state, isWalkUp }: { state: string | null; isWalkUp: boo
       </Typography>
     );
   }
-  const label = DELIVERY_LABELS[state] ?? state;
   return (
-    <Chip
-      size="small"
-      label={label}
-      color={state === "delivered" ? "success" : state === "failed" ? "error" : "default"}
-    />
+    <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
+      <Chip
+        size="small"
+        label={deliveryChipLabel(person, state)}
+        color={deliveryChipColour(person, state)}
+      />
+      {/*
+        W4's chase position — the rung already sent and the next one due, or
+        Chase stopped / Escalated to the President. `null` for an answered row,
+        a walk-up, or anybody `noUsableRoute` already explains.
+      */}
+      {person.chasePosition ? (
+        <Typography variant="caption" color="text.secondary" data-testid="chase-position">
+          {person.chasePosition}
+        </Typography>
+      ) : null}
+    </Stack>
   );
 }
 
@@ -240,22 +288,33 @@ function DiscrepancyMark({ person }: { person: ParticipationPerson }) {
   );
 }
 
-function SortableHeading({
-  basePath,
-  filters,
+/**
+ * The generic column-heading link and arrow — every other bit of
+ * `SortableHeading` below is participation's own href/state, computed from
+ * `ParticipationFilters`. Exported so another sortable table on this branch
+ * can render the identical markup and interaction from its own href/state
+ * rather than a second copy of this JSX — the Follow-ups queue
+ * (OWNER-LAN173-05) is the first other caller, pairing it with
+ * `@/lib/services/participation-view`'s generic `sortColumnHref`/
+ * `sortColumnState`.
+ */
+export function SortableColumnHeading({
   column,
   label,
+  href,
+  active,
+  direction,
 }: {
-  basePath: string;
-  filters: ParticipationFilters;
   column: string;
   label: string;
+  href: string;
+  active: boolean;
+  direction: "asc" | "desc";
 }) {
-  const { active, direction } = participationSortState(filters, column);
   return (
     <TableCell sortDirection={active ? direction : false}>
       <Link
-        href={participationSortHref(basePath, filters, column)}
+        href={href}
         data-sort={column}
         style={{ color: "inherit", textDecoration: "none" }}
         // R157C-B1. Sorting re-orders the rows already on screen; it must not
@@ -273,6 +332,29 @@ function SortableHeading({
         </TableSortLabel>
       </Link>
     </TableCell>
+  );
+}
+
+function SortableHeading({
+  basePath,
+  filters,
+  column,
+  label,
+}: {
+  basePath: string;
+  filters: ParticipationFilters;
+  column: string;
+  label: string;
+}) {
+  const { active, direction } = participationSortState(filters, column);
+  return (
+    <SortableColumnHeading
+      column={column}
+      label={label}
+      href={participationSortHref(basePath, filters, column)}
+      active={active}
+      direction={direction}
+    />
   );
 }
 
@@ -408,7 +490,7 @@ export function ParticipationTable({
                   {operator ? (
                     <LabeledField label={TABLE_HEADINGS.delivery}>
                       <DeliveryCell
-                        state={(person as OperatorParticipationPerson).delivery ?? null}
+                        person={person as OperatorParticipationPerson}
                         isWalkUp={person.isWalkUp}
                       />
                     </LabeledField>
@@ -514,7 +596,7 @@ export function ParticipationTable({
                     {operator ? (
                       <TableCell data-testid="delivery-cell">
                         <DeliveryCell
-                          state={(person as OperatorParticipationPerson).delivery ?? null}
+                          person={person as OperatorParticipationPerson}
                           isWalkUp={person.isWalkUp}
                         />
                       </TableCell>
