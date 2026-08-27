@@ -154,6 +154,24 @@ Server Component's render may not mutate cookies in this framework — scoped by
 POST to that same token's own URL. See `src/lib/rsvp/answer-gate.ts` for why
 presence alone, with no value comparison, is the whole check.
 
+**Correction round 6 (OWNER-LAN172-17): the accepted deviation's own POST is
+built.** Every round through 5 left `/a/[token]`'s form as a manual click
+only — the no-JavaScript fallback Q-11 names as "the one accepted deviation"
+was, in practice, the only path any player was ever on: the WhatsApp tap
+loaded the page, and the page's own heading and fact box already said "You're
+attending" / "You're not attending — no reason given" as if recorded, while
+nothing had been. `src/app/a/[token]/auto-submit.tsx` — a small client
+component — now calls `requestSubmit()` on the page's own form the instant it
+mounts, in a JS-capable browser, so the tap really is the whole interaction.
+Nothing about the gate moves: the GET this component's own page renders still
+writes nothing; the POST it triggers is the exact same `submitAnswer` action,
+checked against the exact same cookie `src/proxy.ts` already set on that GET.
+No user-agent sniffing was added or considered — a browser without JavaScript
+simply never runs the effect, and the unmodified visible button is the
+fallback Q-11 always described. Guarded off while a throttled retry's own
+`BUSY_MESSAGE` banner is showing, so a rate-limited client cannot re-trigger
+itself in a loop.
+
 ## Owner-resolved contract — Q-10, button labels
 
 Alphanumerics and spaces only, no em dashes: **"Yes view details"** and
@@ -204,7 +222,22 @@ every answer path already used.
   durable page's summary rows and its focused panel. Round 5 lets a Yes
   answer those questions in the same submit that records the RSVP, on
   `/a/[token]` itself; the focused panel still asks whatever was left
-  unanswered.
+  unanswered. **Correction round 6 (OWNER-LAN172-18):** round 5's shared
+  submit put the confirm button and the questions in one `<form>`, and the
+  native `required` attribute on a required question silently blocked that
+  form from submitting at all — the opposite of this rule, discovered once
+  round 6's auto-submit (above) meant that attribute was blocking the answer
+  on every load, not only an inattentive manual click.
+  `src/app/a/[token]/question-field.tsx`'s `QuestionField` now takes an
+  `enforceRequired` prop (default `true`); `/a/[token]` passes `false`, so a
+  blank required question never blocks this submit, auto-fired or manual.
+  `answerEventQuestionsIn` already skipped a blank submission rather than
+  saving an empty answer, so nothing false is ever recorded — the question is
+  left genuinely outstanding for the focused panel, exactly as this bullet
+  says it should be. The focused panel's own dedicated questions form keeps
+  `enforceRequired`'s default: that Yes already stands by the time that form
+  is on screen, so `required` there only ever gates its own Save, never the
+  answer.
 - Either click **cancels every later player-facing job and clears an
   un-actioned nonresponse flag in the same transaction** — inherited from
   `recordAnswerIn`/`stopChasingIn`, not reimplemented here.
@@ -368,6 +401,40 @@ a _brand-new_ invitation is untouched and still opens the panel when there are
 questions to ask, because that is the only place left to ask them once
 `/a/[token]`'s own token has already been spent.
 
+**Correction round 6 (OWNER-LAN172-19) reverses this round's own
+`ChangeToYesButton` claim above.** Brian's later, explicit "one interaction"
+model treats a changed answer exactly like a first one: any Yes or No records
+immediately and opens _that_ answer's own follow-up in front of the player;
+only **Save** ends the interaction. Round 5's "always closes, since it only
+ever revises an existing standing answer" was the wrong rule for exactly the
+mixed-questions case: driving a standing Yes to No and back to Yes recorded
+the second Yes and then closed the panel on the very question it had just
+made outstanding again, leaving the player to notice a separate row-level
+"Answer questions" button on their own. `close=1` is removed from
+`ChangeToYesButton` (the row) and from the panel's own Change-to-Yes button;
+`changeToYes` (`src/app/me/[token]/actions.ts`) no longer reads any such
+flag and always opens the panel — identical to `MiniYesNo`'s fresh-Yes
+behaviour, never a special case. Only `submitNo`'s own Save (the reason
+form) and `submitQuestions` still close on success; changing an answer,
+first time or revised, is not a Save. The row's own **"Change answer"**
+label (round 3, OWNER-LAN172-11, below) is untouched — a later finding
+recommended reverting it to "Change to No" and Brian's own decision stands
+against that; the row's underlying behaviour (recording the No immediately
+and opening its reason field, never a silent, unexplained default) was
+already correct and is now covered by test.
+
+**Correction round 6 (OWNER-LAN172-20): the focused invitation renders
+once.** With `?open=<id>`, the same invitation used to appear twice — once as
+the rich focused panel above, and again as an ordinary row further down in
+whichever of the five lists it belonged to, each with its own separate
+controls. A player who had just answered could not tell from the page alone
+whether that answer was recorded once or twice (it was always once — this was
+a rendering choice, not a data bug). `src/app/me/[token]/page.tsx` now
+filters the focused invitation out of all five lists (new, still-need-answer,
+follow-up, answered, further-out) before deciding what each section has to
+show; a section left with nothing once its one entry was the focused one
+drops its own heading too, rather than rendering empty.
+
 **Correction round 3 (OWNER-LAN172-11): the row's secondary control.** Brian:
 _"Change to 'no' should just say 'change answer.' It should not say 'change to
 no.'"_ `REQ-emphasis-points-at-yes` governs the control's fill and weight, not
@@ -419,8 +486,13 @@ ticket), `REQ-attendance-not-absence`, `REQ-plain-first-contact`,
       created, and that a GET writes nothing —
       `player-answer-tokens.test.ts`'s "makes no write at all on a valid
       read" and "is idempotent" cases.
-- [x] A player's answer is standing before the landing page renders — the
-      WhatsApp/email tap is the POST's cookie-gated write; the GET only reads.
+- [x] A player's answer is standing before the player has to do anything else
+      — in a JS-capable browser, the landing page's own script fires the
+      POST's cookie-gated write the instant it mounts (`auto-submit.tsx`,
+      correction round 6, OWNER-LAN172-17); the GET itself still only reads.
+      Rounds 1 through 5 shipped the page believing this and saying so, but
+      never built the auto-submit that makes it true — every player was
+      actually on the no-JS fallback until this round.
 - [x] A No is standing from the click with "No reason given"; adding a reason
       appends without editing history.
 - [x] Either answer cancels later player-facing jobs and clears an un-actioned
@@ -485,6 +557,21 @@ ticket), `REQ-attendance-not-absence`, `REQ-plain-first-contact`,
       and the durable page's heading and focused panel, at desktop and true
       375px, including the post-save closed state — see the pull request for
       the exact states compared and their screenshots.
+- [x] **Correction round 6, building the "one interaction" model in full
+      (four findings):** `/a/[token]` auto-submits its own cookie-gated POST
+      on mount, in a JS-capable browser, so the WhatsApp tap alone records the
+      answer, with the visible button unchanged as the no-JS fallback
+      (OWNER-LAN172-17); a blank required question never blocks that submit,
+      auto-fired or manual, because `QuestionField`'s `enforceRequired` is
+      `false` on this surface alone (OWNER-LAN172-18); `changeToYes` no longer
+      accepts or honours a `close` flag, so a revising Change to Yes opens the
+      panel exactly like a fresh one, never hiding a newly-outstanding
+      question behind a premature close (OWNER-LAN172-19); the `?open=`
+      invitation renders exactly once, filtered out of its own row section
+      rather than appearing there a second time (OWNER-LAN172-20). Q-11's
+      release gate, cross-person isolation, and every round 1–5 finding above
+      are unchanged and re-verified — see the pull request for the injection-
+      proof cycle per fix and the desktop/true-375px states compared.
 
 ## Boundaries
 
