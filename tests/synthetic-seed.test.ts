@@ -85,3 +85,35 @@ describe.runIf(seeded)("synthetic dataset timeline coherence relative to now()",
     );
   });
 });
+
+// OWNER-LAN173-06. Independent scouting found `scripts/seed-local.mjs`
+// hardcoding `person_id: null` on the one held reminder the seed carries,
+// unlike every real job-creation path (`messaging-scheduler.ts`,
+// `event-amendment.ts`), which derives it as
+// `coalesce(invitation.person_id, membership.person_id)`. A held job with no
+// person on it cannot be attributed to anyone the participation table reads
+// per person, which is exactly what made it invisible to an operator.
+describe.runIf(seeded)("the held reminder OWNER-LAN173-06 fixed", () => {
+  it("carries the invitation's own person, not a null the fixture invented", async () => {
+    const held = await client.query<{
+      invitation_id: string;
+      person_id: string | null;
+      resolved_person_id: string | null;
+    }>(
+      `select j.invitation_id, j.person_id,
+              coalesce(i.person_id, m.person_id) as resolved_person_id
+         from public.notification_jobs j
+         join public.invitations i on i.id = j.invitation_id
+         left join public.season_memberships m on m.id = i.season_membership_id
+        where j.held_at is not null`,
+    );
+
+    expect(held.rows.length, "the seed's one held job").toBeGreaterThan(0);
+    for (const row of held.rows) {
+      expect(row.person_id, `held job on invitation ${row.invitation_id}`).not.toBeNull();
+      expect(row.person_id, `held job on invitation ${row.invitation_id}`).toBe(
+        row.resolved_person_id,
+      );
+    }
+  });
+});

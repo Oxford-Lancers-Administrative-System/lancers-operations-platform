@@ -1534,6 +1534,60 @@ export const DELIVERY_LATEST_RESULT_JOIN = `
      limit 1
   ) latest on true`;
 
+/**
+ * The deterministic ordering every "this invitee's most recent job" reader
+ * shares — OWNER-LAN173-06 (correction round 2).
+ *
+ * ## The defect this replaces
+ *
+ * `notification_jobs.created_at` defaults to `now()`, which in PostgreSQL is
+ * the *transaction's* start time, not the statement's. `scheduleEventLadderIn`
+ * creates the invitation anchor and every reminder rung for a whole event
+ * inside `approveEvent`'s own transaction, so in real use — not only in a
+ * fixture — every job belonging to one invitee's ladder carries the identical
+ * `created_at`. A caller ordering by `created_at desc limit 1` alone therefore
+ * has no tiebreaker at all: PostgreSQL is free to return any one of the tied
+ * rows, and `EXPLAIN` showed it doing so deterministically but arbitrarily
+ * under the query's own plan — consistently the invitee's original
+ * `invitation` job, because a `Bitmap Heap Scan` visits rows in the order they
+ * were physically inserted, and the invitation row is the first one
+ * `approveEvent` writes. `DELIVERY_STATE_EXPRESSION` checks `held_at` first and
+ * was never the problem — it was simply never handed the held row to check.
+ *
+ * This stayed invisible because it only changes the *answer* when the tied
+ * jobs map to different delivery states. A ladder every one of whose rungs
+ * ends up `completed` reads `delivered` whichever tied row wins; a rung the
+ * club held while a later one had already gone out is the case where the
+ * choice is visible, and it was found in a correction round
+ * (OWNER-LAN173-06), not by review — verifying the fix for a held reminder's
+ * `person_id` on event `5a0af9b1-179e-42b9-a2b6-d8b4dbc820b7` led straight to
+ * this, five deterministic `EXPLAIN`ed runs of the tied query in a row.
+ *
+ * ## Why this fixes it without changing which rows are read
+ *
+ * `created_at desc` stays the primary key, so nothing about ordering *across*
+ * approvals changes. The tie is then broken on the ladder's own sequence —
+ * `scheduled_for desc`, then `ladder_rung desc nulls last` for the rare case
+ * two rows share a `scheduled_for` too (the invitation anchor and rung 1 can,
+ * depending on the lead time) — and `id` last, as a total order so the same
+ * inputs can never return a different row on a different day, plan, or
+ * PostgreSQL version. No job is added to or removed from what a caller already
+ * selects; only which of the rows already selected is treated as "the" one
+ * changes.
+ *
+ * ## The two callers that shared the bug
+ *
+ * `participation.ts`'s `DELIVERY_LATERAL` and `follow-ups.ts`'s per-invitation
+ * delivery lateral both had exactly this shape — `order by j.created_at desc
+ * limit 1`, no further key — and both use this constant now, so the two
+ * cannot drift back apart the way the un-shared copies already had.
+ * `readEventDelivery` above does not: it filters straight to `job_type =
+ * 'invitation'`, one row per invitee by construction, with no "most recent
+ * of several" question to answer.
+ */
+export const NOTIFICATION_JOB_RECENCY_ORDER = `
+     order by j.created_at desc, j.scheduled_for desc, j.ladder_rung desc nulls last, j.id desc`;
+
 export async function readEventDelivery(eventId: string): Promise<EventDelivery> {
   return withTransaction(async (tx) => {
     const event = await tx.query<{

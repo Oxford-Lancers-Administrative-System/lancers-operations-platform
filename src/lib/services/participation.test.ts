@@ -406,6 +406,70 @@ describe("the participation table", () => {
     expect(view.people).toHaveLength(5);
   });
 
+  /**
+   * OWNER-LAN173-06 (correction round 2). `scheduleEventLadderIn` creates the
+   * invitation anchor and every reminder rung inside `approveEvent`'s own
+   * transaction, so `created_at` -- `now()`, transaction-start time -- ties
+   * across a whole ladder in real use, not only here. `DELIVERY_LATERAL` used
+   * to order by `created_at desc` alone, so a tie had no tiebreaker at all:
+   * this reproduces the exact scenario a correction-round SQL walk found on a
+   * real seeded event -- an invitation already `completed` and a later
+   * reminder the club held -- and pins the fix (`NOTIFICATION_JOB_RECENCY_ORDER`
+   * in `./delivery.ts`) rather than the shape of any one query.
+   */
+  it("reads Held, not the tied invitation job's Delivered, for a later reminder the club held", async () => {
+    const staged = await scenario();
+    const tiedAt = "2026-03-01T09:00:00.000Z";
+
+    // `approveEvent` (inside `scenario()`) already inserted its own real
+    // `invitation` job for every invitee -- distinct from `scenario()`'s own
+    // separately-keyed one this suite uses to give the operator tier a state
+    // to print. Both cleared here so this fixture controls exactly the two
+    // rows the scenario is about: one invitation, delivered, and the one
+    // later reminder the club held.
+    await observer.query(
+      `delete from public.notification_jobs where invitation_id = $1 and job_type = 'invitation'`,
+      [staged.invitations[0].id],
+    );
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, channel,
+          created_at, scheduled_for, ladder_rung)
+       values ($1, 'invitation', 'completed', $2, $3, 'whatsapp',
+               $4::timestamptz, $4::timestamptz, 0)`,
+      [
+        `${NAME_MARKER}:invitation:${staged.invitations[0].id}`,
+        staged.invitations[0].id,
+        staged.eventId,
+        tiedAt,
+      ],
+    );
+
+    // Its first reminder: tied `created_at`, a later `scheduled_for` and a
+    // higher rung -- genuinely the ladder's most recent job -- held rather
+    // than sent.
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, channel,
+          created_at, scheduled_for, ladder_rung, held_at, held_reason, held_by_person_id)
+       values ($1, 'reminder', 'pending', $2, $3, 'whatsapp',
+               $4::timestamptz, $5::timestamptz, 1, $4::timestamptz,
+               'The venue changed after this reminder was queued.', $6)`,
+      [
+        `${NAME_MARKER}:held:${staged.invitations[0].id}`,
+        staged.invitations[0].id,
+        staged.eventId,
+        tiedAt,
+        "2026-03-02T09:00:00.000Z",
+        actorPersonId,
+      ],
+    );
+
+    const view = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
+    const person = view.people.find((one) => one.invitationId === staged.invitations[0].id)!;
+    expect(person.delivery).toBe("held");
+  });
+
   it("reads nothing queued as nothing queued, never as a failure", async () => {
     // `DELIVERY_STATE_EXPRESSION` ends in `else 'failed'`, which is right for a
     // job and very wrong for the absence of one: without the `j.id is null`

@@ -2351,6 +2351,26 @@ const LADDER_STORIES = [
 /** Whoever currently holds the President's seat. Escalation resolves an office. */
 const escalationRecipient = people[1];
 
+/**
+ * `notification_jobs.person_id`, read the same way every real write path
+ * derives it (`messaging-scheduler.ts`'s own
+ * `coalesce(i.person_id, m.person_id)`) — OWNER-LAN173-06. Most invitations
+ * here are issued to a season membership rather than to a raw person (every
+ * player is), so `invitation.person_id` alone is `null` far more often than
+ * not; the membership's own `person_id` is where the real identity lives.
+ * This is fixture data only — the constraint the migration enforces
+ * (`num_nonnulls(invitation_id, event_id, person_id) >= 1`) never required a
+ * *correct* `person_id`, only a non-null one somewhere on the row, which is
+ * exactly how `scripts/seed-local.mjs`'s own held reminder carried a `null`
+ * one unnoticed.
+ */
+const membershipPersonId = new Map(
+  memberships.map((membership) => [membership.id, membership.person_id]),
+);
+function invitationPersonId(invitation) {
+  return invitation.person_id ?? membershipPersonId.get(invitation.season_membership_id) ?? null;
+}
+
 let laddersSeeded = 0;
 let remindersSeeded = 0;
 let flagsSeeded = 0;
@@ -2412,6 +2432,11 @@ jobEvents.forEach((event, index) => {
       let heldReason = null;
       let heldBy = null;
       let cancelledReason = null;
+      // OWNER-LAN173-06: every other rung here is `person_id: null`, unchanged
+      // — this is a narrow fix for the held job specifically, not a claim that
+      // the rest need the same derivation to be seen by anything that reads
+      // them.
+      let personId = null;
 
       if (!due) {
         // Queued, and there is nothing else to say about it.
@@ -2468,6 +2493,11 @@ jobEvents.forEach((event, index) => {
         automatic = 0;
         lastError = null;
         nextAttemptAt = null;
+        // The bug independent review found (OWNER-LAN173-06): this row's
+        // `person_id` was hardcoded `null` — invisible to any reader that
+        // needs it, unlike every real job-creation path, which derives it
+        // exactly as `invitationPersonId` does here.
+        personId = invitationPersonId(invitation);
       }
 
       // One rung called off by an answer that arrived, so `REQ-chase-stopped` is
@@ -2486,7 +2516,7 @@ jobEvents.forEach((event, index) => {
         status,
         invitation_id: invitation.id,
         event_id: event.id,
-        person_id: null,
+        person_id: personId,
         channel,
         scheduled_for: dueAt,
         claimed_at: attempts > 0 ? dueAt : null,

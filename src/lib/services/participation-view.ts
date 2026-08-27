@@ -531,6 +531,80 @@ function matchesDelivery(person: ParticipationPerson, delivery: string): boolean
 }
 
 /**
+ * The generic engine `participationSortHref`/`participationSortState`/the sort
+ * half of `applyParticipationView` are built on — extracted so another
+ * sortable table on this branch can share the exact link, arrow and
+ * stable-sort idiom rather than invent a second one. The Follow-ups queue
+ * (OWNER-LAN173-05) is the first other caller, reusing these three rather
+ * than the participation-specific wrappers below, which stay tied to
+ * `ParticipationFilters`.
+ */
+
+/** Which way the arrow points, and whether it points at all, for one column. */
+export function sortColumnState(
+  sort: string,
+  direction: string,
+  column: string,
+  defaultColumn: string,
+): { active: boolean; direction: "asc" | "desc" } {
+  const active = (sort === "" ? defaultColumn : sort) === column;
+  return { active, direction: active && direction === "desc" ? "desc" : "asc" };
+}
+
+/**
+ * The href a column heading points at: sort by it, or reverse it if it is
+ * already the sorted column. `extraParams` is every other query key this
+ * table's URL carries, already resolved to its current value — empty values
+ * are dropped, exactly as `participationSortHref` already did.
+ */
+export function sortColumnHref(
+  basePath: string,
+  extraParams: Readonly<Record<string, string>>,
+  sortParam: string,
+  directionParam: string,
+  sort: string,
+  direction: string,
+  defaultColumn: string,
+  column: string,
+): string {
+  const active = (sort === "" ? defaultColumn : sort) === column;
+  const nextDirection = active && direction !== "desc" ? "desc" : "asc";
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(extraParams)) {
+    if (value !== "") params.set(key, value);
+  }
+  params.set(sortParam, column);
+  params.set(directionParam, nextDirection);
+  return `${basePath}?${params.toString()}`;
+}
+
+/**
+ * A stable sort by one already-resolved comparable value, falling back to
+ * `tieBreak` — never `0` — when two rows compare equal, so a table somebody
+ * is reading down never appears to shuffle itself on re-render.
+ *
+ * `tieBreak`'s result is used exactly as returned, in **both** directions:
+ * `applyParticipationView`'s own comment is the reasoning, restated once here
+ * rather than twice — sorting descending by the requested column must not
+ * also reverse the name every tie falls back to.
+ */
+export function stableSortRows<T>(
+  rows: readonly T[],
+  valueFor: (row: T) => string | number,
+  descending: boolean,
+  tieBreak: (left: T, right: T) => number,
+): readonly T[] {
+  return [...rows].sort((left, right) => {
+    const a = valueFor(left);
+    const b = valueFor(right);
+    const order =
+      typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b));
+    if (order === 0) return tieBreak(left, right);
+    return descending ? -order : order;
+  });
+}
+
+/**
  * The filtered, sorted rows — one pure function, so the operator table and the
  * club-link table cannot drift apart.
  *
@@ -565,22 +639,18 @@ export function applyParticipationView<T extends ParticipationPerson>(
   const column = isParticipationSort(filters.sort, questions) ? filters.sort : "name";
   const descending = filters.direction === "desc";
 
-  return [...matched].sort((left, right) => {
-    const a = sortValue(left, column);
-    const b = sortValue(right, column);
-    let order = 0;
-    if (typeof a === "number" && typeof b === "number") order = a - b;
-    else order = String(a).localeCompare(String(b));
-    if (order === 0) {
-      order = left.displayName.localeCompare(right.displayName);
+  return stableSortRows(
+    matched,
+    (person) => sortValue(person, column),
+    descending,
+    (left, right) => {
+      const order = left.displayName.localeCompare(right.displayName);
       // The name column already sorted by name; a tie there is two people with
       // the same name, and the key is the only thing left that distinguishes
       // them. Without this the order depends on the database's row order.
-      if (order === 0) return left.key.localeCompare(right.key);
-      return order;
-    }
-    return descending ? -order : order;
-  });
+      return order === 0 ? left.key.localeCompare(right.key) : order;
+    },
+  );
 }
 
 /**
@@ -597,20 +667,22 @@ export function participationSortHref(
   filters: ParticipationFilters,
   column: string,
 ): string {
-  const active = (filters.sort === "" ? "name" : filters.sort) === column;
-  const direction = active && filters.direction !== "desc" ? "desc" : "asc";
-  const params = new URLSearchParams();
-  const set = (key: string, value: string) => {
-    if (value !== "") params.set(key, value);
-  };
-  set(PARTICIPATION_PARAMS.search, filters.search);
-  set(PARTICIPATION_PARAMS.capacity, filters.capacity);
-  set(PARTICIPATION_PARAMS.answer, filters.answer);
-  set(PARTICIPATION_PARAMS.attendance, filters.attendance);
-  set(PARTICIPATION_PARAMS.delivery, filters.delivery);
-  params.set(PARTICIPATION_PARAMS.sort, column);
-  params.set(PARTICIPATION_PARAMS.direction, direction);
-  return `${basePath}?${params.toString()}`;
+  return sortColumnHref(
+    basePath,
+    {
+      [PARTICIPATION_PARAMS.search]: filters.search,
+      [PARTICIPATION_PARAMS.capacity]: filters.capacity,
+      [PARTICIPATION_PARAMS.answer]: filters.answer,
+      [PARTICIPATION_PARAMS.attendance]: filters.attendance,
+      [PARTICIPATION_PARAMS.delivery]: filters.delivery,
+    },
+    PARTICIPATION_PARAMS.sort,
+    PARTICIPATION_PARAMS.direction,
+    filters.sort,
+    filters.direction,
+    "name",
+    column,
+  );
 }
 
 /** Which way the arrow points on a heading, for `TableSortLabel`. */
@@ -618,8 +690,7 @@ export function participationSortState(
   filters: ParticipationFilters,
   column: string,
 ): { active: boolean; direction: "asc" | "desc" } {
-  const active = (filters.sort === "" ? "name" : filters.sort) === column;
-  return { active, direction: active && filters.direction === "desc" ? "desc" : "asc" };
+  return sortColumnState(filters.sort, filters.direction, column, "name");
 }
 
 /**

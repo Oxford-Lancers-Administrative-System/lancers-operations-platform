@@ -288,22 +288,33 @@ function DiscrepancyMark({ person }: { person: ParticipationPerson }) {
   );
 }
 
-function SortableHeading({
-  basePath,
-  filters,
+/**
+ * The generic column-heading link and arrow — every other bit of
+ * `SortableHeading` below is participation's own href/state, computed from
+ * `ParticipationFilters`. Exported so another sortable table on this branch
+ * can render the identical markup and interaction from its own href/state
+ * rather than a second copy of this JSX — the Follow-ups queue
+ * (OWNER-LAN173-05) is the first other caller, pairing it with
+ * `@/lib/services/participation-view`'s generic `sortColumnHref`/
+ * `sortColumnState`.
+ */
+export function SortableColumnHeading({
   column,
   label,
+  href,
+  active,
+  direction,
 }: {
-  basePath: string;
-  filters: ParticipationFilters;
   column: string;
   label: string;
+  href: string;
+  active: boolean;
+  direction: "asc" | "desc";
 }) {
-  const { active, direction } = participationSortState(filters, column);
   return (
     <TableCell sortDirection={active ? direction : false}>
       <Link
-        href={participationSortHref(basePath, filters, column)}
+        href={href}
         data-sort={column}
         style={{ color: "inherit", textDecoration: "none" }}
         // R157C-B1. Sorting re-orders the rows already on screen; it must not
@@ -321,6 +332,29 @@ function SortableHeading({
         </TableSortLabel>
       </Link>
     </TableCell>
+  );
+}
+
+function SortableHeading({
+  basePath,
+  filters,
+  column,
+  label,
+}: {
+  basePath: string;
+  filters: ParticipationFilters;
+  column: string;
+  label: string;
+}) {
+  const { active, direction } = participationSortState(filters, column);
+  return (
+    <SortableColumnHeading
+      column={column}
+      label={label}
+      href={participationSortHref(basePath, filters, column)}
+      active={active}
+      direction={direction}
+    />
   );
 }
 

@@ -10,6 +10,7 @@ import {
   DELIVERY_LATEST_RESULT_JOIN,
   DELIVERY_STATE_EXPRESSION,
   EMAIL_FALLBACK_SUFFIX,
+  NOTIFICATION_JOB_RECENCY_ORDER,
 } from "./delivery";
 import { personDisplayNameSql as displayName } from "./sql-text";
 
@@ -70,6 +71,16 @@ interface QueueRow {
   flag_open: boolean;
 }
 
+/**
+ * OWNER-LAN173-06 (correction round 2): this lateral shared
+ * `participation.ts`'s `DELIVERY_LATERAL` bug exactly — `order by
+ * j.created_at desc limit 1` with no tiebreaker over a set of rows that, in
+ * real use, commonly share one `created_at` (a whole ladder is created in
+ * `approveEvent`'s single transaction). Both now order by
+ * `NOTIFICATION_JOB_RECENCY_ORDER`, so they cannot drift back into two
+ * different answers to "which job is this invitee's most recent." See that
+ * constant in `./delivery.ts` for the full account.
+ */
 async function readQueueRowsIn(tx: Tx): Promise<QueueRow[]> {
   const result = await tx.query<QueueRow>(
     `select q.invitation_id, q.event_id, q.event_name, q.scheduled_on::text as scheduled_on,
@@ -92,7 +103,7 @@ async function readQueueRowsIn(tx: Tx): Promise<QueueRow[]> {
            ${DELIVERY_LATEST_RESULT_JOIN}
           where j.invitation_id = i.id
             and j.idempotency_key not like '%${EMAIL_FALLBACK_SUFFIX}'
-          order by j.created_at desc
+          ${NOTIFICATION_JOB_RECENCY_ORDER}
           limit 1
        ) delivery on true
        left join public.nonresponse_flags f

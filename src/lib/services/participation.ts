@@ -20,6 +20,7 @@ import {
   DELIVERY_LATEST_RESULT_JOIN,
   DELIVERY_STATE_EXPRESSION,
   EMAIL_FALLBACK_SUFFIX,
+  NOTIFICATION_JOB_RECENCY_ORDER,
   type DeliveryState,
 } from "./delivery";
 import { readEventIn } from "./events";
@@ -139,6 +140,13 @@ interface PersonRow {
  * dispatched — no channel** and **WhatsApp unresponsive** — which `presentation.ts`
  * derives from exactly these facts rather than from a sixth and seventh state
  * invented for this table alone.
+ *
+ * OWNER-LAN173-06 (correction round 2): "most recent job" used to mean
+ * `order by created_at desc` alone, which has no tiebreaker for the tied
+ * `created_at`s a whole ladder shares in real use — see
+ * `NOTIFICATION_JOB_RECENCY_ORDER` in `./delivery.ts` for the full account of
+ * why, and why it was invisible until a held reminder made two tied jobs
+ * disagree about the delivery state.
  */
 const DELIVERY_LATERAL = `
   left join lateral (
@@ -153,7 +161,7 @@ const DELIVERY_LATERAL = `
       ${DELIVERY_LATEST_RESULT_JOIN}
      where j.invitation_id = inv.invitation_id
        and j.idempotency_key not like '%${EMAIL_FALLBACK_SUFFIX}'
-     order by j.created_at desc
+     ${NOTIFICATION_JOB_RECENCY_ORDER}
      limit 1
   ) delivery on true`;
 

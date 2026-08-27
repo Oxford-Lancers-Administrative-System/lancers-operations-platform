@@ -48,7 +48,28 @@ describe("chasePositionLabel", () => {
     ).toBeNull();
   });
 
-  it("reads Chase stopped for an answer that cancelled a running chase", () => {
+  it("reads Chase stopped only when a reminder actually went out before the answer arrived", () => {
+    expect(
+      chasePositionLabel({
+        responseState: "responded_no",
+        isWalkUp: false,
+        escalated: false,
+        jobs: [
+          job({ jobType: "invitation", ladderRung: 0, status: "completed" }),
+          job({ jobType: "reminder", ladderRung: 1, status: "completed" }),
+          job({ jobType: "reminder", ladderRung: 2, status: "cancelled" }),
+        ],
+      }),
+    ).toBe(CHASE_STOPPED);
+  });
+
+  // OWNER-LAN173-04. On an ordinary event everybody answers and every one of
+  // their still-pending rungs is cancelled in the same transaction — the old
+  // "any cancelled or completed non-invitation job" reading made that
+  // cancellation alone read "Chase stopped" on every row, which restates the
+  // Answer column and tells an operator nothing. A reminder that was only
+  // ever cancelled, never sent, is not a chase that ran and then stopped.
+  it("shows nothing for an answer that only cancelled a reminder nothing had sent yet", () => {
     expect(
       chasePositionLabel({
         responseState: "responded_no",
@@ -59,7 +80,7 @@ describe("chasePositionLabel", () => {
           job({ jobType: "reminder", ladderRung: 1, status: "cancelled" }),
         ],
       }),
-    ).toBe(CHASE_STOPPED);
+    ).toBeNull();
   });
 
   it("reads Escalated to the President and names no further rung", () => {

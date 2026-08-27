@@ -28,7 +28,8 @@ import type { Client } from "pg";
 import { closePool, isServiceError, NotPermitted } from "@/lib/db";
 import { requireGeneralOperator } from "@/lib/auth/guards";
 import type { ResolvedOperator } from "@/lib/auth/operator";
-import { dispatchJob, EMAIL_FALLBACK_SUFFIX } from "./delivery";
+import { NO_USABLE_NUMBER_REASON } from "@/lib/delivery/phone";
+import { dispatchJob, EMAIL_FALLBACK_SUFFIX, MAX_ATTEMPTS } from "./delivery";
 import { readFollowUpsQueue, countPeople } from "./follow-ups";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
@@ -315,6 +316,51 @@ describe("the queue itself", () => {
     const row = personRow(events, "Invitee");
     expect(row?.status).toBe("delivery_problem");
     expect(row?.chasePosition).toBeNull();
+  });
+
+  /**
+   * OWNER-LAN173-06 (correction round 2). `readQueueRowsIn`'s own delivery
+   * lateral shared `participation.ts`'s exact bug shape -- `order by
+   * j.created_at desc limit 1`, no tiebreaker -- over jobs that, in real use,
+   * commonly share one `created_at` because `scheduleEventLadderIn` creates a
+   * whole ladder inside one transaction. Pinned here the same way: an
+   * invitation already `completed` and a later reminder that failed for want
+   * of any usable route, both tied to the same instant, so only the fixed
+   * `NOTIFICATION_JOB_RECENCY_ORDER` reads the failure this row exists to
+   * surface as a delivery problem rather than as an ordinary chase.
+   */
+  it("reads the tied invitation job's later, failed reminder, not the invitation itself", async () => {
+    const target = await fixture();
+    const tiedAt = "2026-03-01T09:00:00.000Z";
+
+    await observer.query(
+      `update public.notification_jobs
+          set status = 'completed', created_at = $1::timestamptz,
+              scheduled_for = $1::timestamptz, ladder_rung = 0
+        where id = $2`,
+      [tiedAt, target.jobId],
+    );
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, person_id, channel,
+          created_at, scheduled_for, ladder_rung, attempt_count, last_error)
+       values ($1, 'reminder', 'failed', $2, $3, $4, 'whatsapp',
+               $5::timestamptz, $6::timestamptz, 1, $7, $8)`,
+      [
+        `${MARKER}:${target.eventId}:reminder:1`,
+        target.invitationId,
+        target.eventId,
+        target.personId,
+        tiedAt,
+        "2026-03-02T09:00:00.000Z",
+        MAX_ATTEMPTS,
+        NO_USABLE_NUMBER_REASON,
+      ],
+    );
+
+    const events = await readFollowUpsQueue();
+    const row = personRow(events, "Invitee");
+    expect(row?.status).toBe("delivery_problem");
   });
 });
 

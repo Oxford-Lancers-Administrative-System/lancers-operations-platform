@@ -83,15 +83,21 @@ export function chasePositionLabel(input: ChaseInput): string | null {
   if (input.isWalkUp) return null;
 
   if (ANSWERED_STATES.has(input.responseState)) {
-    // "Chase stopped" only where there was a chase to stop — W4's exceptions
-    // table gives the ordinary answered row no chase position at all, and an
-    // invitee who answered before any reminder had a chance to fire has
-    // nothing here to report on.
-    const wasChased = input.jobs.some(
-      (job) =>
-        job.jobType !== "invitation" && (job.status === "cancelled" || job.status === "completed"),
+    // OWNER-LAN173-04. "Chase stopped" only tells an operator something they
+    // did not already know from the Answer column two cells away when a
+    // reminder actually went out before the answer arrived — the person was
+    // chased despite answering. Narrowed from "any non-invitation job that
+    // was cancelled or completed": on an ordinary event everybody answers,
+    // every one of their still-pending rungs is cancelled in the same
+    // transaction (W3), and that cancellation alone used to read "Chase
+    // stopped" on every single row — true of every answered person and
+    // therefore informative about none of them. A reminder that was only
+    // cancelled, never sent, is the ladder being stood down before it ever
+    // reached them, which is not a chase to report as stopped.
+    const aReminderActuallyWentOut = input.jobs.some(
+      (job) => job.jobType !== "invitation" && job.status === "completed",
     );
-    return wasChased ? CHASE_STOPPED : null;
+    return aReminderActuallyWentOut ? CHASE_STOPPED : null;
   }
 
   // REQ-chase-position's acceptance: an escalated person shows no further
