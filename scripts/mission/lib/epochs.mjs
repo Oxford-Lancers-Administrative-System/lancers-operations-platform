@@ -1,24 +1,16 @@
 /**
- * Lead epochs: the bounded orchestration assignment one Mission Lead holds.
+ * Lead epochs: the bounded assignment one Mission Lead holds.
  *
- * Mission 4 (M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY) recorded 645
- * events, 448 of them Lead heartbeats, under a single Lead that ran from plan
- * approval through five packages, twenty correction dispatches and every merge.
- * The repository already said the Lead stops after plan approval and a fresh
- * Lead resumes; `nextActions` already recommended `recycle-lead`. Nothing
- * refused the continuation, because the rule was prose and advice rather than a
- * precondition on the events that change state.
+ * Mission 4 ran a single Lead from plan approval through five packages and
+ * every merge. The repository already said a fresh Lead resumes after approval
+ * and `nextActions` already recommended it; nothing refused the continuation,
+ * because the rule was prose rather than a precondition on the events that
+ * change state. An epoch answers one question at every write: is this Lead
+ * still inside the assignment the harness derived from durable state?
  *
- * An epoch turns that rule into a fence. It is mission control state — not
- * another package lifecycle and not another Linear status — and it answers one
- * question at every write: is this Lead still inside the assignment the harness
- * derived for it from durable state?
- *
- * This module holds the parts of that answer which depend on nothing but the
- * epoch itself: the phase vocabulary, the thresholds, the class of each journal
- * event, what each phase permits, the deterministic health colour, and the
- * dossier projection. Derivation of the next epoch from mission state, and the
- * refusals themselves, live in state.mjs beside the state they read.
+ * Here: the phase vocabulary, thresholds, the class of each event, what each
+ * phase permits, the health colour, and the dossier projection. Derivation and
+ * the refusals live in state.mjs, beside the state they read.
  */
 
 /** The phases a Lead epoch can carry, in the order a mission walks them. */

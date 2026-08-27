@@ -35,11 +35,11 @@ For a new mission, Brian supplies the approved packet:
 npm run mission -- init M-<id> --packet <file>
 ```
 
-Resuming opens the Lead epoch the harness derives before any other mutation is
-accepted; a closed epoch requires the one-use token it issued and a Lead
-identity that is not the one that closed it. Read the generated dossier the
-resume prints and work from it, not from any narrative handoff.
-`docs/mission-harness.md` governs epochs; this file is the procedure.
+Resume opens the epoch the harness derives; a closed one needs its one-use token
+and a Lead identity that did not close it. Work from the dossier the resume
+prints, never a narrative handoff. At a boundary, close the epoch and stop; only
+an explicit owner message authorizes `epoch adjust`, which records Brian's words
+verbatim. `docs/mission-harness.md` governs epochs.
 
 The CLI owns the append-only journal, fence, refusals, lifecycle, and executable
 frontier. Record every transition through it when it occurs; never reconstruct
@@ -50,28 +50,6 @@ heads, merge states, and current-head CI against GitHub before following
 An incomplete or contradictory packet returns to Mission Intake. New scope
 requires a revised approved packet; record `scope-drift` only for affected
 packages and continue unaffected work.
-
-## Work inside the epoch
-
-The epoch names the phase, the scope and the exit condition; never argue with a
-refusal from it and never propose an epoch the harness did not derive. Check
-`mission epoch status M-<id>` at each checkpoint and report its colour and
-reasons to Brian.
-
-At a boundary, present exactly the three choices the CLI prints — a fresh Lead
-(recommended), pause or stop, or an owner-approved adjustment — with the health
-reasons, the current and proposed scope, and the work being drained. Drain
-running work rather than killing it to rotate; `epoch drain` pins that scope.
-
-Propose an extension only from journal evidence, and only where the rules allow
-one: one adjacent eligible package or one already-active correction cycle, once
-per epoch, green unless Brian names the risks he accepts. File `epoch adjust`
-only after an explicit owner message authorizing it, and record his words
-verbatim in `--authorization`. Never file one on your own judgement, and never
-describe a yellow or red epoch as green.
-
-Then close the epoch, hand Brian the resume command, and stop. Do not carry the
-mission in this session's context past the boundary.
 
 ## Lead judgment
 
@@ -99,11 +77,10 @@ estimated duration are not package boundaries. Present packages, concurrency,
 critical path, and owner cost; record Brian's approval before creating Linear
 issues, branches, or worktrees.
 
-After approval the planning epoch is at its boundary and creates nothing
-durable: close it and stop. On the fresh Lead's resume, run one read-only Linear
-preflight, then use the write-ahead `sync-intent`/`sync-result` pair. Reconcile
-a pending intent before retrying so a crash cannot duplicate an issue. No worker
-starts before its package has a Linear issue.
+After approval, close the planning epoch and stop. On the fresh resume, run one
+read-only Linear preflight, then use the write-ahead `sync-intent`/`sync-result`
+pair. Reconcile a pending intent before retrying so a crash cannot duplicate an
+issue. No worker starts before its package has a Linear issue.
 
 At each resume and checkpoint, query existing Linear issues labelled
 `owner-action` that reference this mission. Linear remains their only ledger.
@@ -233,10 +210,9 @@ acceptance pending`, or `Incomplete`. Merged code or a completed owner action is
 not acceptance without the linked verification. Name every pending criterion,
 owner action, remaining verification, and next actor.
 
-For usage exhaustion, owner stop, or blocking drift, record `mission stop`; a
-fresh Lead resumes from the journal. Close the epoch as well, so the next Lead
-resumes with a token and a dossier rather than inheriting an abandoned
-assignment. Wait for agent completion notifications—never poll.
+For usage exhaustion, owner stop, or blocking drift, record `mission stop` and
+close the epoch; a fresh Lead resumes from the journal. Wait for agent
+completion notifications—never poll.
 
 ## Boundaries
 
