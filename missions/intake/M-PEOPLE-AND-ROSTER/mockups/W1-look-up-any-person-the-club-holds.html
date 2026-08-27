@@ -1182,11 +1182,6 @@
         width: 100%;
       }
 
-      /* Verified reads as a mark, not a label among labels. */
-      .prov.verified {
-        border-color: rgba(46, 125, 50, 0.5);
-        color: #1b5e20;
-      }
 
       /* A history entry's before-value. Struck through and muted, because the
          entry has to read as one thing that happened rather than two values. */
@@ -1197,6 +1192,22 @@
       .was {
         color: var(--text-secondary);
         text-decoration: line-through;
+      }
+
+      /* A two-column comparison is unreadable in a 375px frame. It stacks,
+         and the field label stays above both values. */
+      @container (max-width: 760px) {
+        .grid2,
+        .grid2tight {
+          grid-template-columns: 1fr;
+        }
+        .frow {
+          grid-template-columns: 1fr !important;
+          gap: 6px;
+        }
+        .qbox {
+          padding: 12px;
+        }
       }
     </style>
   </head>
@@ -1226,10 +1237,8 @@
           <span class="disposition modified">Modified</span>.
         </p>
         <p>
-          <strong
-            >Every screen here is New, so every current side reads “New surface, nothing to
-            compare”.</strong
-          >
+          <strong>Every screen here is New, so every current side reads “New surface, nothing to
+          compare”.</strong>
           That is the grounding rule, not an omission: a surface that does not exist is drawn on
           both sides, and a surface that exists is photographed on both sides. Never one of each.
           <code>W5</code> and <code>W6</code> redesign the roster, which does exist, so those
@@ -1239,8 +1248,9 @@
           <strong>What binds, and what does not.</strong> The mockup owns structure and copy — which
           sections exist and in what order, what each row carries, which controls exist and where
           they sit, which states get their own screen. The application owns style: button variants,
-          colour, typography, spacing and shared formatters come from <code>src/theme.ts</code> and
-          MUI defaults. An ugly control here means “a control goes here”.
+          colour, typography, spacing and shared formatters come from
+          <code>src/theme.ts</code> and MUI defaults. An ugly control here means “a control goes
+          here”.
         </p>
         <p>
           <strong>Second round.</strong> Every screen head marks what changed since your review with
@@ -1299,7 +1309,15 @@
        */
       const by = (who) => `<span class="prov">${who}</span>`;
       const PLAYER = by("Player");
-      const VERIFIED = `<span class="prov verified">Verified</span>`;
+
+      /*
+       * There is no `Verified` mark. Brian, 2026-08-27: "no verification link
+       * at all." Nothing in this application verifies that somebody holds a
+       * mailbox — `contact_points` on `main` has no verified column, no
+       * confirm-by-link flow exists, and this mission sends nothing — so a
+       * value carries who supplied it and nothing more. A real verification
+       * flow needs sending, and belongs to Mission 7 or Mission 8.
+       */
 
       const frow = (label, value) =>
         `<div class="frow"><div class="flab">${label}</div><div class="fval">${value}</div></div>`;
@@ -1391,80 +1409,16 @@
       const SEASON_PEOPLE = [
         { name: "Alaric Ashcombe", standing: "Active", is: "Player", mob: 1, mail: 1, missing: 0 },
         { name: "Bertram", standing: "Active", is: "Player", mob: 1, mail: 0, missing: 8 },
-        {
-          name: "Caspian Hallowfield",
-          standing: null,
-          is: "Secretary · 2026-27",
-          mob: 1,
-          mail: 1,
-          missing: 0,
-        },
-        {
-          name: "Dashiell Draycott",
-          standing: "Onboarding",
-          is: "Player",
-          mob: 1,
-          mail: 1,
-          missing: 2,
-        },
-        {
-          name: "Emrys Fairhurst",
-          standing: "Recruit",
-          is: "Recruit",
-          mob: 1,
-          mail: 0,
-          missing: 0,
-        },
-        {
-          name: "Fenwick Gorsemoor",
-          standing: null,
-          is: "Head Coach · 2026-27",
-          mob: 1,
-          mail: 1,
-          missing: 0,
-        },
-        {
-          name: "Gideon Inglewhite",
-          standing: "Inactive",
-          is: "Player",
-          mob: 1,
-          mail: 1,
-          missing: 1,
-        },
-        {
-          name: "Hollis Jarrowdale",
-          aka: "Holly",
-          standing: "Active",
-          is: "Player · Gameday Secretary",
-          mob: 1,
-          mail: 1,
-          missing: 0,
-        },
-        {
-          name: "Ignatius Kirkbride",
-          standing: "Departed",
-          is: "Player",
-          mob: 0,
-          mail: 1,
-          missing: 0,
-        },
+        { name: "Caspian Hallowfield", standing: null, is: "Secretary · 2026-27", mob: 1, mail: 1, missing: 0 },
+        { name: "Dashiell Draycott", standing: "Onboarding", is: "Player", mob: 1, mail: 1, missing: 2 },
+        { name: "Emrys Fairhurst", standing: "Recruit", is: "Recruit", mob: 1, mail: 0, missing: 0 },
+        { name: "Fenwick Gorsemoor", standing: null, is: "Head Coach · 2026-27", mob: 1, mail: 1, missing: 0 },
+        { name: "Gideon Inglewhite", standing: "Inactive", is: "Player", mob: 1, mail: 1, missing: 1 },
+        { name: "Hollis Jarrowdale", aka: "Holly", standing: "Active", is: "Player · Gameday Secretary", mob: 1, mail: 1, missing: 0 },
+        { name: "Ignatius Kirkbride", standing: "Departed", is: "Player", mob: 0, mail: 1, missing: 0 },
         { name: "Jarrah Lanthorne", standing: "Active", is: "Player", mob: 1, mail: 1, missing: 0 },
-        {
-          name: "Marlowe Ravenscar-Pike",
-          standing: "Onboarding",
-          is: "Player",
-          mob: 1,
-          mail: 0,
-          missing: 3,
-        },
-        {
-          name: "Norbert Mereworth",
-          standing: "Recruit",
-          is: "Recruit",
-          mob: 1,
-          mail: 0,
-          missing: 0,
-        },
+        { name: "Marlowe Ravenscar-Pike", standing: "Onboarding", is: "Player", mob: 1, mail: 0, missing: 3 },
+        { name: "Norbert Mereworth", standing: "Recruit", is: "Recruit", mob: 1, mail: 0, missing: 0 },
       ];
 
       /* `roster/presentation.ts`'s own mapping: active success, onboarding
@@ -1473,13 +1427,7 @@
       const standingChip = (standing) => {
         if (standing === null) return `<span class="sec">—</span>`;
         const tone =
-          standing === "Active"
-            ? " ok"
-            : standing === "Onboarding"
-              ? " inf"
-              : standing === "Inactive"
-                ? " wrn"
-                : "";
+          standing === "Active" ? " ok" : standing === "Onboarding" ? " inf" : standing === "Inactive" ? " wrn" : "";
         return `<span class="chip${tone}">${standing}</span>`;
       };
 
@@ -1641,33 +1589,9 @@
         </div>`);
 
       const OUTSIDE_PEOPLE = [
-        {
-          name: "Kestrel Caldicott",
-          standing: null,
-          is: "Alumnus",
-          era: "Last season 2019-20",
-          mob: 0,
-          mail: 1,
-          missing: 0,
-        },
-        {
-          name: "Osgood Thornbury",
-          standing: null,
-          is: `<span class="sec">—</span>`,
-          era: "No season, no role",
-          mob: 1,
-          mail: 1,
-          missing: 0,
-        },
-        {
-          name: "Percival Oakhanger",
-          standing: null,
-          is: "Head Coach · 2024-25",
-          era: "Last season 2024-25",
-          mob: 1,
-          mail: 1,
-          missing: 1,
-        },
+        { name: "Kestrel Caldicott", standing: null, is: "Alumnus", era: "Last season 2019-20", mob: 0, mail: 1, missing: 0 },
+        { name: "Osgood Thornbury", standing: null, is: `<span class="sec">—</span>`, era: "No season, no role", mob: 1, mail: 1, missing: 0 },
+        { name: "Percival Oakhanger", standing: null, is: "Head Coach · 2024-25", era: "Last season 2024-25", mob: 1, mail: 1, missing: 1 },
       ];
 
       const W104 = operatorShell(`
@@ -1745,7 +1669,11 @@
               frow("Roles", p.roles),
           )}
           ${paper("Their seasons", p.seasons)}
-          ${paper("What changed", p.history, `<a class="golink" href="#">Full history →</a>`)}
+          ${paper(
+            "What changed",
+            p.history,
+            `<a class="golink" href="#">Full history →</a>`,
+          )}
         </div>`;
 
       /*
@@ -1789,10 +1717,10 @@
           <span style="width:100%"></span>H.J. ${PLAYER}`,
         mobile: `+44 7700 900412 ${by("Caspian Hallowfield")}`,
         personalEmail: `holly.jarrowdale@example.com ${by("Caspian Hallowfield")}`,
-        collegeEmail: `hollis.jarrowdale@hallamshire.ox.ac.example ${VERIFIED}`,
-        college: `Hallamshire ${VERIFIED}`,
-        matric: `2024 ${VERIFIED}`,
-        graduation: `2027 ${VERIFIED}`,
+        collegeEmail: `hollis.jarrowdale@hallamshire.ox.ac.example`,
+        college: `Hallamshire ${by("Caspian Hallowfield")}`,
+        matric: `2024 ${PLAYER}`,
+        graduation: `2027 ${PLAYER}`,
         degree: `Engineering Science ${PLAYER}`,
         dob: `4 March 2005 ${PLAYER}`,
         under18: `No`,
@@ -1809,11 +1737,7 @@
         history:
           changeRow("Personal email changed", "24 August 2026, 09:12", "Caspian Hallowfield") +
           changeRow("Mobile phone changed", "3 August 2026, 17:40", "Caspian Hallowfield") +
-          changeRow(
-            "Alias “Holly” set as the display name",
-            "12 October 2025, 11:02",
-            "Norbert Mereworth",
-          ),
+          changeRow("Alias “Holly” set as the display name", "12 October 2025, 11:02", "Norbert Mereworth"),
       };
 
       const W105 = operatorShell(personRecord(HOLLIS));
@@ -1878,13 +1802,8 @@
         alumniDetail: `Never a member`,
         roles: `Head Coach · season 2026-27
           <span style="width:100%"></span>Head Coach · season 2025-26 <span class="chip chip-outline">ended</span>`,
-        seasons:
-          seasonRow("2026-27", null, "Head Coach") + seasonRow("2025-26", null, "Head Coach"),
-        history: changeRow(
-          "Head Coach assignment recorded for 2026-27",
-          "18 August 2026, 14:05",
-          "Caspian Hallowfield",
-        ),
+        seasons: seasonRow("2026-27", null, "Head Coach") + seasonRow("2025-26", null, "Head Coach"),
+        history: changeRow("Head Coach assignment recorded for 2026-27", "18 August 2026, 14:05", "Caspian Hallowfield"),
       };
 
       const W107 = operatorShell(personRecord(FENWICK));
@@ -2062,7 +1981,8 @@
             arranged.`,
           deltas: [
             "<strong>Changed:</strong> every explanatory sentence inside the frame is gone",
-            "<strong>Changed:</strong> the four source-and-confidence labels are gone. A value now carries at most two marks — who put it there, or <em>Player</em> when the person supplied it, and <em>Verified</em> where it was checked externally",
+            "<strong>Changed:</strong> the four source-and-confidence labels are gone. A value now carries who put it there, or <em>Player</em> when the person supplied it",
+            "<strong>Corrected 2026-08-27:</strong> the <em>Verified</em> mark is gone. Nothing in this application verifies that somebody holds a mailbox — no verified column, no confirm-by-link flow, and this mission sends nothing — so claiming it on screen was a false statement. A value carries who supplied it and nothing more; a real verification flow needs sending and belongs to Mission 7 or 8",
             "<strong>Changed:</strong> <em>disputed — awaiting verification</em> is gone. The field shows the current value and who set it, because nothing goes higher than the operator. <strong>This supersedes Task 08 §6 and an approved invariant in <code>01-overview.md</code></strong>",
             "<strong>Changed:</strong> the <em>Open →</em> button on each season is gone. The season label is the link, and the season's own standing sits on the row — 2025-26 reads Archived, not Active",
             "Aliases are one concept with one of them flagged as the display name — known-as is gone",

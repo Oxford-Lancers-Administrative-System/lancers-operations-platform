@@ -220,6 +220,7 @@ Against seeded synthetic data, an operator can:
 | Phone and email are validated before the save is offered, per field, naming the rule             | `locked`                      | Brian, 2026-08-27                                                                                                                                             | Settled                     |
 | A correct number is never refused; the negative cases are acceptance criteria in their own right | `locked`                      | Brian, 2026-08-27 — "negative cases so that correct numbers don't get invalidated"                                                                            | Settled                     |
 | A number from any country is valid; only a bare national number defaults to UK                   | `locked`                      | Brian, 2026-08-27 — the club's people come from all over the world                                                                                            | Settled                     |
+| No `Verified` mark on any value; a value carries who supplied it | `locked` | Brian, 2026-08-27 — "no verification link at all". Nothing here verifies a mailbox, so claiming it would be false | Settled |
 | Changing a number that is on WhatsApp for the active season raises it before the save            | `locked`                      | Brian, 2026-08-27                                                                                                                                             | Settled                     |
 | Whether the save also sends the rejoin request, or only marks it needed                          | `proposed for owner approval` | This mission sends nothing; dispatch is Mission 4's. Marking it needed keeps that true                                                                        | Recommend mark only         |
 | Field-level permissioning within the four-role group                                             | `delegated to Mission Lead`   | Task 08 §6 grants the group uniformly; no source splits it further                                                                                            | Delegated                   |
@@ -227,5 +228,6 @@ Against seeded synthetic data, an operator can:
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- Exact words: "Make these changes and I'm now approving."
+- Date: 2026-08-27
+- By: Brian Schuster

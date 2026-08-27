@@ -6,409 +6,208 @@
     <title>W8 · See what changed on a person and who changed it</title>
     <style>
       :root {
-        --primary: #0b3d91;
-        --text: rgba(0, 0, 0, 0.87);
-        --sec: rgba(0, 0, 0, 0.6);
-        --divider: rgba(0, 0, 0, 0.12);
-        --grey50: #fafafa;
-        --grey100: #f5f5f5;
+        --primary: #0b3d91; --text: rgba(0,0,0,0.87); --sec: rgba(0,0,0,0.6);
+        --divider: rgba(0,0,0,0.12); --grey50: #fafafa; --grey100: #f5f5f5;
         --warn: #663c00;
-        --font:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        font-family: var(--font);
-        color: var(--text);
-        background: var(--grey100);
-        line-height: 1.65;
-      }
-      .bar {
-        position: sticky;
-        top: 0;
-        z-index: 2;
-        background: #212121;
-        color: #fff;
-        padding: 10px 20px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 14px;
-        flex-wrap: wrap;
-      }
-      .bar .who {
-        font-weight: 700;
-        font-size: 0.95rem;
-      }
-      .bar .who span {
-        color: #bdbdbd;
-        font-weight: 400;
-        margin-left: 8px;
-        font-size: 0.8rem;
-      }
-      .bar a {
-        color: #fff;
-        text-decoration: none;
-        font-size: 0.85rem;
-        border: 1px solid rgba(255, 255, 255, 0.35);
-        border-radius: 6px;
-        padding: 4px 10px;
-        margin-left: 8px;
-      }
-      .bar a:hover {
-        background: rgba(255, 255, 255, 0.12);
-      }
-      .sheet {
-        max-width: 880px;
-        margin: 26px auto 100px;
-        background: #fff;
-        border: 1px solid var(--divider);
-        border-radius: 10px;
-        padding: 10px 30px 34px;
-      }
-      h1 {
-        font-size: 1.5rem;
-        margin: 22px 0 10px;
-        letter-spacing: -0.01em;
-      }
-      h2 {
-        font-size: 1.12rem;
-        margin: 30px 0 8px;
-        padding-top: 16px;
-        border-top: 1px solid var(--divider);
-      }
-      h3 {
-        font-size: 1rem;
-        margin: 20px 0 6px;
-      }
-      p,
-      li {
-        font-size: 0.95rem;
-      }
-      ul {
-        padding-left: 22px;
-      }
-      li {
-        margin: 5px 0;
-      }
-      code {
-        background: var(--grey100);
-        padding: 1px 5px;
-        border-radius: 4px;
-        font-size: 0.85em;
-      }
-      pre {
-        background: var(--grey100);
-        padding: 12px 14px;
-        border-radius: 8px;
-        overflow-x: auto;
-      }
-      pre code {
-        background: none;
-        padding: 0;
-      }
-      blockquote {
-        margin: 12px 0;
-        padding: 6px 16px;
-        border-left: 3px solid var(--divider);
-        color: var(--sec);
-      }
-      table {
-        border-collapse: collapse;
-        width: 100%;
-        display: block;
-        overflow-x: auto;
-        margin: 14px 0;
-        font-size: 0.875rem;
-      }
-      th,
-      td {
-        border: 1px solid var(--divider);
-        padding: 8px 10px;
-        text-align: left;
-        vertical-align: top;
-      }
-      thead th {
-        background: var(--grey50);
-        font-size: 0.78rem;
-        letter-spacing: 0.03em;
-        text-transform: uppercase;
-        color: var(--sec);
-        white-space: nowrap;
-      }
-      a {
-        color: var(--primary);
-      }
-      @media (max-width: 720px) {
-        .sheet {
-          margin: 14px 10px 60px;
-          padding: 6px 16px 24px;
-        }
-      }
-    </style>
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: var(--font); color: var(--text); background: var(--grey100); line-height: 1.65; }
+      .bar { position: sticky; top: 0; z-index: 2; background: #212121; color: #fff; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+      .bar .who { font-weight: 700; font-size: 0.95rem; }
+      .bar .who span { color: #bdbdbd; font-weight: 400; margin-left: 8px; font-size: 0.8rem; }
+      .bar a { color: #fff; text-decoration: none; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.35); border-radius: 6px; padding: 4px 10px; margin-left: 8px; }
+      .bar a:hover { background: rgba(255,255,255,0.12); }
+      .sheet { max-width: 880px; margin: 26px auto 100px; background: #fff; border: 1px solid var(--divider); border-radius: 10px; padding: 10px 30px 34px; }
+      h1 { font-size: 1.5rem; margin: 22px 0 10px; letter-spacing: -0.01em; }
+      h2 { font-size: 1.12rem; margin: 30px 0 8px; padding-top: 16px; border-top: 1px solid var(--divider); }
+      h3 { font-size: 1rem; margin: 20px 0 6px; }
+      p, li { font-size: 0.95rem; }
+      ul { padding-left: 22px; }
+      li { margin: 5px 0; }
+      code { background: var(--grey100); padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+      pre { background: var(--grey100); padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
+      pre code { background: none; padding: 0; }
+      blockquote { margin: 12px 0; padding: 6px 16px; border-left: 3px solid var(--divider); color: var(--sec); }
+      table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; margin: 14px 0; font-size: 0.875rem; }
+      th, td { border: 1px solid var(--divider); padding: 8px 10px; text-align: left; vertical-align: top; }
+      thead th { background: var(--grey50); font-size: 0.78rem; letter-spacing: 0.03em; text-transform: uppercase; color: var(--sec); white-space: nowrap; }
+      a { color: var(--primary); }
+      @media (max-width: 720px) { .sheet { margin: 14px 10px 60px; padding: 6px 16px 24px; } }</style>
   </head>
   <body>
     <div class="bar">
-      <div class="who">
-        W8 · See what changed on a person and who changed it<span
-          >M-PEOPLE-AND-ROSTER · specification</span
-        >
-      </div>
-      <div>
-        <a href="../mockups/W8-see-what-changed-on-a-person-and-who-changed-it.html">Mockup</a
-        ><a href="../mockups/index.html">Hub</a
-        ><a href="../specifications.html">All specifications</a>
-      </div>
+      <div class="who">W8 · See what changed on a person and who changed it<span>M-PEOPLE-AND-ROSTER · specification</span></div>
+      <div><a href="../mockups/W8-see-what-changed-on-a-person-and-who-changed-it.html">Mockup</a><a href="../mockups/index.html">Hub</a><a href="../specifications.html">All specifications</a></div>
     </div>
-    <div class="sheet">
-      <h1>W8 — See what changed on a person and who changed it</h1>
-      <ul>
-        <li>
-          Purpose/intended outcome: an operator asks how a value came to be what it is, and gets an
-          answer — what changed, from what, to what, when, and by whom.
-        </li>
-        <li>
-          Primary actor: a four-role operator — President, Vice-President, Secretary, General
-          Manager.
-        </li>
-        <li>
-          Trigger: a number that used to work does not; somebody says they never gave that email;
-          two operators disagree about who edited what; a merge looks wrong three months later.
-        </li>
-        <li>
-          Entry point: <strong>Full history</strong> on the person record (<code>W1-05</code>) and
-          on player detail (<code>W6</code>).
-        </li>
-        <li>
-          Route/placement: <code>/operate/people/[personId]/history</code>. Neither the route nor
-          its parent exists on <code>main</code>; nothing occupies the path.
-        </li>
-        <li>
-          Controlling source: Task 08 §5 (the audit and history of changes sit on the record they
-          describe); invariant M2 (every edit attributable and audited); the owner session of
-          2026-08-26 placing per-person history here rather than in Mission 3&#39;s general audit
-          browser.
-        </li>
-        <li>
-          User-visible result: the append-only history of one person, newest first, naming actor,
-          date, field, the superseded value and the new one.
-        </li>
-      </ul>
-      <h2>Required actions</h2>
-      <ul>
-        <li>List every recorded change to this person, newest first.</li>
-        <li>
-          Say, per entry: <strong>what field, from what, to what, when, and who</strong>. A history
-          that says &quot;record updated&quot; answers nothing.
-        </li>
-        <li>
-          Show the reason where one was recorded, which <code>W2</code> requires for a change to an
-          existing value.
-        </li>
-        <li>
-          Show a <strong>merge as one event</strong>, naming the record that was merged in and what
-          moved, not as a scatter of field edits.
-        </li>
-        <li>
-          Show a <strong>superseded contact point</strong> as what it is — the old value kept and
-          dated, not deleted.
-        </li>
-        <li>Filter by field and by actor.</li>
-        <li>Return to the record.</li>
-      </ul>
-      <h2>State transitions</h2>
-      <p>
-        <strong>None. This workflow is read-only and the history is append-only.</strong> Nothing
-        here edits, hides or removes an entry. An entry cannot be corrected, only followed by
-        another.
-      </p>
-      <h2>Handoffs</h2>
-      <ul>
-        <li>To <code>W1</code> and <code>W6</code>, which is where it is reached from.</li>
-        <li>To <code>W2</code> when reading the history tells the operator what to fix.</li>
-        <li>To <code>W4</code>&#39;s merge event when the entry is a merge.</li>
-        <li>
-          To Mission 3&#39;s general audit browser for anything that is not one person&#39;s history
-          — cross-cutting queries, security review, retention.
-        </li>
-        <li>
-          To Mission 8 when the question is a subject-access request rather than an operator&#39;s
-          own curiosity.
-        </li>
-      </ul>
-      <h2>Dependencies and mission boundaries</h2>
-      <ul>
-        <li>
-          <strong>This is per-person history, not the audit log.</strong> It sits here because
-          <code>W2</code> and <code>W4</code> both write it and this view is what makes them
-          verifiable; the general browser stays Mission 3&#39;s. Brian, 2026-08-26.
-        </li>
-        <li>
-          Seasonal changes — a membership status moving, an onboarding item resolving — belong to
-          the season record and appear on player detail&#39;s own status history, not here. A
-          person&#39;s history is the person&#39;s.
-        </li>
-        <li>
-          Every writer is inside this mission: <code>W2</code> corrects, <code>W3</code> creates,
-          <code>W4</code> merges. Nothing outside it writes a person fact, so the history is
-          complete by construction rather than by best effort.
-        </li>
-        <li>
-          The audit substrate exists on <code>main</code> as <code>audit_events</code>; this
-          workflow reads it and adds the per-person view.
-        </li>
-      </ul>
-      <h2>Exceptions and recovery</h2>
-      <ul>
-        <li>
-          <strong>A record with no history.</strong> A person imported or created before this
-          mission shipped shows an empty history and says so, rather than implying nothing ever
-          changed.
-        </li>
-        <li>
-          <strong>An actor who no longer holds a seat.</strong> Their name still appears. An audit
-          trail that forgets who did something because they left is not an audit trail.
-        </li>
-        <li>
-          <strong>A merged-away person&#39;s history.</strong> It moves to the survivor and stays
-          attributed to the record it happened on, so the provenance of an imported row survives the
-          merge.
-        </li>
-        <li>
-          <strong>A very long history.</strong> Paged, newest first, with the filters doing the
-          work.
-        </li>
-        <li>
-          <strong>An operator outside the four-role group.</strong> The route refuses and exposes
-          nothing, including the fact that entries exist.
-        </li>
-      </ul>
-      <h2>Safety, privacy, consent, and authority boundaries</h2>
-      <ul>
-        <li>Four-role only.</li>
-        <li>
-          <strong>A history shows old values</strong>, including superseded phone numbers, emails
-          and a previous date of birth. It is as disclosing as the record itself and is guarded
-          identically.
-        </li>
-        <li>
-          Emergency contact changes appear as changes to emergency contact; the values are shown
-          under the same four-role restriction as the record, and the entry is out of leadership
-          exports by default with the field it describes.
-        </li>
-        <li>Nothing here sends a message or records a lawful basis.</li>
-        <li>
-          <strong>Append-only.</strong> No entry can be edited or removed by any path in this
-          mission, and none should be added by a later one without saying so.
-        </li>
-      </ul>
-      <h2>Acceptance evidence</h2>
-      <p>Against seeded synthetic data, an operator can:</p>
-      <ol>
-        <li>read a change and see <strong>field, from, to, when and who</strong> on one line;</li>
-        <li>see the <strong>reason</strong> on a change that required one, and none on a fill;</li>
-        <li>
-          read a <strong>merge as a single event</strong> naming what was merged and what moved;
-        </li>
-        <li>
-          see a <strong>superseded contact point</strong> presented as kept-and-dated rather than
-          deleted;
-        </li>
-        <li>
-          filter to <strong>one field</strong> across the whole history, and to
-          <strong>one actor</strong>;
-        </li>
-        <li>see an <strong>empty history</strong> stated as empty rather than implied;</li>
-        <li>
-          find the history of a <strong>merged-away record on the survivor</strong>, still
-          attributed to where it happened;
-        </li>
-        <li>
-          confirm an operator <strong>outside the four-role group</strong> is refused with no
-          entries in the payload.
-        </li>
-      </ol>
-      <h2>Core decisions</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Decision</th>
-            <th>Classification</th>
-            <th>Governing evidence or recommended default</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Per-person history lives here, not in Mission 3&#39;s general audit browser</td>
-            <td><code>locked</code></td>
-            <td>
-              Brian, 2026-08-26. <code>W2</code> and <code>W4</code> both write it and this is what
-              makes them verifiable
-            </td>
-            <td>Settled</td>
-          </tr>
-          <tr>
-            <td>Every entry names field, before, after, when and who</td>
-            <td><code>locked</code></td>
-            <td>Task 07 §3; invariant M2</td>
-            <td>Settled</td>
-          </tr>
-          <tr>
-            <td>A merge renders as one event, not a scatter of field edits</td>
-            <td><code>proposed for owner approval</code></td>
-            <td>
-              A merge read as forty corrections is unreadable and hides the decision that was
-              actually made
-            </td>
-            <td>Recommend as drawn</td>
-          </tr>
-          <tr>
-            <td>Append-only, with no edit or delete on any path</td>
-            <td><code>locked</code></td>
-            <td>Invariant M2</td>
-            <td>Settled</td>
-          </tr>
-          <tr>
-            <td>A departed actor&#39;s name still appears</td>
-            <td><code>proposed for owner approval</code></td>
-            <td>
-              An audit trail that forgets who did something is not one. The alternative pleases
-              nobody and loses the answer
-            </td>
-            <td>Recommend yes</td>
-          </tr>
-          <tr>
-            <td>Seasonal changes are on player detail&#39;s status history, not here</td>
-            <td><code>locked</code></td>
-            <td>The person-versus-season test</td>
-            <td>Settled</td>
-          </tr>
-          <tr>
-            <td>Retention of history entries</td>
-            <td><code>delegated to Mission Lead</code></td>
-            <td>
-              No source sets one; Mission 8 owns retention policy and this workflow stores rather
-              than expires
-            </td>
-            <td>Deferred</td>
-          </tr>
-          <tr>
-            <td>Page size and filter control placement</td>
-            <td><code>delegated to Mission Lead</code></td>
-            <td>No product meaning</td>
-            <td>Delegated</td>
-          </tr>
-        </tbody>
-      </table>
-      <h2>Brian approval</h2>
-      <ul>
-        <li>Exact words:</li>
-        <li>Date:</li>
-      </ul>
-    </div>
+    <div class="sheet"><h1>W8 — See what changed on a person and who changed it</h1>
+<ul>
+<li>Purpose/intended outcome: an operator asks how a value came to be what it is,
+and gets an answer — what changed, from what, to what, when, and by whom.</li>
+<li>Primary actor: a four-role operator — President, Vice-President, Secretary,
+General Manager.</li>
+<li>Trigger: a number that used to work does not; somebody says they never gave
+that email; two operators disagree about who edited what; a merge looks wrong
+three months later.</li>
+<li>Entry point: <strong>Full history</strong> on the person record (<code>W1-05</code>) and on player
+detail (<code>W6</code>).</li>
+<li>Route/placement: <code>/operate/people/[personId]/history</code>. Neither the route nor
+its parent exists on <code>main</code>; nothing occupies the path.</li>
+<li>Controlling source: Task 08 §5 (the audit and history of changes sit on the
+record they describe); invariant M2 (every edit attributable and audited); the
+owner session of 2026-08-26 placing per-person history here rather than in
+Mission 3&#39;s general audit browser.</li>
+<li>User-visible result: the append-only history of one person, newest first,
+naming actor, date, field, the superseded value and the new one.</li>
+</ul>
+<h2>Required actions</h2>
+<ul>
+<li>List every recorded change to this person, newest first.</li>
+<li>Say, per entry: <strong>what field, from what, to what, when, and who</strong>. A history
+that says &quot;record updated&quot; answers nothing.</li>
+<li>Show the reason where one was recorded, which <code>W2</code> requires for a change to an
+existing value.</li>
+<li>Show a <strong>merge as one event</strong>, naming the record that was merged in and what
+moved, not as a scatter of field edits.</li>
+<li>Show a <strong>superseded contact point</strong> as what it is — the old value kept and
+dated, not deleted.</li>
+<li>Filter by field and by actor.</li>
+<li>Return to the record.</li>
+</ul>
+<h2>State transitions</h2>
+<p><strong>None. This workflow is read-only and the history is append-only.</strong> Nothing
+here edits, hides or removes an entry. An entry cannot be corrected, only
+followed by another.</p>
+<h2>Handoffs</h2>
+<ul>
+<li>To <code>W1</code> and <code>W6</code>, which is where it is reached from.</li>
+<li>To <code>W2</code> when reading the history tells the operator what to fix.</li>
+<li>To <code>W4</code>&#39;s merge event when the entry is a merge.</li>
+<li>To Mission 3&#39;s general audit browser for anything that is not one person&#39;s
+history — cross-cutting queries, security review, retention.</li>
+<li>To Mission 8 when the question is a subject-access request rather than an
+operator&#39;s own curiosity.</li>
+</ul>
+<h2>Dependencies and mission boundaries</h2>
+<ul>
+<li><strong>This is per-person history, not the audit log.</strong> It sits here because <code>W2</code>
+and <code>W4</code> both write it and this view is what makes them verifiable; the
+general browser stays Mission 3&#39;s. Brian, 2026-08-26.</li>
+<li>Seasonal changes — a membership status moving, an onboarding item resolving —
+belong to the season record and appear on player detail&#39;s own status history,
+not here. A person&#39;s history is the person&#39;s.</li>
+<li>Every writer is inside this mission: <code>W2</code> corrects, <code>W3</code> creates, <code>W4</code> merges.
+Nothing outside it writes a person fact, so the history is complete by
+construction rather than by best effort.</li>
+<li>The audit substrate exists on <code>main</code> as <code>audit_events</code>; this workflow reads it
+and adds the per-person view.</li>
+</ul>
+<h2>Exceptions and recovery</h2>
+<ul>
+<li><strong>A record with no history.</strong> A person imported or created before this mission
+shipped shows an empty history and says so, rather than implying nothing ever
+changed.</li>
+<li><strong>An actor who no longer holds a seat.</strong> Their name still appears. An audit
+trail that forgets who did something because they left is not an audit trail.</li>
+<li><strong>A merged-away person&#39;s history.</strong> It moves to the survivor and stays
+attributed to the record it happened on, so the provenance of an imported row
+survives the merge.</li>
+<li><strong>A very long history.</strong> Paged, newest first, with the filters doing the work.</li>
+<li><strong>An operator outside the four-role group.</strong> The route refuses and exposes
+nothing, including the fact that entries exist.</li>
+</ul>
+<h2>Safety, privacy, consent, and authority boundaries</h2>
+<ul>
+<li>Four-role only.</li>
+<li><strong>A history shows old values</strong>, including superseded phone numbers, emails and
+a previous date of birth. It is as disclosing as the record itself and is
+guarded identically.</li>
+<li>Emergency contact changes appear as changes to emergency contact; the values
+are shown under the same four-role restriction as the record, and the entry is
+out of leadership exports by default with the field it describes.</li>
+<li>Nothing here sends a message or records a lawful basis.</li>
+<li><strong>Append-only.</strong> No entry can be edited or removed by any path in this
+mission, and none should be added by a later one without saying so.</li>
+</ul>
+<h2>Acceptance evidence</h2>
+<p>Against seeded synthetic data, an operator can:</p>
+<ol>
+<li>read a change and see <strong>field, from, to, when and who</strong> on one line;</li>
+<li>see the <strong>reason</strong> on a change that required one, and none on a fill;</li>
+<li>read a <strong>merge as a single event</strong> naming what was merged and what moved;</li>
+<li>see a <strong>superseded contact point</strong> presented as kept-and-dated rather than
+deleted;</li>
+<li>filter to <strong>one field</strong> across the whole history, and to <strong>one actor</strong>;</li>
+<li>see an <strong>empty history</strong> stated as empty rather than implied;</li>
+<li>find the history of a <strong>merged-away record on the survivor</strong>, still attributed
+to where it happened;</li>
+<li>confirm an operator <strong>outside the four-role group</strong> is refused with no entries
+in the payload.</li>
+</ol>
+<h2>Core decisions</h2>
+<table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Classification</th>
+<th>Governing evidence or recommended default</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Per-person history lives here, not in Mission 3&#39;s general audit browser</td>
+<td><code>locked</code></td>
+<td>Brian, 2026-08-26. <code>W2</code> and <code>W4</code> both write it and this is what makes them verifiable</td>
+<td>Settled</td>
+</tr>
+<tr>
+<td>Every entry names field, before, after, when and who</td>
+<td><code>locked</code></td>
+<td>Task 07 §3; invariant M2</td>
+<td>Settled</td>
+</tr>
+<tr>
+<td>A merge renders as one event, not a scatter of field edits</td>
+<td><code>proposed for owner approval</code></td>
+<td>A merge read as forty corrections is unreadable and hides the decision that was actually made</td>
+<td>Recommend as drawn</td>
+</tr>
+<tr>
+<td>Append-only, with no edit or delete on any path</td>
+<td><code>locked</code></td>
+<td>Invariant M2</td>
+<td>Settled</td>
+</tr>
+<tr>
+<td>A departed actor&#39;s name still appears</td>
+<td><code>proposed for owner approval</code></td>
+<td>An audit trail that forgets who did something is not one. The alternative pleases nobody and loses the answer</td>
+<td>Recommend yes</td>
+</tr>
+<tr>
+<td>Seasonal changes are on player detail&#39;s status history, not here</td>
+<td><code>locked</code></td>
+<td>The person-versus-season test</td>
+<td>Settled</td>
+</tr>
+<tr>
+<td>Retention of history entries</td>
+<td><code>delegated to Mission Lead</code></td>
+<td>No source sets one; Mission 8 owns retention policy and this workflow stores rather than expires</td>
+<td>Deferred</td>
+</tr>
+<tr>
+<td>Page size and filter control placement</td>
+<td><code>delegated to Mission Lead</code></td>
+<td>No product meaning</td>
+<td>Delegated</td>
+</tr>
+</tbody></table>
+<h2>Brian approval</h2>
+<ul>
+<li>Exact words:</li>
+<li>Date:</li>
+</ul>
+</div>
   </body>
 </html>

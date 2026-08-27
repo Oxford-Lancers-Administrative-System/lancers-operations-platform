@@ -6,427 +6,224 @@
     <title>W7 · Work the missing-data queue</title>
     <style>
       :root {
-        --primary: #0b3d91;
-        --text: rgba(0, 0, 0, 0.87);
-        --sec: rgba(0, 0, 0, 0.6);
-        --divider: rgba(0, 0, 0, 0.12);
-        --grey50: #fafafa;
-        --grey100: #f5f5f5;
+        --primary: #0b3d91; --text: rgba(0,0,0,0.87); --sec: rgba(0,0,0,0.6);
+        --divider: rgba(0,0,0,0.12); --grey50: #fafafa; --grey100: #f5f5f5;
         --warn: #663c00;
-        --font:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        font-family: var(--font);
-        color: var(--text);
-        background: var(--grey100);
-        line-height: 1.65;
-      }
-      .bar {
-        position: sticky;
-        top: 0;
-        z-index: 2;
-        background: #212121;
-        color: #fff;
-        padding: 10px 20px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 14px;
-        flex-wrap: wrap;
-      }
-      .bar .who {
-        font-weight: 700;
-        font-size: 0.95rem;
-      }
-      .bar .who span {
-        color: #bdbdbd;
-        font-weight: 400;
-        margin-left: 8px;
-        font-size: 0.8rem;
-      }
-      .bar a {
-        color: #fff;
-        text-decoration: none;
-        font-size: 0.85rem;
-        border: 1px solid rgba(255, 255, 255, 0.35);
-        border-radius: 6px;
-        padding: 4px 10px;
-        margin-left: 8px;
-      }
-      .bar a:hover {
-        background: rgba(255, 255, 255, 0.12);
-      }
-      .sheet {
-        max-width: 880px;
-        margin: 26px auto 100px;
-        background: #fff;
-        border: 1px solid var(--divider);
-        border-radius: 10px;
-        padding: 10px 30px 34px;
-      }
-      h1 {
-        font-size: 1.5rem;
-        margin: 22px 0 10px;
-        letter-spacing: -0.01em;
-      }
-      h2 {
-        font-size: 1.12rem;
-        margin: 30px 0 8px;
-        padding-top: 16px;
-        border-top: 1px solid var(--divider);
-      }
-      h3 {
-        font-size: 1rem;
-        margin: 20px 0 6px;
-      }
-      p,
-      li {
-        font-size: 0.95rem;
-      }
-      ul {
-        padding-left: 22px;
-      }
-      li {
-        margin: 5px 0;
-      }
-      code {
-        background: var(--grey100);
-        padding: 1px 5px;
-        border-radius: 4px;
-        font-size: 0.85em;
-      }
-      pre {
-        background: var(--grey100);
-        padding: 12px 14px;
-        border-radius: 8px;
-        overflow-x: auto;
-      }
-      pre code {
-        background: none;
-        padding: 0;
-      }
-      blockquote {
-        margin: 12px 0;
-        padding: 6px 16px;
-        border-left: 3px solid var(--divider);
-        color: var(--sec);
-      }
-      table {
-        border-collapse: collapse;
-        width: 100%;
-        display: block;
-        overflow-x: auto;
-        margin: 14px 0;
-        font-size: 0.875rem;
-      }
-      th,
-      td {
-        border: 1px solid var(--divider);
-        padding: 8px 10px;
-        text-align: left;
-        vertical-align: top;
-      }
-      thead th {
-        background: var(--grey50);
-        font-size: 0.78rem;
-        letter-spacing: 0.03em;
-        text-transform: uppercase;
-        color: var(--sec);
-        white-space: nowrap;
-      }
-      a {
-        color: var(--primary);
-      }
-      @media (max-width: 720px) {
-        .sheet {
-          margin: 14px 10px 60px;
-          padding: 6px 16px 24px;
-        }
-      }
-    </style>
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: var(--font); color: var(--text); background: var(--grey100); line-height: 1.65; }
+      .bar { position: sticky; top: 0; z-index: 2; background: #212121; color: #fff; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+      .bar .who { font-weight: 700; font-size: 0.95rem; }
+      .bar .who span { color: #bdbdbd; font-weight: 400; margin-left: 8px; font-size: 0.8rem; }
+      .bar a { color: #fff; text-decoration: none; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.35); border-radius: 6px; padding: 4px 10px; margin-left: 8px; }
+      .bar a:hover { background: rgba(255,255,255,0.12); }
+      .sheet { max-width: 880px; margin: 26px auto 100px; background: #fff; border: 1px solid var(--divider); border-radius: 10px; padding: 10px 30px 34px; }
+      h1 { font-size: 1.5rem; margin: 22px 0 10px; letter-spacing: -0.01em; }
+      h2 { font-size: 1.12rem; margin: 30px 0 8px; padding-top: 16px; border-top: 1px solid var(--divider); }
+      h3 { font-size: 1rem; margin: 20px 0 6px; }
+      p, li { font-size: 0.95rem; }
+      ul { padding-left: 22px; }
+      li { margin: 5px 0; }
+      code { background: var(--grey100); padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+      pre { background: var(--grey100); padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
+      pre code { background: none; padding: 0; }
+      blockquote { margin: 12px 0; padding: 6px 16px; border-left: 3px solid var(--divider); color: var(--sec); }
+      table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; margin: 14px 0; font-size: 0.875rem; }
+      th, td { border: 1px solid var(--divider); padding: 8px 10px; text-align: left; vertical-align: top; }
+      thead th { background: var(--grey50); font-size: 0.78rem; letter-spacing: 0.03em; text-transform: uppercase; color: var(--sec); white-space: nowrap; }
+      a { color: var(--primary); }
+      @media (max-width: 720px) { .sheet { margin: 14px 10px 60px; padding: 6px 16px 24px; } }</style>
   </head>
   <body>
     <div class="bar">
-      <div class="who">
-        W7 · Work the missing-data queue<span>M-PEOPLE-AND-ROSTER · specification</span>
-      </div>
-      <div>
-        <a href="../mockups/W7-work-the-missing-data-queue.html">Mockup</a
-        ><a href="../mockups/index.html">Hub</a
-        ><a href="../specifications.html">All specifications</a>
-      </div>
+      <div class="who">W7 · Work the missing-data queue<span>M-PEOPLE-AND-ROSTER · specification</span></div>
+      <div><a href="../mockups/W7-work-the-missing-data-queue.html">Mockup</a><a href="../mockups/index.html">Hub</a><a href="../specifications.html">All specifications</a></div>
     </div>
-    <div class="sheet">
-      <h1>W7 — Work the missing-data queue</h1>
-      <ul>
-        <li>
-          Purpose/intended outcome: an operator finds out who the club is missing something about,
-          and what — as a real, workable list rather than a number on a dashboard — and goes and
-          fixes it.
-        </li>
-        <li>
-          Primary actor: a four-role operator — President, Vice-President, Secretary, General
-          Manager.
-        </li>
-        <li>
-          Trigger: the week before a fixture and nobody knows who has an emergency contact; the
-          Secretary has an hour and wants it spent usefully; the roster shows a flag against eleven
-          people.
-        </li>
-        <li>
-          Entry point: <strong>not yet decided, and not yet drawn anywhere.</strong> Corrected
-          2026-08-27: this specification asserted a <strong>Missing data</strong> navigation entry
-          that no screen renders, and <code>W1-01</code>&#39;s Missing column is a chip rather than
-          a link. Two routes are proposed and both amend approved <code>W1</code> — see
-          <code>W7-06</code>: the count on the roster and on the People list becomes a link, and/or
-          a <strong>Missing data</strong> entry joins the Administration group. Recommendation:
-          both.
-        </li>
-        <li>
-          Route/placement: <code>/operate/people/missing</code>. Neither the route nor its parent
-          exists on <code>main</code>; nothing occupies the path.
-        </li>
-        <li>
-          Controlling source: Task 08 §5 (missing required data); Task 08 §6 (<code
-            >not recorded</code
-          >
-          explicit, visible and never defaulted); the field inventory&#39;s required set, approved
-          2026-08-26 and amended the same day; the portfolio row, which defines the queue here,
-          chases it in Mission 7 and surfaces it in Mission 10.
-        </li>
-        <li>
-          User-visible result: a filtered list of people, each row saying exactly which required
-          facts are absent, and a way into correcting each one.
-        </li>
-      </ul>
-      <h2>Required actions</h2>
-      <ul>
-        <li>
-          List every person with at least one required fact <code>not recorded</code>, scoped to the
-          season in view, with the same widen-to-outside action <code>W1</code> carries.
-        </li>
-        <li>
-          <strong>Say which facts, per row.</strong> A count alone sends the operator to the record
-          to find out; the point of the queue is that they already know.
-        </li>
-        <li>
-          Filter by <strong>which fact is missing</strong> — everybody with no emergency contact,
-          everybody with no personal email — because that is how the work actually gets batched.
-        </li>
-        <li>Filter by where the person stands, since the required set depends on it.</li>
-        <li>Sort by how much is missing, and by name.</li>
-        <li>Go straight to correction (<code>W2</code>) and come back to the next row.</li>
-        <li>Show the total, and the total for the current filter.</li>
-      </ul>
-      <h2>State transitions</h2>
-      <p>
-        <strong>None. This workflow is read-only.</strong> It writes nothing; every change is
-        <code>W2</code>&#39;s. A row leaves the queue when the fact it was missing is recorded, and
-        that happens because somebody corrected the record, not because anything here moved.
-      </p>
-      <h2>Handoffs</h2>
-      <ul>
-        <li>To <code>W2</code> for every fix, returning to the queue afterwards.</li>
-        <li>To <code>W1</code> when the operator wants the whole record rather than the gap.</li>
-        <li>
-          To Mission 7 for the chase itself — the request, the cadence, the reminder, and a per-fact
-          <code>refused</code> state. Task 11 §1 states the division outright and §7 consumes this
-          queue rather than redefining it.
-        </li>
-        <li>To Mission 10 for surfacing the queue&#39;s totals in the leadership report.</li>
-      </ul>
-      <h2>Dependencies and mission boundaries</h2>
-      <ul>
-        <li>
-          <strong>The required set is this mission&#39;s</strong>, keyed to where the person stands:
-          a recruit needs a first name, a last name and a mobile; a coach, committee member or
-          alumnus adds a personal email; an onboarding, active or inactive player adds the four
-          academic fields, date of birth and emergency contact. Amended 2026-08-26 to require a last
-          name at every rung.
-        </li>
-        <li>
-          <strong>About a quarter of the club will flag for a missing last name</strong> the day
-          this opens. That is the intent, not a defect: it is where they get chased.
-        </li>
-        <li>
-          <strong><code>disputed</code> is not a category in this queue.</strong> The frozen
-          inventory&#39;s line for this workflow says &quot;<code>not recorded</code> or
-          <code>disputed</code>&quot;; the disputed state was struck on 2026-08-26 and this queue is
-          incompleteness only. <strong>That line needs a dated amendment.</strong>
-        </li>
-        <li>
-          Onboarding items are not required facts and are not in this queue. Their completeness is
-          Mission 7&#39;s rollup and appears on the roster as its own column.
-        </li>
-        <li>Formalwear is asked each season through Mission 7&#39;s checklist, not chased here.</li>
-        <li>Aliases and Blues are recorded when known and never chased.</li>
-      </ul>
-      <h2>Exceptions and recovery</h2>
-      <ul>
-        <li>
-          <strong>Nobody is missing anything.</strong> The empty state says so plainly and is a good
-          outcome, not a failure. It offers the widen action, because the season in view may simply
-          be complete.
-        </li>
-        <li>
-          <strong>A filter matches nothing.</strong> Different copy, and a way to clear the filter,
-          matching the roster&#39;s own distinction between a filtered empty and a real empty.
-        </li>
-        <li>
-          <strong>A person missing everything.</strong> They render as one row with the whole list
-          of absent facts, not as one row per fact. The unit of work is a person.
-        </li>
-        <li>
-          <strong>A fact that cannot be collected.</strong> There is no <code>refused</code> or
-          <code>not applicable</code> state here, so somebody who genuinely has no personal email
-          sits in the queue forever. <strong>This is a known gap</strong>: the per-fact
-          <code>refused</code> state is Mission 7&#39;s, and until it exists the queue has no way to
-          retire a row it can never satisfy.
-        </li>
-        <li>
-          <strong>An operator outside the four-role group.</strong> The destination is absent from
-          their navigation and the query refuses, exposing nothing.
-        </li>
-      </ul>
-      <h2>Safety, privacy, consent, and authority boundaries</h2>
-      <ul>
-        <li>Four-role only.</li>
-        <li>
-          <strong>The queue names an absence, never a value.</strong> A row says &quot;no emergency
-          contact&quot;; it never shows an emergency contact, a date of birth or a phone number.
-          That keeps the most disclosing screen in this mission out of the most routine one.
-        </li>
-        <li>
-          Nothing here sends a message or records a lawful basis. The chase is Mission 7&#39;s
-          precisely because it sends things.
-        </li>
-        <li>No destructive action.</li>
-      </ul>
-      <h2>Acceptance evidence</h2>
-      <p>Against seeded synthetic data, an operator can:</p>
-      <ol>
-        <li>
-          see a <strong>real list</strong>, not a count, with the missing facts named on every row;
-        </li>
-        <li>
-          filter to <strong>everybody with no emergency contact</strong> and get a workable batch;
-        </li>
-        <li>
-          see that the <strong>required set differs by rung</strong> — a recruit missing only a last
-          name sits beside a player missing seven things;
-        </li>
-        <li>
-          confirm the <strong>first-name-only cohort appears</strong>, roughly a quarter of the
-          people in view;
-        </li>
-        <li>go to correction and <strong>return to the queue</strong> with that row gone;</li>
-        <li>
-          see the <strong>empty state</strong> when a filter matches nothing, distinguished from the
-          queue genuinely being empty;
-        </li>
-        <li>
-          confirm <strong>no value is ever displayed</strong>, only the name of what is absent;
-        </li>
-        <li>confirm an operator <strong>outside the four-role group</strong> is refused.</li>
-      </ol>
-      <h2>Core decisions</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Decision</th>
-            <th>Classification</th>
-            <th>Governing evidence or recommended default</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>The queue names which facts are missing per row, not a count</td>
-            <td><code>proposed for owner approval</code></td>
-            <td>
-              A count sends the operator to the record to find out what the queue already knows
-            </td>
-            <td>Recommend as drawn</td>
-          </tr>
-          <tr>
-            <td><code>disputed</code> is not a category here</td>
-            <td><code>locked</code></td>
-            <td>
-              Brian, 2026-08-26, struck the state. The frozen inventory&#39;s line for this workflow
-              needs the dated amendment
-            </td>
-            <td>Settled, amendment pending</td>
-          </tr>
-          <tr>
-            <td>The queue shows an absence and never a value</td>
-            <td><code>proposed for owner approval</code></td>
-            <td>It keeps date of birth and emergency contact off a routine screen entirely</td>
-            <td>Recommend yes</td>
-          </tr>
-          <tr>
-            <td>Filter by which fact is missing</td>
-            <td><code>proposed for owner approval</code></td>
-            <td>
-              It is how the work batches — one afternoon of emergency contacts, not one person at a
-              time
-            </td>
-            <td>Recommend yes</td>
-          </tr>
-          <tr>
-            <td>The queue&#39;s entry point: a linked count, an Administration entry, or both</td>
-            <td><code>proposed for owner approval</code></td>
-            <td>
-              Neither exists today. The count is the route an operator falls into; the entry is the
-              route the trigger describes — an hour to spend usefully, starting from nobody in
-              particular
-            </td>
-            <td>Recommend both</td>
-          </tr>
-          <tr>
-            <td>Season-scoped by default, with the same widen action as People</td>
-            <td><code>locked</code></td>
-            <td>Brian, 2026-08-26, on People; the queue is the same population</td>
-            <td>Settled</td>
-          </tr>
-          <tr>
-            <td>
-              No <code>refused</code> or <code>not applicable</code> state; a row that cannot be
-              satisfied persists
-            </td>
-            <td><code>proposed for owner approval</code></td>
-            <td>
-              Task 11 §1 puts the per-fact refused state in Mission 7. Inventing one here would
-              pre-empt it
-            </td>
-            <td>Recommend accepting the gap</td>
-          </tr>
-          <tr>
-            <td>Onboarding completeness is not in this queue</td>
-            <td><code>locked</code></td>
-            <td>Mission 7 owns it; the roster carries it as its own column</td>
-            <td>Settled</td>
-          </tr>
-          <tr>
-            <td>
-              Page size, ordering within an equal count, and the flag&#39;s exact placement on the
-              roster
-            </td>
-            <td><code>delegated to Mission Lead</code></td>
-            <td>No product meaning</td>
-            <td>Delegated</td>
-          </tr>
-        </tbody>
-      </table>
-      <h2>Brian approval</h2>
-      <ul>
-        <li>Exact words:</li>
-        <li>Date:</li>
-      </ul>
-    </div>
+    <div class="sheet"><h1>W7 — Work the missing-data queue</h1>
+<ul>
+<li>Purpose/intended outcome: an operator finds out who the club is missing
+something about, and what — as a real, workable list rather than a number on a
+dashboard — and goes and fixes it.</li>
+<li>Primary actor: a four-role operator — President, Vice-President, Secretary,
+General Manager.</li>
+<li>Trigger: the week before a fixture and nobody knows who has an emergency
+contact; the Secretary has an hour and wants it spent usefully; the roster
+shows a flag against eleven people.</li>
+<li>Entry point: <strong>not yet decided, and not yet drawn anywhere.</strong> Corrected
+2026-08-27: this specification asserted a <strong>Missing data</strong> navigation entry
+that no screen renders, and <code>W1-01</code>&#39;s Missing column is a chip rather than a
+link. Two routes are proposed and both amend approved <code>W1</code> — see <code>W7-06</code>:
+the count on the roster and on the People list becomes a link, and/or a
+<strong>Missing data</strong> entry joins the Administration group. Recommendation: both.</li>
+<li>Route/placement: <code>/operate/people/missing</code>. Neither the route nor its parent
+exists on <code>main</code>; nothing occupies the path.</li>
+<li>Controlling source: Task 08 §5 (missing required data); Task 08 §6 (<code>not recorded</code> explicit, visible and never defaulted); the field inventory&#39;s
+required set, approved 2026-08-26 and amended the same day; the portfolio row,
+which defines the queue here, chases it in Mission 7 and surfaces it in
+Mission 10.</li>
+<li>User-visible result: a filtered list of people, each row saying exactly which
+required facts are absent, and a way into correcting each one.</li>
+</ul>
+<h2>Required actions</h2>
+<ul>
+<li>List every person with at least one required fact <code>not recorded</code>, scoped to
+the season in view, with the same widen-to-outside action <code>W1</code> carries.</li>
+<li><strong>Say which facts, per row.</strong> A count alone sends the operator to the record to
+find out; the point of the queue is that they already know.</li>
+<li>Filter by <strong>which fact is missing</strong> — everybody with no emergency contact,
+everybody with no personal email — because that is how the work actually gets
+batched.</li>
+<li>Filter by where the person stands, since the required set depends on it.</li>
+<li>Sort by how much is missing, and by name.</li>
+<li>Go straight to correction (<code>W2</code>) and come back to the next row.</li>
+<li>Show the total, and the total for the current filter.</li>
+</ul>
+<h2>State transitions</h2>
+<p><strong>None. This workflow is read-only.</strong> It writes nothing; every change is <code>W2</code>&#39;s.
+A row leaves the queue when the fact it was missing is recorded, and that
+happens because somebody corrected the record, not because anything here moved.</p>
+<h2>Handoffs</h2>
+<ul>
+<li>To <code>W2</code> for every fix, returning to the queue afterwards.</li>
+<li>To <code>W1</code> when the operator wants the whole record rather than the gap.</li>
+<li>To Mission 7 for the chase itself — the request, the cadence, the reminder, and
+a per-fact <code>refused</code> state. Task 11 §1 states the division outright and §7
+consumes this queue rather than redefining it.</li>
+<li>To Mission 10 for surfacing the queue&#39;s totals in the leadership report.</li>
+</ul>
+<h2>Dependencies and mission boundaries</h2>
+<ul>
+<li><strong>The required set is this mission&#39;s</strong>, keyed to where the person stands:
+a recruit needs a first name, a last name and a mobile; a coach, committee
+member or alumnus adds a personal email; an onboarding, active or inactive
+player adds the four academic fields, date of birth and emergency contact.
+Amended 2026-08-26 to require a last name at every rung.</li>
+<li><strong>About a quarter of the club will flag for a missing last name</strong> the day this
+opens. That is the intent, not a defect: it is where they get chased.</li>
+<li><strong><code>disputed</code> is not a category in this queue.</strong> The frozen inventory&#39;s line for
+this workflow says &quot;<code>not recorded</code> or <code>disputed</code>&quot;; the disputed state was
+struck on 2026-08-26 and this queue is incompleteness only. <strong>That line needs a
+dated amendment.</strong></li>
+<li>Onboarding items are not required facts and are not in this queue. Their
+completeness is Mission 7&#39;s rollup and appears on the roster as its own
+column.</li>
+<li>Formalwear is asked each season through Mission 7&#39;s checklist, not chased here.</li>
+<li>Aliases and Blues are recorded when known and never chased.</li>
+</ul>
+<h2>Exceptions and recovery</h2>
+<ul>
+<li><strong>Nobody is missing anything.</strong> The empty state says so plainly and is a good
+outcome, not a failure. It offers the widen action, because the season in view
+may simply be complete.</li>
+<li><strong>A filter matches nothing.</strong> Different copy, and a way to clear the filter,
+matching the roster&#39;s own distinction between a filtered empty and a real
+empty.</li>
+<li><strong>A person missing everything.</strong> They render as one row with the whole list of
+absent facts, not as one row per fact. The unit of work is a person.</li>
+<li><strong>A fact that cannot be collected.</strong> There is no <code>refused</code> or <code>not applicable</code>
+state here, so somebody who genuinely has no personal email sits in the queue
+forever. <strong>This is a known gap</strong>: the per-fact <code>refused</code> state is Mission 7&#39;s,
+and until it exists the queue has no way to retire a row it can never satisfy.</li>
+<li><strong>An operator outside the four-role group.</strong> The destination is absent from
+their navigation and the query refuses, exposing nothing.</li>
+</ul>
+<h2>Safety, privacy, consent, and authority boundaries</h2>
+<ul>
+<li>Four-role only.</li>
+<li><strong>The queue names an absence, never a value.</strong> A row says &quot;no emergency
+contact&quot;; it never shows an emergency contact, a date of birth or a phone
+number. That keeps the most disclosing screen in this mission out of the most
+routine one.</li>
+<li>Nothing here sends a message or records a lawful basis. The chase is Mission
+7&#39;s precisely because it sends things.</li>
+<li>No destructive action.</li>
+</ul>
+<h2>Acceptance evidence</h2>
+<p>Against seeded synthetic data, an operator can:</p>
+<ol>
+<li>see a <strong>real list</strong>, not a count, with the missing facts named on every row;</li>
+<li>filter to <strong>everybody with no emergency contact</strong> and get a workable batch;</li>
+<li>see that the <strong>required set differs by rung</strong> — a recruit missing only a last
+name sits beside a player missing seven things;</li>
+<li>confirm the <strong>first-name-only cohort appears</strong>, roughly a quarter of the
+people in view;</li>
+<li>go to correction and <strong>return to the queue</strong> with that row gone;</li>
+<li>see the <strong>empty state</strong> when a filter matches nothing, distinguished from the
+queue genuinely being empty;</li>
+<li>confirm <strong>no value is ever displayed</strong>, only the name of what is absent;</li>
+<li>confirm an operator <strong>outside the four-role group</strong> is refused.</li>
+</ol>
+<h2>Core decisions</h2>
+<table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Classification</th>
+<th>Governing evidence or recommended default</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>The queue names which facts are missing per row, not a count</td>
+<td><code>proposed for owner approval</code></td>
+<td>A count sends the operator to the record to find out what the queue already knows</td>
+<td>Recommend as drawn</td>
+</tr>
+<tr>
+<td><code>disputed</code> is not a category here</td>
+<td><code>locked</code></td>
+<td>Brian, 2026-08-26, struck the state. The frozen inventory&#39;s line for this workflow needs the dated amendment</td>
+<td>Settled, amendment pending</td>
+</tr>
+<tr>
+<td>The queue shows an absence and never a value</td>
+<td><code>proposed for owner approval</code></td>
+<td>It keeps date of birth and emergency contact off a routine screen entirely</td>
+<td>Recommend yes</td>
+</tr>
+<tr>
+<td>Filter by which fact is missing</td>
+<td><code>proposed for owner approval</code></td>
+<td>It is how the work batches — one afternoon of emergency contacts, not one person at a time</td>
+<td>Recommend yes</td>
+</tr>
+<tr>
+<td>The queue&#39;s entry point: a linked count, an Administration entry, or both</td>
+<td><code>proposed for owner approval</code></td>
+<td>Neither exists today. The count is the route an operator falls into; the entry is the route the trigger describes — an hour to spend usefully, starting from nobody in particular</td>
+<td>Recommend both</td>
+</tr>
+<tr>
+<td>Season-scoped by default, with the same widen action as People</td>
+<td><code>locked</code></td>
+<td>Brian, 2026-08-26, on People; the queue is the same population</td>
+<td>Settled</td>
+</tr>
+<tr>
+<td>No <code>refused</code> or <code>not applicable</code> state; a row that cannot be satisfied persists</td>
+<td><code>proposed for owner approval</code></td>
+<td>Task 11 §1 puts the per-fact refused state in Mission 7. Inventing one here would pre-empt it</td>
+<td>Recommend accepting the gap</td>
+</tr>
+<tr>
+<td>Onboarding completeness is not in this queue</td>
+<td><code>locked</code></td>
+<td>Mission 7 owns it; the roster carries it as its own column</td>
+<td>Settled</td>
+</tr>
+<tr>
+<td>Page size, ordering within an equal count, and the flag&#39;s exact placement on the roster</td>
+<td><code>delegated to Mission Lead</code></td>
+<td>No product meaning</td>
+<td>Delegated</td>
+</tr>
+</tbody></table>
+<h2>Brian approval</h2>
+<ul>
+<li>Exact words:</li>
+<li>Date:</li>
+</ul>
+</div>
   </body>
 </html>

@@ -1182,11 +1182,6 @@
         width: 100%;
       }
 
-      /* Verified reads as a mark, not a label among labels. */
-      .prov.verified {
-        border-color: rgba(46, 125, 50, 0.5);
-        color: #1b5e20;
-      }
 
       /* A history entry's before-value. Struck through and muted, because the
          entry has to read as one thing that happened rather than two values. */
@@ -1197,6 +1192,22 @@
       .was {
         color: var(--text-secondary);
         text-decoration: line-through;
+      }
+
+      /* A two-column comparison is unreadable in a 375px frame. It stacks,
+         and the field label stays above both values. */
+      @container (max-width: 760px) {
+        .grid2,
+        .grid2tight {
+          grid-template-columns: 1fr;
+        }
+        .frow {
+          grid-template-columns: 1fr !important;
+          gap: 6px;
+        }
+        .qbox {
+          padding: 12px;
+        }
       }
     </style>
   </head>
@@ -1223,8 +1234,9 @@
         </p>
         <div class="legend">
           <span
-            >The workflow this mockup exists to settle is the <strong>duplicate check</strong> —
-            what it shows, and what the operator must answer before anything is created</span
+            >The workflow this mockup exists to settle is the
+            <strong>duplicate check</strong> — what it shows, and what the operator must answer
+            before anything is created</span
           >
           <span
             >The minimum to mint is first name, last name and one contact point, after the
@@ -1257,20 +1269,19 @@
       const NR = `<span class="notrec">not recorded</span>`;
 
       /*
-       * Who supplied a value, and whether it was checked against something
-       * outside the club. Brian, 2026-08-26: the four-class vocabulary made no
-       * sense to him — "player provided does", and "I like seeing if it's
-       * externally verified versus not", but operator-confirmed against
-       * externally-verified was a distinction without a difference, and what he
-       * wants instead is *who did it*.
+       * Who supplied a value. Brian, 2026-08-26: the four-class vocabulary made
+       * no sense to him — "player provided does" — and what he wants instead is
+       * *who did it*.
        *
-       * So a value carries at most two marks: the name of whoever put it there
-       * (or "Player" when the person supplied it themselves), and Verified when
-       * it was checked externally. Nothing else.
+       * There is deliberately no `Verified` mark. Brian, 2026-08-27: "no
+       * verification link at all." Nothing here verifies that somebody holds a
+       * mailbox — `contact_points` on `main` has no verified column, no
+       * confirm-by-link flow exists, and this mission sends nothing — so
+       * claiming it on screen would be a false statement. A real verification
+       * flow needs sending, and belongs to Mission 7 or Mission 8.
        */
       const by = (who) => `<span class="prov">${who}</span>`;
       const PLAYER = by("Player");
-      const VERIFIED = `<span class="prov verified">Verified</span>`;
 
       const frow = (label, value) =>
         `<div class="frow"><div class="flab">${label}</div><div class="fval">${value}</div></div>`;
@@ -1343,6 +1354,7 @@
         </div>`;
       };
 
+
       /* -------------------- shared list primitives ----------------------- */
 
       /* `roster/presentation.ts`'s mapping: active success, onboarding info,
@@ -1350,13 +1362,7 @@
       const standingChip = (standing) => {
         if (!standing) return `<span class="sec">—</span>`;
         const tone =
-          standing === "Active"
-            ? " ok"
-            : standing === "Onboarding"
-              ? " inf"
-              : standing === "Inactive"
-                ? " wrn"
-                : "";
+          standing === "Active" ? " ok" : standing === "Onboarding" ? " inf" : standing === "Inactive" ? " wrn" : "";
         return `<span class="chip${tone}">${standing}</span>`;
       };
 
@@ -1477,18 +1483,8 @@
           ${alert("warn", "Two existing records could be this person. Choose one before creating anything.")}
           ${paper(
             "Could this be them?",
-            candidate(
-              "Percival Oakhanger",
-              "Head Coach · last season 2024-25 · +44 7700 900314",
-              ["first name", "last name", "mobile"],
-              LINK,
-            ) +
-              candidate(
-                "P. Oakhanger",
-                "No season, no role · percival.oakhanger@example.com",
-                ["last name"],
-                LINK,
-              ),
+            candidate("Percival Oakhanger", "Head Coach · last season 2024-25 · +44 7700 900314", ["first name", "last name", "mobile"], LINK) +
+              candidate("P. Oakhanger", "No season, no role · percival.oakhanger@example.com", ["last name"], LINK),
           )}
           ${paper(
             "Or none of them",
@@ -1568,13 +1564,7 @@
           ${dataTable(
             ["Name", "Standing", "To the club", "Contactable", "Missing"],
             [
-              [
-                `<span class="bold">Norbert Mereworth</span>`,
-                standingChip("Recruit"),
-                "Recruit",
-                `<span class="chip chip-outline">Mobile</span>`,
-                `<span class="sec">—</span>`,
-              ],
+              [`<span class="bold">Norbert Mereworth</span>`, standingChip("Recruit"), "Recruit", `<span class="chip chip-outline">Mobile</span>`, `<span class="sec">—</span>`],
               [
                 `<span class="bold">Percival Oakhanger</span><div class="aka">added just now</div>`,
                 `<span class="sec">—</span>`,
@@ -1586,11 +1576,7 @@
           )}
           ${cardList([
             { title: "Norbert Mereworth", chips: [standingChip("Recruit")] },
-            {
-              title: "Percival Oakhanger",
-              sub: "added just now",
-              chips: [`<span class="chip chip-outline">Head Coach · 2026-27</span>`],
-            },
+            { title: "Percival Oakhanger", sub: "added just now", chips: [`<span class="chip chip-outline">Head Coach · 2026-27</span>`] },
           ])}
         </div>`);
 
@@ -1599,9 +1585,7 @@
           ${addHead(`<button class="btn btn-contained">Create Osgood Thornbury</button>`)}
           ${section(
             "Who they are",
-            field("First name", "Osgood") +
-              field("Last name", "Thornbury") +
-              field("Personal email", "osgood.thornbury@example.com"),
+            field("First name", "Osgood") + field("Last name", "Thornbury") + field("Personal email", "osgood.thornbury@example.com"),
           )}
           ${section("What they are to the club", field("Role", "None ▾"))}
           ${alert("info", "With no role, Osgood will not appear in any season's People list.")}
@@ -1612,22 +1596,12 @@
       const CLOCK = "Now: Monday, 26 October 2026, 09:15";
       const NONE = "New surface, nothing to compare";
       const S = (id, title, blurb, deltas, url, proposed) => ({
-        id,
-        title,
-        disposition: "new",
-        blurb,
-        deltas,
-        clockTag: CLOCK,
-        url,
-        now: null,
-        nowNone: NONE,
-        proposed,
+        id, title, disposition: "new", blurb, deltas,
+        clockTag: CLOCK, url, now: null, nowNone: NONE, proposed,
       });
 
       const SCREENS = [
-        S(
-          "W3-01",
-          "Add a person",
+        S("W3-01", "Add a person",
           `First name, last name and one contact point are the minimum to mint. What they are to the
            club is captured here rather than on a second visit, because a coach with no season role
            appears in no season's list.`,
@@ -1636,12 +1610,8 @@
             "Last name is required, after the 2026-08-26 amendment",
             "The primary action is <em>Check for duplicates</em>, not <em>Create</em>. Nothing is created until the check has been answered",
           ],
-          "oxfordlancers.example/operate/people/new",
-          W301,
-        ),
-        S(
-          "W3-02",
-          "The duplicate check found somebody",
+          "oxfordlancers.example/operate/people/new", W301),
+        S("W3-02", "The duplicate check found somebody",
           `The screen this workflow exists for. Each candidate carries enough to tell people apart
            and says what matched — never a bare “possible duplicate”.`,
           [
@@ -1650,12 +1620,8 @@
             "Three answers, one of them required: this is them, this is somebody new, or stop",
             "Task 09 D7 locks dedup-before-create at every door; this is this mission's door",
           ],
-          "oxfordlancers.example/operate/people/new",
-          W302,
-        ),
-        S(
-          "W3-03",
-          "This is them — nothing is created",
+          "oxfordlancers.example/operate/people/new", W302),
+        S("W3-03", "This is them — nothing is created",
           `Linking opens the existing record and adds the role. The notice says what happened,
            because “nothing was created” is otherwise invisible.`,
           [
@@ -1663,12 +1629,8 @@
             "The role is added to the existing person, which is the thing the operator actually came to do",
             "This is a state notice, not narrative — it reports an outcome the screen cannot otherwise show",
           ],
-          "oxfordlancers.example/operate/people/9d21c744",
-          W303,
-        ),
-        S(
-          "W3-04",
-          "Creating over an exact contact-point match",
+          "oxfordlancers.example/operate/people/9d21c744", W303),
+        S("W3-04", "Creating over an exact contact-point match",
           `A shared email or phone is the strongest duplicate signal the club has, so minting anyway
            is an explicit act with a reason attached.`,
           [
@@ -1676,24 +1638,16 @@
             "<strong>Decide:</strong> requiring a reason to override an exact contact match. The alternative is a plain confirm",
             "The audited rejection is what lets a later merge see the decision was deliberate rather than careless",
           ],
-          "oxfordlancers.example/operate/people/new",
-          W304,
-        ),
-        S(
-          "W3-05",
-          "Refused on a first name alone",
+          "oxfordlancers.example/operate/people/new", W304),
+        S("W3-05", "Refused on a first name alone",
           `The minimum is not negotiable at the door, even though the missing-data queue will chase
            everything else afterwards.`,
           [
             "Acceptance 5: the refusal names what is missing rather than marking fields red",
             "One sentence. This is the empty/refusal case the no-narrative rule allows",
           ],
-          "oxfordlancers.example/operate/people/new",
-          W305,
-        ),
-        S(
-          "W3-06",
-          "An alias match, and a merged-away record that is never offered",
+          "oxfordlancers.example/operate/people/new", W305),
+        S("W3-06", "An alias match, and a merged-away record that is never offered",
           `The check matches aliases as well as names. A record that was merged away is never
            offered — the survivor is offered in its place, which is what the shipped matching
            already does.`,
@@ -1702,12 +1656,8 @@
             "Offering a merged-away record invites an operator to resurrect something the club has already decided is a duplicate",
             "The alias is shown on the candidate, so the operator can see why it matched",
           ],
-          "oxfordlancers.example/operate/people/new",
-          W306,
-        ),
-        S(
-          "W3-07",
-          "The new coach is in this season immediately",
+          "oxfordlancers.example/operate/people/new", W306),
+        S("W3-07", "The new coach is in this season immediately",
           `The People list straight after creation. The role given at the door is the tie that puts
            Percival in the season.`,
           [
@@ -1715,12 +1665,8 @@
             "His standing column is empty, because the ladder describes players",
             "This is W1-01's list; it is shown here to prove the outcome, not redrawn",
           ],
-          "oxfordlancers.example/operate/people",
-          W307,
-        ),
-        S(
-          "W3-08",
-          "A person with no role at all",
+          "oxfordlancers.example/operate/people", W307),
+        S("W3-08", "A person with no role at all",
           `Task 08 §2 permits an unassigned Person. They are reachable only through
            <em>see people outside this season</em> or a direct link, and the screen says so before
            the operator creates them.`,
@@ -1729,9 +1675,7 @@
             "The notice is a consequence of the choice being made on this screen, which is why it sits here and not in a help page",
             "This is the case your <em>Contact</em> ruling covers: Osgood is nothing to the club, and no word is invented for him",
           ],
-          "oxfordlancers.example/operate/people/new",
-          W308,
-        ),
+          "oxfordlancers.example/operate/people/new", W308),
       ];
       const frame = (screen, html, kind) => `
         <div class="frame ${kind}">

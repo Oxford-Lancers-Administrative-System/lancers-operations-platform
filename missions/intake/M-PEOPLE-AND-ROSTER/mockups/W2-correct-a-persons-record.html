@@ -1182,11 +1182,6 @@
         width: 100%;
       }
 
-      /* Verified reads as a mark, not a label among labels. */
-      .prov.verified {
-        border-color: rgba(46, 125, 50, 0.5);
-        color: #1b5e20;
-      }
 
       /* A history entry's before-value. Struck through and muted, because the
          entry has to read as one thing that happened rather than two values. */
@@ -1197,6 +1192,22 @@
       .was {
         color: var(--text-secondary);
         text-decoration: line-through;
+      }
+
+      /* A two-column comparison is unreadable in a 375px frame. It stacks,
+         and the field label stays above both values. */
+      @container (max-width: 760px) {
+        .grid2,
+        .grid2tight {
+          grid-template-columns: 1fr;
+        }
+        .frow {
+          grid-template-columns: 1fr !important;
+          gap: 6px;
+        }
+        .qbox {
+          padding: 12px;
+        }
       }
     </style>
   </head>
@@ -1228,13 +1239,12 @@
         </p>
         <div class="legend">
           <span
-            >The two real decisions here are
-            <strong>one edit surface versus editing in place</strong> and
-            <strong>when a reason is required</strong></span
+            >The two real decisions here are <strong>one edit surface versus editing in place</strong>
+            and <strong>when a reason is required</strong></span
           >
           <span
-            >W1's round-one rulings apply: no disputed state, and provenance is who plus
-            Verified</span
+            >W1's rulings apply: no disputed state, no verification mark, and a value carries who
+            supplied it</span
           >
           <span>All names and numbers are the synthetic local dataset</span>
         </div>
@@ -1263,20 +1273,19 @@
       const NR = `<span class="notrec">not recorded</span>`;
 
       /*
-       * Who supplied a value, and whether it was checked against something
-       * outside the club. Brian, 2026-08-26: the four-class vocabulary made no
-       * sense to him — "player provided does", and "I like seeing if it's
-       * externally verified versus not", but operator-confirmed against
-       * externally-verified was a distinction without a difference, and what he
-       * wants instead is *who did it*.
+       * Who supplied a value. Brian, 2026-08-26: the four-class vocabulary made
+       * no sense to him — "player provided does" — and what he wants instead is
+       * *who did it*.
        *
-       * So a value carries at most two marks: the name of whoever put it there
-       * (or "Player" when the person supplied it themselves), and Verified when
-       * it was checked externally. Nothing else.
+       * There is deliberately no `Verified` mark. Brian, 2026-08-27: "no
+       * verification link at all." Nothing here verifies that somebody holds a
+       * mailbox — `contact_points` on `main` has no verified column, no
+       * confirm-by-link flow exists, and this mission sends nothing — so
+       * claiming it on screen would be a false statement. A real verification
+       * flow needs sending, and belongs to Mission 7 or Mission 8.
        */
       const by = (who) => `<span class="prov">${who}</span>`;
       const PLAYER = by("Player");
-      const VERIFIED = `<span class="prov verified">Verified</span>`;
 
       const frow = (label, value) =>
         `<div class="frow"><div class="flab">${label}</div><div class="fval">${value}</div></div>`;
@@ -1349,6 +1358,7 @@
         </div>`;
       };
 
+
       /* -------------------- shared list primitives ----------------------- */
 
       /* `roster/presentation.ts`'s mapping: active success, onboarding info,
@@ -1356,13 +1366,7 @@
       const standingChip = (standing) => {
         if (!standing) return `<span class="sec">—</span>`;
         const tone =
-          standing === "Active"
-            ? " ok"
-            : standing === "Onboarding"
-              ? " inf"
-              : standing === "Inactive"
-                ? " wrn"
-                : "";
+          standing === "Active" ? " ok" : standing === "Onboarding" ? " inf" : standing === "Inactive" ? " wrn" : "";
         return `<span class="chip${tone}">${standing}</span>`;
       };
 
@@ -1483,60 +1487,31 @@
             ${section(
               "Who they are",
               editField("First name", v.first ?? (s.who === "Bertram" ? "Bertram" : "Hollis")) +
-                editField(
-                  "Last name",
-                  v.last ?? (s.who === "Bertram" ? "" : "Jarrowdale"),
-                  v.lastOpts ?? {},
-                ) +
-                editField(
-                  "Aliases",
-                  v.aliases ?? (s.who === "Bertram" ? "" : "Holly (display name) · H.J."),
-                ),
+                editField("Last name", v.last ?? (s.who === "Bertram" ? "" : "Jarrowdale"), v.lastOpts ?? {}) +
+                editField("Aliases", v.aliases ?? (s.who === "Bertram" ? "" : "Holly (display name) · H.J.")),
             )}
             ${section(
               "How to reach them",
               editField("Mobile phone", v.mobile ?? "+44 7700 900412", v.mobileOpts ?? {}) +
                 (v.mobileExtra ?? "") +
-                editField(
-                  "Personal email",
-                  v.email ?? "holly.jarrowdale@example.com",
-                  v.emailOpts ?? {},
-                ) +
-                editField(
-                  "College email",
-                  v.collegeEmail ?? "hollis.jarrowdale@hallamshire.ox.ac.example",
-                  {
-                    right: VERIFIED,
-                  },
-                ),
+                editField("Personal email", v.email ?? "holly.jarrowdale@example.com", v.emailOpts ?? {}) +
+                editField("College email", v.collegeEmail ?? "hollis.jarrowdale@hallamshire.ox.ac.example"),
             )}
             ${section(
               "Academic",
               editField("College", v.college ?? (s.who === "Bertram" ? "" : "Hallamshire")) +
                 editField("Matriculation year", v.matric ?? (s.who === "Bertram" ? "" : "2024")) +
                 editField("Expected graduation", v.grad ?? (s.who === "Bertram" ? "" : "2027")) +
-                editField(
-                  "Degree field",
-                  v.degree ?? (s.who === "Bertram" ? "" : "Engineering Science"),
-                ),
+                editField("Degree field", v.degree ?? (s.who === "Bertram" ? "" : "Engineering Science")),
             )}
             ${section(
               "Restricted",
               editField("Date of birth", v.dob ?? (s.who === "Bertram" ? "" : "4 March 2005")) +
-                editField(
-                  "Emergency contact — first name",
-                  v.ecFirst ?? (s.who === "Bertram" ? "" : "Alwyn"),
-                ) +
-                editField(
-                  "Emergency contact — last name",
-                  v.ecLast ?? (s.who === "Bertram" ? "" : "Winterbourne"),
-                ) +
+                editField("Emergency contact — first name", v.ecFirst ?? (s.who === "Bertram" ? "" : "Alwyn")) +
+                editField("Emergency contact — last name", v.ecLast ?? (s.who === "Bertram" ? "" : "Winterbourne")) +
                 editField("Relationship", v.ecRel ?? (s.who === "Bertram" ? "" : "Parent")) +
                 editField("Phone", v.ecPhone ?? (s.who === "Bertram" ? "" : "+44 7700 900198")) +
-                editField(
-                  "Email",
-                  v.ecEmail ?? (s.who === "Bertram" ? "" : "alwyn.winterbourne@example.com"),
-                ),
+                editField("Email", v.ecEmail ?? (s.who === "Bertram" ? "" : "alwyn.winterbourne@example.com")),
             )}
           </div>`);
       };
@@ -1563,9 +1538,7 @@
             `<div class="row g2" style="align-items:center;flex-wrap:wrap">
                <span class="chip chip-outline">was +44 7700 900412</span>
              </div>` +
-            editField("Reason for the change", "New number, told me at training", {
-              focused: true,
-            }),
+            editField("Reason for the change", "New number, told me at training", { focused: true }),
         },
       });
 
@@ -1637,7 +1610,7 @@
             ) +
               frow("On WhatsApp · 2026-27", `<span class="chip chip-warn">awaiting rejoin</span>`) +
               frow("Personal email", `holly.jarrowdale@example.com ${by("Caspian Hallowfield")}`) +
-              frow("College email", `hollis.jarrowdale@hallamshire.ox.ac.example ${VERIFIED}`),
+              frow("College email", `hollis.jarrowdale@hallamshire.ox.ac.example`),
           )}
           ${paper(
             "What changed",
@@ -1760,22 +1733,12 @@
       const NONE = "New surface, nothing to compare";
       const EDIT = `<code>/operate/people/[personId]/edit</code> — the same page as <code>W2-01</code>, in a different state`;
       const S = (id, title, blurb, deltas, url, proposed) => ({
-        id,
-        title,
-        disposition: "new",
-        blurb,
-        deltas,
-        clockTag: CLOCK,
-        url,
-        now: null,
-        nowNone: NONE,
-        proposed,
+        id, title, disposition: "new", blurb, deltas,
+        clockTag: CLOCK, url, now: null, nowNone: NONE, proposed,
       });
 
       const SCREENS = [
-        S(
-          "W2-01",
-          "The edit surface",
+        S("W2-01", "The edit surface",
           `One page, sectioned exactly as the record reads. <strong>Every screen below except
            W2-06 and W2-08 is this same page</strong>, rendered whole, in a different state —
            nothing is cropped, so a state is never mistaken for a second surface.
@@ -1786,12 +1749,8 @@
             "Emergency contact is five separate fields",
             "<strong>Changed:</strong> every screen now shows the whole page. Previously some showed a single section, which read as a separate surface",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/edit",
-          W201,
-        ),
-        S(
-          "W2-02",
-          "Filling an empty field asks for no reason",
+          "oxfordlancers.example/operate/people/4f8c21a6/edit", W201),
+        S("W2-02", "Filling an empty field asks for no reason",
           `Bertram is the first-name-only legacy record. Filling something that reads
            <code>not recorded</code> corrects nothing, so nothing is asked for.
            <br /><br />Surface: ${EDIT}`,
@@ -1800,12 +1759,8 @@
             "<strong>Decide:</strong> a reason is required to change an existing value and never to fill an empty one",
             "The whole page is shown, so it is visible that the academic and restricted sections are empty for this person too",
           ],
-          "oxfordlancers.example/operate/people/7b1e04d9/edit",
-          W202,
-        ),
-        S(
-          "W2-03",
-          "Changing an existing value requires a reason",
+          "oxfordlancers.example/operate/people/7b1e04d9/edit", W202),
+        S("W2-03", "Changing an existing value requires a reason",
           `The same page, one section down. The previous value sits beside the input and the reason
            field appears, because something is being replaced rather than filled.
            <br /><br />Surface: ${EDIT}`,
@@ -1814,12 +1769,8 @@
             "The previous value is visible while editing, not only afterwards in the history",
             "Task 07 §3 audits actor, before, after and reason",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/edit",
-          W203,
-        ),
-        S(
-          "W2-04",
-          "Validation refuses what cannot be true",
+          "oxfordlancers.example/operate/people/4f8c21a6/edit", W203),
+        S("W2-04", "Validation refuses what cannot be true",
           `<strong>New.</strong> An email must be an email; a phone must look like a phone. The
            refusal is per field and names what is wrong, and the save is unavailable rather than
            failing after the fact. <br /><br />Surface: ${EDIT}`,
@@ -1830,12 +1781,8 @@
             "The error names the rule rather than saying “invalid”",
             "The acceptance criteria now carry both directions — see the specification",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/edit",
-          W204,
-        ),
-        S(
-          "W2-05",
-          "The number is read back — and WhatsApp is raised",
+          "oxfordlancers.example/operate/people/4f8c21a6/edit", W204),
+        S("W2-05", "The number is read back — and WhatsApp is raised",
           `<strong>This is the screen you asked for.</strong> The number normalises and is shown
            before saving, and because this number is on WhatsApp for the active season, changing it
            says so and says what follows. <br /><br />Surface: ${EDIT}`,
@@ -1846,12 +1793,8 @@
             "<strong>Decide:</strong> does the save also send the rejoin request, or only mark it needed? Sending is Mission 4's, and this mission sends nothing",
             "If the number is <em>not</em> on WhatsApp for the season, this banner is absent and the save is ordinary",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/edit",
-          W205,
-        ),
-        S(
-          "W2-06",
-          "Saved — the person record",
+          "oxfordlancers.example/operate/people/4f8c21a6/edit", W205),
+        S("W2-06", "Saved — the person record",
           `<strong>A different surface, and the destination after saving.</strong> Not the edit page:
            this is the person record, whole, showing that the old number was kept and what the
            season's WhatsApp presence now is. <br /><br />Surface:
@@ -1863,12 +1806,8 @@
             "<strong>On WhatsApp · 2026-27</strong> now reads <em>awaiting rejoin</em> — the season fact the number change invalidated",
             "The change is on the history immediately, with the reason",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6",
-          W206,
-        ),
-        S(
-          "W2-07",
-          "An email that already belongs to somebody else",
+          "oxfordlancers.example/operate/people/4f8c21a6", W206),
+        S("W2-07", "An email that already belongs to somebody else",
           `The save refuses, and the recovery names where it goes rather than saying “merge”.
            <br /><br />Surface: ${EDIT}`,
           [
@@ -1877,12 +1816,8 @@
             "Three ways out, including simply using a different address",
             "The other person is named — four-role only, and the operator already holds both records' data",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/edit",
-          W207,
-        ),
-        S(
-          "W2-08",
-          "…and where Compare lands",
+          "oxfordlancers.example/operate/people/4f8c21a6/edit", W207),
+        S("W2-08", "…and where Compare lands",
           `<strong>A different surface.</strong> The comparison is W4's, shown here so the handoff
            is not a button into the dark: the two records side by side, field by field, before
            anything merges. <br /><br />Surface:
@@ -1893,12 +1828,8 @@
             "This example refuses: both hold a 2026-27 membership, which is a roster question. The refusal is W4's",
             "The full merge — the reason, what will move, the audited event — is <code>W4</code>'s own mockup, not repeated here",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/merge",
-          W208,
-        ),
-        S(
-          "W2-09",
-          "A concurrent edit refuses rather than wins",
+          "oxfordlancers.example/operate/people/4f8c21a6/merge", W208),
+        S("W2-09", "A concurrent edit refuses rather than wins",
           `Nothing about a person is high-frequency enough to justify last-write-wins.
            <br /><br />Surface: ${EDIT}`,
           [
@@ -1906,12 +1837,8 @@
             "Two recoveries: take their change and start again, or throw mine away",
             "<strong>Decide:</strong> a recommendation, not a sourced rule",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/edit",
-          W209,
-        ),
-        S(
-          "W2-10",
-          "Arriving from the missing-data queue",
+          "oxfordlancers.example/operate/people/4f8c21a6/edit", W209),
+        S("W2-10", "Arriving from the missing-data queue",
           `The same edit page, reached from W7's queue. <strong>That queue has no entry point in any
            approved screen yet</strong> — see the note below — so this screen shows the destination
            of a route that is still being decided. <br /><br />Surface: ${EDIT}`,
@@ -1923,9 +1850,7 @@
             "<strong>Changed:</strong> the whole record is shown rather than only the gaps, so it is the same page as W2-01 and not a third thing",
             "<em>Skip</em> exists because a row that cannot be satisfied today should not block the other 41. There is still no per-fact refused state — that is Mission 7's",
           ],
-          "oxfordlancers.example/operate/people/7b1e04d9/edit?from=missing",
-          W210,
-        ),
+          "oxfordlancers.example/operate/people/7b1e04d9/edit?from=missing", W210),
       ];
       const frame = (screen, html, kind) => `
         <div class="frame ${kind}">

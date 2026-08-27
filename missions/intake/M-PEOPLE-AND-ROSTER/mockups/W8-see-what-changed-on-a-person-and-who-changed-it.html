@@ -1182,11 +1182,6 @@
         width: 100%;
       }
 
-      /* Verified reads as a mark, not a label among labels. */
-      .prov.verified {
-        border-color: rgba(46, 125, 50, 0.5);
-        color: #1b5e20;
-      }
 
       /* A history entry's before-value. Struck through and muted, because the
          entry has to read as one thing that happened rather than two values. */
@@ -1197,6 +1192,22 @@
       .was {
         color: var(--text-secondary);
         text-decoration: line-through;
+      }
+
+      /* A two-column comparison is unreadable in a 375px frame. It stacks,
+         and the field label stays above both values. */
+      @container (max-width: 760px) {
+        .grid2,
+        .grid2tight {
+          grid-template-columns: 1fr;
+        }
+        .frow {
+          grid-template-columns: 1fr !important;
+          gap: 6px;
+        }
+        .qbox {
+          padding: 12px;
+        }
       }
     </style>
   </head>
@@ -1224,8 +1235,7 @@
         <div class="legend">
           <span
             >A history shows <strong>old values</strong> — superseded numbers, previous emails, a
-            corrected date of birth. It is as disclosing as the record and is guarded
-            identically</span
+            corrected date of birth. It is as disclosing as the record and is guarded identically</span
           >
           <span>Per-person history lives here; Mission 3 keeps the general audit browser</span>
           <span>All names and numbers are the synthetic local dataset</span>
@@ -1255,20 +1265,19 @@
       const NR = `<span class="notrec">not recorded</span>`;
 
       /*
-       * Who supplied a value, and whether it was checked against something
-       * outside the club. Brian, 2026-08-26: the four-class vocabulary made no
-       * sense to him — "player provided does", and "I like seeing if it's
-       * externally verified versus not", but operator-confirmed against
-       * externally-verified was a distinction without a difference, and what he
-       * wants instead is *who did it*.
+       * Who supplied a value. Brian, 2026-08-26: the four-class vocabulary made
+       * no sense to him — "player provided does" — and what he wants instead is
+       * *who did it*.
        *
-       * So a value carries at most two marks: the name of whoever put it there
-       * (or "Player" when the person supplied it themselves), and Verified when
-       * it was checked externally. Nothing else.
+       * There is deliberately no `Verified` mark. Brian, 2026-08-27: "no
+       * verification link at all." Nothing here verifies that somebody holds a
+       * mailbox — `contact_points` on `main` has no verified column, no
+       * confirm-by-link flow exists, and this mission sends nothing — so
+       * claiming it on screen would be a false statement. A real verification
+       * flow needs sending, and belongs to Mission 7 or Mission 8.
        */
       const by = (who) => `<span class="prov">${who}</span>`;
       const PLAYER = by("Player");
-      const VERIFIED = `<span class="prov verified">Verified</span>`;
 
       const frow = (label, value) =>
         `<div class="frow"><div class="flab">${label}</div><div class="fval">${value}</div></div>`;
@@ -1341,6 +1350,7 @@
         </div>`;
       };
 
+
       /* -------------------- shared list primitives ----------------------- */
 
       /* `roster/presentation.ts`'s mapping: active success, onboarding info,
@@ -1348,13 +1358,7 @@
       const standingChip = (standing) => {
         if (!standing) return `<span class="sec">—</span>`;
         const tone =
-          standing === "Active"
-            ? " ok"
-            : standing === "Onboarding"
-              ? " inf"
-              : standing === "Inactive"
-                ? " wrn"
-                : "";
+          standing === "Active" ? " ok" : standing === "Onboarding" ? " inf" : standing === "Inactive" ? " wrn" : "";
         return `<span class="chip${tone}">${standing}</span>`;
       };
 
@@ -1459,46 +1463,14 @@
           ${searchBar("Search this history", "", FILTERS)}
           ${paper(
             "2026",
-            entry(
-              "Mobile phone",
-              "+44 7700 900412",
-              "+44 7700 900988",
-              "26 October 2026, 09:18",
-              "Caspian Hallowfield",
-              "New number, told me at training",
-            ) +
-              entry(
-                "Personal email",
-                `<span class="notrec">not recorded</span>`,
-                "holly.jarrowdale@example.com",
-                "24 August 2026, 09:12",
-                "Caspian Hallowfield",
-              ) +
-              entry(
-                "Degree field",
-                `<span class="notrec">not recorded</span>`,
-                "Engineering Science",
-                "3 August 2026, 17:40",
-                "Caspian Hallowfield",
-              ),
+            entry("Mobile phone", "+44 7700 900412", "+44 7700 900988", "26 October 2026, 09:18", "Caspian Hallowfield", "New number, told me at training") +
+              entry("Personal email", `<span class="notrec">not recorded</span>`, "holly.jarrowdale@example.com", "24 August 2026, 09:12", "Caspian Hallowfield") +
+              entry("Degree field", `<span class="notrec">not recorded</span>`, "Engineering Science", "3 August 2026, 17:40", "Caspian Hallowfield"),
           )}
           ${paper(
             "2025",
-            entry(
-              "Aliases",
-              "Holly",
-              "Holly (display name)",
-              "12 October 2025, 11:02",
-              "Norbert Mereworth",
-            ) +
-              entry(
-                "Expected graduation",
-                "2026",
-                "2027",
-                "4 March 2025, 14:30",
-                "Norbert Mereworth",
-                "Repeated a year",
-              ),
+            entry("Aliases", "Holly", "Holly (display name)", "12 October 2025, 11:02", "Norbert Mereworth") +
+              entry("Expected graduation", "2026", "2027", "4 March 2025, 14:30", "Norbert Mereworth", "Repeated a year"),
           )}
         </div>`);
 
@@ -1523,15 +1495,7 @@
                  </div>
                </div>
              </div>` +
-              entry(
-                "Personal email",
-                `<span class="notrec">not recorded</span>`,
-                "holly.j@example.com",
-                "26 October 2026, 09:22",
-                "Caspian Hallowfield",
-                null,
-                ["from the merge"],
-              ),
+              entry("Personal email", `<span class="notrec">not recorded</span>`, "holly.j@example.com", "26 October 2026, 09:22", "Caspian Hallowfield", null, ["from the merge"]),
           )}
         </div>`);
 
@@ -1541,15 +1505,7 @@
           ${searchBar("Search this history", "", FILTERS)}
           ${paper(
             "Mobile phone",
-            entry(
-              "Mobile phone",
-              "+44 7700 900412",
-              "+44 7700 900988",
-              "26 October 2026, 09:18",
-              "Caspian Hallowfield",
-              "New number, told me at training",
-              ["+44 7700 900412 kept, superseded"],
-            ),
+            entry("Mobile phone", "+44 7700 900412", "+44 7700 900988", "26 October 2026, 09:18", "Caspian Hallowfield", "New number, told me at training", ["+44 7700 900412 kept, superseded"]),
           )}
         </div>`);
 
@@ -1559,31 +1515,9 @@
           ${searchBar("Search this history", "", ["Field: Personal email ▾", "Changed by: All ▾"])}
           ${paper(
             "Personal email",
-            entry(
-              "Personal email",
-              "holly.j@example.com",
-              "holly.jarrowdale@example.com",
-              "26 October 2026, 09:25",
-              "Caspian Hallowfield",
-              "Prefers the full form",
-            ) +
-              entry(
-                "Personal email",
-                `<span class="notrec">not recorded</span>`,
-                "holly.j@example.com",
-                "26 October 2026, 09:22",
-                "Caspian Hallowfield",
-                null,
-                ["from the merge"],
-              ) +
-              entry(
-                "Personal email",
-                "hollis.j@example.com",
-                `<span class="notrec">not recorded</span>`,
-                "18 January 2025, 08:04",
-                "Zenas Yaxlington",
-                "Bounced, address was wrong",
-              ),
+            entry("Personal email", "holly.j@example.com", "holly.jarrowdale@example.com", "26 October 2026, 09:25", "Caspian Hallowfield", "Prefers the full form") +
+              entry("Personal email", `<span class="notrec">not recorded</span>`, "holly.j@example.com", "26 October 2026, 09:22", "Caspian Hallowfield", null, ["from the merge"]) +
+              entry("Personal email", "hollis.j@example.com", `<span class="notrec">not recorded</span>`, "18 January 2025, 08:04", "Zenas Yaxlington", "Bounced, address was wrong"),
           )}
         </div>`);
 
@@ -1604,24 +1538,8 @@
           ${searchBar("Search this history", "", ["Field: All ▾", "Changed by: Zenas Yaxlington ▾"])}
           ${paper(
             "Changed by Zenas Yaxlington",
-            entry(
-              "Personal email",
-              "hollis.j@example.com",
-              `<span class="notrec">not recorded</span>`,
-              "18 January 2025, 08:04",
-              "Zenas Yaxlington",
-              "Bounced, address was wrong",
-              ["seat ended 30 June 2025"],
-            ) +
-              entry(
-                "Mobile phone",
-                `<span class="notrec">not recorded</span>`,
-                "+44 7700 900412",
-                "2 September 2024, 19:11",
-                "Zenas Yaxlington",
-                null,
-                ["recorded on Holly Jarrowdale", "seat ended 30 June 2025"],
-              ),
+            entry("Personal email", "hollis.j@example.com", `<span class="notrec">not recorded</span>`, "18 January 2025, 08:04", "Zenas Yaxlington", "Bounced, address was wrong", ["seat ended 30 June 2025"]) +
+              entry("Mobile phone", `<span class="notrec">not recorded</span>`, "+44 7700 900412", "2 September 2024, 19:11", "Zenas Yaxlington", null, ["recorded on Holly Jarrowdale", "seat ended 30 June 2025"]),
           )}
         </div>`);
 
@@ -1630,22 +1548,12 @@
       const CLOCK = "Now: Monday, 26 October 2026, 09:15";
       const NONE = "New surface, nothing to compare";
       const S = (id, title, blurb, deltas, url, proposed) => ({
-        id,
-        title,
-        disposition: "new",
-        blurb,
-        deltas,
-        clockTag: CLOCK,
-        url,
-        now: null,
-        nowNone: NONE,
-        proposed,
+        id, title, disposition: "new", blurb, deltas,
+        clockTag: CLOCK, url, now: null, nowNone: NONE, proposed,
       });
 
       const SCREENS = [
-        S(
-          "W8-01",
-          "The history",
+        S("W8-01", "The history",
           `Every recorded change to one person, newest first. Each entry says what field, from what,
            to what, when and who — and the reason where W2 required one.`,
           [
@@ -1654,12 +1562,8 @@
             "A fill reads <code>not recorded → value</code>, so an empty field's history is as legible as a correction's",
             "Grouped by year rather than paged into anonymity",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/history",
-          W801,
-        ),
-        S(
-          "W8-02",
-          "A merge is one event",
+          "oxfordlancers.example/operate/people/4f8c21a6/history", W801),
+        S("W8-02", "A merge is one event",
           `A merge read as forty corrections is unreadable and hides the decision that was actually
            made. It reads as one thing that happened, with what it moved beside it.`,
           [
@@ -1667,12 +1571,8 @@
             "<strong>Decide:</strong> the values taken from the losing record appear as their own entries beneath it, marked <em>from the merge</em>. The alternative folds them into the merge event and loses the field-level trail",
             "This is the same event W4-09 shows from the merge's side",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/history",
-          W802,
-        ),
-        S(
-          "W8-03",
-          "A superseded contact point",
+          "oxfordlancers.example/operate/people/4f8c21a6/history", W802),
+        S("W8-03", "A superseded contact point",
           `A contact value is kept and dated rather than replaced, so the history says so rather than
            implying the old number is gone.`,
           [
@@ -1680,12 +1580,8 @@
             "The entry carries what happened to the old value, which is the thing a bounced-number investigation actually needs",
             "Every other field overwrites, and its previous value survives here — which is what makes overwriting recoverable",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/history?field=mobile",
-          W803,
-        ),
-        S(
-          "W8-04",
-          "Filtered to one field",
+          "oxfordlancers.example/operate/people/4f8c21a6/history?field=mobile", W803),
+        S("W8-04", "Filtered to one field",
           `The whole life of one value, which is usually the question — not “what happened to this
            person” but “why is this email what it is”.`,
           [
@@ -1693,24 +1589,16 @@
             "Three entries, two operators and a merge, in the order they happened",
             "The count line says 3 of 14, so the filter cannot be mistaken for the whole record",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/history?field=personal_email",
-          W804,
-        ),
-        S(
-          "W8-05",
-          "An empty history",
+          "oxfordlancers.example/operate/people/4f8c21a6/history?field=personal_email", W804),
+        S("W8-05", "An empty history",
           `A person created before this mission shipped has nothing recorded. That is stated, not
            implied by a blank panel.`,
           [
             "Acceptance 6: stated as empty rather than rendered as nothing",
             "The sentence says <em>since it was created</em>, because “nothing changed” and “we were not recording” are different claims and only one is true",
           ],
-          "oxfordlancers.example/operate/people/6b3f9210/history",
-          W805,
-        ),
-        S(
-          "W8-06",
-          "Filtered to one actor, including a departed one",
+          "oxfordlancers.example/operate/people/6b3f9210/history", W805),
+        S("W8-06", "Filtered to one actor, including a departed one",
           `An audit trail that forgets who did something because they left is not an audit trail.
            The name stays, and entries that happened on a merged-away record stay attributed to it.`,
           [
@@ -1718,9 +1606,7 @@
             "<strong>Decide:</strong> a departed actor's name still appears. The alternative pleases nobody and loses the answer",
             "The seat's end date is shown beside the name, so a reader is not left wondering why they cannot find the operator",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/history?by=zenas",
-          W806,
-        ),
+          "oxfordlancers.example/operate/people/4f8c21a6/history?by=zenas", W806),
       ];
       const frame = (screen, html, kind) => `
         <div class="frame ${kind}">

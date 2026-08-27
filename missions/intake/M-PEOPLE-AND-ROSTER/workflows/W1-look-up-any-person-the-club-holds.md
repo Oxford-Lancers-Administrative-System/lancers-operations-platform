@@ -261,3 +261,22 @@ record stands unchanged in the meantime.
 entries to four, taking the phone bottom bar from six destinations to seven.
 `W7-06`'s 375px frame shows what that does — _Missing…_ and _Operat…_ both
 truncate.
+
+## Amendment W1-A2, applied 2026-08-27 — the verification mark is struck
+
+`Verified` is removed from every surface in this mission. Brian, 2026-08-27:
+_"No verification link at all."_
+
+It was asserted and never sourced. Nothing in this application verifies that
+somebody holds a mailbox: `contact_points` on `main` carries no verified column,
+no confirm-by-link flow exists anywhere, and this mission sends nothing. The
+mark had also spread to the college, the matriculation year and the expected
+graduation, which are not addresses and which nothing verifies either. Showing
+it was a false statement on screen.
+
+A value now carries **who supplied it** and nothing more. A real verification
+flow requires sending and belongs to Mission 7 or Mission 8; it is not deferred
+work in this mission, because this mission never had it.
+
+Applied rather than left open, because it removes a claim rather than adding a
+design. `W1-05` and every other record surface are rebuilt without it.

@@ -6,898 +6,577 @@
     <title>Field inventory</title>
     <style>
       :root {
-        --primary: #0b3d91;
-        --text: rgba(0, 0, 0, 0.87);
-        --sec: rgba(0, 0, 0, 0.6);
-        --divider: rgba(0, 0, 0, 0.12);
-        --grey50: #fafafa;
-        --grey100: #f5f5f5;
+        --primary: #0b3d91; --text: rgba(0,0,0,0.87); --sec: rgba(0,0,0,0.6);
+        --divider: rgba(0,0,0,0.12); --grey50: #fafafa; --grey100: #f5f5f5;
         --warn: #663c00;
-        --font:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        font-family: var(--font);
-        color: var(--text);
-        background: var(--grey100);
-        line-height: 1.65;
-      }
-      .bar {
-        position: sticky;
-        top: 0;
-        z-index: 2;
-        background: #212121;
-        color: #fff;
-        padding: 10px 20px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 14px;
-        flex-wrap: wrap;
-      }
-      .bar .who {
-        font-weight: 700;
-        font-size: 0.95rem;
-      }
-      .bar .who span {
-        color: #bdbdbd;
-        font-weight: 400;
-        margin-left: 8px;
-        font-size: 0.8rem;
-      }
-      .bar a {
-        color: #fff;
-        text-decoration: none;
-        font-size: 0.85rem;
-        border: 1px solid rgba(255, 255, 255, 0.35);
-        border-radius: 6px;
-        padding: 4px 10px;
-        margin-left: 8px;
-      }
-      .bar a:hover {
-        background: rgba(255, 255, 255, 0.12);
-      }
-      .sheet {
-        max-width: 880px;
-        margin: 26px auto 100px;
-        background: #fff;
-        border: 1px solid var(--divider);
-        border-radius: 10px;
-        padding: 10px 30px 34px;
-      }
-      h1 {
-        font-size: 1.5rem;
-        margin: 22px 0 10px;
-        letter-spacing: -0.01em;
-      }
-      h2 {
-        font-size: 1.12rem;
-        margin: 30px 0 8px;
-        padding-top: 16px;
-        border-top: 1px solid var(--divider);
-      }
-      h3 {
-        font-size: 1rem;
-        margin: 20px 0 6px;
-      }
-      p,
-      li {
-        font-size: 0.95rem;
-      }
-      ul {
-        padding-left: 22px;
-      }
-      li {
-        margin: 5px 0;
-      }
-      code {
-        background: var(--grey100);
-        padding: 1px 5px;
-        border-radius: 4px;
-        font-size: 0.85em;
-      }
-      pre {
-        background: var(--grey100);
-        padding: 12px 14px;
-        border-radius: 8px;
-        overflow-x: auto;
-      }
-      pre code {
-        background: none;
-        padding: 0;
-      }
-      blockquote {
-        margin: 12px 0;
-        padding: 6px 16px;
-        border-left: 3px solid var(--divider);
-        color: var(--sec);
-      }
-      table {
-        border-collapse: collapse;
-        width: 100%;
-        display: block;
-        overflow-x: auto;
-        margin: 14px 0;
-        font-size: 0.875rem;
-      }
-      th,
-      td {
-        border: 1px solid var(--divider);
-        padding: 8px 10px;
-        text-align: left;
-        vertical-align: top;
-      }
-      thead th {
-        background: var(--grey50);
-        font-size: 0.78rem;
-        letter-spacing: 0.03em;
-        text-transform: uppercase;
-        color: var(--sec);
-        white-space: nowrap;
-      }
-      a {
-        color: var(--primary);
-      }
-      @media (max-width: 720px) {
-        .sheet {
-          margin: 14px 10px 60px;
-          padding: 6px 16px 24px;
-        }
-      }
-    </style>
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: var(--font); color: var(--text); background: var(--grey100); line-height: 1.65; }
+      .bar { position: sticky; top: 0; z-index: 2; background: #212121; color: #fff; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+      .bar .who { font-weight: 700; font-size: 0.95rem; }
+      .bar .who span { color: #bdbdbd; font-weight: 400; margin-left: 8px; font-size: 0.8rem; }
+      .bar a { color: #fff; text-decoration: none; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.35); border-radius: 6px; padding: 4px 10px; margin-left: 8px; }
+      .bar a:hover { background: rgba(255,255,255,0.12); }
+      .sheet { max-width: 880px; margin: 26px auto 100px; background: #fff; border: 1px solid var(--divider); border-radius: 10px; padding: 10px 30px 34px; }
+      h1 { font-size: 1.5rem; margin: 22px 0 10px; letter-spacing: -0.01em; }
+      h2 { font-size: 1.12rem; margin: 30px 0 8px; padding-top: 16px; border-top: 1px solid var(--divider); }
+      h3 { font-size: 1rem; margin: 20px 0 6px; }
+      p, li { font-size: 0.95rem; }
+      ul { padding-left: 22px; }
+      li { margin: 5px 0; }
+      code { background: var(--grey100); padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+      pre { background: var(--grey100); padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
+      pre code { background: none; padding: 0; }
+      blockquote { margin: 12px 0; padding: 6px 16px; border-left: 3px solid var(--divider); color: var(--sec); }
+      table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; margin: 14px 0; font-size: 0.875rem; }
+      th, td { border: 1px solid var(--divider); padding: 8px 10px; text-align: left; vertical-align: top; }
+      thead th { background: var(--grey50); font-size: 0.78rem; letter-spacing: 0.03em; text-transform: uppercase; color: var(--sec); white-space: nowrap; }
+      a { color: var(--primary); }
+      @media (max-width: 720px) { .sheet { margin: 14px 10px 60px; padding: 6px 16px 24px; } }</style>
   </head>
   <body>
     <div class="bar">
       <div class="who">Field inventory<span>M-PEOPLE-AND-ROSTER · specification</span></div>
-      <div>
-        <a href="mockups/index.html">Hub</a><a href="specifications.html">All specifications</a>
-      </div>
+      <div><a href="mockups/index.html">Hub</a><a href="specifications.html">All specifications</a></div>
     </div>
-    <div class="sheet">
-      <h1>Field inventory disposition — M-PEOPLE-AND-ROSTER</h1>
-      <p>
-        Task 08 §4&#39;s approved inventory, every field dispositioned once, plus the recruitment
-        facts that inventory never listed. <code>W1</code>, <code>W5</code> and <code>W6</code> all
-        read this table and cite it rather than re-deciding it.
-      </p>
-      <p>Four questions per field:</p>
-      <ul>
-        <li>
-          <strong>Person or season</strong> — Brian&#39;s test: does it travel season to season, or
-          does it live and die with the season?
-        </li>
-        <li>
-          <strong>This mission</strong> — <code>build</code> (the field and its edit path land here)
-          · <code>display</code> (the substrate exists, another mission owns the behaviour, this
-          mission shows it) · <code>elsewhere</code> (not rendered at this mission&#39;s acceptance
-          because its substrate does not exist on <code>main</code>).
-        </li>
-        <li>
-          <strong>Surfaces</strong> — People list · person detail · roster grid · player detail.
-        </li>
-        <li>
-          <strong>Authority</strong> — everything here is four-role only (President, VP, Secretary,
-          GM). The column records the narrower cases.
-        </li>
-      </ul>
-      <p>
-        The numbers are Task 08 §4&#39;s position in its own inventory, kept only so a reader can
-        find the field there. They are not database rows and carry no meaning here.
-      </p>
-      <p>
-        <strong>Field names are the labels a person sees on screen, not column names.</strong> Task
-        08&#39;s prose says &quot;given name&quot; and &quot;family name&quot; and the columns are
-        <code>given_name</code> and <code>family_name</code>, but the shipped screens say
-        <strong>First name</strong> and <strong>Last name</strong> by Brian&#39;s decision at UX-10,
-        recorded in <code>roster/new/validation.ts</code>. This table feeds the mockups, so it uses
-        the screen vocabulary; where a column name matters it is given alongside.
-      </p>
-      <h2>Durable person facts — thirteen, all built here</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Field</th>
-            <th>This mission</th>
-            <th>Surfaces</th>
-            <th>Notes</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>1</td>
-            <td>First name</td>
-            <td>build</td>
-            <td>People list · person detail · roster · player</td>
-            <td>Required to mint. Column <code>given_name</code>; never a key.</td>
-          </tr>
-          <tr>
-            <td>2</td>
-            <td>Last name</td>
-            <td>build</td>
-            <td>People list · person detail · roster · player</td>
-            <td>
-              Column <code>family_name</code>. <strong>Stays nullable</strong>, and is
-              <strong>required by the missing-data queue</strong> from 2026-08-26. Those are
-              different things: 26% of real records lack it, so a NOT NULL constraint would refuse
-              the club&#39;s own data. The queue is how they get filled.
-            </td>
-          </tr>
-          <tr>
-            <td>3–4</td>
-            <td>Aliases</td>
-            <td>build</td>
-            <td>person detail · merge comparison</td>
-            <td>
-              <strong>One concept, two of Task 08&#39;s collapsed into it.</strong> Known-as is
-              gone; an alias may instead be flagged as the display name. Dedupe evidence; never
-              roster display. Drops the shipped <code>known_as</code> column.
-            </td>
-          </tr>
-          <tr>
-            <td>5</td>
-            <td>College email</td>
-            <td>build</td>
-            <td>person detail · player detail</td>
-            <td>
-              Era-scoped, expires around graduation, superseded never overwritten. Needs the
-              contact-kind split.
-            </td>
-          </tr>
-          <tr>
-            <td>6</td>
-            <td>Personal email</td>
-            <td>build</td>
-            <td>person detail · player detail</td>
-            <td>The durable/alumni channel. Same migration.</td>
-          </tr>
-          <tr>
-            <td>7</td>
-            <td>Mobile phone</td>
-            <td>build</td>
-            <td>person detail · player detail</td>
-            <td>
-              E.164 normalised alongside the preserved raw value. Read-back on every capture and
-              edit path.
-            </td>
-          </tr>
-          <tr>
-            <td>9</td>
-            <td>College</td>
-            <td>build</td>
-            <td>person · player · <strong>roster grid</strong></td>
-            <td>The one academic field Task 08 §5 puts on the grid.</td>
-          </tr>
-          <tr>
-            <td>10</td>
-            <td>Matriculation year</td>
-            <td>build</td>
-            <td>person detail · player detail</td>
-            <td>Not on the grid.</td>
-          </tr>
-          <tr>
-            <td>11</td>
-            <td>Expected graduation</td>
-            <td>build</td>
-            <td>person detail · player detail</td>
-            <td>Drives BUCS-eligibility timing.</td>
-          </tr>
-          <tr>
-            <td>12</td>
-            <td>Degree field</td>
-            <td>build</td>
-            <td>person detail · player detail</td>
-            <td>—</td>
-          </tr>
-          <tr>
-            <td>13</td>
-            <td>Date of birth</td>
-            <td>build</td>
-            <td>person detail · player detail</td>
-            <td>
-              Four-role only, never the grid. Mission 7 adds the player-provided capture; the field
-              is here.
-            </td>
-          </tr>
-          <tr>
-            <td>14</td>
-            <td>Emergency contact</td>
-            <td>build</td>
-            <td>person detail · player detail</td>
-            <td>
-              <strong>Five fields</strong>: first name, last name, relationship, phone, email. One
-              per person, four-role only, never the grid. Structural lockdown is a locked invariant.
-              No source evidence exists — the club has never held it — so the shape is Brian&#39;s,
-              expanded 2026-08-26.
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <p>
-        Raw contact values never appear on the roster grid. The grid carries
-        <strong>contactability indicators</strong> only — has mobile, has personal email — per Task
-        08 §5.
-      </p>
-      <p>
-        <strong>Three of Task 08&#39;s durable facts left this mission on 2026-08-26</strong>, all
-        by the same test. Field 8, channel presence, is a season record and goes to Mission 6. Field
-        16, Half/Full Blue, is a seasonal award whose total derives. Field 15, formalwear ownership,
-        is reasked every season rather than carried. All three appear under season facts.
-      </p>
-      <p>
-        <strong>Kit is three things, and none of them is durable.</strong> The workshop has Stewart
-        on it directly —
-        <em
-          >&quot;ties and socks is a big issue for us… we want the guys in their game socks at the
-          first [game] and so we make concessions with them and give it to them before they pay
-          us&quot;</em
-        >
-        — and the season&#39;s kit handover falls in weeks two or three. So:
-        <strong>formalwear ownership</strong> is a seasonal fact this mission records and the club
-        reasks each season; <strong>kit handover</strong> is Mission 7&#39;s onboarding item 3;
-        <strong>inventory and distribution tracking</strong>, which is what Stewart actually wants,
-        is excluded from Release One by the manifest §8 and has no home yet.
-      </p>
-      <p>
-        <strong>A note this mission owes Mission 7.</strong> Task 10&#39;s item 3 currently reads
-        &quot;returning <strong>not applicable</strong> if kit ownership already recorded&quot;.
-        Reasking every season removes that carve-out, and it also matches Task 10&#39;s own R1b —
-        the full checklist regenerates for everyone every season,
-        <em>&quot;it&#39;s not about the person, it&#39;s about the president&quot;</em>. Recorded
-        here so Mission 7&#39;s intake reconciles it rather than being contradicted silently.
-      </p>
-      <h2>The pipeline status — rebuilt, 2026-08-26</h2>
-      <p>
-        Task 08 listed &quot;membership status + dates&quot; as one field. It is not one field, and
-        the vocabulary underneath it was wrong. Both are corrected here by owner decision.
-      </p>
-      <h3>One status, two records</h3>
-      <p>
-        Brian:
-        <em
-          >&quot;there&#39;s one status that should tell us what the player is at, and it drives the
-          entire thing.&quot;</em
-        >
-        The frozen model refuses to store it that way, in the migration&#39;s own words —
-        <em
-          >&quot;modelling recruits as provisional memberships would pollute the roster with people
-          who never commit; a separate funnel record keeps the roster meaning &#39;people on the
-          team&#39;.&quot;</em
-        >
-      </p>
-      <p>
-        Both hold: <strong>one status the operator sees, assembled from two records.</strong> While
-        somebody is a recruit the status comes from the prospect record; from the flip onward it
-        comes from the membership. The People surface shows the unified ladder; the roster still
-        means people on the team.
-      </p>
-      <table>
-        <thead>
-          <tr>
-            <th>Shown</th>
-            <th>Lives on</th>
-            <th>Means</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>Recruit</strong></td>
-            <td>prospect record, Mission 6&#39;s stage beneath</td>
-            <td>
-              In the recruitment line. Special rules: one message ever, no chase, polite nudges
-              only, and their own information-gathering.
-            </td>
-          </tr>
-          <tr>
-            <td><strong>Onboarding</strong></td>
-            <td>membership</td>
-            <td>
-              Things need doing. Flippable to active at any moment; nothing about the checklist
-              gates it.
-            </td>
-          </tr>
-          <tr>
-            <td><strong>Active</strong></td>
-            <td>membership</td>
-            <td>On the team.</td>
-          </tr>
-          <tr>
-            <td><strong>Inactive</strong></td>
-            <td>membership</td>
-            <td>Still on the team. Used when the club thinks they may come back.</td>
-          </tr>
-          <tr>
-            <td><strong>Departed</strong></td>
-            <td>membership</td>
-            <td>
-              Gone, and not coming back. Struck off the team, and an offboarding runs on them.
-            </td>
-          </tr>
-          <tr>
-            <td><strong>Archived</strong></td>
-            <td>membership</td>
-            <td>Catch-all; season close puts them here.</td>
-          </tr>
-        </tbody>
-      </table>
-      <h3>Struck from the enum</h3>
-      <ul>
-        <li>
-          <strong><code>carried_forward</code></strong> — Brian:
-          <em
-            >&quot;doesn&#39;t mean anything to anyone… we already have a field that says if the
-            player is returning or new.&quot;</em
-          >
-          True: <code>entry</code> carries exactly that. The
-          <code>carried_forward_from_id</code> linkage column is a different thing and survives
-          untouched for Mission 11&#39;s rollover.
-        </li>
-        <li>
-          <strong><code>confirmed</code></strong> — the <em>action</em> of saying &quot;yes, we want
-          him&quot;, not a state anybody rests in. Task 10 R5 had already reached this
-          independently. The <code>confirmed_on</code> date survives as a milestone.
-        </li>
-        <li>
-          <strong><code>withdrawn</code></strong> — the schema defends it as
-          <em
-            >&quot;a truthful terminal exit for a committed recruit who never activated… it must
-            never look like a departed player&quot;</em
-          >, but under this shape that person is <code>declined</code> on the prospect record and
-          never receives a membership at all. It has no job left.
-        </li>
-      </ul>
-      <p>Eight values become five.</p>
-      <h3>Two consequences recorded as decisions, not edits</h3>
-      <p>
-        <strong>This supersedes OD-3.</strong> That decision, resolved 2026-08-18, confirmed
-        single-inactive offboarding: every exit records as <code>inactive</code>, reason as data,
-        with <code>withdrawn</code> and <code>departed</code> unused. The ladder above gives
-        <code>inactive</code> and <code>departed</code> distinct operational meanings — may come
-        back versus gone — so OD-3 is superseded by dated owner decision, 2026-08-26, not quietly
-        overwritten. Brian:
-        <em>&quot;Okay, yes, we&#39;re superseding that, and that should be decided.&quot;</em>
-      </p>
-      <p>
-        <strong>This is a vocabulary change to the frozen conceptual model</strong>, and it reaches
-        further than anything else in this mission. Brian, on being told:
-        <em
-          >&quot;Yeah, I know it&#39;s a data migration, but it&#39;s fucking wrong, so what else
-          are we going to do?&quot;</em
-        >
-      </p>
-      <p>
-        <strong
-          >The scope of it, measured rather than estimated (2026-08-26, at
-          <code>2115bfe</code>).</strong
-        >
-        It is long but mechanical — volume, not difficulty — and it is
-        <strong>one migration file</strong>: create the new type, drop the dependent views,
-        <code>ALTER COLUMN … TYPE … USING</code> a total mapping on
-        <code>season_memberships.status</code> and on both columns of
-        <code>season_membership_status_events</code>, recreate the views, drop the old type. The
-        <code>USING</code> clause converts the data in the same statement, production showcase rows
-        included, so <strong>nothing needs hand-fixing afterwards</strong>. The mapping is obvious:
-        <code>carried_forward</code> and <code>confirmed</code> both become
-        <code>onboarding</code> — nobody was ever meant to rest in either —
-        <code>withdrawn</code> becomes <code>departed</code>, and the rest are unchanged. The views
-        carry 25 assertions across seven test files, so one recreated subtly wrong fails
-        <code>npm run verify</code> rather than reaching production.
-      </p>
-      <p>
-        <strong
-          >Note for whoever writes it: <code>recruit</code> is not one of the five stored
-          values.</strong
-        >
-        A recruit lives on the prospect record and never holds a membership, so the enum is
-        <code>onboarding · active · inactive · departed · archived</code>. The ladder has six rungs;
-        five of them are membership statuses.
-      </p>
-      <p>
-        The dependencies: Postgres cannot alter an enum that a view depends on, so
-        <strong>every dependent view must be dropped and recreated inside the same migration</strong
-        >. Twelve views touch membership status: <code>person_standing</code>,
-        <code>constitutional_membership</code>, <code>invitation_response_state</code>,
-        <code>nonresponse_queue</code>, <code>uninvited_audience_members</code>,
-        <code>rsvp_attendance_mismatches</code>, <code>current_rsvp</code>,
-        <code>current_availability</code>, <code>transition_ledger</code> and their event-audience
-        duplicates. Beyond the views: <code>membership.ts</code>, <code>roster.ts</code>,
-        <code>weekly-report.ts</code>, <code>administration-directory.ts</code>,
-        <code>roster/presentation.ts</code>, the generated database types,
-        <code>seed-local.mjs</code>, the <strong>production showcase scripts</strong> under
-        <code>scripts/production/showcase/</code>, and pilot SQL under
-        <code>scripts/pilot/lan-74</code>, <code>lan-75</code> and <code>lan-93</code>.
-      </p>
-      <p>
-        Dropping <code>known_as</code> compounds it: <code>person_standing</code> selects that
-        column, so the same view has to be rebuilt for both reasons. The Mission Lead should treat
-        the enum change and the known-as drop as <strong>one migration</strong>, not two.
-      </p>
-      <h2>Season facts</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Field</th>
-            <th>This mission</th>
-            <th>Surfaces</th>
-            <th>Owner and notes</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>17a</td>
-            <td>Pipeline status</td>
-            <td><strong>build</strong></td>
-            <td>roster grid · player</td>
-            <td>The five-value ladder above. Replaces the eight-value enum.</td>
-          </tr>
-          <tr>
-            <td>17b</td>
-            <td>Milestone dates</td>
-            <td>display</td>
-            <td>player detail</td>
-            <td>
-              <code>confirmed_on</code>, <code>activated_on</code>, <code>departed_on</code>,
-              <code>expected_return_on</code>. Four separate facts, not &quot;dates&quot;.
-            </td>
-          </tr>
-          <tr>
-            <td>17c</td>
-            <td>Exit labels</td>
-            <td>display</td>
-            <td>player detail</td>
-            <td>
-              <code>departure_reason</code> and <code>inactivity_label</code>. Optional,
-              non-medical, four-role restricted free text under Task 07&#39;s discipline.
-            </td>
-          </tr>
-          <tr>
-            <td>17d</td>
-            <td>Status history</td>
-            <td><strong>build</strong></td>
-            <td>player detail (<code>W8</code>)</td>
-            <td>
-              <code>season_membership_status_events</code> — from, to, when, who, why. Append-only.
-              This is what <code>W8</code> shows and what makes every transition answerable.
-            </td>
-          </tr>
-          <tr>
-            <td>18</td>
-            <td>Entry (new/returning)</td>
-            <td>display</td>
-            <td>roster grid · player</td>
-            <td>Already shipped, and now the only place the returner fact lives.</td>
-          </tr>
-          <tr>
-            <td>19</td>
-            <td>Positions (O/D/ST)</td>
-            <td>display</td>
-            <td>roster grid · player</td>
-            <td>Mission 9 owns the semantics; substrate exists. Placement only.</td>
-          </tr>
-          <tr>
-            <td>20</td>
-            <td>Jersey numbers</td>
-            <td>display</td>
-            <td>roster grid · player</td>
-            <td>
-              <strong>Not one value.</strong> Two kits (Blue and White) with separate allocations; a
-              player may hold <strong>several numbers in one kit</strong> — ~8% do; numbers are
-              <strong>not unique</strong>, with at least three collisions in the real data; plus a
-              predominant designation and a notes field. Mission 9.
-            </td>
-          </tr>
-          <tr>
-            <td>21</td>
-            <td>Coach group / resp. coach</td>
-            <td>elsewhere</td>
-            <td>—</td>
-            <td>
-              Mission 9. <strong>No substrate on <code>main</code></strong
-              >, so it does not render at this mission&#39;s acceptance.
-            </td>
-          </tr>
-          <tr>
-            <td>22</td>
-            <td>Onboarding items</td>
-            <td>display</td>
-            <td>roster (n of m) · player</td>
-            <td>
-              Mission 7 owns behaviour; substrate exists. Per-item provenance shown; the roster
-              filter is built here.
-            </td>
-          </tr>
-          <tr>
-            <td>23</td>
-            <td>Availability (G/O/R)</td>
-            <td>display</td>
-            <td>roster (gated) · player</td>
-            <td>
-              Mission 9 owns behaviour. Rendered only for roles holding availability read — moot
-              while the roster is four-role, but the mechanism is built.
-            </td>
-          </tr>
-          <tr>
-            <td>24</td>
-            <td>Eligibility records</td>
-            <td>display</td>
-            <td>player detail</td>
-            <td>
-              <strong>Mission 11</strong>, not Mission 7 — Task 10 R1 explicitly kept eligibility
-              out of onboarding. Needs no further breakdown: competition, status, determining
-              authority, checked-at, an external evidence reference (never academic or medical
-              evidence, by design), effective dates, and an exclusion constraint against overlapping
-              records for one competition.
-            </td>
-          </tr>
-          <tr>
-            <td>25</td>
-            <td>Consent &amp; preference</td>
-            <td>elsewhere</td>
-            <td>—</td>
-            <td>
-              Missions 7 (capture) and 8 (policy). <strong>No substrate on <code>main</code></strong
-              >, so it does not render here.
-            </td>
-          </tr>
-          <tr>
-            <td>26</td>
-            <td>RSVP / attendance</td>
-            <td>display</td>
-            <td>player detail</td>
-            <td>Mission 2, shipped. Read-only operational history.</td>
-          </tr>
-          <tr>
-            <td>8</td>
-            <td><strong>On WhatsApp</strong></td>
-            <td>elsewhere</td>
-            <td>—</td>
-            <td>
-              <strong>Moved and made concrete 2026-08-26.</strong> Not an abstract &quot;channel
-              presence&quot; but the one channel that decides whether the club can reach somebody:
-              are they on WhatsApp and in this season&#39;s group. Email is assumed — everyone has
-              one, and it is already a durable contact point above. Built in Mission 6, since Task
-              09 D3 fires the community-group invite at every recruit door, and extended by Mission
-              7. Anchored to person and season, so recruits are covered without a membership.
-              <strong>Presence is not consent</strong> (Task 08 row 8, explicitly): it records where
-              somebody already is, never that they agreed to be messaged. That remains Mission
-              8&#39;s.
-            </td>
-          </tr>
-          <tr>
-            <td>15</td>
-            <td>Formalwear ownership</td>
-            <td><strong>build</strong></td>
-            <td>player detail</td>
-            <td>
-              <strong>Moved to seasonal 2026-08-26</strong> — reasked each season rather than
-              carried. Tie, bowtie, socks; prices the subs invoice at zero when already owned.
-              Measured tie 79%, bowtie 31%, socks 93%; one value is free text (<code
-                >Yes (paid)</code
-              >), not boolean.
-            </td>
-          </tr>
-          <tr>
-            <td>16</td>
-            <td>Half/Full Blue awarded</td>
-            <td><strong>build</strong></td>
-            <td>player detail</td>
-            <td>
-              <strong>Moved to seasonal 2026-08-26.</strong> An award happens in a season, so it is
-              two flags on the season record rather than the inventory&#39;s only cumulative count.
-              The running total derives.
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <h2>Recruitment facts — never in Task 08&#39;s inventory</h2>
-      <p>
-        Task 08 §1 pushed recruitment out to Task 09 and Task 09 never listed the fields, so they
-        appeared in no inventory anywhere. They exist on <code>main</code> in
-        <code>recruitment_prospects</code>, keyed person-and-season exactly as a membership is.
-      </p>
-      <table>
-        <thead>
-          <tr>
-            <th>Field</th>
-            <th>This mission</th>
-            <th>Surfaces</th>
-            <th>Owner and notes</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Prospect status</td>
-            <td>display</td>
-            <td>People list · person</td>
-            <td>
-              Mission 6 owns the stages and every transition. This mission shows
-              <strong>that</strong> somebody is a recruit and where they stand — a person with no
-              visible standing is a name floating in a list.
-            </td>
-          </tr>
-          <tr>
-            <td>Source (which door)</td>
-            <td>display</td>
-            <td>person detail</td>
-            <td>Mission 6.</td>
-          </tr>
-          <tr>
-            <td>First contact date</td>
-            <td>display</td>
-            <td>person detail</td>
-            <td>Mission 6.</td>
-          </tr>
-          <tr>
-            <td>Committed date</td>
-            <td>display</td>
-            <td>person detail</td>
-            <td>Mission 6.</td>
-          </tr>
-          <tr>
-            <td>Prospect notes</td>
-            <td>elsewhere</td>
-            <td>—</td>
-            <td>
-              Mission 6. Operator prose, four-role only, deliberately never scored fields. The
-              recruits list is where they belong.
-            </td>
-          </tr>
-          <tr>
-            <td>Conversion link</td>
-            <td>display</td>
-            <td>person detail</td>
-            <td>Mission 6. How a prospect record joins its membership.</td>
-          </tr>
-          <tr>
-            <td><strong>Recruit-stage fields</strong></td>
-            <td>elsewhere</td>
-            <td>—</td>
-            <td>
-              <strong>Nobody has ever written these down.</strong> The 8/5 staged model&#39;s
-              football background, experience and gear ownership: Task 08 §4 pushes them to Task 09,
-              Task 09 references and never lists them, and the 2026-08-26 amendment defers
-              enumeration to Mission 6&#39;s intake. Recorded here so it is not lost.
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <h2>Derived</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Derivation</th>
-            <th>From</th>
-            <th>This mission</th>
-            <th>Surfaces</th>
-            <th>Owner</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Alumni standing</td>
-            <td>Membership history + <code>past_member_override</code></td>
-            <td><strong>build</strong></td>
-            <td>People list · person</td>
-            <td>This mission (<code>W1</code>).</td>
-          </tr>
-          <tr>
-            <td>Under-18 flag</td>
-            <td>Date of birth</td>
-            <td><strong>build</strong></td>
-            <td>person · player detail</td>
-            <td>Derivation here; Mission 8 owns the handling, which is deferred.</td>
-          </tr>
-          <tr>
-            <td>Half/Full Blue totals</td>
-            <td>The per-season awards above</td>
-            <td><strong>build</strong></td>
-            <td>person · player detail</td>
-            <td>This mission. The count the club actually looks at, derived rather than stored.</td>
-          </tr>
-          <tr>
-            <td>Onboarding completeness</td>
-            <td>Onboarding items</td>
-            <td>display</td>
-            <td>roster (n of m) · player</td>
-            <td>Mission 7.</td>
-          </tr>
-          <tr>
-            <td>Constitutional membership</td>
-            <td>Subs paid + the existing derived view</td>
-            <td>display</td>
-            <td>player detail</td>
-            <td>Governance derivation; already a view on <code>main</code>.</td>
-          </tr>
-        </tbody>
-      </table>
-      <p>
-        None of these is ever manually edited. The alumni override is the single deliberate
-        exception, and it overrides the derivation, not the fact.
-      </p>
-      <h2>The decision this table surfaces</h2>
-      <p>
-        <strong>Nobody has ever written down which fields are required.</strong> The roster&#39;s
-        missing-data flag, <code>W7</code>&#39;s queue and Mission 7&#39;s item 9 rollup all depend
-        on a required set, and Task 08 §5 refers to &quot;missing required data&quot; without naming
-        it. Task 11 §2.1 says coaches and committee members are chased for contact points &quot;and
-        academic fields <strong>where applicable</strong>&quot;, which implies required-ness differs
-        by who the person is but never says how.
-      </p>
-      <p>
-        <strong>Required-ness depends on where the person stands on the ladder.</strong> Approved
-        2026-08-26 and amended the same day; see the note under the table.
-      </p>
-      <table>
-        <thead>
-          <tr>
-            <th>Person</th>
-            <th>Required</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Onboarding, active or inactive</td>
-            <td>
-              First name · last name · mobile · personal email · college · matriculation year ·
-              expected graduation · degree field · DOB · emergency contact
-            </td>
-          </tr>
-          <tr>
-            <td>Recruit</td>
-            <td>First name · last name · mobile</td>
-          </tr>
-          <tr>
-            <td>Everyone else (coach, committee, alumnus)</td>
-            <td>First name · last name · mobile · personal email</td>
-          </tr>
-        </tbody>
-      </table>
-      <p>
-        <strong>Last name is required at every rung, amended 2026-08-26.</strong> Brian:
-        <em
-          >&quot;Last name should be mandatory, and this is the right place to handle that… first
-          name, last name, mobile. Then we can go chase the other stuff.&quot;</em
-        >
-        This supersedes the recommendation approved earlier the same day, which left last name out
-        because a quarter of the club&#39;s records are first-name-only and flagging them all would
-        have made the queue useless on day one. That consequence is unchanged and is now the intent:
-        roughly a quarter of the club flags for a missing last name the day the queue opens, and the
-        queue is where they get chased.
-      </p>
-      <p>
-        The recruit row also loses its carve-out. Task 09 D2&#39;s minimum at every door is a first
-        name and a mobile; a last name is now chased of a recruit as well, which is one fact more
-        than any recruitment door captures today.
-      </p>
-      <p>
-        Aliases and Blues are recorded when known and never chased. Formalwear is asked each season
-        through Mission 7&#39;s checklist, not through this queue.
-      </p>
-      <h2>Brian approval</h2>
-      <ul>
-        <li>Exact words: &quot;Approved let&#39;s move on.&quot;</li>
-        <li>Date: 2026-08-26</li>
-        <li>By: Brian Schuster</li>
-      </ul>
-      <p>
-        Approved after seven working rounds that changed it materially: name labels corrected to the
-        shipped screen wording; emergency contact expanded to five fields; kit separated into three
-        things, none of them durable; Blues moved to seasonal awards with the total derived;
-        known-as collapsed into alias; channel presence made concrete as
-        <strong>On WhatsApp</strong> and moved to Mission 6; formalwear moved to seasonal;
-        eligibility corrected to Mission 11; membership split into its four real parts; jersey
-        remodelled against the source data; the recruitment facts added, which no inventory had ever
-        carried; and the pipeline status rebuilt from eight enum values to five, superseding OD-3.
-      </p>
-      <p>
-        Also approved with it: the required set, keyed to the ladder — a recruit needs only first
-        name and mobile, because nothing more is ever chased of them.
-      </p>
-    </div>
+    <div class="sheet"><h1>Field inventory disposition — M-PEOPLE-AND-ROSTER</h1>
+<p>Task 08 §4&#39;s approved inventory, every field dispositioned once, plus the
+recruitment facts that inventory never listed. <code>W1</code>, <code>W5</code> and <code>W6</code> all read this
+table and cite it rather than re-deciding it.</p>
+<p>Four questions per field:</p>
+<ul>
+<li><strong>Person or season</strong> — Brian&#39;s test: does it travel season to season, or does
+it live and die with the season?</li>
+<li><strong>This mission</strong> — <code>build</code> (the field and its edit path land here) ·
+<code>display</code> (the substrate exists, another mission owns the behaviour, this
+mission shows it) · <code>elsewhere</code> (not rendered at this mission&#39;s acceptance
+because its substrate does not exist on <code>main</code>).</li>
+<li><strong>Surfaces</strong> — People list · person detail · roster grid · player detail.</li>
+<li><strong>Authority</strong> — everything here is four-role only (President, VP, Secretary,
+GM). The column records the narrower cases.</li>
+</ul>
+<p>The numbers are Task 08 §4&#39;s position in its own inventory, kept only so a
+reader can find the field there. They are not database rows and carry no meaning
+here.</p>
+<p><strong>Field names are the labels a person sees on screen, not column names.</strong> Task
+08&#39;s prose says &quot;given name&quot; and &quot;family name&quot; and the columns are <code>given_name</code>
+and <code>family_name</code>, but the shipped screens say <strong>First name</strong> and <strong>Last name</strong>
+by Brian&#39;s decision at UX-10, recorded in <code>roster/new/validation.ts</code>. This table
+feeds the mockups, so it uses the screen vocabulary; where a column name matters
+it is given alongside.</p>
+<h2>Durable person facts — thirteen, all built here</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Field</th>
+<th>This mission</th>
+<th>Surfaces</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>First name</td>
+<td>build</td>
+<td>People list · person detail · roster · player</td>
+<td>Required to mint. Column <code>given_name</code>; never a key.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Last name</td>
+<td>build</td>
+<td>People list · person detail · roster · player</td>
+<td>Column <code>family_name</code>. <strong>Stays nullable</strong>, and is <strong>required by the missing-data queue</strong> from 2026-08-26. Those are different things: 26% of real records lack it, so a NOT NULL constraint would refuse the club&#39;s own data. The queue is how they get filled.</td>
+</tr>
+<tr>
+<td>3–4</td>
+<td>Aliases</td>
+<td>build</td>
+<td>person detail · merge comparison</td>
+<td><strong>One concept, two of Task 08&#39;s collapsed into it.</strong> Known-as is gone; an alias may instead be flagged as the display name. Dedupe evidence; never roster display. Drops the shipped <code>known_as</code> column.</td>
+</tr>
+<tr>
+<td>5</td>
+<td>College email</td>
+<td>build</td>
+<td>person detail · player detail</td>
+<td>Era-scoped, expires around graduation, superseded never overwritten. Needs the contact-kind split.</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Personal email</td>
+<td>build</td>
+<td>person detail · player detail</td>
+<td>The durable/alumni channel. Same migration.</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Mobile phone</td>
+<td>build</td>
+<td>person detail · player detail</td>
+<td>E.164 normalised alongside the preserved raw value. Read-back on every capture and edit path.</td>
+</tr>
+<tr>
+<td>9</td>
+<td>College</td>
+<td>build</td>
+<td>person · player · <strong>roster grid</strong></td>
+<td>The one academic field Task 08 §5 puts on the grid.</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Matriculation year</td>
+<td>build</td>
+<td>person detail · player detail</td>
+<td>Not on the grid.</td>
+</tr>
+<tr>
+<td>11</td>
+<td>Expected graduation</td>
+<td>build</td>
+<td>person detail · player detail</td>
+<td>Drives BUCS-eligibility timing.</td>
+</tr>
+<tr>
+<td>12</td>
+<td>Degree field</td>
+<td>build</td>
+<td>person detail · player detail</td>
+<td>—</td>
+</tr>
+<tr>
+<td>13</td>
+<td>Date of birth</td>
+<td>build</td>
+<td>person detail · player detail</td>
+<td>Four-role only, never the grid. Mission 7 adds the player-provided capture; the field is here.</td>
+</tr>
+<tr>
+<td>14</td>
+<td>Emergency contact</td>
+<td>build</td>
+<td>person detail · player detail</td>
+<td><strong>Five fields</strong>: first name, last name, relationship, phone, email. One per person, four-role only, never the grid. Structural lockdown is a locked invariant. No source evidence exists — the club has never held it — so the shape is Brian&#39;s, expanded 2026-08-26.</td>
+</tr>
+</tbody></table>
+<p>Raw contact values never appear on the roster grid. The grid carries
+<strong>contactability indicators</strong> only — has mobile, has personal email — per Task
+08 §5.</p>
+<p><strong>Three of Task 08&#39;s durable facts left this mission on 2026-08-26</strong>, all by the
+same test. Field 8, channel presence, is a season record and goes to Mission 6.
+Field 16, Half/Full Blue, is a seasonal award whose total derives. Field 15,
+formalwear ownership, is reasked every season rather than carried. All three
+appear under season facts.</p>
+<p><strong>Kit is three things, and none of them is durable.</strong> The workshop has Stewart on
+it directly — <em>&quot;ties and socks is a big issue for us… we want the guys in their
+game socks at the first [game] and so we make concessions with them and give it
+to them before they pay us&quot;</em> — and the season&#39;s kit handover falls in weeks two
+or three. So: <strong>formalwear ownership</strong> is a seasonal fact this mission records
+and the club reasks each season; <strong>kit handover</strong> is Mission 7&#39;s onboarding item
+3; <strong>inventory and distribution tracking</strong>, which is what Stewart actually wants,
+is excluded from Release One by the manifest §8 and has no home yet.</p>
+<p><strong>A note this mission owes Mission 7.</strong> Task 10&#39;s item 3 currently reads
+&quot;returning <strong>not applicable</strong> if kit ownership already recorded&quot;. Reasking every
+season removes that carve-out, and it also matches Task 10&#39;s own R1b — the full
+checklist regenerates for everyone every season, <em>&quot;it&#39;s not about the person,
+it&#39;s about the president&quot;</em>. Recorded here so Mission 7&#39;s intake reconciles it
+rather than being contradicted silently.</p>
+<h2>The pipeline status — rebuilt, 2026-08-26</h2>
+<p>Task 08 listed &quot;membership status + dates&quot; as one field. It is not one field, and
+the vocabulary underneath it was wrong. Both are corrected here by owner
+decision.</p>
+<h3>One status, two records</h3>
+<p>Brian: <em>&quot;there&#39;s one status that should tell us what the player is at, and it
+drives the entire thing.&quot;</em> The frozen model refuses to store it that way, in the
+migration&#39;s own words — <em>&quot;modelling recruits as provisional memberships would
+pollute the roster with people who never commit; a separate funnel record keeps
+the roster meaning &#39;people on the team&#39;.&quot;</em></p>
+<p>Both hold: <strong>one status the operator sees, assembled from two records.</strong> While
+somebody is a recruit the status comes from the prospect record; from the flip
+onward it comes from the membership. The People surface shows the unified ladder;
+the roster still means people on the team.</p>
+<table>
+<thead>
+<tr>
+<th>Shown</th>
+<th>Lives on</th>
+<th>Means</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Recruit</strong></td>
+<td>prospect record, Mission 6&#39;s stage beneath</td>
+<td>In the recruitment line. Special rules: one message ever, no chase, polite nudges only, and their own information-gathering.</td>
+</tr>
+<tr>
+<td><strong>Onboarding</strong></td>
+<td>membership</td>
+<td>Things need doing. Flippable to active at any moment; nothing about the checklist gates it.</td>
+</tr>
+<tr>
+<td><strong>Active</strong></td>
+<td>membership</td>
+<td>On the team.</td>
+</tr>
+<tr>
+<td><strong>Inactive</strong></td>
+<td>membership</td>
+<td>Still on the team. Used when the club thinks they may come back.</td>
+</tr>
+<tr>
+<td><strong>Departed</strong></td>
+<td>membership</td>
+<td>Gone, and not coming back. Struck off the team, and an offboarding runs on them.</td>
+</tr>
+<tr>
+<td><strong>Archived</strong></td>
+<td>membership</td>
+<td>Catch-all; season close puts them here.</td>
+</tr>
+</tbody></table>
+<h3>Struck from the enum</h3>
+<ul>
+<li><strong><code>carried_forward</code></strong> — Brian: <em>&quot;doesn&#39;t mean anything to anyone… we already
+have a field that says if the player is returning or new.&quot;</em> True: <code>entry</code>
+carries exactly that. The <code>carried_forward_from_id</code> linkage column is a
+different thing and survives untouched for Mission 11&#39;s rollover.</li>
+<li><strong><code>confirmed</code></strong> — the <em>action</em> of saying &quot;yes, we want him&quot;, not a state
+anybody rests in. Task 10 R5 had already reached this independently. The
+<code>confirmed_on</code> date survives as a milestone.</li>
+<li><strong><code>withdrawn</code></strong> — the schema defends it as <em>&quot;a truthful terminal exit for a
+committed recruit who never activated… it must never look like a departed
+player&quot;</em>, but under this shape that person is <code>declined</code> on the prospect record
+and never receives a membership at all. It has no job left.</li>
+</ul>
+<p>Eight values become five.</p>
+<h3>Two consequences recorded as decisions, not edits</h3>
+<p><strong>This supersedes OD-3.</strong> That decision, resolved 2026-08-18, confirmed
+single-inactive offboarding: every exit records as <code>inactive</code>, reason as data,
+with <code>withdrawn</code> and <code>departed</code> unused. The ladder above gives <code>inactive</code> and
+<code>departed</code> distinct operational meanings — may come back versus gone — so OD-3 is
+superseded by dated owner decision, 2026-08-26, not quietly overwritten. Brian:
+<em>&quot;Okay, yes, we&#39;re superseding that, and that should be decided.&quot;</em></p>
+<p><strong>This is a vocabulary change to the frozen conceptual model</strong>, and it reaches
+further than anything else in this mission. Brian, on being told: <em>&quot;Yeah, I know
+it&#39;s a data migration, but it&#39;s fucking wrong, so what else are we going to
+do?&quot;</em></p>
+<p><strong>The scope of it, measured rather than estimated (2026-08-26, at <code>2115bfe</code>).</strong>
+It is long but mechanical — volume, not difficulty — and it is <strong>one migration
+file</strong>: create the new type, drop the dependent views, <code>ALTER COLUMN … TYPE … USING</code> a total mapping on <code>season_memberships.status</code> and on both columns of
+<code>season_membership_status_events</code>, recreate the views, drop the old type. The
+<code>USING</code> clause converts the data in the same statement, production showcase rows
+included, so <strong>nothing needs hand-fixing afterwards</strong>. The mapping is obvious:
+<code>carried_forward</code> and <code>confirmed</code> both become <code>onboarding</code> — nobody was ever
+meant to rest in either — <code>withdrawn</code> becomes <code>departed</code>, and the rest are
+unchanged. The views carry 25 assertions across seven test files, so one
+recreated subtly wrong fails <code>npm run verify</code> rather than reaching production.</p>
+<p><strong>Note for whoever writes it: <code>recruit</code> is not one of the five stored values.</strong>
+A recruit lives on the prospect record and never holds a membership, so the enum
+is <code>onboarding · active · inactive · departed · archived</code>. The ladder has six
+rungs; five of them are membership statuses.</p>
+<p>The dependencies:
+Postgres cannot alter an enum that a view depends on, so <strong>every dependent view
+must be dropped and recreated inside the same migration</strong>. Twelve views touch
+membership status: <code>person_standing</code>, <code>constitutional_membership</code>,
+<code>invitation_response_state</code>, <code>nonresponse_queue</code>, <code>uninvited_audience_members</code>,
+<code>rsvp_attendance_mismatches</code>, <code>current_rsvp</code>, <code>current_availability</code>,
+<code>transition_ledger</code> and their event-audience duplicates. Beyond the views:
+<code>membership.ts</code>, <code>roster.ts</code>, <code>weekly-report.ts</code>, <code>administration-directory.ts</code>,
+<code>roster/presentation.ts</code>, the generated database types, <code>seed-local.mjs</code>, the
+<strong>production showcase scripts</strong> under <code>scripts/production/showcase/</code>, and pilot
+SQL under <code>scripts/pilot/lan-74</code>, <code>lan-75</code> and <code>lan-93</code>.</p>
+<p>Dropping <code>known_as</code> compounds it: <code>person_standing</code> selects that column, so the
+same view has to be rebuilt for both reasons. The Mission Lead should treat the
+enum change and the known-as drop as <strong>one migration</strong>, not two.</p>
+<h2>Season facts</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Field</th>
+<th>This mission</th>
+<th>Surfaces</th>
+<th>Owner and notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>17a</td>
+<td>Pipeline status</td>
+<td><strong>build</strong></td>
+<td>roster grid · player</td>
+<td>The five-value ladder above. Replaces the eight-value enum.</td>
+</tr>
+<tr>
+<td>17b</td>
+<td>Milestone dates</td>
+<td>display</td>
+<td>player detail</td>
+<td><code>confirmed_on</code>, <code>activated_on</code>, <code>departed_on</code>, <code>expected_return_on</code>. Four separate facts, not &quot;dates&quot;.</td>
+</tr>
+<tr>
+<td>17c</td>
+<td>Exit labels</td>
+<td>display</td>
+<td>player detail</td>
+<td><code>departure_reason</code> and <code>inactivity_label</code>. Optional, non-medical, four-role restricted free text under Task 07&#39;s discipline.</td>
+</tr>
+<tr>
+<td>17d</td>
+<td>Status history</td>
+<td><strong>build</strong></td>
+<td>player detail (<code>W8</code>)</td>
+<td><code>season_membership_status_events</code> — from, to, when, who, why. Append-only. This is what <code>W8</code> shows and what makes every transition answerable.</td>
+</tr>
+<tr>
+<td>18</td>
+<td>Entry (new/returning)</td>
+<td>display</td>
+<td>roster grid · player</td>
+<td>Already shipped, and now the only place the returner fact lives.</td>
+</tr>
+<tr>
+<td>19</td>
+<td>Positions (O/D/ST)</td>
+<td>display</td>
+<td>roster grid · player</td>
+<td>Mission 9 owns the semantics; substrate exists. Placement only.</td>
+</tr>
+<tr>
+<td>20</td>
+<td>Jersey numbers</td>
+<td>display</td>
+<td>roster grid · player</td>
+<td><strong>Not one value.</strong> Two kits (Blue and White) with separate allocations; a player may hold <strong>several numbers in one kit</strong> — ~8% do; numbers are <strong>not unique</strong>, with at least three collisions in the real data; plus a predominant designation and a notes field. Mission 9.</td>
+</tr>
+<tr>
+<td>21</td>
+<td>Coach group / resp. coach</td>
+<td>elsewhere</td>
+<td>—</td>
+<td>Mission 9. <strong>No substrate on <code>main</code></strong>, so it does not render at this mission&#39;s acceptance.</td>
+</tr>
+<tr>
+<td>22</td>
+<td>Onboarding items</td>
+<td>display</td>
+<td>roster (n of m) · player</td>
+<td>Mission 7 owns behaviour; substrate exists. Per-item provenance shown; the roster filter is built here.</td>
+</tr>
+<tr>
+<td>23</td>
+<td>Availability (G/O/R)</td>
+<td>display</td>
+<td>roster (gated) · player</td>
+<td>Mission 9 owns behaviour. Rendered only for roles holding availability read — moot while the roster is four-role, but the mechanism is built.</td>
+</tr>
+<tr>
+<td>24</td>
+<td>Eligibility records</td>
+<td>display</td>
+<td>player detail</td>
+<td><strong>Mission 11</strong>, not Mission 7 — Task 10 R1 explicitly kept eligibility out of onboarding. Needs no further breakdown: competition, status, determining authority, checked-at, an external evidence reference (never academic or medical evidence, by design), effective dates, and an exclusion constraint against overlapping records for one competition.</td>
+</tr>
+<tr>
+<td>25</td>
+<td>Consent &amp; preference</td>
+<td>elsewhere</td>
+<td>—</td>
+<td>Missions 7 (capture) and 8 (policy). <strong>No substrate on <code>main</code></strong>, so it does not render here.</td>
+</tr>
+<tr>
+<td>26</td>
+<td>RSVP / attendance</td>
+<td>display</td>
+<td>player detail</td>
+<td>Mission 2, shipped. Read-only operational history.</td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>On WhatsApp</strong></td>
+<td>elsewhere</td>
+<td>—</td>
+<td><strong>Moved and made concrete 2026-08-26.</strong> Not an abstract &quot;channel presence&quot; but the one channel that decides whether the club can reach somebody: are they on WhatsApp and in this season&#39;s group. Email is assumed — everyone has one, and it is already a durable contact point above. Built in Mission 6, since Task 09 D3 fires the community-group invite at every recruit door, and extended by Mission 7. Anchored to person and season, so recruits are covered without a membership. <strong>Presence is not consent</strong> (Task 08 row 8, explicitly): it records where somebody already is, never that they agreed to be messaged. That remains Mission 8&#39;s.</td>
+</tr>
+<tr>
+<td>15</td>
+<td>Formalwear ownership</td>
+<td><strong>build</strong></td>
+<td>player detail</td>
+<td><strong>Moved to seasonal 2026-08-26</strong> — reasked each season rather than carried. Tie, bowtie, socks; prices the subs invoice at zero when already owned. Measured tie 79%, bowtie 31%, socks 93%; one value is free text (<code>Yes (paid)</code>), not boolean.</td>
+</tr>
+<tr>
+<td>16</td>
+<td>Half/Full Blue awarded</td>
+<td><strong>build</strong></td>
+<td>player detail</td>
+<td><strong>Moved to seasonal 2026-08-26.</strong> An award happens in a season, so it is two flags on the season record rather than the inventory&#39;s only cumulative count. The running total derives.</td>
+</tr>
+</tbody></table>
+<h2>Recruitment facts — never in Task 08&#39;s inventory</h2>
+<p>Task 08 §1 pushed recruitment out to Task 09 and Task 09 never listed the fields,
+so they appeared in no inventory anywhere. They exist on <code>main</code> in
+<code>recruitment_prospects</code>, keyed person-and-season exactly as a membership is.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>This mission</th>
+<th>Surfaces</th>
+<th>Owner and notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Prospect status</td>
+<td>display</td>
+<td>People list · person</td>
+<td>Mission 6 owns the stages and every transition. This mission shows <strong>that</strong> somebody is a recruit and where they stand — a person with no visible standing is a name floating in a list.</td>
+</tr>
+<tr>
+<td>Source (which door)</td>
+<td>display</td>
+<td>person detail</td>
+<td>Mission 6.</td>
+</tr>
+<tr>
+<td>First contact date</td>
+<td>display</td>
+<td>person detail</td>
+<td>Mission 6.</td>
+</tr>
+<tr>
+<td>Committed date</td>
+<td>display</td>
+<td>person detail</td>
+<td>Mission 6.</td>
+</tr>
+<tr>
+<td>Prospect notes</td>
+<td>elsewhere</td>
+<td>—</td>
+<td>Mission 6. Operator prose, four-role only, deliberately never scored fields. The recruits list is where they belong.</td>
+</tr>
+<tr>
+<td>Conversion link</td>
+<td>display</td>
+<td>person detail</td>
+<td>Mission 6. How a prospect record joins its membership.</td>
+</tr>
+<tr>
+<td><strong>Recruit-stage fields</strong></td>
+<td>elsewhere</td>
+<td>—</td>
+<td><strong>Nobody has ever written these down.</strong> The 8/5 staged model&#39;s football background, experience and gear ownership: Task 08 §4 pushes them to Task 09, Task 09 references and never lists them, and the 2026-08-26 amendment defers enumeration to Mission 6&#39;s intake. Recorded here so it is not lost.</td>
+</tr>
+</tbody></table>
+<h2>Derived</h2>
+<table>
+<thead>
+<tr>
+<th>Derivation</th>
+<th>From</th>
+<th>This mission</th>
+<th>Surfaces</th>
+<th>Owner</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Alumni standing</td>
+<td>Membership history + <code>past_member_override</code></td>
+<td><strong>build</strong></td>
+<td>People list · person</td>
+<td>This mission (<code>W1</code>).</td>
+</tr>
+<tr>
+<td>Under-18 flag</td>
+<td>Date of birth</td>
+<td><strong>build</strong></td>
+<td>person · player detail</td>
+<td>Derivation here; Mission 8 owns the handling, which is deferred.</td>
+</tr>
+<tr>
+<td>Half/Full Blue totals</td>
+<td>The per-season awards above</td>
+<td><strong>build</strong></td>
+<td>person · player detail</td>
+<td>This mission. The count the club actually looks at, derived rather than stored.</td>
+</tr>
+<tr>
+<td>Onboarding completeness</td>
+<td>Onboarding items</td>
+<td>display</td>
+<td>roster (n of m) · player</td>
+<td>Mission 7.</td>
+</tr>
+<tr>
+<td>Constitutional membership</td>
+<td>Subs paid + the existing derived view</td>
+<td>display</td>
+<td>player detail</td>
+<td>Governance derivation; already a view on <code>main</code>.</td>
+</tr>
+</tbody></table>
+<p>None of these is ever manually edited. The alumni override is the single
+deliberate exception, and it overrides the derivation, not the fact.</p>
+<h2>The decision this table surfaces</h2>
+<p><strong>Nobody has ever written down which fields are required.</strong> The roster&#39;s
+missing-data flag, <code>W7</code>&#39;s queue and Mission 7&#39;s item 9 rollup all depend on a
+required set, and Task 08 §5 refers to &quot;missing required data&quot; without naming it.
+Task 11 §2.1 says coaches and committee members are chased for contact points
+&quot;and academic fields <strong>where applicable</strong>&quot;, which implies required-ness differs by
+who the person is but never says how.</p>
+<p><strong>Required-ness depends on where the person stands on the ladder.</strong> Approved
+2026-08-26 and amended the same day; see the note under the table.</p>
+<table>
+<thead>
+<tr>
+<th>Person</th>
+<th>Required</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Onboarding, active or inactive</td>
+<td>First name · last name · mobile · personal email · college · matriculation year · expected graduation · degree field · DOB · emergency contact</td>
+</tr>
+<tr>
+<td>Recruit</td>
+<td>First name · last name · mobile</td>
+</tr>
+<tr>
+<td>Everyone else (coach, committee, alumnus)</td>
+<td>First name · last name · mobile · personal email</td>
+</tr>
+</tbody></table>
+<p><strong>Last name is required at every rung, amended 2026-08-26.</strong> Brian: <em>&quot;Last name
+should be mandatory, and this is the right place to handle that… first name,
+last name, mobile. Then we can go chase the other stuff.&quot;</em> This supersedes the
+recommendation approved earlier the same day, which left last name out because a
+quarter of the club&#39;s records are first-name-only and flagging them all would
+have made the queue useless on day one. That consequence is unchanged and is now
+the intent: roughly a quarter of the club flags for a missing last name the day
+the queue opens, and the queue is where they get chased.</p>
+<p>The recruit row also loses its carve-out. Task 09 D2&#39;s minimum at every door is a
+first name and a mobile; a last name is now chased of a recruit as well, which is
+one fact more than any recruitment door captures today.</p>
+<p>Aliases and Blues are recorded when known and never chased. Formalwear is asked each season through Mission 7&#39;s checklist, not through this queue.</p>
+<h2>Brian approval</h2>
+<ul>
+<li>Exact words: &quot;Approved let&#39;s move on.&quot;</li>
+<li>Date: 2026-08-26</li>
+<li>By: Brian Schuster</li>
+</ul>
+<p>Approved after seven working rounds that changed it materially: name labels
+corrected to the shipped screen wording; emergency contact expanded to five
+fields; kit separated into three things, none of them durable; Blues moved to
+seasonal awards with the total derived; known-as collapsed into alias; channel
+presence made concrete as <strong>On WhatsApp</strong> and moved to Mission 6; formalwear
+moved to seasonal; eligibility corrected to Mission 11; membership split into
+its four real parts; jersey remodelled against the source data; the recruitment
+facts added, which no inventory had ever carried; and the pipeline status
+rebuilt from eight enum values to five, superseding OD-3.</p>
+<p>Also approved with it: the required set, keyed to the ladder — a recruit needs
+only first name and mobile, because nothing more is ever chased of them.</p>
+</div>
   </body>
 </html>

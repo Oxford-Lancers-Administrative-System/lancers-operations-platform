@@ -1182,11 +1182,6 @@
         width: 100%;
       }
 
-      /* Verified reads as a mark, not a label among labels. */
-      .prov.verified {
-        border-color: rgba(46, 125, 50, 0.5);
-        color: #1b5e20;
-      }
 
       /* A history entry's before-value. Struck through and muted, because the
          entry has to read as one thing that happened rather than two values. */
@@ -1197,6 +1192,22 @@
       .was {
         color: var(--text-secondary);
         text-decoration: line-through;
+      }
+
+      /* A two-column comparison is unreadable in a 375px frame. It stacks,
+         and the field label stays above both values. */
+      @container (max-width: 760px) {
+        .grid2,
+        .grid2tight {
+          grid-template-columns: 1fr;
+        }
+        .frow {
+          grid-template-columns: 1fr !important;
+          gap: 6px;
+        }
+        .qbox {
+          padding: 12px;
+        }
       }
     </style>
   </head>
@@ -1257,20 +1268,19 @@
       const NR = `<span class="notrec">not recorded</span>`;
 
       /*
-       * Who supplied a value, and whether it was checked against something
-       * outside the club. Brian, 2026-08-26: the four-class vocabulary made no
-       * sense to him — "player provided does", and "I like seeing if it's
-       * externally verified versus not", but operator-confirmed against
-       * externally-verified was a distinction without a difference, and what he
-       * wants instead is *who did it*.
+       * Who supplied a value. Brian, 2026-08-26: the four-class vocabulary made
+       * no sense to him — "player provided does" — and what he wants instead is
+       * *who did it*.
        *
-       * So a value carries at most two marks: the name of whoever put it there
-       * (or "Player" when the person supplied it themselves), and Verified when
-       * it was checked externally. Nothing else.
+       * There is deliberately no `Verified` mark. Brian, 2026-08-27: "no
+       * verification link at all." Nothing here verifies that somebody holds a
+       * mailbox — `contact_points` on `main` has no verified column, no
+       * confirm-by-link flow exists, and this mission sends nothing — so
+       * claiming it on screen would be a false statement. A real verification
+       * flow needs sending, and belongs to Mission 7 or Mission 8.
        */
       const by = (who) => `<span class="prov">${who}</span>`;
       const PLAYER = by("Player");
-      const VERIFIED = `<span class="prov verified">Verified</span>`;
 
       const frow = (label, value) =>
         `<div class="frow"><div class="flab">${label}</div><div class="fval">${value}</div></div>`;
@@ -1343,6 +1353,7 @@
         </div>`;
       };
 
+
       /* -------------------- shared list primitives ----------------------- */
 
       /* `roster/presentation.ts`'s mapping: active success, onboarding info,
@@ -1350,13 +1361,7 @@
       const standingChip = (standing) => {
         if (!standing) return `<span class="sec">—</span>`;
         const tone =
-          standing === "Active"
-            ? " ok"
-            : standing === "Onboarding"
-              ? " inf"
-              : standing === "Inactive"
-                ? " wrn"
-                : "";
+          standing === "Active" ? " ok" : standing === "Onboarding" ? " inf" : standing === "Inactive" ? " wrn" : "";
         return `<span class="chip${tone}">${standing}</span>`;
       };
 
@@ -1432,58 +1437,19 @@
       const gaps = (list) => list.map((g) => `<span class="chip chip-warn">${g}</span>`).join(" ");
 
       const QUEUE = [
-        {
-          name: "Bertram",
-          standing: "Active",
-          is: "Player",
-          gaps: [
-            "last name",
-            "personal email",
-            "college",
-            "matriculation year",
-            "expected graduation",
-            "degree field",
-            "date of birth",
-            "emergency contact",
-          ],
-        },
-        {
-          name: "Marlowe Ravenscar-Pike",
-          standing: "Onboarding",
-          is: "Player",
-          gaps: ["degree field", "date of birth", "emergency contact"],
-        },
-        {
-          name: "Dashiell Draycott",
-          standing: "Onboarding",
-          is: "Player",
-          gaps: ["date of birth", "emergency contact"],
-        },
-        {
-          name: "Gideon Inglewhite",
-          standing: "Inactive",
-          is: "Player",
-          gaps: ["emergency contact"],
-        },
+        { name: "Bertram", standing: "Active", is: "Player", gaps: ["last name", "personal email", "college", "matriculation year", "expected graduation", "degree field", "date of birth", "emergency contact"] },
+        { name: "Marlowe Ravenscar-Pike", standing: "Onboarding", is: "Player", gaps: ["degree field", "date of birth", "emergency contact"] },
+        { name: "Dashiell Draycott", standing: "Onboarding", is: "Player", gaps: ["date of birth", "emergency contact"] },
+        { name: "Gideon Inglewhite", standing: "Inactive", is: "Player", gaps: ["emergency contact"] },
         { name: "Alaric Ashcombe", standing: "Active", is: "Player", gaps: ["emergency contact"] },
         { name: "Norbert Mereworth", standing: "Recruit", is: "Recruit", gaps: ["last name"] },
-        {
-          name: "Percival Oakhanger",
-          standing: null,
-          is: "Head Coach · 2026-27",
-          gaps: ["personal email"],
-        },
+        { name: "Percival Oakhanger", standing: null, is: "Head Coach · 2026-27", gaps: ["personal email"] },
       ];
 
       const queueTable = (rows) =>
         dataTable(
           ["Name", "Standing", "To the club", "Missing"],
-          rows.map((r) => [
-            `<span class="bold">${r.name}</span>`,
-            standingChip(r.standing),
-            r.is,
-            gaps(r.gaps),
-          ]),
+          rows.map((r) => [`<span class="bold">${r.name}</span>`, standingChip(r.standing), r.is, gaps(r.gaps)]),
           3,
         );
 
@@ -1492,10 +1458,7 @@
           rows.map((r) => ({
             title: r.name,
             sub: r.is,
-            chips: [
-              r.standing ? standingChip(r.standing) : "",
-              ...r.gaps.map((g) => `<span class="chip chip-warn">${g}</span>`),
-            ],
+            chips: [r.standing ? standingChip(r.standing) : "", ...r.gaps.map((g) => `<span class="chip chip-warn">${g}</span>`)],
           })),
         );
 
@@ -1512,14 +1475,8 @@
           ${queueCards(QUEUE)}
         </div>`);
 
-      const NOEC = QUEUE.filter((r) => r.gaps.includes("emergency contact")).map((r) => ({
-        ...r,
-        gaps: ["emergency contact"],
-      }));
-      const NOLAST = QUEUE.filter((r) => r.gaps.includes("last name")).map((r) => ({
-        ...r,
-        gaps: ["last name"],
-      }));
+      const NOEC = QUEUE.filter((r) => r.gaps.includes("emergency contact")).map((r) => ({ ...r, gaps: ["emergency contact"] }));
+      const NOLAST = QUEUE.filter((r) => r.gaps.includes("last name")).map((r) => ({ ...r, gaps: ["last name"] }));
 
       const W702 = shell(`
         <div class="stack g3">
@@ -1569,64 +1526,21 @@
           ${dataTable(
             ["Player", "Standing", "Entry", "College", "Onboarding", "Contactable", "Missing"],
             [
-              [
-                `<span class="bold">Alaric Ashcombe</span>`,
-                standingChip("Active"),
-                "Returning",
-                "Beaumont",
-                "6 of 6",
-                `<span class="chip chip-outline">Mobile</span> <span class="chip chip-outline">Email</span>`,
-                `<a class="golink" href="#">1 missing</a>`,
-              ],
-              [
-                `<span class="bold">Bertram</span>`,
-                standingChip("Active"),
-                "New",
-                `<span class="notrec">not recorded</span>`,
-                "2 of 6",
-                `<span class="chip chip-outline">Mobile</span>`,
-                `<a class="golink" href="#">8 missing</a>`,
-              ],
-              [
-                `<span class="bold">Dashiell Draycott</span>`,
-                standingChip("Onboarding"),
-                "New",
-                "Cranmere",
-                "4 of 6",
-                `<span class="chip chip-outline">Mobile</span> <span class="chip chip-outline">Email</span>`,
-                `<a class="golink" href="#">2 missing</a>`,
-              ],
+              [`<span class="bold">Alaric Ashcombe</span>`, standingChip("Active"), "Returning", "Beaumont", "6 of 6", `<span class="chip chip-outline">Mobile</span> <span class="chip chip-outline">Email</span>`, `<a class="golink" href="#">1 missing</a>`],
+              [`<span class="bold">Bertram</span>`, standingChip("Active"), "New", `<span class="notrec">not recorded</span>`, "2 of 6", `<span class="chip chip-outline">Mobile</span>`, `<a class="golink" href="#">8 missing</a>`],
+              [`<span class="bold">Dashiell Draycott</span>`, standingChip("Onboarding"), "New", "Cranmere", "4 of 6", `<span class="chip chip-outline">Mobile</span> <span class="chip chip-outline">Email</span>`, `<a class="golink" href="#">2 missing</a>`],
             ],
           )}
           ${cardList([
-            {
-              title: "Alaric Ashcombe",
-              sub: "Beaumont · 6 of 6",
-              chips: [standingChip("Active"), `<span class="chip chip-warn">1 missing</span>`],
-            },
-            {
-              title: "Bertram",
-              sub: "2 of 6",
-              chips: [standingChip("Active"), `<span class="chip chip-warn">8 missing</span>`],
-            },
-            {
-              title: "Dashiell Draycott",
-              sub: "Cranmere · 4 of 6",
-              chips: [standingChip("Onboarding"), `<span class="chip chip-warn">2 missing</span>`],
-            },
+            { title: "Alaric Ashcombe", sub: "Beaumont · 6 of 6", chips: [standingChip("Active"), `<span class="chip chip-warn">1 missing</span>`] },
+            { title: "Bertram", sub: "2 of 6", chips: [standingChip("Active"), `<span class="chip chip-warn">8 missing</span>`] },
+            { title: "Dashiell Draycott", sub: "Cranmere · 4 of 6", chips: [standingChip("Onboarding"), `<span class="chip chip-warn">2 missing</span>`] },
           ])}
         </div>`,
         { selected: "Roster", admin: ADMIN },
       );
 
-      const IGGY = [
-        {
-          name: "Ignatius Kirkbride",
-          standing: "Departed",
-          is: "Player",
-          gaps: ["personal email"],
-        },
-      ];
+      const IGGY = [{ name: "Ignatius Kirkbride", standing: "Departed", is: "Player", gaps: ["personal email"] }];
 
       const W707 = shell(`
         <div class="stack g3">
@@ -1641,22 +1555,12 @@
       const CLOCK = "Now: Monday, 26 October 2026, 09:15";
       const NONE = "New surface, nothing to compare";
       const S = (id, title, blurb, deltas, url, proposed) => ({
-        id,
-        title,
-        disposition: "new",
-        blurb,
-        deltas,
-        clockTag: CLOCK,
-        url,
-        now: null,
-        nowNone: NONE,
-        proposed,
+        id, title, disposition: "new", blurb, deltas,
+        clockTag: CLOCK, url, now: null, nowNone: NONE, proposed,
       });
 
       const SCREENS = [
-        S(
-          "W7-01",
-          "The queue",
+        S("W7-01", "The queue",
           `Every person with at least one required fact absent, scoped to the season in view. Each
            row names which facts, because that is the difference between a queue and a number.`,
           [
@@ -1666,12 +1570,8 @@
             "Bertram carries eight gaps after last name became required. Percival, a coach, is chased for a personal email and nothing academic",
             "Sorted by how much is missing; every column sorts",
           ],
-          "oxfordlancers.example/operate/people/missing",
-          W701,
-        ),
-        S(
-          "W7-02",
-          "Filtered to one missing fact",
+          "oxfordlancers.example/operate/people/missing", W701),
+        S("W7-02", "Filtered to one missing fact",
           `Filtering by which fact is absent is how the work actually batches — one afternoon of
            emergency contacts, not one person at a time.`,
           [
@@ -1679,12 +1579,8 @@
             "<strong>Decide:</strong> the by-fact filter. Without it the queue is a list to read rather than a list to work",
             "The count line follows the filter, so the operator knows how much is left",
           ],
-          "oxfordlancers.example/operate/people/missing?fact=emergency_contact",
-          W702,
-        ),
-        S(
-          "W7-03",
-          "The required set differs by rung",
+          "oxfordlancers.example/operate/people/missing?fact=emergency_contact", W702),
+        S("W7-03", "The required set differs by rung",
           `A recruit missing only a last name sits beside a player missing eight things, and both are
            correct. Required-ness depends on where somebody stands.`,
           [
@@ -1693,36 +1589,24 @@
             "Bertram is an active player, so the full set applies to him",
             "<strong>This is the consequence of your amendment.</strong> Before it, neither of these rows existed",
           ],
-          "oxfordlancers.example/operate/people/missing?fact=family_name",
-          W703,
-        ),
-        S(
-          "W7-04",
-          "A filter matched nothing",
+          "oxfordlancers.example/operate/people/missing?fact=family_name", W703),
+        S("W7-04", "A filter matched nothing",
           `Distinguished from the queue genuinely being empty, which is a different and much better
            outcome.`,
           [
             "Acceptance 6: the copy names the filters as the cause and offers to clear them",
             "Matches the roster's own distinction between a filtered empty and a system empty",
           ],
-          "oxfordlancers.example/operate/people/missing?fact=dob&standing=departed",
-          W704,
-        ),
-        S(
-          "W7-05",
-          "Nothing is missing",
+          "oxfordlancers.example/operate/people/missing?fact=dob&standing=departed", W704),
+        S("W7-05", "Nothing is missing",
           `A good outcome, not a failure, and it says so. The widen action is offered because the
            season in view may simply be complete while somebody outside it is not.`,
           [
             "Acceptance 6: stated as an achievement rather than an absence of results",
             "The recovery is the widen action, not a suggestion to change the filters",
           ],
-          "oxfordlancers.example/operate/people/missing",
-          W705,
-        ),
-        S(
-          "W7-06",
-          "Where this queue is reached from — and the amendment it needs",
+          "oxfordlancers.example/operate/people/missing", W705),
+        S("W7-06", "Where this queue is reached from — and the amendment it needs",
           `<strong>Nothing reaches this queue today.</strong> W1 is approved with an Administration
            group of People · Operators · Roles and no Missing data entry, and its Missing column is
            a chip rather than a link. Both routes below are proposals, and both amend approved work.`,
@@ -1734,12 +1618,8 @@
             "Either way this is an <strong>amendment to approved W1</strong>, recorded as one rather than slipped in",
             "The roster shown here is a sketch. W5's real appearance is photographed in its own mockup",
           ],
-          "oxfordlancers.example/operate/roster",
-          W706,
-        ),
-        S(
-          "W7-07",
-          "A row that can never be satisfied",
+          "oxfordlancers.example/operate/roster", W706),
+        S("W7-07", "A row that can never be satisfied",
           `Ignatius has departed and has no personal email. There is no per-fact <em>refused</em> or
            <em>not applicable</em> state, so he sits here indefinitely.`,
           [
@@ -1747,9 +1627,7 @@
             "<strong>Decide:</strong> accept the gap, or scope the queue to non-departed people. Scoping loses the alumnus whose record genuinely does need fixing",
             "W2-08's <em>Skip</em> is the only relief until Mission 7 lands",
           ],
-          "oxfordlancers.example/operate/people/missing?q=Ignatius",
-          W707,
-        ),
+          "oxfordlancers.example/operate/people/missing?q=Ignatius", W707),
       ];
       const frame = (screen, html, kind) => `
         <div class="frame ${kind}">

@@ -6,318 +6,152 @@
     <title>Frozen workflow inventory</title>
     <style>
       :root {
-        --primary: #0b3d91;
-        --text: rgba(0, 0, 0, 0.87);
-        --sec: rgba(0, 0, 0, 0.6);
-        --divider: rgba(0, 0, 0, 0.12);
-        --grey50: #fafafa;
-        --grey100: #f5f5f5;
+        --primary: #0b3d91; --text: rgba(0,0,0,0.87); --sec: rgba(0,0,0,0.6);
+        --divider: rgba(0,0,0,0.12); --grey50: #fafafa; --grey100: #f5f5f5;
         --warn: #663c00;
-        --font:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        font-family: var(--font);
-        color: var(--text);
-        background: var(--grey100);
-        line-height: 1.65;
-      }
-      .bar {
-        position: sticky;
-        top: 0;
-        z-index: 2;
-        background: #212121;
-        color: #fff;
-        padding: 10px 20px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 14px;
-        flex-wrap: wrap;
-      }
-      .bar .who {
-        font-weight: 700;
-        font-size: 0.95rem;
-      }
-      .bar .who span {
-        color: #bdbdbd;
-        font-weight: 400;
-        margin-left: 8px;
-        font-size: 0.8rem;
-      }
-      .bar a {
-        color: #fff;
-        text-decoration: none;
-        font-size: 0.85rem;
-        border: 1px solid rgba(255, 255, 255, 0.35);
-        border-radius: 6px;
-        padding: 4px 10px;
-        margin-left: 8px;
-      }
-      .bar a:hover {
-        background: rgba(255, 255, 255, 0.12);
-      }
-      .sheet {
-        max-width: 880px;
-        margin: 26px auto 100px;
-        background: #fff;
-        border: 1px solid var(--divider);
-        border-radius: 10px;
-        padding: 10px 30px 34px;
-      }
-      h1 {
-        font-size: 1.5rem;
-        margin: 22px 0 10px;
-        letter-spacing: -0.01em;
-      }
-      h2 {
-        font-size: 1.12rem;
-        margin: 30px 0 8px;
-        padding-top: 16px;
-        border-top: 1px solid var(--divider);
-      }
-      h3 {
-        font-size: 1rem;
-        margin: 20px 0 6px;
-      }
-      p,
-      li {
-        font-size: 0.95rem;
-      }
-      ul {
-        padding-left: 22px;
-      }
-      li {
-        margin: 5px 0;
-      }
-      code {
-        background: var(--grey100);
-        padding: 1px 5px;
-        border-radius: 4px;
-        font-size: 0.85em;
-      }
-      pre {
-        background: var(--grey100);
-        padding: 12px 14px;
-        border-radius: 8px;
-        overflow-x: auto;
-      }
-      pre code {
-        background: none;
-        padding: 0;
-      }
-      blockquote {
-        margin: 12px 0;
-        padding: 6px 16px;
-        border-left: 3px solid var(--divider);
-        color: var(--sec);
-      }
-      table {
-        border-collapse: collapse;
-        width: 100%;
-        display: block;
-        overflow-x: auto;
-        margin: 14px 0;
-        font-size: 0.875rem;
-      }
-      th,
-      td {
-        border: 1px solid var(--divider);
-        padding: 8px 10px;
-        text-align: left;
-        vertical-align: top;
-      }
-      thead th {
-        background: var(--grey50);
-        font-size: 0.78rem;
-        letter-spacing: 0.03em;
-        text-transform: uppercase;
-        color: var(--sec);
-        white-space: nowrap;
-      }
-      a {
-        color: var(--primary);
-      }
-      @media (max-width: 720px) {
-        .sheet {
-          margin: 14px 10px 60px;
-          padding: 6px 16px 24px;
-        }
-      }
-    </style>
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: var(--font); color: var(--text); background: var(--grey100); line-height: 1.65; }
+      .bar { position: sticky; top: 0; z-index: 2; background: #212121; color: #fff; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+      .bar .who { font-weight: 700; font-size: 0.95rem; }
+      .bar .who span { color: #bdbdbd; font-weight: 400; margin-left: 8px; font-size: 0.8rem; }
+      .bar a { color: #fff; text-decoration: none; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.35); border-radius: 6px; padding: 4px 10px; margin-left: 8px; }
+      .bar a:hover { background: rgba(255,255,255,0.12); }
+      .sheet { max-width: 880px; margin: 26px auto 100px; background: #fff; border: 1px solid var(--divider); border-radius: 10px; padding: 10px 30px 34px; }
+      h1 { font-size: 1.5rem; margin: 22px 0 10px; letter-spacing: -0.01em; }
+      h2 { font-size: 1.12rem; margin: 30px 0 8px; padding-top: 16px; border-top: 1px solid var(--divider); }
+      h3 { font-size: 1rem; margin: 20px 0 6px; }
+      p, li { font-size: 0.95rem; }
+      ul { padding-left: 22px; }
+      li { margin: 5px 0; }
+      code { background: var(--grey100); padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+      pre { background: var(--grey100); padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
+      pre code { background: none; padding: 0; }
+      blockquote { margin: 12px 0; padding: 6px 16px; border-left: 3px solid var(--divider); color: var(--sec); }
+      table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; margin: 14px 0; font-size: 0.875rem; }
+      th, td { border: 1px solid var(--divider); padding: 8px 10px; text-align: left; vertical-align: top; }
+      thead th { background: var(--grey50); font-size: 0.78rem; letter-spacing: 0.03em; text-transform: uppercase; color: var(--sec); white-space: nowrap; }
+      a { color: var(--primary); }
+      @media (max-width: 720px) { .sheet { margin: 14px 10px 60px; padding: 6px 16px 24px; } }</style>
   </head>
   <body>
     <div class="bar">
-      <div class="who">
-        Frozen workflow inventory<span>M-PEOPLE-AND-ROSTER · specification</span>
-      </div>
-      <div>
-        <a href="mockups/index.html">Hub</a><a href="specifications.html">All specifications</a>
-      </div>
+      <div class="who">Frozen workflow inventory<span>M-PEOPLE-AND-ROSTER · specification</span></div>
+      <div><a href="mockups/index.html">Hub</a><a href="specifications.html">All specifications</a></div>
     </div>
-    <div class="sheet">
-      <h1>Frozen workflow inventory — M-PEOPLE-AND-ROSTER</h1>
-      <p>
-        Definition: one primary actor&#39;s end-to-end journey from trigger and entry point to one
-        user-visible result.
-      </p>
-      <p>
-        Eight workflows. Every actor is a four-role operator — President, Vice-President, Secretary
-        or General Manager — because Task 08 §6 restricts every surface in this mission to that
-        group and this mission builds nothing player-facing.
-      </p>
-      <ol>
-        <li>
-          <code>W1</code> — <strong>Look up any person the club holds</strong>: an operator needs to
-          find a human — a coach, a committee member, an unconverted prospect, an alumnus, a player
-          — and read what the club knows about them → the People list, searched by name, known-as or
-          alias, and that person&#39;s record showing every durable field with its provenance class,
-          with <code>not recorded</code> stated explicitly and anything their role does not grant
-          absent rather than hidden.
-        </li>
-        <li>
-          <code>W2</code> — <strong>Correct a person&#39;s record</strong>: an operator learns a
-          value is wrong or missing → the corrected record, attributed and audited, with contact
-          values superseded rather than overwritten and a contested value flagged
-          <code>disputed — awaiting verification</code> against the operator&#39;s recorded reason.
-        </li>
-        <li>
-          <code>W3</code> — <strong>Add or link a person who holds no membership</strong>: a coach,
-          committee member or outside contact needs a record → a Person exists, either newly minted
-          or linked to the existing record the duplicate check surfaced, never silently created and
-          never silently merged.
-        </li>
-        <li>
-          <code>W4</code> — <strong>Merge two records for the same human</strong>: an operator finds
-          the same person twice → one surviving record with both identities preserved, every
-          reference re-pointed, and the merge audited with its reason.
-        </li>
-        <li>
-          <code>W5</code> — <strong>Work this season&#39;s roster</strong>: an operator needs to see
-          and act across the squad → the wide command surface with the approved column set,
-          combinable filters, sortable columns, search, and missing-data flags — replacing the four
-          columns the vertical slice shipped.
-        </li>
-        <li>
-          <code>W6</code> — <strong>Open one player&#39;s record</strong>: an operator needs
-          everything about one player → the authoritative individual view carrying identity, dated
-          contacts, channel presence, academics, restricted fields, membership state and full status
-          history, onboarding items with their per-item provenance, football assignments,
-          availability, eligibility, kit, Blues counts, and this season&#39;s participation history
-          — with the shipped activation control preserved.
-        </li>
-        <li>
-          <code>W7</code> — <strong>Work the missing-data queue</strong>: an operator needs to know
-          who is incomplete and in what → a real, filterable list of people with required facts
-          <code>not recorded</code> or <code>disputed</code>, per-field indicators, and the roster
-          flag that leads into it.
-        </li>
-        <li>
-          <code>W8</code> — <strong>See what changed on a person and who changed it</strong>: an
-          operator needs to know how a value came to be what it is → the append-only change history
-          on the record it describes, naming actor, date and the superseded value.
-        </li>
-      </ol>
-      <h2>Excluded stages and invariants</h2>
-      <p>
-        <strong>Excluded stages.</strong> No journey in this mission composes, schedules, sends or
-        transports a message; records or reads a consent basis; imports anything; creates a season;
-        assigns a club role or an operator seat; deletes or erases a person; advances a recruitment
-        funnel; changes an onboarding item&#39;s behaviour; or lets a person edit their own record.
-        Each has a named owner in <code>00-boundary.md</code>.
-      </p>
-      <p>
-        <strong>No workflow for the phone.</strong> Mobile is a viewport, not a journey. Task 08
-        §5&#39;s condensed roster is how <code>W5</code> and <code>W6</code> render at 375px, and
-        every mockup carries both frames, so a separate mobile workflow would double-count the same
-        journey.
-      </p>
-      <p>
-        <strong>Invariants binding every workflow</strong> — stated once in
-        <code>01-overview.md</code>, not restated per workflow: the four-role privacy boundary and
-        absent-not-hidden rendering; the person-versus-season test; the frozen state vocabulary with
-        <code>not recorded</code> never defaulted; attribution and audit on every edit, with contact
-        values superseding rather than overwriting; nothing sent and no lawful basis recorded; and a
-        field rendered only where its substrate exists on <code>main</code>.
-      </p>
-      <h2>Decision coverage</h2>
-      <p>
-        137 decisions across 12 sources carry exactly one disposition each, recorded in
-        <code>state.json.decision_coverage</code> and rendered to
-        <code>decision-coverage.md</code> once this inventory is frozen. 53 land on a workflow
-        above; 52 belong to another mission; 24 are deliberately shared with their other owners
-        named; 4 are excluded on their source&#39;s own evidence; 3 are superseded with the dated
-        approval that superseded them; 1 is delegated to the Mission Lead.
-      </p>
-      <p>
-        Three of those deserve naming here because they are the seams most likely to be re-argued
-        later:
-      </p>
-      <ul>
-        <li>
-          <strong>The queue and the chase.</strong> Task 11 §1 states the division outright — Task
-          08 defined the missing-data state and queue, Task 11 defines the chase — and §7 consumes
-          this queue rather than redefining it. <code>W7</code> builds the queue; every request,
-          cadence and per-fact <code>refused</code> state is Mission 7&#39;s.
-        </li>
-        <li>
-          <strong>The duplicate check.</strong> Task 09 D7 locks dedup-before-create at every door.
-          <code>W3</code> and <code>W4</code> build the matching and merge machinery and apply it on
-          this mission&#39;s own path; Mission 6 wires its four doors to it and decides per-door
-          behaviour, including the recorded walk-up drift.
-        </li>
-        <li>
-          <strong>Correction versus rights.</strong> Task 07 §3 places operator-executable
-          correction on the person surface with actor, before/after and reason audited.
-          <code>W2</code> builds that; the rights-based request intake, erasure and subject-access
-          export stay with Mission 8.
-        </li>
-      </ul>
-      <h2>Inventory amendments</h2>
-      <p>None.</p>
-      <h2>Brian approval</h2>
-      <ul>
-        <li>
-          Exact approved list/count: eight workflows, <code>W1</code>–<code>W8</code>, in the order
-          and under the names listed above — W1 Look up any person the club holds · W2 Correct a
-          person&#39;s record · W3 Add or link a person who holds no membership · W4 Merge two
-          records for the same human · W5 Work this season&#39;s roster · W6 Open one player&#39;s
-          record · W7 Work the missing-data queue · W8 See what changed on a person and who changed
-          it.
-        </li>
-        <li>Exact words: &quot;Okay, I think this is good.&quot;</li>
-        <li>Date: 2026-08-26</li>
-        <li>By: Brian Schuster</li>
-      </ul>
-      <p>
-        Approved after Brian tested the count in both directions — why not six, why not twelve — and
-        after two clarifications recorded during that review:
-      </p>
-      <ul>
-        <li>
-          <strong>W3 is not a correction of Mission 1.</strong> The operator invitation path already
-          performs a duplicate-checked create-or-link matching on given name, family name, known-as,
-          aliases, login email and phone, and so does the returner intake through
-          <code>roster.ts</code>; the code records that duplication as deliberate, each door
-          checking the fact that decides whether it may proceed. W3 is a third door for a person who
-          has neither a membership nor a login, reusing the same matching rule. Mission 1&#39;s
-          surface is untouched. Whether the three implementations are later consolidated is
-          implementation detail.
-        </li>
-        <li>
-          <strong>W8 covers the audit log</strong> and stays separate because W2 and W4 both write
-          history and the history view is what makes them verifiable.
-        </li>
-      </ul>
-      <p>
-        One structural addition agreed in the same exchange: because W1, W5 and W6 all read the same
-        field inventory, all 27 rows are dispositioned <strong>once</strong>, in a single table
-        approved before W1&#39;s specification, rather than three times inside three specs.
-      </p>
-    </div>
+    <div class="sheet"><h1>Frozen workflow inventory — M-PEOPLE-AND-ROSTER</h1>
+<p>Definition: one primary actor&#39;s end-to-end journey from trigger and entry point to
+one user-visible result.</p>
+<p>Eight workflows. Every actor is a four-role operator — President, Vice-President,
+Secretary or General Manager — because Task 08 §6 restricts every surface in this
+mission to that group and this mission builds nothing player-facing.</p>
+<ol>
+<li><code>W1</code> — <strong>Look up any person the club holds</strong>: an operator needs to find a
+human — a coach, a committee member, an unconverted prospect, an alumnus, a
+player — and read what the club knows about them → the People list, searched
+by name, known-as or alias, and that person&#39;s record showing every durable
+field with its provenance class, with <code>not recorded</code> stated explicitly and
+anything their role does not grant absent rather than hidden.</li>
+<li><code>W2</code> — <strong>Correct a person&#39;s record</strong>: an operator learns a value is wrong or
+missing → the corrected record, attributed and audited, with contact values
+superseded rather than overwritten and a contested value flagged
+<code>disputed — awaiting verification</code> against the operator&#39;s recorded reason.</li>
+<li><code>W3</code> — <strong>Add or link a person who holds no membership</strong>: a coach, committee
+member or outside contact needs a record → a Person exists, either newly
+minted or linked to the existing record the duplicate check surfaced, never
+silently created and never silently merged.</li>
+<li><code>W4</code> — <strong>Merge two records for the same human</strong>: an operator finds the same
+person twice → one surviving record with both identities preserved, every
+reference re-pointed, and the merge audited with its reason.</li>
+<li><code>W5</code> — <strong>Work this season&#39;s roster</strong>: an operator needs to see and act across
+the squad → the wide command surface with the approved column set, combinable
+filters, sortable columns, search, and missing-data flags — replacing the four
+columns the vertical slice shipped.</li>
+<li><code>W6</code> — <strong>Open one player&#39;s record</strong>: an operator needs everything about one
+player → the authoritative individual view carrying identity, dated contacts,
+channel presence, academics, restricted fields, membership state and full
+status history, onboarding items with their per-item provenance, football
+assignments, availability, eligibility, kit, Blues counts, and this season&#39;s
+participation history — with the shipped activation control preserved.</li>
+<li><code>W7</code> — <strong>Work the missing-data queue</strong>: an operator needs to know who is
+incomplete and in what → a real, filterable list of people with required facts
+<code>not recorded</code> or <code>disputed</code>, per-field indicators, and the roster flag that
+leads into it.</li>
+<li><code>W8</code> — <strong>See what changed on a person and who changed it</strong>: an operator needs
+to know how a value came to be what it is → the append-only change history on
+the record it describes, naming actor, date and the superseded value.</li>
+</ol>
+<h2>Excluded stages and invariants</h2>
+<p><strong>Excluded stages.</strong> No journey in this mission composes, schedules, sends or
+transports a message; records or reads a consent basis; imports anything; creates
+a season; assigns a club role or an operator seat; deletes or erases a person;
+advances a recruitment funnel; changes an onboarding item&#39;s behaviour; or lets a
+person edit their own record. Each has a named owner in <code>00-boundary.md</code>.</p>
+<p><strong>No workflow for the phone.</strong> Mobile is a viewport, not a journey. Task 08 §5&#39;s
+condensed roster is how <code>W5</code> and <code>W6</code> render at 375px, and every mockup carries
+both frames, so a separate mobile workflow would double-count the same journey.</p>
+<p><strong>Invariants binding every workflow</strong> — stated once in <code>01-overview.md</code>, not
+restated per workflow: the four-role privacy boundary and absent-not-hidden
+rendering; the person-versus-season test; the frozen state vocabulary with
+<code>not recorded</code> never defaulted; attribution and audit on every edit, with
+contact values superseding rather than overwriting; nothing sent and no lawful
+basis recorded; and a field rendered only where its substrate exists on <code>main</code>.</p>
+<h2>Decision coverage</h2>
+<p>137 decisions across 12 sources carry exactly one disposition each, recorded in
+<code>state.json.decision_coverage</code> and rendered to <code>decision-coverage.md</code> once this
+inventory is frozen. 53 land on a workflow above; 52 belong to another mission;
+24 are deliberately shared with their other owners named; 4 are excluded on their
+source&#39;s own evidence; 3 are superseded with the dated approval that superseded
+them; 1 is delegated to the Mission Lead.</p>
+<p>Three of those deserve naming here because they are the seams most likely to be
+re-argued later:</p>
+<ul>
+<li><strong>The queue and the chase.</strong> Task 11 §1 states the division outright — Task 08
+defined the missing-data state and queue, Task 11 defines the chase — and §7
+consumes this queue rather than redefining it. <code>W7</code> builds the queue; every
+request, cadence and per-fact <code>refused</code> state is Mission 7&#39;s.</li>
+<li><strong>The duplicate check.</strong> Task 09 D7 locks dedup-before-create at every door.
+<code>W3</code> and <code>W4</code> build the matching and merge machinery and apply it on this
+mission&#39;s own path; Mission 6 wires its four doors to it and decides per-door
+behaviour, including the recorded walk-up drift.</li>
+<li><strong>Correction versus rights.</strong> Task 07 §3 places operator-executable correction
+on the person surface with actor, before/after and reason audited. <code>W2</code> builds
+that; the rights-based request intake, erasure and subject-access export stay
+with Mission 8.</li>
+</ul>
+<h2>Inventory amendments</h2>
+<p>None.</p>
+<h2>Brian approval</h2>
+<ul>
+<li>Exact approved list/count: eight workflows, <code>W1</code>–<code>W8</code>, in the order and under
+the names listed above — W1 Look up any person the club holds · W2 Correct a
+person&#39;s record · W3 Add or link a person who holds no membership · W4 Merge
+two records for the same human · W5 Work this season&#39;s roster · W6 Open one
+player&#39;s record · W7 Work the missing-data queue · W8 See what changed on a
+person and who changed it.</li>
+<li>Exact words: &quot;Okay, I think this is good.&quot;</li>
+<li>Date: 2026-08-26</li>
+<li>By: Brian Schuster</li>
+</ul>
+<p>Approved after Brian tested the count in both directions — why not six, why not
+twelve — and after two clarifications recorded during that review:</p>
+<ul>
+<li><strong>W3 is not a correction of Mission 1.</strong> The operator invitation path already
+performs a duplicate-checked create-or-link matching on given name, family
+name, known-as, aliases, login email and phone, and so does the returner
+intake through <code>roster.ts</code>; the code records that duplication as deliberate,
+each door checking the fact that decides whether it may proceed. W3 is a third
+door for a person who has neither a membership nor a login, reusing the same
+matching rule. Mission 1&#39;s surface is untouched. Whether the three
+implementations are later consolidated is implementation detail.</li>
+<li><strong>W8 covers the audit log</strong> and stays separate because W2 and W4 both write
+history and the history view is what makes them verifiable.</li>
+</ul>
+<p>One structural addition agreed in the same exchange: because W1, W5 and W6 all
+read the same field inventory, all 27 rows are dispositioned <strong>once</strong>, in a
+single table approved before W1&#39;s specification, rather than three times inside
+three specs.</p>
+</div>
   </body>
 </html>

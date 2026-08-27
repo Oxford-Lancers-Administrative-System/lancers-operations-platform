@@ -6,428 +6,225 @@
     <title>W3 · Add or link a person who holds no membership</title>
     <style>
       :root {
-        --primary: #0b3d91;
-        --text: rgba(0, 0, 0, 0.87);
-        --sec: rgba(0, 0, 0, 0.6);
-        --divider: rgba(0, 0, 0, 0.12);
-        --grey50: #fafafa;
-        --grey100: #f5f5f5;
+        --primary: #0b3d91; --text: rgba(0,0,0,0.87); --sec: rgba(0,0,0,0.6);
+        --divider: rgba(0,0,0,0.12); --grey50: #fafafa; --grey100: #f5f5f5;
         --warn: #663c00;
-        --font:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        font-family: var(--font);
-        color: var(--text);
-        background: var(--grey100);
-        line-height: 1.65;
-      }
-      .bar {
-        position: sticky;
-        top: 0;
-        z-index: 2;
-        background: #212121;
-        color: #fff;
-        padding: 10px 20px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 14px;
-        flex-wrap: wrap;
-      }
-      .bar .who {
-        font-weight: 700;
-        font-size: 0.95rem;
-      }
-      .bar .who span {
-        color: #bdbdbd;
-        font-weight: 400;
-        margin-left: 8px;
-        font-size: 0.8rem;
-      }
-      .bar a {
-        color: #fff;
-        text-decoration: none;
-        font-size: 0.85rem;
-        border: 1px solid rgba(255, 255, 255, 0.35);
-        border-radius: 6px;
-        padding: 4px 10px;
-        margin-left: 8px;
-      }
-      .bar a:hover {
-        background: rgba(255, 255, 255, 0.12);
-      }
-      .sheet {
-        max-width: 880px;
-        margin: 26px auto 100px;
-        background: #fff;
-        border: 1px solid var(--divider);
-        border-radius: 10px;
-        padding: 10px 30px 34px;
-      }
-      h1 {
-        font-size: 1.5rem;
-        margin: 22px 0 10px;
-        letter-spacing: -0.01em;
-      }
-      h2 {
-        font-size: 1.12rem;
-        margin: 30px 0 8px;
-        padding-top: 16px;
-        border-top: 1px solid var(--divider);
-      }
-      h3 {
-        font-size: 1rem;
-        margin: 20px 0 6px;
-      }
-      p,
-      li {
-        font-size: 0.95rem;
-      }
-      ul {
-        padding-left: 22px;
-      }
-      li {
-        margin: 5px 0;
-      }
-      code {
-        background: var(--grey100);
-        padding: 1px 5px;
-        border-radius: 4px;
-        font-size: 0.85em;
-      }
-      pre {
-        background: var(--grey100);
-        padding: 12px 14px;
-        border-radius: 8px;
-        overflow-x: auto;
-      }
-      pre code {
-        background: none;
-        padding: 0;
-      }
-      blockquote {
-        margin: 12px 0;
-        padding: 6px 16px;
-        border-left: 3px solid var(--divider);
-        color: var(--sec);
-      }
-      table {
-        border-collapse: collapse;
-        width: 100%;
-        display: block;
-        overflow-x: auto;
-        margin: 14px 0;
-        font-size: 0.875rem;
-      }
-      th,
-      td {
-        border: 1px solid var(--divider);
-        padding: 8px 10px;
-        text-align: left;
-        vertical-align: top;
-      }
-      thead th {
-        background: var(--grey50);
-        font-size: 0.78rem;
-        letter-spacing: 0.03em;
-        text-transform: uppercase;
-        color: var(--sec);
-        white-space: nowrap;
-      }
-      a {
-        color: var(--primary);
-      }
-      @media (max-width: 720px) {
-        .sheet {
-          margin: 14px 10px 60px;
-          padding: 6px 16px 24px;
-        }
-      }
-    </style>
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: var(--font); color: var(--text); background: var(--grey100); line-height: 1.65; }
+      .bar { position: sticky; top: 0; z-index: 2; background: #212121; color: #fff; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+      .bar .who { font-weight: 700; font-size: 0.95rem; }
+      .bar .who span { color: #bdbdbd; font-weight: 400; margin-left: 8px; font-size: 0.8rem; }
+      .bar a { color: #fff; text-decoration: none; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.35); border-radius: 6px; padding: 4px 10px; margin-left: 8px; }
+      .bar a:hover { background: rgba(255,255,255,0.12); }
+      .sheet { max-width: 880px; margin: 26px auto 100px; background: #fff; border: 1px solid var(--divider); border-radius: 10px; padding: 10px 30px 34px; }
+      h1 { font-size: 1.5rem; margin: 22px 0 10px; letter-spacing: -0.01em; }
+      h2 { font-size: 1.12rem; margin: 30px 0 8px; padding-top: 16px; border-top: 1px solid var(--divider); }
+      h3 { font-size: 1rem; margin: 20px 0 6px; }
+      p, li { font-size: 0.95rem; }
+      ul { padding-left: 22px; }
+      li { margin: 5px 0; }
+      code { background: var(--grey100); padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+      pre { background: var(--grey100); padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
+      pre code { background: none; padding: 0; }
+      blockquote { margin: 12px 0; padding: 6px 16px; border-left: 3px solid var(--divider); color: var(--sec); }
+      table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; margin: 14px 0; font-size: 0.875rem; }
+      th, td { border: 1px solid var(--divider); padding: 8px 10px; text-align: left; vertical-align: top; }
+      thead th { background: var(--grey50); font-size: 0.78rem; letter-spacing: 0.03em; text-transform: uppercase; color: var(--sec); white-space: nowrap; }
+      a { color: var(--primary); }
+      @media (max-width: 720px) { .sheet { margin: 14px 10px 60px; padding: 6px 16px 24px; } }</style>
   </head>
   <body>
     <div class="bar">
-      <div class="who">
-        W3 · Add or link a person who holds no membership<span
-          >M-PEOPLE-AND-ROSTER · specification</span
-        >
-      </div>
-      <div>
-        <a href="../mockups/W3-add-or-link-a-person-who-holds-no-membership.html">Mockup</a
-        ><a href="../mockups/index.html">Hub</a
-        ><a href="../specifications.html">All specifications</a>
-      </div>
+      <div class="who">W3 · Add or link a person who holds no membership<span>M-PEOPLE-AND-ROSTER · specification</span></div>
+      <div><a href="../mockups/W3-add-or-link-a-person-who-holds-no-membership.html">Mockup</a><a href="../mockups/index.html">Hub</a><a href="../specifications.html">All specifications</a></div>
     </div>
-    <div class="sheet">
-      <h1>W3 — Add or link a person who holds no membership</h1>
-      <ul>
-        <li>
-          Purpose/intended outcome: a human the club deals with who is not a player — a coach, a
-          committee member, somebody&#39;s parent, a contact at another club — gets a record, and
-          the club does not end up holding them twice.
-        </li>
-        <li>
-          Primary actor: a four-role operator — President, Vice-President, Secretary, General
-          Manager.
-        </li>
-        <li>
-          Trigger: a new Head Coach arrives; the AGM elects a Treasurer who has never played;
-          somebody needs to be reachable and there is nowhere to put them.
-        </li>
-        <li>Entry point: <strong>Add a person</strong> on the People list (<code>W1-01</code>).</li>
-        <li>
-          Route/placement: <code>/operate/people/new</code>. Neither the route nor its parent exists
-          on <code>main</code>; nothing occupies the path.
-        </li>
-        <li>
-          Controlling source: Task 08 §2 (a Person is minted at first identity; an unassigned Person
-          is permitted), §4 (the minimum to mint), §6 (authority); Task 09 D7 (dedup before create
-          at every door); LAN-146 A1.
-        </li>
-        <li>
-          User-visible result: a Person exists — either newly minted, or the existing record the
-          duplicate check surfaced — and it was never silently created and never silently merged.
-        </li>
-      </ul>
-      <h2>Required actions</h2>
-      <ul>
-        <li>
-          Take a first name, a last name and one contact point. Those are the minimum to mint, and
-          they are also the required set for somebody who is not a player.
-        </li>
-        <li>
-          <strong>Run the duplicate check before creating anything.</strong> Match on first name,
-          last name, aliases, every email and every phone — the same rule the operator invitation
-          path and the returner intake already use.
-        </li>
-        <li>
-          Show what the check found: each candidate with enough to tell them apart, and what
-          matched. Never a bare &quot;possible duplicate&quot;.
-        </li>
-        <li>
-          Offer three answers, and require one: <strong>this is them</strong> — link and stop;
-          <strong>this is somebody new</strong> — mint; <strong>stop</strong> — neither.
-        </li>
-        <li>
-          Record what the person is to the club at the moment of creation: a season role, a
-          committee-year role, or nothing.
-        </li>
-        <li>Land on the new or linked record.</li>
-      </ul>
-      <h2>State transitions</h2>
-      <ul>
-        <li>A Person row is created, or none is and an existing one is opened.</li>
-        <li>
-          Where a role was given, one role assignment is created against a season or a committee
-          year.
-        </li>
-        <li>
-          One audit event records the creation, the duplicate candidates that were shown, and which
-          answer the operator gave.
-        </li>
-        <li>
-          <strong>No membership is created.</strong> This path never puts anybody on the roster.
-        </li>
-      </ul>
-      <h2>Handoffs</h2>
-      <ul>
-        <li>To <code>W1</code> on the resulting record.</li>
-        <li>To <code>W2</code> to fill anything beyond the minimum.</li>
-        <li>To <code>W4</code> when the operator recognises the duplicate only after minting.</li>
-        <li>
-          To Mission 1 to grant a login or a club role that carries authority — this surface records
-          what somebody is, and grants nothing.
-        </li>
-        <li>
-          To the returner intake on the roster when the person being added is a player; that door
-          already exists and is not rebuilt here.
-        </li>
-        <li>
-          To Mission 6&#39;s recruitment doors, which call the same matching and decide their own
-          per-door behaviour.
-        </li>
-      </ul>
-      <h2>Dependencies and mission boundaries</h2>
-      <ul>
-        <li>
-          <strong>The matching rule already exists, three times</strong>, and the code records that
-          duplication as deliberate: the operator invitation path, the returner intake in
-          <code>roster.ts</code>, and now this. Each door checks the fact that decides whether it
-          may proceed. Whether the three are later consolidated is implementation detail.
-        </li>
-        <li>
-          <strong>LAN-146 A1: the member-facing duplicate check is unbound by tests.</strong> It is
-          absorbed here because the check is this mission&#39;s core machinery, and it is bound by
-          this workflow&#39;s acceptance.
-        </li>
-        <li>
-          A person given no role at all appears in no season&#39;s list and is reachable only
-          through <code>W1-04</code> or a direct link. Task 08 §2 permits it.
-        </li>
-        <li>
-          <strong>A coach given no season role is invisible in People.</strong> Brian, 2026-08-26: a
-          coach is part of the season. If this path mints one without a season role they land
-          outside every season, which is why the role is captured here rather than left to a second
-          visit.
-        </li>
-        <li>Recruitment doors, their fields and their stages are Mission 6&#39;s.</li>
-      </ul>
-      <h2>Exceptions and recovery</h2>
-      <ul>
-        <li>
-          <strong>An exact match on a contact point.</strong> Treated as a near-certainty: the
-          candidate is shown first, and minting anyway requires the operator to say so explicitly.
-        </li>
-        <li>
-          <strong>A merged-away record matches.</strong> It is never offered. The survivor is
-          offered in its place, which is what the shipped matching already does.
-        </li>
-        <li>
-          <strong>A match that is a different human.</strong> Minting proceeds and the fact that the
-          operator was shown the candidate and rejected it is audited, so a later merge can see the
-          decision was deliberate.
-        </li>
-        <li>
-          <strong>Nothing typed but a first name.</strong> The save is refused, naming what is
-          missing. The minimum is not negotiable at the door even though the queue will chase the
-          rest.
-        </li>
-        <li>
-          <strong>The person already holds a membership.</strong> The check surfaces them, linking
-          opens their existing record, and nothing is created.
-        </li>
-      </ul>
-      <h2>Safety, privacy, consent, and authority boundaries</h2>
-      <ul>
-        <li>Four-role only.</li>
-        <li>
-          <strong>The duplicate check discloses other people&#39;s names and contact details</strong
-          >, to an operator who has typed a name that might not be theirs. That is why the
-          capability is asserted on the query and not on the screen, and why the candidate list
-          shows only what distinguishes one person from another.
-        </li>
-        <li>Nothing here sends a message, records a lawful basis, or grants any access.</li>
-        <li>No login and no club role is created by this path, whatever role is recorded.</li>
-        <li>
-          Creation is audited with actor, timestamp, the candidates shown and the answer given.
-        </li>
-      </ul>
-      <h2>Acceptance evidence</h2>
-      <p>Against seeded synthetic data, an operator can:</p>
-      <ol>
-        <li>
-          mint a <strong>coach with a season role</strong> and find them in this season&#39;s People
-          list immediately;
-        </li>
-        <li>
-          type a name that already exists and be
-          <strong>shown the existing record before anything is created</strong>;
-        </li>
-        <li>
-          choose <strong>this is them</strong> and land on the existing record with nothing created;
-        </li>
-        <li>
-          choose <strong>this is somebody new</strong> over a near match, and find both records
-          present and the decision audited;
-        </li>
-        <li>be <strong>refused</strong> on a first name alone;</li>
-        <li>confirm a <strong>merged-away record is never offered</strong> and its survivor is;</li>
-        <li>
-          mint a person with <strong>no role at all</strong> and find them only outside the season;
-        </li>
-        <li>
-          confirm <strong>no membership was created</strong> by any path through this workflow.
-        </li>
-      </ol>
-      <h2>Core decisions</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Decision</th>
-            <th>Classification</th>
-            <th>Governing evidence or recommended default</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>The minimum to mint is first name, last name and one contact point</td>
-            <td><code>locked</code></td>
-            <td>
-              Task 08 §4 as amended 2026-08-26; last name became required at every rung the same day
-            </td>
-            <td>Settled</td>
-          </tr>
-          <tr>
-            <td>The duplicate check runs before creation and its result must be answered</td>
-            <td><code>locked</code></td>
-            <td>Task 09 D7</td>
-            <td>Settled</td>
-          </tr>
-          <tr>
-            <td>
-              A role — season or committee year — is captured at creation rather than on a second
-              visit
-            </td>
-            <td><code>proposed for owner approval</code></td>
-            <td>
-              Without it a coach lands outside every season, which contradicts the 2026-08-26 ruling
-              that a coach is part of the season
-            </td>
-            <td>Recommend yes</td>
-          </tr>
-          <tr>
-            <td>Minting over an exact contact-point match requires an explicit override</td>
-            <td><code>proposed for owner approval</code></td>
-            <td>A shared email is the strongest duplicate signal the club has</td>
-            <td>Recommend yes</td>
-          </tr>
-          <tr>
-            <td>Rejected duplicate candidates are audited, not discarded</td>
-            <td><code>proposed for owner approval</code></td>
-            <td>
-              It is what lets a later merge see the decision was deliberate rather than careless
-            </td>
-            <td>Recommend yes</td>
-          </tr>
-          <tr>
-            <td>This path never creates a membership</td>
-            <td><code>locked</code></td>
-            <td>The frozen model: the roster means people on the team</td>
-            <td>Settled</td>
-          </tr>
-          <tr>
-            <td>No login or club role with authority is granted here</td>
-            <td><code>locked</code></td>
-            <td>Task 08 §6; Mission 1 owns the seat</td>
-            <td>Settled</td>
-          </tr>
-          <tr>
-            <td>Whether the three duplicate-check implementations are consolidated</td>
-            <td><code>delegated to Mission Lead</code></td>
-            <td>
-              Recorded as deliberate duplication at inventory freeze; no product meaning either way
-            </td>
-            <td>Delegated</td>
-          </tr>
-          <tr>
-            <td>Candidate ordering and how many are shown</td>
-            <td><code>delegated to Mission Lead</code></td>
-            <td>The club holds hundreds of people, not millions</td>
-            <td>Delegated</td>
-          </tr>
-        </tbody>
-      </table>
-      <h2>Brian approval</h2>
-      <ul>
-        <li>Exact words:</li>
-        <li>Date:</li>
-      </ul>
-    </div>
+    <div class="sheet"><h1>W3 — Add or link a person who holds no membership</h1>
+<ul>
+<li>Purpose/intended outcome: a human the club deals with who is not a player —
+a coach, a committee member, somebody&#39;s parent, a contact at another club —
+gets a record, and the club does not end up holding them twice.</li>
+<li>Primary actor: a four-role operator — President, Vice-President, Secretary,
+General Manager.</li>
+<li>Trigger: a new Head Coach arrives; the AGM elects a Treasurer who has never
+played; somebody needs to be reachable and there is nowhere to put them.</li>
+<li>Entry point: <strong>Add a person</strong> on the People list (<code>W1-01</code>).</li>
+<li>Route/placement: <code>/operate/people/new</code>. Neither the route nor its parent exists
+on <code>main</code>; nothing occupies the path.</li>
+<li>Controlling source: Task 08 §2 (a Person is minted at first identity; an
+unassigned Person is permitted), §4 (the minimum to mint), §6 (authority);
+Task 09 D7 (dedup before create at every door); LAN-146 A1.</li>
+<li>User-visible result: a Person exists — either newly minted, or the existing
+record the duplicate check surfaced — and it was never silently created and
+never silently merged.</li>
+</ul>
+<h2>Required actions</h2>
+<ul>
+<li>Take a first name, a last name and one contact point. Those are the minimum to
+mint, and they are also the required set for somebody who is not a player.</li>
+<li><strong>Run the duplicate check before creating anything.</strong> Match on first name,
+last name, aliases, every email and every phone — the same rule the operator
+invitation path and the returner intake already use.</li>
+<li>Show what the check found: each candidate with enough to tell them apart, and
+what matched. Never a bare &quot;possible duplicate&quot;.</li>
+<li>Offer three answers, and require one: <strong>this is them</strong> — link and stop;
+<strong>this is somebody new</strong> — mint; <strong>stop</strong> — neither.</li>
+<li>Record what the person is to the club at the moment of creation: a season
+role, a committee-year role, or nothing.</li>
+<li>Land on the new or linked record.</li>
+</ul>
+<h2>State transitions</h2>
+<ul>
+<li>A Person row is created, or none is and an existing one is opened.</li>
+<li>Where a role was given, one role assignment is created against a season or a
+committee year.</li>
+<li>One audit event records the creation, the duplicate candidates that were shown,
+and which answer the operator gave.</li>
+<li><strong>No membership is created.</strong> This path never puts anybody on the roster.</li>
+</ul>
+<h2>Handoffs</h2>
+<ul>
+<li>To <code>W1</code> on the resulting record.</li>
+<li>To <code>W2</code> to fill anything beyond the minimum.</li>
+<li>To <code>W4</code> when the operator recognises the duplicate only after minting.</li>
+<li>To Mission 1 to grant a login or a club role that carries authority — this
+surface records what somebody is, and grants nothing.</li>
+<li>To the returner intake on the roster when the person being added is a player;
+that door already exists and is not rebuilt here.</li>
+<li>To Mission 6&#39;s recruitment doors, which call the same matching and decide their
+own per-door behaviour.</li>
+</ul>
+<h2>Dependencies and mission boundaries</h2>
+<ul>
+<li><strong>The matching rule already exists, three times</strong>, and the code records that
+duplication as deliberate: the operator invitation path, the returner intake in
+<code>roster.ts</code>, and now this. Each door checks the fact that decides whether it may
+proceed. Whether the three are later consolidated is implementation detail.</li>
+<li><strong>LAN-146 A1: the member-facing duplicate check is unbound by tests.</strong> It is
+absorbed here because the check is this mission&#39;s core machinery, and it is
+bound by this workflow&#39;s acceptance.</li>
+<li>A person given no role at all appears in no season&#39;s list and is reachable only
+through <code>W1-04</code> or a direct link. Task 08 §2 permits it.</li>
+<li><strong>A coach given no season role is invisible in People.</strong> Brian, 2026-08-26: a
+coach is part of the season. If this path mints one without a season role they
+land outside every season, which is why the role is captured here rather than
+left to a second visit.</li>
+<li>Recruitment doors, their fields and their stages are Mission 6&#39;s.</li>
+</ul>
+<h2>Exceptions and recovery</h2>
+<ul>
+<li><strong>An exact match on a contact point.</strong> Treated as a near-certainty: the
+candidate is shown first, and minting anyway requires the operator to say so
+explicitly.</li>
+<li><strong>A merged-away record matches.</strong> It is never offered. The survivor is offered
+in its place, which is what the shipped matching already does.</li>
+<li><strong>A match that is a different human.</strong> Minting proceeds and the fact that the
+operator was shown the candidate and rejected it is audited, so a later merge
+can see the decision was deliberate.</li>
+<li><strong>Nothing typed but a first name.</strong> The save is refused, naming what is
+missing. The minimum is not negotiable at the door even though the queue will
+chase the rest.</li>
+<li><strong>The person already holds a membership.</strong> The check surfaces them, linking
+opens their existing record, and nothing is created.</li>
+</ul>
+<h2>Safety, privacy, consent, and authority boundaries</h2>
+<ul>
+<li>Four-role only.</li>
+<li><strong>The duplicate check discloses other people&#39;s names and contact details</strong>, to
+an operator who has typed a name that might not be theirs. That is why the
+capability is asserted on the query and not on the screen, and why the
+candidate list shows only what distinguishes one person from another.</li>
+<li>Nothing here sends a message, records a lawful basis, or grants any access.</li>
+<li>No login and no club role is created by this path, whatever role is recorded.</li>
+<li>Creation is audited with actor, timestamp, the candidates shown and the answer
+given.</li>
+</ul>
+<h2>Acceptance evidence</h2>
+<p>Against seeded synthetic data, an operator can:</p>
+<ol>
+<li>mint a <strong>coach with a season role</strong> and find them in this season&#39;s People list
+immediately;</li>
+<li>type a name that already exists and be <strong>shown the existing record before
+anything is created</strong>;</li>
+<li>choose <strong>this is them</strong> and land on the existing record with nothing created;</li>
+<li>choose <strong>this is somebody new</strong> over a near match, and find both records
+present and the decision audited;</li>
+<li>be <strong>refused</strong> on a first name alone;</li>
+<li>confirm a <strong>merged-away record is never offered</strong> and its survivor is;</li>
+<li>mint a person with <strong>no role at all</strong> and find them only outside the season;</li>
+<li>confirm <strong>no membership was created</strong> by any path through this workflow.</li>
+</ol>
+<h2>Core decisions</h2>
+<table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Classification</th>
+<th>Governing evidence or recommended default</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>The minimum to mint is first name, last name and one contact point</td>
+<td><code>locked</code></td>
+<td>Task 08 §4 as amended 2026-08-26; last name became required at every rung the same day</td>
+<td>Settled</td>
+</tr>
+<tr>
+<td>The duplicate check runs before creation and its result must be answered</td>
+<td><code>locked</code></td>
+<td>Task 09 D7</td>
+<td>Settled</td>
+</tr>
+<tr>
+<td>A role — season or committee year — is captured at creation rather than on a second visit</td>
+<td><code>proposed for owner approval</code></td>
+<td>Without it a coach lands outside every season, which contradicts the 2026-08-26 ruling that a coach is part of the season</td>
+<td>Recommend yes</td>
+</tr>
+<tr>
+<td>Minting over an exact contact-point match requires an explicit override</td>
+<td><code>proposed for owner approval</code></td>
+<td>A shared email is the strongest duplicate signal the club has</td>
+<td>Recommend yes</td>
+</tr>
+<tr>
+<td>Rejected duplicate candidates are audited, not discarded</td>
+<td><code>proposed for owner approval</code></td>
+<td>It is what lets a later merge see the decision was deliberate rather than careless</td>
+<td>Recommend yes</td>
+</tr>
+<tr>
+<td>This path never creates a membership</td>
+<td><code>locked</code></td>
+<td>The frozen model: the roster means people on the team</td>
+<td>Settled</td>
+</tr>
+<tr>
+<td>No login or club role with authority is granted here</td>
+<td><code>locked</code></td>
+<td>Task 08 §6; Mission 1 owns the seat</td>
+<td>Settled</td>
+</tr>
+<tr>
+<td>Whether the three duplicate-check implementations are consolidated</td>
+<td><code>delegated to Mission Lead</code></td>
+<td>Recorded as deliberate duplication at inventory freeze; no product meaning either way</td>
+<td>Delegated</td>
+</tr>
+<tr>
+<td>Candidate ordering and how many are shown</td>
+<td><code>delegated to Mission Lead</code></td>
+<td>The club holds hundreds of people, not millions</td>
+<td>Delegated</td>
+</tr>
+</tbody></table>
+<h2>Brian approval</h2>
+<ul>
+<li>Exact words:</li>
+<li>Date:</li>
+</ul>
+</div>
   </body>
 </html>
