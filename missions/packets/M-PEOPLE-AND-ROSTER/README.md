@@ -1,9 +1,6 @@
 # M-PEOPLE-AND-ROSTER v1
 
-**Status:** `not_ready` — every workflow is approved and every mockup accepted, but
-four decisions taken on 2026-08-27 are not yet in Notion, so the controlling corpus
-still contradicts this packet on four points. One owner action from ready. See
-`packet.json → blockers`.
+**Status:** `approved` — every workflow approved, every mockup accepted, and the 2026-08-27 Notion amendment applied and verified. Awaiting Brian's merge; no execution is authorized before it.
 
 ## Outcome
 

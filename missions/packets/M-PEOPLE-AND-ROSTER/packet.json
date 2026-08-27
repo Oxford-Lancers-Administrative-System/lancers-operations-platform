@@ -1,7 +1,7 @@
 {
   "packet_version": 1,
   "mission_id": "M-PEOPLE-AND-ROSTER",
-  "status": "not_ready",
+  "status": "approved",
   "title": "People & Roster",
   "objective": "Every human the Oxford Lancers hold is findable, readable, correctable and de-duplicable by the four-role group, and this season's squad is a working command surface rather than a four-column list. An operator can find any person by name or alias; open a record that states what is known, what is not recorded, and who supplied each value; correct any of it with the change attributed and the old value superseded rather than erased; add a coach or committee member who holds no membership; merge two records for the same human without losing either identity; work a real missing-data list; and read the whole history of a person on the record it describes. Missions 6 and 7 then add their stages \u2014 recruit doors and funnel, onboarding and consent \u2014 to these surfaces rather than inventing their own.",
   "why_now": "Nothing downstream can be specified until this exists: Missions 6 and 7 both write to the durable person record, both call the duplicate check, and both display their stages on the People and Roster surfaces. The gap is live rather than theoretical \u2014 on 2026-08-21 Brian created person records against the deployed application while testing operator invitations and could neither correct nor remove them (LAN-147); there is no person surface, no update operation anywhere in the service layer, and the only correction path today is hand-written SQL, which the working agreement reserves to Brian and forbids to every agent. A shipped decision is also due to be superseded: the vertical slice let any linked operator read contact values as an interim ruling, and Task 08 \u00a76's four-role matrix supersedes it when this mission ships.",
@@ -24,7 +24,7 @@
       "id": "SRC-task-08",
       "kind": "notion",
       "ref": "https://app.notion.com/p/3bd488886d57812e9534cb00102abef8",
-      "version": "approved 2026-08-15; owner-amended 2026-08-26; fetched 2026-08-26T13:34Z"
+      "version": "approved 2026-08-15; owner-amended 2026-08-26 and 2026-08-27; refetched 2026-08-27T20:00Z"
     },
     {
       "id": "SRC-portfolio-v2-row-5",
@@ -824,7 +824,7 @@
   "gates": {
     "owner": [
       "Brian merges this packet before any execution begins.",
-      "Eleven Notion amendments applied on 2026-08-26 are verified; the amendments this intake raised on 2026-08-27 \u2014 the struck contested-value state, the struck verification mark, recruitment facts leaving the person record, and the Status rename \u2014 are recorded in the ledger and still need their dated Notion notes."
+      "The 2026-08-27 amendment is applied to Task 08 and verified by refetch: the contested-value state struck, the four source/confidence classes replaced by who supplied the value, no verification mark, recruitment facts off the person record, the ladder renamed Status, the roster board superseding \u00a75's default column set, and last name required at every rung."
     ],
     "external": [
       "None. This mission sends nothing, integrates with nothing, and requires no credential or third-party account."
@@ -1277,14 +1277,7 @@
     "W5 and W6 are re-photographed if main moved their surfaces",
     "No secret, no real member data and no unauthorized club concept is added"
   ],
-  "blockers": [
-    {
-      "id": "BLK-notion-amendments",
-      "text": "Four decisions taken on 2026-08-27 are recorded in the ledger and not yet in Notion, so the controlling corpus still contradicts this packet. Task 08 \u00a76 still describes a contested-value state that is struck; the source/confidence vocabulary still implies a verification mark that nothing backs; Task 08 \u00a74's recruitment facts are still shown on person detail; and the ladder is still called standing rather than status. An implementer reading Notion would build four things this packet forbids.",
-      "owner_action": "Brian applies the four dated amendments, or authorises the packet as the controlling record for execution with Notion reconciled afterwards.",
-      "blocks": "packet readiness only; every workflow is approved and every mockup accepted"
-    }
-  ],
+  "blockers": [],
   "approval": {
     "approved_by": "Brian Schuster",
     "date": "2026-08-27",
