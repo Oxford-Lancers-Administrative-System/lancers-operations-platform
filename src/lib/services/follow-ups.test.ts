@@ -156,6 +156,13 @@ afterEach(async () => {
   await observer.query(`delete from public.audit_events where actor_person_id in ${people}`, [
     MARKER,
   ]);
+  // `dispatchJob` mints answer tokens, and `person_access_tokens` references
+  // both `people` and `seasons` with `on delete restrict` — deliberately, since
+  // an access record is durable. Nothing cascades it away, so the two tests that
+  // dispatch have to hand it back before the people who own it.
+  await observer.query(`delete from public.person_access_tokens where person_id in ${people}`, [
+    MARKER,
+  ]);
   await observer.query("delete from public.people where given_name = $1", [MARKER]);
 });
 
