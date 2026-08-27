@@ -1290,9 +1290,12 @@
            Player column pinned. Both sides are the same running page at <code>ceff8ef</code>.`,
           [
             "<strong>New 2026-08-27: the columns are grouped and banded.</strong> Person, Onboarding, Season, in the order you named them. The band is labelled, so colour never carries the meaning on its own",
+            "<strong>New: filtering in three parts.</strong> A pinned set above the board — Status, Entry, Availability, Onboarding, Missing data; a caret in <em>every</em> column header; and the <strong>Filtered by</strong> chip bar showing everything currently narrowing the board, whichever control set it",
+            "<strong>The chip bar is why header filtering is safe here.</strong> <em>Coach group: Offense</em> is set on a column scrolled far off to the right. Without the bar the board would look mysteriously short and nothing would say why",
             "<strong>Person columns are not editable here.</strong> Each says <em>edit on the record</em> under its name and opens the person record, where W2's rules apply. Season columns edit in the cell",
             "Onboarding is one column today and its group is deliberately near-empty, because Mission 7 adds the rest later",
             "<strong>Decide — the cost of this order:</strong> Standing and Entry now sit in the Season block, off the first screen. They are what an operator scans, and they are now furthest from the name. Season-first would fix it and would put the person details you asked to see last",
+            "<strong>Decide:</strong> saved views — “active players with no emergency contact”, named and reopened — are deliberately not drawn. They are worth building once the board is real and the combinations that recur are known rather than guessed",
             "Date of birth and emergency contact are absent and cannot be added — Task 08 §6 keeps them off every list",
           ],
           "oxfordlancers.example/operate/roster",
@@ -1320,7 +1323,8 @@
           [
             "<strong>Fixed 2026-08-27:</strong> this screen was still the old nine-column list. It is the board",
             "Acceptance 2: two filters at once, and the count line follows them",
-            "Six filters are drawn — Status, Entry, College, Position, Onboarding, Missing — and the specification lists every filter the data could support",
+            "<strong>New:</strong> two filters here come from different places — one pinned, one from a column header — and both appear as chips. That is the point: where a filter was set stops mattering once it is set",
+            "The pinned set is five; every other column filters from its own caret. The specification lists every filter the data could support, roughly thirty",
             "Sorting is a link and stays in the URL, which is what <code>roster/page.tsx</code> already does",
           ],
           "oxfordlancers.example/operate/roster?status=active&entry=returning",

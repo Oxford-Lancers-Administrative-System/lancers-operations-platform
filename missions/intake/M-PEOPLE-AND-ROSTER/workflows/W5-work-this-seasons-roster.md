@@ -200,10 +200,21 @@ not optional if (2) is built.
 reopened. This is the one that pays for itself on repeated work, and the only one
 that survives the filter set growing to thirty.
 
-**Recommendation: 1 + 2 + 3, then 4.** The pinned set for what you always want,
-per-column for the other fifteen, the active-filter bar so nothing is ever
-filtered invisibly, and saved views once the board is real and the combinations
-that recur are known rather than guessed.
+**Settled 2026-08-27: 1 + 2 + 3, built. 4 deferred.** Brian: _"I liked a pin set
+of the most important ones… Then I think controlling the column header somehow to
+show this… and then it shows at the top that that's been filtered by, and then
+it's a removable chip. Let's do those three."_
+
+- **Pinned:** Status, Entry, Availability, Onboarding, Missing data. Status and
+  Entry are the two the surface already ships; the other three are his.
+- **Every other column filters from a caret in its own header.**
+- **A `Filtered by` bar** under the controls carries every active filter as a
+  removable chip, whichever control set it, with `Clear all`. It is **not
+  optional**: `W5-01` shows _Coach group: Offense_ set on a column scrolled far
+  off to the right, and without the bar the board would look mysteriously short
+  with nothing to say why.
+- **Saved views are deferred**, not rejected — worth building once the board is
+  real and the recurring combinations are known rather than guessed.
 
 **Not recommended: a filter drawer**, listing all thirty in one panel. It reads
 well in a specification and is slow to use, because every filter costs the same

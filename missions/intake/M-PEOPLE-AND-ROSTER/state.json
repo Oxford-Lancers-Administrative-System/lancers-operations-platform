@@ -149,10 +149,6 @@
           "text": "Decide the group order. Person first puts Standing and Entry off the first screen, and they are what an operator scans."
         },
         {
-          "screen_id": "W5-02",
-          "text": "Choose how filtering works across eighteen columns. Four options in the specification; recommendation is a pinned set, per-column filters, an active-filter bar and saved views."
-        },
-        {
           "screen_id": "W5-05",
           "text": "Decide whether eighteen columns is the right number."
         }
@@ -459,9 +455,7 @@
         "disposition": "workflow",
         "workflow": "W1",
         "reason": "The Person endures; a season membership is participation in one season. This is why People shows everyone and the roster shows only players.",
-        "also_referenced_by": [
-          "W5"
-        ]
+        "also_referenced_by": ["W5"]
       },
       {
         "id": "T08-alumni-derived-with-override",
@@ -490,9 +484,7 @@
         "disposition": "workflow",
         "workflow": "W1",
         "reason": "Every field displays its provenance class so player-provided never looks operator-confirmed.",
-        "also_referenced_by": [
-          "W6"
-        ]
+        "also_referenced_by": ["W6"]
       },
       {
         "id": "T08-dual-email-kinds",
@@ -650,11 +642,7 @@
         "disposition": "workflow",
         "workflow": "W2",
         "reason": "The view/edit matrix by information category is this mission's to implement; \u00a76 is the controlling table.",
-        "also_referenced_by": [
-          "W1",
-          "W5",
-          "W6"
-        ]
+        "also_referenced_by": ["W1", "W5", "W6"]
       },
       {
         "id": "T08-merge-preserves-both",
@@ -697,9 +685,7 @@
         "disposition": "workflow",
         "workflow": "W5",
         "reason": "In Release One the roster and player detail are reachable by the four-role group only; coaches keep the narrow LAN-110 tool.",
-        "also_referenced_by": [
-          "W1"
-        ]
+        "also_referenced_by": ["W1"]
       },
       {
         "id": "T08-column-visibility-by-grant",
@@ -714,9 +700,7 @@
         "disposition": "workflow",
         "workflow": "W5",
         "reason": "The mobile quick action is voice call only. A one-tap WhatsApp deep link would be manual sending outside the pipeline's consent checks, which R12/R15 prohibit.",
-        "also_referenced_by": [
-          "W6"
-        ]
+        "also_referenced_by": ["W6"]
       },
       {
         "id": "T08-player-detail-contents",
@@ -947,10 +931,7 @@
         "id": "T09-D7-dedup-before-create",
         "source_id": "SRC-task-09",
         "disposition": "shared_cross_mission",
-        "shared_owners": [
-          "M-PEOPLE-AND-ROSTER",
-          "M-RECRUITMENT"
-        ],
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-RECRUITMENT"],
         "reason": "Dedup-before-create is the locked R2 rule at every door. This mission builds the matching and merge machinery and applies it on its own add-or-link path; Mission 6 wires its four doors to it and decides per-door behaviour.",
         "evidence": "Dedup-before-create is the locked R2 rule at every door. This mission builds the matching and merge machinery and applies it on its own add-or-link path; Mission 6 wires its four doors to it and decides per-door behaviour."
       },
@@ -958,10 +939,7 @@
         "id": "T09-walk-up-dedup-drift",
         "source_id": "SRC-task-09",
         "disposition": "shared_cross_mission",
-        "shared_owners": [
-          "M-PEOPLE-AND-ROSTER",
-          "M-RECRUITMENT"
-        ],
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-RECRUITMENT"],
         "reason": "The shipped operator walk-up path creates a person with no interactive check, wider than the LAN-110 coach-only exception. Recorded as documented drift, reconciled at Mission 6's intake; the duplicates it produces are what this mission's merge resolves.",
         "evidence": "The shipped operator walk-up path creates a person with no interactive check, wider than the LAN-110 coach-only exception. Recorded as documented drift, reconciled at Mission 6's intake; the duplicates it produces are what this mission's merge resolves."
       },
@@ -1033,10 +1011,7 @@
         "id": "T10-item-9-contact-academic-rollup",
         "source_id": "SRC-task-10",
         "disposition": "shared_cross_mission",
-        "shared_owners": [
-          "M-PEOPLE-AND-ROSTER",
-          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
-        ],
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
         "reason": "Item 9 is a derived rollup whose missing pieces ARE the missing-data queue \u2014 Task 10's own words, one source of truth, no double-counting. This mission defines that queue; Mission 7 derives the item from it.",
         "evidence": "Item 9 is a derived rollup whose missing pieces ARE the missing-data queue \u2014 Task 10's own words, one source of truth, no double-counting. This mission defines that queue; Mission 7 derives the item from it."
       },
@@ -1052,10 +1027,7 @@
         "id": "T10-roster-filters-by-item-status",
         "source_id": "SRC-task-10",
         "disposition": "shared_cross_mission",
-        "shared_owners": [
-          "M-PEOPLE-AND-ROSTER",
-          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
-        ],
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
         "reason": "Roster filtering by item status is committed in Task 08's surface map and built here; the item states it filters on are Mission 7's.",
         "evidence": "Roster filtering by item status is committed in Task 08's surface map and built here; the item states it filters on are Mission 7's."
       },
@@ -1063,10 +1035,7 @@
         "id": "T10-activation-is-a-human-gate",
         "source_id": "SRC-task-10",
         "disposition": "shared_cross_mission",
-        "shared_owners": [
-          "M-PEOPLE-AND-ROSTER",
-          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
-        ],
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
         "reason": "Activation by the core four already ships on the surface this mission redesigns. The control is preserved here unchanged; changes to onboarding behaviour are Mission 7's.",
         "evidence": "Activation by the core four already ships on the surface this mission redesigns. The control is preserved here unchanged; changes to onboarding behaviour are Mission 7's."
       },
@@ -1074,10 +1043,7 @@
         "id": "T10-status-colours",
         "source_id": "SRC-task-10",
         "disposition": "shared_cross_mission",
-        "shared_owners": [
-          "M-PEOPLE-AND-ROSTER",
-          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
-        ],
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
         "reason": "Onboarding yellow, active green on the roster \u2014 a display decision on this mission's surface.",
         "evidence": "Onboarding yellow, active green on the roster \u2014 a display decision on this mission's surface."
       },
@@ -1160,10 +1126,7 @@
         "id": "T11-5-provenance-ranked-resolution",
         "source_id": "SRC-task-11",
         "disposition": "shared_cross_mission",
-        "shared_owners": [
-          "M-PEOPLE-AND-ROSTER",
-          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
-        ],
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
         "reason": "A player submission never silently overwrites an operator-confirmed, externally verified or derived value; it flags `disputed \u2014 awaiting verification` and returns to the queue for a four-role operator to resolve. This mission builds the flag, the queue and the resolution surface; Mission 7 builds the ingestion that raises it.",
         "evidence": "A player submission never silently overwrites an operator-confirmed, externally verified or derived value; it flags `disputed \u2014 awaiting verification` and returns to the queue for a four-role operator to resolve. This mission builds the flag, the queue and the resolution surface; Mission 7 builds the ingestion that raises it."
       },
@@ -1183,10 +1146,7 @@
         "id": "T11-2-1-who-is-in-the-loop",
         "source_id": "SRC-task-11",
         "disposition": "shared_cross_mission",
-        "shared_owners": [
-          "M-PEOPLE-AND-ROSTER",
-          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
-        ],
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
         "reason": "Players, coaches and committee members are all chased for person-level data and supply and correct it through signed links. This is why no self-service settings surface is needed anywhere, and why this mission's operator correction path is the interim answer.",
         "evidence": "Players, coaches and committee members are all chased for person-level data and supply and correct it through signed links. This is why no self-service settings surface is needed anywhere, and why this mission's operator correction path is the interim answer."
       },
@@ -1258,10 +1218,7 @@
         "id": "T07-correction-workflow-operator-executable",
         "source_id": "SRC-task-07",
         "disposition": "shared_cross_mission",
-        "shared_owners": [
-          "M-PEOPLE-AND-ROSTER",
-          "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"
-        ],
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"],
         "reason": "R13's acceptance is that correction is executable without an engineer, and \u00a73 places the act on the existing person surface with actor, before/after and reason audited. This mission builds that surface and its audit; Mission 8 owns the rights-based request intake and the erasure path.",
         "evidence": "R13's acceptance is that correction is executable without an engineer, and \u00a73 places the act on the existing person surface with actor, before/after and reason audited. This mission builds that surface and its audit; Mission 8 owns the rights-based request intake and the erasure path."
       },
@@ -1269,10 +1226,7 @@
         "id": "T07-free-text-discipline",
         "source_id": "SRC-task-07",
         "disposition": "shared_cross_mission",
-        "shared_owners": [
-          "M-PEOPLE-AND-ROSTER",
-          "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"
-        ],
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"],
         "reason": "Correction reasons and merge reasons are four-role restricted, age out on the schedule, and never flow verbatim into reports. This mission creates both fields, so the rule binds it directly.",
         "evidence": "Correction reasons and merge reasons are four-role restricted, age out on the schedule, and never flow verbatim into reports. This mission creates both fields, so the rule binds it directly."
       },
@@ -1280,10 +1234,7 @@
         "id": "T07-consent-precedence-on-merge",
         "source_id": "SRC-task-07",
         "disposition": "shared_cross_mission",
-        "shared_owners": [
-          "M-PEOPLE-AND-ROSTER",
-          "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"
-        ],
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"],
         "reason": "An open Task 07 follow-up. This mission's merge preserves both records and picks no winner, surfacing the conflict rather than resolving it, so Mission 8 can decide precedence without a migration to undo.",
         "evidence": "An open Task 07 follow-up. This mission's merge preserves both records and picks no winner, surfacing the conflict rather than resolving it, so Mission 8 can decide precedence without a migration to undo."
       },
@@ -1291,10 +1242,7 @@
         "id": "T07-meaningful-transitions",
         "source_id": "SRC-task-07",
         "disposition": "shared_cross_mission",
-        "shared_owners": [
-          "M-PEOPLE-AND-ROSTER",
-          "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"
-        ],
+        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"],
         "reason": "Corrections and merges are named meaningful transitions that must demonstrably produce audit events at cutover.",
         "evidence": "Corrections and merges are named meaningful transitions that must demonstrably produce audit events at cutover."
       },
@@ -1328,9 +1276,7 @@
         "disposition": "workflow",
         "workflow": "W1",
         "reason": "People and Roster as two four-role surfaces over one record is the row's own description of this mission.",
-        "also_referenced_by": [
-          "W5"
-        ]
+        "also_referenced_by": ["W5"]
       },
       {
         "id": "PV2-lan-147-absorbed",
@@ -1338,9 +1284,7 @@
         "disposition": "workflow",
         "workflow": "W2",
         "reason": "LAN-147 is absorbed into this mission's acceptance criteria; durable Person view and correction are primary.",
-        "also_referenced_by": [
-          "W1"
-        ]
+        "also_referenced_by": ["W1"]
       },
       {
         "id": "PV2-missing-data-queue-defined-here",
@@ -1498,9 +1442,7 @@
         "disposition": "workflow",
         "workflow": "W2",
         "reason": "Answered by Task 08 \u00a76's authority matrix: the four-role group corrects, and merges are four-role only.",
-        "also_referenced_by": [
-          "W4"
-        ]
+        "also_referenced_by": ["W4"]
       },
       {
         "id": "LAN147-Q5-before-real-data",
@@ -1552,9 +1494,7 @@
         "disposition": "workflow",
         "workflow": "W1",
         "reason": "Scope 4 was split on 2026-08-26; the people and roster half is this mission's primary coverage.",
-        "also_referenced_by": [
-          "W5"
-        ]
+        "also_referenced_by": ["W5"]
       },
       {
         "id": "AM-R10-applied-slice",
@@ -1639,10 +1579,7 @@
         "disposition": "workflow",
         "workflow": "W5",
         "reason": "Only the core four see this information; the narrowing of the shipped surfaces is deliberate.",
-        "also_referenced_by": [
-          "W1",
-          "W6"
-        ]
+        "also_referenced_by": ["W1", "W6"]
       },
       {
         "id": "OS-seed-extension-in-scope",
@@ -1650,9 +1587,7 @@
         "disposition": "workflow",
         "workflow": "W1",
         "reason": "Extending the synthetic seed where a People or Roster journey needs a case it lacks, so the mission is reviewable at close.",
-        "also_referenced_by": [
-          "W5"
-        ]
+        "also_referenced_by": ["W5"]
       },
       {
         "id": "OS-per-person-history-here",
@@ -1692,5 +1627,5 @@
       }
     ]
   },
-  "next_action": "W5 awaits two choices: the column group order, and how filtering works across eighteen columns"
+  "next_action": "W5's filtering is built and photographed. Two choices remain: the column group order, and whether eighteen columns is right"
 }

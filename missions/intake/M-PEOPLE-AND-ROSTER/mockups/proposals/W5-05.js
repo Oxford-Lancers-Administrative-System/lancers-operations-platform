@@ -77,6 +77,11 @@
   const PERSON_EDITS_ELSEWHERE = new Set(["College", "Matric", "Grad", "Degree"]);
   const READ_ONLY = new Set(["Player", "Contactable", "Missing", "Onboarding"]);
 
+  /* What this screen shows as already filtered. Coach group is the point of the
+     example: it lives far to the right and is scrolled off, so without the chip
+     bar the operator would have no way to see it was set. */
+  const ACTIVE_COLUMN_FILTERS = { "Coach group": "Offense" };
+
   const table = document.querySelector('table[aria-label="Roster"]');
   if (!table) return;
 
@@ -101,8 +106,18 @@
     const c = protoTh.cloneNode(true);
     c.style.whiteSpace = "nowrap";
     c.style.background = group.tint;
+    /* Every column filters from its own header. The control costs no extra
+       space, which is the only way this scales to eighteen columns — and it is
+       why the chip bar below the header is not optional: a filter set on a
+       column that is scrolled off would otherwise be invisible. */
+    const active = ACTIVE_COLUMN_FILTERS[col];
     c.innerHTML =
-      `<div>${col}</div>` +
+      '<div style="display:flex;align-items:center;gap:6px">' +
+      `<span>${col}</span>` +
+      (col === "Player"
+        ? ""
+        : `<span style="font-size:11px;line-height:1;color:${active ? "#0b3d91" : "rgba(0,0,0,0.32)"}">&#9660;</span>`) +
+      "</div>" +
       (PERSON_EDITS_ELSEWHERE.has(col)
         ? '<div style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;color:rgba(0,0,0,0.6)">edit on the record</div>'
         : "");
@@ -195,7 +210,7 @@
   })();
   if (filterRow && filterRow.parentNode) {
     const box = window.getComputedStyle(filterRow);
-    ["College", "Position", "Onboarding", "Missing"].forEach((label) => {
+    ["Availability", "Onboarding", "Missing data"].forEach((label) => {
       const el = document.createElement("div");
       el.style.cssText = [
         "position:relative", "min-width:132px", "height:" + box.height,
@@ -209,6 +224,33 @@
       filterRow.parentNode.appendChild(el);
     });
   }
+  /* The active-filter bar. Everything currently narrowing the board, whichever
+     control set it, each one removable. This is what makes header filtering
+     safe on a board wider than the screen. */
+  const CHIPS = [
+    { label: "Standing", value: "Active", from: "pinned" },
+    { label: "Coach group", value: "Offense", from: "column" },
+  ];
+  const filtersForm = document.querySelector('[data-testid="roster-filters"]');
+  if (filtersForm && CHIPS.length) {
+    const bar = document.createElement("div");
+    bar.style.cssText =
+      "display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:16px";
+    bar.innerHTML =
+      '<span style="font-size:0.8125rem;color:rgba(0,0,0,0.6)">Filtered by</span>' +
+      CHIPS.map(
+        (c) =>
+          '<span style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 6px 0 10px;' +
+          'border-radius:16px;background:rgba(11,61,145,0.08);color:#0b3d91;font-size:0.8125rem;white-space:nowrap">' +
+          `<span><strong>${c.label}:</strong> ${c.value}</span>` +
+          '<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;' +
+          'border-radius:50%;background:rgba(11,61,145,0.18);font-size:11px">&#215;</span></span>',
+      ).join("") +
+      '<button style="border:0;background:none;color:#0b3d91;font-size:0.8125rem;font-weight:600;' +
+      'cursor:pointer;padding:4px 6px">Clear all</button>';
+    filtersForm.appendChild(bar);
+  }
+
   if (container) container.scrollLeft = 4000;
 
   const search = document.querySelector('[data-testid="roster-filters"] label');
