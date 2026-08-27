@@ -2920,8 +2920,14 @@ describe("owner rule registry", () => {
  * Mission 4 ran one Lead from plan approval through every package because the
  * recycle rule was prose. These assert it is now a precondition on the events
  * that change state, and that the only way past it is Brian saying so.
+ *
+ * The suite timeout is raised for this block alone. Every append here takes the
+ * mission lock and re-reduces the whole journal, and a case that drives packages
+ * to merge across two Lead rotations writes enough events to outgrow the 5s
+ * default under the full suite's parallelism. The 92 cases above keep the
+ * default.
  */
-describe("Lead epochs", () => {
+describe("Lead epochs", { timeout: 60_000 }, () => {
   const dossier = (state: { eventCount: number }) => ({
     dossier: "/tmp/synthetic-dossier.json",
     dossier_source_index: state.eventCount - 1,
