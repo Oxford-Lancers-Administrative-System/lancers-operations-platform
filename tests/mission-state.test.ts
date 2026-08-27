@@ -3068,7 +3068,7 @@ describe("Lead epochs", () => {
     const derived = deriveEpochDefinition(read(m));
     expect(derived.phase).toBe("planning");
     expect(derived.scope).toEqual({ packages: [], gate: "plan-approval" });
-    expect(derived.permitted_action_classes).toEqual(["replan", "planning"]);
+    expect(derived.permitted_action_classes).toEqual(["replan", "planning", "contract"]);
 
     const opened = await m.append(openEvent(read(m)));
     expect(view(m).status).toBe("open");
@@ -3329,6 +3329,77 @@ describe("Lead epochs", () => {
     await expect(m.append(extend({ epoch_id: "E-2" }))).rejects.toThrow(
       /already used its one normal extension/,
     );
+  });
+
+  it("refuses an extension that takes a package and a correction at once", async () => {
+    const m = fixture();
+    await executionEpoch(m);
+    await m.append({
+      type: "worker-dispatched",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      worktree: ".claude/worktrees/wp-events",
+      branch: "feat/wp-events",
+    });
+    await m.append({
+      type: "worker-receipt",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      receipt: workerReceipt("completed"),
+    });
+    await m.append({
+      type: "pr-opened",
+      package_id: "WP-events-filter",
+      pr_number: 42,
+      head_sha: SHA,
+    });
+    await m.append({
+      type: "review-receipt",
+      package_id: "WP-events-filter",
+      receipt: reviewReceipt("blocked"),
+    });
+    await m.append({
+      type: "correction-dispatched",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      finding_ids: ["R-001"],
+    });
+    await m.append({
+      type: "merge-recorded",
+      package_id: "WP-attendance-export",
+      sha: SHA,
+      route: "owner",
+      owner_route_reason: "fixture",
+    });
+
+    // One bounded unit of work means one, not one of each.
+    await expect(
+      m.append({
+        type: "lead-epoch-adjusted",
+        kind: "extend-current",
+        source_epoch_id: "E-2",
+        target_epoch_id: "E-2",
+        old_scope: view(m).scope,
+        new_scope: {
+          packages: ["WP-events-filter", "WP-attendance-export", "WP-report-footer"],
+          gate: null,
+        },
+        old_exit_condition: view(m).exit_condition,
+        new_exit_condition: "Both finish.",
+        health: {
+          color: view(m).health.color,
+          reason_codes: view(m).health.reasons.map((reason: { code: string }) => reason.code),
+        },
+        accepted_reason_codes: view(m).health.reasons.map(
+          (reason: { code: string }) => reason.code,
+        ),
+        approved_by: "Brian",
+        authorization: "Take the footer and finish the correction.",
+        reason: "Both at once.",
+        correction_package_id: "WP-events-filter",
+        expires_at: new Date(clock(m) + EPOCH_LIMITS.extensionMs).toISOString(),
+      }),
+    ).rejects.toThrow(/never both/);
   });
 
   it("re-fences the epoch when its owner-approved extension expires", async () => {
@@ -3873,6 +3944,41 @@ describe("Lead epochs", () => {
         evidence: "revised decomposition presented",
       }),
     ).rejects.toThrow(/"plan-approved" is planning work/);
+  });
+
+  it("requires a live epoch before a revised packet may replace the contract", async () => {
+    const m = fixture();
+    await executionEpoch(m);
+    const revised = {
+      ...packet,
+      packet_version: packet.packet_version + 1,
+      gates: { owner: [], external: [] },
+    };
+
+    // A revised packet is not new execution, so a boundary still accepts the
+    // owner's contract arriving — that is how drift-stopped work resumes.
+    await m.append({ type: "lead-epoch-boundary-reached", reason: "Rotating the Lead." });
+    expect(view(m).status).toBe("boundary-pending");
+    await expect(m.append({ type: "packet-revised", packet: revised })).resolves.toBeTruthy();
+
+    // A closed epoch accepts nothing. Without this the mission's whole approved
+    // contract — requirements, owner gates, non-goals — could be replaced after
+    // the handover, by the very session that just gave the mission up.
+    const before = read(m);
+    await m.append({
+      type: "lead-epoch-closed",
+      reason: "The epoch reached its boundary.",
+      resume_token: "token-contract",
+      ...dossier(before),
+    });
+    await expect(
+      m.append({
+        type: "packet-revised",
+        packet: { ...revised, packet_version: revised.packet_version + 1 },
+      }),
+    ).rejects.toThrow(/is closed/);
+    // The contract that was there before the close is still the one in force.
+    expect(read(m).packet.packet_version).toBe(revised.packet_version);
   });
 
   it("replays an epoch-free journal unchanged and adopts an epoch prospectively", async () => {

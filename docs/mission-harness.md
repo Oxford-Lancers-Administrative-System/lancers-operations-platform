@@ -77,6 +77,12 @@ outside an already-active one, progress an out-of-scope package, file the
 integrated review, or write the closeout. `mission epoch drain` pins that to
 exactly the work that was active when draining began.
 
+A **revised approved packet** is neither: it is the owner's contract arriving,
+not new execution, so a boundary accepts it and drift-stopped work can resume.
+A closed epoch does not, because nobody holds the mission then — and that
+packet replaces the requirements, decisions, non-goals and owner gates the
+whole mission is judged against.
+
 Reading and checking never mutate. `mission status`, `mission epoch status` and
 journal reads stay available throughout, and the pure `receipt --check` /
 `review --check` paths never append — they report exactly the refusals the

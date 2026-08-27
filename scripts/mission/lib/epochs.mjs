@@ -108,7 +108,12 @@ export const EVENT_ACTION_CLASSES = {
   "merge-recorded": "progression",
   checkpoint: "always",
   "scope-drift": "always",
-  "packet-revised": "always",
+  // Restrictive events stay `always` — stopping work is safe from any state.
+  // A revised packet is the opposite: it replaces the approved contract, so it
+  // needs a Lead who currently holds the mission. It is not new execution, so a
+  // boundary still accepts it; a closed epoch does not, because nobody is
+  // holding the mission then.
+  "packet-revised": "contract",
   "package-reclaimed": "always",
   "mission-closeout": "closeout",
   "mission-finalized": "always",
@@ -133,7 +138,9 @@ export const PACKAGE_SCOPED_CLASSES = [
  * external service's work, not the Lead's.
  */
 export const PHASE_PERMITS = {
-  planning: ["replan", "planning"],
+  planning: ["replan", "planning", "contract"],
+  // Nothing durable, and no contract change: this epoch exists only to hand the
+  // mission to a fresh Lead.
   "post-plan-boundary": [],
   // `replan` but not `planning`: a Lead that finds the decomposition wrong
   // mid-wave may record a revised one, because recording a plan creates
@@ -142,15 +149,16 @@ export const PHASE_PERMITS = {
   // replan is what makes the harness derive `planning` in the first place.
   "implementation-wave": [
     "replan",
+    "contract",
     "sync",
     "dispatch",
     "correction-dispatch",
     "evidence",
     "progression",
   ],
-  integration: ["integration"],
-  "acceptance-cutover": [],
-  closeout: ["closeout"],
+  integration: ["integration", "contract"],
+  "acceptance-cutover": ["contract"],
+  closeout: ["closeout", "contract"],
 };
 
 /**
@@ -158,7 +166,7 @@ export const PHASE_PERMITS = {
  * anything. A correction dispatch is admitted only as a re-scope of a worker
  * that is already correcting in scope, which state.mjs decides.
  */
-export const BOUNDARY_PERMITTED_CLASSES = ["evidence", "progression"];
+export const BOUNDARY_PERMITTED_CLASSES = ["evidence", "progression", "contract"];
 
 const isNonEmptyString = (value) => typeof value === "string" && value.trim() !== "";
 

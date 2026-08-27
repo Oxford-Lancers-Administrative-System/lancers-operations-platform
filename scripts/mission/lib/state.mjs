@@ -1982,6 +1982,11 @@ export function validateEvent(event, state) {
               "A normal extension adds one adjacent eligible package or finishes one already-active correction cycle; this adds neither.",
             );
           }
+          if (added.length === 1 && correcting) {
+            errors.push(
+              `A normal extension is one bounded unit of work: an adjacent eligible package (${added[0]}) or an already-active correction cycle (${event.correction_package_id}), never both.`,
+            );
+          }
         }
         if (correcting) {
           const active = activeWorkerFor(state, event.correction_package_id);
