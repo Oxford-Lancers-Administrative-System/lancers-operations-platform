@@ -80,7 +80,7 @@
   /* What this screen shows as already filtered. Coach group is the point of the
      example: it lives far to the right and is scrolled off, so without the chip
      bar the operator would have no way to see it was set. */
-  const ACTIVE_COLUMN_FILTERS = { "Coach group": "Offense" };
+  const ACTIVE_COLUMN_FILTERS = { "Coach group": "Offense", Availability: "Green" };
 
   const table = document.querySelector('table[aria-label="Roster"]');
   if (!table) return;
@@ -201,6 +201,26 @@
   const sub = document.querySelector('[data-testid="season-label"]');
   if (sub) sub.textContent = sub.textContent.replace(/\d+ memberships/, "42 players · 18 columns");
 
+  /* Entry leaves the pinned set — Brian, 2026-08-27: "entry status: yes, entry:
+     no." It still filters, from its own column header like the other fifteen.
+     The pinned set is Status, Availability and Missing onboarding data. */
+  (() => {
+    const form = document.querySelector('[data-testid="roster-filters"]');
+    if (!form) return;
+    const entry = Array.from(form.querySelectorAll(".MuiFormControl-root")).find((f) =>
+      /^Entry/.test(f.textContent.trim()),
+    );
+    if (entry) entry.style.display = "none";
+    /* The search field takes the space the pinned controls give back. */
+    const search = Array.from(form.querySelectorAll(".MuiFormControl-root")).find((f) =>
+      /^Search/.test(f.textContent.trim()),
+    );
+    if (search) {
+      search.style.flexGrow = "1";
+      search.style.minWidth = "0";
+    }
+  })();
+
   const filterRow = (() => {
     const form = document.querySelector('[data-testid="roster-filters"]');
     if (!form) return null;
@@ -210,10 +230,13 @@
   })();
   if (filterRow && filterRow.parentNode) {
     const box = window.getComputedStyle(filterRow);
-    ["Availability", "Onboarding", "Missing data"].forEach((label) => {
+    [
+      { label: "Availability", width: 150 },
+      { label: "Missing onboarding data", width: 210 },
+    ].forEach(({ label, width }) => {
       const el = document.createElement("div");
       el.style.cssText = [
-        "position:relative", "min-width:132px", "height:" + box.height,
+        "position:relative", "min-width:" + width + "px", "height:" + box.height,
         "display:flex", "align-items:center", "justify-content:space-between",
         "gap:8px", "padding:0 14px", "border:1px solid rgba(0,0,0,0.23)",
         "border-radius:8px", "background:#fff", "font-size:1rem",
@@ -227,9 +250,20 @@
   /* The active-filter bar. Everything currently narrowing the board, whichever
      control set it, each one removable. This is what makes header filtering
      safe on a board wider than the screen. */
+  /*
+   * One filter, two controls. Brian, 2026-08-27: "if I change availability, I
+   * can change it on the column itself if I wanted to, but if I change it on the
+   * column, it changes in the hard-coded filter as well."
+   *
+   * So a pinned control and its column header are two views of the same filter,
+   * and the chip does not record which one set it — because once it is set, that
+   * stops mattering. Availability below is set from its column and is showing in
+   * the pinned control at the top of the page.
+   */
   const CHIPS = [
-    { label: "Standing", value: "Active", from: "pinned" },
-    { label: "Coach group", value: "Offense", from: "column" },
+    { label: "Standing", value: "Active" },
+    { label: "Availability", value: "Green" },
+    { label: "Coach group", value: "Offense" },
   ];
   const filtersForm = document.querySelector('[data-testid="roster-filters"]');
   if (filtersForm && CHIPS.length) {

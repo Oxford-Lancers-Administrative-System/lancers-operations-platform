@@ -205,9 +205,20 @@ of the most important ones… Then I think controlling the column header somehow
 show this… and then it shows at the top that that's been filtered by, and then
 it's a removable chip. Let's do those three."_
 
-- **Pinned:** Status, Entry, Availability, Onboarding, Missing data. Status and
-  Entry are the two the surface already ships; the other three are his.
+- **Pinned: three.** Status, Availability, **Missing onboarding data**. Amended
+  2026-08-27: Entry leaves the pinned set — _"entry status: yes, entry: no"_ —
+  and filters from its own column header like the other fifteen. The separate
+  Onboarding filter goes with it, because the useful question is not what
+  onboarding state somebody is in but **what onboarding data is missing**, which
+  is one filter, not two. The search field takes the space they give back.
 - **Every other column filters from a caret in its own header.**
+- **A pinned control and its column header are the same filter.** Brian,
+  2026-08-27: _"if I change availability, I can change it on the column itself if
+  I wanted to, but if I change it on the column, it changes in the hard-coded
+  filter as well."_ Two controls, one filter, each reflecting the other, and the
+  chip does not record which one set it — because once it is set, that stops
+  mattering. `W5-01` shows Availability set from its column and showing in the
+  pinned control.
 - **A `Filtered by` bar** under the controls carries every active filter as a
   removable chip, whichever control set it, with `Clear all`. It is **not
   optional**: `W5-01` shows _Coach group: Offense_ set on a column scrolled far
@@ -282,5 +293,6 @@ Against seeded synthetic data, an operator can:
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- Exact words: "w5 approved, killer"
+- Date: 2026-08-27
+- By: Brian Schuster

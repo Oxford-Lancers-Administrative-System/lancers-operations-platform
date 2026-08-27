@@ -141,19 +141,21 @@
     {
       "id": "W5",
       "name": "Work this season's roster",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W5-01",
-          "text": "Decide the group order. Person first puts Standing and Entry off the first screen, and they are what an operator scans."
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "w5 approved, killer",
+          "date": "2026-08-27",
+          "by": "Brian Schuster"
         },
-        {
-          "screen_id": "W5-05",
-          "text": "Decide whether eighteen columns is the right number."
+        "mock": {
+          "words": "w5 approved, killer",
+          "date": "2026-08-27",
+          "by": "Brian Schuster"
         }
-      ],
-      "approvals": {}
+      }
     },
     {
       "id": "W6",
@@ -1627,5 +1629,5 @@
       }
     ]
   },
-  "next_action": "W5's filtering is built and photographed. Two choices remain: the column group order, and whether eighteen columns is right"
+  "next_action": "W5 is done. W6 next: Brian wants the mission's UX decisions carried into player detail, which still reads as the old page"
 }
