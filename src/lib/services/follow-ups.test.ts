@@ -156,6 +156,12 @@ afterEach(async () => {
   await observer.query(`delete from public.audit_events where actor_person_id in ${people}`, [
     MARKER,
   ]);
+  // LAN-172: `dispatchJob` mints a Yes and a No one-time answer token per
+  // dispatch, keyed to the person rather than the invitation, so it must be
+  // cleared before the person it references or the delete is refused.
+  await observer.query(`delete from public.person_access_tokens where person_id in ${people}`, [
+    MARKER,
+  ]);
   await observer.query("delete from public.people where given_name = $1", [MARKER]);
 });
 

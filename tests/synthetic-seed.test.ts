@@ -350,4 +350,89 @@ describe.runIf(seeded)("correction round 3: the delivery states an operator can 
     );
     expect(orphaned, "a delivery_attempts row on a job with no person").toBe(0);
   });
+
+  // Fixture repair, mission M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY. Two
+  // named exceptions the assertions above never pinned on their own: a
+  // terminally-exhausted retry history (distinct from the no-channel
+  // exception, which also fails but never retries) and the one reminder a
+  // real answer cancels. Both are seeded on `jobEvents`' `genuine_failure`
+  // and `mid_chase` invitees respectively and neither moved when the live
+  // ladder below was added.
+  it("still carries a genuinely failed job with retry history, distinct from the no-channel exception", async () => {
+    // `job_type = 'reminder'` is what keeps this distinct from the two other
+    // failure exceptions above: `noUsableRoute` and the WhatsApp-carried-by-
+    // email story both rewrite the invitee's *invitation* (rung 0) job, never
+    // a reminder rung, so a regression that quietly deleted this exception in
+    // favour of one of the other two would still leave this query at zero.
+    const retried = await count(
+      `select count(*) as count
+         from public.notification_jobs
+        where job_type = 'reminder'
+          and status = 'failed'
+          and attempt_count > 1
+          and last_error is not null
+          and last_error not in ($1, $2)`,
+      [NO_USABLE_NUMBER_REASON, NO_USABLE_EMAIL_REASON],
+    );
+    expect(
+      retried,
+      "a failed reminder rung with more than one attempt and a reason other than the " +
+        "no-channel exceptions",
+    ).toBeGreaterThan(0);
+  });
+
+  it("still carries a cancelled reminder, called off by an answer that arrived", async () => {
+    const cancelled = await count(
+      `select count(*) as count
+         from public.notification_jobs
+        where status = 'cancelled' and cancelled_reason is not null`,
+    );
+    expect(cancelled, "a cancelled notification job with its reason recorded").toBeGreaterThan(0);
+  });
+
+  it("still carries an event past its escalation threshold, with a flag raised", async () => {
+    const escalations = await count(
+      `select count(*) as count from public.notification_jobs where job_type = 'escalation'`,
+    );
+    expect(escalations, "an escalation job").toBeGreaterThan(0);
+
+    const flags = await count("select count(*) as count from public.nonresponse_flags");
+    expect(flags, "a nonresponse flag raised against the escalation threshold").toBeGreaterThan(0);
+  });
+});
+
+// Fixture repair, mission M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY.
+// `scripts/seed-local.mjs` used to give a real ladder to exactly six
+// historical events (`jobEvents`), all of them already started — and
+// `readDueJobs` deliberately excludes a job whose event has already started,
+// so every one of those jobs was permanently undispatchable. A freshly
+// seeded database therefore never created `.lancers-runtime/delivery-sink/`
+// and carried no genuine answer link at all: W2 was unwalkable from a fresh
+// seed. This reads the seed's notification_jobs the same way
+// `messaging-scheduler.ts`'s own `readDueJobs` does — held_at is null, an
+// invitation or reminder rung, due now, on an event that is still approved
+// and still ahead — so a regression here is the exact fact the ticker would
+// discover on its first tick, not a fact only true of the fixture in
+// isolation.
+describe.runIf(seeded)("fixture repair: a live ladder exists to dispatch", () => {
+  it("carries at least one invitation or reminder job genuinely due right now", async () => {
+    const due = await count(
+      `select count(*) as count
+         from public.notification_jobs j
+         join public.events e on e.id = j.event_id
+        where j.held_at is null
+          and j.job_type in ('invitation', 'reminder')
+          and j.status in ('pending', 'ready')
+          and coalesce(j.scheduled_for, j.created_at) <= now()
+          and e.status = 'approved'
+          and (e.scheduled_on + coalesce(e.starts_at, '00:00'::time))
+                at time zone 'Europe/London' > now()`,
+    );
+    expect(
+      due,
+      "a dispatchable invitation/reminder job on a future approved event — without one, " +
+        "the messaging ticker's very next tick has nothing to send and the delivery sink is " +
+        "never created",
+    ).toBeGreaterThan(0);
+  });
 });
