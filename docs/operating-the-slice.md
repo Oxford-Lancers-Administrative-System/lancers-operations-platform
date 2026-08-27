@@ -331,69 +331,70 @@ pressing Retry after configuration is a complete repair.
 
 ### 7a. The safe local provider procedure
 
-To see the rest of the walk without a Meta account, point the adapter at a
-loopback stand-in. Nothing leaves the machine, no credential exists, and the
-application is unmodified — it builds and sends the same request it would send to
-Meta.
+**Corrected by LAN-181, F-L3.** This section used to have you run a hand-rolled
+stub HTTP server and point the adapter at it with `WHATSAPP_GRAPH_BASE_URL`.
+LAN-169 replaced that with a **local delivery sink** built into the
+application itself, chosen automatically by runtime detection whenever
+`APP_BASE_URL` is loopback and the runtime is not deployed — never by a flag,
+and never reachable from a real deployment however its variables are set. There
+is no separate process to run and no `WHATSAPP_GRAPH_BASE_URL` to set.
 
-Save this as `local-graph-stub.mjs` somewhere outside the repository, or in the
-git-ignored `.lancers-runtime/` directory:
-
-```js
-import http from "node:http";
-let n = 0;
-http
-  .createServer((req, res) => {
-    let body = "";
-    req.on("data", (c) => (body += c));
-    req.on("end", () => {
-      n += 1;
-      const p = JSON.parse(body);
-      const link = p.text?.body?.match(/https?:\/\/\S+/)?.[0] ?? "(template mode)";
-      console.log(`to=${p.to} link=${link}`);
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ messages: [{ id: `wamid.localstub.${n}` }] }));
-    });
-  })
-  .listen(4180, "127.0.0.1", () => console.log("stub on http://127.0.0.1:4180"));
-```
-
-Run it in its own terminal:
-
-```bash
-node .lancers-runtime/local-graph-stub.mjs
-```
-
-Add these to `.env.local` — every value is an obvious placeholder and none is a
-secret:
+Add these to `.env.local`, once, after `npm run db:start`/`db:reset` has
+already written the database connection, the Supabase keys and the review
+login — every value below is an obvious placeholder and none is a secret (see
+`docs/local-development.md`'s own copy of this recipe for where each line
+comes from):
 
 ```
 APP_BASE_URL=http://localhost:3000
-WHATSAPP_GRAPH_BASE_URL=http://127.0.0.1:4180
+SCHEDULER_TRIGGER_TOKEN=local-only-not-a-secret
 WHATSAPP_PHONE_NUMBER_ID=local-stub
 WHATSAPP_ACCESS_TOKEN=local-stub-not-a-secret
 WHATSAPP_TEMPLATE_NAME=event_invitation
-WHATSAPP_MESSAGE_MODE=text
+DELIVERY_RECIPIENT_ALLOWLIST=07700 900901
+EMAIL_API_KEY=local-stub-not-a-secret
+EMAIL_FROM_ADDRESS=Oxford Lancers <events@lancers.example.org>
+DELIVERY_EMAIL_ALLOWLIST=nobody@example.test
 ```
 
-`WHATSAPP_MESSAGE_MODE=text` is read **only** when `APP_BASE_URL` is a loopback
-address, and is parsed rather than pattern-matched, so a deployed environment
-cannot reach it however its variables are set.
+`APP_BASE_URL`'s port has to match the one `db:start` printed for your slot —
+`3000` above is the primary slot's. `DELIVERY_RECIPIENT_ALLOWLIST` has to hold
+the exact phone number § 4 had you type for Runbook Walker, `07700 900901` —
+the allowlist is the one control standing between an operator's press and a
+real person receiving a message (LAN-124), and it refuses everybody it is not
+told about, including this walk's own player. Restart `npm run dev` after
+editing `.env.local`: it is read once, at startup.
 
 Now press **Retry delivery** on the repair screen.
 
-**Expected.** The stub's terminal prints one line:
+**Expected.** The repair screen reads **Attempted**, Token **Live**, and Retry
+**Not retryable — Waiting for the provider to confirm delivery**. That is the
+honest state: Meta accepting a message is not Meta delivering one, and only a
+verified webhook moves it to Delivered.
+
+The sink wrote the rendered message to
+`.lancers-runtime/delivery-sink/<timestamp>-<provider-message-id>.json` —
+gitignored, one file per attempt, the real payload the application built and
+would have sent to Meta. Read the newest one:
+
+```bash
+ls -t .lancers-runtime/delivery-sink/ | head -1 | xargs -I{} cat .lancers-runtime/delivery-sink/{}
+```
+
+Its `payload.template.components` array carries two `button` entries, index
+`0` (**I'm attending**) and index `1` (**I'm not attending**), each with one
+`parameters[0].text` — a token suffix, `y.…` or `n.…`. § 8 needs the Yes one:
+prepend `APP_BASE_URL` and `/a/` to get the link a player's phone would have
+shown as a button:
 
 ```
-to=447700900901 link=http://localhost:3000/rsvp/<43-character token>
+http://localhost:3000/a/y.9c5ed16b-eef2-49ae-b871-27e0766bbde9.8wgtsjuzY6y9…
 ```
 
-The phone number the operator typed as `07700 900901` was normalised to E.164 by
-the application, and the RSVP link exists **only in that message**. The repair
-screen now reads **Attempted**, Token **Live**, and Retry **Not retryable —
-Waiting for the provider to confirm delivery**. That is the honest state: Meta
-accepting a message is not Meta delivering one, and only a verified webhook moves
-it to Delivered.
+The phone number the operator typed as `07700 900901` was normalised to E.164
+in the payload's own `to` field (`447700900901`), and the RSVP link exists
+**only in that message** — it is not recoverable from any screen, and nobody
+reads it out of the application.
 
 ### 7b. Against the real provider
 
@@ -411,8 +412,9 @@ conforming to it.
 
 ## 8. Answer as a player
 
-Open the link the stub printed. It is the link a player would have received; it
-is not recoverable from any screen, and nobody reads it out of the application.
+Open the Yes link § 7a extracted from the delivery sink file. It is the link a
+player would have received; it is not recoverable from any screen, and nobody
+reads it out of the application.
 
 **Expected, and it is designed for a phone.** A card headed with the event type,
 the event name, the date and time, then Player, Venue, Response deadline —

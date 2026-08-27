@@ -351,6 +351,56 @@ describe.runIf(seeded)("correction round 3: the delivery states an operator can 
     expect(orphaned, "a delivery_attempts row on a job with no person").toBe(0);
   });
 
+  // LAN-181, F-B2. The assertion above is satisfiable by a single stray row —
+  // it was, before this correction: `delivery_results` held 839 rows and
+  // `delivery_attempts` held 14, so every seeded event's diagnostics page but
+  // one read "Nothing has been attempted for this event yet" while its own
+  // Overview showed dozens of Delivered and Failed rows. This is the bound
+  // that catches that specific shape of regression: every automated result
+  // this fixture repair is responsible for (a manual send has no provider
+  // attempt to show, and is excluded on purpose) has to have left at least
+  // one matching attempt behind.
+  //
+  // Scoped to the seed's own two hardcoded provider strings
+  // (`whatsapp-business`/`resend`, `scripts/seed-local.mjs`'s own literals) —
+  // never to `meta_whatsapp_cloud`, `whatsapp-cloud.ts`'s real constant.
+  // Genuinely live-dispatched jobs pass through this same shared local
+  // database (`--no-file-parallelism` is not how `npm run test` runs), and an
+  // escalation with no usable recipient — F-B1/LAN-180, out of this ticket's
+  // scope and file ownership — writes a `delivery_results` row with no
+  // matching attempt by the *application's own* design, not the seed's.
+  // Narrowing to the seed's provider strings is what keeps this a check on
+  // `scripts/seed-local.mjs`, not an accidental, wrongly-scoped assertion
+  // about `messaging-scheduler.ts` this ticket does not own.
+  it("F-B2: every automated delivery_results row the seed itself wrote has a matching delivery_attempts row", async () => {
+    const missing = await count(
+      `select count(*) as count
+         from public.delivery_results r
+        where r.outcome <> 'manual'
+          and r.provider in ('whatsapp-business', 'resend')
+          and not exists (
+            select 1 from public.delivery_attempts a
+             where a.notification_job_id = r.notification_job_id
+          )`,
+    );
+    expect(
+      missing,
+      "an automated delivery_results row written with the seed's own provider string " +
+        "(not a manual send, not a live-dispatched job) with no matching delivery_attempts " +
+        "row for its job",
+    ).toBe(0);
+  });
+
+  // LAN-181, F-B2. `notification_jobs.person_id` used to be hardcoded `null`
+  // outside the three named exceptions this file already pins — every other
+  // job in the bulk historical loop and its ladder, roughly a thousand rows.
+  it("F-B2: no notification job carries a null person_id", async () => {
+    const withoutPerson = await count(
+      "select count(*) as count from public.notification_jobs where person_id is null",
+    );
+    expect(withoutPerson, "a notification_jobs row with no person_id").toBe(0);
+  });
+
   // Fixture repair, mission M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY. Two
   // named exceptions the assertions above never pinned on their own: a
   // terminally-exhausted retry history (distinct from the no-channel
@@ -416,13 +466,25 @@ describe.runIf(seeded)("correction round 3: the delivery states an operator can 
 // isolation.
 describe.runIf(seeded)("fixture repair: a live ladder exists to dispatch", () => {
   it("carries at least one invitation or reminder job genuinely due right now", async () => {
+    // LAN-181, F-W1/F-A1: not scoped to `status in ('pending', 'ready')` —
+    // `npm run test` runs the `database` project with file parallelism, and
+    // `messaging-scheduler.test.ts`'s own tests genuinely dispatch (or
+    // refuse) real ambient due jobs from this same live ladder as a
+    // consequence of proving their own fixtures get claimed. A job this
+    // seed scheduled due and a concurrent test has since claimed for real is
+    // *stronger* evidence the seed produced a genuinely dispatchable job than
+    // one still sitting untouched — the claim itself is the proof — so the
+    // status is deliberately not part of what this asserts. `cancelled` is
+    // the one status excluded: an answer arriving is a legitimate reason
+    // nothing remains to dispatch, not evidence the seed failed to schedule
+    // anything.
     const due = await count(
       `select count(*) as count
          from public.notification_jobs j
          join public.events e on e.id = j.event_id
         where j.held_at is null
           and j.job_type in ('invitation', 'reminder')
-          and j.status in ('pending', 'ready')
+          and j.status <> 'cancelled'
           and coalesce(j.scheduled_for, j.created_at) <= now()
           and e.status = 'approved'
           and (e.scheduled_on + coalesce(e.starts_at, '00:00'::time))
@@ -430,9 +492,50 @@ describe.runIf(seeded)("fixture repair: a live ladder exists to dispatch", () =>
     );
     expect(
       due,
-      "a dispatchable invitation/reminder job on a future approved event — without one, " +
+      "a notification job this seed scheduled due on a future approved event — without one, " +
         "the messaging ticker's very next tick has nothing to send and the delivery sink is " +
         "never created",
+    ).toBeGreaterThan(0);
+  });
+
+  // LAN-181, F-B2. Walk B found no invitee anywhere in the seed who was
+  // mid-ladder, unanswered and not yet past the escalation threshold — every
+  // candidate had either finished its ladder (the six historical stories, all
+  // on already-started events whose response deadline has therefore also
+  // passed) or already crossed the threshold. `chasePositionLabel` needs
+  // exactly this state to render a numbered chase position, and nobody had
+  // watched one render on screen.
+  it("carries an unanswered, mid-ladder invitee whose escalation threshold has not passed", async () => {
+    const midChase = await count(
+      `select count(*) as count from (
+         select i.id
+           from public.invitations i
+           join public.notification_jobs j on j.invitation_id = i.id
+           join public.events e on e.id = i.event_id
+          where e.status = 'approved'
+            and (e.scheduled_on + coalesce(e.starts_at, '00:00'::time))
+                  at time zone 'Europe/London' > now()
+            and not exists (
+              select 1 from public.rsvp_responses r where r.invitation_id = i.id
+            )
+            and not exists (
+              select 1 from public.nonresponse_flags f
+               where f.invitation_id = i.id and f.resolved_at is null
+            )
+          group by i.id
+         having count(*) filter (
+                  where j.job_type in ('invitation', 'reminder') and j.status = 'completed'
+                ) > 0
+            and count(*) filter (
+                  where j.job_type in ('invitation', 'reminder')
+                    and j.status in ('pending', 'ready')
+                ) > 0
+       ) candidates`,
+    );
+    expect(
+      midChase,
+      "an unanswered invitee with at least one completed rung and at least one still-pending " +
+        "rung, on a future approved event with no open escalation flag",
     ).toBeGreaterThan(0);
   });
 });

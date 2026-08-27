@@ -206,6 +206,44 @@ Without it, an approved event's invitation waits at its dispatch anchor, no
 reminder is ever sent, and nothing escalates. That looks exactly like a broken
 ladder and is not one — see `docs/operating-the-slice.md` §7.
 
+**A fresh `.env.local`, as `npm run db:start`/`db:reset` write it, cannot send
+anything yet — LAN-181, F-L3.** It carries the database connection, the
+Supabase keys and the review login, and nothing about delivery: no
+`APP_BASE_URL`, no `SCHEDULER_TRIGGER_TOKEN`, and none of `config.ts`'s
+required outbound variables. Following only what is above this point gets you
+`npm run messaging:ticker` refusing to start (`SCHEDULER_TRIGGER_TOKEN` is not
+set), or, with a token added, a ticker that runs and reports `accepted 0,
+refused N` forever with `.lancers-runtime/delivery-sink/` never created —
+because `resolveOutboundConfig` refuses to run without its own settings, the
+same way a deployment does. Add these by hand, once per worktree, after
+`db:start` or `db:reset` has written the file (they are placeholders — see
+"Two things" below for why none of this is a secret):
+
+```
+APP_BASE_URL=http://localhost:3000
+SCHEDULER_TRIGGER_TOKEN=local-only-not-a-secret
+WHATSAPP_PHONE_NUMBER_ID=local-stub
+WHATSAPP_ACCESS_TOKEN=local-stub-not-a-secret
+WHATSAPP_TEMPLATE_NAME=event_invitation
+DELIVERY_RECIPIENT_ALLOWLIST=07700 900901
+EMAIL_API_KEY=local-stub-not-a-secret
+EMAIL_FROM_ADDRESS=Oxford Lancers <events@lancers.example.org>
+DELIVERY_EMAIL_ALLOWLIST=nobody@example.test
+```
+
+`3000` is the primary slot's port; an overflow or mission slot's `.env.local`
+already carries a different `PORT` from `db:start` — match `APP_BASE_URL` to
+that value. `DELIVERY_RECIPIENT_ALLOWLIST` is the
+one line worth reading rather than pasting: it has to hold the phone number of
+whoever you want the club to be able to message, in the same free-text shape
+you would type on a roster form — § 4's walkthrough has you create
+"Runbook Walker" at `07700 900901` for exactly this reason. A seeded person's
+own number works too; find one with
+`select raw_value from public.contact_points where kind = 'phone' limit 1;`.
+`DELIVERY_EMAIL_ALLOWLIST` only matters once a reminder reaches the email rung
+or the WhatsApp-unresponsive fallback; a placeholder that matches nobody is
+fine until you need to see one of those.
+
 Two things make the loop reviewable with no Meta account and no Resend key:
 
 - **The local delivery sink** stands in for both providers, accepts the real

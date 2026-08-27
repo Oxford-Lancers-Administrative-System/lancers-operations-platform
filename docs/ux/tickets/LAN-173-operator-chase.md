@@ -155,7 +155,9 @@ Four workflows, none of which share files with each other:
 - Any migration. `nonresponse_flags`, `event_messaging_plans`, `messaging_schedules` and every
   column this package reads or writes were created by LAN-169 and merged; `supabase/migrations/`
   on this branch is unchanged from `main`.
-- A Status or Entry filter on the Follow-ups queue. Recorded under Known deviations.
+- An Entry filter on the Follow-ups queue. LAN-181, F-B3: the Status filter and OWNER-LAN173-05's
+  later When (date) filter were both built and both ship; only the mockup's second, undefined
+  "Entry" dropdown was deliberately dropped. See Known deviations.
 - The Monday exception report's own rendering — Mission 9's surface, fed by the same
   `nonresponse_flags` history this package reads.
 
@@ -206,19 +208,33 @@ Restated from `acceptance/W4.md`, `W5.md`, `W6.md` and `W8.md` as what was built
 
 ## Known deviations from the mission packet's mockups
 
-- **Diagnostics is additive, not a replacement.** `W6-02`'s mockup draws a single per-attempt
-  table as the whole of the diagnostics page. The page already carried a different, working
-  per-invitee table (LAN-78's UX-51, itself pinned by a security-relevant "complete inventory of
-  controls" test guarding against a manual-send path). Replacing it risked that guard along with
-  real, tested behaviour for a redesign the mockup alone does not clearly require dropping. The
-  per-attempt table was added beneath it instead, satisfying the acceptance criterion's letter
-  ("shows one row per attempt per channel… including the fallback") without removing a section an
-  operator already depends on. This is a considered choice, not a silent one — flagged here rather
-  than built and left unrecorded, per Q-22.
-- **The Follow-ups queue's search is name-only.** `W5-01`'s mockup shows Status and Entry dropdown
-  filters beside the search box. Given the package's overall scope, only the search box was built;
-  the queue's grouping, sort and status vocabulary are all present and correct, and a person can
-  always be found by name. Recorded as a scope trim rather than built and left undisclosed.
+- **Diagnostics is a replacement, not an addition — corrected by LAN-181, F-B3.** This section
+  used to record diagnostics as additive: at this ticket's own delivery, `W6-02`'s per-attempt
+  table was added _beneath_ the working per-invitee table (LAN-78's UX-51) rather than replacing
+  it, exactly for the reason the paragraph below still gives. That has since changed. A later
+  correction (OWNER-LAN173-02) replaced the per-invitee table outright — the diagnostics page now
+  shows only the per-attempt table (Person, Channel, Attempt, When, Outcome, Provider reference),
+  and RSVP information lives on the per-invitee delivery overview instead. The reasoning below is
+  kept as the record of the original decision; it no longer describes what ships.
+
+  Original note: `W6-02`'s mockup draws a single per-attempt table as the whole of the diagnostics
+  page. The page already carried a different, working per-invitee table, itself pinned by a
+  security-relevant "complete inventory of controls" test guarding against a manual-send path.
+  Replacing it risked that guard along with real, tested behaviour for a redesign the mockup alone
+  did not clearly require dropping. The per-attempt table was added beneath it instead, satisfying
+  the acceptance criterion's letter ("shows one row per attempt per channel… including the
+  fallback") without removing a section an operator already depended on. This was a considered
+  choice, not a silent one — flagged here rather than built and left unrecorded, per Q-22.
+
+- **The Follow-ups queue's search is name-only — corrected by LAN-181, F-B3.** This section used
+  to record that only the search box was built, against `W5-01`'s mockup showing Status and Entry
+  dropdown filters beside it. That is no longer the state of the code: the Status filter shipped
+  (OWNER-LAN173-01) and a When (date) filter was added afterwards (OWNER-LAN173-05); both are
+  live on the Follow-ups queue today. Only the mockup's second dropdown, "Entry", was deliberately
+  never built — no W5 spec text defines what it filters, and Brian has not defined it, so building
+  it would have meant inventing a meaning nobody approved. That remains true and is not a
+  deviation this package owes an apology for; it is recorded because Done requires this document to
+  match shipped behaviour, not because the choice was wrong.
 - **`schedule_change_notice`/`cancellation_notice` are recorded as owed and never sent** — see
   Explicitly not in this ticket. The mockups do not show this internal mechanism directly, but
   W8's own acceptance language ("informs everybody already invited of what changed") implies

@@ -24,11 +24,26 @@ import type { CancelFormState } from "./change-state";
  * every invited person. When Brian narrows one of the two lists, these actions
  * follow the one that gates messages to real people.
  *
- * W5 states it directly — "Approval capability is required, enforced in the
- * service layer" — and W6's "a non-operator attempts it: refused in the service
- * layer" is the same sentence from the other end. The guard here is the
- * courtesy; `event-amendment.ts` refuses regardless of which button was
- * rendered.
+ * W5 says "Approval capability is required, enforced in the service layer",
+ * and W6 says a non-operator attempt "is refused in the service layer" — but
+ * as of this correction (LAN-181, F-D1) neither is what `event-amendment.ts`
+ * does. It carries no authorization call at all; `requireActor()` there
+ * checks only that an actor id was named for the audit row, not that the
+ * caller holds `event_approval`. **This guard is not a courtesy in front of a
+ * service-layer backstop — it is the only gate that exists.** Deleting it from
+ * any of the three actions below removes every authorization check on the
+ * path that sends a message to every invited person, and
+ * `change-actions.test.ts` is written to prove exactly that: deleting the
+ * guard turns the suite red.
+ *
+ * A service-layer backstop was deliberately not added here. `event-amendment.ts`
+ * is LAN-180's file, adding one changes the three functions' signatures (they
+ * take `actorPersonId: string`, not role codes), and doing that as a
+ * side effect of a fixture-and-proof ticket would be exactly the kind of
+ * silent scope creep this working agreement rules out. If W5/W6's own words
+ * are meant literally, building that backstop is a decision for whoever owns
+ * `event-amendment.ts` next — not a gap this comment should keep asserting is
+ * already closed.
  *
  * ## Why the silence confirmation is checked twice — R156-A3
  *
