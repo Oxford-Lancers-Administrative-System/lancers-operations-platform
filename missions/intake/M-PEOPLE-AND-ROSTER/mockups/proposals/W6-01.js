@@ -114,6 +114,19 @@
     });
   });
 
+  /* The change history this page cannot reach today. W6's specification asks
+     for it directly rather than by way of the person record. */
+  document.querySelectorAll(".MuiPaper-root").forEach((card) => {
+    if (!/STATUS HISTORY/i.test(card.innerText)) return;
+    const head = card.querySelector("*");
+    const link = document.createElement("div");
+    link.style.cssText = "margin-top:12px";
+    link.innerHTML =
+      '<a href="#" style="color:#0b3d91;text-decoration:none;font-weight:600;font-size:0.875rem">' +
+      "Everything that changed about this person →</a>";
+    card.appendChild(link);
+  });
+
   /* The person's other seasons, which this page cannot reach today at all. */
   const last = cards[cards.length - 1];
   if (last && last.parentNode) {

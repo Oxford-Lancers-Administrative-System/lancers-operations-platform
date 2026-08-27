@@ -187,12 +187,12 @@
     {
       "id": "W6-01",
       "route": "/operate/roster/31dfc005-a9c9-45c1-8082-2012c9d3a6de",
-      "headSha": "fc8160b7b90a78acdccc6f9346a476c66d1ee9f3",
-      "slot": "overflow",
+      "headSha": "88deb92584e48b893242950728682bfcd569ede1",
+      "slot": "primary",
       "proposal": {
         "file": "missions/intake/M-PEOPLE-AND-ROSTER/mockups/proposals/W6-01.js",
-        "sha256": "8f4010f78bf4798154cee9d95172195e8bc44fe14c34a954b72ec6fb95d98448",
-        "bytes": 6439
+        "sha256": "5a33edb5752af57f6bb234a2ee6af09d78dee6e68e60f228a6b27705ec01638a",
+        "bytes": 7053
       },
       "captures": [
         {
@@ -228,17 +228,17 @@
           "file": "shots/W6-01-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-26T21:43:14.820Z"
+      "at": "2026-08-27T17:37:10.427Z"
     },
     {
       "id": "W6-02",
       "route": "/operate/roster/dd456f0e-bd86-43e6-9213-52cd1e7e23b1",
-      "headSha": "fc8160b7b90a78acdccc6f9346a476c66d1ee9f3",
-      "slot": "overflow",
+      "headSha": "88deb92584e48b893242950728682bfcd569ede1",
+      "slot": "primary",
       "proposal": {
         "file": "missions/intake/M-PEOPLE-AND-ROSTER/mockups/proposals/W6-02.js",
-        "sha256": "8f4010f78bf4798154cee9d95172195e8bc44fe14c34a954b72ec6fb95d98448",
-        "bytes": 6439
+        "sha256": "5a33edb5752af57f6bb234a2ee6af09d78dee6e68e60f228a6b27705ec01638a",
+        "bytes": 7053
       },
       "captures": [
         {
@@ -274,7 +274,7 @@
           "file": "shots/W6-02-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-26T21:43:19.135Z"
+      "at": "2026-08-27T17:37:15.106Z"
     }
   ]
 }
