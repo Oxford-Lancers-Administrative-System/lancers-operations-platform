@@ -29,6 +29,11 @@
 - **Be a board, not a list.** Wide, scrolling sideways inside its own container,
   with the player column pinned so a row stays identifiable at column sixteen.
 - **Sort and filter on every column.**
+- **Group the columns and band them**: Person, Onboarding, Season. Brian,
+  2026-08-27: _"I want to have the columns grouped together so that they're kind
+  of color-coded… That would make it really easy to know which columns are
+  available versus not."_ The band is labelled, so colour never carries the
+  meaning alone. Onboarding is one column today; Mission 7 adds the rest.
 - **Take the raw email and phone off the grid.** Task 08 §5 puts contactability
   indicators there, not values. This is a deliberate narrowing of what a routine
   screen discloses.
@@ -107,6 +112,46 @@ Activation stays on player detail, through the control that already exists.
 - Coaching group and responsible coach have no substrate on `main` and do not
   render at this mission's acceptance.
 - Consent state and channel presence likewise.
+
+## Every filter this board could carry
+
+Brian asked for the full set, 2026-08-27. This is what the data supports, not
+what is drawn — six are drawn on `W5-02`.
+
+**Person** — the operator narrows by who somebody is:
+
+- College · Matriculation year · Expected graduation · Degree field
+- Has a mobile · Has a personal email · Has a college email
+- Has an alias
+- Missing data: any, or which fact specifically
+- Alumni standing (current member · past member · never a member)
+
+**Onboarding** — Mission 7 owns the behaviour; the filters are this mission's:
+
+- Complete · required items outstanding · only optional outstanding · no items
+- A named item outstanding (subscription invoiced, subscription paid, kit sorted,
+  BUCS Play, Hudl, squad photo, comms groups)
+
+**Season** — everything the membership carries:
+
+- Standing (the six-rung ladder) · Entry (new · returning)
+- Position (O · D · ST) · has a jersey number · a specific number · which kit
+- Coach group · responsible coach
+- Formalwear (tie · bowtie · socks, each owned or not)
+- Blues (half · full · none)
+- Eligibility status, by competition
+- Availability (green · orange · red), where the viewer holds availability read
+
+**Cross-cutting:**
+
+- Under 18 — **derived** from date of birth. The value stays off the board; the
+  boolean is a filter, which is a decision worth making deliberately rather than
+  assuming
+- Constitutional membership — an existing derived view
+- The season itself: this season, or the outside-this-season view
+
+**Never filterable, because they are never on a list:** date of birth as a value,
+and emergency contact. Task 08 §6.
 
 ## Exceptions and recovery
 

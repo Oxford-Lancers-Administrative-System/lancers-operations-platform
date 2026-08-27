@@ -3,12 +3,12 @@
     {
       "id": "W5-01",
       "route": "/operate/roster",
-      "headSha": "7ba4b1e13d8608e5d71c11c9c827551e9088143b",
-      "slot": "primary",
+      "headSha": "e65cb7290a18019c0e718c36cb7fb2e9af061210",
+      "slot": "overflow",
       "proposal": {
         "file": "missions/intake/M-PEOPLE-AND-ROSTER/mockups/proposals/W5-01.js",
-        "sha256": "e124a77e0d4e7068369c9ff394eaee6d843d20423ae36de50ad59d1ac685a11f",
-        "bytes": 8966
+        "sha256": "b541f4ced98bb22f442ba9aea355821e57ef2cbd677d9a3a478377dbaef7ff7a",
+        "bytes": 8879
       },
       "captures": [
         {
@@ -44,17 +44,17 @@
           "file": "shots/W5-01-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-27T17:55:05.425Z"
+      "at": "2026-08-27T18:04:10.409Z"
     },
     {
       "id": "W5-02",
       "route": "/operate/roster?status=active&entry=returning",
-      "headSha": "fc8160b7b90a78acdccc6f9346a476c66d1ee9f3",
+      "headSha": "e65cb7290a18019c0e718c36cb7fb2e9af061210",
       "slot": "overflow",
       "proposal": {
         "file": "missions/intake/M-PEOPLE-AND-ROSTER/mockups/proposals/W5-02.js",
-        "sha256": "a207408f31de3d063d525bb6cf5812a52970a56131f9aa108afd036c27a42e46",
-        "bytes": 7168
+        "sha256": "b541f4ced98bb22f442ba9aea355821e57ef2cbd677d9a3a478377dbaef7ff7a",
+        "bytes": 8879
       },
       "captures": [
         {
@@ -90,17 +90,17 @@
           "file": "shots/W5-02-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-26T21:43:31.517Z"
+      "at": "2026-08-27T18:04:14.860Z"
     },
     {
       "id": "W5-03",
       "route": "/operate/roster?q=Brindlewood",
-      "headSha": "fc8160b7b90a78acdccc6f9346a476c66d1ee9f3",
+      "headSha": "e65cb7290a18019c0e718c36cb7fb2e9af061210",
       "slot": "overflow",
       "proposal": {
         "file": "missions/intake/M-PEOPLE-AND-ROSTER/mockups/proposals/W5-03.js",
-        "sha256": "a207408f31de3d063d525bb6cf5812a52970a56131f9aa108afd036c27a42e46",
-        "bytes": 7168
+        "sha256": "b541f4ced98bb22f442ba9aea355821e57ef2cbd677d9a3a478377dbaef7ff7a",
+        "bytes": 8879
       },
       "captures": [
         {
@@ -136,17 +136,17 @@
           "file": "shots/W5-03-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-26T21:43:35.238Z"
+      "at": "2026-08-27T18:04:18.866Z"
     },
     {
       "id": "W5-04",
       "route": "/operate/roster?q=zzzznobody",
-      "headSha": "fc8160b7b90a78acdccc6f9346a476c66d1ee9f3",
+      "headSha": "e65cb7290a18019c0e718c36cb7fb2e9af061210",
       "slot": "overflow",
       "proposal": {
         "file": "missions/intake/M-PEOPLE-AND-ROSTER/mockups/proposals/W5-04.js",
-        "sha256": "a207408f31de3d063d525bb6cf5812a52970a56131f9aa108afd036c27a42e46",
-        "bytes": 7168
+        "sha256": "b541f4ced98bb22f442ba9aea355821e57ef2cbd677d9a3a478377dbaef7ff7a",
+        "bytes": 8879
       },
       "captures": [
         {
@@ -182,17 +182,17 @@
           "file": "shots/W5-04-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-26T21:43:39.223Z"
+      "at": "2026-08-27T18:04:23.113Z"
     },
     {
       "id": "W5-05",
       "route": "/operate/roster",
-      "headSha": "7ba4b1e13d8608e5d71c11c9c827551e9088143b",
-      "slot": "primary",
+      "headSha": "e65cb7290a18019c0e718c36cb7fb2e9af061210",
+      "slot": "overflow",
       "proposal": {
         "file": "missions/intake/M-PEOPLE-AND-ROSTER/mockups/proposals/W5-05.js",
-        "sha256": "4ffc8b74cc64b025b524489acf704c53a8619f4e69028a7ecebab060042701ea",
-        "bytes": 9013
+        "sha256": "4ee0aa5c6fa4eefbd7ab0f115896215b846fae8a9bf2cb965dc0b066401377fc",
+        "bytes": 8926
       },
       "captures": [
         {
@@ -228,7 +228,7 @@
           "file": "shots/W5-05-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-27T17:55:10.582Z"
+      "at": "2026-08-27T18:04:30.989Z"
     },
     {
       "id": "W6-01",

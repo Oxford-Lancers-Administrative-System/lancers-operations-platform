@@ -145,12 +145,16 @@
       "stale": false,
       "feedback": [
         {
-          "screen_id": "W5-05",
-          "text": "Decide whether eighteen columns is the right number; every column added is one more to scroll past."
+          "screen_id": "W5-01",
+          "text": "Decide the group order. Person first puts Standing and Entry off the first screen, and they are what an operator scans."
         },
         {
-          "screen_id": "W5-01",
-          "text": "375px keeps the condensed cards rather than the board. Recommended as drawn."
+          "screen_id": "W5-05",
+          "text": "Decide whether eighteen columns is the right number."
+        },
+        {
+          "screen_id": "W5-02",
+          "text": "Choose which of the full filter set in the specification is built first; six are drawn."
         }
       ],
       "approvals": {}
@@ -1627,5 +1631,5 @@
       }
     ]
   },
-  "next_action": "W5 is rebuilt as a board and re-photographed. Read W5-01 and W5-05 together - they are one page scrolled"
+  "next_action": "W5 is grouped, banded and re-photographed on all five screens; the full filter set is in its specification"
 }

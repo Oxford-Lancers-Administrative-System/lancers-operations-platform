@@ -1284,32 +1284,30 @@
       const SCREENS = [
         S(
           "W5-01",
-          "The board — the left-hand columns",
-          `<strong>Rebuilt 2026-08-27 as a working board.</strong> Eighteen columns, wide, scrolling
-           inside its own container, sortable, and editable in the cell. The Player column stays put
-           so a row is still identifiable at column sixteen. Both sides are the same running page at
-           <code>ceff8ef</code>; the proposed side is that page with the board evaluated into it.`,
+          "The board — Person and Onboarding",
+          `Eighteen columns in three labelled, tinted groups — <strong>Person</strong>,
+           <strong>Onboarding</strong>, <strong>Season</strong> — wide, scrolling sideways, with the
+           Player column pinned. Both sides are the same running page at <code>ceff8ef</code>.`,
           [
-            "<strong>Every value on this grid is editable where it sits.</strong> The dashed underline is the affordance; Bertram's College is shown open. Onboarding is the one read-only column — Mission 7 owns its behaviour",
-            "<strong>Raw email and phone are still gone</strong>, replaced by indicators. <strong>Date of birth and emergency contact are not here and cannot be</strong> — Task 08 §6 and the cross-cutting invariants both lock them off every list. That is the one limit on “everything about them”",
-            "<strong>Consequence — this workflow is no longer read-only.</strong> Its approved specification said it wrote nothing. It now writes, which collides with W2: a correction needs a reason when it replaces an existing value, contacts supersede rather than overwrite, and every edit is audited. <strong>Decide:</strong> seasonal facts edit with no reason and durable person facts prompt for one, or one rule for both",
-            "<strong>Consequence — most of these columns have no storage.</strong> Positions, Blue #, White #, Coach group, Formalwear, Blues, Eligibility and Availability do not exist on <code>main</code>, and Mission 9 owns the first four. Making them editable means this mission builds that storage — real scope it did not have",
-            "<strong>Jersey is two columns, not one.</strong> Two kits, several numbers per player in one kit for about 8%, numbers that are not unique. Blue # and White # here; the fuller editor stays on player detail",
-            "Four filters join Status and Entry: College, Position, Onboarding, Missing",
-            "375px is <strong>not</strong> a spreadsheet. The condensed cards stay, because eighteen columns in a 375 frame is not a smaller board, it is an unusable one",
+            "<strong>New 2026-08-27: the columns are grouped and banded.</strong> Person, Onboarding, Season, in the order you named them. The band is labelled, so colour never carries the meaning on its own",
+            "<strong>Person columns are not editable here.</strong> Each says <em>edit on the record</em> under its name and opens the person record, where W2's rules apply. Season columns edit in the cell",
+            "Onboarding is one column today and its group is deliberately near-empty, because Mission 7 adds the rest later",
+            "<strong>Decide — the cost of this order:</strong> Standing and Entry now sit in the Season block, off the first screen. They are what an operator scans, and they are now furthest from the name. Season-first would fix it and would put the person details you asked to see last",
+            "Date of birth and emergency contact are absent and cannot be added — Task 08 §6 keeps them off every list",
           ],
           "oxfordlancers.example/operate/roster",
         ),
         S(
           "W5-05",
-          "The board — scrolled to its right-hand end",
-          `The same page as W5-01, scrolled sideways. A photograph of a horizontally scrolling grid
-           otherwise shows only the columns that happen to fit, so this is the rest of them.`,
+          "The board — Season",
+          `The same page as W5-01, scrolled to its right-hand end. The whole Season group, and the
+           one open cell showing what editing in place looks like.`,
           [
-            "Onboarding, Formalwear, Blues, Eligibility, Availability, Contactable and Missing",
-            "The Player column is still there on the left — that is the sticky column doing its job, not a second table",
-            "Five of these seven columns are empty because they have no substrate on <code>main</code>. That is what this mission would be building",
-            "<strong>Decide:</strong> whether eighteen is the right number. Every column you add is one more thing to scroll past on the way to the one you wanted",
+            "Standing, Entry, Positions, Blue #, White #, Coach group, Formalwear, Blues, Eligibility, Availability — all editable in the cell",
+            "Positions is shown open. A dropdown where the values are a fixed set, free text where they are not",
+            "The Player column is still pinned on the left; this is one page scrolled, not a second table",
+            "Eight of these ten columns have no storage on <code>main</code>. Building it is this mission's, by your decision",
+            "<strong>Decide:</strong> whether eighteen is the right number. Every column added is one more to scroll past on the way to the one you wanted",
           ],
           "oxfordlancers.example/operate/roster",
         ),
@@ -1317,10 +1315,12 @@
           "W5-02",
           "Filters combine",
           `Active <em>and</em> returning, applied together and immediately, from the URL — so a
-           filtered roster is a link an operator can send somebody.`,
+           filtered board is a link an operator can send somebody. <strong>Now the same board</strong>
+           as every other screen.`,
           [
+            "<strong>Fixed 2026-08-27:</strong> this screen was still the old nine-column list. It is the board",
             "Acceptance 2: two filters at once, and the count line follows them",
-            "The proposed side adds the three new filters to the same row without changing how the two that exist behave",
+            "Six filters are drawn — Status, Entry, College, Position, Onboarding, Missing — and the specification lists every filter the data could support",
             "Sorting is a link and stays in the URL, which is what <code>roster/page.tsx</code> already does",
           ],
           "oxfordlancers.example/operate/roster?status=active&entry=returning",
@@ -1328,12 +1328,12 @@
         S(
           "W5-03",
           "Search",
-          `Search on <code>main</code> is “name or contact”. The proposal makes it name or alias,
-           because the contact values it searched are no longer on the surface.`,
+          `Search on <code>main</code> is “name or contact”. It becomes name or alias, because the
+           contact values it searched are no longer on the surface.`,
           [
+            "<strong>Fixed 2026-08-27:</strong> the board, not the old list",
             "Acceptance 4: the search label changes with the columns — alias in, contact out",
-            "<strong>A limitation, stated:</strong> alias search cannot be photographed, because no alias data exists on <code>main</code> to match. The label is the proposal; the behaviour is W1's search rule applied here",
-            "The rows themselves are unchanged by the search — this screen is about which field is searched, not which people come back",
+            "<strong>A limitation, stated:</strong> alias search cannot be photographed, because no alias data exists on <code>main</code> to match",
           ],
           "oxfordlancers.example/operate/roster?q=Brindlewood",
         ),
@@ -1343,9 +1343,9 @@
           `The filtered empty state, which the shipped surface already distinguishes from a season
            with no memberships at all.`,
           [
-            "Acceptance 7: the filtered empty carries <em>Clear filters</em> and <em>Add player</em>; a system-empty season uses different copy",
-            "<strong>Not photographed:</strong> the system-empty state needs a season with no memberships, which the seeded data does not contain. It is unchanged from <code>main</code> and is not a proposal",
-            "The proposal changes nothing here, which is itself the point — a redesign that quietly rewrote the empty state would be scope nobody asked for",
+            "<strong>Fixed 2026-08-27:</strong> the board, not the old list",
+            "Acceptance 7: the filtered empty carries <em>Clear filters</em> and <em>Add player</em>",
+            "<strong>Not photographed:</strong> the system-empty state needs a season with no memberships, which the seeded data does not contain",
           ],
           "oxfordlancers.example/operate/roster?q=zzzznobody",
         ),

@@ -1,27 +1,26 @@
 /*
- * W5-01 — the roster's proposed column set, evaluated into the live page.
+ * W5-01 — the roster as a working board, evaluated into the live page.
  *
- * This is not a redesign of the application's style: every element it creates
- * is cloned from or matched to what the page already renders, so the two
- * photographs differ only by the proposal. What changes is which columns exist,
- * what each row carries, and that raw contact values leave the grid.
+ * Brian, 2026-08-27: "this needs to look like a spreadsheet… a giant board
+ * where I can add things here… I'm expecting to scroll side to side", and then:
+ * "I want to have the columns grouped together so that they're kind of
+ * color-coded… person details, onboarding details, season details."
  *
- * Values are derived from what the page is already showing. Nothing is
- * invented: a college is parsed out of the email domain the seed already uses,
- * contactability is read from the cells being replaced, and a field with no
- * substrate on `main` renders `not recorded` rather than a plausible guess.
+ * So the header carries a banded group row above the column names, and every
+ * cell in a group carries the same tint. Colour never carries the meaning on
+ * its own: the band is labelled.
+ *
+ * Two kinds of cell. A **season** cell edits where it sits. A **person** cell
+ * shows the value and opens the person record instead, because changing one is
+ * an override and W2 owns what that costs.
+ *
+ * Date of birth and emergency contact are absent and always will be — Task 08
+ * §6 keeps them off every list. Raw contact values likewise; the grid carries
+ * indicators.
  */
 (() => {
-  const NR = '<span style="color:rgba(0,0,0,0.38);font-style:italic">not recorded</span>';
-  const DASH = '<span style="color:rgba(0,0,0,0.6)">—</span>';
-
-  /* The rebuilt ladder. Eight stored values become five, and the operator sees
-     six rungs because Recruit lives on the prospect record. */
-  const LADDER = {
-    Confirmed: "Onboarding",
-    "Carried forward": "Onboarding",
-    Withdrawn: "Departed",
-  };
+  const NR = '<span style="color:rgba(0,0,0,0.26);font-style:italic">—</span>';
+  const LADDER = { Confirmed: "Onboarding", "Carried forward": "Onboarding", Withdrawn: "Departed" };
   const TONE = {
     Active: ["#2e7d32", "#fff"],
     Onboarding: ["#0288d1", "#fff"],
@@ -29,154 +28,187 @@
     Departed: ["rgba(0,0,0,0.08)", "rgba(0,0,0,0.87)"],
     Archived: ["rgba(0,0,0,0.08)", "rgba(0,0,0,0.87)"],
   };
-
-  const chip = (text, filled) => {
-    const [bg, fg] = TONE[text] ?? ["rgba(0,0,0,0.08)", "rgba(0,0,0,0.87)"];
-    return filled
-      ? `<span style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:16px;background:${bg};color:${fg};font-size:0.8125rem;white-space:nowrap">${text}</span>`
-      : `<span style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:16px;border:1px solid rgba(0,0,0,0.23);font-size:0.8125rem;white-space:nowrap">${text}</span>`;
+  const chip = (t) => {
+    const [bg, fg] = TONE[t] ?? ["rgba(0,0,0,0.08)", "rgba(0,0,0,0.87)"];
+    return `<span style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:16px;background:${bg};color:${fg};font-size:0.75rem;white-space:nowrap">${t}</span>`;
   };
-  const warnChip = (text) =>
-    `<span style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:16px;border:1px solid rgba(237,108,2,0.6);color:#663c00;font-size:0.8125rem;white-space:nowrap">${text}</span>`;
+  const outline = (t) =>
+    `<span style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:16px;border:1px solid rgba(0,0,0,0.23);font-size:0.75rem;white-space:nowrap">${t}</span>`;
+  const warn = (t) =>
+    `<span style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:16px;border:1px solid rgba(237,108,2,0.6);color:#663c00;font-size:0.75rem;white-space:nowrap">${t}</span>`;
 
-  /* The seed's colleges are real subdomains on the address the grid is losing,
-     so the column is derived from the page rather than made up. */
   const collegeOf = (email) => {
     const m = /@([a-z]+)\.ox\.ac\.example$/.exec((email || "").trim());
-    if (!m) return null;
-    return m[1].charAt(0).toUpperCase() + m[1].slice(1);
+    return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) : null;
   };
+  const text = (c) => (c ? c.textContent.trim() : "");
+  const has = (v) => v && v !== "—";
 
-  const text = (cell) => (cell ? cell.textContent.trim() : "");
-  const present = (v) => v && v !== "—";
+  /* Three groups, in the order Brian named them. Each is a band over its
+     columns and a tint on their cells. */
+  const GROUPS = [
+    { name: "", tint: "transparent", band: "transparent", ink: "inherit", cols: ["Player"] },
+    {
+      name: "Person",
+      tint: "rgba(69,90,100,0.05)",
+      band: "#455a64",
+      ink: "#fff",
+      cols: ["College", "Matric", "Grad", "Degree", "Contactable", "Missing"],
+    },
+    {
+      name: "Onboarding",
+      tint: "rgba(237,108,2,0.05)",
+      band: "#a8560a",
+      ink: "#fff",
+      cols: ["Onboarding"],
+    },
+    {
+      name: "Season",
+      tint: "rgba(11,61,145,0.05)",
+      band: "#0b3d91",
+      ink: "#fff",
+      cols: [
+        "Standing", "Entry", "Positions", "Blue #", "White #",
+        "Coach group", "Formalwear", "Blues", "Eligibility", "Availability",
+      ],
+    },
+  ];
+  const FLAT = GROUPS.flatMap((g) => g.cols.map((c) => ({ col: c, group: g })));
+  const PERSON_EDITS_ELSEWHERE = new Set(["College", "Matric", "Grad", "Degree"]);
+  const READ_ONLY = new Set(["Player", "Contactable", "Missing", "Onboarding"]);
 
   const table = document.querySelector('table[aria-label="Roster"]');
-  if (table) {
-    const head = table.tHead.rows[0];
-    const HEADERS = [
-      "Player",
-      "Standing",
-      "Entry",
-      "College",
-      "Positions",
-      "Jersey",
-      "Onboarding",
-      "Contactable",
-      "Missing",
-    ];
-    const template = head.cells[1];
-    head.innerHTML = "";
-    HEADERS.forEach((label) => {
-      const th = template.cloneNode(true);
-      th.textContent = label;
-      head.appendChild(th);
-    });
+  if (!table) return;
 
-    Array.from(table.tBodies[0].rows).forEach((row) => {
-      const name = row.cells[0].innerHTML;
-      const status = text(row.cells[1]);
-      const entry = text(row.cells[2]);
-      const email = text(row.cells[3]);
-      const phone = text(row.cells[4]);
-      const onboarding = text(row.cells[5]);
+  const head = table.tHead.rows[0];
+  const protoTh = head.cells[1];
 
-      const standing = LADDER[status] ?? status;
-      const college = collegeOf(email);
+  /* The band row, above the names. */
+  const bandRow = document.createElement("tr");
+  GROUPS.forEach((g) => {
+    const th = protoTh.cloneNode(false);
+    th.setAttribute("colspan", String(g.cols.length));
+    th.style.cssText =
+      `background:${g.band};color:${g.ink};text-align:left;white-space:nowrap;` +
+      "font-size:11px;letter-spacing:0.08em;text-transform:uppercase;padding:6px 12px;border:0";
+    th.textContent = g.name;
+    bandRow.appendChild(th);
+  });
+  table.tHead.insertBefore(bandRow, head);
 
-      const contact = [];
-      if (present(phone)) contact.push(chip("Mobile", false));
-      if (present(email)) contact.push(chip("Email", false));
+  head.innerHTML = "";
+  FLAT.forEach(({ col, group }) => {
+    const c = protoTh.cloneNode(true);
+    c.style.whiteSpace = "nowrap";
+    c.style.background = group.tint;
+    c.innerHTML =
+      `<div>${col}</div>` +
+      (PERSON_EDITS_ELSEWHERE.has(col)
+        ? '<div style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;color:rgba(0,0,0,0.6)">edit on the record</div>'
+        : "");
+    head.appendChild(c);
+  });
 
-      /* Counted only from facts this page can actually see. Date of birth,
-         emergency contact and the academic fields have no substrate on `main`,
-         so the real counts will be higher once they exist. */
-      let missing = 0;
-      if (!present(phone)) missing += 1;
-      if (!present(email)) missing += 1;
-      if (!college) missing += 1;
+  const editable = (html) =>
+    `<span style="display:inline-block;min-width:34px;border-bottom:1px dashed rgba(0,0,0,0.3);padding-bottom:1px">${html}</span>`;
 
-      const cellStyle = row.cells[1].getAttribute("class") || "";
-      const cells = [
-        name,
-        chip(standing, true),
-        entry,
-        college ?? NR,
-        NR,
-        NR,
-        onboarding,
-        contact.length ? contact.join(" ") : DASH,
-        missing ? warnChip(`${missing} missing`) : DASH,
-      ];
+  Array.from(table.tBodies[0].rows).forEach((row) => {
+    const name = row.cells[0].innerHTML;
+    const status = text(row.cells[1]);
+    const entry = text(row.cells[2]);
+    const email = text(row.cells[3]);
+    const phone = text(row.cells[4]);
+    const onboarding = text(row.cells[5]);
+    const college = collegeOf(email);
 
-      const proto = row.cells[1];
-      row.innerHTML = "";
-      cells.forEach((html) => {
-        const td = proto.cloneNode(false);
-        td.setAttribute("class", cellStyle);
-        td.style.whiteSpace = "normal";
-        td.innerHTML = html;
-        row.appendChild(td);
-      });
-    });
-  }
+    const contact = [];
+    if (has(phone)) contact.push(outline("Mobile"));
+    if (has(email)) contact.push(outline("Email"));
+    let missing = 0;
+    if (!has(phone)) missing += 1;
+    if (!has(email)) missing += 1;
+    if (!college) missing += 1;
 
-  /* The 375px card list carries the same change: standing, entry, college and
-     the missing flag; no address and no number. */
-  document.querySelectorAll('[data-testid="roster-card"]').forEach((card) => {
-    const chips = card.querySelectorAll(".MuiChip-root");
-    chips.forEach((c) => {
-      const label = c.querySelector(".MuiChip-label");
-      if (!label) return;
-      const mapped = LADDER[label.textContent.trim()];
-      if (mapped) label.textContent = mapped;
+    const VALUES = {
+      Player: name,
+      College: college ?? NR,
+      Matric: NR, Grad: NR, Degree: NR,
+      Contactable: contact.length ? contact.join(" ") : NR,
+      Missing: missing ? warn(String(missing)) : NR,
+      Onboarding: onboarding,
+      Standing: chip(LADDER[status] ?? status),
+      Entry: entry,
+      Positions: NR, "Blue #": NR, "White #": NR, "Coach group": NR,
+      Formalwear: NR, Blues: NR, Eligibility: NR, Availability: NR,
+    };
+
+    const proto = row.cells[1];
+    const cls = proto.getAttribute("class") || "";
+    row.innerHTML = "";
+    FLAT.forEach(({ col, group }, i) => {
+      const td = proto.cloneNode(false);
+      td.setAttribute("class", cls);
+      td.style.whiteSpace = "nowrap";
+      td.style.background = group.tint;
+      if (i === 0) {
+        td.style.position = "sticky";
+        td.style.left = "0";
+        td.style.background = "#fff";
+        td.style.zIndex = "1";
+      }
+      const v = VALUES[col];
+      td.innerHTML = READ_ONLY.has(col) || PERSON_EDITS_ELSEWHERE.has(col) ? v : editable(v);
+      row.appendChild(td);
     });
   });
 
-  /* The header line and the filter set. */
+  table.style.minWidth = "2100px";
+  const container = table.closest(".MuiTableContainer-root");
+  if (container) container.style.overflowX = "auto";
+  [bandRow.cells[0], head.cells[0]].forEach((c) => {
+    if (!c) return;
+    c.style.position = "sticky";
+    c.style.left = "0";
+    c.style.zIndex = "2";
+  });
+  if (head.cells[0]) head.cells[0].style.background = "#fafafa";
+  if (bandRow.cells[0]) bandRow.cells[0].style.background = "#fff";
+
+  /* One season cell open. Positions, never a person column. */
+  const positionsIndex = FLAT.findIndex((f) => f.col === "Positions");
+  const target = table.tBodies[0].rows[1]?.cells[positionsIndex];
+  if (target) {
+    target.innerHTML =
+      '<span style="display:inline-flex;align-items:center;gap:6px;border:2px solid #0b3d91;border-radius:6px;padding:2px 8px;background:#fff">' +
+      '<span>O · ST</span><span style="color:rgba(0,0,0,0.54)">&#9662;</span></span>';
+  }
+
   const sub = document.querySelector('[data-testid="season-label"]');
-  if (sub) sub.textContent = sub.textContent.replace(/\d+ memberships/, "42 players");
+  if (sub) sub.textContent = sub.textContent.replace(/\d+ memberships/, "42 players · 18 columns");
 
-  /* The filter set. Task 08 §5 makes them combinable and immediate; the two
-     that exist keep their shape and three more are added beside them, built to
-     match rather than cloned, because the shipped control is a `TextField
-     select` whose innards do not survive a clone. */
   const filterRow = (() => {
-    const labels = Array.from(
-      document.querySelectorAll('[data-testid="roster-filters"] label'),
+    const form = document.querySelector('[data-testid="roster-filters"]');
+    if (!form) return null;
+    return Array.from(form.querySelectorAll(".MuiFormControl-root")).find((f) =>
+      /^Entry/.test(f.textContent.trim()),
     );
-    const entry = labels.find((l) => l.textContent.trim() === "Entry");
-    return entry ? entry.closest(".MuiFormControl-root, .MuiTextField-root") : null;
   })();
-
   if (filterRow && filterRow.parentNode) {
     const box = window.getComputedStyle(filterRow);
-    ["College", "Onboarding", "Missing data"].forEach((label) => {
+    ["College", "Position", "Onboarding", "Missing"].forEach((label) => {
       const el = document.createElement("div");
       el.style.cssText = [
-        "position:relative",
-        "min-width:150px",
-        "height:" + box.height,
-        "display:flex",
-        "align-items:center",
-        "justify-content:space-between",
-        "gap:8px",
-        "padding:0 14px",
-        "border:1px solid rgba(0,0,0,0.23)",
-        "border-radius:8px",
-        "background:#fff",
-        "font-size:1rem",
-        "color:rgba(0,0,0,0.87)",
+        "position:relative", "min-width:132px", "height:" + box.height,
+        "display:flex", "align-items:center", "justify-content:space-between",
+        "gap:8px", "padding:0 14px", "border:1px solid rgba(0,0,0,0.23)",
+        "border-radius:8px", "background:#fff", "font-size:1rem",
       ].join(";");
       el.innerHTML =
-        '<span style="position:absolute;top:-9px;left:9px;background:#fff;padding:0 6px;' +
-        'font-size:0.75rem;line-height:1;color:rgba(0,0,0,0.6)">' +
-        label +
-        "</span><span>All</span><span style=\"color:rgba(0,0,0,0.54)\">\u25be</span>";
+        '<span style="position:absolute;top:-9px;left:9px;background:#fff;padding:0 6px;font-size:0.75rem;line-height:1;color:rgba(0,0,0,0.6)">' +
+        label + '</span><span>All</span><span style="color:rgba(0,0,0,0.54)">&#9662;</span>';
       filterRow.parentNode.appendChild(el);
     });
   }
-
-  /* The search field's own label follows the columns: alias in, contact out. */
   const search = document.querySelector('[data-testid="roster-filters"] label');
   if (search && /Search/.test(search.textContent)) search.textContent = "Search name or alias";
 })();
