@@ -37,6 +37,13 @@
 - Fill a field that reads `not recorded` without a reason. **Change a field that
   already has a value only with a reason**, recorded and shown on the history.
 - Flag an alias as the display name, add an alias, and remove one.
+- **Validate every phone and email before the save is offered.** An email must be
+  a syntactically valid address; a phone must be a plausible number, UK mobiles
+  first. The refusal is per field, names the rule rather than saying "invalid",
+  and the save is unavailable rather than failing afterwards.
+- **Check the number against WhatsApp before saving it.** Where the number being
+  replaced is on WhatsApp for the active season, say so and say what follows,
+  before the save rather than after it.
 - Return to where the operator came from — the record, or the next row of the
   queue.
 
@@ -106,7 +113,14 @@ The division that follows from the same test that split them:
 - **`W7` is where it becomes work**, if the required set grows to include it.
   That is an owner decision and is not assumed here.
 
-**Nothing of this is built in this mission.** On WhatsApp has no substrate on
+**Amended 2026-08-27.** Brian settled the operator-facing half: this workflow
+does not merely mark a flag, it **tells the operator at the moment of the
+change** — the check is whether the number being replaced is on WhatsApp for the
+active season, and if it is, the consequence is stated before the save. `W2-05`
+is that screen. What remains Mission 6's is the verification itself and the
+rejoin.
+
+**The substrate is still absent.** On WhatsApp has no substrate on
 `main`, so there is no flag to set and no state to write. This is recorded as a
 seam — the same treatment `W4` gives the prospect collision — so Mission 6
 inherits it rather than rediscovering it. `W2-04`'s read-back is the natural
@@ -121,6 +135,14 @@ moment for the operator to be told.
   operator."_ **This supersedes Task 08 §6's contested-value rule, the matching
   invariant in `01-overview.md`, and this workflow's own line in the frozen
   inventory**, all of which predate it.
+- **Validation, and the negative cases that matter more.** Brian, 2026-08-27:
+  _"there should also be negative cases so that correct numbers don't get
+  invalidated."_ A correct number being refused is the worse failure: it stops
+  an operator recording something true, and it will be met by typing something
+  false. The set that must pass, at minimum: `+44 7700 900988`, `07700 900988`,
+  `07700900988`, `+44 7700 900 988`, and a non-UK number in international form.
+  The set that must fail: too few digits, letters, an empty country code, and an
+  address with no domain or no local part.
 - **A phone number that will not normalise.** The raw value is preserved
   alongside the E.164 form, and the operator sees the normalised value read back
   before saving. An unparseable number is saved raw and flagged in the queue.
@@ -166,22 +188,34 @@ Against seeded synthetic data, an operator can:
 6. be **refused** a concurrent save, and be told what moved underneath them;
 7. read the whole edit back on the person's history with their own name against
    it;
-8. confirm that nothing they did moved the person on the ladder.
+8. confirm that nothing they did moved the person on the ladder;
+9. be **refused a malformed email and a malformed number**, per field, with the
+   rule named;
+10. **save every correct form of a number** — `+44` and national, spaced and
+    unspaced, and a non-UK international number — and have none of them refused;
+11. change a number that is **on WhatsApp for the active season** and be told,
+    before saving, that the group membership ends and a rejoin will be asked for;
+12. change a number that is **not** on WhatsApp for the season and see no such
+    notice.
 
 ## Core decisions
 
-| Decision                                                                                        | Classification                | Governing evidence or recommended default                                                                                                                     | Status                      |
-| ----------------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `disputed — awaiting verification` is struck; the record shows the current value and who set it | `locked`                      | Brian, 2026-08-26. Supersedes Task 08 §6, `01-overview.md`'s invariant, and this workflow's frozen-inventory line                                             | Settled, amendments pending |
-| One edit surface at `/operate/people/[personId]/edit`, sectioned as the record reads            | `proposed for owner approval` | The alternative is editing each field in place on the record. One surface is fewer moving parts and one audit boundary; in-place is fewer clicks for one typo | Recommend one surface       |
-| A reason is required to change an existing value, and never to fill an empty one                | `proposed for owner approval` | Task 07 §3 requires a reason audited. Demanding one to fill a blank would make the missing-data queue miserable to work                                       | Recommend as drawn          |
-| Contact values supersede; every other field overwrites, with the previous value in the history  | `locked`                      | Task 08 §4                                                                                                                                                    | Settled                     |
-| An email already held by another person refuses the save and offers the merge                   | `proposed for owner approval` | Task 09 D7 locks dedup-before-create at every door; this is the same rule on the correction path                                                              | Recommend yes               |
-| A concurrent edit refuses rather than wins                                                      | `proposed for owner approval` | Nothing here is high-frequency enough to justify last-write-wins                                                                                              | Recommend yes               |
-| Emergency contact is edited here and locked down structurally                                   | `locked`                      | Task 08 §4 and §6                                                                                                                                             | Settled                     |
-| The college/personal email split is a migration this mission carries                            | `locked`                      | `contact_point_kind` on `main` is `('email','phone')`                                                                                                         | Settled                     |
-| Field-level permissioning within the four-role group                                            | `delegated to Mission Lead`   | Task 08 §6 grants the group uniformly; no source splits it further                                                                                            | Delegated                   |
-| Validation messages, field order within a section, and the save control's placement             | `delegated to Mission Lead`   | No product meaning                                                                                                                                            | Delegated                   |
+| Decision                                                                                         | Classification                | Governing evidence or recommended default                                                                                                                     | Status                      |
+| ------------------------------------------------------------------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `disputed — awaiting verification` is struck; the record shows the current value and who set it  | `locked`                      | Brian, 2026-08-26. Supersedes Task 08 §6, `01-overview.md`'s invariant, and this workflow's frozen-inventory line                                             | Settled, amendments pending |
+| One edit surface at `/operate/people/[personId]/edit`, sectioned as the record reads             | `proposed for owner approval` | The alternative is editing each field in place on the record. One surface is fewer moving parts and one audit boundary; in-place is fewer clicks for one typo | Recommend one surface       |
+| A reason is required to change an existing value, and never to fill an empty one                 | `proposed for owner approval` | Task 07 §3 requires a reason audited. Demanding one to fill a blank would make the missing-data queue miserable to work                                       | Recommend as drawn          |
+| Contact values supersede; every other field overwrites, with the previous value in the history   | `locked`                      | Task 08 §4                                                                                                                                                    | Settled                     |
+| An email already held by another person refuses the save and offers the merge                    | `proposed for owner approval` | Task 09 D7 locks dedup-before-create at every door; this is the same rule on the correction path                                                              | Recommend yes               |
+| A concurrent edit refuses rather than wins                                                       | `proposed for owner approval` | Nothing here is high-frequency enough to justify last-write-wins                                                                                              | Recommend yes               |
+| Emergency contact is edited here and locked down structurally                                    | `locked`                      | Task 08 §4 and §6                                                                                                                                             | Settled                     |
+| The college/personal email split is a migration this mission carries                             | `locked`                      | `contact_point_kind` on `main` is `('email','phone')`                                                                                                         | Settled                     |
+| Phone and email are validated before the save is offered, per field, naming the rule             | `locked`                      | Brian, 2026-08-27                                                                                                                                             | Settled                     |
+| A correct number is never refused; the negative cases are acceptance criteria in their own right | `locked`                      | Brian, 2026-08-27 — "negative cases so that correct numbers don't get invalidated"                                                                            | Settled                     |
+| Changing a number that is on WhatsApp for the active season raises it before the save            | `locked`                      | Brian, 2026-08-27                                                                                                                                             | Settled                     |
+| Whether the save also sends the rejoin request, or only marks it needed                          | `proposed for owner approval` | This mission sends nothing; dispatch is Mission 4's. Marking it needed keeps that true                                                                        | Recommend mark only         |
+| Field-level permissioning within the four-role group                                             | `delegated to Mission Lead`   | Task 08 §6 grants the group uniformly; no source splits it further                                                                                            | Delegated                   |
+| Validation messages, field order within a section, and the save control's placement              | `delegated to Mission Lead`   | No product meaning                                                                                                                                            | Delegated                   |
 
 ## Brian approval
 

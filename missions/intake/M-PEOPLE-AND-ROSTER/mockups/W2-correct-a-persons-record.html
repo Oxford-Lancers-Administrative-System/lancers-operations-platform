@@ -1433,203 +1433,335 @@
           ${opts.right ?? ""}
         </div>`;
 
-      /* ---------------------------- the cast ----------------------------- */
+      /* ------------------------------------------------------------------ *
+       * ONE edit surface. Every screen from W2-01 to W2-10, except the two
+       * that say otherwise in their head, is `/operate/people/[personId]/edit`
+       * rendered whole, in a different state. Nothing is cropped: if a section
+       * is not the subject of a screen it is still on it, because the reviewer
+       * cannot otherwise tell one page from several.
+       * ------------------------------------------------------------------ */
 
-      const HOLLIS_HEAD = `
-        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-          <div style="min-width:0">
-            <p class="body2 sec" style="margin:0"><a class="golink" href="#">← Hollis Jarrowdale</a></p>
-            <p class="h5" style="margin:4px 0 0">Correct this record</p>
+      const err = (msg) =>
+        `<div style="color:#c62828;font-size:0.75rem;margin-top:4px">${msg}</div>`;
+
+      const editField = (label, value, o = {}) => `
+        <div>
+          <div class="field${o.focused ? " focused" : ""}"
+               style="${o.invalid ? "border-color:#c62828;border-width:2px;padding:13px" : ""}">
+            <span class="lab" style="${o.invalid ? "color:#c62828" : ""}">${label}</span>
+            <span style="min-width:0;overflow-wrap:anywhere;${value ? "" : "color:rgba(0,0,0,0.38)"}">${value || "—"}</span>
+            ${o.right ?? ""}
           </div>
-          <div class="row g2">
-            <button class="btn btn-text">Cancel</button>
-            <button class="btn btn-contained">Save</button>
-          </div>
+          ${o.error ? err(o.error) : ""}
+          ${o.hint ? `<div class="aka" style="margin-top:4px">${o.hint}</div>` : ""}
         </div>`;
 
       const section = (title, body) => paper(title, `<div class="stack g3">${body}</div>`);
 
-      /* The edit surface is sectioned exactly as the record reads, so an
-         operator who has just looked at a section corrects it without learning
-         a second layout. */
-      const W201 = operatorShell(`
-        <div class="stack g3">
-          ${HOLLIS_HEAD}
-          ${section(
-            "Who they are",
-            field("First name", "Hollis") +
-              field("Last name", "Jarrowdale") +
-              field("Aliases", "Holly (display name) · H.J.", {
-                right: `<button class="btn btn-text btn-sm">Edit</button>`,
-              }),
-          )}
-          ${section(
-            "How to reach them",
-            field("Mobile phone", "+44 7700 900412") +
-              field("Personal email", "holly.jarrowdale@example.com") +
-              field("College email", "hollis.jarrowdale@hallamshire.ox.ac.example", {
-                right: VERIFIED,
-              }),
-          )}
-          ${section(
-            "Academic",
-            field("College", "Hallamshire") +
-              field("Matriculation year", "2024") +
-              field("Expected graduation", "2027") +
-              field("Degree field", "Engineering Science"),
-          )}
-          ${section(
-            "Restricted",
-            field("Date of birth", "4 March 2005") +
-              field("Emergency contact — first name", "Alwyn") +
-              field("Emergency contact — last name", "Winterbourne") +
-              field("Relationship", "Parent") +
-              field("Phone", "+44 7700 900198") +
-              field("Email", "alwyn.winterbourne@example.com"),
-          )}
-        </div>`);
-
-      /* Filling something that reads `not recorded` asks for no reason. The
-         missing-data queue would be miserable to work otherwise. */
-      const W202 = operatorShell(`
-        <div class="stack g3">
-          <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-            <div style="min-width:0">
-              <p class="body2 sec" style="margin:0"><a class="golink" href="#">← Bertram</a></p>
-              <p class="h5" style="margin:4px 0 0">Correct this record</p>
+      /*
+       * The whole edit page, always. `s` names what is different about this
+       * screen; everything it does not name renders in its resting state.
+       */
+      const editSurface = (s = {}) => {
+        const who = s.who ?? "Hollis Jarrowdale";
+        const crumb = s.crumb ?? `<a class="golink" href="#">← ${who}</a>`;
+        const v = s.values ?? {};
+        return operatorShell(`
+          <div class="stack g3">
+            <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+              <div style="min-width:0">
+                <p class="body2 sec" style="margin:0">${crumb}</p>
+                <p class="h5" style="margin:4px 0 0">${s.title ?? "Correct this record"}</p>
+                ${s.sub ? `<p class="body2 sec" style="margin:2px 0 0">${s.sub}</p>` : ""}
+              </div>
+              <div class="row g2">
+                <button class="btn btn-text">${s.cancel ?? "Cancel"}</button>
+                <button class="btn btn-contained"${s.saveOff ? ' style="opacity:.5"' : ""}>${s.save ?? "Save"}</button>
+              </div>
             </div>
-            <div class="row g2">
-              <button class="btn btn-text">Cancel</button>
-              <button class="btn btn-contained">Save</button>
-            </div>
-          </div>
-          ${section(
-            "Who they are",
-            field("First name", "Bertram") +
-              field("Last name", "Brackenridge", { focused: true }) +
-              field("Aliases", NR),
-          )}
-          ${section(
-            "How to reach them",
-            field("Mobile phone", "+44 7700 900233") +
-              field("Personal email", NR) +
-              field("College email", NR),
-          )}
-        </div>`);
+            ${s.banner ?? ""}
+            ${section(
+              "Who they are",
+              editField("First name", v.first ?? (s.who === "Bertram" ? "Bertram" : "Hollis")) +
+                editField(
+                  "Last name",
+                  v.last ?? (s.who === "Bertram" ? "" : "Jarrowdale"),
+                  v.lastOpts ?? {},
+                ) +
+                editField(
+                  "Aliases",
+                  v.aliases ?? (s.who === "Bertram" ? "" : "Holly (display name) · H.J."),
+                  {
+                    right: `<button class="btn btn-text btn-sm">Edit</button>`,
+                  },
+                ),
+            )}
+            ${section(
+              "How to reach them",
+              editField("Mobile phone", v.mobile ?? "+44 7700 900412", v.mobileOpts ?? {}) +
+                (v.mobileExtra ?? "") +
+                editField(
+                  "Personal email",
+                  v.email ?? "holly.jarrowdale@example.com",
+                  v.emailOpts ?? {},
+                ) +
+                editField(
+                  "College email",
+                  v.collegeEmail ?? "hollis.jarrowdale@hallamshire.ox.ac.example",
+                  {
+                    right: VERIFIED,
+                  },
+                ),
+            )}
+            ${section(
+              "Academic",
+              editField("College", v.college ?? (s.who === "Bertram" ? "" : "Hallamshire")) +
+                editField("Matriculation year", v.matric ?? (s.who === "Bertram" ? "" : "2024")) +
+                editField("Expected graduation", v.grad ?? (s.who === "Bertram" ? "" : "2027")) +
+                editField(
+                  "Degree field",
+                  v.degree ?? (s.who === "Bertram" ? "" : "Engineering Science"),
+                ),
+            )}
+            ${section(
+              "Restricted",
+              editField("Date of birth", v.dob ?? (s.who === "Bertram" ? "" : "4 March 2005")) +
+                editField(
+                  "Emergency contact — first name",
+                  v.ecFirst ?? (s.who === "Bertram" ? "" : "Alwyn"),
+                ) +
+                editField(
+                  "Emergency contact — last name",
+                  v.ecLast ?? (s.who === "Bertram" ? "" : "Winterbourne"),
+                ) +
+                editField("Relationship", v.ecRel ?? (s.who === "Bertram" ? "" : "Parent")) +
+                editField("Phone", v.ecPhone ?? (s.who === "Bertram" ? "" : "+44 7700 900198")) +
+                editField(
+                  "Email",
+                  v.ecEmail ?? (s.who === "Bertram" ? "" : "alwyn.winterbourne@example.com"),
+                ),
+            )}
+          </div>`);
+      };
 
-      /* Changing a value that already exists requires a reason, which Task 07
-         §3 audits alongside the before and the after. */
-      const W203 = operatorShell(`
-        <div class="stack g3">
-          ${HOLLIS_HEAD}
-          ${section(
-            "How to reach them",
-            field("Mobile phone", "+44 7700 900988", { focused: true }) +
-              `<div class="row g2" style="align-items:center;flex-wrap:wrap">
-                 <span class="chip chip-outline">was +44 7700 900412</span>
-               </div>` +
-              field("Reason for the change", "New number, told me at training", { focused: true }) +
-              field("Personal email", "holly.jarrowdale@example.com"),
-          )}
-        </div>`);
+      const W201 = editSurface();
 
-      /* The normalised value is read back before saving, and the raw value is
-         preserved alongside it. */
-      const W204 = operatorShell(`
-        <div class="stack g3">
-          ${HOLLIS_HEAD}
-          ${section(
-            "How to reach them",
-            field("Mobile phone", "07700 900988", { focused: true }) +
-              alert("info", "Will be saved as <strong>+44 7700 900988</strong>.") +
-              field("Reason for the change", "New number, told me at training"),
-          )}
-        </div>`);
+      const W202 = editSurface({
+        who: "Bertram",
+        crumb: `<a class="golink" href="#">← Bertram</a>`,
+        values: {
+          last: "Brackenridge",
+          lastOpts: { focused: true },
+          mobile: "+44 7700 900233",
+          email: "",
+          collegeEmail: "",
+        },
+      });
 
-      /* After saving: the previous value is kept and dated, and one value per
-         kind is preferred. Nothing was destroyed. */
-      const W205 = operatorShell(`
+      const W203 = editSurface({
+        values: {
+          mobile: "+44 7700 900988",
+          mobileOpts: { focused: true },
+          mobileExtra:
+            `<div class="row g2" style="align-items:center;flex-wrap:wrap">
+               <span class="chip chip-outline">was +44 7700 900412</span>
+             </div>` +
+            editField("Reason for the change", "New number, told me at training", {
+              focused: true,
+            }),
+        },
+      });
+
+      /* Validation. Brian, 2026-08-27: an email must be a valid email, a phone
+         must look like a phone, and a correct number must never be refused. */
+      const W204 = editSurface({
+        saveOff: true,
+        banner: alert("warn", "Two values cannot be saved."),
+        values: {
+          mobile: "0770 12",
+          mobileOpts: {
+            invalid: true,
+            error: "Not a phone number. UK mobiles are 11 digits, or +44 and 10.",
+          },
+          email: "holly.jarrowdale@",
+          emailOpts: { invalid: true, error: "Not an email address." },
+        },
+      });
+
+      /* The read-back, and the consequence the number carries with it. */
+      const W205 = editSurface({
+        values: {
+          mobile: "07700 900988",
+          mobileOpts: { focused: true, hint: "Will be saved as <strong>+44 7700 900988</strong>" },
+          mobileExtra: editField("Reason for the change", "New number, told me at training"),
+        },
+        banner: alert(
+          "warn",
+          `<strong>+44 7700 900412 is on WhatsApp for 2026-27.</strong> Changing the number ends that.
+           Hollis will be asked to rejoin the 2026-27 group on the new number, and is not reachable
+           on WhatsApp until they do.`,
+        ),
+      });
+
+      /* A different surface, and its head says so: the person record, after
+         the save, showing that nothing was destroyed. */
+      const W206 = operatorShell(`
         <div class="stack g3">
           <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
             <div style="min-width:0">
               <p class="body2 sec" style="margin:0"><a class="golink" href="#">← People</a></p>
               <p class="h5" style="margin:4px 0 0">Hollis Jarrowdale</p>
+              <div class="chiprow">
+                ${standingChip("Active")}<span class="chip chip-outline">Player · Gameday Secretary</span>
+              </div>
             </div>
-            <div class="row g2"><button class="btn btn-outlined">Correct this record</button></div>
+            <div class="row g2" style="flex-wrap:wrap">
+              <button class="btn btn-outlined">Correct this record</button>
+              <button class="btn btn-text">Merge…</button>
+            </div>
           </div>
+          ${paper(
+            "Who they are",
+            frow("First name", `Hollis ${by("Caspian Hallowfield")}`) +
+              frow("Last name", `Jarrowdale ${by("Caspian Hallowfield")}`) +
+              frow(
+                "Aliases",
+                `<span class="bold">Holly</span> <span class="chip chip-outline">display name</span> ${by("Caspian Hallowfield")}
+                 <span style="width:100%"></span>H.J. ${PLAYER}`,
+              ),
+          )}
           ${paper(
             "How to reach them",
             frow(
               "Mobile phone",
               `+44 7700 900988 ${by("Caspian Hallowfield")} <span class="chip chip-outline">preferred</span>
                <span style="width:100%"></span>
-               <span class="aka">+44 7700 900412 · superseded 26 October 2026</span>`,
+               <span class="aka">+44 7700 900412 · superseded 27 October 2026</span>`,
             ) +
+              frow("On WhatsApp · 2026-27", `<span class="chip chip-warn">awaiting rejoin</span>`) +
               frow("Personal email", `holly.jarrowdale@example.com ${by("Caspian Hallowfield")}`) +
               frow("College email", `hollis.jarrowdale@hallamshire.ox.ac.example ${VERIFIED}`),
           )}
-        </div>`);
-
-      /* Two records sharing a contact point is the commonest signal of the same
-         human twice, so the save refuses and offers the merge. */
-      const W206 = operatorShell(`
-        <div class="stack g3">
-          ${HOLLIS_HEAD}
-          ${alert(
-            "warn",
-            "<strong>Jarrah Lanthorne</strong> already holds this email. Two records sharing a contact point is usually one person twice.",
-          )}
-          ${section(
-            "How to reach them",
-            field("Personal email", "jarrah.lanthorne@example.com", { focused: true }) +
-              `<div class="row g2" style="flex-wrap:wrap">
-                 <button class="btn btn-contained">Merge these records</button>
-                 <button class="btn btn-outlined">Open Jarrah Lanthorne</button>
-               </div>`,
+          ${paper(
+            "What changed",
+            `<div class="seasonrow">
+               <div style="min-width:0">
+                 <div class="body2"><span class="bold">Mobile phone</span></div>
+                 <div class="chg-line"><span class="was">+44 7700 900412</span><span class="sec"> → </span><span>+44 7700 900988</span></div>
+                 <div class="aka">27 October 2026, 09:18 · Caspian Hallowfield</div>
+                 <div class="aka">Reason: new number, told me at training</div>
+               </div>
+             </div>`,
+            `<a class="golink" href="#">Full history →</a>`,
           )}
         </div>`);
 
-      /* Nothing about a person is important enough to lose to a race. */
-      const W207 = operatorShell(`
-        <div class="stack g3">
-          ${HOLLIS_HEAD}
-          ${alert(
-            "warn",
-            "This record changed while you were editing it. <strong>Mobile phone</strong> was set to +44 7700 900988 by Norbert Mereworth at 09:12. Your changes were not saved.",
-          )}
-          <div class="row g2" style="flex-wrap:wrap">
-            <button class="btn btn-contained">Reload and start again</button>
-            <button class="btn btn-outlined">Discard my changes</button>
-          </div>
-        </div>`);
+      const W207 = editSurface({
+        banner: alert(
+          "warn",
+          "<strong>Jarrah Lanthorne</strong> already holds this email. Two records sharing a contact point is usually one person twice.",
+        ),
+        saveOff: true,
+        values: {
+          email: "jarrah.lanthorne@example.com",
+          emailOpts: {
+            invalid: true,
+            error: "In use by another person.",
+          },
+          mobileExtra: `
+            <div class="row g2" style="flex-wrap:wrap">
+              <button class="btn btn-contained">Compare with Jarrah Lanthorne</button>
+              <button class="btn btn-outlined">Open Jarrah Lanthorne</button>
+              <button class="btn btn-text">Use a different address</button>
+            </div>`,
+        },
+      });
 
-      /* Arriving from the queue: the same surface, plus where the operator came
-         from and where they go next. */
+      /* Where "Compare" lands. W4's own screen, shown here so the handoff is
+         not a button into the dark. */
       const W208 = operatorShell(`
         <div class="stack g3">
           <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
             <div style="min-width:0">
-              <p class="body2 sec" style="margin:0"><a class="golink" href="#">← Missing data</a></p>
-              <p class="h5" style="margin:4px 0 0">Bertram · 8 of 42</p>
+              <p class="body2 sec" style="margin:0"><a class="golink" href="#">← Hollis Jarrowdale</a></p>
+              <p class="h5" style="margin:4px 0 0">Merge two records</p>
             </div>
             <div class="row g2">
-              <button class="btn btn-text">Skip</button>
-              <button class="btn btn-contained">Save and next</button>
+              <button class="btn btn-text">Cancel</button>
+              <button class="btn btn-contained">Merge</button>
             </div>
           </div>
-          ${section(
-            "Missing",
-            field("Last name", "", { focused: true }) +
-              field("Personal email", "") +
-              field("College", "") +
-              field("Matriculation year", ""),
+          ${paper(
+            "Which record survives",
+            `<div class="grid2 g2">
+               <div class="qbox" style="border-color:var(--primary);border-width:2px;padding:15px">
+                 <div class="bold">Hollis Jarrowdale</div>
+                 <div class="aka">Player · 2026-27</div>
+                 <div class="over" style="color:var(--primary);line-height:1.6">Survivor</div>
+               </div>
+               <div class="qbox">
+                 <div class="bold">Jarrah Lanthorne</div>
+                 <div class="aka">Player · 2026-27</div>
+                 <button class="btn btn-text btn-sm" style="padding-left:0">Make this the survivor</button>
+               </div>
+             </div>`,
           )}
+          ${paper(
+            "What each record says",
+            `<div class="frow" style="grid-template-columns:170px 1fr">
+               <div class="flab">Personal email <span class="chip chip-warn" style="height:18px;font-size:11px">differs</span></div>
+               <div class="grid2 g2" style="width:100%">
+                 <div class="qbox"><div class="body2">holly.jarrowdale@example.com</div><button class="btn btn-text btn-sm" style="padding-left:0">Keep this</button></div>
+                 <div class="qbox" style="border-color:var(--primary);border-width:2px;padding:15px"><div class="body2">jarrah.lanthorne@example.com</div><div class="over" style="color:var(--primary);line-height:1.6">Keep this</div></div>
+               </div>
+             </div>
+             <div class="frow" style="grid-template-columns:170px 1fr">
+               <div class="flab">Mobile phone <span class="chip chip-warn" style="height:18px;font-size:11px">differs</span></div>
+               <div class="grid2 g2" style="width:100%">
+                 <div class="qbox" style="border-color:var(--primary);border-width:2px;padding:15px"><div class="body2">+44 7700 900988</div><div class="over" style="color:var(--primary);line-height:1.6">Keep this</div></div>
+                 <div class="qbox"><div class="body2">+44 7700 900411</div><button class="btn btn-text btn-sm" style="padding-left:0">Keep this</button></div>
+               </div>
+             </div>`,
+          )}
+          ${alert("warn", "Both records hold a 2026-27 membership. Resolve that on the roster before merging.")}
         </div>`);
+
+      const W209 = editSurface({
+        saveOff: true,
+        banner: alert(
+          "warn",
+          "This record changed while you were editing it. <strong>Mobile phone</strong> was set to +44 7700 900988 by Norbert Mereworth at 09:12. Your changes were not saved.",
+        ),
+        values: {
+          mobileExtra: `
+            <div class="row g2" style="flex-wrap:wrap">
+              <button class="btn btn-contained">Reload and start again</button>
+              <button class="btn btn-outlined">Discard my changes</button>
+            </div>`,
+        },
+      });
+
+      const W210 = editSurface({
+        who: "Bertram",
+        crumb: `<a class="golink" href="#">← Missing data</a>`,
+        title: "Bertram",
+        sub: "8 of 42 in the missing-data queue",
+        cancel: "Skip",
+        save: "Save and next",
+        values: {
+          last: "",
+          lastOpts: { focused: true },
+          mobile: "+44 7700 900233",
+          email: "",
+          collegeEmail: "",
+        },
+      });
 
       /* ------------------------------ screens ---------------------------- */
 
-      const CLOCK = "Now: Monday, 26 October 2026, 09:15";
+      const CLOCK = "Now: Tuesday, 27 October 2026, 09:15";
       const NONE = "New surface, nothing to compare";
+      const EDIT = `<code>/operate/people/[personId]/edit</code> — the same page as <code>W2-01</code>, in a different state`;
       const S = (id, title, blurb, deltas, url, proposed) => ({
         id,
         title,
@@ -1647,14 +1779,15 @@
         S(
           "W2-01",
           "The edit surface",
-          `One surface, sectioned exactly as the record reads — who they are, how to reach them,
-           academic, restricted. An operator who has just looked at a section corrects it without
-           learning a second layout.`,
+          `One page, sectioned exactly as the record reads. <strong>Every screen below except
+           W2-06 and W2-08 is this same page</strong>, rendered whole, in a different state —
+           nothing is cropped, so a state is never mistaken for a second surface.
+           <br /><br />Surface: ${EDIT}`,
           [
-            "<strong>Decide:</strong> one edit surface, or editing each field in place on the record. One surface is fewer moving parts and one audit boundary; in-place is fewer clicks for a single typo",
-            "The four sections and their order are the record's, not a new arrangement",
-            "Emergency contact is five separate fields — first name, last name, relationship, phone, email",
-            "Aliases are edited through their own control, because adding one and flagging the display name are two different things",
+            "<strong>Decide:</strong> one edit surface, or editing each field in place on the record",
+            "The four sections and their order are the record's",
+            "Emergency contact is five separate fields",
+            "<strong>Changed:</strong> every screen now shows the whole page. Previously some showed a single section, which read as a separate surface",
           ],
           "oxfordlancers.example/operate/people/4f8c21a6/edit",
           W201,
@@ -1663,11 +1796,12 @@
           "W2-02",
           "Filling an empty field asks for no reason",
           `Bertram is the first-name-only legacy record. Filling something that reads
-           <code>not recorded</code> is not a correction of anything, so nothing is asked for.`,
+           <code>not recorded</code> corrects nothing, so nothing is asked for.
+           <br /><br />Surface: ${EDIT}`,
           [
             "Acceptance 1: the last name goes in and the missing-data count falls",
-            "<strong>Decide:</strong> a reason is required to change an existing value and never to fill an empty one. Demanding one here would make the missing-data queue miserable to work",
-            "The empty fields still read <code>not recorded</code> beside the inputs, not blank",
+            "<strong>Decide:</strong> a reason is required to change an existing value and never to fill an empty one",
+            "The whole page is shown, so it is visible that the academic and restricted sections are empty for this person too",
           ],
           "oxfordlancers.example/operate/people/7b1e04d9/edit",
           W202,
@@ -1675,81 +1809,122 @@
         S(
           "W2-03",
           "Changing an existing value requires a reason",
-          `The same surface, one field down. The previous value is shown beside the input so the
-           operator can see what they are replacing, and the reason field appears because something
-           is being replaced rather than filled.`,
+          `The same page, one section down. The previous value sits beside the input and the reason
+           field appears, because something is being replaced rather than filled.
+           <br /><br />Surface: ${EDIT}`,
           [
-            "Acceptance 3: the reason is required here and was not required on W2-02",
+            "Acceptance 3: the reason is required here and was not on W2-02",
             "The previous value is visible while editing, not only afterwards in the history",
-            "Task 07 §3 audits actor, before, after and reason; this is where the reason comes from",
+            "Task 07 §3 audits actor, before, after and reason",
           ],
           "oxfordlancers.example/operate/people/4f8c21a6/edit",
           W203,
         ),
         S(
           "W2-04",
-          "The phone number is read back before saving",
-          `A number is normalised to E.164 and the raw value is preserved alongside it. The operator
-           sees what will be stored before it is stored.`,
+          "Validation refuses what cannot be true",
+          `<strong>New.</strong> An email must be an email; a phone must look like a phone. The
+           refusal is per field and names what is wrong, and the save is unavailable rather than
+           failing after the fact. <br /><br />Surface: ${EDIT}`,
           [
-            "Acceptance 2: the normalised value is shown before saving, not discovered afterwards",
-            "An unparseable number saves raw and flags in the missing-data queue rather than being refused",
-            "This is the one alert inside a frame that is product rather than explanation",
+            "<strong>New requirement, 2026-08-27:</strong> simple validation on every phone and email path, UK mobiles first",
+            "<strong>And the negative cases matter more than the positive ones.</strong> A correct number must never be refused: <code>+44</code> and national form, spaces and no spaces, leading zero, and an international number that is not UK",
+            "The error names the rule rather than saying “invalid”",
+            "The acceptance criteria now carry both directions — see the specification",
           ],
           "oxfordlancers.example/operate/people/4f8c21a6/edit",
           W204,
         ),
         S(
           "W2-05",
-          "A contact value supersedes rather than overwrites",
-          `The record after the save. The previous number is still there, dated, and the new one is
-           preferred. One preferred value per kind.`,
+          "The number is read back — and WhatsApp is raised",
+          `<strong>This is the screen you asked for.</strong> The number normalises and is shown
+           before saving, and because this number is on WhatsApp for the active season, changing it
+           says so and says what follows. <br /><br />Surface: ${EDIT}`,
           [
-            "Acceptance 2: the previous number is present and dated, not gone",
-            "<em>preferred</em> is a state on the value, which is what makes one-per-kind meaningful",
-            "Every other field overwrites — a corrected date of birth is not a second date of birth — and the previous value survives in the history",
+            "<strong>New, 2026-08-27:</strong> the check is <em>is this number on WhatsApp for the active season</em>. If it is, changing it raises this before the save, not after",
+            "It states the consequence plainly: the group membership ends, a rejoin is asked for, and until then the person is not reachable on WhatsApp",
+            "It does <strong>not</strong> claim the new number is or is not on WhatsApp — nothing here can know that",
+            "<strong>Decide:</strong> does the save also send the rejoin request, or only mark it needed? Sending is Mission 4's, and this mission sends nothing",
+            "If the number is <em>not</em> on WhatsApp for the season, this banner is absent and the save is ordinary",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6",
+          "oxfordlancers.example/operate/people/4f8c21a6/edit",
           W205,
         ),
         S(
           "W2-06",
-          "An email that already belongs to somebody else",
-          `The save refuses and offers the merge, because two records sharing a contact point is the
-           commonest signal that the club is holding one human twice.`,
+          "Saved — the person record",
+          `<strong>A different surface, and the destination after saving.</strong> Not the edit page:
+           this is the person record, whole, showing that the old number was kept and what the
+           season's WhatsApp presence now is. <br /><br />Surface:
+           <code>/operate/people/[personId]</code> — <code>W1-05</code>'s page`,
           [
-            "Acceptance 5: refused, and the merge is offered rather than described",
-            "The other person is named, which is a disclosure — it is four-role only and the operator already holds both records' data",
-            "Task 09 D7 locks dedup-before-create at every door; this is the same rule on the correction path",
+            "Acceptance 2: the previous number is present and dated, not gone",
+            "<em>preferred</em> is a state on the value, which is what makes one-per-kind meaningful",
+            "<strong>Changed:</strong> this screen previously showed one card in isolation, which made it look like part of the edit page. It is the record, and its head says so",
+            "<strong>On WhatsApp · 2026-27</strong> now reads <em>awaiting rejoin</em> — the season fact the number change invalidated",
+            "The change is on the history immediately, with the reason",
           ],
-          "oxfordlancers.example/operate/people/4f8c21a6/edit",
+          "oxfordlancers.example/operate/people/4f8c21a6",
           W206,
         ),
         S(
           "W2-07",
-          "A concurrent edit refuses rather than wins",
-          `The second save is told what moved underneath it. Nothing about a person is
-           high-frequency enough to justify last-write-wins.`,
+          "An email that already belongs to somebody else",
+          `The save refuses, and the recovery names where it goes rather than saying “merge”.
+           <br /><br />Surface: ${EDIT}`,
           [
-            "Acceptance 6: the refusal names the field, the value and who set it",
-            "Two recoveries: take their change and start again, or throw mine away. Neither is silent",
-            "<strong>Decide:</strong> this is a recommendation, not a sourced rule",
+            "Acceptance 5: refused, and the duplicate is offered",
+            "<strong>Changed:</strong> the action was <em>Merge these records</em>, which said nothing about what would happen. It is now <em>Compare with Jarrah Lanthorne</em>, and W2-08 shows where it lands",
+            "Three ways out, including simply using a different address",
+            "The other person is named — four-role only, and the operator already holds both records' data",
           ],
           "oxfordlancers.example/operate/people/4f8c21a6/edit",
           W207,
         ),
         S(
           "W2-08",
-          "Arriving from the missing-data queue",
-          `The same surface reached from W7, showing only what is missing and carrying the operator
-           to the next row. This is how the queue actually gets worked.`,
+          "…and where Compare lands",
+          `<strong>A different surface.</strong> The comparison is W4's, shown here so the handoff
+           is not a button into the dark: the two records side by side, field by field, before
+           anything merges. <br /><br />Surface:
+           <code>/operate/people/[personId]/merge</code> — <code>W4-02</code>'s page`,
           [
+            "<strong>New:</strong> W2 never merges anything. It hands off, and this is what the operator sees when it does",
+            "Which record survives is chosen first, then each differing field",
+            "This example refuses: both hold a 2026-27 membership, which is a roster question. The refusal is W4's",
+            "The full merge — the reason, what will move, the audited event — is <code>W4</code>'s own mockup, not repeated here",
+          ],
+          "oxfordlancers.example/operate/people/4f8c21a6/merge",
+          W208,
+        ),
+        S(
+          "W2-09",
+          "A concurrent edit refuses rather than wins",
+          `Nothing about a person is high-frequency enough to justify last-write-wins.
+           <br /><br />Surface: ${EDIT}`,
+          [
+            "Acceptance 6: the refusal names the field, the value and who set it",
+            "Two recoveries: take their change and start again, or throw mine away",
+            "<strong>Decide:</strong> a recommendation, not a sourced rule",
+          ],
+          "oxfordlancers.example/operate/people/4f8c21a6/edit",
+          W209,
+        ),
+        S(
+          "W2-10",
+          "Arriving from the missing-data queue",
+          `The same edit page, reached from W7. <strong>The path is: Administration → Missing data →
+           a row → here.</strong> The queue is W7's surface and is not redrawn; W7-01 is what the
+           operator was looking at a moment ago. <br /><br />Surface: ${EDIT}`,
+          [
+            "<strong>Changed:</strong> the queue previously appeared from nowhere. The head now names the path and the crumb goes back to it",
             "Acceptance 1 and 5: the position in the queue is stated, and saving moves to the next row",
-            "Only the missing fields are shown, because the operator came here to fill gaps, not to read the record",
+            "<strong>Changed:</strong> the whole record is shown rather than only the gaps, so it is the same page as W2-01 and not a third thing",
             "<em>Skip</em> exists because a row that cannot be satisfied today should not block the other 41. There is still no per-fact refused state — that is Mission 7's",
           ],
           "oxfordlancers.example/operate/people/7b1e04d9/edit?from=missing",
-          W208,
+          W210,
         ),
       ];
       const frame = (screen, html, kind) => `

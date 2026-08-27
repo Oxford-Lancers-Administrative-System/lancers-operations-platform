@@ -59,7 +59,16 @@
       "name": "Correct a person's record",
       "state": "spec_draft",
       "stale": false,
-      "feedback": [],
+      "feedback": [
+        {
+          "screen_id": "W2-05",
+          "text": "Decide whether the save also sends the WhatsApp rejoin request or only marks it needed. This mission sends nothing, so the recommendation is mark only."
+        },
+        {
+          "screen_id": "W2-01",
+          "text": "Decide one edit surface versus editing each field in place on the record."
+        }
+      ],
       "approvals": {}
     },
     {
@@ -1558,5 +1567,5 @@
       }
     ]
   },
-  "next_action": "W1 is done. Work W2 next: read its specification and mockup, take the two decisions it carries, and settle the mobile-number seam recorded against it"
+  "next_action": "W2 round two is ready: one surface throughout, validation with its negative cases, the WhatsApp notice on W2-05, the Compare handoff shown on W2-08, and the queue path named on W2-10"
 }
