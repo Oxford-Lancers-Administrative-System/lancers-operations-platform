@@ -113,19 +113,20 @@ Against seeded synthetic data, an operator can:
 
 ## Core decisions
 
-| Decision                                                                       | Classification                | Governing evidence or recommended default                                                               | Status                |
-| ------------------------------------------------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------- |
-| Both identities preserved; the losing row is never deleted                     | `locked`                      | Invariant I6; Task 08 §2                                                                                | Settled               |
-| Field-by-field choice rather than "survivor wins"                              | `proposed for owner approval` | The older record is often the more complete and the newer the more correct; assuming either loses data  | Recommend as drawn    |
-| A reason is required                                                           | `locked`                      | Task 08 §6                                                                                              | Settled               |
-| An active operator seat on the losing record refuses the merge                 | `locked`                      | Brian, 2026-08-26                                                                                       | Settled               |
-| Two memberships in one season refuse the merge                                 | `proposed for owner approval` | Merging them silently rewrites a season's squad. The alternative is asking the operator to pick one     | Recommend refuse      |
-| Duplicate prospect rows combine: earliest first contact, furthest-along status | `locked`                      | Brian, 2026-08-26; recorded as a seam Mission 6 inherits                                                | Settled               |
-| Consent-record precedence                                                      | `delegated to Mission Lead`   | No consent substrate exists on `main`; Mission 8 decides the rule and this workflow records the edge    | Deferred to Mission 8 |
-| No undo                                                                        | `proposed for owner approval` | The losing row surviving is what makes manual repair possible. A real undo is a second destructive path | Recommend none        |
-| Which references are re-pointed, and in what order                             | `delegated to Mission Lead`   | Mechanical; the set is every foreign key to `people`                                                    | Delegated             |
+| Decision                                                                       | Classification              | Governing evidence or recommended default                                                                                                    | Status                |
+| ------------------------------------------------------------------------------ | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| Both identities preserved; the losing row is never deleted                     | `locked`                    | Invariant I6; Task 08 §2                                                                                                                     | Settled               |
+| Field-by-field choice rather than "survivor wins"                              | `locked`                    | Approved as drawn, 2026-08-27. The older record is often the more complete and the newer the more correct; assuming either loses data        | Settled               |
+| A reason is required                                                           | `locked`                    | Task 08 §6                                                                                                                                   | Settled               |
+| An active operator seat on the losing record refuses the merge                 | `locked`                    | Brian, 2026-08-26                                                                                                                            | Settled               |
+| Two memberships in one season refuse the merge                                 | `locked`                    | Approved as drawn, 2026-08-27. Merging them silently would rewrite a season's squad; the roster is where that is resolved                    | Settled               |
+| Duplicate prospect rows combine: earliest first contact, furthest-along status | `locked`                    | Brian, 2026-08-26; recorded as a seam Mission 6 inherits                                                                                     | Settled               |
+| Consent-record precedence                                                      | `delegated to Mission Lead` | No consent substrate exists on `main`; Mission 8 decides the rule and this workflow records the edge                                         | Deferred to Mission 8 |
+| No undo                                                                        | `locked`                    | Approved as drawn, 2026-08-27. The losing row surviving is what makes manual repair possible; a real undo would be a second destructive path | Settled               |
+| Which references are re-pointed, and in what order                             | `delegated to Mission Lead` | Mechanical; the set is every foreign key to `people`                                                                                         | Delegated             |
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- Exact words: "W4 approved."
+- Date: 2026-08-27
+- By: Brian Schuster
