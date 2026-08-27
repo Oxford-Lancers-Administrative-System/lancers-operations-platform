@@ -16,9 +16,31 @@ import type { EventQuestionForAnswer } from "@/lib/services/player-home";
  * A hidden `qkind_<id>` field always rides beside the answer field itself so
  * the server action can parse `q_<id>`'s value without a second round trip
  * to the database to learn what kind of question it was answering.
+ *
+ * ## `enforceRequired` — OWNER-LAN172-18
+ *
+ * `/me/[token]`'s own dedicated questions form (`submitQuestions`) never
+ * records the RSVP itself — the Yes already stands by the time that form is
+ * on screen — so the native `required` attribute there only ever blocks
+ * *that form's own* save, never the answer, and stays on by default.
+ * `/a/[token]`'s landing page is different: its confirm button and its
+ * questions share one `<form>`, so `required` there silently blocked the
+ * click that records the answer itself — the opposite of W2's "a Yes stands
+ * while required event questions remain outstanding." `/a/[token]` passes
+ * `enforceRequired={false}` so a blank required question never stops that
+ * submit (auto- or manual); `answerEventQuestionsIn` already skips a blank
+ * submission rather than saving an empty answer, so nothing false is ever
+ * recorded — the question simply stays outstanding for the follow-up panel.
  */
-export function QuestionField({ question }: { question: EventQuestionForAnswer }) {
+export function QuestionField({
+  question,
+  enforceRequired = true,
+}: {
+  question: EventQuestionForAnswer;
+  enforceRequired?: boolean;
+}) {
   const name = `q_${question.id}`;
+  const required = enforceRequired && question.isRequired;
   const kindField = (
     <input type="hidden" name={`qkind_${question.id}`} value={question.answerType} />
   );
@@ -31,7 +53,7 @@ export function QuestionField({ question }: { question: EventQuestionForAnswer }
           select
           name={name}
           label={question.prompt}
-          required={question.isRequired}
+          required={required}
           fullWidth
           defaultValue={
             question.currentAnswer?.boolean === true
@@ -56,7 +78,7 @@ export function QuestionField({ question }: { question: EventQuestionForAnswer }
           select
           name={name}
           label={question.prompt}
-          required={question.isRequired}
+          required={required}
           fullWidth
           defaultValue={question.currentAnswer?.choice ?? ""}
         >
@@ -76,7 +98,7 @@ export function QuestionField({ question }: { question: EventQuestionForAnswer }
       <TextField
         name={name}
         label={question.prompt}
-        required={question.isRequired}
+        required={required}
         fullWidth
         defaultValue={question.currentAnswer?.text ?? ""}
         slotProps={{ htmlInput: { maxLength: 500 } }}

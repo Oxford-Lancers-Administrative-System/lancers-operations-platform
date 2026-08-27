@@ -150,6 +150,29 @@ export default async function PlayerHomePage({ params, searchParams }: PageProps
       ? (allEntries(home).find((entry) => entry.invitationId === openInvitationId) ?? null)
       : null;
 
+  /**
+   * OWNER-LAN172-20. The invitation `?open=` focuses already gets its own
+   * richly detailed card above, from `FocusedPanel` — rendering it a second
+   * time, unchanged, in whichever section it also belongs to left a player
+   * looking at two cards for one event, each with its own separate controls,
+   * unable to tell whether their answer had been recorded once or twice (it
+   * had, correctly, only once — this was purely a rendering choice). Every
+   * section below is filtered through this before it decides whether it has
+   * anything to show, so a section that becomes empty once its one entry is
+   * the focused one does not render an empty heading either.
+   */
+  const focusedId = focusedInvitation?.invitationId ?? null;
+  function withoutFocused<T extends { invitationId: string }>(entries: readonly T[]): readonly T[] {
+    return focusedId === null
+      ? entries
+      : entries.filter((entry) => entry.invitationId !== focusedId);
+  }
+  const newInvitations = withoutFocused(home.newInvitations);
+  const stillNeedAnswer = withoutFocused(home.stillNeedAnswer);
+  const followUpNeeded = withoutFocused(home.followUpNeeded);
+  const answeredUpcoming = withoutFocused(home.answeredUpcoming);
+  const furtherOut = withoutFocused(home.furtherOut);
+
   return (
     <Box sx={{ minHeight: "100dvh", bgcolor: "grey.100", py: { xs: 3, sm: 6 }, px: 2 }}>
       <Box sx={{ maxWidth: 720, mx: "auto" }}>
@@ -203,9 +226,9 @@ export default async function PlayerHomePage({ params, searchParams }: PageProps
           />
         ) : null}
 
-        {home.newInvitations.length > 0 ? (
+        {newInvitations.length > 0 ? (
           <Section heading={NEW_INVITATIONS_HEADING}>
-            {home.newInvitations.map((entry) => (
+            {newInvitations.map((entry) => (
               <SummaryRow
                 key={entry.invitationId}
                 token={token}
@@ -216,9 +239,9 @@ export default async function PlayerHomePage({ params, searchParams }: PageProps
           </Section>
         ) : null}
 
-        {home.stillNeedAnswer.length > 0 ? (
+        {stillNeedAnswer.length > 0 ? (
           <Section heading={STILL_NEED_ANSWER_HEADING}>
-            {home.stillNeedAnswer.map((entry) => (
+            {stillNeedAnswer.map((entry) => (
               <SummaryRow
                 key={entry.invitationId}
                 token={token}
@@ -229,23 +252,23 @@ export default async function PlayerHomePage({ params, searchParams }: PageProps
           </Section>
         ) : null}
 
-        {home.followUpNeeded.length > 0 ? (
+        {followUpNeeded.length > 0 ? (
           <Section heading={FOLLOW_UP_HEADING}>
-            {home.followUpNeeded.map((entry) => (
+            {followUpNeeded.map((entry) => (
               <SummaryRow key={entry.invitationId} token={token} entry={entry} dominant={false} />
             ))}
           </Section>
         ) : null}
 
-        {home.answeredUpcoming.length > 0 ? (
+        {answeredUpcoming.length > 0 ? (
           <Section heading={ANSWERED_HEADING} help={ANSWERED_HELP}>
-            {home.answeredUpcoming.map((entry) => (
+            {answeredUpcoming.map((entry) => (
               <SummaryRow key={entry.invitationId} token={token} entry={entry} dominant={false} />
             ))}
           </Section>
         ) : null}
 
-        {home.furtherOut.length > 0 ? (
+        {furtherOut.length > 0 ? (
           <Box
             component="details"
             sx={{
@@ -272,7 +295,7 @@ export default async function PlayerHomePage({ params, searchParams }: PageProps
                 {FURTHER_OUT_HELP}
               </Typography>
               <Stack spacing={2}>
-                {home.furtherOut.map((entry) => (
+                {furtherOut.map((entry) => (
                   <SummaryRow
                     key={entry.invitationId}
                     token={token}
@@ -390,10 +413,17 @@ function ChangeToYesButton({ token, invitationId }: { token: string; invitationI
     <Box component="form" action={changeToYes} sx={{ flex: 1, minWidth: 0 }}>
       <input type="hidden" name="token" value={token} />
       <input type="hidden" name="invitationId" value={invitationId} />
-      {/* Owner correction round 5 (OWNER-LAN172-16): this button always
-          revises an existing standing answer, never a fresh one — Brian's
-          "if I click ... change to yes, that should be at the end of it." */}
-      <input type="hidden" name="close" value="1" />
+      {/*
+        Owner correction round 6 (OWNER-LAN172-19), reversing round 5's own
+        OWNER-LAN172-16 finding for this button: Brian's "one interaction"
+        model treats a change of answer exactly like a first answer — it
+        records immediately and opens *that* answer's own follow-up, never
+        closing the panel by itself. Sending `close=1` here is what let this
+        button record a Yes and then hide the very questions it had just made
+        outstanding again, with no visible way back to them but the row's own
+        separate "Answer questions" button. Only Save (the reason form, the
+        questions form) ever closes the panel now.
+      */}
       <Button type="submit" variant="contained" color="success" fullWidth sx={{ minHeight: 40 }}>
         {CHANGE_TO_YES}
       </Button>
@@ -734,9 +764,12 @@ function FocusedPanel({
         <Box component="form" action={changeToYes} sx={{ mb: 2 }}>
           <input type="hidden" name="token" value={token} />
           <input type="hidden" name="invitationId" value={invitation.invitationId} />
-          {/* Owner correction round 5 (OWNER-LAN172-16): "that should be at
-              the end of it" — close the panel on a successful change. */}
-          <input type="hidden" name="close" value="1" />
+          {/*
+            Owner correction round 6 (OWNER-LAN172-19), reversing round 5's
+            OWNER-LAN172-16 finding: changing to Yes is not a Save — it must
+            open the event's own questions exactly like any other Yes, not
+            close on the player before they see whatever this Yes now owes.
+          */}
           <Button
             type="submit"
             variant="contained"

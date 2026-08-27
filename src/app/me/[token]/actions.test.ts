@@ -114,14 +114,20 @@ describe("changeToYes", () => {
     expect(recordPlayerHomeAnswerIn).not.toHaveBeenCalled();
   });
 
-  it("closes the panel on a successful change — OWNER-LAN172-16", async () => {
-    // Brian: "If I click save or change to yes, that should be at the end
-    // of it." `ChangeToYesButton` always sends close=1; the row-list's
-    // MiniYesNo (a brand-new, never-answered invitation) does not, and is
-    // proved unaffected by the very first test in this block.
+  it("never closes the panel, even if a stray close=1 rides along — OWNER-LAN172-19", async () => {
+    // Round 5's OWNER-LAN172-16 had this action close on `close=1`, sent by
+    // a *revising* Change to Yes (`ChangeToYesButton` and the panel's own
+    // Change-to-Yes button). Round 6 (OWNER-LAN172-19) corrects that finding:
+    // Brian's "one interaction" model treats changing an answer exactly like
+    // a first answer — it must open the newly-recorded Yes's own follow-up,
+    // never close on the player before they see it. Neither button sends
+    // `close` any more; this proves the action itself no longer honours it
+    // even if it arrived, so a stray value cannot silently reopen the defect.
     const target = await redirectFrom(() => changeToYes(formFor({ close: "1" })));
 
-    expect(target).toBe(`/me/${encodeURIComponent(TOKEN)}`);
+    expect(target).toBe(
+      `/me/${encodeURIComponent(TOKEN)}?open=${encodeURIComponent(INVITATION_ID)}`,
+    );
   });
 });
 

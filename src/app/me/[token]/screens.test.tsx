@@ -440,6 +440,105 @@ describe("OWNER-LAN172-09 — the standing-No panel leads with the reason, not t
   });
 });
 
+describe("OWNER-LAN172-18 — the panel's own questions form is unaffected by /a/[token]'s fix", () => {
+  it("keeps the native `required` attribute here — this Save never gates the already-standing Yes", async () => {
+    // `/a/[token]` passes `enforceRequired={false}` because its confirm
+    // button and its questions share one `<form>`. This panel's own
+    // `submitQuestions` form is different: the Yes it belongs to already
+    // stands by the time this form is on screen, so `required` here only
+    // ever blocks this form's own Save, never the answer — it keeps
+    // `QuestionField`'s own default.
+    givenHome(homeWithFocused({ ...YES_ENTRY, outstandingRequiredQuestions: 1 }));
+    vi.mocked(readPlayerAnswerLandingIn).mockResolvedValue({
+      attendingCount: 0,
+      otherOutstandingCount: 0,
+      questions: [QUESTION],
+      outstandingRequiredQuestions: 1,
+    });
+
+    const { container } = await renderPage({ open: YES_ENTRY.invitationId });
+
+    const field = container.querySelector(`input[name="q_${QUESTION.id}"]`);
+    expect(field).not.toBeNull();
+    expect(field).toHaveAttribute("required");
+  });
+});
+
+describe("OWNER-LAN172-19 — changing to Yes opens the panel, never closes it", () => {
+  it("renders the row's Change-to-Yes control with no hidden close field", async () => {
+    givenHome();
+    const { container } = await renderPage();
+
+    const changeToYesForms = Array.from(container.querySelectorAll("form")).filter((form) =>
+      (form.textContent ?? "").includes(CHANGE_TO_YES),
+    );
+    expect(changeToYesForms.length).toBeGreaterThan(0);
+    for (const form of changeToYesForms) {
+      expect(form.querySelector('input[name="close"]')).toBeNull();
+    }
+  });
+
+  it("renders the panel's own Change-to-Yes control (standing No) with no hidden close field either", async () => {
+    // The focused entry is filtered out of its own row section (see
+    // OWNER-LAN172-20 below), so the panel's own form is the only place this
+    // control appears — proving it directly, without scoping to the panel.
+    givenHome();
+    const { container } = await renderPage({ open: FOLLOW_UP_ENTRY.invitationId });
+
+    const changeToYesForm = Array.from(container.querySelectorAll("form")).find((form) =>
+      (form.textContent ?? "").includes(CHANGE_TO_YES),
+    );
+    expect(changeToYesForm).toBeTruthy();
+    expect(changeToYesForm?.querySelector('input[name="close"]')).toBeNull();
+  });
+});
+
+describe("OWNER-LAN172-20 — the opened invitation renders exactly once", () => {
+  it("does not also render the focused invitation as a plain row in its own section", async () => {
+    givenHome();
+    const { container } = await renderPage({ open: FOLLOW_UP_ENTRY.invitationId });
+    const text = container.textContent ?? "";
+
+    // The panel itself is the one card. Before this fix, the same event's
+    // name and its row-level controls (Change to Yes / Add reason) also
+    // rendered again, further down, in "Follow-up needed".
+    const nameOccurrences = (text.match(new RegExp(FOLLOW_UP_ENTRY.eventName, "g")) ?? []).length;
+    expect(nameOccurrences).toBe(1);
+
+    const changeToYesButtons = Array.from(container.querySelectorAll("button")).filter(
+      (button) => button.textContent === CHANGE_TO_YES,
+    );
+    expect(changeToYesButtons).toHaveLength(1);
+  });
+
+  it("drops the section heading entirely once its one entry was the focused invitation", async () => {
+    const onlyFollowUp: PlayerHome = {
+      playerName: "Avery Fielding",
+      outstandingCount: 0,
+      nextInvitationId: null,
+      newInvitations: [],
+      stillNeedAnswer: [],
+      followUpNeeded: [FOLLOW_UP_ENTRY],
+      answeredUpcoming: [],
+      furtherOut: [],
+    };
+    givenHome(onlyFollowUp);
+    const { container } = await renderPage({ open: FOLLOW_UP_ENTRY.invitationId });
+    const text = container.textContent ?? "";
+
+    expect(text).not.toContain(FOLLOW_UP_HEADING);
+  });
+
+  it("still renders a different, un-opened invitation in its own section", async () => {
+    givenHome();
+    const { container } = await renderPage({ open: FOLLOW_UP_ENTRY.invitationId });
+    const text = container.textContent ?? "";
+
+    expect(text).toContain(ANSWERED_ENTRY.eventName);
+    expect(text).toContain(NEW_ENTRY.eventName);
+  });
+});
+
 describe("OWNER-LAN172-11 — the row's secondary control reads 'Change answer'", () => {
   it("labels the plain Attending row's secondary control 'Change answer', not 'Change to No'", async () => {
     givenHome();

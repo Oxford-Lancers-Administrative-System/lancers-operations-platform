@@ -25,9 +25,10 @@ import {
 import { readSignedRsvpPageIn, type SignedRsvpPage } from "@/lib/services/rsvp";
 import { formatDeadline, formatEventDate, formatEventTime } from "@/app/rsvp/[token]/presentation";
 
+import { AutoSubmitOnMount } from "./auto-submit";
 import { QuestionField } from "./question-field";
 import { submitAnswer } from "./actions";
-import { ERROR_PARAM } from "./params";
+import { ANSWER_FORM_ID, ERROR_PARAM } from "./params";
 import {
   ALREADY_RECORDED_HEADING,
   ALREADY_RECORDED_NOTE,
@@ -281,8 +282,20 @@ function Confirm({
         confirm button, so one submit both records the answer and saves it.
         W2 line 61: the Yes landing "asks applicable event questions"; the
         No-path section: "the reason field belongs on that page."
+
+        Owner correction round 6 (OWNER-LAN172-17): this exact form is what
+        `AutoSubmitOnMount` below submits itself, in a JS-capable browser, the
+        instant this page mounts — the WhatsApp tap is the whole interaction.
+        `id={ANSWER_FORM_ID}` is how that component finds it; nothing else
+        about this form changes for that purpose, so the unmodified visible
+        button remains Q-11's own no-JS fallback, unchanged in wording.
+
+        Owner correction round 6 (OWNER-LAN172-18): `enforceRequired={false}`
+        below means a blank required question never blocks this submit,
+        whether it fires automatically or from a human's own click — the
+        answer is never gated on a question, per W2 acceptance criterion 6.
       */}
-      <Box component="form" action={submitAnswer}>
+      <Box id={ANSWER_FORM_ID} component="form" action={submitAnswer}>
         <input type="hidden" name="token" value={token} />
 
         {answer === "yes" && landing.questions.length > 0 ? (
@@ -291,7 +304,7 @@ function Confirm({
               {QUESTIONS_HEADING}
             </Typography>
             {landing.questions.map((question) => (
-              <QuestionField key={question.id} question={question} />
+              <QuestionField key={question.id} question={question} enforceRequired={false} />
             ))}
           </Stack>
         ) : null}
@@ -355,6 +368,16 @@ function Confirm({
           </Button>
         )}
       </Box>
+
+      {/*
+        Owner correction round 6 (OWNER-LAN172-17). `busy` means an earlier
+        automated submit was already refused as rate-limited and redirected
+        back here — auto-firing again immediately would only hammer the same
+        limiter in a client-side loop, so this one case is left to the
+        visible button (and the human reading `BUSY_MESSAGE` above) instead.
+        Every other load fires once, per `AutoSubmitOnMount`'s own guard.
+      */}
+      {!busy ? <AutoSubmitOnMount formId={ANSWER_FORM_ID} /> : null}
 
       {/*
         W2's Yes-path bullet, quoted verbatim: "Changing to No remains

@@ -61,26 +61,40 @@ function homeUrl(token: string, invitationId: string): string {
 
 /**
  * Owner correction round 5 (OWNER-LAN172-16). Brian: "Once I click Save, the
- * box should go away, and I should just go back to the normal page." /
- * "If I click save or change to yes, that should be at the end of it." A
+ * box should go away, and I should just go back to the normal page." A
  * successful save is a completed interaction, not an invitation to keep the
  * panel open — the plain page, with the result already reflected in its
- * list, is the confirmation. Only a *revising* Change to Yes (an existing
- * standing answer, from `ChangeToYesButton`) and the panel's own Save
- * actions set `close=1`; a brand-new answer from `MiniYesNo` does not, so a
- * fresh Yes with required questions still opens the panel to ask them —
- * that path is untouched by this finding.
+ * list, is the confirmation. Only the panel's own dedicated Save actions
+ * (the reason form, the questions form) ever redirect here.
+ *
+ * Owner correction round 6 (OWNER-LAN172-19) narrows this doc comment's own
+ * earlier claim: round 5 also had `changeToYes` accept a `close` flag for a
+ * *revising* Change to Yes, reasoning "that should be at the end of it." It
+ * was not — Brian's "one interaction" model treats changing an answer
+ * exactly like a first answer: it records immediately and opens *that*
+ * answer's own follow-up, never closing by itself. `changeToYes` no longer
+ * reads any such flag; see it below.
  */
 function plainHomeUrl(token: string): string {
   return `/me/${encodeURIComponent(token)}`;
 }
 
-/** The one-click "Yes, I'm attending" / "Change to Yes" control. */
+/**
+ * The one-click "Yes, I'm attending" / "Change to Yes" control.
+ *
+ * Owner correction round 6 (OWNER-LAN172-19): never closes the panel. A
+ * fresh Yes (`MiniYesNo`) always opened it to ask any outstanding questions;
+ * round 5 wrongly special-cased a *revising* Change to Yes to close instead
+ * (`ChangeToYesButton`, and the panel's own Change-to-Yes button both sent
+ * `close=1`) — which recorded the Yes and then hid the very questions it had
+ * just made outstanding again. Changing to Yes is not a Save; only the
+ * panel's own dedicated Save actions (`submitNo`'s reason form,
+ * `submitQuestions`) close it.
+ */
 export async function changeToYes(form: FormData): Promise<void> {
   const startedAt = startUniformClock();
   const token = tokenFrom(form);
   const invitationId = str(form, "invitationId");
-  const close = str(form, "close") === "1";
   const encodedToken = encodeURIComponent(token);
 
   if (await throttled(token)) await refuse(`/me/${encodedToken}`, startedAt);
@@ -99,7 +113,7 @@ export async function changeToYes(form: FormData): Promise<void> {
     await refuse(`/me/${encodedToken}`, startedAt);
   }
 
-  redirect(close ? plainHomeUrl(token) : homeUrl(token, invitationId));
+  redirect(homeUrl(token, invitationId));
 }
 
 /**

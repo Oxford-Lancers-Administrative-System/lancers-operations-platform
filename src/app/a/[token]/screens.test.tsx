@@ -35,6 +35,17 @@ vi.mock("@/lib/services/rsvp", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/rsvp")>();
   return { ...actual, readSignedRsvpPageIn: vi.fn() };
 });
+// OWNER-LAN172-17. `AutoSubmitOnMount` is a client component whose effect
+// would otherwise fire on every `render()` in this file, calling the real
+// (unmocked-here) `submitAnswer` server action mid-test. Its own behaviour —
+// that it fires `requestSubmit()` on the form it names, exactly once — is
+// proved in isolation by `auto-submit.test.tsx`; what this file proves is
+// only that the screen wires it to the right form id and gates it on `busy`.
+vi.mock("./auto-submit", () => ({
+  AutoSubmitOnMount: ({ formId }: { formId: string }) => (
+    <div data-testid="auto-submit-stub" data-form-id={formId} />
+  ),
+}));
 
 import { withTransaction } from "@/lib/db";
 import { resetRsvpRateLimit } from "@/lib/rsvp/public-surface";
@@ -50,7 +61,9 @@ import {
 import { readSignedRsvpPageIn, type SignedRsvpPage } from "@/lib/services/rsvp";
 import { NO_BUTTON_LABEL } from "@/lib/delivery/templates";
 import AnswerLinkPage from "./page";
+import { ANSWER_FORM_ID, ERROR_PARAM } from "./params";
 import {
+  BUSY_ERROR,
   NO_HEADING,
   YES_CONFIRM_NO_QUESTIONS,
   YES_CONFIRM_WITH_QUESTIONS,
@@ -109,10 +122,10 @@ function givenAnswer(answer: "yes" | "no", questions: readonly EventQuestionForA
   vi.mocked(readPlayerAnswerLandingIn).mockResolvedValue({ ...LANDING, questions });
 }
 
-async function renderPage(): Promise<ReturnType<typeof render>> {
+async function renderPage(query: Record<string, string> = {}): Promise<ReturnType<typeof render>> {
   const element = await AnswerLinkPage({
     params: Promise.resolve({ token: TOKEN }),
-    searchParams: Promise.resolve({}),
+    searchParams: Promise.resolve(query),
   });
   return render(element);
 }
@@ -246,5 +259,48 @@ describe("OWNER-LAN172-13 — the No landing takes the reason itself", () => {
     // Exactly two forward controls on the No page: the reason form's own
     // pair. No third "confirm"/"continue" button competes with either.
     expect(buttons.filter((label) => /continue/i.test(label ?? ""))).toHaveLength(1);
+  });
+});
+
+describe("OWNER-LAN172-17 — the WhatsApp tap auto-submits, in a JS-capable browser", () => {
+  it("wires the primary confirm form's own id into the auto-submit trigger", async () => {
+    givenAnswer("yes");
+    const { container, getByTestId } = await renderPage();
+
+    expect(container.querySelector(`form#${ANSWER_FORM_ID}`)).not.toBeNull();
+    expect(getByTestId("auto-submit-stub")).toHaveAttribute("data-form-id", ANSWER_FORM_ID);
+  });
+
+  it("wires the same trigger on the No landing too — any answer auto-submits, not only Yes", async () => {
+    givenAnswer("no");
+    const { getByTestId } = await renderPage();
+
+    expect(getByTestId("auto-submit-stub")).toHaveAttribute("data-form-id", ANSWER_FORM_ID);
+  });
+
+  it("does not re-fire the trigger while a throttled retry's own busy banner is showing", async () => {
+    // A page already reached by a redirect from a refused, rate-limited
+    // submit must not immediately auto-fire another one — see
+    // `auto-submit.tsx`'s own doc comment. The visible button, and the
+    // human reading `BUSY_MESSAGE`, are what remain for this one case.
+    givenAnswer("yes");
+    const { queryByTestId } = await renderPage({ [ERROR_PARAM]: BUSY_ERROR });
+
+    expect(queryByTestId("auto-submit-stub")).toBeNull();
+  });
+});
+
+describe("OWNER-LAN172-18 — the answer is never gated on a required question", () => {
+  it("renders the required question's own field without the native `required` attribute", async () => {
+    // `question-field.tsx`'s own `enforceRequired={false}` for this surface
+    // is what this proves: a blank required question must never block the
+    // one `<form>` that also records the answer — neither the auto-submit
+    // nor a human's own click on the no-JS fallback button.
+    givenAnswer("yes", [QUESTION]);
+    const { container } = await renderPage();
+
+    const field = container.querySelector('input[name="q_00000000-0000-4000-8000-0000000000aa"]');
+    expect(field).not.toBeNull();
+    expect(field).not.toHaveAttribute("required");
   });
 });
