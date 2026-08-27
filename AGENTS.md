@@ -51,8 +51,6 @@ This is Next.js 16. Read the relevant installed guide under
 
 ## Local commands
 
-Use Node ≥20.9, npm ≥10, Git, and a running Docker-compatible runtime.
-
 ```bash
 npm ci
 npm run dev
@@ -118,13 +116,6 @@ npm run types:generate
 npm run check:rls
 ```
 
-Fast-lane eligibility and its fixed reduced verification come only from
-`.github/fast-lane-rules.json` and `docs/fast-lane.md`. The classifier
-re-derives eligibility from `main...head`; unclassified, deleted, renamed,
-mixed, application, schema, dependency, infrastructure, workflow, configuration,
-ADR, or protected-governance changes use the normal lane. Agents never merge;
-the eligible workflow may. Neither lane deploys.
-
 ## The fast lane
 
 Only documentation and qualifying cross-cutting tests are eligible; the
@@ -182,10 +173,9 @@ Every issue or work package uses one lifecycle:
 
 `planned → approved → dispatched → built → gate-passed → merged → reclaimed`
 
-`walked`, `owner-checked`, and `security-reviewed` are conditional evidence
-for `gate-passed`, not competing statuses. Linear's UI states are projections,
-not another lifecycle. Skills may name operations and blocked outcomes but may
-not redefine these milestones.
+`walked`, `owner-checked` and `security-reviewed` are evidence for
+`gate-passed`, never competing statuses; Linear's UI states and skill vocabulary
+are projections that never redefine these milestones.
 
 Use the minimum and cheapest reliable executor:
 
@@ -227,12 +217,6 @@ CLI refusals, leases, collision rules, exact-head evidence, merge classifiers,
 and cleanup proofs are authoritative. The Lead follows its executable frontier
 and uses scouts instead of loading repository investigation into top-tier
 context.
-
-Brian checks each visual package in its prepared environment as it becomes
-ready. After every package is built, one bounded Sonnet walker smoke-tests the
-integrated mission journeys before merge; it does not repeat per-issue visual
-review or explore beyond the named jobs. Only affected journeys repeat after a
-rendered correction.
 
 No agent merges, un-drafts a pull request, deploys, migrates hosted Supabase, or
 writes to production. No agent weakens local-only guards, changes GitHub

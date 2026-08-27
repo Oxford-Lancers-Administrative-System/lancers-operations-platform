@@ -301,7 +301,9 @@ describe("representative mission rehearsals", () => {
    *
    * Each Lead is a separate child process with its own identity and no memory
    * of the last one. What crosses each boundary is the journal, the one-use
-   * token and a generated dossier — never a conversation.
+   * token and a generated dossier — never a conversation. Three Lead
+   * generations mean roughly fifteen real spawns, so this one case carries a
+   * longer timeout while the rehearsals beside it keep the default.
    */
   it("rotates the Lead at every boundary and carries the mission in durable state alone", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "lancers-epoch-rehearsal-"));
@@ -395,5 +397,5 @@ describe("representative mission rehearsals", () => {
       lead_id: "lead-rotation-1",
     });
     expect(seen.state.phaseRecycles).toEqual(["plan-approved"]);
-  });
+  }, 60_000);
 });
