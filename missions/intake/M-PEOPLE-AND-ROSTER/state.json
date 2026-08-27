@@ -1,7 +1,7 @@
 {
   "mission_id": "M-PEOPLE-AND-ROSTER",
   "ledger_version": 2,
-  "stage": "assembly",
+  "stage": "pr_open",
   "baseline": {
     "branch": "main",
     "commit": "2115bfed9d08ab9146fe00f002d6337cae9796a2"
@@ -1648,5 +1648,10 @@
       }
     ]
   },
-  "next_action": "Packet is approved and validates. Push and open the draft PR"
+  "next_action": "Wait for required checks at the final SHA, then Brian merges. Merging is packet approval",
+  "pr": {
+    "number": 96,
+    "url": "https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/pull/96",
+    "sha": "fe9de45"
+  }
 }
