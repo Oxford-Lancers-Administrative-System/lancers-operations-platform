@@ -280,3 +280,12 @@ work in this mission, because this mission never had it.
 
 Applied rather than left open, because it removes a claim rather than adding a
 design. `W1-05` and every other record surface are rebuilt without it.
+
+## Amendment W1-A3 raised 2026-08-27 — the People list has no Add a person control
+
+`W3` creates a person at `/operate/people/new`, and nothing on an approved screen
+opens it. The People list header carries only the season action; the roster's
+equivalent header carries **Add player**.
+
+Proposed: an **Add a person** button in `W1-01`'s header, in the same place.
+Recorded rather than applied, because `W1` is approved.

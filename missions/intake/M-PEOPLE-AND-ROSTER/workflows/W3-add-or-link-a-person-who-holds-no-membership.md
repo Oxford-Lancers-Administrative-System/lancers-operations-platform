@@ -28,15 +28,17 @@
   what matched. Never a bare "possible duplicate".
 - Offer three answers, and require one: **this is them** — link and stop;
   **this is somebody new** — mint; **stop** — neither.
-- Record what the person is to the club at the moment of creation: a season
-  role, a committee-year role, or nothing.
 - Land on the new or linked record.
+
+**No role is recorded here.** Brian, 2026-08-27: _"This is where people get
+created. If we want to create a role later for them, there is a place called
+Roles where roles get assigned. The purpose of this is to add people independent
+of roles."_ The Roles surface already exists under Administration and is
+Mission 1's.
 
 ## State transitions
 
 - A Person row is created, or none is and an existing one is opened.
-- Where a role was given, one role assignment is created against a season or a
-  committee year.
 - One audit event records the creation, the duplicate candidates that were shown,
   and which answer the operator gave.
 - **No membership is created.** This path never puts anybody on the roster.
@@ -64,10 +66,17 @@
   bound by this workflow's acceptance.
 - A person given no role at all appears in no season's list and is reachable only
   through `W1-04` or a direct link. Task 08 §2 permits it.
-- **A coach given no season role is invisible in People.** Brian, 2026-08-26: a
-  coach is part of the season. If this path mints one without a season role they
-  land outside every season, which is why the role is captured here rather than
-  left to a second visit.
+- **Everybody created here lands outside the season.** With roles out of this
+  workflow, a new person has no membership and no role, so they have no tie to
+  any season and the season-scoped People list does not hold them. They are
+  reachable through _see people outside this season_ or a direct link. Task 08 §2
+  permits exactly this, and `W3-07` draws it.
+
+  It is the cost of the 2026-08-27 decision, recorded rather than smoothed over:
+  an operator adds somebody and does not find them where they just were. Whether
+  creation should offer to open Roles straight afterwards is an open question on
+  `W3-07`.
+
 - Recruitment doors, their fields and their stages are Mission 6's.
 
 ## Exceptions and recovery
@@ -102,8 +111,8 @@
 
 Against seeded synthetic data, an operator can:
 
-1. mint a **coach with a season role** and find them in this season's People list
-   immediately;
+1. mint a person and find them **outside this season**, with no role and no
+   membership, and reach them from there;
 2. type a name that already exists and be **shown the existing record before
    anything is created**;
 3. choose **this is them** and land on the existing record with nothing created;
@@ -111,13 +120,14 @@ Against seeded synthetic data, an operator can:
    present and the decision audited;
 5. be **refused** on a first name alone;
 6. confirm a **merged-away record is never offered** and its survivor is;
-7. mint a person with **no role at all** and find them only outside the season;
+7. confirm **no role assignment was created** by any path through this workflow;
 8. confirm **no membership was created** by any path through this workflow.
 
 ## Core decisions
 
 | Decision                                                                                  | Classification                | Governing evidence or recommended default                                                                                 | Status        |
 | ----------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| One primary action, top right, on every screen; row choices sit on their row              | `locked`                      | Brian, 2026-08-27                                                                                                         | Settled       |
 | The minimum to mint is first name, last name and one contact point                        | `locked`                      | Task 08 §4 as amended 2026-08-26; last name became required at every rung the same day                                    | Settled       |
 | The duplicate check runs before creation and its result must be answered                  | `locked`                      | Task 09 D7                                                                                                                | Settled       |
 | A role — season or committee year — is captured at creation rather than on a second visit | `proposed for owner approval` | Without it a coach lands outside every season, which contradicts the 2026-08-26 ruling that a coach is part of the season | Recommend yes |
@@ -132,3 +142,14 @@ Against seeded synthetic data, an operator can:
 
 - Exact words:
 - Date:
+
+## Amendment W1-A3 raised 2026-08-27 — nothing opens this surface
+
+`W1-01`'s People list carries no **Add a person** control, so
+`/operate/people/new` is reachable from nowhere. The same shape of gap as the
+missing-data queue's, found the same way: asserted in a specification, never
+drawn on a screen.
+
+Proposed: an **Add a person** button in the People list header, where the roster
+already puts **Add player**. It amends approved `W1` and is recorded rather than
+slipped into a mockup already approved.

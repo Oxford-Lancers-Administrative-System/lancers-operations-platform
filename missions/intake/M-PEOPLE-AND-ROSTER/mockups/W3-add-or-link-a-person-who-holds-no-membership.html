@@ -1216,10 +1216,11 @@
       <header class="page-head">
         <h1>W3 · Add or link a person who holds no membership</h1>
         <p>
-          A human the club deals with who is not a player — a coach, a committee member, somebody's
-          parent, a contact at another club — gets a record, and the club does not end up holding
-          them twice. <code>/operate/people/new</code> and its parent do not exist on
-          <code>main</code>.
+          A human the club deals with who is not a player gets a record, and the club does not end
+          up holding them twice. <strong>This surface creates people and nothing else.</strong> It
+          assigns no role, grants no login and creates no membership — a role is assigned in
+          Administration → Roles, which already exists. <code>/operate/people/new</code> and its
+          parent do not exist on <code>main</code>.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1229,18 +1230,16 @@
           and
           <span class="side-label" style="background: var(--primary); color: #fff"
             >Proposed — this mission</span
-          >. Every screen is <span class="disposition new">New</span>, so every current side reads
-          “New surface, nothing to compare”.
+          >. Every screen is <span class="disposition new">New</span>.
         </p>
         <div class="legend">
           <span
-            >The workflow this mockup exists to settle is the
-            <strong>duplicate check</strong> — what it shows, and what the operator must answer
-            before anything is created</span
+            ><strong>One primary action, top right, on every screen.</strong> Row-level choices sit
+            on their row. Nothing is duplicated at the bottom of the page</span
           >
           <span
-            >The minimum to mint is first name, last name and one contact point, after the
-            2026-08-26 amendment</span
+            >The duplicate check is what this workflow exists to settle: what it shows, and what the
+            operator must answer before anything is created</span
           >
           <span>All names and numbers are the synthetic local dataset</span>
         </div>
@@ -1354,7 +1353,6 @@
         </div>`;
       };
 
-
       /* -------------------- shared list primitives ----------------------- */
 
       /* `roster/presentation.ts`'s mapping: active success, onboarding info,
@@ -1362,7 +1360,13 @@
       const standingChip = (standing) => {
         if (!standing) return `<span class="sec">—</span>`;
         const tone =
-          standing === "Active" ? " ok" : standing === "Onboarding" ? " inf" : standing === "Inactive" ? " wrn" : "";
+          standing === "Active"
+            ? " ok"
+            : standing === "Onboarding"
+              ? " inf"
+              : standing === "Inactive"
+                ? " wrn"
+                : "";
         return `<span class="chip${tone}">${standing}</span>`;
       };
 
@@ -1433,66 +1437,76 @@
           ${opts.right ?? ""}
         </div>`;
 
-      const addHead = (action = "") => `
+      /* One primary action, top right, on every screen of this workflow. */
+      const addHead = (action, sub = "") => `
         <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
           <div style="min-width:0">
             <p class="body2 sec" style="margin:0"><a class="golink" href="#">← People</a></p>
             <p class="h5" style="margin:4px 0 0">Add a person</p>
+            ${sub ? `<p class="body2 sec" style="margin:2px 0 0">${sub}</p>` : ""}
           </div>
           <div class="row g2">
             <button class="btn btn-text">Cancel</button>
-            ${action || `<button class="btn btn-contained">Check for duplicates</button>`}
+            <button class="btn btn-contained">${action}</button>
           </div>
         </div>`;
 
       const section = (title, body) => paper(title, `<div class="stack g3">${body}</div>`);
 
-      /* A candidate the duplicate check surfaced: enough to tell people apart,
-         and what matched. Never a bare "possible duplicate". */
-      const candidate = (name, detail, matched, action) => `
+      const req = (label) => `${label} <span style="color:#c62828">*</span>`;
+
+      const addField = (label, value, o = {}) => `
+        <div>
+          <div class="field${o.focused ? " focused" : ""}"
+               style="${o.invalid ? "border-color:#c62828;border-width:2px;padding:13px" : ""}">
+            <span class="lab" style="${o.invalid ? "color:#c62828" : ""}">${label}</span>
+            <span style="min-width:0;overflow-wrap:anywhere;${value ? "" : "color:rgba(0,0,0,0.38)"}">${value || "—"}</span>
+          </div>
+          ${o.error ? `<div style="color:#c62828;font-size:0.75rem;margin-top:4px">${o.error}</div>` : ""}
+        </div>`;
+
+      const addForm = (v = {}) =>
+        section(
+          "Who they are",
+          addField(req("First name"), v.first ?? "Percival", v.firstOpts ?? {}) +
+            addField(req("Last name"), v.last ?? "Oakhanger", v.lastOpts ?? {}) +
+            addField("Mobile phone", v.mobile ?? "+44 7700 900314", v.mobileOpts ?? {}) +
+            addField("Personal email", v.email ?? "", v.emailOpts ?? {}),
+        );
+
+      /* A candidate: enough to tell people apart, and what matched. The choice
+         lives on the row it belongs to. */
+      const candidate = (name, detail, matched) => `
         <div class="seasonrow">
           <div style="min-width:0">
             <div class="bold">${name}</div>
             <div class="aka">${detail}</div>
-            <div class="chiprow">${matched.map((m) => `<span class="chip chip-warn">${m}</span>`).join("")}</div>
+            <div class="chiprow">${matched.map((m) => `<span class="chip chip-warn">matched ${m}</span>`).join("")}</div>
           </div>
-          ${action}
+          <button class="btn btn-outlined btn-sm">This is them</button>
         </div>`;
-
-      const LINK = `<button class="btn btn-outlined btn-sm">This is them</button>`;
 
       const W301 = operatorShell(`
         <div class="stack g3">
-          ${addHead()}
-          ${section(
-            "Who they are",
-            field("First name", "Percival", { focused: true }) +
-              field("Last name", "Oakhanger") +
-              field("Mobile phone", "+44 7700 900314") +
-              field("Personal email", ""),
-          )}
-          ${section(
-            "What they are to the club",
-            field("Role", "Head Coach ▾") + field("Season", "2026-27 ▾"),
-          )}
+          ${addHead("Check for duplicates")}
+          ${addForm()}
         </div>`);
 
       const W302 = operatorShell(`
         <div class="stack g3">
-          ${addHead(`<button class="btn btn-contained">Create Percival Oakhanger</button>`)}
-          ${alert("warn", "Two existing records could be this person. Choose one before creating anything.")}
+          ${addHead("Create Percival Oakhanger", "2 people could already be this person")}
           ${paper(
-            "Could this be them?",
-            candidate("Percival Oakhanger", "Head Coach · last season 2024-25 · +44 7700 900314", ["first name", "last name", "mobile"], LINK) +
-              candidate("P. Oakhanger", "No season, no role · percival.oakhanger@example.com", ["last name"], LINK),
+            "Already in the club",
+            candidate("Percival Oakhanger", "Head Coach · last season 2024-25 · +44 7700 900314", [
+              "first name",
+              "last name",
+              "mobile",
+            ]) +
+              candidate("P. Oakhanger", "No season, no role · percival.oakhanger@example.com", [
+                "last name",
+              ]),
           )}
-          ${paper(
-            "Or none of them",
-            `<div class="row g2" style="flex-wrap:wrap">
-               <button class="btn btn-contained">This is somebody new</button>
-               <button class="btn btn-outlined">Stop</button>
-             </div>`,
-          )}
+          ${addForm()}
         </div>`);
 
       const W303 = operatorShell(`
@@ -1501,181 +1515,214 @@
             <div style="min-width:0">
               <p class="body2 sec" style="margin:0"><a class="golink" href="#">← People</a></p>
               <p class="h5" style="margin:4px 0 0">Percival Oakhanger</p>
-              <div class="chiprow"><span class="chip chip-outline">Head Coach · 2026-27</span></div>
             </div>
             <div class="row g2"><button class="btn btn-outlined">Correct this record</button></div>
           </div>
-          ${alert("info", "Nothing was created. Head Coach · 2026-27 was added to the existing record.")}
           ${paper(
             "How to reach them",
             frow("Mobile phone", `+44 7700 900314 ${by("Caspian Hallowfield")}`) +
               frow("Personal email", `percival.oakhanger@example.com ${by("Norbert Mereworth")}`),
           )}
+          ${paper("Roles", `<p class="body2 sec" style="margin:0">None</p>`, `<a class="golink" href="#">Assign a role →</a>`)}
         </div>`);
 
       const W304 = operatorShell(`
         <div class="stack g3">
-          ${addHead(`<button class="btn btn-contained">Create anyway</button>`)}
-          ${alert(
-            "warn",
-            "<strong>Percival Oakhanger</strong> shares this mobile number. Creating a second record needs a reason.",
-          )}
-          ${section("Why this is a different person", field("Reason", "Father and son, same phone", { focused: true }))}
+          ${addHead("Create anyway", "Percival Oakhanger already holds this mobile number")}
+          ${section("Why this is a different person", addField(req("Reason"), "Father and son, same phone", { focused: true }))}
+          ${addForm()}
         </div>`);
 
       const W305 = operatorShell(`
         <div class="stack g3">
-          ${addHead()}
-          ${alert("warn", "A first name is not enough. Add a last name and one contact point.")}
+          ${addHead("Check for duplicates", "2 required fields")}
           ${section(
             "Who they are",
-            field("First name", "Percival") +
-              field("Last name", "", { focused: true }) +
-              field("Mobile phone", "") +
-              field("Personal email", ""),
+            addField(req("First name"), "Percival") +
+              addField(req("Last name"), "", { focused: true, invalid: true, error: "Required" }) +
+              addField(req("Mobile phone"), "", { invalid: true, error: "Required" }) +
+              addField("Personal email", ""),
           )}
         </div>`);
 
       const W306 = operatorShell(`
         <div class="stack g3">
-          ${addHead(`<button class="btn btn-contained">Create Holly Jarrowdale</button>`)}
+          ${addHead("Create Holly Jarrowdale", "1 person could already be this person")}
           ${paper(
-            "Could this be them?",
-            candidate(
-              "Hollis Jarrowdale",
-              "Player · 2026-27 · also “Holly” · +44 7700 900988",
-              ["alias", "last name"],
-              LINK,
-            ),
+            "Already in the club",
+            candidate("Hollis Jarrowdale", "Player · 2026-27 · also “Holly” · +44 7700 900988", [
+              "alias",
+              "last name",
+            ]),
           )}
-          ${paper(
-            "Or none of them",
-            `<div class="row g2" style="flex-wrap:wrap">
-               <button class="btn btn-contained">This is somebody new</button>
-               <button class="btn btn-outlined">Stop</button>
-             </div>`,
+          ${section(
+            "Who they are",
+            addField(req("First name"), "Holly") +
+              addField(req("Last name"), "Jarrowdale") +
+              addField("Mobile phone", "") +
+              addField("Personal email", "holly.j@example.com"),
           )}
         </div>`);
 
       const W307 = operatorShell(`
         <div class="stack g3">
-          ${pageHead("People", "Season 2026-27 · 13 people", `<button class="btn btn-outlined">See people outside this season</button>`)}
+          ${pageHead("People", "Outside the 2026-27 season · 203 people", `<button class="btn btn-outlined">Back to this season</button>`)}
+          <div class="widened">
+            <span class="body2"><span class="bold">People outside the 2026-27 season.</span></span>
+            <button class="btn btn-outlined">Back to this season</button>
+          </div>
           ${searchBar("Search name or alias", "", ["Standing: All ▾", "Missing data: All ▾"])}
           ${dataTable(
             ["Name", "Standing", "To the club", "Contactable", "Missing"],
             [
-              [`<span class="bold">Norbert Mereworth</span>`, standingChip("Recruit"), "Recruit", `<span class="chip chip-outline">Mobile</span>`, `<span class="sec">—</span>`],
               [
                 `<span class="bold">Percival Oakhanger</span><div class="aka">added just now</div>`,
                 `<span class="sec">—</span>`,
-                "Head Coach · 2026-27",
-                `<span class="chip chip-outline">Mobile</span> <span class="chip chip-outline">Email</span>`,
+                `<span class="sec">—</span>`,
+                `<span class="chip chip-outline">Mobile</span>`,
+                `<span class="chip chip-warn">1 missing</span>`,
+              ],
+              [
+                `<span class="bold">Kestrel Caldicott</span><div class="aka">Last season 2019-20</div>`,
+                `<span class="sec">—</span>`,
+                "Alumnus",
+                `<span class="chip chip-outline">Email</span>`,
                 `<span class="sec">—</span>`,
               ],
             ],
           )}
           ${cardList([
-            { title: "Norbert Mereworth", chips: [standingChip("Recruit")] },
-            { title: "Percival Oakhanger", sub: "added just now", chips: [`<span class="chip chip-outline">Head Coach · 2026-27</span>`] },
+            {
+              title: "Percival Oakhanger",
+              sub: "added just now",
+              chips: [`<span class="chip chip-warn">1 missing</span>`],
+            },
+            {
+              title: "Kestrel Caldicott",
+              sub: "Last season 2019-20",
+              chips: [`<span class="chip chip-outline">Alumnus</span>`],
+            },
           ])}
-        </div>`);
-
-      const W308 = operatorShell(`
-        <div class="stack g3">
-          ${addHead(`<button class="btn btn-contained">Create Osgood Thornbury</button>`)}
-          ${section(
-            "Who they are",
-            field("First name", "Osgood") + field("Last name", "Thornbury") + field("Personal email", "osgood.thornbury@example.com"),
-          )}
-          ${section("What they are to the club", field("Role", "None ▾"))}
-          ${alert("info", "With no role, Osgood will not appear in any season's People list.")}
         </div>`);
 
       /* ------------------------------ screens ---------------------------- */
 
-      const CLOCK = "Now: Monday, 26 October 2026, 09:15";
+      const CLOCK = "Now: Tuesday, 27 October 2026, 09:15";
       const NONE = "New surface, nothing to compare";
       const S = (id, title, blurb, deltas, url, proposed) => ({
-        id, title, disposition: "new", blurb, deltas,
-        clockTag: CLOCK, url, now: null, nowNone: NONE, proposed,
+        id,
+        title,
+        disposition: "new",
+        blurb,
+        deltas,
+        clockTag: CLOCK,
+        url,
+        now: null,
+        nowNone: NONE,
+        proposed,
       });
 
       const SCREENS = [
-        S("W3-01", "Add a person",
-          `First name, last name and one contact point are the minimum to mint. What they are to the
-           club is captured here rather than on a second visit, because a coach with no season role
-           appears in no season's list.`,
+        S(
+          "W3-01",
+          "Add a person",
+          `A name and a way to reach them. Nothing else. <strong>Changed 2026-08-27:</strong> the
+           role section is gone — this surface creates people, and roles are assigned in
+           Administration → Roles.`,
           [
-            "<strong>Decide:</strong> capturing the role at creation. Without it, your 2026-08-26 ruling that a coach is part of the season is not reachable from this door",
-            "Last name is required, after the 2026-08-26 amendment",
-            "The primary action is <em>Check for duplicates</em>, not <em>Create</em>. Nothing is created until the check has been answered",
+            "<strong>Changed:</strong> <em>What they are to the club</em> is removed. Brian: this is where people get created; roles get assigned where roles get assigned",
+            "First name, last name and one contact point are required, marked on the field rather than described in a sentence",
+            "One primary action, top right. <em>Check for duplicates</em>, because nothing is created until the check has been answered",
+            "<strong>This screen has no way in yet.</strong> W1-01's People list carries no <em>Add a person</em> button, so nothing opens it — recorded as amendment <strong>W1-A3</strong>, the same shape of gap as the missing-data queue's",
           ],
-          "oxfordlancers.example/operate/people/new", W301),
-        S("W3-02", "The duplicate check found somebody",
-          `The screen this workflow exists for. Each candidate carries enough to tell people apart
-           and says what matched — never a bare “possible duplicate”.`,
+          "oxfordlancers.example/operate/people/new",
+          W301,
+        ),
+        S(
+          "W3-02",
+          "Somebody already in the club could be this person",
+          `The screen this workflow exists for. Each candidate says what matched, and the choice to
+           link sits on the row it belongs to.`,
           [
+            "<strong>Changed:</strong> one primary action, top right. The second Create at the bottom of the page is gone",
+            "<strong>Changed:</strong> the <em>Stop</em> button is gone. Cancel is the way out and always was",
+            "<strong>Changed:</strong> the explanatory sentences are gone. The count sits under the title and the panel is titled <em>Already in the club</em>",
+            "<strong>Changed:</strong> the form stays on screen below the candidates, so this is visibly the same page as W3-01 rather than a second one",
             "Acceptance 2: the existing record is shown before anything is created",
             "What matched is named per candidate, so the operator can judge rather than guess",
-            "Three answers, one of them required: this is them, this is somebody new, or stop",
-            "Task 09 D7 locks dedup-before-create at every door; this is this mission's door",
           ],
-          "oxfordlancers.example/operate/people/new", W302),
-        S("W3-03", "This is them — nothing is created",
-          `Linking opens the existing record and adds the role. The notice says what happened,
-           because “nothing was created” is otherwise invisible.`,
+          "oxfordlancers.example/operate/people/new",
+          W302,
+        ),
+        S(
+          "W3-03",
+          "This is them — nothing is created",
+          `Linking opens the existing record. Their roles are shown as what they are: empty, with the
+           route to where roles are assigned.`,
           [
             "Acceptance 3: no Person row is written, and the operator lands on the record that already existed",
-            "The role is added to the existing person, which is the thing the operator actually came to do",
-            "This is a state notice, not narrative — it reports an outcome the screen cannot otherwise show",
+            "<strong>Changed:</strong> the role is not added here. The record shows Roles as empty and links to Administration → Roles",
+            "<strong>Changed:</strong> the “nothing was created” notice is gone. The operator is on a record that plainly already has history",
           ],
-          "oxfordlancers.example/operate/people/9d21c744", W303),
-        S("W3-04", "Creating over an exact contact-point match",
-          `A shared email or phone is the strongest duplicate signal the club has, so minting anyway
-           is an explicit act with a reason attached.`,
+          "oxfordlancers.example/operate/people/9d21c744",
+          W303,
+        ),
+        S(
+          "W3-04",
+          "Creating over an exact contact-point match",
+          `A shared number is the strongest duplicate signal the club has, so creating anyway is an
+           explicit act with a reason attached.`,
           [
             "Acceptance 4: both records end up present and the decision is audited",
-            "<strong>Decide:</strong> requiring a reason to override an exact contact match. The alternative is a plain confirm",
-            "The audited rejection is what lets a later merge see the decision was deliberate rather than careless",
+            "<strong>Changed:</strong> the reason is a required field, not a warning banner",
+            "The audited rejection is what lets a later merge see the decision was deliberate",
+            "<strong>Decide:</strong> requiring a reason at all. The alternative is a plain confirm",
           ],
-          "oxfordlancers.example/operate/people/new", W304),
-        S("W3-05", "Refused on a first name alone",
-          `The minimum is not negotiable at the door, even though the missing-data queue will chase
-           everything else afterwards.`,
+          "oxfordlancers.example/operate/people/new",
+          W304,
+        ),
+        S(
+          "W3-05",
+          "Required fields",
+          `<strong>Changed:</strong> no sentence explaining what is missing. The fields say
+           <em>Required</em> and the count sits under the title.`,
           [
-            "Acceptance 5: the refusal names what is missing rather than marking fields red",
-            "One sentence. This is the empty/refusal case the no-narrative rule allows",
+            "Acceptance 5: the save is refused and the operator can see exactly which fields",
+            "<strong>Changed:</strong> “A first name is not enough. Add a last name and one contact point.” is gone",
+            "The required marks are on every screen, not only this one, so the rule is visible before it is broken",
           ],
-          "oxfordlancers.example/operate/people/new", W305),
-        S("W3-06", "An alias match, and a merged-away record that is never offered",
+          "oxfordlancers.example/operate/people/new",
+          W305,
+        ),
+        S(
+          "W3-06",
+          "An alias match, and a merged-away record that is never offered",
           `The check matches aliases as well as names. A record that was merged away is never
-           offered — the survivor is offered in its place, which is what the shipped matching
-           already does.`,
+           offered — the survivor is offered in its place.`,
           [
             "Acceptance 6: “Holly Jarrowdale” was merged into Hollis Jarrowdale and does not appear; Hollis does",
+            "<strong>Changed:</strong> same single top-right action, same panel, no bottom buttons",
             "Offering a merged-away record invites an operator to resurrect something the club has already decided is a duplicate",
-            "The alias is shown on the candidate, so the operator can see why it matched",
           ],
-          "oxfordlancers.example/operate/people/new", W306),
-        S("W3-07", "The new coach is in this season immediately",
-          `The People list straight after creation. The role given at the door is the tie that puts
-           Percival in the season.`,
+          "oxfordlancers.example/operate/people/new",
+          W306,
+        ),
+        S(
+          "W3-07",
+          "Where the new person actually lands",
+          `<strong>Rewritten 2026-08-27.</strong> This screen used to claim the new coach appeared in
+           this season's list. With roles out of this workflow that is no longer true, and the
+           honest answer matters: <strong>everybody created here lands outside the season</strong>
+           until a role or a membership gives them a tie to it.`,
           [
-            "Acceptance 1: found in this season's People list with no further step",
-            "His standing column is empty, because the ladder describes players",
-            "This is W1-01's list; it is shown here to prove the outcome, not redrawn",
+            "A person with no role and no membership has no tie to any season, so the season list does not hold them. Task 08 §2 permits exactly this",
+            "<strong>This is the consequence of taking roles out</strong>, shown rather than hidden. The previous version of this screen was wrong the moment that decision was made",
+            "<strong>Decide:</strong> is that acceptable, or should creating a person offer to open Roles straight afterwards? Adding somebody and then not finding them is the failure mode to weigh",
+            "Percival shows 1 missing — a personal email, which the required set asks of a non-player",
           ],
-          "oxfordlancers.example/operate/people", W307),
-        S("W3-08", "A person with no role at all",
-          `Task 08 §2 permits an unassigned Person. They are reachable only through
-           <em>see people outside this season</em> or a direct link, and the screen says so before
-           the operator creates them.`,
-          [
-            "Acceptance 7: created, and present only outside the season",
-            "The notice is a consequence of the choice being made on this screen, which is why it sits here and not in a help page",
-            "This is the case your <em>Contact</em> ruling covers: Osgood is nothing to the club, and no word is invented for him",
-          ],
-          "oxfordlancers.example/operate/people/new", W308),
+          "oxfordlancers.example/operate/people?scope=outside",
+          W307,
+        ),
       ];
       const frame = (screen, html, kind) => `
         <div class="frame ${kind}">

@@ -6,354 +6,648 @@
     <title>W2 · Correct a person's record</title>
     <style>
       :root {
-        --primary: #0b3d91; --text: rgba(0,0,0,0.87); --sec: rgba(0,0,0,0.6);
-        --divider: rgba(0,0,0,0.12); --grey50: #fafafa; --grey100: #f5f5f5;
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
         --warn: #663c00;
-        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       }
-      * { box-sizing: border-box; }
-      body { margin: 0; font-family: var(--font); color: var(--text); background: var(--grey100); line-height: 1.65; }
-      .bar { position: sticky; top: 0; z-index: 2; background: #212121; color: #fff; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
-      .bar .who { font-weight: 700; font-size: 0.95rem; }
-      .bar .who span { color: #bdbdbd; font-weight: 400; margin-left: 8px; font-size: 0.8rem; }
-      .bar a { color: #fff; text-decoration: none; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.35); border-radius: 6px; padding: 4px 10px; margin-left: 8px; }
-      .bar a:hover { background: rgba(255,255,255,0.12); }
-      .sheet { max-width: 880px; margin: 26px auto 100px; background: #fff; border: 1px solid var(--divider); border-radius: 10px; padding: 10px 30px 34px; }
-      h1 { font-size: 1.5rem; margin: 22px 0 10px; letter-spacing: -0.01em; }
-      h2 { font-size: 1.12rem; margin: 30px 0 8px; padding-top: 16px; border-top: 1px solid var(--divider); }
-      h3 { font-size: 1rem; margin: 20px 0 6px; }
-      p, li { font-size: 0.95rem; }
-      ul { padding-left: 22px; }
-      li { margin: 5px 0; }
-      code { background: var(--grey100); padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
-      pre { background: var(--grey100); padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
-      pre code { background: none; padding: 0; }
-      blockquote { margin: 12px 0; padding: 6px 16px; border-left: 3px solid var(--divider); color: var(--sec); }
-      table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; margin: 14px 0; font-size: 0.875rem; }
-      th, td { border: 1px solid var(--divider); padding: 8px 10px; text-align: left; vertical-align: top; }
-      thead th { background: var(--grey50); font-size: 0.78rem; letter-spacing: 0.03em; text-transform: uppercase; color: var(--sec); white-space: nowrap; }
-      a { color: var(--primary); }
-      @media (max-width: 720px) { .sheet { margin: 14px 10px 60px; padding: 6px 16px 24px; } }</style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: var(--grey100);
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #212121;
+        color: #fff;
+        padding: 10px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .sheet {
+        max-width: 880px;
+        margin: 26px auto 100px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 10px 30px 34px;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.12rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 1rem;
+        margin: 20px 0 6px;
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        display: block;
+        overflow-x: auto;
+        margin: 14px 0;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+        white-space: nowrap;
+      }
+      a {
+        color: var(--primary);
+      }
+      @media (max-width: 720px) {
+        .sheet {
+          margin: 14px 10px 60px;
+          padding: 6px 16px 24px;
+        }
+      }
+    </style>
   </head>
   <body>
     <div class="bar">
-      <div class="who">W2 · Correct a person's record<span>M-PEOPLE-AND-ROSTER · specification</span></div>
-      <div><a href="../mockups/W2-correct-a-persons-record.html">Mockup</a><a href="../mockups/index.html">Hub</a><a href="../specifications.html">All specifications</a></div>
+      <div class="who">
+        W2 · Correct a person's record<span>M-PEOPLE-AND-ROSTER · specification</span>
+      </div>
+      <div>
+        <a href="../mockups/W2-correct-a-persons-record.html">Mockup</a
+        ><a href="../mockups/index.html">Hub</a
+        ><a href="../specifications.html">All specifications</a>
+      </div>
     </div>
-    <div class="sheet"><h1>W2 — Correct a person&#39;s record</h1>
-<ul>
-<li>Purpose/intended outcome: an operator learns that something the club holds
-about a person is wrong, missing or out of date, and fixes it — attributably,
-audibly, and without destroying what was there before.</li>
-<li>Primary actor: a four-role operator — President, Vice-President, Secretary,
-General Manager.</li>
-<li>Trigger: somebody changes their number; a name was mis-keyed at a sign-up
-table; the missing-data queue says seven facts are absent; a graduate&#39;s college
-address stops working.</li>
-<li>Entry point: <strong>Correct this record</strong> on the person record (<code>W1-05</code>), and every
-row of the missing-data queue (<code>W7</code>).</li>
-<li>Route/placement: <code>/operate/people/[personId]/edit</code>. Neither the route nor its
-parent exists on <code>main</code>; nothing occupies the path.</li>
-<li>Controlling source: Task 08 §4 (the field inventory), §6 (the authority
-matrix); Task 07 §3 (operator-executable correction with actor, before/after
-and reason audited); LAN-147 questions 1, 4 and 5; the field inventory approved
-2026-08-26 and amended the same day.</li>
-<li>User-visible result: the record now says the right thing, the change is on the
-person&#39;s history with a name and a date against it, and no previous contact
-value has been destroyed.</li>
-</ul>
-<h2>Required actions</h2>
-<ul>
-<li>Edit every durable person fact the field inventory marks <code>build</code>: first name,
-last name, aliases, the two email kinds, mobile, the four academic fields,
-date of birth, and the five emergency-contact fields.</li>
-<li><strong>One edit surface, sectioned exactly as the record reads</strong> — who they are,
-how to reach them, academic, restricted. An operator who has just looked at a
-section corrects it without learning a second layout.</li>
-<li><strong>Contact values supersede rather than overwrite.</strong> Replacing a mobile or an
-email keeps the previous value, dated, with the new one preferred. One
-preferred value per kind.</li>
-<li><strong>Every other field overwrites</strong>, because a corrected date of birth is not a
-second date of birth. The previous value survives in the change history, which
-is what makes it recoverable.</li>
-<li>Fill a field that reads <code>not recorded</code> without a reason. <strong>Change a field that
-already has a value only with a reason</strong>, recorded and shown on the history.</li>
-<li>Flag an alias as the display name, add an alias, and remove one.</li>
-<li><strong>Validate every phone and email before the save is offered.</strong> An email must be
-a syntactically valid address; a phone must be a plausible number <strong>from
-anywhere</strong>. Brian, 2026-08-27: <em>&quot;there are people who are going to have US
-numbers, Irish numbers, or numbers from other places. They come from all over
-the world. It can&#39;t just literally be from the UK.&quot;</em> A number is valid if it
-parses with its country code; a bare national number is read as UK, which is
-the only place a default is applied and the only thing the club&#39;s location
-decides. The refusal is per field, names the rule rather than saying &quot;invalid&quot;,
-and the save is unavailable rather than failing afterwards.</li>
-<li><strong>Check the number against WhatsApp before saving it.</strong> Where the number being
-replaced is on WhatsApp for the active season, say so and say what follows,
-before the save rather than after it.</li>
-<li>Return to where the operator came from — the record, or the next row of the
-queue.</li>
-</ul>
-<h2>State transitions</h2>
-<ul>
-<li>A person fact goes from <code>not recorded</code> to a value, or from one value to
-another. Nothing else on the person moves.</li>
-<li>A contact point goes from preferred to superseded, and a new one becomes
-preferred. The superseded row is never deleted.</li>
-<li>Every save appends one audit event: actor, timestamp, field, before, after,
-and the reason where one was required.</li>
-<li><strong>No membership, prospect, role or seat state changes here.</strong> Correcting a
-person never moves them on the ladder.</li>
-</ul>
-<h2>Handoffs</h2>
-<ul>
-<li>To <code>W1</code> on save, or to <code>W7</code> when the operator arrived from the queue.</li>
-<li>To <code>W4</code> when the reason a value looks wrong is that this is the same human
-twice.</li>
-<li>To <code>W8</code> when the question is what the value used to be.</li>
-<li>To Mission 1 when the correction wanted is to a login or a club role.</li>
-<li>To Mission 7 when the correction is a person editing their own record through
-the signed link — that path is theirs and does not exist here.</li>
-<li>To Mission 8 when the request is erasure or a subject-access export rather
-than a correction.</li>
-</ul>
-<h2>Dependencies and mission boundaries</h2>
-<ul>
-<li><strong>The two email kinds need a migration.</strong> <code>contact_point_kind</code> on <code>main</code> is
-<code>(&#39;email&#39;,&#39;phone&#39;)</code>; college and personal email are distinct dated kinds and
-this mission carries the split.</li>
-<li>The five emergency-contact fields do not exist on <code>main</code> at all and are built
-here, under the structural lockdown <code>01-overview.md</code> makes an invariant.</li>
-<li>Consent state and channel presence are not editable here because they do not
-exist on <code>main</code>; they are Missions 8 and 6.</li>
-<li>Seasonal facts — jersey, positions, onboarding items, formalwear, Blues,
-eligibility — are corrected on player detail, not here. A person with four
-seasons has one person record and four season records.</li>
-<li>Recruitment facts are Mission 6&#39;s and are absent from this surface entirely,
-which follows <code>W1</code>&#39;s round-one decision that the recruit process appears
-nowhere on a person record.</li>
-</ul>
-<h2>The mobile-number seam — recorded 2026-08-26, inherited by Mission 6</h2>
-<p><strong>Superseding a mobile number invalidates a season fact this mission does not
-own.</strong> The number is the person&#39;s and is corrected here. <strong>On WhatsApp</strong> — being
-reachable on WhatsApp and in this season&#39;s group — is a <em>season</em> record, and it
-left this mission for Mission 6 on 2026-08-26 under the person-versus-season
-test. Nothing today notices that one depends on the other, so a corrected number
-leaves Mission 4 scheduling against a presence that was verified for a different
-number.</p>
-<p>Brian raised it, 2026-08-26: <em>&quot;The phone number changes, which means WhatsApp
-will be impacted, which is a big part of what the app does.&quot;</em></p>
-<p>The division that follows from the same test that split them:</p>
-<ul>
-<li><strong>This workflow raises the flag.</strong> Superseding a mobile marks that person&#39;s
-On WhatsApp presence for the current season <strong>unverified</strong>. It is the only
-place that knows the number changed. It is deliberately not <code>not on WhatsApp</code>:
-the new number may well be on WhatsApp, and nothing here can know.</li>
-<li><strong>Mission 6 verifies.</strong> It owns On WhatsApp and already fires the community
-group invite at every recruit door; re-confirming an existing member is that
-machinery pointed at somebody who is already on the roster.</li>
-<li><strong>Mission 4 must not send into an unverified presence.</strong> An unverified
-presence is not a green light.</li>
-<li><strong><code>W7</code> is where it becomes work</strong>, if the required set grows to include it.
-That is an owner decision and is not assumed here.</li>
-</ul>
-<p><strong>Amended 2026-08-27.</strong> Brian settled the operator-facing half: this workflow
-does not merely mark a flag, it <strong>tells the operator at the moment of the
-change</strong> — the check is whether the number being replaced is on WhatsApp for the
-active season, and if it is, the consequence is stated before the save. <code>W2-05</code>
-is that screen. What remains Mission 6&#39;s is the verification itself and the
-rejoin.</p>
-<p><strong>The substrate is still absent.</strong> On WhatsApp has no substrate on
-<code>main</code>, so there is no flag to set and no state to write. This is recorded as a
-seam — the same treatment <code>W4</code> gives the prospect collision — so Mission 6
-inherits it rather than rediscovering it. <code>W2-04</code>&#39;s read-back is the natural
-moment for the operator to be told.</p>
-<h2>Exceptions and recovery</h2>
-<ul>
-<li><strong>A value that two people disagree about.</strong> The operator enters what they
-believe is right and records the reason. There is no held state and no queue
-for it. Brian, 2026-08-26: <em>&quot;There shouldn&#39;t be a dispute here. It should just
-see the latest record… They&#39;re the operator. Nothing goes higher than the
-operator.&quot;</em> <strong>This supersedes Task 08 §6&#39;s contested-value rule, the matching
-invariant in <code>01-overview.md</code>, and this workflow&#39;s own line in the frozen
-inventory</strong>, all of which predate it.</li>
-<li><strong>Validation, and the negative cases that matter more.</strong> Brian, 2026-08-27:
-<em>&quot;there should also be negative cases so that correct numbers don&#39;t get
-invalidated.&quot;</em> A correct number being refused is the worse failure: it stops
-an operator recording something true, and it will be met by typing something
-false. The set that must pass, at minimum: <code>+44 7700 900988</code>, <code>07700 900988</code>,
-<code>07700900988</code>, <code>+44 7700 900 988</code>, <code>+1 415 555 0142</code>, <code>+353 85 555 0142</code>, and
-any other number in international form.
-The set that must fail: too few digits, letters, an empty country code, and an
-address with no domain or no local part.</li>
-<li><strong>A phone number that will not normalise.</strong> The raw value is preserved
-alongside the E.164 form, and the operator sees the normalised value read back
-before saving. An unparseable number is saved raw and flagged in the queue.</li>
-<li><strong>An email that already belongs to another person.</strong> The save is refused and
-the duplicate check offers <code>W4</code>, because two records sharing a contact point
-is the commonest signal of the same human twice.</li>
-<li><strong>A concurrent edit.</strong> The second save is refused with what changed underneath
-it, rather than silently winning. Nothing about a person is important enough
-to lose to a race.</li>
-<li><strong>An operator outside the four-role group.</strong> They never reach this route: the
-destination is absent from their navigation and the action refuses on the
-query, exposing nothing.</li>
-</ul>
-<h2>Safety, privacy, consent, and authority boundaries</h2>
-<ul>
-<li>Four-role only, for every field.</li>
-<li>Emergency contact is third-party personal data. It is never a Person row,
-never a contact point, never reachable by any audience or messaging machinery,
-and out of leadership exports by default.</li>
-<li>Date of birth and emergency contact are four-role only and never appear on any
-list.</li>
-<li>Nothing here sends a message, records a lawful basis, or offers a channel
-action.</li>
-<li>No field on this surface is destructive. Removing an alias hides it from
-display and keeps it as dedupe evidence; there is no delete for a person.</li>
-<li>Every edit is attributable and audited — invariant M2, and Task 07 §3&#39;s actor,
-before, after and reason.</li>
-</ul>
-<h2>Acceptance evidence</h2>
-<p>Against seeded synthetic data, an operator can:</p>
-<ol>
-<li>fill a first-name-only legacy record&#39;s <strong>last name</strong> and watch its
-missing-data count fall;</li>
-<li><strong>change a mobile number</strong>, be shown the normalised value before saving, and
-find the previous number still present and dated;</li>
-<li><strong>change a personal email</strong> and be required to give a reason, where filling
-an empty one required none;</li>
-<li><strong>add an alias and flag it as the display name</strong>, and see the list&#39;s name
-column follow it;</li>
-<li>be <strong>refused</strong> when saving an email that already belongs to another person,
-and be offered the merge;</li>
-<li>be <strong>refused</strong> a concurrent save, and be told what moved underneath them;</li>
-<li>read the whole edit back on the person&#39;s history with their own name against
-it;</li>
-<li>confirm that nothing they did moved the person on the ladder;</li>
-<li>be <strong>refused a malformed email and a malformed number</strong>, per field, with the
-rule named;</li>
-<li><strong>save every correct form of a number</strong> — <code>+44</code> and national, spaced and
-unspaced, a US number, an Irish number and any other international form —
-and have none of them refused;</li>
-<li>change a number that is <strong>on WhatsApp for the active season</strong> and be told,
-before saving, that the group membership ends and a rejoin will be asked for;</li>
-<li>change a number that is <strong>not</strong> on WhatsApp for the season and see no such
-notice.</li>
-</ol>
-<h2>Core decisions</h2>
-<table>
-<thead>
-<tr>
-<th>Decision</th>
-<th>Classification</th>
-<th>Governing evidence or recommended default</th>
-<th>Status</th>
-</tr>
-</thead>
-<tbody><tr>
-<td><code>disputed — awaiting verification</code> is struck; the record shows the current value and who set it</td>
-<td><code>locked</code></td>
-<td>Brian, 2026-08-26. Supersedes Task 08 §6, <code>01-overview.md</code>&#39;s invariant, and this workflow&#39;s frozen-inventory line</td>
-<td>Settled, amendments pending</td>
-</tr>
-<tr>
-<td>One edit surface at <code>/operate/people/[personId]/edit</code>, sectioned as the record reads</td>
-<td><code>proposed for owner approval</code></td>
-<td>The alternative is editing each field in place on the record. One surface is fewer moving parts and one audit boundary; in-place is fewer clicks for one typo</td>
-<td>Recommend one surface</td>
-</tr>
-<tr>
-<td>A reason is required to change an existing value, and never to fill an empty one</td>
-<td><code>proposed for owner approval</code></td>
-<td>Task 07 §3 requires a reason audited. Demanding one to fill a blank would make the missing-data queue miserable to work</td>
-<td>Recommend as drawn</td>
-</tr>
-<tr>
-<td>Contact values supersede; every other field overwrites, with the previous value in the history</td>
-<td><code>locked</code></td>
-<td>Task 08 §4</td>
-<td>Settled</td>
-</tr>
-<tr>
-<td>An email already held by another person refuses the save and offers the merge</td>
-<td><code>proposed for owner approval</code></td>
-<td>Task 09 D7 locks dedup-before-create at every door; this is the same rule on the correction path</td>
-<td>Recommend yes</td>
-</tr>
-<tr>
-<td>A concurrent edit refuses rather than wins</td>
-<td><code>proposed for owner approval</code></td>
-<td>Nothing here is high-frequency enough to justify last-write-wins</td>
-<td>Recommend yes</td>
-</tr>
-<tr>
-<td>Emergency contact is edited here and locked down structurally</td>
-<td><code>locked</code></td>
-<td>Task 08 §4 and §6</td>
-<td>Settled</td>
-</tr>
-<tr>
-<td>The college/personal email split is a migration this mission carries</td>
-<td><code>locked</code></td>
-<td><code>contact_point_kind</code> on <code>main</code> is <code>(&#39;email&#39;,&#39;phone&#39;)</code></td>
-<td>Settled</td>
-</tr>
-<tr>
-<td>Phone and email are validated before the save is offered, per field, naming the rule</td>
-<td><code>locked</code></td>
-<td>Brian, 2026-08-27</td>
-<td>Settled</td>
-</tr>
-<tr>
-<td>A correct number is never refused; the negative cases are acceptance criteria in their own right</td>
-<td><code>locked</code></td>
-<td>Brian, 2026-08-27 — &quot;negative cases so that correct numbers don&#39;t get invalidated&quot;</td>
-<td>Settled</td>
-</tr>
-<tr>
-<td>A number from any country is valid; only a bare national number defaults to UK</td>
-<td><code>locked</code></td>
-<td>Brian, 2026-08-27 — the club&#39;s people come from all over the world</td>
-<td>Settled</td>
-</tr>
-<tr>
-<td>No <code>Verified</code> mark on any value; a value carries who supplied it</td>
-<td><code>locked</code></td>
-<td>Brian, 2026-08-27 — &quot;no verification link at all&quot;. Nothing here verifies a mailbox, so claiming it would be false</td>
-<td>Settled</td>
-</tr>
-<tr>
-<td>Changing a number that is on WhatsApp for the active season raises it before the save</td>
-<td><code>locked</code></td>
-<td>Brian, 2026-08-27</td>
-<td>Settled</td>
-</tr>
-<tr>
-<td>Whether the save also sends the rejoin request, or only marks it needed</td>
-<td><code>proposed for owner approval</code></td>
-<td>This mission sends nothing; dispatch is Mission 4&#39;s. Marking it needed keeps that true</td>
-<td>Recommend mark only</td>
-</tr>
-<tr>
-<td>Field-level permissioning within the four-role group</td>
-<td><code>delegated to Mission Lead</code></td>
-<td>Task 08 §6 grants the group uniformly; no source splits it further</td>
-<td>Delegated</td>
-</tr>
-<tr>
-<td>Validation messages, field order within a section, and the save control&#39;s placement</td>
-<td><code>delegated to Mission Lead</code></td>
-<td>No product meaning</td>
-<td>Delegated</td>
-</tr>
-</tbody></table>
-<h2>Brian approval</h2>
-<ul>
-<li>Exact words: &quot;Make these changes and I&#39;m now approving.&quot;</li>
-<li>Date: 2026-08-27</li>
-<li>By: Brian Schuster</li>
-</ul>
-</div>
+    <div class="sheet">
+      <h1>W2 — Correct a person&#39;s record</h1>
+      <ul>
+        <li>
+          Purpose/intended outcome: an operator learns that something the club holds about a person
+          is wrong, missing or out of date, and fixes it — attributably, audibly, and without
+          destroying what was there before.
+        </li>
+        <li>
+          Primary actor: a four-role operator — President, Vice-President, Secretary, General
+          Manager.
+        </li>
+        <li>
+          Trigger: somebody changes their number; a name was mis-keyed at a sign-up table; the
+          missing-data queue says seven facts are absent; a graduate&#39;s college address stops
+          working.
+        </li>
+        <li>
+          Entry point: <strong>Correct this record</strong> on the person record
+          (<code>W1-05</code>), and every row of the missing-data queue (<code>W7</code>).
+        </li>
+        <li>
+          Route/placement: <code>/operate/people/[personId]/edit</code>. Neither the route nor its
+          parent exists on <code>main</code>; nothing occupies the path.
+        </li>
+        <li>
+          Controlling source: Task 08 §4 (the field inventory), §6 (the authority matrix); Task 07
+          §3 (operator-executable correction with actor, before/after and reason audited); LAN-147
+          questions 1, 4 and 5; the field inventory approved 2026-08-26 and amended the same day.
+        </li>
+        <li>
+          User-visible result: the record now says the right thing, the change is on the
+          person&#39;s history with a name and a date against it, and no previous contact value has
+          been destroyed.
+        </li>
+      </ul>
+      <h2>Required actions</h2>
+      <ul>
+        <li>
+          Edit every durable person fact the field inventory marks <code>build</code>: first name,
+          last name, aliases, the two email kinds, mobile, the four academic fields, date of birth,
+          and the five emergency-contact fields.
+        </li>
+        <li>
+          <strong>One edit surface, sectioned exactly as the record reads</strong> — who they are,
+          how to reach them, academic, restricted. An operator who has just looked at a section
+          corrects it without learning a second layout.
+        </li>
+        <li>
+          <strong>Contact values supersede rather than overwrite.</strong> Replacing a mobile or an
+          email keeps the previous value, dated, with the new one preferred. One preferred value per
+          kind.
+        </li>
+        <li>
+          <strong>Every other field overwrites</strong>, because a corrected date of birth is not a
+          second date of birth. The previous value survives in the change history, which is what
+          makes it recoverable.
+        </li>
+        <li>
+          Fill a field that reads <code>not recorded</code> without a reason.
+          <strong>Change a field that already has a value only with a reason</strong>, recorded and
+          shown on the history.
+        </li>
+        <li>Flag an alias as the display name, add an alias, and remove one.</li>
+        <li>
+          <strong>Validate every phone and email before the save is offered.</strong> An email must
+          be a syntactically valid address; a phone must be a plausible number
+          <strong>from anywhere</strong>. Brian, 2026-08-27:
+          <em
+            >&quot;there are people who are going to have US numbers, Irish numbers, or numbers from
+            other places. They come from all over the world. It can&#39;t just literally be from the
+            UK.&quot;</em
+          >
+          A number is valid if it parses with its country code; a bare national number is read as
+          UK, which is the only place a default is applied and the only thing the club&#39;s
+          location decides. The refusal is per field, names the rule rather than saying
+          &quot;invalid&quot;, and the save is unavailable rather than failing afterwards.
+        </li>
+        <li>
+          <strong>Check the number against WhatsApp before saving it.</strong> Where the number
+          being replaced is on WhatsApp for the active season, say so and say what follows, before
+          the save rather than after it.
+        </li>
+        <li>Return to where the operator came from — the record, or the next row of the queue.</li>
+      </ul>
+      <h2>State transitions</h2>
+      <ul>
+        <li>
+          A person fact goes from <code>not recorded</code> to a value, or from one value to
+          another. Nothing else on the person moves.
+        </li>
+        <li>
+          A contact point goes from preferred to superseded, and a new one becomes preferred. The
+          superseded row is never deleted.
+        </li>
+        <li>
+          Every save appends one audit event: actor, timestamp, field, before, after, and the reason
+          where one was required.
+        </li>
+        <li>
+          <strong>No membership, prospect, role or seat state changes here.</strong> Correcting a
+          person never moves them on the ladder.
+        </li>
+      </ul>
+      <h2>Handoffs</h2>
+      <ul>
+        <li>
+          To <code>W1</code> on save, or to <code>W7</code> when the operator arrived from the
+          queue.
+        </li>
+        <li>
+          To <code>W4</code> when the reason a value looks wrong is that this is the same human
+          twice.
+        </li>
+        <li>To <code>W8</code> when the question is what the value used to be.</li>
+        <li>To Mission 1 when the correction wanted is to a login or a club role.</li>
+        <li>
+          To Mission 7 when the correction is a person editing their own record through the signed
+          link — that path is theirs and does not exist here.
+        </li>
+        <li>
+          To Mission 8 when the request is erasure or a subject-access export rather than a
+          correction.
+        </li>
+      </ul>
+      <h2>Dependencies and mission boundaries</h2>
+      <ul>
+        <li>
+          <strong>The two email kinds need a migration.</strong> <code>contact_point_kind</code> on
+          <code>main</code> is <code>(&#39;email&#39;,&#39;phone&#39;)</code>; college and personal
+          email are distinct dated kinds and this mission carries the split.
+        </li>
+        <li>
+          The five emergency-contact fields do not exist on <code>main</code> at all and are built
+          here, under the structural lockdown <code>01-overview.md</code> makes an invariant.
+        </li>
+        <li>
+          Consent state and channel presence are not editable here because they do not exist on
+          <code>main</code>; they are Missions 8 and 6.
+        </li>
+        <li>
+          Seasonal facts — jersey, positions, onboarding items, formalwear, Blues, eligibility — are
+          corrected on player detail, not here. A person with four seasons has one person record and
+          four season records.
+        </li>
+        <li>
+          Recruitment facts are Mission 6&#39;s and are absent from this surface entirely, which
+          follows <code>W1</code>&#39;s round-one decision that the recruit process appears nowhere
+          on a person record.
+        </li>
+      </ul>
+      <h2>The mobile-number seam — recorded 2026-08-26, inherited by Mission 6</h2>
+      <p>
+        <strong
+          >Superseding a mobile number invalidates a season fact this mission does not own.</strong
+        >
+        The number is the person&#39;s and is corrected here. <strong>On WhatsApp</strong> — being
+        reachable on WhatsApp and in this season&#39;s group — is a <em>season</em> record, and it
+        left this mission for Mission 6 on 2026-08-26 under the person-versus-season test. Nothing
+        today notices that one depends on the other, so a corrected number leaves Mission 4
+        scheduling against a presence that was verified for a different number.
+      </p>
+      <p>
+        Brian raised it, 2026-08-26:
+        <em
+          >&quot;The phone number changes, which means WhatsApp will be impacted, which is a big
+          part of what the app does.&quot;</em
+        >
+      </p>
+      <p>The division that follows from the same test that split them:</p>
+      <ul>
+        <li>
+          <strong>This workflow raises the flag.</strong> Superseding a mobile marks that
+          person&#39;s On WhatsApp presence for the current season <strong>unverified</strong>. It
+          is the only place that knows the number changed. It is deliberately not
+          <code>not on WhatsApp</code>: the new number may well be on WhatsApp, and nothing here can
+          know.
+        </li>
+        <li>
+          <strong>Mission 6 verifies.</strong> It owns On WhatsApp and already fires the community
+          group invite at every recruit door; re-confirming an existing member is that machinery
+          pointed at somebody who is already on the roster.
+        </li>
+        <li>
+          <strong>Mission 4 must not send into an unverified presence.</strong> An unverified
+          presence is not a green light.
+        </li>
+        <li>
+          <strong><code>W7</code> is where it becomes work</strong>, if the required set grows to
+          include it. That is an owner decision and is not assumed here.
+        </li>
+      </ul>
+      <p>
+        <strong>Amended 2026-08-27.</strong> Brian settled the operator-facing half: this workflow
+        does not merely mark a flag, it
+        <strong>tells the operator at the moment of the change</strong> — the check is whether the
+        number being replaced is on WhatsApp for the active season, and if it is, the consequence is
+        stated before the save. <code>W2-05</code> is that screen. What remains Mission 6&#39;s is
+        the verification itself and the rejoin.
+      </p>
+      <p>
+        <strong>The substrate is still absent.</strong> On WhatsApp has no substrate on
+        <code>main</code>, so there is no flag to set and no state to write. This is recorded as a
+        seam — the same treatment <code>W4</code> gives the prospect collision — so Mission 6
+        inherits it rather than rediscovering it. <code>W2-04</code>&#39;s read-back is the natural
+        moment for the operator to be told.
+      </p>
+      <h2>Exceptions and recovery</h2>
+      <ul>
+        <li>
+          <strong>A value that two people disagree about.</strong> The operator enters what they
+          believe is right and records the reason. There is no held state and no queue for it.
+          Brian, 2026-08-26:
+          <em
+            >&quot;There shouldn&#39;t be a dispute here. It should just see the latest record…
+            They&#39;re the operator. Nothing goes higher than the operator.&quot;</em
+          >
+          <strong
+            >This supersedes Task 08 §6&#39;s contested-value rule, the matching invariant in
+            <code>01-overview.md</code>, and this workflow&#39;s own line in the frozen
+            inventory</strong
+          >, all of which predate it.
+        </li>
+        <li>
+          <strong>Validation, and the negative cases that matter more.</strong> Brian, 2026-08-27:
+          <em
+            >&quot;there should also be negative cases so that correct numbers don&#39;t get
+            invalidated.&quot;</em
+          >
+          A correct number being refused is the worse failure: it stops an operator recording
+          something true, and it will be met by typing something false. The set that must pass, at
+          minimum: <code>+44 7700 900988</code>, <code>07700 900988</code>,
+          <code>07700900988</code>, <code>+44 7700 900 988</code>, <code>+1 415 555 0142</code>,
+          <code>+353 85 555 0142</code>, and any other number in international form. The set that
+          must fail: too few digits, letters, an empty country code, and an address with no domain
+          or no local part.
+        </li>
+        <li>
+          <strong>A phone number that will not normalise.</strong> The raw value is preserved
+          alongside the E.164 form, and the operator sees the normalised value read back before
+          saving. An unparseable number is saved raw and flagged in the queue.
+        </li>
+        <li>
+          <strong>An email that already belongs to another person.</strong> The save is refused and
+          the duplicate check offers <code>W4</code>, because two records sharing a contact point is
+          the commonest signal of the same human twice.
+        </li>
+        <li>
+          <strong>A concurrent edit.</strong> The second save is refused with what changed
+          underneath it, rather than silently winning. Nothing about a person is important enough to
+          lose to a race.
+        </li>
+        <li>
+          <strong>An operator outside the four-role group.</strong> They never reach this route: the
+          destination is absent from their navigation and the action refuses on the query, exposing
+          nothing.
+        </li>
+      </ul>
+      <h2>Safety, privacy, consent, and authority boundaries</h2>
+      <ul>
+        <li>Four-role only, for every field.</li>
+        <li>
+          Emergency contact is third-party personal data. It is never a Person row, never a contact
+          point, never reachable by any audience or messaging machinery, and out of leadership
+          exports by default.
+        </li>
+        <li>
+          Date of birth and emergency contact are four-role only and never appear on any list.
+        </li>
+        <li>Nothing here sends a message, records a lawful basis, or offers a channel action.</li>
+        <li>
+          No field on this surface is destructive. Removing an alias hides it from display and keeps
+          it as dedupe evidence; there is no delete for a person.
+        </li>
+        <li>
+          Every edit is attributable and audited — invariant M2, and Task 07 §3&#39;s actor, before,
+          after and reason.
+        </li>
+      </ul>
+      <h2>Acceptance evidence</h2>
+      <p>Against seeded synthetic data, an operator can:</p>
+      <ol>
+        <li>
+          fill a first-name-only legacy record&#39;s <strong>last name</strong> and watch its
+          missing-data count fall;
+        </li>
+        <li>
+          <strong>change a mobile number</strong>, be shown the normalised value before saving, and
+          find the previous number still present and dated;
+        </li>
+        <li>
+          <strong>change a personal email</strong> and be required to give a reason, where filling
+          an empty one required none;
+        </li>
+        <li>
+          <strong>add an alias and flag it as the display name</strong>, and see the list&#39;s name
+          column follow it;
+        </li>
+        <li>
+          be <strong>refused</strong> when saving an email that already belongs to another person,
+          and be offered the merge;
+        </li>
+        <li>
+          be <strong>refused</strong> a concurrent save, and be told what moved underneath them;
+        </li>
+        <li>
+          read the whole edit back on the person&#39;s history with their own name against it;
+        </li>
+        <li>confirm that nothing they did moved the person on the ladder;</li>
+        <li>
+          be <strong>refused a malformed email and a malformed number</strong>, per field, with the
+          rule named;
+        </li>
+        <li>
+          <strong>save every correct form of a number</strong> — <code>+44</code> and national,
+          spaced and unspaced, a US number, an Irish number and any other international form — and
+          have none of them refused;
+        </li>
+        <li>
+          change a number that is <strong>on WhatsApp for the active season</strong> and be told,
+          before saving, that the group membership ends and a rejoin will be asked for;
+        </li>
+        <li>
+          change a number that is <strong>not</strong> on WhatsApp for the season and see no such
+          notice.
+        </li>
+      </ol>
+      <h2>Core decisions</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Decision</th>
+            <th>Classification</th>
+            <th>Governing evidence or recommended default</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <code>disputed — awaiting verification</code> is struck; the record shows the current
+              value and who set it
+            </td>
+            <td><code>locked</code></td>
+            <td>
+              Brian, 2026-08-26. Supersedes Task 08 §6, <code>01-overview.md</code>&#39;s invariant,
+              and this workflow&#39;s frozen-inventory line
+            </td>
+            <td>Settled, amendments pending</td>
+          </tr>
+          <tr>
+            <td>
+              One edit surface at <code>/operate/people/[personId]/edit</code>, sectioned as the
+              record reads
+            </td>
+            <td><code>proposed for owner approval</code></td>
+            <td>
+              The alternative is editing each field in place on the record. One surface is fewer
+              moving parts and one audit boundary; in-place is fewer clicks for one typo
+            </td>
+            <td>Recommend one surface</td>
+          </tr>
+          <tr>
+            <td>
+              A reason is required to change an existing value, and never to fill an empty one
+            </td>
+            <td><code>proposed for owner approval</code></td>
+            <td>
+              Task 07 §3 requires a reason audited. Demanding one to fill a blank would make the
+              missing-data queue miserable to work
+            </td>
+            <td>Recommend as drawn</td>
+          </tr>
+          <tr>
+            <td>
+              Contact values supersede; every other field overwrites, with the previous value in the
+              history
+            </td>
+            <td><code>locked</code></td>
+            <td>Task 08 §4</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>An email already held by another person refuses the save and offers the merge</td>
+            <td><code>proposed for owner approval</code></td>
+            <td>
+              Task 09 D7 locks dedup-before-create at every door; this is the same rule on the
+              correction path
+            </td>
+            <td>Recommend yes</td>
+          </tr>
+          <tr>
+            <td>A concurrent edit refuses rather than wins</td>
+            <td><code>proposed for owner approval</code></td>
+            <td>Nothing here is high-frequency enough to justify last-write-wins</td>
+            <td>Recommend yes</td>
+          </tr>
+          <tr>
+            <td>Emergency contact is edited here and locked down structurally</td>
+            <td><code>locked</code></td>
+            <td>Task 08 §4 and §6</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>The college/personal email split is a migration this mission carries</td>
+            <td><code>locked</code></td>
+            <td>
+              <code>contact_point_kind</code> on <code>main</code> is
+              <code>(&#39;email&#39;,&#39;phone&#39;)</code>
+            </td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>
+              Phone and email are validated before the save is offered, per field, naming the rule
+            </td>
+            <td><code>locked</code></td>
+            <td>Brian, 2026-08-27</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>
+              A correct number is never refused; the negative cases are acceptance criteria in their
+              own right
+            </td>
+            <td><code>locked</code></td>
+            <td>
+              Brian, 2026-08-27 — &quot;negative cases so that correct numbers don&#39;t get
+              invalidated&quot;
+            </td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>A number from any country is valid; only a bare national number defaults to UK</td>
+            <td><code>locked</code></td>
+            <td>Brian, 2026-08-27 — the club&#39;s people come from all over the world</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>No <code>Verified</code> mark on any value; a value carries who supplied it</td>
+            <td><code>locked</code></td>
+            <td>
+              Brian, 2026-08-27 — &quot;no verification link at all&quot;. Nothing here verifies a
+              mailbox, so claiming it would be false
+            </td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>
+              Changing a number that is on WhatsApp for the active season raises it before the save
+            </td>
+            <td><code>locked</code></td>
+            <td>Brian, 2026-08-27</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Whether the save also sends the rejoin request, or only marks it needed</td>
+            <td><code>proposed for owner approval</code></td>
+            <td>
+              This mission sends nothing; dispatch is Mission 4&#39;s. Marking it needed keeps that
+              true
+            </td>
+            <td>Recommend mark only</td>
+          </tr>
+          <tr>
+            <td>Field-level permissioning within the four-role group</td>
+            <td><code>delegated to Mission Lead</code></td>
+            <td>Task 08 §6 grants the group uniformly; no source splits it further</td>
+            <td>Delegated</td>
+          </tr>
+          <tr>
+            <td>
+              Validation messages, field order within a section, and the save control&#39;s
+              placement
+            </td>
+            <td><code>delegated to Mission Lead</code></td>
+            <td>No product meaning</td>
+            <td>Delegated</td>
+          </tr>
+        </tbody>
+      </table>
+      <h2>Brian approval</h2>
+      <ul>
+        <li>Exact words: &quot;Make these changes and I&#39;m now approving.&quot;</li>
+        <li>Date: 2026-08-27</li>
+        <li>By: Brian Schuster</li>
+      </ul>
+    </div>
   </body>
 </html>
