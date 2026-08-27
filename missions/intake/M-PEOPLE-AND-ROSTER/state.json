@@ -162,7 +162,16 @@
       "name": "Open one player's record",
       "state": "spec_draft",
       "stale": false,
-      "feedback": [],
+      "feedback": [
+        {
+          "screen_id": "W6-01",
+          "text": "Decide whether the separate Membership status card is folded into the Standing field. It touches the shipped activation control."
+        },
+        {
+          "screen_id": "W6-01",
+          "text": "Two history rows read Onboarding to Onboarding, because the migration maps two struck values onto one rung. Still unresolved."
+        }
+      ],
       "approvals": {}
     },
     {
@@ -1629,5 +1638,5 @@
       }
     ]
   },
-  "next_action": "W5 is done. W6 next: Brian wants the mission's UX decisions carried into player detail, which still reads as the old page"
+  "next_action": "W6 is rebuilt to the mission's decisions and re-photographed. Then W7 and W8 remain"
 }

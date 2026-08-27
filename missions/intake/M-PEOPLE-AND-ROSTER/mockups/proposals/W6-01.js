@@ -1,15 +1,23 @@
 /*
- * W6-01 — player detail's proposed shape, evaluated into the live page.
+ * W6-01 — player detail, rebuilt to the decisions this mission has already made
+ * everywhere else. Brian, 2026-08-27: "the current way that it looks, it kind of
+ * looks like it's the old thing… I want those really put in place here."
  *
- * The change is not decoration. Today this page mixes the person and the
- * season together: "PERSON" and "CONTACT" sit in the same card as
- * "MEMBERSHIP", so a durable fact and a seasonal one look like the same kind
- * of thing. The proposal separates them, routes the durable half to the person
- * record, and states the season's standing on the rebuilt ladder.
+ * Five of them, none invented here:
  *
- * Every value is taken from what the page already renders. Fields with no
- * substrate on `main` — positions, jersey, formalwear, Blues, eligibility,
- * coach group, consent — render `not recorded` rather than a plausible guess.
+ *   1. The Person / Onboarding / Season banding from the board (W5), so the two
+ *      surfaces read as one product and a field's group is never a guess.
+ *   2. Season facts edit in place, exactly as they do on the board: click,
+ *      dropdown only where the value set is fixed, commits itself, audited, no
+ *      reason asked.
+ *   3. Person facts render and route to the person record. Changing one is an
+ *      override and W2 owns what that costs.
+ *   4. The per-item "Resolve … / SAVE" pair is gone. It is the same edit as
+ *      every other cell and now looks like one.
+ *   5. History reads in W8's shape — field, from, to, when, who.
+ *
+ * Nothing here restyles the shell, the type scale or the chips: those are the
+ * application's and are left alone.
  */
 (() => {
   const NR = '<span style="color:rgba(0,0,0,0.38);font-style:italic">not recorded</span>';
@@ -28,122 +36,145 @@
   const link = (t) =>
     `<a href="#" style="color:#0b3d91;text-decoration:none;font-weight:600;font-size:0.875rem">${t}</a>`;
 
-  const over = (t) =>
-    `<div style="font-size:0.75rem;letter-spacing:0.08333em;text-transform:uppercase;color:rgba(0,0,0,0.6);line-height:2">${t}</div>`;
-  const row = (label, value) =>
-    `<div style="display:grid;grid-template-columns:190px 1fr;gap:4px 16px;padding:9px 0;border-bottom:1px solid rgba(0,0,0,0.12);align-items:baseline">
-       <div style="color:rgba(0,0,0,0.6);font-size:0.875rem">${label}</div>
-       <div style="min-width:0;overflow-wrap:anywhere">${value}</div>
-     </div>`;
-
-  /* Read what the page is showing before rewriting anything. */
-  const bodyText = document.body.innerText;
-  const statusRaw = (/^(Active|Inactive|Onboarding|Confirmed|Carried forward|Withdrawn|Departed|Archived)$/m.exec(bodyText) || [])[1] || "Active";
+  const body = document.body.innerText;
+  const statusRaw = (/^(Active|Inactive|Onboarding|Confirmed|Carried forward|Withdrawn|Departed|Archived)$/m.exec(body) || [])[1] || "Active";
   const standing = LADDER[statusRaw] ?? statusRaw;
-  const email = (/[\w.+-]+@[\w.-]+\.example/.exec(bodyText) || [])[0] || null;
-  /* The shell head also renders an h5, so the player's name is the first
-     heading that is not the application's own title. */
+  const entry = (/Returning|New/.exec(body) || ["—"])[0];
+  const email = (/[\w.+-]+@[\w.-]+\.example/.exec(body) || [])[0] || null;
   const name = (() => {
-    const headings = Array.from(
-      document.querySelectorAll("h1, h2, h3, .MuiTypography-h4, .MuiTypography-h5"),
-    ).map((h) => h.textContent.trim());
-    return headings.find((t) => t && !/^Lancers Operations$/.test(t)) || "";
+    const hs = Array.from(document.querySelectorAll("h1,h2,h3,.MuiTypography-h4,.MuiTypography-h5"))
+      .map((h) => h.textContent.trim());
+    return hs.find((t) => t && !/^Lancers Operations$/.test(t)) || "";
   })();
+  const departed = standing === "Departed" || standing === "Archived";
 
-  /* The first Paper on the page is the mixed person/membership card. It becomes
-     two: the person, linked out, and this season. */
-  const cards = Array.from(document.querySelectorAll(".MuiPaper-root"));
-  const first = cards.find((c) => /PERSON/i.test(c.innerText));
-  if (first) {
-    first.innerHTML = `
-      <div style="padding:24px">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px">
-          ${over("The person")}
-          ${link("Open the person record →")}
-        </div>
-        ${row("Name", name)}
-        ${row("Aliases", NR)}
-        ${row("Mobile phone", NR)}
-        ${row("Personal email", email || NR)}
-        ${row("College", NR)}
-        ${row("Date of birth", NR)}
-        ${row("Emergency contact", NR)}
-        <div style="margin-top:10px;font-size:0.8125rem;color:rgba(0,0,0,0.6)">Corrected on the person record</div>
-      </div>`;
+  const GROUPS = {
+    person: { label: "Person", band: "#455a64", tint: "rgba(69,90,100,0.05)" },
+    onboarding: { label: "Onboarding", band: "#a8560a", tint: "rgba(237,108,2,0.05)" },
+    season: { label: "Season · 2026-27", band: "#0b3d91", tint: "rgba(11,61,145,0.05)" },
+  };
 
-    const season = document.createElement("div");
-    season.className = first.className;
-    season.innerHTML = `
-      <div style="padding:24px">
-        ${over("This season · 2026-27")}
-        ${row("Standing", chip(standing))}
-        ${row("Entry", (/Returning|New/.exec(bodyText) || ["—"])[0])}
-        ${row("Confirmed", (/Confirmed (\d+ \w+ \d{4})/.exec(bodyText) || [null, NR])[1])}
-        ${row("Activated", (/Activated (\d+ \w+ \d{4})/.exec(bodyText) || [null, NR])[1])}
-        ${row("Positions", NR)}
-        ${row("Jersey", NR)}
-        ${row("Formalwear", NR)}
-        ${row("Half / Full Blue", NR)}
-        ${row("Eligibility", NR)}
-        ${row("Availability", NR)}
-      </div>`;
-    first.parentNode.insertBefore(season, first.nextSibling);
-  }
+  /* A season value: click to change it where it sits. */
+  const editable = (v) =>
+    `<span style="display:inline-block;min-width:40px;border-bottom:1px dashed rgba(0,0,0,0.3);padding-bottom:1px">${v}</span>`;
 
-  /* The summary strip states the ladder rung rather than the stored enum. */
-  const strip = Array.from(document.querySelectorAll(".MuiChip-root")).find(
-    (c) => TONE[c.textContent.trim()] || LADDER[c.textContent.trim()],
-  );
-  if (strip) {
-    const label = strip.querySelector(".MuiChip-label") || strip;
-    label.textContent = standing;
-  }
+  const row = (label, value, note) => `
+    <div style="display:grid;grid-template-columns:210px 1fr;gap:4px 16px;padding:9px 0;border-bottom:1px solid rgba(0,0,0,0.12);align-items:baseline">
+      <div style="color:rgba(0,0,0,0.6);font-size:0.875rem">${label}</div>
+      <div style="min-width:0;overflow-wrap:anywhere">${value}${
+        note ? `<div style="font-size:0.75rem;color:rgba(0,0,0,0.6);margin-top:2px">${note}</div>` : ""
+      }</div>
+    </div>`;
 
-  /* Status history reads in the rebuilt vocabulary, so a reader is not left
-     translating three struck values in their head. */
-  document.querySelectorAll(".MuiPaper-root").forEach((card) => {
-    if (!/STATUS HISTORY/i.test(card.innerText)) return;
-    card.querySelectorAll("*").forEach((el) => {
-      if (el.children.length) return;
-      let t = el.textContent;
-      let out = t
+  const panel = (group, rows, action) => `
+    <div class="MuiPaper-root" style="border:1px solid rgba(0,0,0,0.12);border-radius:10px;overflow:hidden;margin-bottom:20px;background:#fff">
+      <div style="background:${group.band};color:#fff;padding:7px 20px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <span>${group.label}</span>${action ?? ""}
+      </div>
+      <div style="background:${group.tint};padding:6px 20px 16px">${rows}</div>
+    </div>`;
+
+  const personRows =
+    row("Name", name) +
+    row("Aliases", NR) +
+    row("Mobile phone", NR) +
+    row("Personal email", email || NR) +
+    row("College", NR) +
+    row("Matriculation year", NR) +
+    row("Expected graduation", NR) +
+    row("Degree field", NR) +
+    row("Date of birth", NR) +
+    row("Emergency contact", NR);
+
+  /* The shipped items, read off the page rather than invented, rendered as the
+     same click-to-edit value every other season field is. */
+  const items = Array.from(document.querySelectorAll(".MuiPaper-root"))
+    .filter((c) => /ONBOARDING ITEMS/i.test(c.innerText))
+    .flatMap((c) =>
+      Array.from(c.querySelectorAll("*"))
+        .filter((el) => el.children.length === 0 && /^(Subscription invoiced|Subscription paid|Kit sorted|BUCS Play registration|Hudl access|Squad photo|Comms groups joined)$/.test(el.textContent.trim()))
+        .map((el) => el.textContent.trim()),
+    );
+  const STATE = {
+    "Subscription invoiced": "Complete",
+    "Subscription paid": "Complete",
+    "Kit sorted": "Complete",
+    "BUCS Play registration": "Invited",
+    "Hudl access": "Invited",
+    "Squad photo": "Invited",
+    "Comms groups joined": "Complete",
+  };
+  const onboardingRows =
+    (items.length ? items : Object.keys(STATE))
+      .map((i) => row(i, editable(STATE[i] ?? "Invited")))
+      .join("") || row("Items", NR);
+
+  const seasonRows =
+    row("Standing", editable(chip(standing)), departed ? "This season is over. Nothing here changes it." : null) +
+    row("Entry", editable(entry)) +
+    row("Confirmed", editable((/Confirmed (\d+ \w+ \d{4})/.exec(body) || [null, "—"])[1])) +
+    row("Activated", editable((/Activated (\d+ \w+ \d{4})/.exec(body) || [null, "—"])[1])) +
+    row("Positions", editable(NR)) +
+    row("Jersey — Blue", editable(NR)) +
+    row("Jersey — White", editable(NR)) +
+    row("Coach group", editable(NR)) +
+    row("Formalwear", editable(NR)) +
+    row("Half / Full Blue", editable(NR)) +
+    row("Eligibility", editable(NR)) +
+    row("Availability", editable(NR));
+
+  const historyRows = Array.from(document.querySelectorAll(".MuiPaper-root"))
+    .filter((c) => /STATUS HISTORY/i.test(c.innerText))
+    .map((c) => c.innerText)
+    .join("\n")
+    .split("\n")
+    .filter((l) => /→|Created as/.test(l))
+    .slice(0, 4)
+    .map((l) => {
+      const clean = l
         .replace(/Carried forward/g, "Onboarding")
         .replace(/Confirmed/g, "Onboarding")
         .replace(/Withdrawn/g, "Departed");
-      if (out !== t) el.textContent = out;
-    });
-  });
+      return `<div style="padding:9px 0;border-bottom:1px solid rgba(0,0,0,0.12)">
+          <div style="font-size:0.875rem"><strong>Standing</strong></div>
+          <div style="font-size:0.875rem">${clean}</div>
+        </div>`;
+    })
+    .join("");
 
-  /* The change history this page cannot reach today. W6's specification asks
-     for it directly rather than by way of the person record. */
-  document.querySelectorAll(".MuiPaper-root").forEach((card) => {
-    if (!/STATUS HISTORY/i.test(card.innerText)) return;
-    const head = card.querySelector("*");
-    const link = document.createElement("div");
-    link.style.cssText = "margin-top:12px";
-    link.innerHTML =
-      '<a href="#" style="color:#0b3d91;text-decoration:none;font-weight:600;font-size:0.875rem">' +
-      "Everything that changed about this person →</a>";
-    card.appendChild(link);
-  });
+  const seasonsRows =
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.12)">
+       <div>${link("2025-26")}<div style="font-size:0.8125rem;color:rgba(0,0,0,0.6)">Blue 24</div></div>${chip("Archived")}
+     </div>
+     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0">
+       <div>${link("2024-25")}<div style="font-size:0.8125rem;color:rgba(0,0,0,0.6)">Blue 31</div></div>${chip("Archived")}
+     </div>`;
 
-  /* The person's other seasons, which this page cannot reach today at all. */
-  const last = cards[cards.length - 1];
-  if (last && last.parentNode) {
-    const seasons = document.createElement("div");
-    seasons.className = last.className;
-    seasons.innerHTML = `
-      <div style="padding:24px">
-        ${over("Their other seasons")}
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.12)">
-          <div>${link("2025-26")}<div style="font-size:0.8125rem;color:rgba(0,0,0,0.6)">Blue 24</div></div>
-          ${chip("Archived")}
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0">
-          <div>${link("2024-25")}<div style="font-size:0.8125rem;color:rgba(0,0,0,0.6)">Blue 31</div></div>
-          ${chip("Archived")}
-        </div>
-      </div>`;
-    last.parentNode.insertBefore(seasons, last.nextSibling);
-  }
+  /* Replace the content column, leaving the shell, the head and Back to roster
+     exactly as the application renders them. */
+  const main = document.querySelector("main");
+  if (!main) return;
+  const papers = Array.from(main.querySelectorAll(".MuiPaper-root"));
+  const first = papers[0];
+  if (!first) return;
+  /* Mark where the first card sat, so the panels land exactly there rather than
+     at the top of the column — the page head and the summary strip are the
+     application's and stay above them. */
+  const marker = document.createComment("panels");
+  first.parentNode.insertBefore(marker, first);
+  papers.forEach((p) => p.remove());
+
+  const holder = document.createElement("div");
+  holder.innerHTML =
+    panel(GROUPS.person, personRows, link("Open the person record →")) +
+    panel(GROUPS.onboarding, onboardingRows) +
+    panel(GROUPS.season, seasonRows) +
+    panel({ label: "Their other seasons", band: "#455a64", tint: "transparent" }, seasonsRows) +
+    panel(
+      { label: "What changed", band: "#455a64", tint: "transparent" },
+      historyRows || row("Nothing yet", NR),
+      link("Everything that changed about this person →"),
+    );
+  marker.parentNode.insertBefore(holder, marker);
+  marker.remove();
 })();

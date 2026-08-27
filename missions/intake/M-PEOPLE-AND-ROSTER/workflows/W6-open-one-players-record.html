@@ -231,20 +231,46 @@
           surface that writes.
         </li>
         <li>
+          <strong>Band the sections Person · Onboarding · Season</strong>, the same three groups and
+          the same colours as the board, so the two surfaces read as one product and a field&#39;s
+          group is never a guess.
+        </li>
+        <li>
           Show the derived <strong>Blues total</strong> across seasons, and the derived
           <strong>constitutional membership</strong>.
         </li>
         <li>Link to the person&#39;s change history (<code>W8</code>).</li>
       </ul>
       <h2>State transitions</h2>
+      <p>
+        <strong>Rewritten 2026-08-27</strong>, to match the board rather than diverge from it.
+        Brian:
+        <em
+          >&quot;the current way that it looks, it kind of looks like it&#39;s the old thing… I want
+          those really put in place here.&quot;</em
+        >
+      </p>
       <ul>
         <li>
-          <strong>Activation only</strong>, and only through the control that already exists:
-          onboarding to active, writing one status event with actor, timestamp and reason.
+          <strong>Season facts edit in place</strong>, with the interaction <code>W5</code> uses:
+          one click opens the value, a dropdown only where the value set is fixed, the change
+          commits on its own, and every commit writes an audit event onto the person&#39;s history
+          without asking for a reason.
         </li>
         <li>
-          Everything else on this surface is read-only. Correcting a durable fact is
-          <code>W2</code>, on the person.
+          <strong>Person facts render and route to the person record.</strong> Changing one is an
+          override and <code>W2</code> owns what that costs.
+        </li>
+        <li>
+          <strong>Onboarding items are edited the same way</strong>, which retires the per-item
+          <code>Resolve … ▾</code> and <code>SAVE</code> pair. Mission 7 still owns what the items
+          mean and when they block activation; this changes how one is set, not what it does.
+        </li>
+        <li>
+          <strong>The separate <code>Membership status</code> card is folded in.</strong> Standing
+          is a season field and edits like the rest, so a card whose only job was one status button
+          is redundant. This touches the shipped activation control and is drawn rather than assumed
+          — see <code>W6-01</code>.
         </li>
       </ul>
       <h2>Handoffs</h2>

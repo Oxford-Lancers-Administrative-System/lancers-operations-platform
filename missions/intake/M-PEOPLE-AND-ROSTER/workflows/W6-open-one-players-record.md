@@ -35,17 +35,32 @@
 - Show this season's **RSVP and attendance history**, read-only, from Mission 2.
 - Preserve the **shipped activation control**, which is the one thing on this
   surface that writes.
+- **Band the sections Person · Onboarding · Season**, the same three groups and
+  the same colours as the board, so the two surfaces read as one product and a
+  field's group is never a guess.
 - Show the derived **Blues total** across seasons, and the derived
   **constitutional membership**.
 - Link to the person's change history (`W8`).
 
 ## State transitions
 
-- **Activation only**, and only through the control that already exists:
-  onboarding to active, writing one status event with actor, timestamp and
-  reason.
-- Everything else on this surface is read-only. Correcting a durable fact is
-  `W2`, on the person.
+**Rewritten 2026-08-27**, to match the board rather than diverge from it. Brian:
+_"the current way that it looks, it kind of looks like it's the old thing… I want
+those really put in place here."_
+
+- **Season facts edit in place**, with the interaction `W5` uses: one click opens
+  the value, a dropdown only where the value set is fixed, the change commits on
+  its own, and every commit writes an audit event onto the person's history
+  without asking for a reason.
+- **Person facts render and route to the person record.** Changing one is an
+  override and `W2` owns what that costs.
+- **Onboarding items are edited the same way**, which retires the per-item
+  `Resolve … ▾` and `SAVE` pair. Mission 7 still owns what the items mean and
+  when they block activation; this changes how one is set, not what it does.
+- **The separate `Membership status` card is folded in.** Standing is a season
+  field and edits like the rest, so a card whose only job was one status button
+  is redundant. This touches the shipped activation control and is drawn rather
+  than assumed — see `W6-01`.
 
 ## Handoffs
 

@@ -1282,30 +1282,31 @@
         S(
           "W6-01",
           "The player record",
-          `Today this page puts <em>Person</em>, <em>Contact</em> and <em>Membership</em> in one
-           card, so a durable fact and a seasonal one look like the same kind of thing. The proposal
-           separates them and routes the durable half to the person record.`,
+          `<strong>Rebuilt 2026-08-27.</strong> You said it still read as the old page. It now carries
+           the decisions this mission made everywhere else and never brought here.`,
           [
-            "<strong>Decide: the person/season split.</strong> The person's facts become their own panel with a route out; the season gets its own. A player with four seasons has one person record and four of these",
-            "The durable panel says where it is corrected, and carries no edit control of its own — correction is W2, on the person",
-            "The season panel states the rung and the milestone dates, and holds the seasonal facts: positions, jersey, formalwear, Blues, eligibility, availability",
-            "Six of those read <code>not recorded</code>: no substrate on <code>main</code>. That is this mission's acceptance, drawn honestly rather than mocked full",
-            "<strong>Their other seasons</strong> is new. This page cannot reach a player's other seasons at all today",
-            "<strong>A consequence worth seeing:</strong> in the status history, <em>Carried forward → Confirmed</em> becomes <em>Onboarding → Onboarding</em>. Both struck values map to the same rung, so the migration leaves transitions that record no change. <strong>Decide:</strong> migrate them as no-ops, collapse them, or keep the old labels on historical rows",
-            "The shipped onboarding items, the activation control and Back to roster are untouched",
+            "<strong>1. The board's banding.</strong> Person, Onboarding, Season — the same three groups and the same colours as W5, so the two surfaces read as one product and a field's group is never a guess",
+            "<strong>2. Season facts edit in place</strong>, exactly as they do on the board: click, dropdown only where the value set is fixed, commits itself, audited, no reason asked",
+            "<strong>3. Person facts render and route out.</strong> <em>Open the person record</em> sits on the Person band; changing one is an override and W2 owns what that costs",
+            "<strong>4. The per-item <em>Resolve … ▾ / SAVE</em> pair is gone.</strong> That pattern was the single most old-looking thing on the page, and an onboarding item is the same edit as every other cell — so it now looks like one",
+            "<strong>5. History reads in W8's shape</strong> — the field, then what it went from and to",
+            "<strong>Gone: the separate <em>Membership status / Mark inactive</em> card.</strong> Standing is a season field and edits in the cell like the rest, so a card whose only job was one status button is redundant. <strong>Decide:</strong> this touches the shipped activation control — folding it in is cleaner, keeping it is safer",
+            "The page head, the summary strip and <em>Back to roster</em> are the application's and are untouched",
+            "Six season fields read <code>not recorded</code> — no substrate on <code>main</code>, and this mission now builds it",
+            "<strong>Still visible:</strong> two history rows read <em>Onboarding → Onboarding</em>, because the migration maps two struck values onto one rung. Unresolved and yours",
           ],
           "oxfordlancers.example/operate/roster/31dfc005",
         ),
         S(
           "W6-02",
           "A departed membership",
-          `The same page for somebody who has left. It renders in full and read-only, and the
-           activation control is absent rather than disabled.`,
+          `The same page for somebody who has left: complete, and nothing about a past season is
+           changed from here.`,
           [
-            "Acceptance 6: complete, read-only, no activation control",
+            "Acceptance 6: complete and read-only, with no activation control",
+            "The Season band states it plainly on the Standing row rather than disabling controls and leaving the operator to work out why",
             "<strong>Decide:</strong> absent rather than disabled. A disabled control invites the question of how to enable it; an absent one answers it",
-            "The season panel still states the rung, so a departed season reads as departed rather than as an empty page",
-            "This is Orlando Brackenridge, whose stored status is already <code>departed</code> on <code>main</code>, so the ladder needs no mapping here",
+            "Orlando Brackenridge's stored status is already <code>departed</code> on <code>main</code>, so the ladder needs no mapping here",
           ],
           "oxfordlancers.example/operate/roster/dd456f0e",
         ),
