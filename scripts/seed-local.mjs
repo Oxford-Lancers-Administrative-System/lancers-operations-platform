@@ -4619,7 +4619,11 @@ try {
 
   fs.writeFileSync(
     new URL("../supabase/scenarios.json", import.meta.url),
-    JSON.stringify({ generated_at: new Date().toISOString(), scenarios: seededScenarios }, null, 2) + "\n",
+    JSON.stringify(
+      { generated_at: new Date().toISOString(), scenarios: seededScenarios },
+      null,
+      2,
+    ) + "\n",
   );
 
   console.log("\nNo real person, contact detail or club record is present in this dataset.");
