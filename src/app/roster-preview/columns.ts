@@ -95,7 +95,22 @@ export const BANDS: readonly BandDef[] = Object.freeze([
  *     contact points; the missing count is computed from the required set;
  *     onboarding belongs to Mission 7.
  */
-export type EditKind = "none" | "record" | "select" | "multiselect" | "text";
+export type EditKind = "none" | "record" | "select" | "multiselect" | "jersey";
+
+/**
+ * Every number the club can issue, 1–99.
+ *
+ * `jersey_assignments_number_range` is the source: `check (number between 1 and
+ * 99)`. Not free text — an operator picks from the list, because a number that
+ * is not in it cannot be stored, and because the list is the only place the
+ * board can say which numbers are already gone.
+ */
+export const JERSEY_NUMBERS: readonly string[] = Object.freeze(
+  Array.from({ length: 99 }, (_, index) => String(index + 1)),
+);
+
+/** `public.kit` — the two kits a number is allocated within. */
+export type Kit = "blue" | "white";
 
 export interface ColumnDef {
   readonly key: string;
@@ -110,6 +125,8 @@ export interface ColumnDef {
    * `Quarterback` is what somebody who does not know the codes needs to read.
    */
   readonly optionLabels?: Readonly<Record<string, string>>;
+  /** Which kit this column allocates within. Jersey columns only. */
+  readonly kit?: Kit;
   readonly width: number;
   readonly sortable: boolean;
   /** Whether the header carries a filter caret. */
@@ -336,24 +353,27 @@ export const COLUMNS: readonly ColumnDef[] = Object.freeze([
     filterable: true,
   },
   {
-    // Free entry, not a dropdown: the numbers are not a fixed set. The model is
-    // provisional — two kits, several numbers per player in one kit for about
-    // 8%, and numbers that are not unique. The fuller editor is on player
-    // detail; Mission 9 owns what a jersey number means.
-    key: "blueNumber",
+    // A picker over all 99 numbers, never free entry. Two columns because a
+    // number is allocated per kit, and multi-value because holding several
+    // numbers in one kit is the designed case rather than an exception — the
+    // schema's uniqueness is on `(season, kit, number)`, never on
+    // `(membership, kit)`. About 8% of the club's records do.
+    key: "blueNumbers",
     label: "Blue #",
     band: "season",
-    edit: "text",
-    width: 104,
+    edit: "jersey",
+    kit: "blue",
+    width: 116,
     sortable: true,
     filterable: true,
   },
   {
-    key: "whiteNumber",
+    key: "whiteNumbers",
     label: "White #",
     band: "season",
-    edit: "text",
-    width: 110,
+    edit: "jersey",
+    kit: "white",
+    width: 118,
     sortable: true,
     filterable: true,
   },

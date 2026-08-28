@@ -52,8 +52,13 @@ export interface Row {
   offencePositions: string[];
   defencePositions: string[];
   specialTeams: string[];
-  blueNumber: string | null;
-  whiteNumber: string | null;
+  /**
+   * Numbers held in each kit. Several in one kit is legal and about 8% of
+   * records do it; the same number twice in one kit across two players is not,
+   * and the board is what stops it.
+   */
+  blueNumbers: string[];
+  whiteNumbers: string[];
   coachGroup: string | null;
   formalwear: string[];
   blues: string | null;
@@ -207,10 +212,57 @@ function some(
   return from.filter((code) => held.has(code));
 }
 
+/**
+ * Hand out jersey numbers so that no two players share one within a kit.
+ *
+ * Done as a second pass over the finished roster rather than per row, because
+ * uniqueness is a property of the whole season and cannot be decided one player
+ * at a time — which is exactly why the real constraint is an exclusion over
+ * `(season, kit, number)` and not a check on the row being written.
+ *
+ * Roughly seven in ten hold a Blue number and half hold a White one, so the
+ * board opens with plenty of numbers still free to hand out and plenty already
+ * gone. About one in twelve holds a second number in a kit, which is the
+ * measured rate and the case a single-value cell could never have shown.
+ */
+function allocateJerseys(rows: Row[], random: () => number): void {
+  for (const kit of ["blueNumbers", "whiteNumbers"] as const) {
+    const taken = new Set<string>();
+    const holdRate = kit === "blueNumbers" ? 0.7 : 0.5;
+
+    const free = (): string | null => {
+      // Bounded rather than a `while (true)`: with 99 numbers and 50 players it
+      // never runs out, but a fixture that could spin forever is a bad example
+      // to leave for somebody to copy.
+      for (let attempt = 0; attempt < 200; attempt += 1) {
+        const candidate = String(1 + Math.floor(random() * 99));
+        if (!taken.has(candidate)) return candidate;
+      }
+      return null;
+    };
+
+    for (const row of rows) {
+      if (random() >= holdRate) continue;
+      const first = free();
+      if (first === null) continue;
+      taken.add(first);
+      row[kit] = [first];
+
+      if (random() < 0.08) {
+        const second = free();
+        if (second !== null) {
+          taken.add(second);
+          row[kit] = [first, second].sort((a, b) => Number(a) - Number(b));
+        }
+      }
+    }
+  }
+}
+
 export function buildRoster(): Row[] {
   const random = seeded(20260827);
 
-  return NAMES.map(([displayName, college], index) => {
+  const rows = NAMES.map(([displayName, college], index) => {
     // Weighted so the board is mostly a working squad rather than an even
     // spread across five statuses — a roster where a fifth of everybody is
     // Departed would misrepresent what this screen is usually looking at.
@@ -264,8 +316,8 @@ export function buildRoster(): Row[] {
       offencePositions,
       defencePositions,
       specialTeams,
-      blueNumber: maybe(random, String(1 + Math.floor(random() * 98)), 0.35),
-      whiteNumber: maybe(random, String(1 + Math.floor(random() * 98)), 0.55),
+      blueNumbers: [],
+      whiteNumbers: [],
       // Offense is deliberately the commonest group. The board opens with
       // `Coach group: Offense` set from a column far off to the right, and that
       // demonstration is only worth anything if what survives the filter still
@@ -281,6 +333,9 @@ export function buildRoster(): Row[] {
       availability: maybe(random, pick(random, AVAILABILITY), 0.2),
     } satisfies Row;
   });
+
+  allocateJerseys(rows, random);
+  return rows;
 }
 
 export const SEASON_LABEL = "2026-27";
