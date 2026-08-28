@@ -206,11 +206,22 @@ export function repositoryExecutors({ repoPath, missionId, baseCommit, migration
       return { health, detail: `${health.capabilities_ready.length} capabilities proved` };
     },
 
-    "inspect-worktree"({ runtimeId }) {
+    "inspect-worktree"({ runtimeId, expectedHead = null }) {
       const target = runtimeWorktree(repoPath, runtimeId);
       if (!fs.existsSync(target)) return { dirty: false, unpushedCommits: 0 };
       const dirty = git(target, ["status", "--porcelain"]) !== "";
       const head = git(target, ["rev-parse", "HEAD"]);
+      // A runtime is detached at the invocation's head by `attach-worktree`,
+      // which refuses any other commit, and it never authors one: it is
+      // read-only but for reversible defect injection, which is reverted. So a
+      // HEAD still equal to that head proves nothing was written here, whatever
+      // the remotes say. Asking `--not --remotes` alone called every
+      // squash-merged head unpushed the moment its branch was deleted at
+      // reclaim — the work was on main, under a different SHA, and the runtime
+      // was refused reclamation forever, holding review capacity with it.
+      if (expectedHead && head === expectedHead) {
+        return { dirty, unpushedCommits: 0 };
+      }
       let unpushedCommits = 0;
       try {
         unpushedCommits = git(target, ["rev-list", "--count", `${head}`, "--not", "--remotes"])

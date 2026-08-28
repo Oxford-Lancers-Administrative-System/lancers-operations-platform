@@ -385,7 +385,10 @@ export async function releaseReviewRuntime({ runtime, invocation = null, executo
       `Runtime ${runtime.runtime_id} still has a live owning invocation (${invocation.invocation_id}); cleanup never reclaims a runtime somebody is using.`,
     );
   }
-  const worktree = await executors["inspect-worktree"]({ runtimeId: runtime.runtime_id });
+  const worktree = await executors["inspect-worktree"]({
+    runtimeId: runtime.runtime_id,
+    expectedHead: invocation?.head_sha ?? runtime.head_sha ?? null,
+  });
   if (worktree.dirty || worktree.unpushedCommits > 0) {
     throw new Error(
       `Runtime ${runtime.runtime_id} holds ${worktree.dirty ? "uncommitted changes" : `${worktree.unpushedCommits} unpushed commit(s)`}; refusing to reclaim work that would be destroyed.`,
