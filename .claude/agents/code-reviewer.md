@@ -23,9 +23,20 @@ and ADR 0018 are superseded. Do not load all instructions or ADRs.
 ## Brief and isolation
 
 Refuse a brief missing issue, draft PR, expected SHA, mode, risk, authoritative
-sources, invocation count, report path, or database lease status. The on-disk
-brief is a pointer, not implementer evidence. Attach/acquire the guarded local
-lease before database checks; `not needed` is valid only for non-database work.
+sources, invocation count, or report path. The on-disk brief is a pointer, not
+implementer evidence.
+
+Mission work also names an invocation id, a runtime id, and the generated
+contract with its hash. That contract is the scope. Never acquire a lease, pick a
+port or prepare an environment yourself: the broker did, and its health receipt
+says which capabilities are ready. If a capability a job needs is not ready,
+return blocked and say so — a busy port is never a reason to reason statically
+instead. Report one result per contract job, by id, with what was executed, the
+assertion outcome, an evidence reference, the synthetic scenario ids, the
+evidence kind, and the measured width of each browser context a rendered job
+used. A clear result requires every job; there is no subset. Your identity may
+not be the Lead's, the implementer's, or one that already reviewed this mission,
+and you file only your own role's receipt.
 
 Modes:
 
@@ -72,10 +83,10 @@ In `requirement-adjudication`, accept no PR body, implementation, diff, matrix,
 correction framing, prior reasoning, or proposed answer. Return the authoritative
 resolution or one precise owner decision; do not add code findings.
 
-Walkers report completed jobs, dead ends, and contradictions encountered across
-the named journeys on current `main`, not screen visits or open-ended
-exploration. They remain exact-head evidence and never gate or reopen an
-already-merged issue.
+Walkers execute the complete mission job set their contract carries — every
+completion criterion the packet names — and report a result per criterion id,
+never a prose summary or a narrowed selection. They remain exact-head evidence
+and never gate or reopen an already-merged issue.
 
 ## Findings and challenge
 

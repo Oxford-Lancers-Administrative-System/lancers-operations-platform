@@ -115,9 +115,9 @@ commands retain the log and return only the useful tail; inspect a diff stat
 before a full diff.
 
 Require workers and reviewers to run `mission receipt ... --check` or
-`mission review ... --check` before they release resources. The pure checks
-validate receipts against replayed state without appending; after one passes,
-the Lead files the same path without `--check`.
+`mission review receipt ... --check` before they release resources. The pure
+checks validate receipts against replayed state without appending; after one
+passes, the Lead files the same path without `--check`.
 
 Workers, reviewers, and scouts never spawn agents. A stopped worker without a
 receipt resumes under its original identity. Use `abandon-worker` only after a
@@ -128,15 +128,26 @@ route-changing path before owner review.
 ## Finish machine checks before owner review
 
 For each package, run affected tests and `npm run typecheck`; exact-head CI is
-the per-PR backstop. Before owner handoff, derive the PR diff's sensitive-path
-intersection and visual class. When both are empty, record deterministic
-clearance without a reviewer. Otherwise run one bounded Sonnet `package-gate`
-review at that package head: sensitive paths receive security review; visual
-work is rendered and compared with every approved mockup state at desktop and
-measured 375px. Mockups govern structure and copy; application conventions
-govern styling. A structural or copy departure without an answered `Q-` decision
-blocks. One review covers the union and allows one full pass plus at most two
-correction passes.
+the per-PR backstop. Before owner handoff, ask the broker for the review:
+
+```bash
+npm run mission -- review request M-<id> WP-<pkg> --head <sha>
+npm run mission -- review provision M-<id> --invocation <id>
+npm run mission -- review dispatch M-<id> --invocation <id> --agent <id> --session <id>
+```
+
+The request reads the package's diff from the repository and generates the
+capability and job contract from it and durable state; never edit it.
+`provision` allocates, prepares and health-proves a fresh runtime that is never
+the implementation stack. `waiting-for-capacity`,
+`provisioning-failed` and `unhealthy` mean wait or retry — never a narrower
+review. Dispatch one fresh Sonnet reviewer whose identity is not yours, not the
+package's implementer, and not one that already reviewed this mission; each
+correction round gets a new one. When the contract says
+`reviewer_required: false`, dispatch `--deterministic` instead. Mockups govern
+structure and copy; application conventions govern styling. A structural or copy
+departure without an answered `Q-` decision blocks. One review covers the union
+and allows one full pass plus at most two correction passes.
 Authentication, authorization, privacy, security, integrity, migration, RLS,
 transaction, and unauthorized external-effect findings block; an unresolved
 blocker never ages into approval.
@@ -153,8 +164,8 @@ review gate disposition, and never authorizes correction of an advisory. Re-run
 `correction` for the same active worker to replace its scope in place; never
 abandon a healthy worker merely to re-scope it.
 
-Only after targeted checks, required package-gate review, exact-head CI, and the
-prepared environment are clear may the package enter owner walkthrough. A head
+Only after targeted checks, the invocation's clear receipt, exact-head CI, and
+`mission runtime promote` may the package enter owner walkthrough. A head
 change returns to these machine checks. The classifier alone carries owner
 approval across a proven non-rendered delta; a rendered or unclassifiable delta
 requires one new walkthrough of only the affected surface.
@@ -198,11 +209,13 @@ the guarded lane only after an answered owner checkpoint names the package.
 Mission merges never deploy.
 
 After every live package has merged, run `npm run verify` once on current
-`main`, then one bounded Sonnet workflow smoke over the predetermined mission
-journeys and visible hand-offs. This is not another issue review. A blocker
-creates one corrective issue/PR cycle and never reopens a merged package or its
-owner approval; after that correction merges, repeat only the affected journey
-once. If that targeted re-walk still fails, stop and ask Brian to adjudicate;
+`main`, then `mission walker request` and one bounded Sonnet walker in the
+runtime the broker prepares. Its contract carries every completion criterion the
+packet names; you cannot substitute a summary, and a targeted re-walk carries
+only the criteria the blocked smoke's findings named. This is not another issue
+review. A blocker creates one corrective issue/PR cycle and never reopens a
+merged package or its owner approval; after that correction merges, repeat only
+the affected journey once. If that targeted re-walk still fails, stop and ask Brian to adjudicate;
 never launch a second correction cycle.
 
 Report exactly one outcome: `Fully accepted`, `Implementation complete;
@@ -220,9 +233,11 @@ The Lead launches only `implementation-worker`, `code-reviewer`, and `scout`;
 never implements, explores source code, merges, un-drafts, deploys, runs a
 deployment workflow, applies a migration, touches hosted Supabase or real data,
 changes live GitHub settings, or bypasses a CLI refusal. Use a bounded scout for
-repository investigation. Local database work uses only fenced coordinator
-commands. LAN-90 and LAN-92 remain binding; manual distribution is never a
-fallback. Linear receives only issue status, draft PR link, and final evidence.
+repository investigation. Reviewer and walker runtimes are the broker's: never
+acquire, port, rescue or release one by hand. Local database work uses only
+fenced coordinator commands. LAN-90 and LAN-92 remain binding; manual
+distribution is never a fallback. Linear receives only issue status, draft PR
+link, and final evidence.
 
 A capability claim includes the exact refusal or two distinct attempts. One
 denied command form proves only that form.
