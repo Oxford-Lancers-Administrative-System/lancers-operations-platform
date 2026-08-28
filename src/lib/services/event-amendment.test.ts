@@ -1049,6 +1049,119 @@ describe("re-notify", () => {
 });
 
 // ---------------------------------------------------------------------------
+// F-C3 / F-A2 (LAN-180) — an amendment repairs a plan-less approved event
+// ---------------------------------------------------------------------------
+
+/**
+ * Strips a real approval's own plan and jobs, reproducing the state F-A2
+ * names: an event approved before LAN-169 shipped, or one the seed
+ * deliberately leaves plan-less. `approvedEvent()` still runs the real
+ * `approveEvent`, so the audience, the invitations and the six real
+ * `invitations` rows are exactly what a genuinely approved event has —
+ * only the plan and the ladder are removed afterwards, by hand, the one
+ * thing no code path in this build can undo.
+ */
+async function stripMessagingPlan(eventId: string): Promise<void> {
+  await observer.query("delete from public.notification_jobs where event_id = $1", [eventId]);
+  await observer.query("delete from public.event_messaging_plans where event_id = $1", [eventId]);
+}
+
+describe("F-C3/F-A2 — an amendment gives a plan-less approved event a working ladder", () => {
+  it("creates the jobs a frozen plan promises, even when the amendment never touched the date", async () => {
+    // F-C3's own repro: a venue-only amendment, no reschedule at all.
+    const fixture = await approvedEvent();
+    await stripMessagingPlan(fixture.eventId);
+
+    const beforePlan = await observer.query(
+      "select 1 from public.event_messaging_plans where event_id = $1",
+      [fixture.eventId],
+    );
+    expect(beforePlan.rowCount).toBe(0);
+    expect(await jobsFor(fixture.eventId)).toEqual([]);
+
+    await amendApprovedEvent(
+      actorPersonId,
+      fixture.eventId,
+      { ...draft(), venue: "University Parks" },
+      { notify: false, silenceConfirmed: true },
+    );
+
+    const afterPlan = await observer.query(
+      "select 1 from public.event_messaging_plans where event_id = $1",
+      [fixture.eventId],
+    );
+    expect(afterPlan.rowCount).toBe(1);
+
+    const jobs = await jobsFor(fixture.eventId);
+    // Defect restored (`recomputeScheduleOnRescheduleIn` only runs when
+    // `rescheduled` is true, and never calls `scheduleEventLadderIn` even
+    // when it does) reads: `afterPlan.rowCount` is still 1 — a reschedule
+    // isn't even needed to reach `freezeMessagingPlanIn` here — but `jobs`
+    // is `[]`. That is F-C3's exact shape: "Messaging plan · 4 steps ·
+    // approved", zero jobs. The two assertions below are what actually fail.
+    expect(jobs.filter((job) => job.job_type === "invitation")).toHaveLength(
+      fixture.invitationCount,
+    );
+    expect(jobs.filter((job) => job.job_type === "reminder").length).toBeGreaterThan(0);
+  });
+
+  it("creates the jobs on a genuine reschedule too, the pre-existing path", async () => {
+    const fixture = await approvedEvent();
+    await stripMessagingPlan(fixture.eventId);
+
+    await amendApprovedEvent(
+      actorPersonId,
+      fixture.eventId,
+      { ...draft(), startsAt: "19:00" },
+      {
+        notify: true,
+      },
+    );
+
+    const jobs = await jobsFor(fixture.eventId);
+    expect(jobs.filter((job) => job.job_type === "invitation")).toHaveLength(
+      fixture.invitationCount,
+    );
+    expect(jobs.filter((job) => job.job_type === "reminder").length).toBeGreaterThan(0);
+  });
+
+  it("never rewrites an already-sent invitation's own anchor while repairing the rest of the ladder", async () => {
+    // F-A2's real corner case: a legacy invitation that *was* sent, once,
+    // through whatever pre-LAN-169 path existed, with no ladder ever built
+    // around it. `scheduleEventLadderIn`'s anchor update is guarded to
+    // `status in ('pending', 'ready')` for exactly this reason.
+    const fixture = await approvedEvent();
+    await stripMessagingPlan(fixture.eventId);
+
+    const invitationId = fixture.invitationIds[0];
+    const sentJob = await observer.query<{ id: string }>(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, person_id, channel,
+          attempt_count)
+       values ($1, 'invitation', 'completed', $2, $3, null, 'whatsapp', 1)
+       returning id`,
+      [`${NAME_MARKER}:legacy:${invitationId}`, invitationId, fixture.eventId],
+    );
+
+    await amendApprovedEvent(
+      actorPersonId,
+      fixture.eventId,
+      { ...draft(), venue: "University Parks" },
+      { notify: false, silenceConfirmed: true },
+    );
+
+    const untouched = await observer.query<{ status: string; ladder_rung: number | null }>(
+      "select status::text as status, ladder_rung from public.notification_jobs where id = $1",
+      [sentJob.rows[0].id],
+    );
+    // Defect this guards against: without `status in ('pending', 'ready')`,
+    // this already-`completed` row would be silently reset to `ladder_rung
+    // = 0` under the pretence of freshly scheduling it.
+    expect(untouched.rows[0].status).toBe("completed");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // REQ-cancel
 // ---------------------------------------------------------------------------
 

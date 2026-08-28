@@ -410,6 +410,21 @@ export const PLAN_RECOVERY_NOTE =
   "Failed sends retry automatically. Remaining errors appear in Delivery.";
 
 /**
+ * F-A2. Shown instead of the disclosure for an approved event with no
+ * `event_messaging_plans` row at all — approved before automated messaging
+ * existed for it, or a fixture deliberately left that way. Without this the
+ * section was simply absent, indistinguishable from "nothing is due right
+ * now": the acceptance this answers is that an operator can tell "no
+ * messages are due" apart from "no messages will ever be sent". Amending the
+ * event is the repair route `event-amendment.ts` now gives it — see
+ * `recomputeScheduleOnRescheduleIn`'s F-A2/F-C3 note — so the note names it
+ * rather than leaving the state a dead end.
+ */
+export const PLAN_MISSING_HEADLINE = "No messaging plan";
+export const PLAN_MISSING_NOTE =
+  "This event was approved before it had one. Amending the event creates it.";
+
+/**
  * W1's settled guarantee, stated rather than derived — Brian, 2026-08-22: "if
  * practice happens in 2 days and we're approving and we're sending it out,
  * that needs to go out now, right? It should say that."

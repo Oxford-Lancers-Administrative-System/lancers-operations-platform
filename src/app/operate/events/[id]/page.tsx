@@ -99,6 +99,8 @@ import {
   NO_DISTRIBUTION_RULE,
   JOINING_URL_IS_NEVER_PUBLIC,
   NOTHING_DELIVERED_YET,
+  PLAN_MISSING_HEADLINE,
+  PLAN_MISSING_NOTE,
   STATUS_LABELS,
   TYPE_LABELS,
   venueLabel,
@@ -1113,6 +1115,13 @@ function EventDetailView({
           audienceSize={event.audienceCount}
           approved
         />
+      ) : event.status === "approved" ? (
+        <Alert severity="warning" data-testid="messaging-plan-missing">
+          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+            {PLAN_MISSING_HEADLINE}
+          </Typography>
+          <Typography variant="body2">{PLAN_MISSING_NOTE}</Typography>
+        </Alert>
       ) : null}
 
       {/*

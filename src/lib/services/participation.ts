@@ -387,16 +387,34 @@ async function readChaseJobsIn(tx: Tx, eventId: string): Promise<Map<string, Cha
   return byInvitation;
 }
 
-/** Invitations with an unresolved escalation flag — W5's raised threshold. */
-async function readEscalatedInvitationsIn(tx: Tx, eventId: string): Promise<Set<string>> {
-  const rows = await tx.query<{ invitation_id: string }>(
-    `select f.invitation_id
+/**
+ * Invitations with an unresolved escalation flag — W5's raised threshold —
+ * each mapped to its own event's escalation job status, or `null` where none
+ * exists yet (the office was vacant when the threshold was crossed).
+ *
+ * F-B1, mechanism 4. `chasePositionLabel` cannot read this from
+ * `ChaseJobFact[]`: an escalation job is addressed to the office about the
+ * *event*, so it is keyed to `event_id`/`person_id`, never to
+ * `invitation_id`, and `readChaseJobsIn` above — like `notification_jobs`
+ * itself — can never join it in. `nonresponse_flags.escalation_job_id` is the
+ * only link from one flagged invitation to the one escalation raised for its
+ * event, which is what this reads instead.
+ */
+async function readEscalationStatusByInvitationIn(
+  tx: Tx,
+  eventId: string,
+): Promise<Map<string, string | null>> {
+  const rows = await tx.query<{ invitation_id: string; status: string | null }>(
+    `select f.invitation_id, j.status::text as status
        from public.nonresponse_flags f
        join public.invitations i on i.id = f.invitation_id
+       left join public.notification_jobs j on j.id = f.escalation_job_id
       where i.event_id = $1 and f.threshold = 'escalation' and f.resolved_at is null`,
     [eventId],
   );
-  return new Set(rows.rows.map((row) => row.invitation_id));
+  const byInvitation = new Map<string, string | null>();
+  for (const row of rows.rows) byInvitation.set(row.invitation_id, row.status);
+  return byInvitation;
 }
 
 async function readPeopleIn(
@@ -411,9 +429,9 @@ async function readPeopleIn(
   const chaseJobsByInvitation = operator
     ? await readChaseJobsIn(tx, eventId)
     : new Map<string, ChaseJobFact[]>();
-  const escalatedInvitations = operator
-    ? await readEscalatedInvitationsIn(tx, eventId)
-    : new Set<string>();
+  const escalationStatusByInvitation = operator
+    ? await readEscalationStatusByInvitationIn(tx, eventId)
+    : new Map<string, string | null>();
 
   const answersByInvitation = new Map<string, Record<string, string>>();
   if (questions.length > 0) {
@@ -461,7 +479,8 @@ async function readPeopleIn(
         : chasePositionLabel({
             responseState: chaseResponseState,
             isWalkUp: false,
-            escalated: escalatedInvitations.has(row.invitation_id),
+            escalated: escalationStatusByInvitation.has(row.invitation_id),
+            escalationJobStatus: escalationStatusByInvitation.get(row.invitation_id) ?? null,
             jobs: chaseJobsByInvitation.get(row.invitation_id) ?? [],
           });
 

@@ -7,6 +7,7 @@ import { actorRequirement } from "./actor";
 import { deriveTermCoordinate, type EventDraftInput } from "./event-input";
 import { lockEventIn, readEventIn, type EventDetail } from "./events";
 import { freezeMessagingPlanIn, resolveMessagingPlanIn } from "./messaging-schedule";
+import { scheduleEventLadderIn } from "./messaging-scheduler";
 import {
   cancellationSilenceNeedsConfirmation,
   chaseThresholdOn,
@@ -575,7 +576,22 @@ export async function amendApprovedEvent(
     const rescheduled = changes.some(
       (change) => change.field === "scheduledOn" || change.field === "startsAt",
     );
-    const recomputed = rescheduled
+
+    // F-A2/F-C3. `rescheduled` alone used to decide whether this ran, which
+    // is why amending one of the 97 approved-but-plan-less events into a new
+    // venue, still on the same date, froze `event_messaging_plans` from
+    // nowhere and created nothing (F-C3), and an event whose date an operator
+    // never touches had no route back to a working ladder at all (F-A2). An
+    // approved event that has never been given a plan needs the identical
+    // repair a reschedule already does — resolve one against its own current
+    // schedule, freeze it, and create the jobs it promises — whether or not
+    // this particular amendment moved the date.
+    const hasMessagingPlan = await tx.query(
+      "select 1 from public.event_messaging_plans where event_id = $1",
+      [eventId],
+    );
+    const scheduleNeedsWork = rescheduled || hasMessagingPlan.rowCount === 0;
+    const recomputed = scheduleNeedsWork
       ? await recomputeScheduleOnRescheduleIn(tx, eventId, input)
       : null;
 
@@ -975,7 +991,17 @@ async function resumeHeldMessagesIn(tx: Tx, eventId: string): Promise<number> {
  * WhatsApp-only shortened ladder for exactly the reason a late approval does:
  * the runway is what it is, computed from now.
  *
- * Three things move together:
+ * ## F-A2/F-C3's second trigger
+ *
+ * `amendApprovedEvent` also calls this for an amendment that never touched
+ * the date at all, whenever the event has no `event_messaging_plans` row yet
+ * — an event approved before LAN-169 shipped, or one the seed deliberately
+ * left plan-less. Nothing below reads `rescheduled`; every step is exactly as
+ * correct starting from "never had a plan" as it is starting from "had one at
+ * an earlier time", because a missing plan and jobs behave, to this function,
+ * like a plan and jobs that are simply due to move onto the current schedule.
+ *
+ * Four things move together:
  *
  *   * `events.response_deadline_at` and every `invitations.expires_at` —
  *     the single deadline every invitee's answer is measured against.
@@ -984,17 +1010,59 @@ async function resumeHeldMessagesIn(tx: Tx, eventId: string): Promise<number> {
  *     `raiseDueEscalations` reads this row fresh on every sweep tick, so
  *     re-freezing it is the whole of fixing the escalation's own timing going
  *     forward — nothing else references the old one.
+ *   * `scheduleEventLadderIn` — F-A2/F-C3. `freezeMessagingPlanIn` only ever
+ *     wrote the plan's own description; nothing called this, the function
+ *     that actually anchors the invitation job and inserts the reminder rows,
+ *     unless the event was being approved for the first time. An event with
+ *     no plan therefore has no ladder either, and this is what gives it one:
+ *     idempotent by the same `on conflict (idempotency_key) do nothing` a
+ *     fresh approval leans on, and guarded (see its own doc comment) against
+ *     rewriting an invitation job that has already gone.
  *   * The **held** invitation/reminder jobs' `scheduled_for` (and
  *     `next_attempt_at`, if a backoff was already ticking), moved onto the
  *     new plan's own rung times, matched by `ladder_rung`. A rung the new,
  *     shorter runway no longer schedules is cancelled rather than left to
  *     fire against a ladder that no longer has it — never as a failure
  *     (`JOB_CANCELLED_BY_RESCHEDULE`), for the identical reason a
- *     cancelled event's jobs are not.
+ *     cancelled event's jobs are not. This is also what re-times the rows
+ *     `scheduleEventLadderIn` just inserted for a previously plan-less event,
+ *     onto exactly the same rung times it used to create them — a harmless
+ *     restatement there, and the only step that matters for a genuine
+ *     reschedule's pre-existing rows.
  *
  * Called before `resumeHeldMessagesIn`, so a job resumes already carrying its
  * correct time rather than resuming once and moving again a statement later.
  */
+
+/**
+ * F-A2/F-C3. Backfills the one `invitation`-type job `approveEvent`'s own
+ * insert would have created, for an event whose approval predates that
+ * insert entirely — the oldest shape of "approved before the messaging
+ * feature existed" F-A2 names, where `event_messaging_plans` is missing and
+ * so is every job, not only the ladder. Identical to `approveEvent`'s own
+ * insert (`event-approval.ts`), and idempotent with `on conflict do nothing`
+ * for the ordinary case, an event that already has one.
+ */
+async function backfillInvitationJobsIn(tx: Tx, eventId: string): Promise<number> {
+  const created = await tx.query<{ id: string }>(
+    `insert into public.notification_jobs
+       (idempotency_key, job_type, status, invitation_id, event_id, person_id,
+        channel, template_variables)
+     select 'event:' || i.event_id::text || ':invitation:' || i.capacity::text
+              || ':' || i.participant_id::text,
+            'invitation', 'pending', i.id, i.event_id,
+            coalesce(i.person_id, m.person_id),
+            'whatsapp', '{}'::jsonb
+       from public.invitations i
+       left join public.season_memberships m on m.id = i.season_membership_id
+      where i.event_id = $1
+     on conflict (idempotency_key) do nothing
+     returning id`,
+    [eventId],
+  );
+  return created.rowCount ?? 0;
+}
+
 async function recomputeScheduleOnRescheduleIn(
   tx: Tx,
   eventId: string,
@@ -1019,6 +1087,13 @@ async function recomputeScheduleOnRescheduleIn(
   // for every future sweep — no actor to attribute this write to, since a
   // reschedule is not itself an approval.
   await freezeMessagingPlanIn(tx, eventId, plan, null);
+
+  // F-A2/F-C3. See the doc comment above. Both are no-ops (`on conflict do
+  // nothing`) for an event that already has its invitation job and every
+  // reminder rung; together they are the whole of the repair for one that
+  // predates LAN-78's own insert and has neither.
+  await backfillInvitationJobsIn(tx, eventId);
+  await scheduleEventLadderIn(tx, eventId, plan);
 
   const keptRungs = plan.rungs.map((rung) => rung.rung);
   for (const rung of plan.rungs) {

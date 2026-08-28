@@ -203,7 +203,17 @@ afterAll(async () => {
 });
 
 /** An approved event, one invitee with a usable number, and one pending job. */
-async function fixture(options: { phone?: string | null } = {}) {
+async function fixture(
+  options: {
+    phone?: string | null;
+    /**
+     * F-C1. `null` reproduces an event that slipped past Q-31's approval
+     * guard — this fixture writes the row directly, the same way a legacy
+     * one, or one approved through some other door, still could.
+     */
+    startsAt?: string | null;
+  } = {},
+) {
   // One transaction, because `event_audience_members` and `invitations` are
   // written separately and `tests/synthetic-seed.test.ts` counts audience rows
   // that have no invitation — the approval defect it exists to report. A
@@ -243,17 +253,28 @@ async function fixture(options: { phone?: string | null } = {}) {
       [personId, seasonId],
     );
 
-    const event = await observer.query<{ id: string }>(
-      `with target as (select (now() + interval '48 hours') at time zone 'Europe/London' as local)
-     insert into public.events
-       (season_id, name, event_type, status, scheduled_on, starts_at,
-        audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
-     select $1, $2, 'practice', 'approved',
-            (select local::date from target), (select local::time from target),
-            now(), $3, now(), $3
-     returning id`,
-      [seasonId, `${MARKER} practice`, personId],
-    );
+    const event =
+      options.startsAt === undefined
+        ? await observer.query<{ id: string }>(
+            `with target as (select (now() + interval '48 hours') at time zone 'Europe/London' as local)
+             insert into public.events
+               (season_id, name, event_type, status, scheduled_on, starts_at,
+                audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
+             select $1, $2, 'practice', 'approved',
+                    (select local::date from target), (select local::time from target),
+                    now(), $3, now(), $3
+             returning id`,
+            [seasonId, `${MARKER} practice`, personId],
+          )
+        : await observer.query<{ id: string }>(
+            `insert into public.events
+               (season_id, name, event_type, status, scheduled_on, starts_at,
+                audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
+             values ($1, $2, 'practice', 'approved', '2026-09-06'::date, $4::time,
+                     now(), $3, now(), $3)
+             returning id`,
+            [seasonId, `${MARKER} practice`, personId, options.startsAt],
+          );
     const eventId = event.rows[0].id;
 
     const audience = await observer.query<{ id: string }>(
@@ -529,6 +550,60 @@ describe("dispatching after approval", () => {
       [invitationId],
     );
     expect(tokens.rows[0].count).toBe("0");
+  });
+
+  it("F-C1: refuses an invitee's invitation when the event has no start time, minting no token, stating no fabricated time", async () => {
+    // Q-31's approval guard is forward-only. This event carries a null
+    // `starts_at` by direct construction — a row that slipped through, or
+    // was approved before the guard existed — and this proves the dispatch
+    // path's own half of the same decision, for the ordinary invitation
+    // path every player-facing message takes (`claimJobIn`), distinct from
+    // `messaging-scheduler.test.ts`'s escalation and notice coverage of the
+    // identical guard.
+    const { eventId, invitationId } = await fixture({ startsAt: null });
+    const transport = accepts();
+
+    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
+
+    // Defect restored (`coalesce(e.starts_at, '00:00'::time)` with no guard)
+    // reads: the provider is called, and the message states "00:00" as the
+    // event's time. This assertion, and the token check below, are what
+    // actually fail.
+    expect(transport).not.toHaveBeenCalled();
+    const current = await row(eventId);
+    expect(current.failureReason).toContain("no start time");
+
+    const tokens = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.rsvp_access_tokens where invitation_id = $1",
+      [invitationId],
+    );
+    expect(tokens.rows[0].count).toBe("0");
+  });
+
+  it("F-C1: is retryable, not a permanent dead end, once the club sets the start time", async () => {
+    // `EVENT_HAS_NO_START_TIME_REASON` is recorded the same visible,
+    // retryable way `NO_USABLE_NUMBER_REASON` is — an operator fixes the
+    // record, then presses Retry. Proved here by fixing it and calling
+    // `dispatchJob` directly, `retryDelivery`'s own underlying call.
+    const { eventId, jobId } = await fixture({ startsAt: null });
+    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport: accepts() });
+    // `recordUndeliverableIn` writes outcome `'rejected'`, which
+    // `DELIVERY_STATE_EXPRESSION` reads as `'failed'` — the same "Failed",
+    // separately offered a Retry button, W6 gives `NO_USABLE_NUMBER_REASON`.
+    // `row.retryable` (asserted via the second `dispatchJob` call below) is
+    // what actually carries "a human may have corrected the roster since".
+    expect((await row(eventId)).state).toBe("failed");
+
+    await observer.query("update public.events set starts_at = '19:00' where id = $1", [eventId]);
+
+    await dispatchJob(jobId, { source: CONFIGURED, transport: accepts() });
+
+    // `processing`/"attempted" — Meta accepting a message is not Meta
+    // delivering it, W6's own settled reading, unrelated to this fix. What
+    // matters here is that it is no longer `failed` with the no-start-time
+    // reason: the record was fixed, and the retry actually reached the
+    // provider this time.
+    expect((await row(eventId)).state).toBe("attempted");
   });
 
   /**
