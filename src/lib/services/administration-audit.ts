@@ -4,6 +4,7 @@ import { assertCapability } from "@/lib/auth/guards";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit, type RecordedAuditEvent } from "./audit";
+import { personDisplayNameSql } from "./sql-text";
 import {
   ADMINISTRATION_ACTIONS,
   ADMINISTRATION_CONTEXT_KEY,
@@ -199,19 +200,6 @@ interface HistoryRow {
 }
 
 /**
- * The display form of a name, matching the rest of the service layer.
- *
- * `family_name` is nullable by design — a quarter of the club's real records
- * are first-name-only — so this must not produce a trailing space.
- */
-const NAME_EXPRESSION = (alias: string) =>
-  `case when ${alias}.family_name is null
-          then coalesce(nullif(btrim(${alias}.known_as), ''), ${alias}.given_name)
-        else coalesce(nullif(btrim(${alias}.known_as), ''), ${alias}.given_name)
-             || ' ' || ${alias}.family_name
-   end`;
-
-/**
  * The tie-break that makes two events written in one transaction render in a
  * meaningful order — LAN-130 review finding A1.
  *
@@ -279,7 +267,7 @@ function historyQuery(keyPath: "targetPersonId" | "roleId"): string {
            e.action,
            e.actor_person_id,
            e.actor_label,
-           ${NAME_EXPRESSION("actor")} as actor_name,
+           ${personDisplayNameSql("actor")} as actor_name,
            target.name as target_name,
            e.from_state,
            e.to_state,
@@ -288,7 +276,7 @@ function historyQuery(keyPath: "targetPersonId" | "roleId"): string {
       from public.audit_events e
       left join public.people actor on actor.id = e.actor_person_id
       left join lateral (
-        select ${NAME_EXPRESSION("p")} as name
+        select ${personDisplayNameSql("p")} as name
           from public.people p
          where p.id::text = e.context -> '${ADMINISTRATION_CONTEXT_KEY}' ->> 'targetPersonId'
          limit 1

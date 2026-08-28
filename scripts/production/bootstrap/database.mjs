@@ -36,8 +36,12 @@
  * design, so this must not produce a trailing space.
  */
 const NAME_EXPRESSION = (alias) => `case when ${alias}.family_name is null
-          then coalesce(nullif(btrim(${alias}.known_as), ''), ${alias}.given_name)
-        else coalesce(nullif(btrim(${alias}.known_as), ''), ${alias}.given_name)
+          then coalesce(nullif(btrim((select da.alias from public.person_aliases da
+                                     where da.person_id = ${alias}.id and da.is_display_name
+                                     limit 1)), ''), ${alias}.given_name)
+        else coalesce(nullif(btrim((select da.alias from public.person_aliases da
+                                     where da.person_id = ${alias}.id and da.is_display_name
+                                     limit 1)), ''), ${alias}.given_name)
              || ' ' || ${alias}.family_name
    end`;
 
@@ -268,6 +272,9 @@ export async function observeCandidates(client, entry) {
  */
 export const FINGERPRINTED_TABLES = Object.freeze([
   "public.people",
+  // LAN-182: a known-as supplied for a new Person is written as the alias
+  // flagged as their display name, so this script can write here too.
+  "public.person_aliases",
   "public.contact_points",
   "public.operator_accounts",
   "public.role_assignments",
@@ -478,12 +485,26 @@ export async function applyOperator(client, planned, context) {
     let personCreated = false;
     if (person.action === "create") {
       const inserted = await client.query(
-        `insert into public.people (given_name, family_name, known_as)
-         values ($1, $2, $3) returning id`,
-        [entry.givenName, entry.familyName, entry.knownAs],
+        `insert into public.people (given_name, family_name)
+         values ($1, $2) returning id`,
+        [entry.givenName, entry.familyName],
       );
       personId = inserted.rows[0].id;
       personCreated = true;
+
+      // LAN-182: known-as is an alias flagged as the display name, not a
+      // column. Written only when it says something the given name does not.
+      if (
+        entry.knownAs &&
+        entry.knownAs.trim().toLowerCase() !== entry.givenName.trim().toLowerCase()
+      ) {
+        await client.query(
+          `insert into public.person_aliases (person_id, alias, source, is_display_name)
+           values ($1::uuid, $2, 'production bootstrap', true)
+           on conflict (person_id, alias) do nothing`,
+          [personId, entry.knownAs.trim()],
+        );
+      }
 
       // A brand-new Person has no contact points and the club now knows one.
       // An *existing* Person's are deliberately left alone: re-preferring

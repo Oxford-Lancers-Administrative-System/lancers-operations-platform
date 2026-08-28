@@ -26,8 +26,15 @@
 --
 -- OWNERSHIP MARKER — both halves, on every row:
 --   * a deterministic primary key from the block 00740074-0074-4074-8074-…
---   * the sentinel string PILOT-LAN-74 in a text column — `known_as` on a
---     person, `source` on a contact point, `actor_label` on a status event
+--   * the sentinel string PILOT-LAN-74 in a text column — the `alias` of a
+--     `person_aliases` row flagged `is_display_name`, `source` on a contact
+--     point, `actor_label` on a status event
+--
+-- LAN-182 struck `people.known_as`, which is where a person's half of that
+-- marker used to live. It moved to the alias flagged as the display name, which
+-- is where the same fact moved for every other person in the database — so a
+-- scenario person still shows the sentinel wherever the application prints a
+-- name, exactly as before.
 -- Cleanup deletes only rows matching BOTH, which is why a row that merely
 -- happens to occupy one of these identifiers is refused rather than adopted.
 --
@@ -139,15 +146,21 @@ begin
   --     scenario's sentinel. Anything else means the identifier is occupied by
   --     a row this script does not own.
   if exists (
-    select 1 from public.people
-     where id = person_a and known_as is distinct from sentinel
+    select 1 from public.people p
+     where p.id = person_a
+       and not exists (
+         select 1 from public.person_aliases a
+          where a.person_id = p.id and a.alias = sentinel)
   ) then
     raise exception 'LAN-74 pilot setup refused: people …0001 exists and is not this scenario''s row. Never adopt a person record.';
   end if;
 
   if exists (
-    select 1 from public.people
-     where id = person_b and known_as is distinct from sentinel
+    select 1 from public.people p
+     where p.id = person_b
+       and not exists (
+         select 1 from public.person_aliases a
+          where a.person_id = p.id and a.alias = sentinel)
   ) then
     raise exception 'LAN-74 pilot setup refused: people …0003 exists and is not this scenario''s row. Never adopt a person record.';
   end if;
@@ -233,12 +246,25 @@ $preflight$;
 -- 1. The first-name-only candidate. This is the 26% case, and the row the
 --    duplicate check has to surface from a given name alone. No family name by
 --    design — `people.family_name` is nullable for exactly this reason.
-insert into public.people (id, given_name, family_name, known_as)
+insert into public.people (id, given_name, family_name)
 values (
   '00740074-0074-4074-8074-000000000001',
   'Fenwold',
-  null,
-  'PILOT-LAN-74'
+  null
+)
+on conflict (id) do nothing;
+
+-- 1a. The sentinel, in the place LAN-182 moved it to. Flagged as the display
+--     name, so this row still reads "PILOT-LAN-74" on every screen that prints
+--     a person's name — which is what makes a scenario row impossible to
+--     mistake for a real one.
+insert into public.person_aliases (id, person_id, alias, source, is_display_name)
+values (
+  '00740074-0074-4074-8074-000000000091',
+  '00740074-0074-4074-8074-000000000001',
+  'PILOT-LAN-74',
+  'PILOT-LAN-74',
+  true
 )
 on conflict (id) do nothing;
 
@@ -258,12 +284,21 @@ on conflict (id) do nothing;
 -- 3. The second candidate: same given name, with a surname. Two people who
 --    share a first name is what makes the operator's choice a real one rather
 --    than a formality.
-insert into public.people (id, given_name, family_name, known_as)
+insert into public.people (id, given_name, family_name)
 values (
   '00740074-0074-4074-8074-000000000003',
   'Fenwold',
-  'Pilotworth',
-  'PILOT-LAN-74'
+  'Pilotworth'
+)
+on conflict (id) do nothing;
+
+insert into public.person_aliases (id, person_id, alias, source, is_display_name)
+values (
+  '00740074-0074-4074-8074-000000000093',
+  '00740074-0074-4074-8074-000000000003',
+  'PILOT-LAN-74',
+  'PILOT-LAN-74',
+  true
 )
 on conflict (id) do nothing;
 
@@ -293,8 +328,10 @@ on conflict (id) do nothing;
 
 -- 6. The membership that makes the "already a member this season" refusal
 --    reachable. It goes in whichever season is open — the foundation's, looked
---    up rather than created. `confirmed` rather than `active`: nothing in this
---    scenario should read as a player on the club's actual roster.
+--    up rather than created. `onboarding` rather than `active`: nothing in this
+--    scenario should read as a player on the club's actual roster. It was
+--    `confirmed` until LAN-182 struck that value; `onboarding` is where the
+--    mapping sends it and carries the same meaning here.
 insert into public.season_memberships (
   id, person_id, season_id, status, entry, confirmed_on
 )
@@ -302,17 +339,21 @@ select
   '00740074-0074-4074-8074-000000000006',
   '00740074-0074-4074-8074-000000000001',
   s.id,
-  'confirmed',
+  'onboarding',
   'returning',
   current_date
   from public.seasons s
  where s.status in ('open', 'active')
 on conflict (id) do nothing;
 
--- 7 & 8. The lifecycle history that membership would have if the application
---    had created it, so the scenario mirrors the real shape of the data rather
---    than a tidier version of it. `actor_label` names the mechanism honestly
---    instead of attributing the rows to a person who did not do it.
+-- 7. The lifecycle history that membership would have if the application had
+--    created it, so the scenario mirrors the real shape of the data rather than
+--    a tidier version of it. `actor_label` names the mechanism honestly instead
+--    of attributing the rows to a person who did not do it.
+--
+--    One row, not the two this was until LAN-182: the pair walked
+--    `null → carried_forward → confirmed`, and both of those states now map onto
+--    `onboarding`, so the second would record a change from a state to itself.
 insert into public.season_membership_status_events (
   id, season_membership_id, from_status, to_status, actor_label, reason
 )
@@ -320,20 +361,7 @@ values (
   '00740074-0074-4074-8074-000000000007',
   '00740074-0074-4074-8074-000000000006',
   null,
-  'carried_forward',
-  'PILOT-LAN-74 setup script',
-  'Scenario data for LAN-74 duplicate-candidate testing.'
-)
-on conflict (id) do nothing;
-
-insert into public.season_membership_status_events (
-  id, season_membership_id, from_status, to_status, actor_label, reason
-)
-values (
-  '00740074-0074-4074-8074-000000000008',
-  '00740074-0074-4074-8074-000000000006',
-  'carried_forward',
-  'confirmed',
+  'onboarding',
   'PILOT-LAN-74 setup script',
   'Scenario data for LAN-74 duplicate-candidate testing.'
 )
@@ -342,9 +370,9 @@ on conflict (id) do nothing;
 -- ---------------------------------------------------------------------------
 -- Verification — read this before you commit
 -- ---------------------------------------------------------------------------
--- Expect five rows: 2 people, 3 contact points, 1 membership, 2 status events,
--- and exactly 1 open season. The same query is in README.md so it can be re-run
--- at any time afterwards.
+-- Expect six rows: 2 people, 2 display aliases, 3 contact points, 1 membership,
+-- 1 status event, and exactly 1 open season. The same query is in README.md so
+-- it can be re-run at any time afterwards.
 select
   'people' as table_name,
   count(*) filter (
@@ -354,6 +382,14 @@ select
     )
   ) as scenario_rows
   from public.people
+union all
+select 'person_aliases', count(*) filter (
+    where id in (
+      '00740074-0074-4074-8074-000000000091',
+      '00740074-0074-4074-8074-000000000093'
+    )
+  )
+  from public.person_aliases
 union all
 select 'contact_points', count(*) filter (
     where id in (
@@ -370,10 +406,7 @@ select 'season_memberships', count(*) filter (
   from public.season_memberships
 union all
 select 'season_membership_status_events', count(*) filter (
-    where id in (
-      '00740074-0074-4074-8074-000000000007',
-      '00740074-0074-4074-8074-000000000008'
-    )
+    where id = '00740074-0074-4074-8074-000000000007'
   )
   from public.season_membership_status_events
 union all

@@ -623,7 +623,8 @@ describe("the attendance grid", () => {
       // The other invitee never answers either, so their cell is on the grid
       // too — everything below is scoped to the person under test.
       const named = await observer.query<{ display_name: string }>(
-        `select coalesce(nullif(btrim(p.known_as), ''), p.given_name)
+        `select coalesce(nullif(btrim((select da.alias from public.person_aliases da
+                     where da.person_id = p.id and da.is_display_name limit 1)), ''), p.given_name)
                 || case when p.family_name is null then '' else ' ' || p.family_name end
                   as display_name
            from public.invitations i

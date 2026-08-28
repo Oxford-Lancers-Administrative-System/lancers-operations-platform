@@ -126,6 +126,7 @@ what is needed.
 ```mermaid
 erDiagram
     PEOPLE ||--o{ PERSON_ALIASES : "known as"
+    PEOPLE ||--o| PERSON_EMERGENCY_CONTACTS : "in an emergency"
     PEOPLE ||--o{ CONTACT_POINTS : "reachable at"
     PEOPLE ||--o{ SEASON_MEMBERSHIPS : holds
     PEOPLE ||--o{ RECRUITMENT_PROSPECTS : "may be"
@@ -152,6 +153,9 @@ erDiagram
     SEASON_MEMBERSHIPS ||--o{ ONBOARDING_ITEMS : completes
     SEASON_MEMBERSHIPS ||--o{ ELIGIBILITY_RECORDS : carries
     SEASON_MEMBERSHIPS ||--o{ AVAILABILITY_STATUSES : "history of"
+    SEASON_MEMBERSHIPS ||--o| COACH_GROUP_ASSIGNMENTS : "trains with"
+    SEASON_MEMBERSHIPS ||--o{ FORMALWEAR_RECORDS : owns
+    SEASON_MEMBERSHIPS ||--o| BLUES_AWARDS : "awarded in"
     SEASON_MEMBERSHIPS ||--o| SEASON_MEMBERSHIPS : "carried forward from"
     POSITIONS ||--o{ POSITION_ASSIGNMENTS : "assigned as"
     ONBOARDING_ITEM_TYPES ||--o{ ONBOARDING_ITEMS : "instantiated as"
@@ -206,8 +210,9 @@ structurally present — see [Scope](#release-one-versus-structurally-present).
 | Conceptual entity     | Table(s)                                     | Primary key      | Key relationships                                                            | Uniqueness                                               | State                                                | History                                         | Scope       |
 | --------------------- | -------------------------------------------- | ---------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------- | ----------- |
 | Person                | `people`                                     | surrogate `uuid` | self-FK `merged_into_person_id`                                              | none — no natural key (I1)                               | none; alumni standing derived by `person_standing`   | merge audited in place                          | Release one |
-| — name variants       | `person_aliases`                             | surrogate        | → `people`                                                                   | `(person_id, alias)`                                     | —                                                    | append by nature                                | Release one |
-| Contact Point         | `contact_points`                             | surrogate        | → `people`                                                                   | one preferred per `(person, kind)`, partial index        | `valid_from`/`valid_until`                           | superseded rows retained                        | Release one |
+| — name variants       | `person_aliases`                             | surrogate        | → `people`                                                                   | `(person_id, alias)`; one `is_display_name` per person   | —                                                    | append by nature                                | Release one |
+| — emergency contact   | `person_emergency_contacts`                  | surrogate        | → `people`                                                                   | one per person                                           | —                                                    | overwritten in place                            | Release one |
+| Contact Point         | `contact_points`                             | surrogate        | → `people`                                                                   | one preferred per `(person, kind, scope)`, partial index | `valid_from`/`valid_until`                           | superseded rows retained                        | Release one |
 | Season                | `seasons`                                    | surrogate        | → `position_vocabularies`                                                    | `label`                                                  | `season_status` enum                                 | open/close actor and time on the row            | Release one |
 | Term                  | `terms`                                      | surrogate        | none — cycles stay independent                                               | `(name, academic_year)`                                  | —                                                    | —                                               | Release one |
 | Committee Year        | `committee_years`                            | surrogate        | none                                                                         | `label`; ranges may not overlap (exclusion)              | —                                                    | actual AGM date stored                          | Release one |
@@ -249,6 +254,10 @@ These are physical necessities, not new product scope.
 | `role_aliases`, `person_aliases`     | The model names alias support on Role and Person; a repeating attribute is a table.                                                                                                                                                                                                                                                                       |
 | `role_groups`                        | The approved catalogue "appears in that group order", which is a fact about the catalogue rather than about a page. Three rows, ordered. See [below](#the-role-catalogue).                                                                                                                                                                                |
 | `season_membership_status_events`    | Register D1 makes per-stint reporting a query over status history, which needs a typed home.                                                                                                                                                                                                                                                              |
+| `person_emergency_contacts`          | Third-party personal data about somebody who never agreed to be in this system. A table of its own is the lockdown: not a `people` row, not a `contact_point`, joined to one person and nothing else, and in no view — so no audience, messaging or export path can reach it (REQ-restricted-fields, LAN-182).                                            |
+| `coach_group_assignments`            | Which coaching group a player trains with this season. One row per membership; Mission 9 owns the vocabulary, so `coach_group` is free text rather than a closed enum nobody has written down yet.                                                                                                                                                        |
+| `formalwear_records`                 | Tie, bowtie and socks, reasked every season (2026-08-26) rather than carried. `ownership` is text and not a boolean because "Yes (paid)" is a real answer the club records and prices the subscription invoice against.                                                                                                                                   |
+| `blues_awards`                       | Half and Full Blues, recorded on the season they were awarded in. The running total the club looks at is derived across seasons by `person_blues_totals` and stored nowhere.                                                                                                                                                                              |
 | `staging.*`                          | Architecture cheat sheet §1: legacy files land in staging, are validated, and only then promote.                                                                                                                                                                                                                                                          |
 | `event_audience_members`             | The frozen model gives Event an _audience definition_, and invariant P7 needs `never-invited` to be reportable. A repeating attribute is a table; without it the database cannot name anyone the approver confirmed.                                                                                                                                      |
 | `operator_accounts`                  | An **identity join**, not a new club concept: one auth user to one Person, so a session can name the actor an audited write records (M2). No role column. See [below](#operator-accounts).                                                                                                                                                                |
@@ -547,7 +556,8 @@ No view is materialised, so there is no cache and nothing to drift.
 | `uninvited_audience_members` | People the approver confirmed who were never actually invited: an approval defect, deliberately kept out of the nonresponse queue                                                                           |
 | `rsvp_attendance_mismatches` | Requirement 7's flagged mismatches, over the full outer join of an occurred event's invitations and its attendance. Occurrence is **derived** here (D30): approved, and dated before today in Europe/London |
 | `constitutional_membership`  | Invariant I5 — admitted **and** paid, reported beside operational readiness                                                                                                                                 |
-| `person_standing`            | Alumni derivation, operator-overridable                                                                                                                                                                     |
+| `person_standing`            | Alumni derivation, operator-overridable; also carries the display alias and the derived under-18 flag                                                                                                       |
+| `person_blues_totals`        | Half and Full Blue counts across every season a person has held a membership in — the number the club looks at, derived rather than stored                                                                  |
 | `transition_ledger`          | Invariant M2 as one stream over the typed history tables plus `audit_events`                                                                                                                                |
 
 `rsvp_attendance_mismatches` is **not** the view
@@ -639,7 +649,9 @@ kept above the database on purpose, and why.
 | **Availability**                     | `availability_statuses` holds a level, dates, and two person references — nothing else. Requirement 8 is met structurally: there is no column capable of holding a diagnosis, and `tests/schema-security.test.ts` scans the whole schema for one. Reachable only through the privileged server path.                                                                                                                  |
 | **The contingent availability note** | Not created. Review F10 makes a bounded note contingent on the pending Oxford / Sports Federation answer, and the model says no free-text field exists until that answer approves one. When it does, it lands as one nullable column on `availability_statuses` — or, if its retention rule differs, a single side table keyed by that table's id. Nothing else references it, so removing it is dropping one object. |
 | **Eligibility evidence**             | `evidence_reference` is an external pointer (a BUCS Play registration id). Never evidence content, never academic or medical detail.                                                                                                                                                                                                                                                                                  |
-| **Contact details**                  | Raw intake is stored unvalidated by design; normalisation is separate and reversible. Superseded contacts are retained so alumni stay contactable.                                                                                                                                                                                                                                                                    |
+| **Contact details**                  | Raw intake is stored unvalidated by design; normalisation is separate and reversible. Superseded contacts are retained so alumni stay contactable. `scope` separates a college address, which expires around graduation, from the personal one that outlives it; it is null on a phone, and on any email recorded before LAN-182 whose kind nobody has stated.                                                        |
+| **Date of birth**                    | `people.date_of_birth` is four-role only and never appears on a list, board or queue (REQ-restricted-fields). The derived `person_standing.is_under_18` is what those surfaces may read: a flag, never the date. Mission 8 owns what the club then does about it.                                                                                                                                                     |
+| **Emergency contact**                | `person_emergency_contacts` — first name, last name, relationship, phone, email, one row per person. Third-party personal data about somebody who never agreed to be here, so the lockdown is structural: never a `people` row, never a contact point, in no view, and reachable from no audience, messaging or export query. `tests/schema-restricted-fields.test.ts` asserts that against the source.               |
 | **Notification payloads**            | `template_variables` holds substitution values, not message bodies.                                                                                                                                                                                                                                                                                                                                                   |
 | **Legacy staging**                   | `staging` is not exposed to the Data API and holds synthetic fixtures only. No real roster data enters it before the pre-pilot gate in the [migration runbook](../migration-runbook.md).                                                                                                                                                                                                                              |
 
@@ -724,6 +736,50 @@ group, a position, a second single-holder rule and a generated
 `admits_multiple_holders`; `role_assignments` gained the denormalised
 cardinality flag its new exclusion constraint needs; `role_groups` is new. The
 application role's write privileges on the catalogue were revoked.
+
+**2026-08-28 — the person record's substrate** (LAN-182). Three changes, in one
+forward-only migration because they meet in one view.
+
+- **`membership_status` went from eight values to five** —
+  `onboarding · active · inactive · departed · archived`. `carried_forward` and
+  `confirmed` map onto `onboarding`; `withdrawn` maps onto `departed`. This is a
+  vocabulary change to the frozen conceptual model, approved by Brian on
+  2026-08-26, and it **supersedes OD-3**: `inactive` now means "may come back"
+  and `departed` means "gone", so the two are no longer interchangeable.
+  `carried_forward` said nothing `season_memberships.entry` did not already say;
+  `confirmed` was an act with a date, not a state anybody rested in — the date
+  survives as `confirmed_on`; and `withdrawn` described somebody who under the
+  rebuilt ladder never holds a membership at all. **`recruit` is deliberately
+  not a stored value.** The ladder an operator sees has six rungs assembled from
+  two records: Recruit comes from `recruitment_prospects`, and these five from
+  the membership.
+
+  Historical rows were converted in the `using` clause and nothing was rewritten
+  afterwards, so a transition that read `carried_forward → confirmed` now reads
+  `onboarding → onboarding`. That is a truthful record of a step that happened
+  under the old vocabulary, and it is why
+  `season_membership_status_events_is_a_change` and
+  `season_memberships_departure_is_dated` were re-added `not valid` — enforced on
+  everything written from here on, and not retro-applied to history.
+  `season_memberships_withdrawal_never_activated` is gone; its subject no longer
+  exists.
+
+- **`people.known_as` was dropped**, and the name a person is shown under became
+  an alias flagged `is_display_name`. One concept where there were two: a person
+  could previously hold a preferred name or an alias history but never both, and
+  an import matching on aliases could not see the name the club actually used.
+
+- **The person facts that had no columns got them**: college, matriculation year,
+  expected graduation year, degree field, date of birth, and the five-field
+  emergency contact in `person_emergency_contacts`. `contact_points.scope`
+  separates college email from personal email; it is null for every address
+  recorded before this migration, because nothing in the database knows which of
+  the two an existing one is and guessing from its domain would invent data about
+  a real person.
+
+Three views were recreated — `constitutional_membership`, `person_standing` and
+`transition_ledger` — and only three, which is what `pg_depend` said rather than
+what the issue estimated. `person_blues_totals` is new.
 
 ## Known deviations from the frozen model
 

@@ -336,21 +336,27 @@ describe("setup.sql", () => {
       ),
     ).toBeGreaterThanOrEqual(2);
 
-    const person = await one<{ known_as: string; family_name: string }>(
+    // The sentinel is the display alias since LAN-182 struck `people.known_as`.
+    const person = await one<{ display_alias: string; family_name: string }>(
       client,
-      "select known_as, family_name from public.people where id = $1::uuid",
+      `select p.family_name,
+              (select a.alias from public.person_aliases a
+                where a.person_id = p.id and a.is_display_name limit 1) as display_alias
+         from public.people p where p.id = $1::uuid`,
       [PERSON_ID],
     );
-    expect(person.known_as).toBe(SENTINEL);
+    expect(person.display_alias).toBe(SENTINEL);
 
     const membership = await one<{ status: string; entry: string; season_id: string }>(
       client,
       "select status::text as status, entry::text as entry, season_id from public.season_memberships where id = $1::uuid",
       [MEMBERSHIP_ID],
     );
-    // `confirmed`, deliberately — not `active`, which would hand over the
-    // result the scenario exists to produce.
-    expect(membership.status).toBe("confirmed");
+    // `onboarding`, deliberately — not `active`, which would hand over the
+    // result the scenario exists to produce. It was `confirmed` until LAN-182
+    // struck that value; both map onto `onboarding`, and Activate reads the
+    // same either way.
+    expect(membership.status).toBe("onboarding");
     expect(membership.entry).toBe("returning");
     expect(membership.season_id).toBe(seasonId);
 
@@ -377,7 +383,10 @@ describe("setup.sql", () => {
         "select count(*) as n from public.season_membership_status_events where season_membership_id = $1::uuid",
         [MEMBERSHIP_ID],
       ),
-    ).toBe(2);
+      // One, not two. The pair walked `null → carried_forward → confirmed`, and
+      // LAN-182 maps both of those onto `onboarding` — the second row would
+      // record a change from a state to itself.
+    ).toBe(1);
   });
 
   it("gives the scenario two required items, and never a second subscription type", async () => {
@@ -453,17 +462,21 @@ describe("setup.sql", () => {
 
 describe("setup.sql refuses rather than guessing", () => {
   it("refuses when a scenario identifier belongs to somebody else", async () => {
-    await client.query(
-      "insert into public.people (id, given_name, known_as) values ($1::uuid, 'Somebody', 'Real')",
-      [PERSON_ID],
-    );
+    await client.query("insert into public.people (id, given_name) values ($1::uuid, 'Somebody')", [
+      PERSON_ID,
+    ]);
 
     await expect(client.query(SETUP)).rejects.toThrow(/Never adopt a person record/);
   });
 
   it("refuses when the scenario identifier has become a durable identity", async () => {
     await client.query(
-      "insert into public.people (id, given_name, family_name, known_as) values ($1::uuid, 'Thelbrook', 'Pilotcase', $2)",
+      "insert into public.people (id, given_name, family_name) values ($1::uuid, 'Thelbrook', 'Pilotcase')",
+      [PERSON_ID],
+    );
+    await client.query(
+      `insert into public.person_aliases (person_id, alias, source, is_display_name)
+       values ($1::uuid, $2, $2, true)`,
       [PERSON_ID, SENTINEL],
     );
     await linkOperatorAccountTo(client, PERSON_ID);
@@ -551,8 +564,7 @@ describe("cleanup.sql", () => {
     await client.query(
       `insert into public.season_membership_status_events
          (season_membership_id, from_status, to_status, actor_person_id, reason)
-       values ($1::uuid, 'confirmed', 'onboarding', $2::uuid, 'system'),
-              ($1::uuid, 'onboarding', 'active', $2::uuid, 'Proceeded with one item outstanding')`,
+       values ($1::uuid, 'onboarding', 'active', $2::uuid, 'Proceeded with one item outstanding')`,
       [MEMBERSHIP_ID, actor.id],
     );
     await client.query(
@@ -604,12 +616,12 @@ describe("cleanup.sql", () => {
     const membership = await one<{ id: string }>(
       client,
       `insert into public.season_memberships (person_id, season_id, status, entry, confirmed_on)
-       values ($1::uuid, $2::uuid, 'confirmed', 'returning', current_date) returning id`,
+       values ($1::uuid, $2::uuid, 'onboarding', 'returning', current_date) returning id`,
       [person.id, seasonId],
     );
     await client.query(
       `insert into public.season_membership_status_events (season_membership_id, from_status, to_status, actor_person_id)
-       values ($1::uuid, null, 'carried_forward', (select id from public.people where id <> $2::uuid limit 1))`,
+       values ($1::uuid, null, 'onboarding', (select id from public.people where id <> $2::uuid limit 1))`,
       [membership.id, person.id],
     );
     // The items the application generates on confirmation — from EVERY type
@@ -673,10 +685,9 @@ describe("cleanup.sql", () => {
 
 describe("cleanup.sql refuses rather than widening", () => {
   it("refuses when a scenario identifier is not this scenario's row", async () => {
-    await client.query(
-      "insert into public.people (id, given_name, known_as) values ($1::uuid, 'Somebody', 'Real')",
-      [PERSON_ID],
-    );
+    await client.query("insert into public.people (id, given_name) values ($1::uuid, 'Somebody')", [
+      PERSON_ID,
+    ]);
 
     await expect(client.query(CLEANUP)).rejects.toThrow(
       /Refusing to delete somebody else's person/,

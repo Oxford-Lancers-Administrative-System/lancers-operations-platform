@@ -58,7 +58,7 @@ select
   current_database() as database,
   current_user as connected_as,
   now() as at,
-  (select count(*) from public.people where known_as = 'PILOT-LAN-77') as scenario_people,
+  (select count(*) from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) = 'PILOT-LAN-77') as scenario_people,
   (select count(*) from public.events where name like '%PILOT-LAN-77%') as scenario_events,
   (
     select count(*) from public.event_audience_members
@@ -115,7 +115,7 @@ begin
 
   select string_agg(id::text, ', ') into stray
   from public.people
-  where id = any(scenario_people) and coalesce(known_as, '') <> 'PILOT-LAN-77';
+  where id = any(scenario_people) and coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), '') <> 'PILOT-LAN-77';
 
   if stray is not null then
     raise exception
@@ -259,13 +259,13 @@ where id = '00770077-0077-4077-8077-000000000048'
 -- why the marker's second half is proved through the person.
 delete from public.season_memberships
 where id = '00770077-0077-4077-8077-000000000020'
-  and person_id in (select id from public.people where known_as = 'PILOT-LAN-77');
+  and person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) = 'PILOT-LAN-77');
 delete from public.season_memberships
 where id = '00770077-0077-4077-8077-000000000021'
-  and person_id in (select id from public.people where known_as = 'PILOT-LAN-77');
+  and person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) = 'PILOT-LAN-77');
 delete from public.season_memberships
 where id = '00770077-0077-4077-8077-000000000022'
-  and person_id in (select id from public.people where known_as = 'PILOT-LAN-77');
+  and person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) = 'PILOT-LAN-77');
 
 -- ---------------------------------------------------------------------------
 -- 8. Contact points
@@ -289,13 +289,13 @@ where id = '00770077-0077-4077-8077-000000000033'
 -- ---------------------------------------------------------------------------
 delete from public.people
 where id = '00770077-0077-4077-8077-000000000010'
-  and known_as = 'PILOT-LAN-77';
+  and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) = 'PILOT-LAN-77';
 delete from public.people
 where id = '00770077-0077-4077-8077-000000000011'
-  and known_as = 'PILOT-LAN-77';
+  and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) = 'PILOT-LAN-77';
 delete from public.people
 where id = '00770077-0077-4077-8077-000000000012'
-  and known_as = 'PILOT-LAN-77';
+  and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) = 'PILOT-LAN-77';
 
 -- ---------------------------------------------------------------------------
 -- Verification — read this before you commit
@@ -304,7 +304,7 @@ where id = '00770077-0077-4077-8077-000000000012'
 select
   'LAN-77 pilot cleanup — removed' as check,
   (select count(*) from public.people
-    where known_as = 'PILOT-LAN-77') as scenario_people_remaining,
+    where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) = 'PILOT-LAN-77') as scenario_people_remaining,
   (select count(*) from public.contact_points
     where source = 'PILOT-LAN-77 setup script') as scenario_contact_points_remaining,
   (select count(*) from public.season_memberships
@@ -328,6 +328,6 @@ select
   (select count(*) from public.seasons
     where status in ('open', 'active')) as open_seasons_surviving,
   (select count(*) from public.people
-    where coalesce(known_as, '') <> 'PILOT-LAN-77') as other_people_surviving;
+    where coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), '') <> 'PILOT-LAN-77') as other_people_surviving;
 
 commit;

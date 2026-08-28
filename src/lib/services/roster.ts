@@ -3,6 +3,7 @@ import "server-only";
 import { Conflict, ConstraintViolated, NotFound, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
 import { generateOnboardingItems } from "./membership";
+import { personDisplayAliasSql } from "./sql-text";
 
 /**
  * Returner intake — the slice's first roster path. LAN-74.
@@ -43,11 +44,11 @@ import { generateOnboardingItems } from "./membership";
  *
  * ## Where the transition record lives
  *
- * Both membership transitions — `null → carried_forward` and
- * `carried_forward → confirmed` — are written to
+ * The membership transition — `null → onboarding`, and since LAN-182 that is
+ * the only one an intake writes — is written to
  * `season_membership_status_events`, which is the typed first-class home the
- * frozen model gives them, and they carry the acting operator as
- * `actor_person_id`. They are deliberately **not** duplicated into
+ * frozen model gives it, and it carries the acting operator as
+ * `actor_person_id`. It is deliberately **not** duplicated into
  * `audit_events`: register D9 refuses that, the `audit_events` table comment
  * says so, and `recordAudit`'s own documentation repeats it.
  *
@@ -78,7 +79,8 @@ export interface PersonCandidate {
   personId: string;
   givenName: string;
   familyName: string | null;
-  knownAs: string | null;
+  /** The alias flagged as this person's display name, if they have one. */
+  displayAlias: string | null;
   /**
    * An email to show on UX-11: of the person's **current** emails (those with
    * no `valid_until`), the preferred one if there is one, else the most
@@ -117,7 +119,7 @@ export interface ReturnerIntakeResult {
   seasonLabel: string;
   /** True when this submission minted the `people` row. */
   personCreated: boolean;
-  /** An alias row was written because `known_as` differs from the given name. */
+  /** A display alias was written because the known-as differs from the given name. */
   aliasCreated: boolean;
   /** The contact points this submission wrote, in the order written. */
   contactsRecorded: RecordedContact[];
@@ -241,7 +243,7 @@ interface CandidateRow {
   person_id: string;
   given_name: string;
   family_name: string | null;
-  known_as: string | null;
+  display_alias: string | null;
   email: string | null;
   phone: string | null;
   membership_id: string | null;
@@ -346,7 +348,7 @@ export async function findPersonCandidates(input: ReturnerIntakeInput): Promise<
          p.id                                             as person_id,
          p.given_name,
          p.family_name,
-         p.known_as,
+         ${personDisplayAliasSql("p")}                     as display_alias,
          display_contact.email,
          display_contact.phone,
          m.id                                             as membership_id,
@@ -358,12 +360,14 @@ export async function findPersonCandidates(input: ReturnerIntakeInput): Promise<
          -- row, and an import will eventually produce one. Comparing it
          -- untrimmed hides exactly the duplicate this check exists to find.
          coalesce(lower(btrim(p.given_name)) = w.given_name
-                  or lower(btrim(p.known_as)) = w.given_name
                   or am.by_given, false)                  as matched_given,
          coalesce(lower(btrim(p.family_name)) = w.family_name
                   or am.by_family, false)                 as matched_family,
-         coalesce(lower(btrim(p.known_as)) = w.known_as
-                  or lower(btrim(p.given_name)) = w.known_as
+         -- No known-as arm any more, and nothing is lost by its absence:
+         -- LAN-182 moved that value into person_aliases, which the alias_match
+         -- CTE above already scans. What the struck column used to catch,
+         -- am.by_known_as and am.by_given now catch from where it actually is.
+         coalesce(lower(btrim(p.given_name)) = w.known_as
                   or am.by_known_as, false)               as matched_known_as,
          coalesce(cm.by_email, false)                     as matched_email,
          coalesce(cm.by_phone, false)                     as matched_phone
@@ -377,9 +381,7 @@ export async function findPersonCandidates(input: ReturnerIntakeInput): Promise<
       where p.merged_into_person_id is null
         and (
           lower(btrim(p.given_name)) = w.given_name
-          or lower(btrim(p.known_as)) = w.given_name
           or lower(btrim(p.family_name)) = w.family_name
-          or lower(btrim(p.known_as)) = w.known_as
           or lower(btrim(p.given_name)) = w.known_as
           or coalesce(am.by_given or am.by_family or am.by_known_as, false)
           or coalesce(cm.by_email or cm.by_phone, false)
@@ -412,7 +414,7 @@ function toCandidate(row: CandidateRow): PersonCandidate {
     personId: row.person_id,
     givenName: row.given_name,
     familyName: row.family_name,
-    knownAs: row.known_as,
+    displayAlias: row.display_alias,
     email: row.email,
     phone: row.phone,
     currentMembership:
@@ -436,14 +438,13 @@ function toCandidate(row: CandidateRow): PersonCandidate {
  * a membership, and not a membership whose history is missing its first
  * transition.
  *
- * The status sequence is the frozen model's §2.1 machine and is not the
- * operator's to choose. An operator entering a returner by hand is performing
- * the same act the season-open process performs — creating a `carried_forward`
- * membership — and then immediately performing the documented
- * `carried_forward → confirmed` transition, "Returner verification completed
- * (form or operator entry)". Both are recorded. Collapsing them into a single
- * `confirmed` insert would produce a membership whose history claims a
- * verification that has no starting point.
+ * The status sequence is the frozen model's §2.1 machine as LAN-182 rebuilt it,
+ * and is not the operator's to choose. A membership now begins at `onboarding`
+ * and nowhere else. The old sequence walked `carried_forward → confirmed`, and
+ * both of those map onto `onboarding`: writing it today would record two
+ * transitions from a state to itself, which is a history asserting changes that
+ * did not happen. What distinguishes a returner from a new player is `entry`,
+ * which is where that fact always lived.
  *
  * `actorPersonId` is the `personId` from `resolveOperator()`. It is a required
  * argument and is never defaulted — see `src/lib/services/README.md` rule 1.
@@ -493,13 +494,14 @@ export async function enterReturningPlayer(params: {
       confirmedOn,
     });
 
-    // The transition record, in its typed home. Both rows, in order.
-    await recordStatusEvent(tx, membershipId, null, "carried_forward", actorPersonId);
+    // The transition record, in its typed home. One row, because one thing
+    // happened: this person now holds a membership and is working through
+    // onboarding.
     await recordStatusEvent(
       tx,
       membershipId,
-      "carried_forward",
-      "confirmed",
+      null,
+      "onboarding",
       actorPersonId,
       "Returner verification completed (operator entry)",
     );
@@ -628,18 +630,23 @@ async function refuseExistingMembership(
 
 async function insertPerson(tx: Tx, input: NormalisedInput): Promise<string> {
   const result = await tx.query<{ id: string }>(
-    `insert into public.people (given_name, family_name, known_as)
-     values ($1, $2, $3)
+    `insert into public.people (given_name, family_name)
+     values ($1, $2)
      returning id`,
-    [input.givenName, input.familyName, input.knownAs],
+    [input.givenName, input.familyName],
   );
   return result.rows[0].id;
 }
 
 /**
- * Records `known_as` as an alias when it is a genuinely different name form.
+ * Records the typed known-as as the person's display alias, when it is a
+ * genuinely different name form.
  *
- * The seeded data has people whose `known_as` simply repeats the given name;
+ * This is where LAN-182's collapse lands: known-as is no longer a column of its
+ * own, it is an alias flagged `is_display_name`. One row now carries both jobs
+ * — the name the club uses on screen, and the name a later import matches on.
+ *
+ * The seeded data has people whose known-as simply repeats the given name;
  * writing that as an alias adds a row that says nothing. A name the club
  * actually uses instead — "Ben" for "Benjamin" — is exactly what
  * `person_aliases` is for, and is what makes a later import match this person
@@ -659,8 +666,8 @@ async function insertAliasIfDistinct(
   if (knownAs.toLowerCase() === input.givenName.toLowerCase()) return false;
 
   const result = await tx.query(
-    `insert into public.person_aliases (person_id, alias, source)
-     values ($1::uuid, $2, 'operator intake')
+    `insert into public.person_aliases (person_id, alias, source, is_display_name)
+     values ($1::uuid, $2, 'operator intake', true)
      on conflict (person_id, alias) do nothing
      returning id`,
     [personId, knownAs],
@@ -741,14 +748,14 @@ async function insertMembership(
   tx: Tx,
   params: { personId: string; seasonId: string; confirmedOn: string },
 ): Promise<string> {
-  // Created as `carried_forward` and moved to `confirmed` below, in that order,
-  // because that is the sequence the frozen model's §2.1 machine defines. The
-  // row lands at its final status in one statement; the *history* records both
-  // steps, which is what makes the verification auditable.
+  // `onboarding`, which is where every membership starts under the five-value
+  // ladder. `confirmed_on` still carries the day the club said yes — that is a
+  // milestone date, and it survived the vocabulary change that struck the state
+  // of the same name.
   const result = await tx.query<{ id: string }>(
     `insert into public.season_memberships
        (person_id, season_id, status, entry, confirmed_on)
-     values ($1::uuid, $2::uuid, 'confirmed', 'returning', $3::date)
+     values ($1::uuid, $2::uuid, 'onboarding', 'returning', $3::date)
      returning id`,
     [params.personId, params.seasonId, params.confirmedOn],
   );

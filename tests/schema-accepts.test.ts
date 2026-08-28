@@ -418,7 +418,7 @@ describe("season rollover", () => {
     await expectAccepted(
       client,
       `insert into public.season_memberships (person_id, season_id, status, entry, carried_forward_from_id)
-       values ($1, $2, 'carried_forward', 'returning', $3)`,
+       values ($1, $2, 'onboarding', 'returning', $3)`,
       [returner.id, base.seasonId, previous.id],
     );
 
@@ -447,7 +447,7 @@ describe("season rollover", () => {
     try {
       await client.query(
         `insert into public.season_memberships (person_id, season_id, status, entry, carried_forward_from_id)
-         values ($1, $2, 'carried_forward', 'returning', $3)`,
+         values ($1, $2, 'onboarding', 'returning', $3)`,
         [base.personId, base.otherSeasonId, previous.id],
       );
     } catch {
@@ -465,7 +465,7 @@ describe("season rollover", () => {
     );
     await client.query(
       `insert into public.season_memberships (person_id, season_id, status, entry)
-       values ($1, $2, 'confirmed', 'new')`,
+       values ($1, $2, 'onboarding', 'new')`,
       [base.personId, base.otherSeasonId],
     );
 

@@ -56,7 +56,10 @@ const ID = {
   phoneFullName: "00740074-0074-4074-8074-000000000005",
   membership: "00740074-0074-4074-8074-000000000006",
   statusEventCreated: "00740074-0074-4074-8074-000000000007",
-  statusEventConfirmed: "00740074-0074-4074-8074-000000000008",
+  // LAN-182: a person's half of the ownership marker is now the alias flagged
+  // as their display name, because `people.known_as` no longer exists.
+  aliasFirstNameOnly: "00740074-0074-4074-8074-000000000091",
+  aliasFullName: "00740074-0074-4074-8074-000000000093",
 } as const;
 
 const SENTINEL = "PILOT-LAN-74";
@@ -65,13 +68,14 @@ const STATUS_EVENT_ACTOR = "PILOT-LAN-74 setup script";
 /** Which table each identifier lives in, in dependency order. */
 const SCENARIO_ROWS: readonly (readonly [table: string, id: string])[] = [
   ["public.people", ID.personFirstNameOnly],
+  ["public.person_aliases", ID.aliasFirstNameOnly],
   ["public.contact_points", ID.emailFirstNameOnly],
   ["public.people", ID.personFullName],
+  ["public.person_aliases", ID.aliasFullName],
   ["public.contact_points", ID.emailFullName],
   ["public.contact_points", ID.phoneFullName],
   ["public.season_memberships", ID.membership],
   ["public.season_membership_status_events", ID.statusEventCreated],
-  ["public.season_membership_status_events", ID.statusEventConfirmed],
 ];
 
 /** The tables cleanup deletes from — the parents whose cascades must be named. */
@@ -157,13 +161,33 @@ async function openSeasonId(client: Client): Promise<string> {
 // the guard under test is specifically about a sentinel-carrying row: these
 // stand in for somebody else's data, which is what every guard protects.
 
-async function sparePerson(client: Client, tag: string, knownAs?: string): Promise<string> {
+async function scenarioPerson(client: Client, personId: string, aliasId: string) {
+  await client.query("insert into public.people (id, given_name) values ($1, 'Fenwold')", [
+    personId,
+  ]);
+  await client.query(
+    `insert into public.person_aliases (id, person_id, alias, source, is_display_name)
+     values ($1, $2, $3, $3, true)`,
+    [aliasId, personId, SENTINEL],
+  );
+}
+
+async function sparePerson(client: Client, tag: string, displayAlias?: string): Promise<string> {
   const row = await one<{ id: string }>(
     client,
-    `insert into public.people (given_name, family_name, known_as)
-     values ('Somebody', $1, $2) returning id`,
-    [tag, knownAs ?? null],
+    `insert into public.people (given_name, family_name)
+     values ('Somebody', $1) returning id`,
+    [tag],
   );
+  // LAN-182: the name a person is shown under is an alias flagged as the
+  // display name, not a column of its own.
+  if (displayAlias) {
+    await client.query(
+      `insert into public.person_aliases (person_id, alias, source, is_display_name)
+       values ($1, $2, 'test fixture', true)`,
+      [row.id, displayAlias],
+    );
+  }
   return row.id;
 }
 
@@ -171,20 +195,19 @@ async function sparePerson(client: Client, tag: string, knownAs?: string): Promi
  * A person carrying the sentinel, **exactly as the interface leaves one behind**.
  *
  * This fixture is the one that has to stay honest, and it did not: it used to
- * write `known_as = 'PILOT-LAN-74'` and a `person_aliases` row, neither of which
- * the application can produce since the intake form dropped its nickname field.
- * That made the whole end-to-end block green over a cleanup that would have
- * matched nothing in production.
+ * write a display name and an alias, neither of which the application can
+ * produce since the intake form dropped its nickname field. That made the whole
+ * end-to-end block green over a cleanup that would have matched nothing in
+ * production.
  *
- * So: the sentinel goes in `family_name`, `known_as` is null, and no alias is
- * written — because that is what `enterReturningPlayer` does when the form
- * sends it four fields.
+ * So: the sentinel goes in `family_name` and no alias is written — because that
+ * is what `enterReturningPlayer` does when the form sends it four fields.
  */
 async function interfaceCreatedReturner(client: Client): Promise<string> {
   const row = await one<{ id: string }>(
     client,
-    `insert into public.people (given_name, family_name, known_as)
-     values ('Fenwold', $1, null) returning id`,
+    `insert into public.people (given_name, family_name)
+     values ('Fenwold', $1) returning id`,
     [SENTINEL],
   );
   // Email AND phone. UX-10 offers both fields and the wireframe shows both
@@ -255,8 +278,8 @@ async function createDurableFoundation(client: Client): Promise<Durable> {
   );
   const person = await one<{ id: string }>(
     client,
-    `insert into public.people (given_name, family_name, known_as)
-     values ('Durable', 'Foundation', 'PILOT-FOUNDATION-LAN74') returning id`,
+    `insert into public.people (given_name, family_name)
+     values ('Durable', 'Foundation') returning id`,
   );
   const operator = await one<{ id: string }>(
     client,
@@ -538,10 +561,10 @@ describe("the local-only guard this suite depends on", () => {
 });
 
 describe("setup.sql is repeatable", () => {
-  it("creates exactly the eight rows it documents", async () => {
+  it("creates exactly the nine rows it documents", async () => {
     expect(await scenarioRowCount(client)).toBe(0);
     await client.query(SETUP);
-    expect(await scenarioRowCount(client)).toBe(8);
+    expect(await scenarioRowCount(client)).toBe(9);
   });
 
   it("puts the membership in the open season, and creates no season of its own", async () => {
@@ -554,7 +577,7 @@ describe("setup.sql is repeatable", () => {
       [ID.membership],
     );
     expect(membership.season_id).toBe(await openSeasonId(client));
-    expect(membership.status).toBe("confirmed");
+    expect(membership.status).toBe("onboarding");
     expect(membership.entry).toBe("returning");
 
     const after = await one<{ n: string }>(client, "select count(*) as n from public.seasons");
@@ -601,11 +624,11 @@ describe("setup.sql is repeatable", () => {
     const { rows } = await client.query<{ actor_person_id: string | null; actor_label: string }>(
       `select actor_person_id, actor_label
          from public.season_membership_status_events
-        where id in ($1, $2)`,
-      [ID.statusEventCreated, ID.statusEventConfirmed],
+        where id = $1`,
+      [ID.statusEventCreated],
     );
 
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(1);
     for (const row of rows) {
       // Invariant M2 requires an actor. Naming the mechanism is honest; naming
       // a person who did not do it would be a false history, and would also
@@ -676,10 +699,10 @@ describe("setup.sql is repeatable", () => {
   it("restores a row that was removed by hand between runs", async () => {
     await client.query(SETUP);
     await client.query("delete from public.contact_points where id = $1", [ID.phoneFullName]);
-    expect(await scenarioRowCount(client)).toBe(7);
+    expect(await scenarioRowCount(client)).toBe(8);
 
     await client.query(SETUP);
-    expect(await scenarioRowCount(client)).toBe(8);
+    expect(await scenarioRowCount(client)).toBe(9);
   });
 });
 
@@ -804,13 +827,10 @@ async function walkReadmeSteps(client: Client, actorPersonId: string) {
   const stepThree = await one<{ id: string }>(
     client,
     `insert into public.season_memberships (person_id, season_id, status, entry, confirmed_on)
-     values ($1, $2, 'confirmed', 'returning', current_date) returning id`,
+     values ($1, $2, 'onboarding', 'returning', current_date) returning id`,
     [ID.personFullName, season],
   );
-  for (const [from, to] of [
-    [null, "carried_forward"],
-    ["carried_forward", "confirmed"],
-  ] as const) {
+  for (const [from, to] of [[null, "onboarding"]] as const) {
     await client.query(
       `insert into public.season_membership_status_events
          (season_membership_id, from_status, to_status, actor_person_id)
@@ -824,13 +844,13 @@ async function walkReadmeSteps(client: Client, actorPersonId: string) {
   const stepFour = await one<{ id: string }>(
     client,
     `insert into public.season_memberships (person_id, season_id, status, entry, confirmed_on)
-     values ($1, $2, 'confirmed', 'returning', current_date) returning id`,
+     values ($1, $2, 'onboarding', 'returning', current_date) returning id`,
     [created, season],
   );
   await client.query(
     `insert into public.season_membership_status_events
        (season_membership_id, from_status, to_status, actor_person_id)
-     values ($1, null, 'carried_forward', $2)`,
+     values ($1, null, 'onboarding', $2)`,
     [stepFour.id, actorPersonId],
   );
 
@@ -1024,13 +1044,13 @@ describe("the sweep of the returner created through the interface", () => {
     const membership = await one<{ id: string }>(
       client,
       `insert into public.season_memberships (person_id, season_id, status, entry, confirmed_on)
-       values ($1, $2, 'confirmed', 'returning', current_date) returning id`,
+       values ($1, $2, 'onboarding', 'returning', current_date) returning id`,
       [created, await openSeasonId(client)],
     );
     await client.query(
       `insert into public.season_membership_status_events
          (season_membership_id, from_status, to_status, actor_person_id)
-       values ($1, null, 'carried_forward', $2)`,
+       values ($1, null, 'onboarding', $2)`,
       [membership.id, durable.personId],
     );
 
@@ -1073,17 +1093,19 @@ describe("the sweep of the returner created through the interface", () => {
   it("sweeps a person whose sentinel is in the last name, as the form produces", async () => {
     // The regression that made this whole class of defect real: the form has no
     // nickname field, so everything the application creates carries its marker
-    // in `family_name`. A sweep keyed only on `known_as` matches nothing, and
-    // says nothing while it does.
+    // in `family_name`. A sweep keyed only on the display alias matches nothing,
+    // and says nothing while it does.
     await client.query(SETUP);
     const created = await interfaceCreatedReturner(client);
 
-    const stored = await one<{ known_as: string | null; family_name: string | null }>(
+    const stored = await one<{ aliases: string; family_name: string | null }>(
       client,
-      "select known_as, family_name from public.people where id = $1",
+      `select family_name,
+              (select count(*)::text from public.person_aliases a where a.person_id = p.id) as aliases
+         from public.people p where p.id = $1`,
       [created],
     );
-    expect(stored.known_as, "the form cannot set a nickname").toBeNull();
+    expect(stored.aliases, "the form cannot set a nickname").toBe("0");
     expect(stored.family_name).toBe(SENTINEL);
 
     await client.query(CLEANUP);
@@ -1124,8 +1146,8 @@ describe("the sweep of the returner created through the interface", () => {
     for (const spelling of spellings) {
       const person = await one<{ id: string }>(
         client,
-        `insert into public.people (given_name, family_name, known_as)
-         values ('Fenwold', $1, null) returning id`,
+        `insert into public.people (given_name, family_name)
+         values ('Fenwold', $1) returning id`,
         [spelling],
       );
       created.push(person.id);
@@ -1144,15 +1166,16 @@ describe("the sweep of the returner created through the interface", () => {
   });
 
   it("does not read the sentinel out of any column but the two it owns", async () => {
-    // The sweep matches the sentinel in `known_as` or `family_name`. Nothing
-    // else. Without this test the predicate could be widened to `given_name` —
-    // or to any other text column — and every test in the repository stayed
-    // green, because no fixture ever put the sentinel anywhere unexpected.
+    // The sweep matches the sentinel in a display alias or in `family_name`.
+    // Nothing else. Without this test the predicate could be widened to
+    // `given_name` — or to any other text column — and every test in the
+    // repository stayed green, because no fixture ever put the sentinel
+    // anywhere unexpected.
     await client.query(SETUP);
     const wrongColumn = await one<{ id: string }>(
       client,
-      `insert into public.people (given_name, family_name, known_as)
-       values ($1, 'Realsurname', null) returning id`,
+      `insert into public.people (given_name, family_name)
+       values ($1, 'Realsurname') returning id`,
       [SENTINEL],
     );
 
@@ -1271,7 +1294,7 @@ const GUARD_CASES: readonly GuardCase[] = [
       const person = await sparePerson(c, "MembershipOwner");
       await c.query(
         `insert into public.season_memberships (id, person_id, season_id, status, entry, confirmed_on)
-         values ($1, $2, $3, 'confirmed', 'new', current_date)`,
+         values ($1, $2, $3, 'onboarding', 'new', current_date)`,
         [ID.membership, person, await spareSeason(c, "LAN-74 fixture other season")],
       );
     },
@@ -1284,13 +1307,13 @@ const GUARD_CASES: readonly GuardCase[] = [
       const membership = await one<{ id: string }>(
         c,
         `insert into public.season_memberships (person_id, season_id, status, entry, confirmed_on)
-         values ($1, $2, 'confirmed', 'new', current_date) returning id`,
+         values ($1, $2, 'onboarding', 'new', current_date) returning id`,
         [person, await spareSeason(c, "LAN-74 fixture event season")],
       );
       await c.query(
         `insert into public.season_membership_status_events
            (id, season_membership_id, from_status, to_status, actor_label)
-         values ($1, $2, null, 'confirmed', 'somebody else')`,
+         values ($1, $2, null, 'onboarding', 'somebody else')`,
         [ID.statusEventCreated, membership.id],
       );
     },
@@ -1299,10 +1322,7 @@ const GUARD_CASES: readonly GuardCase[] = [
     script: "setup",
     message: "a scenario identifier is linked to an operator account",
     arrange: async (c) => {
-      await c.query(
-        "insert into public.people (id, given_name, known_as) values ($1, 'Fenwold', $2)",
-        [ID.personFirstNameOnly, SENTINEL],
-      );
+      await scenarioPerson(c, ID.personFirstNameOnly, ID.aliasFirstNameOnly);
       const user = await one<{ id: string }>(
         c,
         "insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id",
@@ -1318,13 +1338,10 @@ const GUARD_CASES: readonly GuardCase[] = [
     script: "setup",
     message: "the scenario person already holds a different membership in the open season",
     arrange: async (c) => {
-      await c.query(
-        "insert into public.people (id, given_name, known_as) values ($1, 'Fenwold', $2)",
-        [ID.personFirstNameOnly, SENTINEL],
-      );
+      await scenarioPerson(c, ID.personFirstNameOnly, ID.aliasFirstNameOnly);
       await c.query(
         `insert into public.season_memberships (person_id, season_id, status, entry, confirmed_on)
-         values ($1, $2, 'confirmed', 'new', current_date)`,
+         values ($1, $2, 'onboarding', 'new', current_date)`,
         [ID.personFirstNameOnly, await openSeasonId(c)],
       );
     },
@@ -1333,13 +1350,10 @@ const GUARD_CASES: readonly GuardCase[] = [
     script: "setup",
     message: "the second candidate already holds a membership in the open season",
     arrange: async (c) => {
-      await c.query(
-        "insert into public.people (id, given_name, known_as) values ($1, 'Fenwold', $2)",
-        [ID.personFullName, SENTINEL],
-      );
+      await scenarioPerson(c, ID.personFullName, ID.aliasFullName);
       await c.query(
         `insert into public.season_memberships (person_id, season_id, status, entry, confirmed_on)
-         values ($1, $2, 'confirmed', 'new', current_date)`,
+         values ($1, $2, 'onboarding', 'new', current_date)`,
         [ID.personFullName, await openSeasonId(c)],
       );
     },
@@ -1380,7 +1394,7 @@ const GUARD_CASES: readonly GuardCase[] = [
       const person = await sparePerson(c, "OtherMembership");
       await c.query(
         `insert into public.season_memberships (id, person_id, season_id, status, entry, confirmed_on)
-         values ($1, $2, $3, 'confirmed', 'new', current_date)`,
+         values ($1, $2, $3, 'onboarding', 'new', current_date)`,
         [ID.membership, person, await spareSeason(c, "LAN-74 cleanup fixture season")],
       );
     },
@@ -1436,7 +1450,7 @@ const GUARD_CASES: readonly GuardCase[] = [
       void (await c.query(
         `insert into public.season_membership_status_events
            (season_membership_id, from_status, to_status, actor_person_id)
-         values ($1, 'confirmed', 'onboarding', $2)`,
+         values ($1, 'onboarding', 'active', $2)`,
         [ID.membership, ID.personFullName],
       )),
   },
@@ -1469,12 +1483,37 @@ const GUARD_CASES: readonly GuardCase[] = [
   },
   {
     script: "cleanup",
-    message: "person_aliases rows hang off a scenario person",
+    message: "person_aliases rows this scenario did not write",
     afterSetup: true,
     cascadeTable: "public.person_aliases",
     arrange: async (c) =>
       void (await c.query(
         "insert into public.person_aliases (person_id, alias, source) values ($1, 'Fen', 'somebody else')",
+        [ID.personFirstNameOnly],
+      )),
+  },
+  {
+    script: "cleanup",
+    message: "a person_aliases row in this scenario's identifier block is not this scenario's",
+    afterSetup: false,
+    arrange: async (c) => {
+      // The person is this scenario's — it carries the sentinel — but the alias
+      // row occupying the scenario's identifier was written by somebody else.
+      // Ownership is two halves, and holding one of them is not holding the row.
+      await scenarioPerson(c, ID.personFirstNameOnly, ID.aliasFirstNameOnly);
+      await c.query("update public.person_aliases set source = 'somebody else' where id = $1", [
+        ID.aliasFirstNameOnly,
+      ]);
+    },
+  },
+  {
+    script: "cleanup",
+    message: "person_emergency_contacts rows hang off a person this script would delete",
+    afterSetup: true,
+    cascadeTable: "public.person_emergency_contacts",
+    arrange: async (c) =>
+      void (await c.query(
+        "insert into public.person_emergency_contacts (person_id, given_name) values ($1, 'Somebody')",
         [ID.personFirstNameOnly],
       )),
   },
@@ -1508,7 +1547,7 @@ const GUARD_CASES: readonly GuardCase[] = [
     arrange: async (c) =>
       void (await c.query(
         `insert into public.season_memberships (person_id, season_id, status, entry, confirmed_on)
-         values ($1, $2, 'confirmed', 'new', current_date)`,
+         values ($1, $2, 'onboarding', 'new', current_date)`,
         [ID.personFirstNameOnly, await spareSeason(c, "LAN-74 extra membership season")],
       )),
   },
@@ -1520,7 +1559,7 @@ const GUARD_CASES: readonly GuardCase[] = [
       void (await c.query(
         `insert into public.season_memberships
            (person_id, season_id, status, entry, confirmed_on, carried_forward_from_id)
-         values ($1, $2, 'confirmed', 'returning', current_date, $3)`,
+         values ($1, $2, 'onboarding', 'returning', current_date, $3)`,
         [
           ID.personFirstNameOnly,
           await spareSeason(c, "LAN-74 carried-forward fixture season"),
@@ -1682,8 +1721,8 @@ describe("the cleanup's cascade enumeration is complete against the live schema"
       [DELETION_TARGETS],
     );
 
-    // The three that exist today. A pass on an empty result would prove nothing.
-    expect(rows.length).toBeGreaterThanOrEqual(3);
+    // The four that exist today. A pass on an empty result would prove nothing.
+    expect(rows.length).toBeGreaterThanOrEqual(4);
 
     for (const row of rows) {
       expect(

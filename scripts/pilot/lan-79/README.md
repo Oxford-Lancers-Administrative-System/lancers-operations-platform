@@ -14,7 +14,7 @@ unauthenticated page in the slice — and to see each way a link can stop workin
 without anything reaching a person.
 
 It creates five synthetic invitees across three synthetic events. The names
-below are what the page shows: `known_as` carries the sentinel and the page
+below are what the page shows: the display alias carries the sentinel and the page
 prefers it, so the sentinel is part of the name rather than hidden behind it.
 
 | Link | Invitee                | Event                           | What it demonstrates                                        |
@@ -89,7 +89,10 @@ Run these in the SQL editor after step 5.
 
 ```sql
 -- Every answer this scenario has recorded, newest last.
-select e.name, p.known_as, r.response, r.reason, r.source, r.responded_at
+select e.name,
+       (select da.alias from public.person_aliases da
+          where da.person_id = p.id and da.is_display_name limit 1) as display_alias,
+       r.response, r.reason, r.source, r.responded_at
   from public.rsvp_responses r
   join public.invitations i on i.id = r.invitation_id
   join public.events e on e.id = i.event_id
@@ -99,13 +102,15 @@ select e.name, p.known_as, r.response, r.reason, r.source, r.responded_at
  order by r.responded_at;
 
 -- Where each invitation ended up. Links 1 and 2 must read `responded`.
-select p.known_as, i.status, i.expires_at
+select (select da.alias from public.person_aliases da
+          where da.person_id = p.id and da.is_display_name limit 1) as display_alias,
+       i.status, i.expires_at
   from public.invitations i
   join public.season_memberships m on m.id = i.season_membership_id
   join public.people p on p.id = m.person_id
   join public.events e on e.id = i.event_id
  where e.name like 'PILOT-LAN-79%'
- order by p.known_as;
+ order by display_alias;
 ```
 
 Expected after the matrix: every response carries `source = 'signed_link'`;

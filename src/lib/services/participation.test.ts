@@ -179,7 +179,9 @@ async function scenario(overrides: Partial<EventDraftInput> = {}): Promise<Scena
     display_name: string;
   }>(
     `select i.id, i.person_id, i.season_membership_id,
-            coalesce(p.known_as, p.given_name) || ' ' || coalesce(p.family_name, '') as display_name
+            coalesce((select da.alias from public.person_aliases da
+                     where da.person_id = p.id and da.is_display_name limit 1), p.given_name)
+              || ' ' || coalesce(p.family_name, '') as display_name
        from public.invitations i
        left join public.season_memberships m on m.id = i.season_membership_id
        left join public.people p on p.id = coalesce(i.person_id, m.person_id)

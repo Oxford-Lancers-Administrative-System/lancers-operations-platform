@@ -34,7 +34,7 @@ no delivery work of any kind — so it can send nothing to anybody, ever.
 
 | Row                    | Count | Sentinel carried in                  |
 | ---------------------- | ----- | ------------------------------------ |
-| People                 | 5     | `known_as`                           |
+| People                 | 5     | its display alias                    |
 | Season memberships     | 5     | (parent chain)                       |
 | Events                 | 2     | `name`                               |
 | Event audience members | 5     | (parent chain)                       |
@@ -111,7 +111,9 @@ select name, status, scheduled_on
   from public.events where name like 'PILOT-LAN-80%' order by name;
 
 -- The attendance you recorded, with its anchor and its recorder.
-select p.known_as, a.capacity, a.presence, a.recorded_at, a.recorded_by_person_id
+select (select da.alias from public.person_aliases da
+          where da.person_id = p.id and da.is_display_name limit 1) as display_alias,
+       a.capacity, a.presence, a.recorded_at, a.recorded_by_person_id
   from public.attendance_records a
   join public.events e on e.id = a.event_id
   left join public.season_memberships m on m.id = a.season_membership_id

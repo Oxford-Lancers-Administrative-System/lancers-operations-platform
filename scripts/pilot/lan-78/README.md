@@ -12,7 +12,7 @@ To let you see the five provider-neutral delivery states against real rows, and
 to exercise the two repair controls, without anything reaching a person.
 
 It creates three synthetic invitees on one approved event, each sitting in a
-different state. The names below are what the screen shows — `known_as` carries
+different state. The names below are what the screen shows — the display alias carries
 the sentinel and is what both the delivery read model and the dispatcher
 display, so the sentinel is part of the name rather than hidden behind it:
 

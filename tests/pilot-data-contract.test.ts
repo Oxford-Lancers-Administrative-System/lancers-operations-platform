@@ -415,7 +415,15 @@ describe("the scenario scripts stay inside the conventions", () => {
         "season_id = '00930093-0093-4093-8093-000000000003'",
       ],
     ],
-    ["public.people", ["id = '00930093-0093-4093-8093-000000000004'", "known_as = 'PILOT-LAN-93'"]],
+    [
+      "public.people",
+      [
+        "id = '00930093-0093-4093-8093-000000000004'",
+        // The sentinel moved out of `people.known_as` and into the alias
+        // flagged as this person's display name (LAN-182). Same row in scope.
+        "exists (select 1 from public.person_aliases a where a.person_id = people.id and a.alias = 'PILOT-LAN-93')",
+      ],
+    ],
     [
       "public.seasons",
       ["id = '00930093-0093-4093-8093-000000000003'", "label like 'PILOT-LAN-93%'"],
@@ -429,6 +437,48 @@ describe("the scenario scripts stay inside the conventions", () => {
       ["id = '00930093-0093-4093-8093-000000000001'", "code = 'pilot-lan-93'"],
     ],
   ];
+
+  /**
+   * Splits a WHERE clause on its TOP-LEVEL `and`s, ignoring any inside
+   * parentheses.
+   *
+   * It used to split on every `and` in the string. Nothing carried one inside a
+   * subquery, so nothing noticed — until LAN-182 moved a scenario's person
+   * sentinel from `people.known_as` into a correlated read of
+   * `person_aliases`, whose own `where` has an `and` in it. A naive split cut
+   * that predicate into fragments, and the pinning below compared fragments to
+   * whole conjuncts.
+   *
+   * Strictly a parsing fix, and it cannot loosen the pin: depth-aware splitting
+   * yields fewer and larger conjuncts, and every one of them must still appear
+   * in `EXPECTED_DELETES` verbatim.
+   */
+  function topLevelConjuncts(where: string): string[] {
+    const parts: string[] = [];
+    let depth = 0;
+    let current = "";
+    let index = 0;
+
+    while (index < where.length) {
+      const character = where[index];
+      if (character === "(") depth += 1;
+      if (character === ")") depth -= 1;
+
+      const boundary = /^\s+and\s+/i.exec(where.slice(index));
+      if (depth === 0 && boundary) {
+        parts.push(current);
+        current = "";
+        index += boundary[0].length;
+        continue;
+      }
+
+      current += character;
+      index += 1;
+    }
+    parts.push(current);
+
+    return parts.map((part) => part.trim()).filter(Boolean);
+  }
 
   /** `delete from X where a and b` -> { table: "X", conjuncts: ["a", "b"] }. */
   function parseDeletes(sql: string): { table: string; where: string; conjuncts: string[] }[] {
@@ -444,10 +494,7 @@ describe("the scenario scripts stay inside the conventions", () => {
         return {
           table: parsed[1],
           where: parsed[2].trim(),
-          conjuncts: parsed[2]
-            .split(/\s+and\s+/i)
-            .map((part) => part.trim())
-            .filter(Boolean),
+          conjuncts: topLevelConjuncts(parsed[2]),
         };
       });
   }
@@ -506,45 +553,54 @@ describe("the scenario scripts stay inside the conventions", () => {
     // the membership they create by selecting an existing candidate. Neither
     // has an identifier any script can know.
     //
-    // The sentinel is matched against `known_as` OR `family_name` because two
-    // kinds of row carry it: setup.sql puts it in `known_as` (person …0001 is
-    // deliberately first-name-only and has no surname to use), and the intake
-    // form puts it in `family_name`, which is the field it has. Pinned by value
-    // here, so widening it to a third column is a line in a diff.
+    // The sentinel is matched against the display alias OR `family_name`
+    // because two kinds of row carry it: setup.sql writes an alias (person
+    // …0001 is deliberately first-name-only and has no surname to use), and the
+    // intake form puts it in `family_name`, which is the field it has. Pinned by
+    // value here, so widening it to a third home is a line in a diff.
+    //
+    // It read `people.known_as` until LAN-182 struck that column and moved the
+    // name a person is shown under into `person_aliases`. Same rows in scope,
+    // read from where the fact now lives.
     "lan-74": [
       [
         "public.season_membership_status_events",
         [
           "season_membership_id in (select id from public.season_memberships where person_id in (select person_id from pilot_lan_74_targets))",
-          "season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name)))))",
+          "season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)))))",
         ],
       ],
       [
         "public.season_memberships",
         [
           "person_id in (select person_id from pilot_lan_74_targets)",
-          "person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name))))",
+          "person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name))))",
         ],
       ],
       [
         "public.contact_points",
         [
           "person_id in (select person_id from pilot_lan_74_targets)",
-          "person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name))))",
+          "person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name))))",
         ],
       ],
       [
         "public.person_aliases",
         [
           "person_id in (select person_id from pilot_lan_74_targets)",
-          "person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name))))",
+          "person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name))))",
+          // A third conjunct since LAN-182, and it NARROWS: the display alias
+          // is now what carries the sentinel identifying its person, so this
+          // sweep must leave it for the `people` delete below to pair against.
+          // It goes with the person, by the cascade on `person_id`.
+          "not is_display_name",
         ],
       ],
       [
         "public.people",
         [
           "id in (select person_id from pilot_lan_74_targets)",
-          "'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name)))",
+          "'PILOT-LAN-74' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)))",
         ],
       ],
     ],
@@ -566,8 +622,8 @@ describe("the scenario scripts stay inside the conventions", () => {
     // untouched, which `tests/pilot-scenario-lan-75.test.ts` proves with a
     // whole-database digest.
     //
-    // The sentinel is matched against `known_as` OR `family_name` for the same
-    // reason as LAN-74: setup.sql puts it in `known_as`, and the intake form
+    // The sentinel is matched against the display alias OR `family_name` for the
+    // same reason as LAN-74: setup.sql writes an alias, and the intake form
     // puts it in `family_name`, which is the only name field it has. Written as
     // an `in (…)` rather than a disjunction so the predicate cannot widen.
     "lan-75": [
@@ -590,42 +646,46 @@ describe("the scenario scripts stay inside the conventions", () => {
         "public.onboarding_items",
         [
           "season_membership_id in (select id from public.season_memberships where person_id in (select person_id from pilot_lan_75_targets))",
-          "season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim(known_as)), upper(btrim(family_name)))))",
+          "season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)))))",
         ],
       ],
       [
         "public.season_membership_status_events",
         [
           "season_membership_id in (select id from public.season_memberships where person_id in (select person_id from pilot_lan_75_targets))",
-          "season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim(known_as)), upper(btrim(family_name)))))",
+          "season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)))))",
         ],
       ],
       [
         "public.season_memberships",
         [
           "person_id in (select person_id from pilot_lan_75_targets)",
-          "person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim(known_as)), upper(btrim(family_name))))",
+          "person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name))))",
         ],
       ],
       [
         "public.contact_points",
         [
           "person_id in (select person_id from pilot_lan_75_targets)",
-          "person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim(known_as)), upper(btrim(family_name))))",
+          "person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name))))",
         ],
       ],
       [
         "public.person_aliases",
         [
           "person_id in (select person_id from pilot_lan_75_targets)",
-          "person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim(known_as)), upper(btrim(family_name))))",
+          "person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name))))",
+          // Narrowing, exactly as in LAN-74: the display alias carries the
+          // sentinel that identifies its person since LAN-182, so it survives
+          // this sweep and leaves with the person by cascade.
+          "not is_display_name",
         ],
       ],
       [
         "public.people",
         [
           "id in (select person_id from pilot_lan_75_targets)",
-          "'PILOT-LAN-75' in (upper(btrim(known_as)), upper(btrim(family_name)))",
+          "'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)))",
         ],
       ],
     ],
@@ -759,10 +819,11 @@ describe("the scenario scripts stay inside the conventions", () => {
     // built at the top of cleanup.sql from the attendance rows themselves,
     // because attendance is the only thing that connects a typed-in walk-up to
     // this scenario and it is deleted below them. The sentinel is matched
-    // against `given_name` OR `known_as`: setup.sql puts it in `known_as`, and
+    // against `given_name` OR the display alias: setup.sql writes an alias, and
     // the walk-up form splits the typed name on its first space, which puts it
     // in `given_name`. Written as an `in (…)` rather than a disjunction so the
-    // predicate cannot widen, and `coalesce` because `known_as` is nullable and
+    // predicate cannot widen, and `coalesce` because a person may hold no
+    // display alias at all and
     // `upper(btrim(null))` would make the whole comparison unknown.
     //
     // A walk-up person WITHOUT the sentinel is not deleted by any of this: the
@@ -795,14 +856,14 @@ describe("the scenario scripts stay inside the conventions", () => {
         "public.contact_points",
         [
           "person_id in (select person_id from pilot_lan_80_walk_ups)",
-          "person_id in (select id from public.people where 'PILOT-LAN-80' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, '')))))",
+          "person_id in (select id from public.people where 'PILOT-LAN-80' in (upper(btrim(given_name)), upper(btrim(coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), '')))))",
         ],
       ],
       [
         "public.people",
         [
           "id in (select person_id from pilot_lan_80_walk_ups)",
-          "'PILOT-LAN-80' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, ''))))",
+          "'PILOT-LAN-80' in (upper(btrim(given_name)), upper(btrim(coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), ''))))",
         ],
       ],
     ],
@@ -894,7 +955,7 @@ describe("the scenario scripts stay inside the conventions", () => {
         "public.contact_points",
         [
           "person_id in (select person_id from pilot_lan_110_walk_ups)",
-          "person_id in (select id from public.people where 'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, '')))))",
+          "person_id in (select id from public.people where 'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), '')))))",
         ],
       ],
       // The prospect a walk-on now creates. `person_id` is `on delete restrict`,
@@ -903,14 +964,14 @@ describe("the scenario scripts stay inside the conventions", () => {
         "public.recruitment_prospects",
         [
           "person_id in (select person_id from pilot_lan_110_walk_ups)",
-          "person_id in (select id from public.people where 'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, '')))))",
+          "person_id in (select id from public.people where 'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), '')))))",
         ],
       ],
       [
         "public.people",
         [
           "id in (select person_id from pilot_lan_110_walk_ups)",
-          "'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, ''))))",
+          "'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), ''))))",
         ],
       ],
     ],

@@ -186,7 +186,7 @@ export async function searchCandidatesAction(
 
     const candidates: CandidateChoice[] = found.map((candidate) => ({
       personId: candidate.personId,
-      name: [candidate.knownAs?.trim() || candidate.givenName, candidate.familyName]
+      name: [candidate.displayAlias?.trim() || candidate.givenName, candidate.familyName]
         .filter((part) => Boolean(part))
         .join(" "),
       email: candidate.email,

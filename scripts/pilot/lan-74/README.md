@@ -21,20 +21,27 @@ duplicate check matches on a given name alone. The scenario therefore installs
 
 ## What it creates
 
-Eight rows, all synthetic, all identifiable twice over — a deterministic primary
+Nine rows, all synthetic, all identifiable twice over — a deterministic primary
 key from the block `00740074-0074-4074-8074-…` and the sentinel `PILOT-LAN-74`
 in a text column.
 
 | #   | Table                             | Deterministic id | Sentinel carried in                         |
 | --- | --------------------------------- | ---------------- | ------------------------------------------- |
-| 1   | `people`                          | `…0001`          | `known_as = 'PILOT-LAN-74'`                 |
+| 1   | `people`                          | `…0001`          | its display alias, `…0091`                  |
 | 2   | `contact_points`                  | `…0002`          | `source = 'PILOT-LAN-74'`                   |
-| 3   | `people`                          | `…0003`          | `known_as = 'PILOT-LAN-74'`                 |
+| 3   | `people`                          | `…0003`          | its display alias, `…0093`                  |
 | 4   | `contact_points`                  | `…0004`          | `source = 'PILOT-LAN-74'`                   |
 | 5   | `contact_points`                  | `…0005`          | `source = 'PILOT-LAN-74'`                   |
 | 6   | `season_memberships`              | `…0006`          | its person is `…0001`                       |
 | 7   | `season_membership_status_events` | `…0007`          | `actor_label = 'PILOT-LAN-74 setup script'` |
-| 8   | `season_membership_status_events` | `…0008`          | `actor_label = 'PILOT-LAN-74 setup script'` |
+| 8   | `person_aliases`                  | `…0091`          | `alias = 'PILOT-LAN-74'`                    |
+| 9   | `person_aliases`                  | `…0093`          | `alias = 'PILOT-LAN-74'`                    |
+
+A person's half of the marker used to be `people.known_as`. LAN-182 struck that
+column and moved the name a person is shown under into `person_aliases`, one row
+of which may be flagged as the display name — so each scenario person now
+carries the sentinel as that alias, and still reads `PILOT-LAN-74` wherever the
+application prints a name.
 
 The two candidates, and what each is for:
 
@@ -163,14 +170,17 @@ ADR 0019 makes each one pinned by value rather than permitted by category.
 it against production:**
 
 ```sql
-'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name)))
+'PILOT-LAN-74' in (
+  upper(btrim((select da.alias from public.person_aliases da
+                where da.person_id = people.id and da.is_display_name limit 1))),
+  upper(btrim(family_name)))
 ```
 
-Two columns, because two kinds of row carry the marker. `setup.sql` can write
-any column, so its rows carry it in `known_as` — and they have to, since person
-`…0001` is deliberately first-name-only and has no surname to put it in.
-Anything created through the interface carries it in `family_name`, because the
-form has a Last name field and no nickname field.
+Two homes, because two kinds of row carry the marker. `setup.sql` can write an
+alias, so its rows carry it there — and they have to, since person `…0001` is
+deliberately first-name-only and has no surname to put it in. Anything created
+through the interface carries it in `family_name`, because the form has a Last
+name field and no nickname field.
 
 `upper(btrim(…))` because the marker is typed by a human into a form. A tester
 who enters `pilot-lan-74`, or leaves a trailing space, must still be swept —
@@ -258,19 +268,23 @@ select 'seasons open or active', count(*) filter (where status in ('open', 'acti
   from public.seasons;
 ```
 
-After setup: 2, 3, 1, 2, 1. After cleanup: 0, 0, 0, 0, 1 — the season is the
-foundation's and is never removed.
+After setup: 2, 2, 3, 1, 1, 1. After cleanup: 0, 0, 0, 0, 0, 1 — the season is
+the foundation's and is never removed.
 
 To find anything left behind by an interface-created returner:
 
 ```sql
-select id, given_name, family_name, known_as, created_at
+select id, given_name, family_name, created_at
   from public.people
- where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name)));
+ where 'PILOT-LAN-74' in (
+  upper(btrim((select da.alias from public.person_aliases da
+                where da.person_id = people.id and da.is_display_name limit 1))),
+  upper(btrim(family_name)));
 ```
 
-Scenario rows carry the sentinel in `known_as`; anything created through the
-interface carries it in `family_name`, because the form has no nickname field.
+Scenario rows carry the sentinel as their display alias; anything created
+through the interface carries it in `family_name`, because the form has no
+nickname field.
 The query matches either, in any casing — **deliberately the same predicate the
 sweep uses**. A narrower query here would report clean on exactly the rows
 cleanup would have missed, which is the failure this whole marker scheme exists

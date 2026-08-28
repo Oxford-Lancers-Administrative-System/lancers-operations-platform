@@ -80,7 +80,7 @@ quietly decay into a second happy path.
 Both halves, on every row this script creates:
 
 - a deterministic primary key from the block `00770077-0077-4077-8077-…`
-- the sentinel `PILOT-LAN-77` in a text column — `known_as` on a person, `source`
+- the sentinel `PILOT-LAN-77` in a text column — the display alias of a person, `source`
   on a contact point, `actor_label` on a status event, `name` on an event,
   `idempotency_key` and `cancelled_reason` on the job
 

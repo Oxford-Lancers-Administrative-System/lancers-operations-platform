@@ -55,7 +55,7 @@ const client = await connectLocal(databaseUrl);
 
 /** Formats a seeded person for display. `family_name` is nullable by design. */
 function displayName(person) {
-  const first = person.known_as?.trim() || person.given_name.trim();
+  const first = person.display_alias?.trim() || person.given_name.trim();
   const last = person.family_name?.trim();
   return last ? `${first} ${last}` : first;
 }
@@ -79,7 +79,11 @@ try {
 
   // Already linked? Report it and stop. This is the second-run path.
   const existing = await client.query(
-    `select oa.id, oa.is_active, p.given_name, p.family_name, p.known_as
+    `select oa.id, oa.is_active, p.given_name, p.family_name,
+            (select da.alias
+              from public.person_aliases da
+             where da.person_id = p.id and da.is_display_name
+             limit 1) as display_alias
        from public.operator_accounts oa
        join public.people p on p.id = oa.person_id
       where oa.auth_user_id = $1`,
@@ -114,7 +118,11 @@ try {
         order by starts_on desc
         limit 1
      )
-     select p.id, p.given_name, p.family_name, p.known_as,
+     select p.id, p.given_name, p.family_name,
+            (select da.alias
+              from public.person_aliases da
+             where da.person_id = p.id and da.is_display_name
+             limit 1) as display_alias,
             string_agg(distinct r.code, ', ') as codes
        from public.role_assignments ra
        join current_year cy on cy.id = ra.committee_year_id
@@ -123,7 +131,7 @@ try {
       where (ra.effective_to is null or ra.effective_to > now())
         and not exists (
           select 1 from public.operator_accounts oa where oa.person_id = p.id)
-      group by p.id, p.given_name, p.family_name, p.known_as
+      group by p.id, p.given_name, p.family_name
       order by count(distinct r.id) desc, p.id
       limit 1`,
   );

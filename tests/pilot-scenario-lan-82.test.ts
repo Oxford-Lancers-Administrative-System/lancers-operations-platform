@@ -213,7 +213,7 @@ describe("verify-clean.sql is read-only", () => {
     // The failure message names where a survivor is, not what it says. A
     // verification that prints the row is a verification that publishes it.
     expect(code).toMatch(/table_name, column_name, sentinel/);
-    expect(code).not.toMatch(/select .*known_as.*from public\.people/i);
+    expect(code).not.toMatch(/select .*alias.*from public\.person_aliases/i);
   });
 });
 
@@ -245,7 +245,14 @@ describe("verify-clean.sql, against a real database", () => {
   });
 
   it.each([
-    ["a person", "insert into public.people (given_name, known_as) values ('Sweep', $1)"],
+    [
+      // LAN-182 struck `people.known_as`, so a person's sentinel is now the
+      // alias flagged as their display name. The sweep reads every text column
+      // in the schema, so it finds it there without being told to.
+      "a person",
+      `insert into public.person_aliases (person_id, alias)
+         select id, $1 from public.people order by created_at limit 1`,
+    ],
     [
       "an event",
       `insert into public.events (season_id, name, event_type, status)
@@ -262,14 +269,16 @@ describe("verify-clean.sql, against a real database", () => {
 
   it("names the table and column of a survivor, and not its value", async () => {
     await client.query("begin");
-    await client.query("insert into public.people (given_name, known_as) values ('Sweep', $1)", [
-      "PILOT-LAN-74 planted survivor",
-    ]);
+    await client.query(
+      `insert into public.person_aliases (person_id, alias)
+         select id, $1 from public.people order by created_at limit 1`,
+      ["PILOT-LAN-74 planted survivor"],
+    );
 
     const error = await client.query(VERIFY_BODY).catch((caught: Error) => caught);
     const message = (error as Error).message;
 
-    expect(message).toContain("people.known_as");
+    expect(message).toContain("person_aliases.alias");
     expect(message).toContain("PILOT-LAN-74");
     expect(message).not.toContain("planted survivor");
   });

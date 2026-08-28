@@ -51,7 +51,7 @@
 --
 -- OWNERSHIP MARKER — both halves, on every row:
 --   * a deterministic primary key from the block 00770077-0077-4077-8077-…
---   * the sentinel string PILOT-LAN-77 in a text column — `known_as` on a
+--   * the sentinel string PILOT-LAN-77 in a text column — the display alias of a
 --     person, `source` on a contact point, `actor_label` on a status event,
 --     `name` on an event, `idempotency_key` and `cancelled_reason` on the job.
 --   The three `season_memberships` rows are the one exception: the table has no
@@ -65,6 +65,10 @@
 -- never silently rewritten.
 --
 -- Paired with cleanup.sql in this directory. Read README.md there first.
+--
+-- That alias is where LAN-182 moved the name a person is shown under. It was
+-- `people.known_as` until the migration struck that column; the sentinel reads
+-- on screen in exactly the same place it always did.
 
 begin;
 
@@ -155,7 +159,7 @@ begin
   -- nothing` would silently skip it and leave a half-installed scenario.
   if exists (
     select 1 from public.people
-    where id = scenario_person and coalesce(known_as, '') <> 'PILOT-LAN-77'
+    where id = scenario_person and coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), '') <> 'PILOT-LAN-77'
   ) then
     raise exception
       'LAN-77 setup: person % exists and is not this scenario''s. Refusing to touch it.',
@@ -170,11 +174,20 @@ $preflight$;
 -- Names are obviously not real and are readable on screen as such, which is the
 -- point: a human running the matrix has to be able to tell a scenario row from
 -- a club row at a glance.
-insert into public.people (id, given_name, family_name, known_as)
+insert into public.people (id, given_name, family_name)
 values
-  ('00770077-0077-4077-8077-000000000010', 'Alder', 'Pilotcase', 'PILOT-LAN-77'),
-  ('00770077-0077-4077-8077-000000000011', 'Bracken', 'Pilotcase', 'PILOT-LAN-77'),
-  ('00770077-0077-4077-8077-000000000012', 'Cobble', 'Pilotcase', 'PILOT-LAN-77')
+  ('00770077-0077-4077-8077-000000000010', 'Alder', 'Pilotcase'),
+  ('00770077-0077-4077-8077-000000000011', 'Bracken', 'Pilotcase'),
+  ('00770077-0077-4077-8077-000000000012', 'Cobble', 'Pilotcase')
+on conflict (id) do nothing;
+
+-- The sentinel, in the place LAN-182 moved it to: the alias flagged as each
+-- person's display name. It reads on screen exactly where `known_as` used to.
+insert into public.person_aliases (id, person_id, alias, source, is_display_name)
+values
+  ('00770077-0077-4077-8077-000000009010', '00770077-0077-4077-8077-000000000010', 'PILOT-LAN-77', 'PILOT-LAN-77', true),
+  ('00770077-0077-4077-8077-000000009011', '00770077-0077-4077-8077-000000000011', 'PILOT-LAN-77', 'PILOT-LAN-77', true),
+  ('00770077-0077-4077-8077-000000009012', '00770077-0077-4077-8077-000000000012', 'PILOT-LAN-77', 'PILOT-LAN-77', true)
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
@@ -225,25 +238,25 @@ on conflict (id) do nothing;
 -- A membership that appeared at `active` with no history would be a lie about
 -- how it got there, and invariant M2 says every transition leaves a record. The
 -- actor is a named process rather than a person — nobody performed these.
+--
+-- Two steps each, not three. The chain used to walk
+-- `null → confirmed → onboarding → active`, and LAN-182 maps `confirmed` onto
+-- `onboarding` — so the middle step would now record a change from a state to
+-- itself. Identifiers …0041, …0044 and …0047 are consequently unused; cleanup
+-- still names them, so an install made before this change is still removed.
 insert into public.season_membership_status_events
   (id, season_membership_id, from_status, to_status, occurred_at, actor_label)
 values
   ('00770077-0077-4077-8077-000000000040', '00770077-0077-4077-8077-000000000020',
-   null, 'confirmed', now() - interval '30 days', 'PILOT-LAN-77 setup script'),
-  ('00770077-0077-4077-8077-000000000041', '00770077-0077-4077-8077-000000000020',
-   'confirmed', 'onboarding', now() - interval '21 days', 'PILOT-LAN-77 setup script'),
+   null, 'onboarding', now() - interval '30 days', 'PILOT-LAN-77 setup script'),
   ('00770077-0077-4077-8077-000000000042', '00770077-0077-4077-8077-000000000020',
    'onboarding', 'active', now() - interval '14 days', 'PILOT-LAN-77 setup script'),
   ('00770077-0077-4077-8077-000000000043', '00770077-0077-4077-8077-000000000021',
-   null, 'confirmed', now() - interval '30 days', 'PILOT-LAN-77 setup script'),
-  ('00770077-0077-4077-8077-000000000044', '00770077-0077-4077-8077-000000000021',
-   'confirmed', 'onboarding', now() - interval '21 days', 'PILOT-LAN-77 setup script'),
+   null, 'onboarding', now() - interval '30 days', 'PILOT-LAN-77 setup script'),
   ('00770077-0077-4077-8077-000000000045', '00770077-0077-4077-8077-000000000021',
    'onboarding', 'active', now() - interval '14 days', 'PILOT-LAN-77 setup script'),
   ('00770077-0077-4077-8077-000000000046', '00770077-0077-4077-8077-000000000022',
-   null, 'confirmed', now() - interval '30 days', 'PILOT-LAN-77 setup script'),
-  ('00770077-0077-4077-8077-000000000047', '00770077-0077-4077-8077-000000000022',
-   'confirmed', 'onboarding', now() - interval '21 days', 'PILOT-LAN-77 setup script'),
+   null, 'onboarding', now() - interval '30 days', 'PILOT-LAN-77 setup script'),
   ('00770077-0077-4077-8077-000000000048', '00770077-0077-4077-8077-000000000022',
    'onboarding', 'active', now() - interval '14 days', 'PILOT-LAN-77 setup script')
 on conflict (id) do nothing;
@@ -314,7 +327,7 @@ on conflict (id) do nothing;
 select
   'LAN-77 pilot setup — installed' as check,
   (select count(*) from public.people
-    where known_as = 'PILOT-LAN-77') as scenario_people,
+    where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) = 'PILOT-LAN-77') as scenario_people,
   (select count(*) from public.contact_points
     where source = 'PILOT-LAN-77 setup script') as scenario_contact_points,
   (select count(*) from public.season_memberships

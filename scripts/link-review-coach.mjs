@@ -108,7 +108,7 @@ if (!isLocalApi) {
 
 /** Display form. `family_name` is nullable by design. */
 function displayName(person) {
-  const first = person.known_as?.trim() || person.given_name.trim();
+  const first = person.display_alias?.trim() || person.given_name.trim();
   const last = person.family_name?.trim();
   return last ? `${first} ${last}` : first;
 }
@@ -129,7 +129,12 @@ try {
    * code rather than in the fixture.
    */
   const candidate = await client.query(
-    `select p.id, p.given_name, p.family_name, p.known_as, ra.id as assignment_id,
+    `select p.id, p.given_name, p.family_name,
+            (select da.alias
+              from public.person_aliases da
+             where da.person_id = p.id and da.is_display_name
+             limit 1) as display_alias,
+            ra.id as assignment_id,
             ra.effective_from
        from public.role_assignments ra
        join public.roles r on r.id = ra.role_id

@@ -316,7 +316,7 @@ function CandidateRow({ candidate }: { candidate: PersonCandidate }) {
                 </Typography>
               )}
             </Typography>
-            <Field label="Known as" value={candidate.knownAs} />
+            <Field label="Known as" value={candidate.displayAlias} />
             <Field label="Email" value={candidate.email} />
             <Field label="Phone" value={candidate.phone} />
             <Box>

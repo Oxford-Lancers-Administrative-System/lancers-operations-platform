@@ -147,7 +147,7 @@ const CANDIDATES: PersonCandidate[] = [
     personId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     givenName: "Avery",
     familyName: "Fielding",
-    knownAs: "Avery",
+    displayAlias: "Avery",
     email: "avery.fielding@example.invalid",
     phone: "+44 7700 900101",
     currentMembership: null,
@@ -158,7 +158,7 @@ const CANDIDATES: PersonCandidate[] = [
     personId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     givenName: "Ari",
     familyName: null,
-    knownAs: null,
+    displayAlias: null,
     email: null,
     phone: null,
     currentMembership: {
@@ -526,9 +526,9 @@ const MEMBERSHIP: MembershipRecord = {
   personId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   givenName: "Avery",
   familyName: "Fielding",
-  knownAs: "Avery",
+  displayAlias: "Avery",
   displayName: "Avery Fielding",
-  status: "confirmed",
+  status: "onboarding",
   entry: "returning",
   seasonId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
   seasonLabel: "2026-27",
@@ -544,7 +544,7 @@ const MEMBERSHIP: MembershipRecord = {
   statusHistory: [
     {
       fromStatus: null,
-      toStatus: "carried_forward",
+      toStatus: "onboarding",
       occurredAt: new Date("2026-08-12T13:36:00Z"),
       actorName: "Morgan Pike",
       actorLabel: null,
@@ -587,7 +587,7 @@ describe("UX-13 — Returning player added", () => {
   it("identifies the person, membership, contact and actor", () => {
     expect(screen.getByText("Avery Fielding")).toBeInTheDocument();
     expect(screen.getByText("Known as Avery")).toBeInTheDocument();
-    expect(screen.getByText("2026-27 · Confirmed")).toBeInTheDocument();
+    expect(screen.getByText("2026-27 · Onboarding")).toBeInTheDocument();
     expect(screen.getByText("Entry: Returning")).toBeInTheDocument();
     // The actor is still named, in the status-history panel rather than in a
     // second "Audit" block beside the membership. Brian's verdict on the real

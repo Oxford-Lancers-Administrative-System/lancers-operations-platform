@@ -54,7 +54,7 @@
 --
 -- OWNERSHIP MARKER — both halves, on every row this script writes:
 --   * a deterministic primary key from the block 00780078-0078-4078-8078-…
---   * the sentinel string PILOT-LAN-78 in a text column — `known_as` on a
+--   * the sentinel string PILOT-LAN-78 in a text column — the display alias of a
 --     person, `source` on a contact point, `name` on the event,
 --     `idempotency_key` on a job, `provider` on an attempt and `detail` on a
 --     result.
@@ -74,6 +74,10 @@
 -- never silently rewritten.
 --
 -- Paired with cleanup.sql in this directory. Read README.md there first.
+--
+-- That alias is where LAN-182 moved the name a person is shown under. It was
+-- `people.known_as` until the migration struck that column; the sentinel reads
+-- on screen in exactly the same place it always did.
 
 begin;
 
@@ -171,18 +175,27 @@ $preflight$;
 -- ---------------------------------------------------------------------------
 -- The three invitees
 -- ---------------------------------------------------------------------------
--- Names are obviously not club members. `known_as` carries the sentinel so that
+-- Names are obviously not club members. The display alias carries the sentinel so that
 -- every one of these rows is identifiable by text as well as by key.
 
-insert into public.people (id, given_name, family_name, known_as)
--- `known_as` carries the sentinel AND is what the screen displays, because both
+insert into public.people (id, given_name, family_name)
+-- The display alias carries the sentinel AND is what the screen displays, because both
 -- the delivery read model and the dispatcher prefer it over `given_name`. So it
 -- has to be the name Brian will actually see in the matrix, with the sentinel
 -- inside it rather than instead of it.
 values
-  ('00780078-0078-4078-8078-000000000001', 'Delivery', 'Queued', 'PILOT-LAN-78 Delivery'),
-  ('00780078-0078-4078-8078-000000000002', 'Delivery', 'Retryable', 'PILOT-LAN-78 Delivery'),
-  ('00780078-0078-4078-8078-000000000003', 'Delivery', 'Failed', 'PILOT-LAN-78 Delivery')
+  ('00780078-0078-4078-8078-000000000001', 'Delivery', 'Queued'),
+  ('00780078-0078-4078-8078-000000000002', 'Delivery', 'Retryable'),
+  ('00780078-0078-4078-8078-000000000003', 'Delivery', 'Failed')
+on conflict (id) do nothing;
+
+-- The sentinel, in the place LAN-182 moved it to: the alias flagged as each
+-- person's display name. It reads on screen exactly where `known_as` used to.
+insert into public.person_aliases (id, person_id, alias, source, is_display_name)
+values
+  ('00780078-0078-4078-8078-000000009001', '00780078-0078-4078-8078-000000000001', 'PILOT-LAN-78 Delivery', 'PILOT-LAN-78', true),
+  ('00780078-0078-4078-8078-000000009002', '00780078-0078-4078-8078-000000000002', 'PILOT-LAN-78 Delivery', 'PILOT-LAN-78', true),
+  ('00780078-0078-4078-8078-000000009003', '00780078-0078-4078-8078-000000000003', 'PILOT-LAN-78 Delivery', 'PILOT-LAN-78', true)
 on conflict (id) do nothing;
 
 -- Ofcom's reserved 07700 900xxx drama range. Never allocated, so a fully
@@ -366,11 +379,11 @@ on conflict (id) do nothing;
 select
   'LAN-78 pilot setup — written' as check,
   (select count(*) from public.people
-    where known_as like 'PILOT-LAN-78%') as people,
+    where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-78%') as people,
   (select count(*) from public.contact_points
     where source = 'PILOT-LAN-78') as contact_points,
   (select count(*) from public.season_memberships
-    where person_id in (select id from public.people where known_as like 'PILOT-LAN-78%')) as memberships,
+    where person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-78%')) as memberships,
   (select count(*) from public.events
     where name like '%PILOT-LAN-78%') as events,
   (select count(*) from public.event_audience_members

@@ -75,7 +75,7 @@
 --
 -- OWNERSHIP MARKER — both halves, on every row this script writes:
 --   * a deterministic primary key from the block 00790079-0079-4079-8079-…
---   * the sentinel string PILOT-LAN-79 in a text column — `known_as` on a
+--   * the sentinel string PILOT-LAN-79 in a text column — the display alias of a
 --     person, `name` on an event.
 --   `season_memberships`, `event_audience_members`, `invitations` and
 --   `rsvp_access_tokens` are the exceptions, for the reason LAN-78 recorded:
@@ -96,6 +96,10 @@
 -- tokens are keyed by id, so the hashes you already installed keep working.
 --
 -- Paired with cleanup.sql in this directory. Read README.md there first.
+--
+-- That alias is where LAN-182 moved the name a person is shown under. It was
+-- `people.known_as` until the migration struck that column; the sentinel reads
+-- on screen in exactly the same place it always did.
 
 begin;
 
@@ -206,16 +210,27 @@ $preflight$;
 -- ---------------------------------------------------------------------------
 -- The people
 -- ---------------------------------------------------------------------------
--- `known_as` carries the sentinel AND is what the RSVP page displays, because
+-- The display alias carries the sentinel AND is what the RSVP page displays, because
 -- the page prefers it over `given_name`. So the sentinel is inside the name
 -- Brian will actually see on the screen, rather than hidden behind it.
-insert into public.people (id, given_name, family_name, known_as)
+insert into public.people (id, given_name, family_name)
 values
-  ('00790079-0079-4079-8079-000000000001', 'Rsvp', 'Valid', 'PILOT-LAN-79 Valid'),
-  ('00790079-0079-4079-8079-000000000002', 'Rsvp', 'Late', 'PILOT-LAN-79 Late'),
-  ('00790079-0079-4079-8079-000000000003', 'Rsvp', 'Revoked', 'PILOT-LAN-79 Revoked'),
-  ('00790079-0079-4079-8079-000000000004', 'Rsvp', 'Started', 'PILOT-LAN-79 Started'),
-  ('00790079-0079-4079-8079-000000000005', 'Rsvp', 'Cancelled', 'PILOT-LAN-79 Cancelled')
+  ('00790079-0079-4079-8079-000000000001', 'Rsvp', 'Valid'),
+  ('00790079-0079-4079-8079-000000000002', 'Rsvp', 'Late'),
+  ('00790079-0079-4079-8079-000000000003', 'Rsvp', 'Revoked'),
+  ('00790079-0079-4079-8079-000000000004', 'Rsvp', 'Started'),
+  ('00790079-0079-4079-8079-000000000005', 'Rsvp', 'Cancelled')
+on conflict (id) do nothing;
+
+-- The sentinel, in the place LAN-182 moved it to: the alias flagged as each
+-- person's display name. It reads on screen exactly where `known_as` used to.
+insert into public.person_aliases (id, person_id, alias, source, is_display_name)
+values
+  ('00790079-0079-4079-8079-000000009001', '00790079-0079-4079-8079-000000000001', 'PILOT-LAN-79 Valid', 'PILOT-LAN-79', true),
+  ('00790079-0079-4079-8079-000000009002', '00790079-0079-4079-8079-000000000002', 'PILOT-LAN-79 Late', 'PILOT-LAN-79', true),
+  ('00790079-0079-4079-8079-000000009003', '00790079-0079-4079-8079-000000000003', 'PILOT-LAN-79 Revoked', 'PILOT-LAN-79', true),
+  ('00790079-0079-4079-8079-000000009004', '00790079-0079-4079-8079-000000000004', 'PILOT-LAN-79 Started', 'PILOT-LAN-79', true),
+  ('00790079-0079-4079-8079-000000009005', '00790079-0079-4079-8079-000000000005', 'PILOT-LAN-79 Cancelled', 'PILOT-LAN-79', true)
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
@@ -441,7 +456,7 @@ on conflict (id) do nothing;
 select
   'LAN-79 pilot setup — created' as check,
   (
-    select count(*) from public.people where known_as like 'PILOT-LAN-79%'
+    select count(*) from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-79%'
   ) as scenario_people,
   (
     select count(*) from public.events where name like 'PILOT-LAN-79%'

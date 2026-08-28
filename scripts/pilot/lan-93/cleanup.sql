@@ -73,9 +73,11 @@ begin
   --     this scenario's sentinel, it is somebody else's row and this script
   --     stops. Deleting it would be the worst thing this file could do.
   if exists (
-    select 1 from public.people
-     where id = '00930093-0093-4093-8093-000000000004'
-       and known_as is distinct from 'PILOT-LAN-93'
+    select 1 from public.people p
+     where p.id = '00930093-0093-4093-8093-000000000004'
+       and not exists (
+         select 1 from public.person_aliases a
+          where a.person_id = p.id and a.alias = 'PILOT-LAN-93')
   ) then
     raise exception 'LAN-93 pilot cleanup refused: people …0004 does not carry the PILOT-LAN-93 sentinel. Refusing to delete a person record this scenario does not own.';
   end if;
@@ -147,13 +149,25 @@ begin
 
   -- (d) Rows PostgreSQL would remove or alter WITHOUT being asked. Every
   --     `on delete cascade` and `on delete set null` foreign key pointing at a
-  --     row this script deletes is listed here. This scenario creates none of
-  --     them, so any that exist belong to somebody else.
+  --     row this script deletes is listed here. This scenario creates exactly
+  --     one of them — the display alias that carries its sentinel, since
+  --     LAN-182 — so any other belongs to somebody else.
   if exists (
     select 1 from public.person_aliases
      where person_id = '00930093-0093-4093-8093-000000000004'
+       and id <> '00930093-0093-4093-8093-000000000094'
   ) then
-    raise exception 'LAN-93 pilot cleanup refused: person_aliases rows hang off the scenario person and would be cascade-deleted.';
+    raise exception 'LAN-93 pilot cleanup refused: person_aliases rows this scenario did not write hang off the scenario person and would be cascade-deleted.';
+  end if;
+
+  -- LAN-182's new table, and a cascade this file did not have to know about
+  -- until the test that reads pg_constraint told it. An emergency contact is
+  -- third-party personal data; it never leaves by a side effect.
+  if exists (
+    select 1 from public.person_emergency_contacts
+     where person_id = '00930093-0093-4093-8093-000000000004'
+  ) then
+    raise exception 'LAN-93 pilot cleanup refused: person_emergency_contacts rows hang off the scenario person and would be cascade-deleted. The scenario creates none.';
   end if;
 
   if exists (
@@ -262,9 +276,14 @@ delete from public.season_memberships
    and person_id = '00930093-0093-4093-8093-000000000004'
    and season_id = '00930093-0093-4093-8093-000000000003';
 
+-- Paired on the display alias, which is this person's half of the ownership
+-- marker since LAN-182 struck `people.known_as`. The alias row goes with them,
+-- by the cascade on `person_aliases.person_id` — deleting it first would remove
+-- the very evidence this statement pairs the identifier against.
 delete from public.people
  where id = '00930093-0093-4093-8093-000000000004'
-   and known_as = 'PILOT-LAN-93';
+   and exists (select 1 from public.person_aliases a
+                where a.person_id = people.id and a.alias = 'PILOT-LAN-93');
 
 delete from public.seasons
  where id = '00930093-0093-4093-8093-000000000003'

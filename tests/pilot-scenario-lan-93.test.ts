@@ -49,6 +49,9 @@ const ID = {
   person: "00930093-0093-4093-8093-000000000004",
   membership: "00930093-0093-4093-8093-000000000005",
   event: "00930093-0093-4093-8093-000000000006",
+  // LAN-182: the sentinel moved out of `people.known_as` and into the alias
+  // flagged as this person's display name.
+  alias: "00930093-0093-4093-8093-000000000094",
 } as const;
 
 /** Which table each identifier lives in, in dependency order. */
@@ -57,6 +60,7 @@ const SCENARIO_ROWS: readonly (readonly [table: string, id: string])[] = [
   ["public.positions", ID.position],
   ["public.seasons", ID.season],
   ["public.people", ID.person],
+  ["public.person_aliases", ID.alias],
   ["public.season_memberships", ID.membership],
   ["public.events", ID.event],
 ];
@@ -189,8 +193,8 @@ async function createDurableFoundation(client: Client): Promise<Durable> {
   );
   const person = await one<{ id: string }>(
     client,
-    `insert into public.people (given_name, family_name, known_as)
-     values ('Durable', 'Foundation', 'PILOT-FOUNDATION-FIXTURE') returning id`,
+    `insert into public.people (given_name, family_name)
+     values ('Durable', 'Foundation') returning id`,
   );
   const operator = await one<{ id: string }>(
     client,
@@ -304,17 +308,22 @@ afterEach(async () => {
 });
 
 describe("setup.sql is repeatable", () => {
-  it("creates exactly the six rows it documents", async () => {
+  it("creates exactly the seven rows it documents", async () => {
     await client.query(SETUP);
 
-    expect(await scenarioRowCount(client)).toBe(6);
+    expect(await scenarioRowCount(client)).toBe(7);
 
-    const person = await one<{ given_name: string; known_as: string }>(
+    // The sentinel is the display alias since LAN-182 struck `people.known_as`,
+    // so this reads it where it now lives.
+    const person = await one<{ given_name: string; display_alias: string }>(
       client,
-      "select given_name, known_as from public.people where id = $1",
+      `select p.given_name,
+              (select a.alias from public.person_aliases a
+                where a.person_id = p.id and a.is_display_name limit 1) as display_alias
+         from public.people p where p.id = $1`,
       [ID.person],
     );
-    expect(person.known_as).toBe("PILOT-LAN-93");
+    expect(person.display_alias).toBe("PILOT-LAN-93");
 
     const season = await one<{ label: string; status: string }>(
       client,
@@ -347,7 +356,9 @@ describe("setup.sql is repeatable", () => {
       "public.audit_events",
       "public.roles",
       "public.contact_points",
-      "public.person_aliases",
+      // `public.person_aliases` is deliberately absent: since LAN-182 the
+      // scenario writes exactly one alias — the row that carries its sentinel —
+      // so this table is no longer one setup leaves alone.
     ]) {
       expect(after[table], `${table} must be untouched by setup`).toBe(before[table]);
     }
@@ -366,7 +377,7 @@ describe("setup.sql is repeatable", () => {
     // Whole-row hashes, so this fails on a duplicated row AND on a row the
     // second run quietly rewrote — `on conflict do nothing`, never `do update`.
     expect(afterSecond).toEqual(afterFirst);
-    expect(await scenarioRowCount(client)).toBe(6);
+    expect(await scenarioRowCount(client)).toBe(7);
   });
 
   it("does not rewrite a row that is already there", async () => {
@@ -402,10 +413,10 @@ describe("setup.sql is repeatable", () => {
   it("restores a row that was removed by hand between runs", async () => {
     await client.query(SETUP);
     await client.query("delete from public.events where id = $1", [ID.event]);
-    expect(await scenarioRowCount(client)).toBe(5);
+    expect(await scenarioRowCount(client)).toBe(6);
 
     await client.query(SETUP);
-    expect(await scenarioRowCount(client)).toBe(6);
+    expect(await scenarioRowCount(client)).toBe(7);
   });
 });
 
@@ -450,7 +461,7 @@ describe("cleanup.sql removes only what its paired setup created", () => {
     await expectRejected(client, CLEANUP, [], /schedule_changes/);
 
     expect(await snapshot(client)).toEqual(before);
-    expect(await scenarioRowCount(client)).toBe(6);
+    expect(await scenarioRowCount(client)).toBe(7);
   });
 });
 
@@ -566,7 +577,7 @@ const GUARD_CASES: readonly GuardCase[] = [
       const person = await sparePerson(c, "Membership");
       await c.query(
         `insert into public.season_memberships (id, person_id, season_id, status, entry)
-         values ($1, $2, $3, 'confirmed', 'new')`,
+         values ($1, $2, $3, 'onboarding', 'new')`,
         [ID.membership, person, season],
       );
     },
@@ -614,13 +625,18 @@ const GUARD_CASES: readonly GuardCase[] = [
         [ID.season, ID.vocabulary],
       );
       await c.query(
-        `insert into public.people (id, given_name, family_name, known_as)
-         values ($1, 'Pilot', 'Scenario', 'PILOT-LAN-93')`,
+        `insert into public.people (id, given_name, family_name)
+         values ($1, 'Pilot', 'Scenario')`,
         [ID.person],
       );
       await c.query(
+        `insert into public.person_aliases (id, person_id, alias, source, is_display_name)
+         values ($1, $2, 'PILOT-LAN-93', 'PILOT-LAN-93', true)`,
+        [ID.alias, ID.person],
+      );
+      await c.query(
         `insert into public.season_memberships (person_id, season_id, status, entry)
-         values ($1, $2, 'confirmed', 'new')`,
+         values ($1, $2, 'onboarding', 'new')`,
         [ID.person, ID.season],
       );
     },
@@ -632,7 +648,7 @@ const GUARD_CASES: readonly GuardCase[] = [
     message: "people …0004 does not carry the PILOT-LAN-93 sentinel",
     afterSetup: true,
     arrange: async (c) =>
-      void (await c.query("update public.people set known_as = null where id = $1", [ID.person])),
+      void (await c.query("delete from public.person_aliases where person_id = $1", [ID.person])),
   },
   {
     script: "cleanup",
@@ -732,12 +748,23 @@ const GUARD_CASES: readonly GuardCase[] = [
   // has a `restrict` backstop, so the preflight is the entire control.
   {
     script: "cleanup",
-    message: "person_aliases rows hang off the scenario person",
+    message: "person_aliases rows this scenario did not write hang off the scenario person",
     afterSetup: true,
     cascadeTable: "public.person_aliases",
     arrange: async (c) =>
       void (await c.query(
         "insert into public.person_aliases (person_id, alias) values ($1, 'Somebody else alias')",
+        [ID.person],
+      )),
+  },
+  {
+    script: "cleanup",
+    message: "person_emergency_contacts rows hang off the scenario person",
+    afterSetup: true,
+    cascadeTable: "public.person_emergency_contacts",
+    arrange: async (c) =>
+      void (await c.query(
+        "insert into public.person_emergency_contacts (person_id, given_name) values ($1, 'Somebody')",
         [ID.person],
       )),
   },
@@ -834,7 +861,7 @@ const GUARD_CASES: readonly GuardCase[] = [
       const person = await sparePerson(c, "Extra member");
       await c.query(
         `insert into public.season_memberships (person_id, season_id, status, entry)
-         values ($1, $2, 'confirmed', 'new')`,
+         values ($1, $2, 'onboarding', 'new')`,
         [person, ID.season],
       );
     },

@@ -79,9 +79,9 @@ let counter = 0;
  *
  * Direct inserts on purpose: the point of most of these tests is what
  * `activateMembership` does when it *finds* a membership in a given state, and
- * several of those states — `departed`, `withdrawn`, `carried_forward` — have
- * no service path that produces them. Building them through the application
- * would mean building the season-close workflow this slice explicitly excludes.
+ * several of those states — `departed`, `archived` — have no service path that
+ * produces them. Building them through the application would mean building the
+ * season-close workflow this slice explicitly excludes.
  */
 async function givenMembership(
   status: MembershipStatus,
@@ -112,7 +112,7 @@ async function givenMembership(
   await observer.query(
     `insert into public.season_membership_status_events
        (season_membership_id, from_status, to_status, actor_person_id)
-     values ($1::uuid, null, 'carried_forward', $2::uuid)`,
+     values ($1::uuid, null, 'onboarding', $2::uuid)`,
     [membershipId, actorPersonId],
   );
 
@@ -291,7 +291,7 @@ afterAll(async () => {
 
 describe("generateOnboardingItems", () => {
   it("creates exactly the season's configured types, all pending", async () => {
-    const membershipId = await givenMembership("confirmed", { generateItems: false });
+    const membershipId = await givenMembership("onboarding", { generateItems: false });
 
     const created = await withTransaction((tx) =>
       generateOnboardingItems(tx, membershipId, openSeasonId),
@@ -327,7 +327,7 @@ describe("generateOnboardingItems", () => {
 
     const membership = await readMembership(result.membershipId);
 
-    expect(membership.status).toBe("confirmed");
+    expect(membership.status).toBe("onboarding");
     expect(membership.onboardingItems.map((item) => item.code).sort()).toEqual(
       seasonTypes.map((type) => type.code).sort(),
     );
@@ -360,7 +360,7 @@ describe("generateOnboardingItems", () => {
   });
 
   it("is idempotent — a second call writes nothing and is not an error", async () => {
-    const membershipId = await givenMembership("confirmed");
+    const membershipId = await givenMembership("onboarding");
 
     const again = await withTransaction((tx) =>
       generateOnboardingItems(tx, membershipId, openSeasonId),
@@ -372,7 +372,7 @@ describe("generateOnboardingItems", () => {
   });
 
   it("does not reset an item somebody has already resolved", async () => {
-    const membershipId = await givenMembership("confirmed");
+    const membershipId = await givenMembership("onboarding");
     const required = seasonTypes.find((type) => type.isRequired && !type.isSubscription)!;
     await setItemStatus(membershipId, required.code, "complete");
 
@@ -397,12 +397,11 @@ describe("activateMembership — the legal path", () => {
     const outcome = await activateMembership({ actorPersonId, membershipId });
 
     expect(outcome.membership.status).toBe("active");
-    expect(outcome.startedOnboarding).toBe(false);
     expect(await currentStatus(membershipId)).toBe("active");
 
     const events = await statusEvents(membershipId);
     expect(events.map((event) => [event.from_status, event.to_status])).toEqual([
-      [null, "carried_forward"],
+      [null, "onboarding"],
       ["onboarding", "active"],
     ]);
     expect(events.at(-1)?.actor_person_id).toBe(actorPersonId);
@@ -414,23 +413,33 @@ describe("activateMembership — the legal path", () => {
     expect(activated.rows[0].activated_on).not.toBeNull();
   });
 
-  it("activates from `confirmed` by writing the system's onboarding step too", async () => {
-    const membershipId = await givenMembership("confirmed");
-    await settleRequiredItems(membershipId);
+  /**
+   * LAN-182's consequence for this path, asserted rather than assumed.
+   *
+   * Activation used to write a `confirmed → onboarding` system step first, and
+   * both of those states now map onto `onboarding`. Had that step survived the
+   * vocabulary change it would write `onboarding → onboarding` — a history
+   * recording a change that did not happen, and the exact thing
+   * `season_membership_status_events_is_a_change` refuses on a new row. So the
+   * whole journey, intake through activation, is two events and no self-loop.
+   */
+  it("writes no self-transition anywhere between intake and activation", async () => {
+    const givenName = `${MARKER}Ladder${counter++}`;
+    const intake = await enterReturningPlayer({
+      actorPersonId,
+      input: { givenName, familyName: "Testcase", email: "ladder@example.invalid" },
+      decision: { kind: "new", confirmed: true },
+    });
+    await settleRequiredItems(intake.membershipId);
 
-    const outcome = await activateMembership({ actorPersonId, membershipId });
+    await activateMembership({ actorPersonId, membershipId: intake.membershipId });
 
-    expect(outcome.startedOnboarding).toBe(true);
-    expect(await currentStatus(membershipId)).toBe("active");
-
-    // §2.1's machine, with no state skipped.
-    const events = await statusEvents(membershipId);
+    const events = await statusEvents(intake.membershipId);
     expect(events.map((event) => [event.from_status, event.to_status])).toEqual([
-      [null, "carried_forward"],
-      ["confirmed", "onboarding"],
+      [null, "onboarding"],
       ["onboarding", "active"],
     ]);
-    expect(events[1].reason).toContain("Onboarding started by the system");
+    expect(events.some((event) => event.from_status === event.to_status)).toBe(false);
   });
 
   it("writes a status event and an audit row naming the operator, together", async () => {
@@ -455,7 +464,7 @@ describe("activateMembership — the legal path", () => {
   });
 
   it("generates missing items on the way through, for a membership confirmed earlier", async () => {
-    const membershipId = await givenMembership("confirmed", { generateItems: false });
+    const membershipId = await givenMembership("onboarding", { generateItems: false });
 
     // No items at all, so nothing is outstanding and nothing is asked.
     await activateMembership({ actorPersonId, membershipId, overrideReason: "Backfilled" });
@@ -578,13 +587,7 @@ describe("activateMembership — outstanding required items", () => {
 // ---------------------------------------------------------------------------
 
 describe("activateMembership — states it is not legal from", () => {
-  const illegal: MembershipStatus[] = [
-    "carried_forward",
-    "active",
-    "departed",
-    "withdrawn",
-    "archived",
-  ];
+  const illegal: MembershipStatus[] = ["active", "inactive", "departed", "archived"];
 
   for (const status of illegal) {
     it(`refuses a \`${status}\` membership, naming the state it is in`, async () => {
@@ -706,7 +709,7 @@ describe("active ⇄ inactive", () => {
     expect(await statusEvents(membershipId)).toHaveLength(3);
   });
 
-  const notInactivatable: MembershipStatus[] = ["confirmed", "onboarding", "departed"];
+  const notInactivatable: MembershipStatus[] = ["onboarding", "departed"];
   for (const status of notInactivatable) {
     it(`refuses to make a \`${status}\` membership inactive`, async () => {
       const membershipId = await givenMembership(status);
@@ -744,7 +747,7 @@ describe("resolveOnboardingItem", () => {
   }
 
   it("marks an item complete and dates it", async () => {
-    const membershipId = await givenMembership("confirmed");
+    const membershipId = await givenMembership("onboarding");
     const item = await firstItem(membershipId);
 
     const membership = await resolveOnboardingItem({
@@ -766,7 +769,7 @@ describe("resolveOnboardingItem", () => {
   });
 
   it("records a waiver with its reason and its author", async () => {
-    const membershipId = await givenMembership("confirmed");
+    const membershipId = await givenMembership("onboarding");
     const item = await firstItem(membershipId);
 
     const membership = await resolveOnboardingItem({
@@ -784,7 +787,7 @@ describe("resolveOnboardingItem", () => {
   });
 
   it("refuses a waiver with no reason, before the database has to", async () => {
-    const membershipId = await givenMembership("confirmed");
+    const membershipId = await givenMembership("onboarding");
     const item = await firstItem(membershipId);
 
     const failure = await resolveOnboardingItem({
@@ -799,7 +802,7 @@ describe("resolveOnboardingItem", () => {
   });
 
   it("clears the completion when an item becomes not applicable", async () => {
-    const membershipId = await givenMembership("confirmed");
+    const membershipId = await givenMembership("onboarding");
     const item = await firstItem(membershipId);
     await resolveOnboardingItem({
       actorPersonId,
@@ -831,7 +834,7 @@ describe("resolveOnboardingItem", () => {
    * in August.
    */
   it("refuses a resolution the item already has, and changes nothing", async () => {
-    const membershipId = await givenMembership("confirmed");
+    const membershipId = await givenMembership("onboarding");
     const item = await firstItem(membershipId);
     await resolveOnboardingItem({
       actorPersonId,
@@ -855,7 +858,7 @@ describe("resolveOnboardingItem", () => {
   });
 
   it("still allows moving an item to a different resolution", async () => {
-    const membershipId = await givenMembership("confirmed");
+    const membershipId = await givenMembership("onboarding");
     const item = await firstItem(membershipId);
     await resolveOnboardingItem({
       actorPersonId,
@@ -877,7 +880,7 @@ describe("resolveOnboardingItem", () => {
   });
 
   it("refuses a status this screen does not offer", async () => {
-    const membershipId = await givenMembership("confirmed");
+    const membershipId = await givenMembership("onboarding");
     const item = await firstItem(membershipId);
 
     const failure = await resolveOnboardingItem({
@@ -896,8 +899,8 @@ describe("resolveOnboardingItem", () => {
    * crafted request move an item belonging to somebody else's membership.
    */
   it("refuses an item that belongs to a different membership", async () => {
-    const mine = await givenMembership("confirmed");
-    const theirs = await givenMembership("confirmed");
+    const mine = await givenMembership("onboarding");
+    const theirs = await givenMembership("onboarding");
     const theirItem = await firstItem(theirs);
 
     const failure = await resolveOnboardingItem({
@@ -970,7 +973,7 @@ describe("listCurrentSeasonRoster", () => {
   });
 
   it("counts onboarding the way the column reports it", async () => {
-    const membershipId = await givenMembership("confirmed");
+    const membershipId = await givenMembership("onboarding");
     await settleRequiredItems(membershipId);
 
     const roster = await listCurrentSeasonRoster({ search: MARKER });
@@ -1072,18 +1075,19 @@ describe("the transition table", () => {
   it("names only transitions the frozen model gives this slice", async () => {
     expect(
       MEMBERSHIP_TRANSITIONS.map((transition) => `${transition.from}→${transition.to}`),
-    ).toEqual(["confirmed→onboarding", "onboarding→active", "active→inactive", "inactive→active"]);
+    ).toEqual(["onboarding→active", "active→inactive", "inactive→active"]);
   });
 
-  it("attributes `confirmed → onboarding` to the system and the rest to the operator", async () => {
-    const system = MEMBERSHIP_TRANSITIONS.filter((transition) => transition.system);
-    expect(system.map((transition) => `${transition.from}→${transition.to}`)).toEqual([
-      "confirmed→onboarding",
-    ]);
+  it("attributes every remaining transition to the operator, not the system", async () => {
+    // LAN-182 removed the one system step there was. `confirmed → onboarding`
+    // described a membership moving out of a state that no longer exists, and
+    // a membership now starts at `onboarding` — so there is nothing left for
+    // the system to author, and every transition has a person behind it.
+    expect(MEMBERSHIP_TRANSITIONS.filter((transition) => transition.system)).toEqual([]);
   });
 
-  it("contains no departure, withdrawal or archival — those are outside the slice", async () => {
-    const terminal = ["withdrawn", "departed", "archived"];
+  it("contains no departure or archival — those are outside the slice", async () => {
+    const terminal = ["departed", "archived"];
     expect(MEMBERSHIP_TRANSITIONS.some((transition) => terminal.includes(transition.to))).toBe(
       false,
     );
@@ -1096,11 +1100,11 @@ describe("the transition table", () => {
 
 describe("atomicity", () => {
   it("leaves no transition, no audit row and no status change when activation is refused", async () => {
-    const membershipId = await givenMembership("carried_forward");
+    const membershipId = await givenMembership("archived");
 
     await activateMembership({ actorPersonId, membershipId }).catch(() => null);
 
-    expect(await currentStatus(membershipId)).toBe("carried_forward");
+    expect(await currentStatus(membershipId)).toBe("archived");
     expect(await statusEvents(membershipId)).toHaveLength(1);
     expect(await auditRows(membershipId)).toHaveLength(0);
   });

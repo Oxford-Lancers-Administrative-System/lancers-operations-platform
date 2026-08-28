@@ -38,7 +38,7 @@ import { actorRequirement } from "./actor";
 import { SHOWED_PRESENCES } from "./attendance-vocabulary";
 import { requireEventOperatorTier } from "@/lib/auth/event-tier";
 import { readCurrentSeasonIn, type Season } from "./seasons";
-import { escapeLikePattern } from "./sql-text";
+import { escapeLikePattern, personDisplayNameSql } from "./sql-text";
 import { todayInClubZone } from "@/lib/club-time";
 
 /**
@@ -931,11 +931,7 @@ export async function readEventIn(tx: Tx, eventId: string): Promise<EventDetail>
             e.description, e.required_equipment, e.joining_url, e.origin::text as origin,
             e.term_id, t.name::text as term_name, t.academic_year as term_academic_year,
             e.week_number, e.decision_reason, e.season_id,
-            case
-              when o.id is null then null
-              when o.family_name is null then coalesce(nullif(btrim(o.known_as), ''), o.given_name)
-              else coalesce(nullif(btrim(o.known_as), ''), o.given_name) || ' ' || o.family_name
-            end as created_by_name,
+            ${personDisplayNameSql("o")} as created_by_name,
             ${COUNT_COLUMNS}
        from public.events e
        left join public.terms t on t.id = e.term_id
