@@ -37,12 +37,38 @@ export interface ChaseInput {
   readonly isWalkUp: boolean;
   /** An unresolved `nonresponse_flags` row exists for this invitation. */
   readonly escalated: boolean;
-  /** Every invitation/reminder/escalation job this invitation has, any status. */
+  /**
+   * F-B1, mechanism 4. The `notification_jobs.status` of the one escalation
+   * job addressed to the President for this invitation's event — `null` when
+   * `escalated` is true but no job exists yet (the office is vacant) or when
+   * `escalated` is false. Deliberately not read from {@link jobs}: an
+   * escalation is addressed to the office about the *event*, not to one
+   * invitee, so it is never keyed to `invitation_id` and this array — built
+   * by joining on `invitation_id`, in both `participation.ts` and
+   * `follow-ups.ts` — can never contain it. This is the fact that used to be
+   * missing entirely, which is why `escalated` alone used to be trusted:
+   * three people read "Escalated to the President" while their own
+   * escalation job was `failed`, and nothing here could have told the
+   * difference.
+   */
+  readonly escalationJobStatus: string | null;
+  /** Every invitation/reminder job this invitation has, any status. */
   readonly jobs: readonly ChaseJobFact[];
 }
 
 export const CHASE_STOPPED = "Chase stopped";
 export const ESCALATED_TO_PRESIDENT = "Escalated to the President";
+/**
+ * F-B1. What an unanswered person's chase position reads when their
+ * escalation exists but has not (or will never) reach the President —
+ * `failed`, `cancelled`, or a `pending`/`ready` job the sweep has not yet
+ * swept. Never `ESCALATED_TO_PRESIDENT`, which is a claim of fact this state
+ * cannot support.
+ */
+export const ESCALATION_NOT_DELIVERED = "Escalation not delivered";
+
+/** A `notification_jobs.status` this module treats as "the send went out". */
+const ESCALATION_SENT_STATUSES: ReadonlySet<string> = new Set(["completed", "processing"]);
 
 const ANSWERED_STATES: ReadonlySet<string> = new Set(["responded_yes", "responded_no"]);
 
@@ -102,7 +128,23 @@ export function chasePositionLabel(input: ChaseInput): string | null {
 
   // REQ-chase-position's acceptance: an escalated person shows no further
   // player-facing rung, whatever the reminder ladder is separately doing.
-  if (input.escalated) return ESCALATED_TO_PRESIDENT;
+  //
+  // F-B1. Used to return `ESCALATED_TO_PRESIDENT` the instant `escalated` was
+  // true — the flag says the threshold was crossed, not that the President
+  // was ever told. `escalationJobStatus` is what the job itself actually did:
+  // `null` covers both "not escalated" (unreachable here, `escalated` is
+  // already false) and "escalation held, the office is vacant" (F4's own
+  // separate state, read from `flag_open` alongside `escalation_job_id`
+  // elsewhere, not from this sentence); anything not in
+  // `ESCALATION_SENT_STATUSES` — `failed`, `cancelled`, or a job the sweep
+  // has not reached yet — reads `ESCALATION_NOT_DELIVERED` rather than a
+  // claim that has not been earned.
+  if (input.escalated) {
+    return input.escalationJobStatus !== null &&
+      ESCALATION_SENT_STATUSES.has(input.escalationJobStatus)
+      ? ESCALATED_TO_PRESIDENT
+      : ESCALATION_NOT_DELIVERED;
+  }
 
   const ladder = input.jobs
     .filter((job) => job.jobType !== "escalation")

@@ -20,8 +20,17 @@ import { ANSWER_GATE_COOKIE, ANSWER_GATE_MAX_AGE_SECONDS } from "@/lib/rsvp/answ
  *
  * Route protection here is a convenience, not the authorization boundary. RLS
  * in the database and explicit checks in server code are the real boundary.
+ *
+ * F-A3, LAN-180. `"/me"` here is deliberately the bare path only, not a
+ * prefix that would also swallow `/me/[token]` — that route's own
+ * authorization is the token in its URL, not a session, and it stays in the
+ * public, unauthenticated bucket below exactly as it always has. The proxy
+ * function's own early return is what keeps the two from colliding: it
+ * excludes the exact bare path from that bucket before this list is ever
+ * checked, so `matchesPrefix`'s `pathname === prefix` arm is what actually
+ * matches here, never its `startsWith(prefix + "/")` one.
  */
-const PROTECTED_PREFIXES = ["/dashboard", "/operate"];
+const PROTECTED_PREFIXES = ["/dashboard", "/operate", "/me"];
 
 /**
  * The signed RSVP page (LAN-79) — public, and handled before anything else.
@@ -149,8 +158,16 @@ function matchesPrefix(pathname: string, prefixes: readonly string[]): boolean {
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  // F-A3. `path.startsWith(PLAYER_HOME_PREFIX + "/")` rather than
+  // `matchesPrefix(path, [PLAYER_HOME_PREFIX])`: the latter's `pathname ===
+  // prefix` arm would swallow the exact bare `/me` too, and that path is now
+  // the signed-in entry point — protected below, alongside `/dashboard` and
+  // `/operate` — not the public, token-authorized page every other path under
+  // this prefix still is.
+  const isPlayerHomeToken = path.startsWith(`${PLAYER_HOME_PREFIX}/`);
   if (
-    matchesPrefix(path, [RSVP_PREFIX, CLUB_LINK_PREFIX, ANSWER_LINK_PREFIX, PLAYER_HOME_PREFIX])
+    matchesPrefix(path, [RSVP_PREFIX, CLUB_LINK_PREFIX, ANSWER_LINK_PREFIX]) ||
+    isPlayerHomeToken
   ) {
     const privateLink = NextResponse.next({ request });
     for (const [key, value] of PRIVATE_LINK_HEADERS) privateLink.headers.set(key, value);
@@ -229,11 +246,14 @@ export const config = {
     // Everything except Next.js internals, the health check, the provider
     // webhook, and static assets.
     //
-    // `/rsvp`, `/e`, `/a` and `/me` stay matched deliberately, even though all
-    // four are public: the proxy returns early for them above, before any
-    // Supabase work, and sets the headers those routes depend on (plus, for
-    // `/a`, the answer-link gate cookie). Excluding them from the matcher
-    // would skip the early return too, and with it `no-store`.
+    // `/rsvp`, `/e`, `/a` and `/me/[token]` stay matched deliberately, even
+    // though all four are public: the proxy returns early for them above,
+    // before any Supabase work, and sets the headers those routes depend on
+    // (plus, for `/a`, the answer-link gate cookie). Excluding them from the
+    // matcher would skip the early return too, and with it `no-store`. Bare
+    // `/me` needs matching for the opposite reason (F-A3) — it is one of the
+    // *protected* prefixes below, and excluding it would skip the
+    // authenticated session refresh that route now depends on.
     //
     // The WhatsApp webhook — that one route, not the `api/webhooks` namespace —
     // is excluded because it is the one route an unauthenticated

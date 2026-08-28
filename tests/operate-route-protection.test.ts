@@ -584,3 +584,76 @@ describe("the durable player page is public and unauthenticated", () => {
     expect(createServerClient).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * F-A3, LAN-180. The signed-in entry point at bare `/me` — distinct from
+ * `/me/[token]` above, which stays public and token-authorized, entirely
+ * unaffected. This is the one path in the whole `/me` prefix whose
+ * authorization is a session, and it is what a club member with a login and
+ * no WhatsApp/email answer history now reaches their own page through.
+ *
+ * Written the same shape as "row 1"'s own suite, on purpose: this is that
+ * same guarantee, extended to a fourth path, and diverging test shapes for
+ * the identical property would itself be a maintenance trap.
+ */
+describe("F-A3 — the signed-in entry point /me is protected, and /me/[token] is unaffected", () => {
+  it("redirects an anonymous request for bare /me to /login with its destination intact", async () => {
+    givenSignedIn(false);
+
+    const response = await proxy(requestFor("/me"));
+    const location = new URL(response.headers.get("location") ?? "");
+
+    expect(response.status).toBe(307);
+    expect(location.pathname).toBe("/login");
+    expect(location.searchParams.get("redirectTo")).toBe("/me");
+  });
+
+  it("does not redirect a signed-in request for bare /me", async () => {
+    givenSignedIn(true);
+
+    const response = await proxy(requestFor("/me"));
+
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.status).toBe(200);
+  });
+
+  it("does real Supabase session work for bare /me, unlike /me/[token]", async () => {
+    // The regression this proves: before the fix, bare `/me` fell into the
+    // same early return `/me/[token]` does — no session refresh, and no
+    // redirect for an anonymous request either, which would have made the
+    // "redirects an anonymous request" test above the one that actually
+    // caught it.
+    givenSignedIn(true);
+
+    await proxy(requestFor("/me"));
+
+    expect(createServerClient).toHaveBeenCalled();
+  });
+
+  it("sends a recovery session at bare /me to the reset page, exactly as /dashboard and /operate", async () => {
+    givenRecoverySession();
+
+    const response = await proxy(requestFor("/me"));
+    const location = new URL(response.headers.get("location") ?? "");
+
+    expect(location.pathname).toBe("/reset-password");
+  });
+
+  it("leaves /me/[token] public even though bare /me is now protected", async () => {
+    givenSignedIn(false);
+
+    const response = await proxy(requestFor("/me/abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLM0123"));
+
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("cache-control") ?? "").toContain("no-store");
+  });
+
+  it("does not protect a path that merely starts with the same letters", async () => {
+    // `/media` is not `/me`, and prefix matching must not treat it as one.
+    givenSignedIn(false);
+
+    const response = await proxy(requestFor("/media"));
+
+    expect(response.headers.get("location")).toBeNull();
+  });
+});

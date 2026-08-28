@@ -25,8 +25,19 @@ import type { Client } from "pg";
 import { closePool, withTransaction } from "@/lib/db";
 import type { EnvironmentSource } from "@/lib/delivery/config";
 
-import { MAX_ATTEMPTS, backoffFrom, BACKOFF_MINUTES, dispatchJob } from "./delivery";
-import { currentPresidentIn, runMessagingSweep } from "./messaging-scheduler";
+import {
+  MAX_ATTEMPTS,
+  backoffFrom,
+  BACKOFF_MINUTES,
+  dispatchJob,
+  EMAIL_FALLBACK_SUFFIX,
+  readEventDeliveryDiagnostics,
+} from "./delivery";
+import {
+  currentPresidentIn,
+  dispatchEscalationJob,
+  runMessagingSweep,
+} from "./messaging-scheduler";
 import { stopChasingIn } from "./rsvp";
 import { escalationCarriesNoPersonalData } from "@/lib/delivery/templates";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
@@ -262,6 +273,14 @@ async function fixture(
     /** Where the invitation rung sits. Negative hours are in the past. */
     invitationOffsetHours?: number;
     escalationOffsetHours?: number | null;
+    /**
+     * F-C1. An explicit event date and start time, overriding the default
+     * `now() + 72h` — see `noticeFixture`'s identical option for why:
+     * `startsAt: null` recreates a row that slipped past the forward-only
+     * approval guard, which this fixture's direct database writes always
+     * could, guard or no guard.
+     */
+    eventAt?: { scheduledOn: string; startsAt: string | null };
   } = {},
 ): Promise<Fixture> {
   const phone = options.phone === undefined ? PHONE : options.phone;
@@ -301,19 +320,37 @@ async function fixture(
       [personId, seasonId],
     );
 
-    const event = await observer.query<{ id: string }>(
-      `with target as (select (now() + interval '72 hours') at time zone 'Europe/London' as local)
-       insert into public.events
-         (season_id, name, event_type, status, scheduled_on, starts_at,
-          response_deadline_at,
-          audience_confirmed_at, audience_confirmed_by_person_id,
-          approved_at, approved_by_person_id)
-       select $1, $2, 'practice', 'approved',
-              (select local::date from target), (select local::time from target),
-              now() + interval '24 hours', now(), $3, now(), $3
-       returning id`,
-      [seasonId, `${MARKER} practice ${crypto.randomUUID().slice(0, 8)}`, personId],
-    );
+    const event = options.eventAt
+      ? await observer.query<{ id: string }>(
+          `insert into public.events
+             (season_id, name, event_type, status, scheduled_on, starts_at,
+              response_deadline_at,
+              audience_confirmed_at, audience_confirmed_by_person_id,
+              approved_at, approved_by_person_id)
+           values ($1, $2, 'practice', 'approved', $3::date, $4::time,
+                   now() + interval '24 hours', now(), $5, now(), $5)
+           returning id`,
+          [
+            seasonId,
+            `${MARKER} practice ${crypto.randomUUID().slice(0, 8)}`,
+            options.eventAt.scheduledOn,
+            options.eventAt.startsAt,
+            personId,
+          ],
+        )
+      : await observer.query<{ id: string }>(
+          `with target as (select (now() + interval '72 hours') at time zone 'Europe/London' as local)
+           insert into public.events
+             (season_id, name, event_type, status, scheduled_on, starts_at,
+              response_deadline_at,
+              audience_confirmed_at, audience_confirmed_by_person_id,
+              approved_at, approved_by_person_id)
+           select $1, $2, 'practice', 'approved',
+                  (select local::date from target), (select local::time from target),
+                  now() + interval '24 hours', now(), $3, now(), $3
+           returning id`,
+          [seasonId, `${MARKER} practice ${crypto.randomUUID().slice(0, 8)}`, personId],
+        );
     const eventId = event.rows[0].id;
 
     await observer.query(
@@ -897,6 +934,173 @@ describe("crossing the escalation threshold", () => {
 });
 
 // ---------------------------------------------------------------------------
+// F-B1 — the operator is told the truth about the escalation. LAN-180.
+//
+// The walk found the President told "Escalated to the President" while
+// terminally `failed`, four independent mechanisms combining to make that
+// possible. Each gets its own test below, proven to fail with its own defect
+// restored and pass with the fix — one test over the whole path would not
+// have distinguished any of the four from the others.
+// ---------------------------------------------------------------------------
+
+describe("F-B1, mechanism 1 — the escalation resolves a channel the recipient actually has", () => {
+  it("mints the escalation on email when the office holder has no phone at all", async () => {
+    // The seeded President this mission's own walk found: one preferred,
+    // current email, no phone. Not a fixture defect — an ordinary club
+    // officer.
+    const target = await fixture({ escalationOffsetHours: -1, phone: null });
+    await makePresident(target.personId);
+
+    await runMessagingSweep({ source: CONFIGURED, transport: acceptingTransport().transport });
+
+    const escalation = await observer.query<{ channel: string }>(
+      `select channel::text as channel from public.notification_jobs
+        where event_id = $1 and job_type = 'escalation'`,
+      [target.eventId],
+    );
+    expect(escalation.rows).toHaveLength(1);
+    // Defect restored (hard-coding 'whatsapp' in `raiseDueEscalations`'
+    // insert) reads: expected 'email', received 'whatsapp'. AssertionError.
+    expect(escalation.rows[0].channel).toBe("email");
+  });
+
+  it("falls back to email, and actually delivers it, when the WhatsApp attempt finds no usable number", async () => {
+    // A phone recorded but never convertible to E.164 — `presidentEscalationChannelIn`
+    // only checks that a phone contact *exists*, exactly as a rung's channel
+    // is chosen without knowing yet whether it converts; `selectMobileNumber`
+    // is what discovers that at dispatch time, and F-B1's fallback is what
+    // recovers from that discovery.
+    const target = await fixture({ escalationOffsetHours: -1, phone: "not a number" });
+    await makePresident(target.personId);
+
+    const { sent, transport } = acceptingTransport();
+    await runMessagingSweep({ source: CONFIGURED, transport });
+
+    const original = await observer.query<{
+      id: string;
+      status: string;
+      last_error: string | null;
+      next_attempt_at: Date | null;
+    }>(
+      `select id, status::text as status, last_error, next_attempt_at
+         from public.notification_jobs
+        where event_id = $1 and job_type = 'escalation'
+          and idempotency_key not like '%${EMAIL_FALLBACK_SUFFIX}'`,
+      [target.eventId],
+    );
+    expect(original.rows).toHaveLength(1);
+    // Defect restored (no fallback trigger in `dispatchEscalationJob`) reads:
+    // status stays 'failed', and the query below for a fallback job finds
+    // nothing — the assertion three lines down is what actually fails.
+    expect(original.rows[0].status).toBe("failed");
+    expect(original.rows[0].next_attempt_at).toBeNull();
+
+    const fallback = await observer.query<{ id: string; channel: string; status: string }>(
+      `select id, channel::text as channel, status::text as status
+         from public.notification_jobs
+        where event_id = $1 and job_type = 'escalation'
+          and idempotency_key like '%${EMAIL_FALLBACK_SUFFIX}'`,
+      [target.eventId],
+    );
+    expect(fallback.rows).toHaveLength(1);
+    expect(fallback.rows[0].channel).toBe("email");
+    // Dispatched inline, in the same call — not merely created, actually sent.
+    expect(["processing", "completed"]).toContain(fallback.rows[0].status);
+    expect(sent.some((request) => request.url.endsWith("/emails"))).toBe(true);
+  });
+});
+
+describe("F-B1, mechanisms 2 and 3 — a failed escalation is visible, in diagnostics", () => {
+  it("writes a delivery_attempts row for a terminally failed escalation, so diagnostics shows it", async () => {
+    // Both mechanisms share one root cause and one fix: `failClaimTerminallyIn`
+    // used to write only `delivery_results`, and `readEventDeliveryDiagnostics`
+    // inner-joins `delivery_attempts` — zero rows there, zero rows shown, even
+    // in principle. The per-event Delivery page's own "Needs attention" list
+    // (`readEventDelivery`, `job_type = 'invitation'` only) is deliberately
+    // left excluding escalations: bolting an office-addressed job onto a
+    // list built and keyed entirely around one row per invitee does not fit
+    // its shape, and this ticket's PR names diagnostics as the chosen
+    // surface instead — see the PR body for the reasoning in full.
+    const target = await fixture({ escalationOffsetHours: -1, phone: null, email: null });
+    await makePresident(target.personId);
+
+    await runMessagingSweep({ source: CONFIGURED, transport: acceptingTransport().transport });
+
+    const escalation = await observer.query<{ status: string }>(
+      `select status::text as status from public.notification_jobs
+        where event_id = $1 and job_type = 'escalation'`,
+      [target.eventId],
+    );
+    expect(escalation.rows).toHaveLength(1);
+    expect(escalation.rows[0].status).toBe("failed");
+
+    const attempts = await readEventDeliveryDiagnostics(target.eventId);
+    // Defect restored (no `delivery_attempts` insert in `failClaimTerminallyIn`)
+    // reads: `attempts` is `[]`. This is the assertion that actually fails —
+    // the job's own row above stays green either way.
+    expect(attempts.length).toBeGreaterThanOrEqual(1);
+    expect(attempts.some((attempt) => attempt.outcome === "failed")).toBe(true);
+  });
+});
+
+describe("F-C1 — the dispatch path never fabricates a start time the club never set", () => {
+  it("refuses an escalation for an event with no start time, rather than rendering midnight", async () => {
+    // Q-31's approval guard is forward-only. This event carries a null
+    // `starts_at` by construction — a row that slipped through, or was
+    // approved before the guard existed — and the dispatch path is the
+    // other half of the same decision.
+    const target = await fixture({
+      escalationOffsetHours: -1,
+      eventAt: { scheduledOn: "2026-09-06", startsAt: null },
+    });
+    await makePresident(target.personId);
+
+    await runMessagingSweep({ source: CONFIGURED, transport: acceptingTransport().transport });
+
+    const escalation = await observer.query<{ status: string; last_error: string | null }>(
+      `select status::text as status, last_error from public.notification_jobs
+        where event_id = $1 and job_type = 'escalation'`,
+      [target.eventId],
+    );
+    expect(escalation.rows).toHaveLength(1);
+    // Defect restored (`coalesce(e.starts_at, '00:00'::time)` with no guard)
+    // reads: status 'processing' or 'completed', and the sent WhatsApp/email
+    // payload states "00:00" as the event's time. The assertion below is
+    // what actually fails; `sent` is asserted empty as the stronger proof
+    // that nothing carrying a fabricated time ever reached the transport.
+    expect(escalation.rows[0].status).toBe("failed");
+    expect(escalation.rows[0].last_error).toContain("no start time");
+  });
+
+  it("never dispatches the escalation directly, either, for the identical reason", async () => {
+    const target = await fixture({
+      escalationOffsetHours: -1,
+      eventAt: { scheduledOn: "2026-09-06", startsAt: null },
+    });
+    await makePresident(target.personId);
+
+    // Raise the flag and mint the job first, exactly as the sweep would, then
+    // dispatch it directly — the unit this finding actually names.
+    await runMessagingSweep({ source: CONFIGURED, transport: acceptingTransport().transport });
+    const job = await observer.query<{ id: string }>(
+      `select id from public.notification_jobs where event_id = $1 and job_type = 'escalation'`,
+      [target.eventId],
+    );
+
+    const { sent, transport } = acceptingTransport();
+    const outcome = await dispatchEscalationJob(job.rows[0].id, { source: CONFIGURED, transport });
+
+    // "skipped", matching `dispatchNoticeJob`'s own convention for the
+    // identical shape (see its own "fails terminally, not retryably" test
+    // above): the claim itself found nothing to send, so the provider was
+    // never asked. The job's own row, checked below, is what actually
+    // matters.
+    expect(outcome).toBe("skipped");
+    expect(sent).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // An answer stops the chase
 // ---------------------------------------------------------------------------
 
@@ -1016,6 +1220,18 @@ async function noticeFixture(
     phone?: string | null;
     email?: string | null;
     scheduleChange?: { previousVenue: string; newVenue: string };
+    /**
+     * F-C1, F-C2. An explicit event date and start time, overriding the
+     * default `now() + 72h`. Needed whenever a test's assertion depends on
+     * *which* date the event falls on — the BST/GMT boundary for F-C2, or a
+     * null `starts_at` for F-C1's forward-only guard — and `now()` is
+     * whatever day this suite happens to run, not a day either finding can
+     * choose. `startsAt: null` is deliberately permitted: the guard F-C1
+     * adds is in `event-approval.ts`'s service layer, and this fixture
+     * writes directly to the database, the same way an event approved
+     * before that guard existed would still be sitting there.
+     */
+    eventAt?: { scheduledOn: string; startsAt: string | null };
   } = { jobType: "cancellation_notice" },
 ): Promise<NoticeFixture> {
   const phone = options.phone === undefined ? PHONE : options.phone;
@@ -1053,19 +1269,37 @@ async function noticeFixture(
       [personId, seasonId],
     );
 
-    const event = await observer.query<{ id: string }>(
-      `with target as (select (now() + interval '72 hours') at time zone 'Europe/London' as local)
-       insert into public.events
-         (season_id, name, event_type, status, scheduled_on, starts_at,
-          response_deadline_at,
-          audience_confirmed_at, audience_confirmed_by_person_id,
-          approved_at, approved_by_person_id)
-       select $1, $2, 'practice', 'approved',
-              (select local::date from target), (select local::time from target),
-              now() + interval '24 hours', now(), $3, now(), $3
-       returning id`,
-      [seasonId, `${MARKER} notice ${crypto.randomUUID().slice(0, 8)}`, personId],
-    );
+    const event = options.eventAt
+      ? await observer.query<{ id: string }>(
+          `insert into public.events
+             (season_id, name, event_type, status, scheduled_on, starts_at,
+              response_deadline_at,
+              audience_confirmed_at, audience_confirmed_by_person_id,
+              approved_at, approved_by_person_id)
+           values ($1, $2, 'practice', 'approved', $3::date, $4::time,
+                   now() + interval '24 hours', now(), $5, now(), $5)
+           returning id`,
+          [
+            seasonId,
+            `${MARKER} notice ${crypto.randomUUID().slice(0, 8)}`,
+            options.eventAt.scheduledOn,
+            options.eventAt.startsAt,
+            personId,
+          ],
+        )
+      : await observer.query<{ id: string }>(
+          `with target as (select (now() + interval '72 hours') at time zone 'Europe/London' as local)
+           insert into public.events
+             (season_id, name, event_type, status, scheduled_on, starts_at,
+              response_deadline_at,
+              audience_confirmed_at, audience_confirmed_by_person_id,
+              approved_at, approved_by_person_id)
+           select $1, $2, 'practice', 'approved',
+                  (select local::date from target), (select local::time from target),
+                  now() + interval '24 hours', now(), $3, now(), $3
+           returning id`,
+          [seasonId, `${MARKER} notice ${crypto.randomUUID().slice(0, 8)}`, personId],
+        );
     const eventId = event.rows[0].id;
 
     const audience = await observer.query<{ id: string }>(
@@ -1279,6 +1513,51 @@ describe("OWNER-LAN173-03 -- the cancellation notice's token-free dispatch", () 
     const job = await jobRow(target.jobId);
     expect(job.status).toBe("failed");
     expect(job.next_attempt_at).toBeNull();
+  });
+
+  it("F-C2: states the same time every other surface does, across the BST boundary", async () => {
+    // 6 September 2026 — the walk's own example, and deliberately inside
+    // BST: 2026's British Summer Time runs from the last Sunday in March
+    // (29 March) to the last Sunday in October (25 October), so this date
+    // carries the UTC+1 offset the single-conversion defect got wrong. A GMT
+    // date (UTC+0, no offset to drop) would pass this test whether the
+    // defect is present or not, which is exactly why the finding insists on
+    // one that is not.
+    await noticeFixture({
+      jobType: "cancellation_notice",
+      eventAt: { scheduledOn: "2026-09-06", startsAt: "19:00:00" },
+    });
+    const { sent, transport } = acceptingTransport();
+
+    await runMessagingSweep({ source: CONFIGURED, transport });
+
+    expect(sent.length).toBeGreaterThanOrEqual(1);
+    const bodies = sent.map((request) => JSON.stringify(request.body));
+    const notice = bodies.find((body) => /cancel/i.test(body));
+    expect(notice, "a cancellation notice should have been sent").toBeDefined();
+    // Defect restored (single `at time zone 'Europe/London'` at
+    // `messaging-scheduler.ts:898`) reads "18:00" here — proved
+    // arithmetically against the live database in the walk that found this,
+    // and reproduced the identical way here.
+    expect(notice).toContain("19:00");
+    expect(notice).not.toContain("18:00");
+  });
+
+  it("F-C1: refuses to send a cancellation notice for an event with no start time", async () => {
+    const target = await noticeFixture({
+      jobType: "cancellation_notice",
+      eventAt: { scheduledOn: "2026-09-06", startsAt: null },
+    });
+    const { sent, transport } = acceptingTransport();
+
+    await runMessagingSweep({ source: CONFIGURED, transport });
+
+    expect(sent).toHaveLength(0);
+    const job = await jobRow(target.jobId);
+    // Defect restored (`coalesce(e.starts_at, '00:00'::time)` with no guard)
+    // reads: status 'processing', and the sent payload states "00:00" as
+    // fact. This is the assertion that actually fails.
+    expect(job.status).toBe("failed");
   });
 });
 

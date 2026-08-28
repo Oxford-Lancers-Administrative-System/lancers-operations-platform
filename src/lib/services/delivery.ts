@@ -236,7 +236,11 @@ function messageKindFor(jobType: string): MessageKind {
 type ClaimOutcome =
   | { readonly claimed: true; readonly attempt: ClaimedAttempt }
   | { readonly claimed: false; readonly reason: "unavailable" }
-  | { readonly claimed: false; readonly reason: "undeliverable"; readonly detail: string };
+  | { readonly claimed: false; readonly reason: "undeliverable"; readonly detail: string }
+  // F-C1. Distinct from "undeliverable": the event itself has no start time,
+  // so no channel and no retry would fix it, and it must never be a
+  // WhatsApp-to-email fallback trigger the way an unreachable recipient is.
+  | { readonly claimed: false; readonly reason: "unschedulable"; readonly detail: string };
 
 /**
  * Claims one job and prepares its message, or explains why it cannot.
@@ -299,6 +303,7 @@ async function claimJobIn(
     invitation_id: string;
     event_id: string;
     event_name: string;
+    event_starts_at_set: boolean;
     when_label: string;
     deadline_label: string | null;
     venue: string | null;
@@ -315,6 +320,7 @@ async function claimJobIn(
     `select i.id as invitation_id,
             e.id as event_id,
             e.name as event_name,
+            (e.starts_at is not null) as event_starts_at_set,
             to_char(
               (e.scheduled_on + coalesce(e.starts_at, '00:00'::time)) at time zone 'Europe/London'
                 at time zone 'Europe/London',
@@ -374,6 +380,19 @@ async function claimJobIn(
       reason: "undeliverable",
       detail: context.channel === "email" ? NO_USABLE_EMAIL_REASON : NO_USABLE_NUMBER_REASON,
     };
+  }
+
+  // F-C1. `starts_at` is nullable, and `approveEvent`'s new guard (Q-31) is
+  // forward-only — it cannot reach an event that was approved, or slipped
+  // through some earlier code path, before it existed. `when_label` above is
+  // still computed with `coalesce(e.starts_at, '00:00'::time)` — every reader
+  // of this event's start shares that expression — but a fabricated midnight
+  // must never be the thing this claim then sends as fact. Deliberately its
+  // own `ClaimOutcome` reason rather than `"undeliverable"`: a different
+  // channel would fail identically, so — unlike an unreachable recipient —
+  // this must never trigger `scheduleWhatsAppFallbackIn`.
+  if (!detail.event_starts_at_set) {
+    return { claimed: false, reason: "unschedulable", detail: EVENT_HAS_NO_START_TIME_REASON };
   }
 
   const contacts = await tx.query<{
@@ -570,6 +589,19 @@ function selectEmailAddress(rows: readonly ContactRow[], context: DeliveryContex
 
   return { ok: true, recipient };
 }
+
+/**
+ * F-C1. What an operator is told when an event's dispatch was refused
+ * because the event itself carries no start time — `NO_USABLE_NUMBER_REASON`
+ * and `NO_USABLE_EMAIL_REASON`'s sibling for a fact missing from the event
+ * rather than from the recipient. Q-31's approval guard is forward-only, so
+ * this is the dispatch path's own half of the same decision: a row that
+ * slipped through before the guard existed, or was approved by an older code
+ * path, is refused here instead of stating a fabricated midnight as fact.
+ */
+export const EVENT_HAS_NO_START_TIME_REASON =
+  "This event has no start time recorded, so no message can state one as fact. Add a start " +
+  "time, then retry.";
 
 /**
  * Marks a job failed without having attempted a send — no number, no email.
@@ -811,6 +843,12 @@ export async function dispatchJob(
       // to exhaust and nothing to retry — so it is a fallback trigger on its
       // first and only failure, not merely on some later exhaustion.
       if (channel === "whatsapp") fallbackId = await scheduleWhatsAppFallbackIn(tx, jobId);
+    } else if (!outcome.claimed && outcome.reason === "unschedulable") {
+      // F-C1. Recorded the same visible, retryable way as "undeliverable" —
+      // an operator fixes the event's start time, then presses Retry — but
+      // never a fallback trigger: the email channel would fail identically,
+      // since the fact missing is the event's, not the recipient's.
+      await recordUndeliverableIn(tx, jobId, outcome.detail, context);
     }
     return { outcome, fallbackId };
   });
@@ -818,7 +856,9 @@ export async function dispatchJob(
   if (claim.fallbackId) await dispatchFallbackBestEffort(claim.fallbackId, options);
 
   if (!claim.outcome.claimed) {
-    return claim.outcome.reason === "undeliverable" ? "refused" : "skipped";
+    return claim.outcome.reason === "undeliverable" || claim.outcome.reason === "unschedulable"
+      ? "refused"
+      : "skipped";
   }
   const claimedAttempt = claim.outcome.attempt;
 

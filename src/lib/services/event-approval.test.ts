@@ -37,7 +37,7 @@ import {
   type AudienceCatalogue,
 } from "./event-audience";
 import { createEventDraft, readEvent, updateEventDraft, type EventDraftInput } from "./events";
-import { readMessagingScheduleIn } from "./messaging-schedule";
+import { readMessagingScheduleIn, resolveMessagingPlanIn } from "./messaging-schedule";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const NAME_MARKER = "LAN77ApprovalSuite";
@@ -400,6 +400,55 @@ describe("an empty audience is refused by the service layer", () => {
     const audience = await readEventAudience(event.id);
     expect(audience).toHaveLength(3);
     expect((await readEvent(event.id)).venue).toBe("A different pitch");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F-C1 (LAN-180), owner decision Q-31: approval refuses without a start time
+// ---------------------------------------------------------------------------
+
+describe("F-C1 — approval refuses an event with no start time", () => {
+  it("refuses, naming the missing field, and approves nothing", async () => {
+    const event = await newDraft({ startsAt: null });
+    const keys = await keysFor(event, "player", 2);
+
+    const error = await caught(() => approve(event.id, keys));
+
+    expect(error.kind).toBe("constraint_violated");
+    // Defect restored (`missingForApproval` checking only `scheduledOn`)
+    // reads: the approval succeeds, `error` is never thrown, and `caught()`
+    // itself throws "Expected the call to be refused, and it was not." —
+    // this whole test fails, not merely the assertion below.
+    expect(error.message).toMatch(/start time/);
+
+    const after = await readEvent(event.id);
+    expect(after.status).toBe("draft");
+    expect(await countsFor(event.id)).toEqual({
+      audience: 2,
+      invitations: 0,
+      jobs: 0,
+      reminders: 0,
+      uninvited: 0,
+    });
+  });
+
+  it("still approves a start time of exactly midnight — a real kick-off, not a missing one", async () => {
+    // The guard is "no start time recorded", not "starts_at is falsy" —
+    // `00:00:00` is a legitimate, club-set value (an event that really does
+    // start at midnight) and must not be refused as though it were null.
+    const event = await newDraft({ startsAt: "00:00" });
+    const keys = await keysFor(event, "player", 1);
+
+    await approve(event.id, keys);
+    expect((await readEvent(event.id)).status).toBe("approved");
+  });
+
+  it("still refuses an event with no date at all, unaffected by the new check", async () => {
+    const event = await newDraft({ scheduledOn: null, startsAt: null });
+    const keys = await keysFor(event, "player", 1);
+
+    const error = await caught(() => approve(event.id, keys));
+    expect(error.message).toMatch(/date/);
   });
 });
 
@@ -1037,7 +1086,7 @@ describe("every event type in the enum gets the deadline Brian configured", () =
     expect(stored.rows[0].expires_at.toISOString()).toBe(expiresAt);
   });
 
-  it("falls back to midnight when an event has no start time", async () => {
+  it("computes a deadline from midnight when an event has no start time, though approving one is now refused — F-C1, Q-31", async () => {
     // `events.starts_at` is nullable and the club relies on it: a confirmed
     // fixture date routinely arrives long before a kick-off time. Counting from
     // the event's own start (`REQ-deadline-from-event-start`) therefore needs an
@@ -1045,6 +1094,29 @@ describe("every event type in the enum gets the deadline Brian configured", () =
     // its day — the earliest instant the event could possibly begin, so the
     // deadline is never later than the rule intends. A time added later moves
     // the deadline forward, which is the safe direction.
+    //
+    // F-C1, Q-31 (LAN-180) narrowed *approval* to refuse this exact case — see
+    // the `F-C1` describe block above — so this can no longer be proved by
+    // driving a real `approve()` the way it was before that guard existed.
+    // The arithmetic below still has to hold, though: this ticket's own F-A2/
+    // F-C3 repair (`recomputeScheduleOnRescheduleIn`) reaches an
+    // already-approved legacy event through `resolveMessagingPlanIn`
+    // directly, and such an event can carry no start time either — the
+    // guard is forward-only and cannot have stopped it. That repair must not
+    // throw merely because the arithmetic has nothing but midnight to count
+    // from, which is what this now proves, one layer down from the service
+    // call that used to carry it.
+    const plan = await withTransaction((tx) =>
+      resolveMessagingPlanIn(tx, {
+        eventType: "practice",
+        scheduledOn: "2026-10-18",
+        startsAt: null,
+      }),
+    );
+    expect(plan.responseDeadlineAt.toISOString()).toBe("2026-10-15T23:00:00.000Z");
+
+    // And the service-layer guard itself, on the identical fixture: approving
+    // it outright is what F-C1 refuses now.
     const event = await insertDraftDirectly({
       name: `${NAME_MARKER} Dateless kickoff`,
       eventType: "practice",
@@ -1052,19 +1124,15 @@ describe("every event type in the enum gets the deadline Brian configured", () =
       startsAt: null,
     });
     const keys = await keysFor(event, "player", 1);
+    const error = await caught(() => approve(event.id, keys));
+    expect(error.message).toMatch(/start time/);
 
-    const outcome = await approve(event.id, keys);
-
-    expect(outcome.deadline?.at.toISOString()).toBe("2026-10-15T23:00:00.000Z");
-
-    const stored = await observer.query<{ starts_at: string | null; expires_at: Date }>(
-      `select e.starts_at::text as starts_at, i.expires_at
-         from public.events e join public.invitations i on i.event_id = e.id
-        where e.id = $1`,
+    const stored = await observer.query<{ status: string; starts_at: string | null }>(
+      "select status::text as status, starts_at::text as starts_at from public.events where id = $1",
       [event.id],
     );
+    expect(stored.rows[0].status).toBe("draft");
     expect(stored.rows[0].starts_at).toBeNull();
-    expect(stored.rows[0].expires_at.toISOString()).toBe("2026-10-15T23:00:00.000Z");
   });
 
   it("resolves the wall clock either side of a British Summer Time change", async () => {

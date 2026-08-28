@@ -29,6 +29,7 @@ import { closePool, isServiceError, NotPermitted } from "@/lib/db";
 import { requireGeneralOperator } from "@/lib/auth/guards";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { NO_USABLE_NUMBER_REASON } from "@/lib/delivery/phone";
+import { ESCALATED_TO_PRESIDENT, ESCALATION_NOT_DELIVERED } from "./chase-position";
 import { dispatchJob, EMAIL_FALLBACK_SUFFIX, MAX_ATTEMPTS } from "./delivery";
 import { readFollowUpsQueue, countPeople } from "./follow-ups";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
@@ -368,6 +369,88 @@ describe("the queue itself", () => {
     const events = await readFollowUpsQueue();
     const row = personRow(events, "Invitee");
     expect(row?.status).toBe("delivery_problem");
+  });
+});
+
+/**
+ * F-B1, mechanism 4, LAN-180. Raises an escalation flag for a fixture's
+ * invitation and gives it an escalation job in a chosen state — the shape
+ * `raiseDueEscalations`/`dispatchEscalationJob` (`messaging-scheduler.ts`)
+ * write for real, reproduced directly so a test can choose the job's outcome
+ * without driving a whole sweep tick and a live transport for it.
+ */
+async function raiseEscalationWithJobStatus(
+  target: Fixture,
+  status: "completed" | "processing" | "failed",
+): Promise<void> {
+  const job = await observer.query<{ id: string }>(
+    `insert into public.notification_jobs
+       (idempotency_key, job_type, status, event_id, person_id, channel,
+        attempt_count, last_error, next_attempt_at)
+     values ($1, 'escalation', $2::public.notification_job_status, $3, $4, 'whatsapp', 1,
+             case when $2::text = 'failed' then $5 else null end, null)
+     returning id`,
+    [
+      `${MARKER}:${target.eventId}:escalation`,
+      status,
+      target.eventId,
+      target.personId,
+      NO_USABLE_NUMBER_REASON,
+    ],
+  );
+  await observer.query(
+    `insert into public.nonresponse_flags (invitation_id, threshold, escalation_job_id)
+     values ($1, 'escalation', $2)`,
+    [target.invitationId, job.rows[0].id],
+  );
+}
+
+describe("F-B1, mechanism 4 — the label reflects the escalation job's real state", () => {
+  it("reads escalated only once the escalation job has actually sent", async () => {
+    const target = await fixture();
+    await raiseEscalationWithJobStatus(target, "completed");
+
+    const events = await readFollowUpsQueue();
+    const row = personRow(events, "Invitee");
+    expect(row?.status).toBe("escalated");
+    expect(row?.chasePosition).toBe(ESCALATED_TO_PRESIDENT);
+  });
+
+  it("never reads escalated for a terminally failed escalation job — the regression itself", async () => {
+    // The walk's own finding, reproduced directly: three people read
+    // "Escalated to the President" while their own job was `failed`,
+    // attempt 1, `next_attempt_at` null. Defect restored
+    // (`follow-ups.ts:186-187`'s `row.escalation_job_id` check alone) reads
+    // `status: "escalated"` and `chasePosition: "Escalated to the
+    // President"` here — both assertions below are what actually fail.
+    const target = await fixture();
+    await raiseEscalationWithJobStatus(target, "failed");
+
+    const events = await readFollowUpsQueue();
+    const row = personRow(events, "Invitee");
+    expect(row?.status).toBe("delivery_problem");
+    expect(row?.chasePosition).toBe(ESCALATION_NOT_DELIVERED);
+  });
+
+  it("reads escalation_held for the Status chip, and Escalation not delivered for the chase position, while the office is vacant", async () => {
+    // `flag_open` true, `escalation_job_id` null, is F4's pre-existing
+    // "President's office is vacant" state — unaffected by this fix on the
+    // Status-chip side, and named here so it is not confused with the
+    // regression above. The chase-position side genuinely was wrong before
+    // this fix, though: `chasePositionLabel` read `escalated: row.flag_open`
+    // alone and would have said "Escalated to the President" here too, with
+    // no job ever having existed to send it.
+    const target = await fixture();
+    await observer.query(
+      `insert into public.nonresponse_flags (invitation_id, threshold, escalation_job_id)
+       values ($1, 'escalation', null)`,
+      [target.invitationId],
+    );
+
+    const events = await readFollowUpsQueue();
+    const row = personRow(events, "Invitee");
+    expect(row?.status).toBe("escalation_held");
+    expect(row?.chasePosition).toBe(ESCALATION_NOT_DELIVERED);
   });
 });
 
