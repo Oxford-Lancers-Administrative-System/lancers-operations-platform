@@ -59,6 +59,29 @@ const FRAME = seedFrame(new Date());
 const SHIFT_DAYS = FRAME.shiftDays;
 const NOW = FRAME.now;
 
+/**
+ * LAN-180 correction. `NOW` is deliberately day-granular — noon on today's
+ * date, in the authored frame — because the frame's own job is choosing
+ * which *day* things land on, never the instant within it. A "must not sit
+ * in the future" bound that only checked against `NOW` therefore let a
+ * generated instant land anywhere up to that noon anchor, which a real
+ * `now()` check run any time before noon UTC still reads as future — proved
+ * by reproducing it against a completely fresh seed with zero tests run:
+ * 256 `rsvp_responses` rows, every one between 01:00 and 11:59 UTC that
+ * same day, the exact pre-noon window this left open (CI's own run hit the
+ * identical shape).
+ *
+ * `REAL_NOW_AUTHORED_MS` is the actual current instant, expressed in the
+ * same authored-frame terms `NOW` already is — subtracting `SHIFT_DAYS`
+ * here is what the uniform `+SHIFT_DAYS` slide at the bottom of this file
+ * later undoes, landing it back on the real instant it started from.
+ * `Math.min(NOW, REAL_NOW_AUTHORED_MS)` is the tightened bound: before noon
+ * it is the real instant that wins and closes the gap; from noon onward
+ * `NOW` is already the earlier of the two, so nothing downstream of this
+ * changes for the rest of the day.
+ */
+const REAL_NOW_AUTHORED_MS = Date.now() - SHIFT_DAYS * 86_400_000;
+
 // ---------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------
@@ -2019,10 +2042,16 @@ for (const invitation of invitations) {
   // `min(deadline, NOW)` instead means a future deadline can no longer push
   // the answer into the future; a past deadline (an event that has already
   // happened) computes exactly as before, unaffected.
-  const answerableBy = deadline ? Math.min(deadline.getTime(), NOW.getTime()) : NOW.getTime();
+  //
+  // LAN-180 correction: `NOW` alone is not tight enough — see
+  // `REAL_NOW_AUTHORED_MS`'s own comment above for why bounding against it
+  // too is what actually closes the gap OWNER-LAN172-21 left, without
+  // touching the frame's own day-level semantics.
+  const nowBound = Math.min(NOW.getTime(), REAL_NOW_AUTHORED_MS);
+  const answerableBy = deadline ? Math.min(deadline.getTime(), nowBound) : nowBound;
   const answeredAt = deadline
     ? new Date(answerableBy - intBetween(1, 96) * 3600000)
-    : new Date(NOW.getTime() - intBetween(1, 240) * 3600000);
+    : new Date(answerableBy - intBetween(1, 240) * 3600000);
 
   let response = outcome === "yes" ? "yes" : "no";
   let rawCapture = null;
@@ -2060,12 +2089,14 @@ for (const invitation of invitations) {
 
   // A changed answer supersedes the previous one; both are retained forever.
   // OWNER-LAN172-21: `answeredAt` is now always at least an hour before
-  // `NOW` (both branches above use a minimum one-hour offset), so capping
-  // the revision at `NOW` minus one minute both keeps it from landing in
-  // the future and guarantees it still sorts after `answeredAt` — the
-  // "supersedes" this comment promises.
+  // `nowBound` (both branches above use a minimum one-hour offset), so
+  // capping the revision at `nowBound` minus one minute both keeps it from
+  // landing in the future and guarantees it still sorts after `answeredAt`
+  // — the "supersedes" this comment promises. LAN-180 correction: capped at
+  // `nowBound`, not `NOW`, for the identical reason `answeredAt` above is —
+  // `NOW` alone was not tight enough before noon UTC.
   if (chance(0.03)) {
-    const revisedAt = new Date(Math.min(answeredAt.getTime() + 6 * 3600000, NOW.getTime() - 60000));
+    const revisedAt = new Date(Math.min(answeredAt.getTime() + 6 * 3600000, nowBound - 60000));
     const revised = response === "yes" ? "no" : "yes";
     add("rsvp_responses", {
       id: uuid(),
