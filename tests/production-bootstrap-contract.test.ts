@@ -854,7 +854,7 @@ describe.runIf(configured)("the bootstrap, run against local Supabase", () => {
 
       // The count-neutral write — the shape the old fingerprint could not see.
       const updated = await client.query(
-        "update public.people set known_as = $1 where given_name = $2 and family_name = $3",
+        "update public.people set college = $1 where given_name = $2 and family_name = $3",
         ["Changed", MARKER, "R2probe"],
       );
       expect(updated.rowCount, "the probe must have updated its own row").toBe(1);

@@ -103,7 +103,7 @@ const ENTRIES: RosterEntry[] = [
     personId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     givenName: "Avery",
     familyName: "Fielding",
-    knownAs: "Avery",
+    displayAlias: "Avery",
     displayName: "Avery Fielding",
     status: "active",
     entry: "returning",
@@ -118,9 +118,9 @@ const ENTRIES: RosterEntry[] = [
     personId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     givenName: "Samira",
     familyName: "Quinn",
-    knownAs: null,
+    displayAlias: null,
     displayName: "Samira Quinn",
-    status: "confirmed",
+    status: "onboarding",
     entry: "returning",
     email: "samira.quinn@example.invalid",
     phone: "+44 7700 900103",
@@ -134,9 +134,9 @@ const ENTRIES: RosterEntry[] = [
     personId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
     givenName: "Ari",
     familyName: null,
-    knownAs: null,
+    displayAlias: null,
     displayName: "Ari",
-    status: "carried_forward",
+    status: "inactive",
     entry: "new",
     email: null,
     phone: null,
@@ -188,9 +188,9 @@ function membership(overrides: Partial<MembershipRecord> = {}): MembershipRecord
     personId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     givenName: "Avery",
     familyName: "Fielding",
-    knownAs: "Avery",
+    displayAlias: "Avery",
     displayName: "Avery Fielding",
-    status: "confirmed",
+    status: "onboarding",
     entry: "returning",
     seasonId: "season",
     seasonLabel: "2026-27",
@@ -204,16 +204,8 @@ function membership(overrides: Partial<MembershipRecord> = {}): MembershipRecord
     statusHistory: [
       {
         fromStatus: null,
-        toStatus: "carried_forward",
+        toStatus: "onboarding",
         occurredAt: new Date("2026-08-12T13:36:00Z"),
-        actorName: "Morgan Pike",
-        actorLabel: null,
-        reason: null,
-      },
-      {
-        fromStatus: "carried_forward",
-        toStatus: "confirmed",
-        occurredAt: new Date("2026-08-12T13:37:00Z"),
         actorName: "Morgan Pike",
         actorLabel: null,
         reason: "Returner verification completed (operator entry)",
@@ -275,18 +267,24 @@ describe("UX-20 — Roster", () => {
 
   it("carries the approved columns", () => {
     const table = screen.getByRole("table", { name: "Roster" });
+    const headings = within(table)
+      .getAllByRole("columnheader")
+      .map((cell) => cell.textContent?.trim());
     for (const column of ["Member", "Status", "Entry", "Email", "Phone", "Onboarding"]) {
-      expect(within(table).getByText(column)).toBeInTheDocument();
+      expect(headings).toContain(column);
     }
   });
 
   it("renders one row per membership, with its status in words", () => {
     expect(screen.getAllByTestId("roster-row")).toHaveLength(3);
 
-    const table = screen.getByRole("table", { name: "Roster" });
-    expect(within(table).getByText("Active")).toBeInTheDocument();
-    expect(within(table).getByText("Confirmed")).toBeInTheDocument();
-    expect(within(table).getByText("Carried forward")).toBeInTheDocument();
+    // Read out of the Status cell rather than searched for across the table:
+    // "Onboarding" is now both a status word and a column heading, so a plain
+    // text query is ambiguous and would pass on the wrong element.
+    const words = screen
+      .getAllByTestId("roster-row")
+      .map((row) => within(row).getAllByRole("cell")[1].textContent?.trim());
+    expect(words).toEqual(["Active", "Onboarding", "Inactive"]);
   });
 
   it("opens the membership record from the row", () => {
@@ -426,7 +424,7 @@ describe("UX-21 — the membership record", () => {
   it("leads with the person and the membership line", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Avery Fielding");
     expect(screen.getByTestId("membership-subtitle")).toHaveTextContent(
-      "2026-27 membership · Returning · Confirmed",
+      "2026-27 membership · Returning · Onboarding",
     );
   });
 
@@ -462,8 +460,7 @@ describe("UX-21 — the membership record", () => {
 
   it("reads the typed status history rather than summarising it", () => {
     const history = screen.getByTestId("status-history");
-    expect(within(history).getByText("Created as carried forward")).toBeInTheDocument();
-    expect(within(history).getByText("Carried forward → Confirmed")).toBeInTheDocument();
+    expect(within(history).getByText("Created as onboarding")).toBeInTheDocument();
     expect(
       within(history).getByText("Returner verification completed (operator entry)"),
     ).toBeInTheDocument();

@@ -72,7 +72,7 @@ Both halves, on every row `setup.sql` writes:
 
 - a deterministic primary key from the block `00750075-0075-4075-8075-…`
 - the sentinel `PILOT-LAN-75` in a text column — `label` on an item type,
-  `known_as` on a person, `source` on a contact point, `actor_label` on a status
+  the display alias of a person, `source` on a contact point, `actor_label` on a status
   event
 
 The `onboarding_items` rows are the one exception: on a `pending` row the

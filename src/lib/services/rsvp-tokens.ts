@@ -3,6 +3,7 @@ import "server-only";
 import crypto from "node:crypto";
 
 import { ConstraintViolated, InvalidTransition, withTransaction, type Tx } from "@/lib/db";
+import { personDisplayAliasSql } from "./sql-text";
 
 /**
  * RSVP access tokens. LAN-78, implementing Brian's decided token behaviour
@@ -279,7 +280,7 @@ export async function resolveRsvpTokenIn(tx: Tx, token: string): Promise<TokenRe
     starts_at: Date;
     expires_at: Date;
     given_name: string;
-    known_as: string | null;
+    display_alias: string | null;
   }>(
     `select t.id as token_id,
             t.revoked_at is not null as revoked,
@@ -290,7 +291,8 @@ export async function resolveRsvpTokenIn(tx: Tx, token: string): Promise<TokenRe
             i.id as invitation_id,
             e.id as event_id, e.name as event_name, e.status::text as event_status,
             ${EVENT_START_EXPRESSION} as starts_at,
-            p.given_name, p.known_as
+            p.given_name,
+              ${personDisplayAliasSql("p")} as display_alias
        from public.rsvp_access_tokens t
        join public.invitations i on i.id = t.invitation_id
        join public.events e on e.id = i.event_id
@@ -303,7 +305,7 @@ export async function resolveRsvpTokenIn(tx: Tx, token: string): Promise<TokenRe
   const row = result.rows[0];
   if (!row) return { state: "unknown", invitation: null, writable: false };
 
-  const known = row.known_as?.trim();
+  const known = row.display_alias?.trim();
   const invitation: ResolvedInvitation = {
     invitationId: row.invitation_id,
     eventId: row.event_id,

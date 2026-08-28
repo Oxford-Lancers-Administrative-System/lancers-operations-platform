@@ -40,13 +40,17 @@
 -- trailing space, would otherwise leave rows behind that every count in this
 -- file reports as absent.
 --
--- Both columns are still recognised. Scenario rows carry the sentinel in
--- `known_as`, because setup.sql can set any column and person …0001 is
+-- Both homes are still recognised. Scenario rows carry the sentinel as their
+-- display alias, because setup.sql can write one and person …0001 is
 -- deliberately first-name-only so it has no family name to carry one. Rows the
--- interface creates carry it in `family_name`. The predicate is
--- `'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name)))`,
--- which reads either column, forgives case and surrounding spaces, and puts no
--- disjunction inside a delete.
+-- interface creates carry it in `family_name`. The predicate reads either,
+-- forgives case and surrounding spaces, and puts no disjunction inside a
+-- delete.
+--
+-- It used to read `known_as`. LAN-182 struck that column and moved the name a
+-- person is shown under into `person_aliases`, so the alias-flagged row is
+-- where the sentinel now lives — the same rows are in scope, found through the
+-- table that now holds the fact.
 --
 -- Five of the deletes below are therefore keyed on the sentinel alone. That is
 -- the second ownership shape, governed by ADR 0019 — LAN-76 uses it too, so
@@ -97,7 +101,7 @@ select
   ) as scenario_people,
   (
     select count(*) from public.people
-     where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name)))
+     where 'PILOT-LAN-74' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)))
        and id not in (
          '00740074-0074-4074-8074-000000000001',
          '00740074-0074-4074-8074-000000000003'
@@ -132,17 +136,36 @@ begin
   --     occupied by a row without this scenario's sentinel, it is somebody
   --     else's row and this script stops.
   if exists (
-    select 1 from public.people
-     where id = person_a and known_as is distinct from sentinel
+    select 1 from public.people p
+     where p.id = person_a
+       and not exists (
+         select 1 from public.person_aliases a
+          where a.person_id = p.id and a.alias = sentinel)
   ) then
     raise exception 'LAN-74 pilot cleanup refused: people …0001 does not carry the PILOT-LAN-74 sentinel. Refusing to delete a person record this scenario does not own.';
   end if;
 
   if exists (
-    select 1 from public.people
-     where id = person_b and known_as is distinct from sentinel
+    select 1 from public.people p
+     where p.id = person_b
+       and not exists (
+         select 1 from public.person_aliases a
+          where a.person_id = p.id and a.alias = sentinel)
   ) then
     raise exception 'LAN-74 pilot cleanup refused: people …0003 does not carry the PILOT-LAN-74 sentinel. Refusing to delete a person record this scenario does not own.';
+  end if;
+
+  -- The alias rows are the scenario's own since LAN-182, so their identifiers
+  -- are guarded the same way every other identifier in the block is.
+  if exists (
+    select 1 from public.person_aliases
+     where id in (
+       '00740074-0074-4074-8074-000000000091',
+       '00740074-0074-4074-8074-000000000093'
+     )
+       and (alias is distinct from sentinel or source is distinct from sentinel)
+  ) then
+    raise exception 'LAN-74 pilot cleanup refused: a person_aliases row in this scenario''s identifier block is not this scenario''s.';
   end if;
 
   if exists (
@@ -171,7 +194,7 @@ begin
   select coalesce(array_agg(id), '{}')
     into swept
     from public.people
-   where sentinel in (upper(btrim(known_as)), upper(btrim(family_name)))
+   where sentinel in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)))
      and id <> all (scenario_people);
 
   -- Materialised so that the statements which DELETE use exactly the set that
@@ -245,14 +268,18 @@ begin
 
   -- (f) Rows PostgreSQL would remove or alter WITHOUT being asked.
   --
-  --     Exactly three foreign keys in this schema are `on delete cascade` or
+  --     Exactly four foreign keys in this schema are `on delete cascade` or
   --     `on delete set null` and point at a table this script deletes from:
-  --     `contact_points(person_id)` and `person_aliases(person_id)` cascade
-  --     from `people`, and `staging.legacy_roster_rows(matched_person_id)` is
-  --     nulled. All three are named here, and a test reads `pg_constraint` to
-  --     prove the list is still complete — so a later migration adding a fourth
-  --     fails a test rather than silently turning a narrow delete into a wide
-  --     one.
+  --     `contact_points(person_id)`, `person_aliases(person_id)` and
+  --     `person_emergency_contacts(person_id)` cascade from `people`, and
+  --     `staging.legacy_roster_rows(matched_person_id)` is nulled. All four are
+  --     named here, and a test reads `pg_constraint` to prove the list is still
+  --     complete — so a later migration adding a fifth fails a test rather than
+  --     silently turning a narrow delete into a wide one.
+  --
+  --     It said three until LAN-182 added the emergency contact. That is the
+  --     mechanism working: the migration did not have to remember this file,
+  --     because the test named it.
   --
   --     This script removes contact points and aliases explicitly, in order,
   --     rather than relying on the cascade. A row it does NOT own must still
@@ -295,11 +322,30 @@ begin
     raise exception 'LAN-74 pilot cleanup refused: contact_points that this scenario did not create hang off a person it would delete, and would be cascade-deleted.';
   end if;
 
+  -- The scenario writes exactly two aliases now — since LAN-182 they ARE the
+  -- sentinel — so this refusal narrowed rather than disappeared: any other
+  -- alias hanging off a scenario person is a record somebody else made, and it
+  -- still stops this script.
   if exists (
     select 1 from public.person_aliases
      where person_id = any (scenario_people)
+       and id not in (
+         '00740074-0074-4074-8074-000000000091',
+         '00740074-0074-4074-8074-000000000093'
+       )
   ) then
-    raise exception 'LAN-74 pilot cleanup refused: person_aliases rows hang off a scenario person and would be cascade-deleted. The scenario creates none.';
+    raise exception 'LAN-74 pilot cleanup refused: person_aliases rows this scenario did not write hang off a scenario person and would be cascade-deleted.';
+  end if;
+
+  -- LAN-182's new table, and the fourth cascade. An emergency contact is
+  -- third-party personal data about somebody who never agreed to be in this
+  -- system; it must never leave by a side effect of a scenario teardown.
+  if exists (
+    select 1 from public.person_emergency_contacts
+     where person_id in (select person_id from pilot_lan_74_targets)
+        or person_id = any (scenario_people)
+  ) then
+    raise exception 'LAN-74 pilot cleanup refused: person_emergency_contacts rows hang off a person this script would delete and would be cascade-deleted. The scenario creates none.';
   end if;
 
   -- The staging check is nested rather than combined with `and`: plpgsql plans
@@ -419,7 +465,7 @@ delete from public.season_membership_status_events
 -- removing, including the ones the application wrote.
 delete from public.season_membership_status_events
  where season_membership_id in (select id from public.season_memberships where person_id in (select person_id from pilot_lan_74_targets))
-   and season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name)))));
+   and season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)))));
 
 -- 2. Memberships — the scenario's own row, then the ones created through the
 --    interface: README step 3's on scenario person …0003, and step 4's on the
@@ -430,7 +476,7 @@ delete from public.season_memberships
 
 delete from public.season_memberships
  where person_id in (select person_id from pilot_lan_74_targets)
-   and person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name))));
+   and person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name))));
 
 -- 3. Contact points — the scenario's own three, one statement each, then
 --    anything the interface recorded against these people.
@@ -448,28 +494,34 @@ delete from public.contact_points
 
 delete from public.contact_points
  where person_id in (select person_id from pilot_lan_74_targets)
-   and person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name))));
+   and person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name))));
 
--- Aliases. The scenario writes none and the preflight refuses if one exists on
--- a scenario person, so this reaches only swept people.
+-- Aliases. Display aliases are deliberately left to the cascade: since LAN-182
+-- the alias flagged as a person's display name is what carries this scenario's
+-- sentinel, so it is the ownership marker the `people` deletes below pair
+-- against, and removing it here would leave every one of them matching nothing.
+-- Every other alias on a swept person is removed here, explicitly.
 delete from public.person_aliases
  where person_id in (select person_id from pilot_lan_74_targets)
-   and person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name))));
+   and person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name))))
+   and not is_display_name;
 
 -- 4. The people themselves, last — the scenario's two by identifier and
 --    sentinel, then the returner created through the interface, whose sentinel
 --    is in the last name because that is the field the form has.
 delete from public.people
  where id = '00740074-0074-4074-8074-000000000001'
-   and known_as = 'PILOT-LAN-74';
+   and exists (select 1 from public.person_aliases a
+                where a.person_id = people.id and a.alias = 'PILOT-LAN-74');
 
 delete from public.people
  where id = '00740074-0074-4074-8074-000000000003'
-   and known_as = 'PILOT-LAN-74';
+   and exists (select 1 from public.person_aliases a
+                where a.person_id = people.id and a.alias = 'PILOT-LAN-74');
 
 delete from public.people
  where id in (select person_id from pilot_lan_74_targets)
-   and 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name)));
+   and 'PILOT-LAN-74' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)));
 
 -- ---------------------------------------------------------------------------
 -- Verification — read this before you commit
@@ -478,7 +530,7 @@ delete from public.people
 -- alongside so the "nothing else went with it" check needs no second query.
 select
   'people carrying the sentinel' as check,
-  count(*) filter (where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name)))) as remaining
+  count(*) filter (where 'PILOT-LAN-74' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)))) as remaining
   from public.people
 union all
 select 'scenario contact_points', count(*) filter (where source = 'PILOT-LAN-74')

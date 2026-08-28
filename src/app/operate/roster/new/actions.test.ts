@@ -293,7 +293,7 @@ describe("the write, and how it ends", () => {
         personId,
         givenName: "Avery",
         familyName: "Fielding",
-        knownAs: "Ave",
+        displayAlias: "Ave",
         email: null,
         phone: null,
         currentMembership: {

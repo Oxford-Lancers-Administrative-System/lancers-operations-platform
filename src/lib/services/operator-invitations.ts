@@ -20,6 +20,7 @@ import {
   type Tx,
 } from "@/lib/db";
 import { recordAdministrationEvent } from "./administration-audit";
+import { personDisplayAliasSql } from "./sql-text";
 import type { AdministrationOperatingYear } from "./administration-events";
 import {
   deriveOperatorAccountState,
@@ -316,7 +317,8 @@ export interface OperatorCandidate {
   readonly personId: string;
   readonly givenName: string;
   readonly familyName: string | null;
-  readonly knownAs: string | null;
+  /** The alias flagged as this person's display name, if they have one. */
+  readonly displayAlias: string | null;
   /** A current email of theirs, preferred first. Shown so the choice is informed. */
   readonly email: string | null;
   readonly phone: string | null;
@@ -345,7 +347,7 @@ interface CandidateRow {
   person_id: string;
   given_name: string;
   family_name: string | null;
-  known_as: string | null;
+  display_alias: string | null;
   email: string | null;
   phone: string | null;
   operator_account_id: string | null;
@@ -444,7 +446,7 @@ export async function findOperatorCandidates(
          p.id                       as person_id,
          p.given_name,
          p.family_name,
-         p.known_as,
+         ${personDisplayAliasSql("p")} as display_alias,
          display_contact.email,
          display_contact.phone,
          oa.id                      as operator_account_id,
@@ -454,12 +456,13 @@ export async function findOperatorCandidates(
          oa.invitation_delivery_failed_at as operator_delivery_failed_at,
          oa.email_rehome_pending_at as operator_email_rehome_pending_at,
          coalesce(lower(btrim(p.given_name)) = w.given_name
-                  or lower(btrim(p.known_as)) = w.given_name
                   or am.by_given, false)    as matched_given,
          coalesce(lower(btrim(p.family_name)) = w.family_name
                   or am.by_family, false)   as matched_family,
-         coalesce(lower(btrim(p.known_as)) = w.known_as
-                  or lower(btrim(p.given_name)) = w.known_as
+         -- No known-as arm: LAN-182 moved that value into person_aliases,
+         -- which the alias_match CTE above already scans, so am.by_known_as
+         -- catches what the struck column used to catch.
+         coalesce(lower(btrim(p.given_name)) = w.known_as
                   or am.by_known_as, false) as matched_known_as,
          -- An address already in use as a login is a match on the address,
          -- and says so in the same word the other matches use. Without the
@@ -477,9 +480,7 @@ export async function findOperatorCandidates(
       where p.merged_into_person_id is null
         and (
           lower(btrim(p.given_name)) = w.given_name
-          or lower(btrim(p.known_as)) = w.given_name
           or lower(btrim(p.family_name)) = w.family_name
-          or lower(btrim(p.known_as)) = w.known_as
           or lower(btrim(p.given_name)) = w.known_as
           or coalesce(am.by_given or am.by_family or am.by_known_as, false)
           or coalesce(cm.by_email or cm.by_phone, false)
@@ -521,7 +522,7 @@ function toCandidate(row: CandidateRow): OperatorCandidate {
     personId: row.person_id,
     givenName: row.given_name,
     familyName: row.family_name,
-    knownAs: row.known_as,
+    displayAlias: row.display_alias,
     email: row.email,
     phone: row.phone,
     operatorAccount:
@@ -1470,12 +1471,25 @@ async function createOrLinkPerson(
 
   const knownAs = blankToNull(subject.knownAs);
   const inserted = await tx.query<{ id: string }>(
-    `insert into public.people (given_name, family_name, known_as)
-     values ($1, $2, $3)
+    `insert into public.people (given_name, family_name)
+     values ($1, $2)
      returning id`,
-    [givenName, familyName, knownAs],
+    [givenName, familyName],
   );
   const personId = inserted.rows[0].id;
+
+  // LAN-182: known-as is no longer a column. A supplied one becomes the
+  // person's display alias, which is the same fact in the place that now holds
+  // it — and, unlike the old column, it also makes this person matchable by
+  // that name the next time somebody is entered.
+  if (knownAs !== null && knownAs.toLowerCase() !== givenName.toLowerCase()) {
+    await tx.query(
+      `insert into public.person_aliases (person_id, alias, source, is_display_name)
+       values ($1::uuid, $2, 'operator invitation', true)
+       on conflict (person_id, alias) do nothing`,
+      [personId, knownAs],
+    );
+  }
 
   // The email and the optional phone become contact points, preferred, because
   // a brand-new Person has none of either and the club now knows both. An

@@ -66,7 +66,7 @@
 --
 -- OWNERSHIP MARKER — both halves, on every row this script writes:
 --   * a deterministic primary key from the block 01100110-0110-4110-8110-…
---   * the sentinel string PILOT-LAN-110 in a text column — `known_as` on a
+--   * the sentinel string PILOT-LAN-110 in a text column — the display alias of a
 --     person, `name` on the event, `note` on a role assignment, `reason` on the
 --     one negative RSVP answer.
 --   `season_memberships`, `event_audience_members` and `invitations` are the
@@ -86,6 +86,10 @@
 -- never silently rewritten.
 --
 -- Paired with cleanup.sql in this directory. Read README.md there first.
+--
+-- That alias is where LAN-182 moved the name a person is shown under. It was
+-- `people.known_as` until the migration struck that column; the sentinel reads
+-- on screen in exactly the same place it always did.
 
 begin;
 
@@ -209,21 +213,27 @@ $preflight$;
 -- ---------------------------------------------------------------------------
 -- The people
 -- ---------------------------------------------------------------------------
--- `known_as` carries the sentinel AND is what the application displays, because
+-- The display alias carries the sentinel AND is what the application displays, because
 -- it is preferred over `given_name`. So the sentinel is inside the name you
 -- will actually read on the screen rather than hidden behind it.
-insert into public.people (id, given_name, family_name, known_as)
+insert into public.people (id, given_name, family_name)
 values
-  ('01100110-0110-4110-8110-000000000001', 'Coach', 'Authorized',
-   'PILOT-LAN-110 Authorized head coach'),
-  ('01100110-0110-4110-8110-000000000002', 'Coach', 'Outofpost',
-   'PILOT-LAN-110 Coach out of post'),
-  ('01100110-0110-4110-8110-000000000003', 'Player', 'Saidyes',
-   'PILOT-LAN-110 Said yes'),
-  ('01100110-0110-4110-8110-000000000004', 'Player', 'Saidno',
-   'PILOT-LAN-110 Said no'),
-  ('01100110-0110-4110-8110-000000000005', 'Player', 'Noresponse',
-   'PILOT-LAN-110 No response')
+  ('01100110-0110-4110-8110-000000000001', 'Coach', 'Authorized'),
+  ('01100110-0110-4110-8110-000000000002', 'Coach', 'Outofpost'),
+  ('01100110-0110-4110-8110-000000000003', 'Player', 'Saidyes'),
+  ('01100110-0110-4110-8110-000000000004', 'Player', 'Saidno'),
+  ('01100110-0110-4110-8110-000000000005', 'Player', 'Noresponse')
+on conflict (id) do nothing;
+
+-- The sentinel, in the place LAN-182 moved it to: the alias flagged as each
+-- person's display name. It reads on screen exactly where `known_as` used to.
+insert into public.person_aliases (id, person_id, alias, source, is_display_name)
+values
+  ('01100110-0110-4110-8110-000000009001', '01100110-0110-4110-8110-000000000001', 'PILOT-LAN-110 Authorized head coach', 'PILOT-LAN-110', true),
+  ('01100110-0110-4110-8110-000000009002', '01100110-0110-4110-8110-000000000002', 'PILOT-LAN-110 Coach out of post', 'PILOT-LAN-110', true),
+  ('01100110-0110-4110-8110-000000009003', '01100110-0110-4110-8110-000000000003', 'PILOT-LAN-110 Said yes', 'PILOT-LAN-110', true),
+  ('01100110-0110-4110-8110-000000009004', '01100110-0110-4110-8110-000000000004', 'PILOT-LAN-110 Said no', 'PILOT-LAN-110', true),
+  ('01100110-0110-4110-8110-000000009005', '01100110-0110-4110-8110-000000000005', 'PILOT-LAN-110 No response', 'PILOT-LAN-110', true)
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
@@ -444,7 +454,7 @@ on conflict (id) do nothing;
 select
   'LAN-110 pilot setup — installed' as check,
   (select count(*) from public.people
-    where known_as like 'PILOT-LAN-110%') as scenario_people,
+    where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-110%') as scenario_people,
   (select count(*) from public.role_assignments
     where note like 'PILOT-LAN-110%') as scenario_role_assignments,
   (select count(*) from public.role_assignments

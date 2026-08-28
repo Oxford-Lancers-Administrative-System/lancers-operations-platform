@@ -34,7 +34,7 @@
 -- OWNERSHIP MARKER — both halves, on every row:
 --   * a deterministic primary key from the block 00750075-0075-4075-8075-…
 --   * the sentinel string PILOT-LAN-75 in a text column — `label` on an item
---     type, `known_as` on a person, `source` on a contact point, `actor_label`
+--     type, the display alias of a person, `source` on a contact point, `actor_label`
 --     on a status event
 --   The three `onboarding_items` rows are the one exception, because the table
 --   has no text column that is free on a `pending` row. They carry the
@@ -167,7 +167,7 @@ begin
   --     a row this script does not own.
   if exists (
     select 1 from public.people
-     where id = scenario_person and known_as is distinct from sentinel
+     where id = scenario_person and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) is distinct from sentinel
   ) then
     raise exception 'LAN-75 pilot setup refused: people …0010 exists and is not this scenario''s row. Never adopt a person record.';
   end if;
@@ -316,15 +316,26 @@ where s.status in ('open', 'active')
        and t.id <> '00750075-0075-4075-8075-000000000003')
 on conflict (id) do nothing;
 
--- 2. The synthetic person. `known_as` carries the sentinel, which is also what
+-- 2. The synthetic person. Its display alias carries the sentinel, which is what
 --    the roster shows on screen — so anybody looking at hosted can see at a
 --    glance that this row is scenario data and not a member of the club.
-insert into public.people (id, given_name, family_name, known_as)
+insert into public.people (id, given_name, family_name)
 values (
   '00750075-0075-4075-8075-000000000010',
   'Thelbrook',
-  'Pilotcase',
-  'PILOT-LAN-75'
+  'Pilotcase'
+)
+on conflict (id) do nothing;
+
+-- The sentinel, in the place LAN-182 moved it to: the alias flagged as each
+-- person's display name. It reads on screen exactly where `known_as` used to.
+insert into public.person_aliases (id, person_id, alias, source, is_display_name)
+values (
+  '00750075-0075-4075-8075-000000009010',
+  '00750075-0075-4075-8075-000000000010',
+  'PILOT-LAN-75',
+  'PILOT-LAN-75',
+  true
 )
 on conflict (id) do nothing;
 
@@ -352,17 +363,21 @@ values
   )
 on conflict (id) do nothing;
 
--- 4. The membership, `confirmed` in the open season. Not `onboarding` and not
---    `active`: `confirmed` is the state UX-21 shows and the state the Activate
---    action starts from, and creating it any further along would hand over the
---    result the test is meant to produce.
+-- 4. The membership, `onboarding` in the open season. Not `active`:
+--    `onboarding` is the state UX-21 shows and the state the Activate action
+--    starts from, and creating it any further along would hand over the result
+--    the test is meant to produce.
+--
+--    It was `confirmed` until LAN-182 struck that value. `confirmed` and
+--    `onboarding` both map onto `onboarding` now, and the Activate action reads
+--    the same either way — this scenario is unchanged in what it exercises.
 insert into public.season_memberships
   (id, person_id, season_id, status, entry, confirmed_on)
 select
   '00750075-0075-4075-8075-000000000020',
   '00750075-0075-4075-8075-000000000010',
   s.id,
-  'confirmed',
+  'onboarding',
   'returning',
   current_date
 from public.seasons s
@@ -373,6 +388,11 @@ on conflict (id) do nothing;
 --    `actor_person_id`, because no person did this — a script did, and
 --    invariant M2 requires the record to say which honestly rather than
 --    borrowing somebody's name.
+--
+--    One row, not the two this was: the pair walked
+--    `null → carried_forward → confirmed`, and both of those map onto
+--    `onboarding`, so the second would now record a change from a state to
+--    itself.
 insert into public.season_membership_status_events
   (id, season_membership_id, from_status, to_status, actor_label, reason)
 values
@@ -380,15 +400,7 @@ values
     '00750075-0075-4075-8075-000000000021',
     '00750075-0075-4075-8075-000000000020',
     null,
-    'carried_forward',
-    'PILOT-LAN-75 setup script',
-    'Synthetic pilot scenario for LAN-75.'
-  ),
-  (
-    '00750075-0075-4075-8075-000000000022',
-    '00750075-0075-4075-8075-000000000020',
-    'carried_forward',
-    'confirmed',
+    'onboarding',
     'PILOT-LAN-75 setup script',
     'Synthetic pilot scenario for LAN-75.'
   )
@@ -439,7 +451,7 @@ select
   ) as item_types,
   (
     select count(*) from public.people
-     where id = '00750075-0075-4075-8075-000000000010' and known_as = 'PILOT-LAN-75'
+     where id = '00750075-0075-4075-8075-000000000010' and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) = 'PILOT-LAN-75'
   ) as people,
   (
     select count(*) from public.contact_points

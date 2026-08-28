@@ -46,36 +46,84 @@ type Tables = Record<string, Row[]>;
  * order the real thing uses: `.eq("person_id", …)` still works on a column the
  * `select` never named, and a column the `select` never named still never
  * reaches the caller.
+ *
+ * It also understands one embedded resource — `person_aliases(alias)` — because
+ * LAN-182 struck `people.known_as` and this module now reads the display name
+ * from the alias flagged `is_display_name`. PostgREST returns an embed as an
+ * array, and a dotted filter such as `.eq("person_aliases.is_display_name",
+ * true)` narrows the embedded rows rather than the outer ones, so a person with
+ * no display alias still comes back — with an empty array. Both of those are
+ * behaviours this module depends on, so the fake reproduces them rather than
+ * approximating them.
  */
 function fakeAdminClient(tables: Tables) {
   return {
     from(table: string) {
       let rows = [...(tables[table] ?? [])];
       let columns: string[] = [];
+      const embeds: { name: string; columns: string[] }[] = [];
+      const embedFilters: { embed: string; column: string; value: unknown }[] = [];
+
+      function embedded(row: Row, embed: { name: string; columns: string[] }): Row[] {
+        return (tables[embed.name] ?? [])
+          .filter((child) => child.person_id === row.id)
+          .filter((child) =>
+            embedFilters
+              .filter((filter) => filter.embed === embed.name)
+              .every((filter) => child[filter.column] === filter.value),
+          )
+          .map((child) =>
+            Object.fromEntries(embed.columns.map((column) => [column, child[column]])),
+          );
+      }
 
       function project(row: Row): Row {
-        return Object.fromEntries(
-          columns.map((column) => {
-            // PostgREST rejects a select naming a column that does not exist.
-            // A fixture missing one is a test-authoring bug, and silence here
-            // would turn it into a passing test about `undefined`.
-            if (!(column in row)) {
-              throw new Error(`${table} has no column "${column}" to select`);
-            }
-            return [column, row[column]];
-          }),
-        );
+        return {
+          ...Object.fromEntries(
+            columns.map((column) => {
+              // PostgREST rejects a select naming a column that does not exist.
+              // A fixture missing one is a test-authoring bug, and silence here
+              // would turn it into a passing test about `undefined`.
+              if (!(column in row)) {
+                throw new Error(`${table} has no column "${column}" to select`);
+              }
+              return [column, row[column]];
+            }),
+          ),
+          ...Object.fromEntries(embeds.map((embed) => [embed.name, embedded(row, embed)])),
+        };
       }
 
       const builder = {
         select(requested: string) {
-          columns = requested
-            .split(",")
-            .map((column) => column.trim())
-            .filter(Boolean);
+          columns = [];
+          embeds.length = 0;
+          // `a, b, child(x, y)` — split on commas that are not inside a pair
+          // of parentheses, so an embed's own column list stays together.
+          for (const part of requested.split(/,(?![^(]*\))/)) {
+            const term = part.trim();
+            if (term === "") continue;
+            const embed = /^([a-z_]+)\(([^)]*)\)$/.exec(term);
+            if (embed) {
+              embeds.push({
+                name: embed[1],
+                columns: embed[2]
+                  .split(",")
+                  .map((column) => column.trim())
+                  .filter(Boolean),
+              });
+            } else {
+              columns.push(term);
+            }
+          }
           return builder;
         },
         eq(column: string, value: unknown) {
+          const dotted = column.split(".");
+          if (dotted.length === 2) {
+            embedFilters.push({ embed: dotted[0], column: dotted[1], value });
+            return builder;
+          }
           rows = rows.filter((row) => row[column] === value);
           return builder;
         },
@@ -174,15 +222,16 @@ function linkedOperatorTables(overrides: Partial<Tables> = {}): Tables {
         id: PERSON_ID,
         given_name: "Rowan",
         family_name: "Ashdown",
-        known_as: null,
       },
       {
         id: OTHER_PERSON_ID,
         given_name: "Someone",
         family_name: "Else",
-        known_as: null,
       },
     ],
+    // Nobody here has a display alias, which is the ordinary case. The suite
+    // adds one where the display name is the subject.
+    person_aliases: [],
     role_assignments: [
       {
         person_id: PERSON_ID,
@@ -528,7 +577,13 @@ describe("resolveOperator — resolved operator", () => {
     givenVerifiedUser({ id: AUTH_USER_ID });
     givenDatabase(
       linkedOperatorTables({
-        people: [{ id: PERSON_ID, given_name: "Benjamin", family_name: null, known_as: "Ben" }],
+        people: [{ id: PERSON_ID, given_name: "Benjamin", family_name: null }],
+        person_aliases: [
+          { person_id: PERSON_ID, alias: "Ben", is_display_name: true },
+          // A second alias that is not the display name, so the query is
+          // proved to be picking by the flag rather than by taking the first.
+          { person_id: PERSON_ID, alias: "B. Ashdown", is_display_name: false },
+        ],
       }),
     );
 

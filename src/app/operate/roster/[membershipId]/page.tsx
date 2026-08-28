@@ -159,9 +159,9 @@ export default async function MembershipPage({
         >
           <Section title="Person">
             <Typography sx={{ fontWeight: 600 }}>{membership.displayName}</Typography>
-            {membership.knownAs ? (
+            {membership.displayAlias ? (
               <Typography variant="body2" color="text.secondary">
-                Known as {membership.knownAs}
+                Known as {membership.displayAlias}
               </Typography>
             ) : null}
           </Section>
@@ -262,7 +262,7 @@ export default async function MembershipPage({
 
         {mayActivate ? (
           <Stack spacing={2} sx={{ mt: 2, maxWidth: 480 }}>
-            {status === "confirmed" || status === "onboarding" ? (
+            {status === "onboarding" ? (
               <>
                 <Typography variant="body2" color="text.secondary">
                   Activation is available only to Exec/GM. Outstanding required onboarding items

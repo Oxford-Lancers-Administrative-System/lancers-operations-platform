@@ -293,6 +293,26 @@ const COLLEGES = [
   "ivybridge",
 ];
 
+/** The college a person reads at, as a screen shows it, from the same list. */
+const collegeName = (subdomain) => subdomain[0].toUpperCase() + subdomain.slice(1);
+
+/** Invented courses. Ordinary enough to read as real, none of them a real one. */
+const DEGREE_FIELDS = [
+  "Engineering Science",
+  "Philosophy, Politics and Economics",
+  "History",
+  "Materials Science",
+  "Experimental Psychology",
+  "Biochemistry",
+  "Law",
+  "Mathematics and Statistics",
+  "Human Sciences",
+  "Earth Sciences",
+];
+
+/** Relationships an emergency contact actually stands in. */
+const EMERGENCY_RELATIONSHIPS = ["Parent", "Parent", "Sibling", "Partner", "Guardian"];
+
 const DECLINE_REASONS = [
   "Tutorial clash",
   "Away from Oxford this weekend",
@@ -404,6 +424,14 @@ const DEFENCE_MIX_2023 = [
 // Contact generation — messy on purpose
 // ---------------------------------------------------------------------------
 
+/**
+ * One email address, and which of the two kinds it is.
+ *
+ * LAN-182 split those apart, because they behave differently: a college address
+ * is era-scoped and stops working around graduation, and a consumer one is the
+ * durable alumni channel. The scope is generated here rather than inferred from
+ * the domain later, so the dataset states the fact instead of inviting a guess.
+ */
 function makeEmail(given, family, index) {
   const shape = weighted([
     ["college", 70],
@@ -414,12 +442,17 @@ function makeEmail(given, family, index) {
   const lower = (value) => value.toLowerCase();
 
   if (shape === "missing") return null;
-  if (shape === "sso") return `${lower(given).slice(0, 4)}${1000 + index}@ox.ac.example`;
-  if (shape === "consumer") return `${lower(given)}.${index}@mail.example`;
+  if (shape === "sso")
+    return {
+      address: `${lower(given).slice(0, 4)}${1000 + index}@ox.ac.example`,
+      scope: "college",
+    };
+  if (shape === "consumer")
+    return { address: `${lower(given)}.${index}@mail.example`, scope: "personal" };
 
   const college = pick(COLLEGES);
   const local = family ? `${lower(given)}.${lower(family)}` : lower(given);
-  return `${local}@${college}.ox.ac.example`;
+  return { address: `${local}@${college}.ox.ac.example`, scope: "college" };
 }
 
 function makePhone() {
@@ -464,8 +497,12 @@ const rows = {
   season_memberships: [],
   season_membership_status_events: [],
   recruitment_prospects: [],
+  person_emergency_contacts: [],
   position_assignments: [],
   jersey_assignments: [],
+  coach_group_assignments: [],
+  formalwear_records: [],
+  blues_awards: [],
   onboarding_item_types: [],
   onboarding_items: [],
   eligibility_records: [],
@@ -518,11 +555,31 @@ for (let i = 0; i < PLAYER_COUNT + LEAVER_COUNT + STAFF_COUNT; i += 1) {
       ? HYPHENATED[i % HYPHENATED.length]
       : FAMILY_NAMES[(i * 3 + 1) % FAMILY_NAMES.length];
 
+  // The academic facts LAN-182 gave columns. Deliberately incomplete: the
+  // missing-data queue exists because the club's records are patchy, and a
+  // dataset where every academic field is filled would make that queue empty
+  // and the screen that reads it untestable.
+  const academic = i % 5 !== 3;
+  const matriculation = 2022 + (i % 4);
+
   const person = {
     id: uuid(),
     given_name: given,
     family_name: family,
-    known_as: i % 11 === 5 ? given.slice(0, 3) : null,
+    college: academic ? collegeName(COLLEGES[(i * 7) % COLLEGES.length]) : null,
+    matriculation_year: academic ? matriculation : null,
+    // Three years for most courses, four for the engineers and scientists.
+    expected_graduation_year: academic ? matriculation + (i % 3 === 0 ? 4 : 3) : null,
+    degree_field: academic ? DEGREE_FIELDS[(i * 3) % DEGREE_FIELDS.length] : null,
+    // Held for roughly two thirds, which is what a club that has asked twice
+    // and chased once looks like. Nobody here is under eighteen: whether the
+    // club holds minors at all is a club fact nobody has stated, so the
+    // dataset does not assert one. `person_standing.is_under_18` is proved
+    // against its own row in tests/schema-accepts.test.ts instead.
+    date_of_birth:
+      i % 3 === 2
+        ? null
+        : `${2003 + (i % 5)}-${String(1 + (i % 12)).padStart(2, "0")}-${String(1 + (i % 28)).padStart(2, "0")}`,
     past_member_override: null,
     merged_into_person_id: null,
     merged_at: null,
@@ -547,21 +604,63 @@ for (let i = 0; i < PLAYER_COUNT + LEAVER_COUNT + STAFF_COUNT; i += 1) {
   people.push(person);
   add("people", person);
 
+  // What `people.known_as` used to hold, in the place LAN-182 moved it to: an
+  // alias flagged as the display name. The column is gone; the fact is not.
+  if (i % 11 === 5) {
+    add("person_aliases", {
+      id: uuid(),
+      person_id: person.id,
+      alias: given.slice(0, 3),
+      source: "intake form",
+      noted_at: "2025-06-01T09:00:00Z",
+      is_display_name: true,
+    });
+  }
+
   const email = makeEmail(given, family, i);
   if (email) {
     add("contact_points", {
       id: uuid(),
       person_id: person.id,
       kind: "email",
+      scope: email.scope,
       // Deliberate defects, at the rate the files show them.
       raw_value:
-        i === 6 ? `${email} ` : i === 9 ? email.replace(".ox.ac.example", ".example.ac.ox") : email,
-      normalised_value: i === 6 || i === 9 ? null : email,
+        i === 6
+          ? `${email.address} `
+          : i === 9
+            ? email.address.replace(".ox.ac.example", ".example.ac.ox")
+            : email.address,
+      normalised_value: i === 6 || i === 9 ? null : email.address,
       is_preferred: true,
       valid_from: "2026-08-15",
       valid_until: null,
       source: "intake form",
       created_at: "2025-06-01T09:00:00Z",
+    });
+  }
+
+  // Field inventory row 14. Held for about half the club, which is what a
+  // record the club has never systematically collected looks like, and never
+  // for the leavers cohort — it is exactly the kind of third-party data that
+  // stops being kept once somebody has gone.
+  if (i % 2 === 0 && i < PLAYER_COUNT) {
+    add("person_emergency_contacts", {
+      id: uuid(),
+      person_id: person.id,
+      given_name: GIVEN_NAMES[(i * 5 + 3) % GIVEN_NAMES.length],
+      family_name: family ?? FAMILY_NAMES[(i * 2) % FAMILY_NAMES.length],
+      relationship: EMERGENCY_RELATIONSHIPS[i % EMERGENCY_RELATIONSHIPS.length],
+      phone: `07700 900${String(100 + (i % 900)).padStart(3, "0")}`,
+      // A quarter of them are a phone number and nothing else. Partial is the
+      // normal state of this record, and the queue is what completes it.
+      email:
+        i % 4 === 0
+          ? null
+          : `${GIVEN_NAMES[(i * 5 + 3) % GIVEN_NAMES.length].toLowerCase()}.${i}@mail.example`,
+      recorded_by_person_id: null,
+      created_at: "2025-06-01T09:00:00Z",
+      updated_at: "2025-06-01T09:00:00Z",
     });
   }
 
@@ -571,6 +670,7 @@ for (let i = 0; i < PLAYER_COUNT + LEAVER_COUNT + STAFF_COUNT; i += 1) {
       id: uuid(),
       person_id: person.id,
       kind: "phone",
+      scope: null,
       raw_value: phone,
       normalised_value: /^07700 900\d{3}$/.test(phone) ? phone.replace(/\s/g, "") : null,
       is_preferred: true,
@@ -587,6 +687,7 @@ add("contact_points", {
   id: uuid(),
   person_id: people[3].id,
   kind: "email",
+  scope: "college",
   raw_value: `${people[3].given_name.toLowerCase()}.old@${COLLEGES[0]}.ox.ac.example`,
   normalised_value: null,
   is_preferred: false,
@@ -611,6 +712,8 @@ for (const [index, aliases] of [
       alias,
       source: "legacy roster workbook",
       noted_at: "2025-06-01T09:00:00Z",
+      // Evidence that an import matched on, never a name to display.
+      is_display_name: false,
     });
   }
 }
@@ -623,6 +726,101 @@ mergedAway.merged_at = "2026-10-02T14:20:00Z";
 mergedAway.merged_by_person_id = people[2].id;
 mergedAway.merge_reason =
   "Duplicate created by the freshers' fair QR intake; same person as the Michaelmas returner record.";
+
+// ---------------------------------------------------------------------------
+// A duplicate pair nobody has merged yet, and a first-name-only record
+// ---------------------------------------------------------------------------
+//
+// LAN-182 requires both, and the merge journey needs a pair it can actually
+// work: the row above is a merge that has already happened, which proves the
+// invariant and gives the operator nothing to do.
+//
+// One human, entered twice, the way the club's own files produce a duplicate —
+// once by the freshers' fair QR form under a shortened first name and no
+// surname at all, and once by hand off the Michaelmas sign-up sheet with the
+// full name and a college address. Neither record is obviously the survivor,
+// which is the point: the operator has to choose.
+const duplicateShortForm = {
+  id: uuid(),
+  given_name: "Wilf",
+  family_name: null,
+  college: null,
+  matriculation_year: null,
+  expected_graduation_year: null,
+  degree_field: null,
+  date_of_birth: null,
+  past_member_override: null,
+  merged_into_person_id: null,
+  merged_at: null,
+  merged_by_person_id: null,
+  merge_reason: null,
+  created_at: "2026-09-14T11:20:00Z",
+  updated_at: "2026-09-14T11:20:00Z",
+};
+const duplicateFullForm = {
+  id: uuid(),
+  given_name: "Wilfred",
+  family_name: "Thurlestone",
+  college: collegeName(COLLEGES[16]),
+  matriculation_year: 2025,
+  expected_graduation_year: 2028,
+  degree_field: DEGREE_FIELDS[2],
+  date_of_birth: "2006-02-11",
+  past_member_override: null,
+  merged_into_person_id: null,
+  merged_at: null,
+  merged_by_person_id: null,
+  merge_reason: null,
+  created_at: "2026-09-28T16:05:00Z",
+  updated_at: "2026-09-28T16:05:00Z",
+};
+people.push(duplicateShortForm, duplicateFullForm);
+add("people", duplicateShortForm);
+add("people", duplicateFullForm);
+
+// The same mobile on both records is what a duplicate check has to find. The
+// names alone would not do it — "Wilf" is not "Wilfred" to any string match.
+for (const duplicate of [duplicateShortForm, duplicateFullForm]) {
+  add("contact_points", {
+    id: uuid(),
+    person_id: duplicate.id,
+    kind: "phone",
+    scope: null,
+    raw_value: "07700 900412",
+    normalised_value: "07700900412",
+    is_preferred: true,
+    valid_from: "2026-09-14",
+    valid_until: null,
+    source:
+      duplicate === duplicateShortForm ? "freshers' fair QR form" : "Michaelmas sign-up sheet",
+    created_at: duplicate.created_at,
+  });
+}
+
+add("contact_points", {
+  id: uuid(),
+  person_id: duplicateFullForm.id,
+  kind: "email",
+  scope: "college",
+  raw_value: `wilfred.thurlestone@${COLLEGES[16]}.ox.ac.example`,
+  normalised_value: `wilfred.thurlestone@${COLLEGES[16]}.ox.ac.example`,
+  is_preferred: true,
+  valid_from: "2026-09-28",
+  valid_until: null,
+  source: "Michaelmas sign-up sheet",
+  created_at: duplicateFullForm.created_at,
+});
+
+// The short form is also the mission's named first-name-only record: no
+// surname, and therefore flagged the day the missing-data queue opens.
+add("person_aliases", {
+  id: uuid(),
+  person_id: duplicateFullForm.id,
+  alias: "Wilf",
+  source: "freshers' fair QR form",
+  noted_at: "2026-09-28T16:05:00Z",
+  is_display_name: false,
+});
 
 // --- Cycles ----------------------------------------------------------------
 
@@ -921,8 +1119,8 @@ for (let i = 0; i < previousRoster.length; i += 1) {
   };
   add("season_memberships", membership);
   previousMemberships.push(membership);
-  recordTransition(membership, null, "confirmed", "2025-09-15T09:00:00Z", people[2]);
-  recordTransition(membership, "confirmed", "active", "2025-10-05T09:00:00Z", people[2]);
+  recordTransition(membership, null, "onboarding", "2025-09-15T09:00:00Z", people[2]);
+  recordTransition(membership, "onboarding", "active", "2025-10-05T09:00:00Z", people[2]);
   recordTransition(
     membership,
     "active",
@@ -933,7 +1131,12 @@ for (let i = 0; i < previousRoster.length; i += 1) {
   );
 }
 
-// Current season: 42 player memberships across the whole status vocabulary.
+// Current season: 42 player memberships across the whole status vocabulary —
+// all five of it, since LAN-182. `carried_forward`, `confirmed` and `withdrawn`
+// are gone: the first two were never states anybody rested in, and the third
+// described somebody who under the rebuilt ladder never holds a membership at
+// all. Their four rows redistribute onto `onboarding` and `departed`, which is
+// where the mapping sends them.
 const STATUS_PLAN = [
   ...Array(26).fill("active"),
   "active",
@@ -947,9 +1150,9 @@ const STATUS_PLAN = [
   "inactive",
   "onboarding",
   "onboarding",
-  "confirmed",
-  "carried_forward",
-  "withdrawn",
+  "onboarding",
+  "onboarding",
+  "departed",
   "departed",
   "departed",
 ];
@@ -969,7 +1172,10 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
     entry: isReturning ? "returning" : "new",
     // Rollover links memberships and never duplicates the Person (model §3).
     carried_forward_from_id: isReturning ? previous.id : null,
-    confirmed_on: status === "carried_forward" ? null : "2026-09-20",
+    // Survives the vocabulary change as a milestone date. It records the day
+    // the club said "yes, we want him", which is an event that happened even
+    // though it was never a state anybody sat in.
+    confirmed_on: "2026-09-20",
     activated_on: ["active", "inactive", "departed"].includes(status) ? "2026-10-04" : null,
     departed_on: status === "departed" ? "2026-11-30" : null,
     expected_return_on: status === "inactive" ? "2027-04-25" : null,
@@ -981,19 +1187,14 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
   add("season_memberships", membership);
   memberships.push(membership);
 
-  recordTransition(
-    membership,
-    null,
-    isReturning ? "carried_forward" : "confirmed",
-    "2026-09-05T09:00:00Z",
-    null,
-  );
-  if (status !== "carried_forward") {
-    recordTransition(membership, "carried_forward", "confirmed", "2026-09-20T09:00:00Z", people[2]);
-  }
-  if (["onboarding", "active", "inactive", "departed", "withdrawn"].includes(status)) {
-    recordTransition(membership, "confirmed", "onboarding", "2026-09-21T09:00:00Z", null);
-  }
+  // One entry step, not three. A membership begins at `onboarding` — the
+  // returner and the new player alike, because `entry` is what tells those two
+  // apart and always was. The old sequence walked
+  // `carried_forward → confirmed → onboarding` through two states that meant
+  // nothing to anybody, and writing it now would produce
+  // `onboarding → onboarding` twice: a history recording changes that did not
+  // happen.
+  recordTransition(membership, null, "onboarding", "2026-09-05T09:00:00Z", null);
   if (["active", "inactive", "departed"].includes(status)) {
     recordTransition(membership, "onboarding", "active", "2026-10-04T09:00:00Z", people[9]);
   }
@@ -1017,19 +1218,6 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
       "Left Oxford mid-year",
     );
   }
-  if (status === "withdrawn") {
-    // Review F06: a committed recruit who backed out before ever activating.
-    // A truthful terminal exit that never touches the roster.
-    recordTransition(
-      membership,
-      "onboarding",
-      "withdrawn",
-      "2026-10-12T09:00:00Z",
-      people[9],
-      "Never came back after the taster sessions",
-    );
-  }
-
   // Register D1 in action: the Michaelmas-quit / Hilary-return case is one
   // membership whose status history carries the gap, not two records.
   //
@@ -1101,6 +1289,68 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
       created_at: "2026-10-02T09:00:00Z",
     });
   }
+
+  // --- The season facts LAN-182 gave storage to ----------------------------
+
+  // Coach group. Not everybody has one: the club assigns them as the coaching
+  // staff settles, and the board's "Coach group" column has to render an empty
+  // cell as readily as a filled one.
+  if (i % 4 !== 3) {
+    add("coach_group_assignments", {
+      id: uuid(),
+      season_membership_id: membership.id,
+      season_id: seasonCurrent.id,
+      coach_group: ["Offense", "Defense", "Special teams"][i % 3],
+      responsible_coach_person_id: people[9].id,
+      recorded_by_person_id: people[2].id,
+      created_at: "2026-10-02T09:00:00Z",
+      updated_at: "2026-10-02T09:00:00Z",
+    });
+  }
+
+  // Formalwear, reasked every season. The measured ownership rates are tie 79%,
+  // bowtie 31%, socks 93%, and one answer in the club's own file is the free
+  // text "Yes (paid)" — owned, and paid for — which is why this is not three
+  // booleans.
+  for (const [item, ownedRate] of [
+    ["tie", 0.79],
+    ["bowtie", 0.31],
+    ["socks", 0.93],
+  ]) {
+    const owned = chance(ownedRate);
+    add("formalwear_records", {
+      id: uuid(),
+      season_membership_id: membership.id,
+      season_id: seasonCurrent.id,
+      item,
+      ownership: owned ? (chance(0.4) ? "Yes (paid)" : "Yes") : "No",
+      recorded_by_person_id: people[2].id,
+      created_at: "2026-10-05T09:00:00Z",
+      updated_at: "2026-10-05T09:00:00Z",
+    });
+  }
+}
+
+// Blues. Rare, recorded when known, never chased, and a row exists only where
+// somebody was actually looked at.
+//
+// On the PREVIOUS season deliberately: a Blue is awarded at the end of a
+// campaign, so putting one on a season still being played would date an award
+// into the future. It also gives `public.person_blues_totals` a total to derive
+// across seasons, which is the number the club actually looks at.
+for (let i = 0; i < previousMemberships.length; i += 1) {
+  if (i % 11 !== 4) continue;
+  add("blues_awards", {
+    id: uuid(),
+    season_membership_id: previousMemberships[i].id,
+    season_id: seasonPrevious.id,
+    half_blue_awarded: i % 22 !== 4,
+    full_blue_awarded: i % 22 === 4,
+    awarded_on: "2026-06-13",
+    recorded_by_person_id: people[2].id,
+    created_at: "2026-06-13T09:00:00Z",
+    updated_at: "2026-06-13T09:00:00Z",
+  });
 }
 
 // A returner who never confirmed, and one who confirmed they are not coming
@@ -3758,7 +4008,11 @@ const WRITE_PLAN = [
       "id",
       "given_name",
       "family_name",
-      "known_as",
+      "college",
+      "matriculation_year",
+      "expected_graduation_year",
+      "degree_field",
+      "date_of_birth",
       "past_member_override",
       "merged_into_person_id",
       "merged_at",
@@ -3769,13 +4023,34 @@ const WRITE_PLAN = [
     ],
     "people",
   ],
-  ["public.person_aliases", ["id", "person_id", "alias", "source", "noted_at"], "person_aliases"],
+  [
+    "public.person_aliases",
+    ["id", "person_id", "alias", "source", "noted_at", "is_display_name"],
+    "person_aliases",
+  ],
+  [
+    "public.person_emergency_contacts",
+    [
+      "id",
+      "person_id",
+      "given_name",
+      "family_name",
+      "relationship",
+      "phone",
+      "email",
+      "recorded_by_person_id",
+      "created_at",
+      "updated_at",
+    ],
+    "person_emergency_contacts",
+  ],
   [
     "public.contact_points",
     [
       "id",
       "person_id",
       "kind",
+      "scope",
       "raw_value",
       "normalised_value",
       "is_preferred",
@@ -3951,6 +4226,49 @@ const WRITE_PLAN = [
       "created_at",
     ],
     "jersey_assignments",
+  ],
+  [
+    "public.coach_group_assignments",
+    [
+      "id",
+      "season_membership_id",
+      "season_id",
+      "coach_group",
+      "responsible_coach_person_id",
+      "recorded_by_person_id",
+      "created_at",
+      "updated_at",
+    ],
+    "coach_group_assignments",
+  ],
+  [
+    "public.formalwear_records",
+    [
+      "id",
+      "season_membership_id",
+      "season_id",
+      "item",
+      "ownership",
+      "recorded_by_person_id",
+      "created_at",
+      "updated_at",
+    ],
+    "formalwear_records",
+  ],
+  [
+    "public.blues_awards",
+    [
+      "id",
+      "season_membership_id",
+      "season_id",
+      "half_blue_awarded",
+      "full_blue_awarded",
+      "awarded_on",
+      "recorded_by_person_id",
+      "created_at",
+      "updated_at",
+    ],
+    "blues_awards",
   ],
   [
     "public.eligibility_records",

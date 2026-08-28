@@ -26,6 +26,7 @@ import {
 } from "./messaging-schedule";
 import { scheduleEventLadderIn } from "./messaging-scheduler";
 import type { ResolvedResponseDeadline } from "./response-deadline";
+import { personDisplayAliasSql } from "./sql-text";
 
 /**
  * Proposing an audience, and approving the event. LAN-77.
@@ -302,14 +303,15 @@ async function readAudienceIn(
     person_id: string;
     given_name: string;
     family_name: string | null;
-    known_as: string | null;
+    display_alias: string | null;
     standing: string | null;
   }>(
     `select a.id,
             a.capacity::text as capacity,
             a.participant_id as anchor_id,
             coalesce(a.person_id, m.person_id) as person_id,
-            p.given_name, p.family_name, p.known_as,
+            p.given_name, p.family_name,
+              ${personDisplayAliasSql("p")} as display_alias,
             case when a.capacity = 'player' then initcap(m.status::text) end as standing
        from public.event_audience_members a
        left join public.season_memberships m on m.id = a.season_membership_id
@@ -324,7 +326,7 @@ async function readAudienceIn(
 
   return result.rows
     .map((row) => {
-      const known = row.known_as?.trim();
+      const known = row.display_alias?.trim();
       const first = known && known !== "" ? known : row.given_name;
       const candidate = selectable.get(`${row.capacity}:${row.anchor_id}`);
       return {

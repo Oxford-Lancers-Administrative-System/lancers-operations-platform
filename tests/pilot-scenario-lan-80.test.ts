@@ -118,7 +118,7 @@ beforeAll(async () => {
  */
 async function blankCanvas() {
   const events = `('${EVENTS.occurrence}', '${EVENTS.notHeld}')`;
-  const people = `(select id from public.people where known_as like '${SENTINEL}%')`;
+  const people = `(select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like '${SENTINEL}%')`;
 
   // Walk-up people the application minted, captured before the attendance rows
   // that identify them are deleted.
@@ -156,7 +156,9 @@ async function blankCanvas() {
   await client.query(`delete from public.event_audience_members where event_id in ${events}`);
   await client.query(`delete from public.season_memberships where person_id in ${people}`);
   await client.query(`delete from public.events where id in ${events}`);
-  await client.query(`delete from public.people where known_as like '${SENTINEL}%'`);
+  await client.query(
+    `delete from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like '${SENTINEL}%'`,
+  );
 }
 
 beforeEach(async () => {
@@ -185,7 +187,10 @@ const eventIds = [EVENTS.occurrence, EVENTS.notHeld];
 /** The scenario's own row counts, as one object. */
 async function scenarioRows() {
   return {
-    people: await count("public.people where known_as like $1", [`${SENTINEL}%`]),
+    people: await count(
+      "public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like $1",
+      [`${SENTINEL}%`],
+    ),
     events: await count("public.events where name like $1", [`${SENTINEL}%`]),
     memberships: await count("public.season_memberships where person_id = any($1::uuid[])", [
       PEOPLE,
@@ -523,10 +528,16 @@ describe("cleanup.sql", () => {
 
   it("refuses when a sentinel-carrying person it does not know about appears", async () => {
     await client.query(SETUP);
+    // The sentinel is a display alias since LAN-182 struck `people.known_as`,
+    // so an interloper carrying it carries it there.
+    const interloper = await client.query<{ id: string }>(
+      `insert into public.people (given_name, family_name)
+       values ('Attend', 'Interloper') returning id`,
+    );
     await client.query(
-      `insert into public.people (given_name, family_name, known_as)
-       values ('Attend', 'Interloper', $1)`,
-      [`${SENTINEL} Interloper`],
+      `insert into public.person_aliases (person_id, alias, source, is_display_name)
+       values ($1, $2, 'interloper', true)`,
+      [interloper.rows[0].id, `${SENTINEL} Interloper`],
     );
 
     // Deleting it would be guessing; leaving it silently would leave the
@@ -584,13 +595,15 @@ describe("README.md", () => {
 
   it("names every person in the matrix it asks Brian to work through", async () => {
     await client.query(SETUP);
-    const people = await client.query<{ known_as: string }>(
-      "select known_as from public.people where id = any($1::uuid[])",
+    const people = await client.query<{ display_alias: string }>(
+      `select (select da.alias from public.person_aliases da
+                where da.person_id = people.id and da.is_display_name limit 1) as display_alias
+         from public.people where id = any($1::uuid[])`,
       [PEOPLE],
     );
 
     for (const row of people.rows) {
-      expect(README_FILE, `${row.known_as} is not in the matrix`).toContain(row.known_as);
+      expect(README_FILE, `${row.display_alias} is not in the matrix`).toContain(row.display_alias);
     }
   });
 

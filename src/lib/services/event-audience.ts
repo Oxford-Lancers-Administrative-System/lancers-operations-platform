@@ -2,6 +2,7 @@ import "server-only";
 
 import type { Tx } from "@/lib/db";
 import { COACH_ROLE_CODES } from "@/lib/auth/capabilities";
+import { personDisplayAliasSql } from "./sql-text";
 import {
   type AudienceCandidate,
   type AudienceCapacity,
@@ -105,7 +106,7 @@ interface CandidateRow {
   person_id: string;
   given_name: string;
   family_name: string | null;
-  known_as: string | null;
+  display_alias: string | null;
   standing: string;
   unit: string | null;
   contact: string | null;
@@ -113,7 +114,7 @@ interface CandidateRow {
 
 /** Known-as where there is one, matching how the roster names people. */
 function displayNameOf(row: CandidateRow): string {
-  const known = row.known_as?.trim();
+  const known = row.display_alias?.trim();
   const first = known && known !== "" ? known : row.given_name;
   return row.family_name ? `${first} ${row.family_name}` : first;
 }
@@ -178,7 +179,8 @@ export async function listAudienceCatalogueIn(
      select 'player' as capacity,
             m.id as anchor_id,
             p.id as person_id,
-            p.given_name, p.family_name, p.known_as,
+            p.given_name, p.family_name,
+              ${personDisplayAliasSql("p")} as display_alias,
             initcap(m.status::text) as standing,
             ${UNIT_EXPRESSION} as unit,
             ${CONTACT_EXPRESSION} as contact
@@ -193,7 +195,8 @@ export async function listAudienceCatalogueIn(
      select case when r.scope = 'season' then 'coach' else 'committee' end as capacity,
             p.id as anchor_id,
             p.id as person_id,
-            p.given_name, p.family_name, p.known_as,
+            p.given_name, p.family_name,
+              ${personDisplayAliasSql("p")} as display_alias,
             r.name as standing,
             null as unit,
             ${CONTACT_EXPRESSION} as contact
@@ -223,7 +226,8 @@ export async function listAudienceCatalogueIn(
      select 'recruit' as capacity,
             p.id as anchor_id,
             p.id as person_id,
-            p.given_name, p.family_name, p.known_as,
+            p.given_name, p.family_name,
+              ${personDisplayAliasSql("p")} as display_alias,
             initcap(rp.status::text) as standing,
             null as unit,
             ${CONTACT_EXPRESSION} as contact

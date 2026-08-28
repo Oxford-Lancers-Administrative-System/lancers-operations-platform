@@ -200,7 +200,7 @@ _does_ write rows with deterministic keys, and only the rows the **tester**
 creates through the intake form fall under this shape. So one scenario can use
 both marks at once — deterministic-key deletes for what the script wrote,
 sentinel-only deletes for what the application wrote. Its sentinel is matched
-against two columns (`known_as` for script-written rows, `family_name` for
+against two homes (the display alias for script-written rows, `family_name` for
 form-written ones, because the form has a Last name field and no nickname
 field), compared as `upper(btrim(…))` so a marker typed in the wrong case still
 matches, and pinned by value in the contract test.
@@ -398,9 +398,13 @@ is never duplicated to make a login work.
 -- Look first. Creating a second Person for somebody who already has one is
 -- invariant I1's failure mode, and merging them afterwards is an audited
 -- operation (I6) rather than a tidy-up.
-select id, given_name, family_name, known_as
+select id, given_name, family_name,
+       (select da.alias from public.person_aliases da
+         where da.person_id = people.id and da.is_display_name limit 1) as display_alias
   from public.people
- where lower(coalesce(known_as, given_name)) = lower('<given-name>');
+ where lower(coalesce((select da.alias from public.person_aliases da
+                        where da.person_id = people.id and da.is_display_name limit 1),
+                       given_name)) = lower('<given-name>');
 ```
 
 Only if there is genuinely no row:

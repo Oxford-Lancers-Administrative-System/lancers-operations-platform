@@ -94,9 +94,7 @@ const ONBOARDING_TYPES = Object.freeze([
 const STATUS_DISTRIBUTION = Object.freeze([
   ["active", 32],
   ["inactive", 3],
-  ["onboarding", 3],
-  ["confirmed", 2],
-  ["carried_forward", 1],
+  ["onboarding", 6],
   ["departed", 1],
 ]);
 
@@ -429,7 +427,6 @@ export function buildPlan({
           id: personId,
           given_name: person.givenName,
           family_name: person.familyName ?? null,
-          known_as: person.knownAs ?? null,
         },
         "illustrative",
         { source: `private parameters (${key})` },
@@ -616,7 +613,6 @@ export function buildPlan({
         id: player.personId,
         given_name: player.givenName,
         family_name: player.familyName,
-        known_as: null,
       },
       "source-derived",
       { source: player.source.sheet, cell: player.source.nameCell },
@@ -669,8 +665,11 @@ export function buildPlan({
         season_id: seasonId,
         status,
         entry,
-        carried_forward_from_id: status === "carried_forward" ? archivedMembershipId : null,
-        confirmed_on: status === "onboarding" ? null : "2026-07-10",
+        // Every returner links back, which is what rollover does. The old
+        // `carried_forward` status used to gate this and no longer exists;
+        // `entry` is where new-versus-returning always lived.
+        carried_forward_from_id: entry === "returning" ? archivedMembershipId : null,
+        confirmed_on: "2026-07-10",
         activated_on: ["active", "inactive", "departed"].includes(status) ? "2026-07-20" : null,
         departed_on: status === "departed" ? "2026-08-05" : null,
         departure_reason: status === "departed" ? "Left Oxford at the end of the year." : null,
@@ -1148,7 +1147,6 @@ export function buildPlan({
         id: personId,
         given_name: prospect.givenName,
         family_name: prospect.familyName,
-        known_as: null,
       },
       "illustrative",
       { source: "LAN-124 — fictional recruitment prospect" },

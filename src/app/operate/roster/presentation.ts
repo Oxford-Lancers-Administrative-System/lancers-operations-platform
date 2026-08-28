@@ -12,20 +12,21 @@ import type {
  * issues do not invent three labels for one state". These are that mapping for
  * `membership_status`, `membership_entry` and `onboarding_item_status`, and
  * they are read from the approved wireframes rather than invented here: UX-20's
- * status column reads Active, Confirmed and Inactive; UX-21's status history
- * reads "Carried forward → Confirmed"; UX-20's entry column reads Returning and
- * New.
+ * status column reads Active and Inactive; UX-20's entry column reads Returning
+ * and New.
+ *
+ * The status vocabulary shrank to five under LAN-182, so UX-20's "Confirmed"
+ * and UX-21's "Carried forward → Confirmed" no longer name anything: both
+ * states map onto Onboarding. Nothing here invents a replacement word — the
+ * three struck labels are simply gone.
  *
  * No client component and no page carries a label of its own.
  */
 
 export const MEMBERSHIP_STATUS_LABELS: Readonly<Record<MembershipStatus, string>> = Object.freeze({
-  carried_forward: "Carried forward",
-  confirmed: "Confirmed",
   onboarding: "Onboarding",
   active: "Active",
   inactive: "Inactive",
-  withdrawn: "Withdrawn",
   departed: "Departed",
   archived: "Archived",
 });
@@ -51,17 +52,14 @@ export { labelFor } from "../labels";
 /**
  * The statuses the roster filter offers, in the season's own order.
  *
- * The whole vocabulary, deliberately: an operator looking for the person who
- * withdrew needs to be able to find them, and a filter that hides four of the
- * eight states would send them to the database.
+ * The whole vocabulary, deliberately: an operator looking for somebody who has
+ * gone needs to be able to find them, and a filter that hid half the states
+ * would send them to the database.
  */
 export const FILTERABLE_MEMBERSHIP_STATUSES: readonly MembershipStatus[] = Object.freeze([
-  "carried_forward",
-  "confirmed",
   "onboarding",
   "active",
   "inactive",
-  "withdrawn",
   "departed",
   "archived",
 ]) as readonly MembershipStatus[];
@@ -79,7 +77,6 @@ export function membershipStatusColour(
   switch (status) {
     case "active":
       return "success";
-    case "confirmed":
     case "onboarding":
       return "info";
     case "inactive":

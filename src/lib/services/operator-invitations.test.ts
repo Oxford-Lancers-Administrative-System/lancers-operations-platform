@@ -216,12 +216,23 @@ async function insertNamedPerson(
   options: { knownAs?: string; alias?: string; email?: string; phone?: string } = {},
 ): Promise<string> {
   const result = await observer.query<{ id: string }>(
-    `insert into public.people (given_name, family_name, known_as)
-     values ($1, $2, $3) returning id`,
-    [givenName, familyName, options.knownAs ?? null],
+    `insert into public.people (given_name, family_name)
+     values ($1, $2) returning id`,
+    [givenName, familyName],
   );
   const personId = result.rows[0].id;
   people.add(personId);
+
+  // LAN-182: a known-as is an alias flagged as the display name. Staged as one
+  // here so the search still has the third name term to match on.
+  if (options.knownAs) {
+    await observer.query(
+      `insert into public.person_aliases (person_id, alias, source, is_display_name)
+       values ($1::uuid, $2, 'test fixture', true)
+       on conflict (person_id, alias) do nothing`,
+      [personId, options.knownAs],
+    );
+  }
 
   for (const [kind, value] of [
     ["email", options.email],

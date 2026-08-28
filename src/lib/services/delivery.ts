@@ -28,6 +28,7 @@ import type { MessageKind, OutboundMessage, ProviderCallbackEvent } from "@/lib/
 import { recordAudit } from "./audit";
 import { issueAnswerTokenIn } from "./player-answer-tokens";
 import { issueTokenIn, revokeTokensIn } from "./rsvp-tokens";
+import { personDisplayAliasSql } from "./sql-text";
 
 /**
  * Automated delivery. LAN-78.
@@ -309,7 +310,7 @@ async function claimJobIn(
     venue: string | null;
     attending_count: number;
     given_name: string;
-    known_as: string | null;
+    display_alias: string | null;
     person_id: string;
     changed_name: boolean | null;
     changed_scheduled_on: boolean | null;
@@ -343,7 +344,8 @@ async function claimJobIn(
                join public.invitations o on o.id = r.invitation_id
               where o.event_id = e.id and o.id <> i.id and r.response = 'yes')
               as attending_count,
-            p.id as person_id, p.given_name, p.known_as,
+            p.id as person_id, p.given_name,
+            ${personDisplayAliasSql("p")} as display_alias,
             -- OWNER-LAN173-03. change_notice's only extra ingredient: which
             -- of a schedule change's fields actually moved, read from the
             -- most recent schedule_changes row for this event so the
@@ -461,7 +463,7 @@ async function claimJobIn(
     [jobId, job.attempt_count, context.channel, context.provider.name, token.tokenId],
   );
 
-  const known = detail.known_as?.trim();
+  const known = detail.display_alias?.trim();
 
   return {
     claimed: true,
@@ -1674,7 +1676,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
       invitation_id: string;
       given_name: string;
       family_name: string | null;
-      known_as: string | null;
+      display_alias: string | null;
       channel: string | null;
       state: DeliveryState;
       attempt_count: number;
@@ -1688,7 +1690,8 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
     }>(
       `select j.id as job_id,
               j.invitation_id,
-              p.given_name, p.family_name, p.known_as,
+              p.given_name, p.family_name,
+              ${personDisplayAliasSql("p")} as display_alias,
               j.channel::text as channel,
               ${DELIVERY_STATE_EXPRESSION} as state,
               j.attempt_count,
@@ -1729,7 +1732,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
     );
 
     const mapped = rows.rows.map((row): DeliveryRow => {
-      const known = row.known_as?.trim();
+      const known = row.display_alias?.trim();
       const first = known && known !== "" ? known : row.given_name;
       const noUsableRoute =
         row.state === "failed" &&
@@ -1857,7 +1860,7 @@ export async function readEventDeliveryDiagnostics(
       attempt_id: string;
       given_name: string;
       family_name: string | null;
-      known_as: string | null;
+      display_alias: string | null;
       channel: string;
       attempt_number: number;
       requested_at: Date;
@@ -1867,7 +1870,8 @@ export async function readEventDeliveryDiagnostics(
       provider_message_id: string | null;
     }>(
       `select a.id as attempt_id,
-              p.given_name, p.family_name, p.known_as,
+              p.given_name, p.family_name,
+              ${personDisplayAliasSql("p")} as display_alias,
               a.channel::text as channel,
               a.attempt_number,
               a.requested_at,
@@ -1886,7 +1890,7 @@ export async function readEventDeliveryDiagnostics(
     );
 
     return rows.rows.map((row): DiagnosticsAttempt => {
-      const known = row.known_as?.trim();
+      const known = row.display_alias?.trim();
       const first = known && known !== "" ? known : row.given_name;
       const outcome =
         row.recorded_outcome ??

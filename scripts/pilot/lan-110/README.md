@@ -51,7 +51,7 @@ Two prerequisites, both of which `setup.sql` checks and refuses without.
 
 | Row                    | Count | Sentinel carried in                  |
 | ---------------------- | ----- | ------------------------------------ |
-| People                 | 5     | `known_as`                           |
+| People                 | 5     | its display alias                    |
 | Role assignments       | 2     | `note`                               |
 | Season memberships     | 3     | (parent chain)                       |
 | Events                 | 2     | `name`                               |

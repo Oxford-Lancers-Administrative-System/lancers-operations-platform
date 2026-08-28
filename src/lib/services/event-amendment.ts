@@ -4,6 +4,7 @@ import { ConstraintViolated, InvalidTransition, withTransaction, type Tx } from 
 import { todayInClubZone } from "@/lib/club-time";
 import { recordAudit } from "./audit";
 import { actorRequirement } from "./actor";
+import { personDisplayNameSql } from "./sql-text";
 import { deriveTermCoordinate, type EventDraftInput } from "./event-input";
 import { lockEventIn, readEventIn, type EventDetail } from "./events";
 import { freezeMessagingPlanIn, resolveMessagingPlanIn } from "./messaging-schedule";
@@ -387,11 +388,7 @@ async function readEventChangeHistoryIn(tx: Tx, eventId: string): Promise<EventC
     context: Record<string, unknown> | null;
   }>(
     `select a.id, a.action, a.occurred_at,
-            case
-              when p.id is null then null
-              when p.family_name is null then coalesce(nullif(btrim(p.known_as), ''), p.given_name)
-              else coalesce(nullif(btrim(p.known_as), ''), p.given_name) || ' ' || p.family_name
-            end as actor_name,
+            ${personDisplayNameSql("p")} as actor_name,
             a.context
        from public.audit_events a
        left join public.people p on p.id = a.actor_person_id

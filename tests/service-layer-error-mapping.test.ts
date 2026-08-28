@@ -155,7 +155,7 @@ const CASES = [
     attempt: (tx: Tx, base: Baseline) =>
       tx.query(
         `insert into public.season_memberships (person_id, season_id, status, entry)
-         values ($1, $2, 'confirmed', 'new')`,
+         values ($1, $2, 'onboarding', 'new')`,
         [base.personId, base.seasonId],
       ),
   },
@@ -282,9 +282,7 @@ describe("row 10 — an unmapped rejection still degrades safely", () => {
     // Degrading safely means degrading *transactionally*. A typed error that
     // left half the work committed would be the worst of both.
     const boom = await rejectionFrom(async (tx, base) => {
-      await tx.query("update public.people set known_as = 'changed' where id = $1", [
-        base.personId,
-      ]);
+      await tx.query("update public.people set college = 'changed' where id = $1", [base.personId]);
       await tx.query("slect 1");
     });
 

@@ -283,6 +283,71 @@ export type Database = {
           },
         ]
       }
+      blues_awards: {
+        Row: {
+          awarded_on: string | null
+          created_at: string
+          full_blue_awarded: boolean
+          half_blue_awarded: boolean
+          id: string
+          recorded_by_person_id: string | null
+          season_id: string
+          season_membership_id: string
+          updated_at: string
+        }
+        Insert: {
+          awarded_on?: string | null
+          created_at?: string
+          full_blue_awarded?: boolean
+          half_blue_awarded?: boolean
+          id?: string
+          recorded_by_person_id?: string | null
+          season_id: string
+          season_membership_id: string
+          updated_at?: string
+        }
+        Update: {
+          awarded_on?: string | null
+          created_at?: string
+          full_blue_awarded?: boolean
+          half_blue_awarded?: boolean
+          id?: string
+          recorded_by_person_id?: string | null
+          season_id?: string
+          season_membership_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blues_awards_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "constitutional_membership"
+            referencedColumns: ["season_membership_id", "season_id"]
+          },
+          {
+            foreignKeyName: "blues_awards_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "season_memberships"
+            referencedColumns: ["id", "season_id"]
+          },
+          {
+            foreignKeyName: "blues_awards_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blues_awards_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
       club_link_tokens: {
         Row: {
           event_id: string
@@ -348,6 +413,82 @@ export type Database = {
           },
         ]
       }
+      coach_group_assignments: {
+        Row: {
+          coach_group: string
+          created_at: string
+          id: string
+          recorded_by_person_id: string | null
+          responsible_coach_person_id: string | null
+          season_id: string
+          season_membership_id: string
+          updated_at: string
+        }
+        Insert: {
+          coach_group: string
+          created_at?: string
+          id?: string
+          recorded_by_person_id?: string | null
+          responsible_coach_person_id?: string | null
+          season_id: string
+          season_membership_id: string
+          updated_at?: string
+        }
+        Update: {
+          coach_group?: string
+          created_at?: string
+          id?: string
+          recorded_by_person_id?: string | null
+          responsible_coach_person_id?: string | null
+          season_id?: string
+          season_membership_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_group_assignments_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "constitutional_membership"
+            referencedColumns: ["season_membership_id", "season_id"]
+          },
+          {
+            foreignKeyName: "coach_group_assignments_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "season_memberships"
+            referencedColumns: ["id", "season_id"]
+          },
+          {
+            foreignKeyName: "coach_group_assignments_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coach_group_assignments_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "coach_group_assignments_responsible_coach_person_id_fkey"
+            columns: ["responsible_coach_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coach_group_assignments_responsible_coach_person_id_fkey"
+            columns: ["responsible_coach_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
       committee_years: {
         Row: {
           agm_held_on: string | null
@@ -384,6 +525,7 @@ export type Database = {
           normalised_value: string | null
           person_id: string
           raw_value: string
+          scope: Database["public"]["Enums"]["contact_point_scope"] | null
           source: string | null
           valid_from: string
           valid_until: string | null
@@ -396,6 +538,7 @@ export type Database = {
           normalised_value?: string | null
           person_id: string
           raw_value: string
+          scope?: Database["public"]["Enums"]["contact_point_scope"] | null
           source?: string | null
           valid_from?: string
           valid_until?: string | null
@@ -408,6 +551,7 @@ export type Database = {
           normalised_value?: string | null
           person_id?: string
           raw_value?: string
+          scope?: Database["public"]["Enums"]["contact_point_scope"] | null
           source?: string | null
           valid_from?: string
           valid_until?: string | null
@@ -1370,6 +1514,68 @@ export type Database = {
           },
         ]
       }
+      formalwear_records: {
+        Row: {
+          created_at: string
+          id: string
+          item: Database["public"]["Enums"]["formalwear_item"]
+          ownership: string
+          recorded_by_person_id: string | null
+          season_id: string
+          season_membership_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item: Database["public"]["Enums"]["formalwear_item"]
+          ownership: string
+          recorded_by_person_id?: string | null
+          season_id: string
+          season_membership_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item?: Database["public"]["Enums"]["formalwear_item"]
+          ownership?: string
+          recorded_by_person_id?: string | null
+          season_id?: string
+          season_membership_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "formalwear_records_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "constitutional_membership"
+            referencedColumns: ["season_membership_id", "season_id"]
+          },
+          {
+            foreignKeyName: "formalwear_records_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "season_memberships"
+            referencedColumns: ["id", "season_id"]
+          },
+          {
+            foreignKeyName: "formalwear_records_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "formalwear_records_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
       invitations: {
         Row: {
           audience_member_id: string
@@ -1969,11 +2175,15 @@ export type Database = {
       }
       people: {
         Row: {
+          college: string | null
           created_at: string
+          date_of_birth: string | null
+          degree_field: string | null
+          expected_graduation_year: number | null
           family_name: string | null
           given_name: string
           id: string
-          known_as: string | null
+          matriculation_year: number | null
           merge_reason: string | null
           merged_at: string | null
           merged_by_person_id: string | null
@@ -1982,11 +2192,15 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          college?: string | null
           created_at?: string
+          date_of_birth?: string | null
+          degree_field?: string | null
+          expected_graduation_year?: number | null
           family_name?: string | null
           given_name: string
           id?: string
-          known_as?: string | null
+          matriculation_year?: number | null
           merge_reason?: string | null
           merged_at?: string | null
           merged_by_person_id?: string | null
@@ -1995,11 +2209,15 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          college?: string | null
           created_at?: string
+          date_of_birth?: string | null
+          degree_field?: string | null
+          expected_graduation_year?: number | null
           family_name?: string | null
           given_name?: string
           id?: string
-          known_as?: string | null
+          matriculation_year?: number | null
           merge_reason?: string | null
           merged_at?: string | null
           merged_by_person_id?: string | null
@@ -2126,6 +2344,7 @@ export type Database = {
         Row: {
           alias: string
           id: string
+          is_display_name: boolean
           noted_at: string
           person_id: string
           source: string | null
@@ -2133,6 +2352,7 @@ export type Database = {
         Insert: {
           alias: string
           id?: string
+          is_display_name?: boolean
           noted_at?: string
           person_id: string
           source?: string | null
@@ -2140,6 +2360,7 @@ export type Database = {
         Update: {
           alias?: string
           id?: string
+          is_display_name?: boolean
           noted_at?: string
           person_id?: string
           source?: string | null
@@ -2155,6 +2376,74 @@ export type Database = {
           {
             foreignKeyName: "person_aliases_person_id_fkey"
             columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
+      person_emergency_contacts: {
+        Row: {
+          created_at: string
+          email: string | null
+          family_name: string | null
+          given_name: string
+          id: string
+          person_id: string
+          phone: string | null
+          recorded_by_person_id: string | null
+          relationship: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          family_name?: string | null
+          given_name: string
+          id?: string
+          person_id: string
+          phone?: string | null
+          recorded_by_person_id?: string | null
+          relationship?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          family_name?: string | null
+          given_name?: string
+          id?: string
+          person_id?: string
+          phone?: string | null
+          recorded_by_person_id?: string | null
+          relationship?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_emergency_contacts_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: true
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_emergency_contacts_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: true
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "person_emergency_contacts_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_emergency_contacts_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
             isOneToOne: false
             referencedRelation: "person_standing"
             referencedColumns: ["person_id"]
@@ -3589,12 +3878,36 @@ export type Database = {
           },
         ]
       }
+      person_blues_totals: {
+        Row: {
+          full_blue_count: number | null
+          half_blue_count: number | null
+          person_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "season_memberships_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "season_memberships_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
       person_standing: {
         Row: {
+          display_alias: string | null
           family_name: string | null
           given_name: string | null
           is_past_member: boolean | null
-          known_as: string | null
+          is_under_18: boolean | null
           live_membership_count: number | null
           merged_into_person_id: string | null
           most_recent_season_label: string | null
@@ -3744,6 +4057,7 @@ export type Database = {
       availability_level: "green" | "orange" | "red"
       competition_scope: "club_play" | "bucs" | "varsity" | "bafa"
       contact_point_kind: "email" | "phone"
+      contact_point_scope: "college" | "personal"
       delivery_outcome: "delivered" | "failed" | "rejected" | "manual"
       eligibility_status: "pending" | "eligible" | "ineligible" | "expired"
       event_delivery_mode: "in_person" | "online"
@@ -3771,6 +4085,7 @@ export type Database = {
         | "handover"
         | "other"
       follow_up_status: "open" | "in_progress" | "resolved" | "cancelled"
+      formalwear_item: "tie" | "bowtie" | "socks"
       invitation_capacity:
         | "player"
         | "coach"
@@ -3786,12 +4101,9 @@ export type Database = {
       kit: "blue" | "white"
       membership_entry: "new" | "returning"
       membership_status:
-        | "carried_forward"
-        | "confirmed"
         | "onboarding"
         | "active"
         | "inactive"
-        | "withdrawn"
         | "departed"
         | "archived"
       nonresponse_threshold: "escalation"
@@ -3982,6 +4294,7 @@ export const Constants = {
       availability_level: ["green", "orange", "red"],
       competition_scope: ["club_play", "bucs", "varsity", "bafa"],
       contact_point_kind: ["email", "phone"],
+      contact_point_scope: ["college", "personal"],
       delivery_outcome: ["delivered", "failed", "rejected", "manual"],
       eligibility_status: ["pending", "eligible", "ineligible", "expired"],
       event_delivery_mode: ["in_person", "online"],
@@ -4012,6 +4325,7 @@ export const Constants = {
         "other",
       ],
       follow_up_status: ["open", "in_progress", "resolved", "cancelled"],
+      formalwear_item: ["tie", "bowtie", "socks"],
       invitation_capacity: ["player", "coach", "committee", "guest", "recruit"],
       invitation_status: [
         "pending",
@@ -4023,12 +4337,9 @@ export const Constants = {
       kit: ["blue", "white"],
       membership_entry: ["new", "returning"],
       membership_status: [
-        "carried_forward",
-        "confirmed",
         "onboarding",
         "active",
         "inactive",
-        "withdrawn",
         "departed",
         "archived",
       ],

@@ -86,7 +86,7 @@ select
   current_user as connected_as,
   now() as at,
   (select count(*) from public.people
-    where known_as like 'PILOT-LAN-80%') as scenario_people,
+    where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-80%') as scenario_people,
   (select count(*) from pilot_lan_80_walk_ups) as typed_walk_up_people,
   (select count(*) from public.events
     where name like 'PILOT-LAN-80%') as scenario_events,
@@ -117,7 +117,7 @@ begin
   select count(*) into offending
     from pilot_lan_80_walk_ups w
     join public.people p on p.id = w.person_id
-   where 'PILOT-LAN-80' not in (upper(btrim(p.given_name)), upper(btrim(coalesce(p.known_as, ''))));
+   where 'PILOT-LAN-80' not in (upper(btrim(p.given_name)), upper(btrim(coalesce((select da.alias from public.person_aliases da where da.person_id = p.id and da.is_display_name limit 1), ''))));
   if offending > 0 then
     raise exception
       'LAN-80 pilot cleanup: % walk-up person/people recorded against this scenario do not carry the PILOT-LAN-80 sentinel in their name. This script will not guess whether they are synthetic. Rename them so the sentinel is the first word and run this again, or remove them deliberately yourself.',
@@ -151,7 +151,7 @@ begin
   -- access. That is a decision to unwind deliberately, not a row to delete.
   select count(*) into offending
     from public.role_assignments
-   where person_id in (select id from public.people where known_as like 'PILOT-LAN-80%');
+   where person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-80%');
   if offending > 0 then
     raise exception
       'LAN-80 pilot cleanup: % role assignment(s) hang off this scenario''s people. Withdraw the access deliberately before removing them.',
@@ -163,7 +163,7 @@ begin
   -- can prove are walk-ups.
   select count(*) into offending
     from public.people
-   where known_as like 'PILOT-LAN-80%'
+   where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-80%'
      and id <> all (array[
        '00800080-0080-4080-8080-000000000001'::uuid,
        '00800080-0080-4080-8080-000000000002'::uuid,
@@ -221,13 +221,13 @@ delete from public.attendance_records
 -- person, which it references.
 delete from public.contact_points
  where person_id in (select person_id from pilot_lan_80_walk_ups)
-   and person_id in (select id from public.people where 'PILOT-LAN-80' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, '')))));
+   and person_id in (select id from public.people where 'PILOT-LAN-80' in (upper(btrim(given_name)), upper(btrim(coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), '')))));
 
 -- The walk-up people themselves. The preflight has already refused to reach
 -- this statement if any of them lacks the sentinel.
 delete from public.people
  where id in (select person_id from pilot_lan_80_walk_ups)
-   and 'PILOT-LAN-80' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, ''))));
+   and 'PILOT-LAN-80' in (upper(btrim(given_name)), upper(btrim(coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), ''))));
 
 -- ---------------------------------------------------------------------------
 -- The RSVP answers
@@ -285,19 +285,19 @@ delete from public.event_audience_members
 -- ---------------------------------------------------------------------------
 delete from public.season_memberships
  where id = '00800080-0080-4080-8080-000000000011'
-   and person_id in (select id from public.people where known_as like 'PILOT-LAN-80%');
+   and person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-80%');
 delete from public.season_memberships
  where id = '00800080-0080-4080-8080-000000000012'
-   and person_id in (select id from public.people where known_as like 'PILOT-LAN-80%');
+   and person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-80%');
 delete from public.season_memberships
  where id = '00800080-0080-4080-8080-000000000013'
-   and person_id in (select id from public.people where known_as like 'PILOT-LAN-80%');
+   and person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-80%');
 delete from public.season_memberships
  where id = '00800080-0080-4080-8080-000000000014'
-   and person_id in (select id from public.people where known_as like 'PILOT-LAN-80%');
+   and person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-80%');
 delete from public.season_memberships
  where id = '00800080-0080-4080-8080-000000000015'
-   and person_id in (select id from public.people where known_as like 'PILOT-LAN-80%');
+   and person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-80%');
 
 -- ---------------------------------------------------------------------------
 -- The events
@@ -314,19 +314,19 @@ delete from public.events
 -- ---------------------------------------------------------------------------
 delete from public.people
  where id = '00800080-0080-4080-8080-000000000001'
-   and known_as like 'PILOT-LAN-80%';
+   and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-80%';
 delete from public.people
  where id = '00800080-0080-4080-8080-000000000002'
-   and known_as like 'PILOT-LAN-80%';
+   and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-80%';
 delete from public.people
  where id = '00800080-0080-4080-8080-000000000003'
-   and known_as like 'PILOT-LAN-80%';
+   and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-80%';
 delete from public.people
  where id = '00800080-0080-4080-8080-000000000004'
-   and known_as like 'PILOT-LAN-80%';
+   and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-80%';
 delete from public.people
  where id = '00800080-0080-4080-8080-000000000005'
-   and known_as like 'PILOT-LAN-80%';
+   and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-80%';
 
 -- ---------------------------------------------------------------------------
 -- Verification — every count below must be zero
@@ -334,7 +334,7 @@ delete from public.people
 select
   'LAN-80 pilot cleanup — remaining' as check,
   (select count(*) from public.people
-    where known_as like 'PILOT-LAN-80%') as scenario_people,
+    where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-80%') as scenario_people,
   (select count(*) from public.events
     where name like 'PILOT-LAN-80%') as scenario_events,
   (select count(*) from public.invitations

@@ -303,11 +303,19 @@ describe("enterReturningPlayer — a new person", () => {
     expect(result.seasonLabel).toBe(openSeasonLabel);
 
     const people = await observer.query(
-      "select id, given_name, family_name, known_as from public.people where given_name = $1",
+      "select id, given_name, family_name from public.people where given_name = $1",
       [givenName],
     );
     expect(people.rowCount).toBe(1);
-    expect(people.rows[0]).toMatchObject({ family_name: "Fielding", known_as: "Ave" });
+    expect(people.rows[0]).toMatchObject({ family_name: "Fielding" });
+
+    // The known-as is a display alias now, not a column. Same fact, new home.
+    const displayAlias = await observer.query<{ alias: string }>(
+      `select alias from public.person_aliases
+        where person_id = $1::uuid and is_display_name`,
+      [people.rows[0].id],
+    );
+    expect(displayAlias.rows.map((row) => row.alias)).toEqual(["Ave"]);
 
     const membership = await observer.query<{
       status: string;
@@ -319,7 +327,7 @@ describe("enterReturningPlayer — a new person", () => {
       [result.membershipId],
     );
     expect(membership.rowCount).toBe(1);
-    expect(membership.rows[0].status).toBe("confirmed");
+    expect(membership.rows[0].status).toBe("onboarding");
     expect(membership.rows[0].entry).toBe("returning");
     expect(membership.rows[0].season_id).toBe(openSeasonId);
     expect(membership.rows[0].confirmed_on).not.toBeNull();
@@ -331,15 +339,13 @@ describe("enterReturningPlayer — a new person", () => {
         order by occurred_at, from_status nulls first`,
       [result.membershipId],
     );
-    expect(history.rows).toHaveLength(2);
-    expect(history.rows[0]).toMatchObject({ from_status: null, to_status: "carried_forward" });
-    expect(history.rows[1]).toMatchObject({
-      from_status: "carried_forward",
-      to_status: "confirmed",
-    });
+    // One row, not two. LAN-182 struck both states the old pair walked
+    // through, and writing them today would record `onboarding → onboarding`.
+    expect(history.rows).toHaveLength(1);
+    expect(history.rows[0]).toMatchObject({ from_status: null, to_status: "onboarding" });
   });
 
-  it("names the acting operator on both transitions", async () => {
+  it("names the acting operator on the transition it writes", async () => {
     // Invariant M2. An anonymous transition is not an audit trail.
     const result = await enterReturningPlayer({
       actorPersonId,
@@ -351,7 +357,7 @@ describe("enterReturningPlayer — a new person", () => {
       "select actor_person_id from public.season_membership_status_events where season_membership_id = $1::uuid",
       [result.membershipId],
     );
-    expect(history.rows).toHaveLength(2);
+    expect(history.rows).toHaveLength(1);
     for (const row of history.rows) expect(row.actor_person_id).toBe(actorPersonId);
   });
 
@@ -410,7 +416,7 @@ describe("enterReturningPlayer — a new person", () => {
     });
   });
 
-  it("reads both audit rows and both transitions back through transition_ledger", async () => {
+  it("reads both audit rows and the transition back through transition_ledger", async () => {
     // The architecture's answer to "where is the whole story?" — one stream
     // over the typed history table and audit_events, without duplication.
     const result = await enterReturningPlayer({
@@ -429,7 +435,7 @@ describe("enterReturningPlayer — a new person", () => {
     expect(ledger.rows.filter((row) => row.recorded_in === "audit_events")).toHaveLength(2);
     expect(
       ledger.rows.filter((row) => row.recorded_in === "season_membership_status_events"),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
   });
 
   it("stores contact detail exactly as it was typed", async () => {
@@ -485,11 +491,11 @@ describe("enterReturningPlayer — a new person", () => {
     });
     expect(same.aliasCreated).toBe(false);
 
-    const aliases = await observer.query(
-      "select alias from public.person_aliases where person_id = $1::uuid",
+    const aliases = await observer.query<{ alias: string; is_display_name: boolean }>(
+      "select alias, is_display_name from public.person_aliases where person_id = $1::uuid",
       [distinct.personId],
     );
-    expect(aliases.rows.map((row) => row.alias)).toEqual(["Ben"]);
+    expect(aliases.rows).toEqual([{ alias: "Ben", is_display_name: true }]);
   });
 
   it("refuses a blank given name before touching the database", async () => {
@@ -546,7 +552,7 @@ describe("enterReturningPlayer — an existing person", () => {
     expect(membership.rows[0]).toMatchObject({
       person_id: withoutMembership.id,
       entry: "returning",
-      status: "confirmed",
+      status: "onboarding",
     });
   });
 
@@ -771,7 +777,7 @@ describe("enterReturningPlayer — a failure part-way through", () => {
           familyName: "Rollback",
           knownAs: "Roll",
           email: "doomed@example.invalid",
-          phone: "07700 900999",
+          phone: "+44 7700 900999",
         },
         decision: { kind: "new", confirmed: true },
       }),
@@ -786,7 +792,7 @@ describe("enterReturningPlayer — a failure part-way through", () => {
 
     const contacts = await observer.query(
       "select id from public.contact_points where raw_value in ($1, $2)",
-      ["doomed@example.invalid", "07700 900999"],
+      ["doomed@example.invalid", "+44 7700 900999"],
     );
     expect(contacts.rowCount).toBe(0);
 

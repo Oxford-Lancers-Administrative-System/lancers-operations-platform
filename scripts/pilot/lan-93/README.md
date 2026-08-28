@@ -16,7 +16,8 @@ in a text column.
 | 1   | `position_vocabularies` | `…0001`          | `code = 'pilot-lan-93'`                  |
 | 2   | `positions`             | `…0002`          | `label like 'PILOT-LAN-93%'`             |
 | 3   | `seasons`               | `…0003`          | `label like 'PILOT-LAN-93%'`             |
-| 4   | `people`                | `…0004`          | `known_as = 'PILOT-LAN-93'`              |
+| 4   | `people`                | `…0004`          | its display alias, `…0094`               |
+| 4a  | `person_aliases`        | `…0094`          | `alias = 'PILOT-LAN-93'`                 |
 | 5   | `season_memberships`    | `…0005`          | its person and season are both `…0004/3` |
 | 6   | `events`                | `…0006`          | `name like 'PILOT-LAN-93%'`              |
 

@@ -200,6 +200,51 @@ async function keysFor(
 }
 
 /**
+ * The first `limit` player candidates who actually hold a mobile number.
+ *
+ * `keysFor` takes the first N in catalogue order, and that is the wrong tool for
+ * a test whose subject is reachability: only 71% of the seeded club carries a
+ * phone at all and only some of those are written cleanly, both by measured
+ * design, so "the first two players" is not "two reachable players". Which
+ * people land in the first few positions also moves whenever the dataset gains
+ * a row — every id comes from the one seeded PRNG — so a positional pick that
+ * happens to be reachable today is not reachable tomorrow.
+ *
+ * Selected on `normalised_value is not null`, which is the dataset's own
+ * statement that a number came in cleanly: `scripts/seed-local.mjs` fills it in
+ * for the well-formed shape and leaves it null for the reversed, spaced and
+ * digit-short ones it reproduces on purpose. That is a property of the data
+ * rather than a second copy of the rule the preview applies.
+ */
+async function reachableKeysFor(
+  event: { seasonId: string; scheduledOn: string | null },
+  limit: number,
+): Promise<string[]> {
+  const catalogue = await catalogueFor(event);
+  const players = catalogue.candidates.filter((candidate) => candidate.capacity === "player");
+  const withPhones = await observer.query<{ person_id: string }>(
+    `select distinct c.person_id
+       from public.contact_points c
+      where c.kind = 'phone'
+        and c.valid_until is null
+        and c.normalised_value is not null
+        and c.person_id = any($1::uuid[])`,
+    [players.map((candidate) => candidate.personId)],
+  );
+  const reachable = new Set(withPhones.rows.map((row) => row.person_id));
+  const keys = players
+    .filter((candidate) => reachable.has(candidate.personId))
+    .slice(0, limit)
+    .map((candidate) => candidate.key);
+  if (keys.length < limit) {
+    throw new Error(
+      `The seeded season offers ${keys.length} active players with a cleanly recorded mobile number; this test needs ${limit}.`,
+    );
+  }
+  return keys;
+}
+
+/**
  * Propose an audience and approve it — the two steps the screen performs.
  *
  * They are separate service calls now that the audience is stored against the
@@ -984,7 +1029,7 @@ describe("the approval preview", () => {
   // is named before approval rather than discovered afterwards.
   it("names an audience member with no usable WhatsApp number", async () => {
     const event = await newDraft({ scheduledOn: "2026-10-18" });
-    const [reachableKey, unreachableKey] = await keysFor(event, "player", 2);
+    const [reachableKey, unreachableKey] = await reachableKeysFor(event, 2);
     await saveEventAudience(actorPersonId, event.id, [reachableKey, unreachableKey]);
     const audience = await readEventAudience(event.id);
     const target = audience.find(

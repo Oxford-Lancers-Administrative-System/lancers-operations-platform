@@ -62,7 +62,7 @@ select
   'LAN-81 pilot cleanup — before' as check,
   current_database() as database,
   current_user as connected_as,
-  (select count(*) from public.people where known_as like 'PILOT-LAN-81%') as scenario_people,
+  (select count(*) from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-81%') as scenario_people,
   (select count(*) from public.events where name like '%PILOT-LAN-81%') as scenario_events,
   (
     select count(*) from public.weekly_reports where content::text like '%PILOT-LAN-81%'
@@ -202,51 +202,51 @@ delete from public.events
 -- ---------------------------------------------------------------------------
 delete from public.season_memberships
  where id = '00810081-0081-4081-8081-000000000011'
-   and person_id in (select id from public.people where known_as like 'PILOT-LAN-81%');
+   and person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-81%');
 delete from public.season_memberships
  where id = '00810081-0081-4081-8081-000000000012'
-   and person_id in (select id from public.people where known_as like 'PILOT-LAN-81%');
+   and person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-81%');
 delete from public.season_memberships
  where id = '00810081-0081-4081-8081-000000000013'
-   and person_id in (select id from public.people where known_as like 'PILOT-LAN-81%');
+   and person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-81%');
 delete from public.season_memberships
  where id = '00810081-0081-4081-8081-000000000014'
-   and person_id in (select id from public.people where known_as like 'PILOT-LAN-81%');
+   and person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-81%');
 delete from public.season_memberships
  where id = '00810081-0081-4081-8081-000000000015'
-   and person_id in (select id from public.people where known_as like 'PILOT-LAN-81%');
+   and person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-81%');
 delete from public.season_memberships
  where id = '00810081-0081-4081-8081-000000000016'
-   and person_id in (select id from public.people where known_as like 'PILOT-LAN-81%');
+   and person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-81%');
 
 -- ---------------------------------------------------------------------------
 -- The people
 -- ---------------------------------------------------------------------------
 delete from public.people
  where id = '00810081-0081-4081-8081-000000000001'
-   and known_as like 'PILOT-LAN-81%';
+   and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-81%';
 delete from public.people
  where id = '00810081-0081-4081-8081-000000000002'
-   and known_as like 'PILOT-LAN-81%';
+   and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-81%';
 delete from public.people
  where id = '00810081-0081-4081-8081-000000000003'
-   and known_as like 'PILOT-LAN-81%';
+   and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-81%';
 delete from public.people
  where id = '00810081-0081-4081-8081-000000000004'
-   and known_as like 'PILOT-LAN-81%';
+   and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-81%';
 delete from public.people
  where id = '00810081-0081-4081-8081-000000000005'
-   and known_as like 'PILOT-LAN-81%';
+   and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-81%';
 delete from public.people
  where id = '00810081-0081-4081-8081-000000000006'
-   and known_as like 'PILOT-LAN-81%';
+   and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-81%';
 
 -- ---------------------------------------------------------------------------
 -- Read this before you commit
 -- ---------------------------------------------------------------------------
 select
   'LAN-81 pilot cleanup — remaining' as check,
-  (select count(*) from public.people where known_as like 'PILOT-LAN-81%') as people,
+  (select count(*) from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-81%') as people,
   (select count(*) from public.events where name like '%PILOT-LAN-81%') as events,
   (select count(*) from public.weekly_reports where content::text like '%PILOT-LAN-81%') as reports,
   (select count(*) from public.seasons where status in ('open', 'active')) as open_seasons_untouched;

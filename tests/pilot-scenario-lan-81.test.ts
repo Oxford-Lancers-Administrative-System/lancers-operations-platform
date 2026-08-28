@@ -115,7 +115,7 @@ beforeAll(async () => {
  */
 async function blankCanvas() {
   const events = `('${EVENTS.practice}', '${EVENTS.emptyRegister}', '${EVENTS.briefing}')`;
-  const people = `(select id from public.people where known_as like '${SENTINEL}%')`;
+  const people = `(select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like '${SENTINEL}%')`;
 
   await client.query(
     `delete from public.audit_events
@@ -136,7 +136,9 @@ async function blankCanvas() {
   await client.query(`delete from public.event_audience_members where event_id in ${events}`);
   await client.query(`delete from public.season_memberships where person_id in ${people}`);
   await client.query(`delete from public.events where id in ${events}`);
-  await client.query(`delete from public.people where known_as like '${SENTINEL}%'`);
+  await client.query(
+    `delete from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like '${SENTINEL}%'`,
+  );
 
   // And the rest of the window. Seeded events are removed dependency-first,
   // exactly as the scenario's own rows are, so the scenario has a week to itself
@@ -231,7 +233,12 @@ describe("setup.sql", () => {
   it("creates the whole scenario, and is safe to run twice", async () => {
     await client.query(SETUP);
 
-    expect(await count("public.people where known_as like $1", [`${SENTINEL}%`])).toBe(6);
+    expect(
+      await count(
+        "public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like $1",
+        [`${SENTINEL}%`],
+      ),
+    ).toBe(6);
     expect(await count("public.season_memberships where person_id = any($1)", [PEOPLE])).toBe(6);
     expect(await count("public.events where name like $1", [`%${SENTINEL}%`])).toBe(3);
     expect(

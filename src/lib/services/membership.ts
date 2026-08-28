@@ -10,7 +10,7 @@ import {
 import { recordAudit } from "./audit";
 import { actorRequirement } from "./actor";
 import { readCurrentSeasonIn, type Season } from "./seasons";
-import { escapeLikePattern } from "./sql-text";
+import { escapeLikePattern, personDisplayAliasSql } from "./sql-text";
 
 /**
  * The season membership aggregate — the roster, one membership's record, its
@@ -84,16 +84,19 @@ import { escapeLikePattern } from "./sql-text";
 // The transition table
 // ---------------------------------------------------------------------------
 
-/** `public.membership_status`, in the frozen model's own order. */
-export type MembershipStatus =
-  | "carried_forward"
-  | "confirmed"
-  | "onboarding"
-  | "active"
-  | "inactive"
-  | "withdrawn"
-  | "departed"
-  | "archived";
+/**
+ * `public.membership_status`, in the ladder's own order.
+ *
+ * Five values since LAN-182, not eight. `carried_forward` and `confirmed` were
+ * never states anybody rested in — `entry` already says new-or-returning, and
+ * confirmation is an act with a date, not a state — and `withdrawn` described
+ * somebody who under the rebuilt ladder never holds a membership at all: they
+ * are `declined` on their recruitment prospect record.
+ *
+ * `recruit` is deliberately absent. The ladder the operator sees has six rungs
+ * assembled from two records, and only these five are membership statuses.
+ */
+export type MembershipStatus = "onboarding" | "active" | "inactive" | "departed" | "archived";
 
 /** The transitions this slice performs. Anything absent is refused. */
 export interface MembershipTransition {
@@ -108,7 +111,6 @@ export interface MembershipTransition {
 }
 
 export const MEMBERSHIP_TRANSITIONS: readonly MembershipTransition[] = Object.freeze([
-  Object.freeze({ from: "confirmed", to: "onboarding", system: true }),
   Object.freeze({ from: "onboarding", to: "active", system: false }),
   // Register D1: the club's normal case. One membership whose history carries
   // the gap, never a second record.
@@ -116,9 +118,14 @@ export const MEMBERSHIP_TRANSITIONS: readonly MembershipTransition[] = Object.fr
   Object.freeze({ from: "inactive", to: "active", system: false }),
 ]) as readonly MembershipTransition[];
 
-/** The statuses activation may start from. Both end at `active`. */
+/**
+ * The statuses activation may start from.
+ *
+ * One, since LAN-182. It used to be two because a membership could sit at
+ * `confirmed` before onboarding began; now every membership starts at
+ * `onboarding`, so there is nowhere else to activate from.
+ */
 const ACTIVATABLE_FROM: readonly MembershipStatus[] = Object.freeze([
-  "confirmed",
   "onboarding",
 ]) as readonly MembershipStatus[];
 
@@ -130,12 +137,9 @@ const ACTIVATABLE_FROM: readonly MembershipStatus[] = Object.freeze([
  * value leaking onto the screen.
  */
 const STATE_NAMES: Readonly<Record<MembershipStatus, string>> = Object.freeze({
-  carried_forward: "carried forward from last season and not yet confirmed",
-  confirmed: "confirmed",
   onboarding: "working through onboarding",
   active: "already active",
   inactive: "inactive",
-  withdrawn: "withdrawn",
   departed: "departed",
   archived: "archived",
 });
@@ -320,8 +324,9 @@ export interface RosterEntry {
   personId: string;
   givenName: string;
   familyName: string | null;
-  knownAs: string | null;
-  /** The name as the roster shows it: known-as where there is one. */
+  /** The alias flagged as this person's display name, if they have one. */
+  displayAlias: string | null;
+  /** The name as the roster shows it. */
   displayName: string;
   status: MembershipStatus;
   entry: string;
@@ -357,9 +362,9 @@ export interface RosterFilters {
  * never an error and never the caller's text.
  *
  * `status` sorts by the enum's own declaration order rather than
- * alphabetically, so the roster reads carried-forward, confirmed, onboarding,
- * active — the order a season actually moves through — instead of "active,
- * carried_forward, confirmed".
+ * alphabetically, so the roster reads onboarding, active, inactive, departed,
+ * archived — the order a season actually moves through — instead of "active,
+ * archived, departed".
  */
 export const ROSTER_SORT_COLUMNS: Readonly<
   Record<string, { sql: string; default: "asc" | "desc" }>
@@ -409,7 +414,7 @@ function optional(value: string | null | undefined): string | null {
 function displayNameOf(row: {
   given_name: string;
   family_name: string | null;
-  known_as: string | null;
+  display_alias: string | null;
 }): string {
   const formal = row.family_name ? `${row.given_name} ${row.family_name}` : row.given_name;
   return formal;
@@ -447,7 +452,7 @@ interface RosterRow {
   person_id: string;
   given_name: string;
   family_name: string | null;
-  known_as: string | null;
+  display_alias: string | null;
   status: MembershipStatus;
   entry: string;
   email: string | null;
@@ -463,7 +468,7 @@ function toRosterEntry(row: RosterRow): RosterEntry {
     personId: row.person_id,
     givenName: row.given_name,
     familyName: row.family_name,
-    knownAs: row.known_as,
+    displayAlias: row.display_alias,
     displayName: displayNameOf(row),
     status: row.status,
     entry: row.entry,
@@ -498,7 +503,8 @@ export async function listCurrentSeasonRoster(filters: RosterFilters = {}): Prom
 
     const result = await tx.query<RosterRow>(
       `select m.id as membership_id, p.id as person_id,
-              p.given_name, p.family_name, p.known_as,
+              p.given_name, p.family_name,
+              ${personDisplayAliasSql("p")} as display_alias,
               m.status::text as status, m.entry::text as entry,
               ${CONTACT_COLUMNS},
               ${ITEM_COUNT_COLUMNS}
@@ -508,7 +514,9 @@ export async function listCurrentSeasonRoster(filters: RosterFilters = {}): Prom
           and ($2::text is null
                or p.given_name ilike '%' || $2 || '%'
                or coalesce(p.family_name, '') ilike '%' || $2 || '%'
-               or coalesce(p.known_as, '') ilike '%' || $2 || '%'
+               or exists (select 1 from public.person_aliases a
+                           where a.person_id = p.id
+                             and a.alias ilike '%' || $2 || '%')
                or exists (select 1 from public.contact_points c
                            where c.person_id = p.id and c.valid_until is null
                              and c.raw_value ilike '%' || $2 || '%'))
@@ -555,7 +563,8 @@ export interface MembershipRecord {
   personId: string;
   givenName: string;
   familyName: string | null;
-  knownAs: string | null;
+  /** The alias flagged as this person's display name, if they have one. */
+  displayAlias: string | null;
   displayName: string;
   status: MembershipStatus;
   entry: string;
@@ -579,7 +588,7 @@ async function readMembershipIn(tx: Tx, membershipId: string): Promise<Membershi
     person_id: string;
     given_name: string;
     family_name: string | null;
-    known_as: string | null;
+    display_alias: string | null;
     status: MembershipStatus;
     entry: string;
     season_id: string;
@@ -589,7 +598,8 @@ async function readMembershipIn(tx: Tx, membershipId: string): Promise<Membershi
     inactivity_label: string | null;
   }>(
     `select m.id as membership_id, p.id as person_id,
-            p.given_name, p.family_name, p.known_as,
+            p.given_name, p.family_name,
+            ${personDisplayAliasSql("p")} as display_alias,
             m.status::text as status, m.entry::text as entry,
             s.id as season_id, s.label as season_label,
             to_char(m.confirmed_on, 'YYYY-MM-DD') as confirmed_on,
@@ -640,7 +650,7 @@ async function readMembershipIn(tx: Tx, membershipId: string): Promise<Membershi
     personId: row.person_id,
     givenName: row.given_name,
     familyName: row.family_name,
-    knownAs: row.known_as,
+    displayAlias: row.display_alias,
     displayName: displayNameOf(row),
     status: row.status,
     entry: row.entry,
@@ -730,16 +740,10 @@ async function recordStatusEvent(
   );
 }
 
-/** The reason recorded on the system's own step, so history says who authored it. */
-const ONBOARDING_STARTED_REASON =
-  "Onboarding started by the system; items generated for the season.";
-
 export interface ActivationOutcome {
   membership: MembershipRecord;
   /** The required items that were outstanding when the operator proceeded. */
   proceededOver: OnboardingItem[];
-  /** True when this call also wrote the system's `confirmed → onboarding` step. */
-  startedOnboarding: boolean;
 }
 
 /**
@@ -794,8 +798,8 @@ export async function activateMembership(params: {
 
     if (!ACTIVATABLE_FROM.includes(status)) {
       throw new InvalidTransition(
-        `${describeMembershipState(status)} Only a confirmed membership, or one working ` +
-          "through onboarding, can be activated.",
+        `${describeMembershipState(status)} Only a membership working through onboarding ` +
+          "can be activated.",
         { rule: "membership_activation_illegal_from_state" },
       );
     }
@@ -817,23 +821,9 @@ export async function activateMembership(params: {
       );
     }
 
-    const startedOnboarding = status === "confirmed";
-    if (startedOnboarding) {
-      // The frozen model's system step. Written rather than skipped so the
-      // history is §2.1's machine and not a shortcut through it.
-      if (!transitionIsLegal("confirmed", "onboarding")) {
-        throw new InvalidTransition(describeMembershipState(status), {
-          rule: "membership_transition_not_permitted",
-        });
-      }
-      await recordStatusEvent(tx, {
-        membershipId,
-        from: "confirmed",
-        to: "onboarding",
-        actorPersonId,
-        reason: ONBOARDING_STARTED_REASON,
-      });
-    }
+    // There is no `confirmed → onboarding` system step to write any more. Under
+    // the five-value ladder a membership is created at `onboarding`, so the step
+    // this used to record has already happened by the time anybody can activate.
 
     if (!transitionIsLegal("onboarding", "active")) {
       throw new InvalidTransition(describeMembershipState(status), {
@@ -886,7 +876,6 @@ export async function activateMembership(params: {
       reason,
       context: {
         issue: "LAN-75",
-        started_onboarding: startedOnboarding,
         proceeded_over_outstanding: outstanding.map((item) => item.code),
         override_reason: overrideReason,
         // Register D9: the transitions live in the typed table. This names
@@ -898,7 +887,6 @@ export async function activateMembership(params: {
     return {
       membership: await readMembershipIn(tx, membershipId),
       proceededOver: outstanding,
-      startedOnboarding,
     };
   });
 }

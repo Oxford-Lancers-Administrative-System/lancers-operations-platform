@@ -22,6 +22,7 @@ import {
   dispatchJob,
 } from "./delivery";
 import type { MessagingPlan } from "./messaging-schedule";
+import { personDisplayAliasSql } from "./sql-text";
 
 /**
  * The scheduler sweep. LAN-169.
@@ -1107,7 +1108,7 @@ export async function dispatchNoticeJob(
       event_starts_at_set: boolean;
       when_label: string;
       given_name: string;
-      known_as: string | null;
+      display_alias: string | null;
     }>(
       // F-C2. `to_char(timestamp at time zone 'Europe/London', …)` is a single
       // conversion — the `timestamptz` this whole expression already produces,
@@ -1128,7 +1129,8 @@ export async function dispatchNoticeJob(
                 (e.scheduled_on + coalesce(e.starts_at, '00:00'::time))
                   at time zone 'Europe/London' at time zone 'Europe/London',
                 'FMDay FMDD FMMonth, HH24:MI') as when_label,
-              p.given_name, p.known_as
+              p.given_name,
+              ${personDisplayAliasSql("p")} as display_alias
          from public.invitations i
          join public.events e on e.id = i.event_id
          left join public.season_memberships m on m.id = i.season_membership_id
@@ -1222,7 +1224,7 @@ export async function dispatchNoticeJob(
       [jobId, job.attempt_count, context.channel, context.provider.name],
     );
 
-    const known = detail.known_as?.trim();
+    const known = detail.display_alias?.trim();
 
     return {
       attemptId: attempt.rows[0].id,

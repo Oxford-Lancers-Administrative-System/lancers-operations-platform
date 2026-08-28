@@ -3,6 +3,7 @@ import "server-only";
 import { ConstraintViolated, NotFound, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
 import { readCurrentSeasonIn, type Season } from "./seasons";
+import { personDisplayNameSql } from "./sql-text";
 
 /**
  * The Monday report — locked Requirement 9, invariant M5. LAN-81.
@@ -438,12 +439,7 @@ export function lookaheadWindow(reportOn: string): { from: string; to: string } 
 // ---------------------------------------------------------------------------
 
 /** The display-name expression. Same shape the other services use. */
-const DISPLAY_NAME = `case
-    when p.id is null then null
-    when p.family_name is null
-      then coalesce(nullif(btrim(p.known_as), ''), p.given_name)
-    else coalesce(nullif(btrim(p.known_as), ''), p.given_name) || ' ' || p.family_name
-  end`;
+const DISPLAY_NAME = personDisplayNameSql("p");
 
 interface EventRow {
   id: string;

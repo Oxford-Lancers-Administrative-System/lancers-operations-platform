@@ -51,7 +51,16 @@ type PersonNameColumns = {
   id: string;
   given_name: string;
   family_name: string | null;
-  known_as: string | null;
+  /**
+   * The display alias, embedded rather than columnar.
+   *
+   * LAN-182 struck `people.known_as` and moved the name a person is shown under
+   * into `person_aliases`, one row of which may be flagged `is_display_name`.
+   * This path reads through PostgREST rather than SQL, so it arrives as an
+   * embedded array — with at most one element, which
+   * `person_aliases_one_display_name_per_person` guarantees.
+   */
+  person_aliases: { alias: string }[] | null;
 };
 
 type AssignmentColumns = {
@@ -115,7 +124,7 @@ function isCurrentlyEffective(assignment: AssignmentColumns, nowMs: number): boo
  * trailing space or the string "undefined".
  */
 function formatDisplayName(person: PersonNameColumns): string {
-  const first = person.known_as?.trim() || person.given_name.trim();
+  const first = person.person_aliases?.[0]?.alias.trim() || person.given_name.trim();
   const last = person.family_name?.trim();
   return last ? `${first} ${last}` : first;
 }
@@ -269,8 +278,9 @@ export async function resolveOperatorAccess(): Promise<OperatorAccess> {
 
   const { data: person, error: personError } = await admin
     .from("people")
-    .select("id, given_name, family_name, known_as")
+    .select("id, given_name, family_name, person_aliases(alias)")
     .eq("id", account.person_id)
+    .eq("person_aliases.is_display_name", true)
     .maybeSingle();
 
   if (personError) {

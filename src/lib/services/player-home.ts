@@ -4,6 +4,7 @@ import { ConstraintViolated, InvalidTransition, type Tx } from "@/lib/db";
 
 import { recordAnswerIn, type SignedRsvpSubmission } from "./rsvp";
 import { NO_REASON_GIVEN_DEFAULT } from "./player-answer-tokens";
+import { personDisplayAliasSql } from "./sql-text";
 
 /**
  * Reads and writes for the two pages LAN-172 adds beyond the answer link
@@ -399,7 +400,7 @@ export function needsFollowUp(
 export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<PlayerHome> {
   const person = await tx.query<{ player_name: string }>(
     `select concat_ws(' ',
-              coalesce(nullif(btrim(p.known_as), ''), p.given_name),
+              coalesce(nullif(btrim(${personDisplayAliasSql("p")}), ''), p.given_name),
               nullif(btrim(coalesce(p.family_name, '')), '')) as player_name
        from public.people p
       where p.id = $1`,

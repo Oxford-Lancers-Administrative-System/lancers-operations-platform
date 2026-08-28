@@ -115,7 +115,7 @@ beforeAll(async () => {
  * `begin … rollback`, so nothing it removes is really removed.
  */
 async function blankCanvas() {
-  const people = `(select id from public.people where known_as like '${SENTINEL}%')`;
+  const people = `(select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like '${SENTINEL}%')`;
 
   await client.query("drop table if exists pg_temp.blank_canvas_walk_ups");
   await client.query(
@@ -166,7 +166,9 @@ async function blankCanvas() {
   await client.query(
     `delete from public.events where id = any('{${EVENT_IDS.join(",")}}'::uuid[])`,
   );
-  await client.query(`delete from public.people where known_as like '${SENTINEL}%'`);
+  await client.query(
+    `delete from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like '${SENTINEL}%'`,
+  );
 }
 
 beforeEach(async () => {
@@ -193,7 +195,10 @@ async function count(sql: string, params: unknown[] = []): Promise<number> {
 /** The scenario's own row counts, as one object. */
 async function scenarioRows() {
   return {
-    people: await count("public.people where known_as like $1", [`${SENTINEL}%`]),
+    people: await count(
+      "public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like $1",
+      [`${SENTINEL}%`],
+    ),
     assignments: await count("public.role_assignments where note like $1", [`${SENTINEL}%`]),
     events: await count("public.events where name like $1", [`${SENTINEL}%`]),
     memberships: await count("public.season_memberships where person_id = any($1::uuid[])", [
@@ -617,9 +622,18 @@ describe("cleanup.sql", () => {
 
   it("leaves every table it does not own exactly as it found it", async () => {
     // The strongest statement available: every row of every table, hashed. The
-    // three tables holding the preserved coaching identities are excluded and
+    // four tables holding the preserved coaching identities are excluded and
     // asserted separately below — everything else must come back byte-identical.
-    const owned = new Set(["public.people", "public.role_assignments", "public.contact_points"]);
+    //
+    // `person_aliases` joined that list with LAN-182: a coaching identity now
+    // carries its sentinel as the alias flagged as its display name, so the
+    // alias survives for exactly as long as the identity it names does.
+    const owned = new Set([
+      "public.people",
+      "public.person_aliases",
+      "public.role_assignments",
+      "public.contact_points",
+    ]);
     const untouched = async () =>
       Object.fromEntries(Object.entries(await snapshot()).filter(([table]) => !owned.has(table)));
 
@@ -796,9 +810,16 @@ describe("cleanup.sql", () => {
 
   it("refuses when a sentinel-carrying person it does not know about appears", async () => {
     await client.query(SETUP);
+    // The sentinel is a display alias since LAN-182 struck `people.known_as`,
+    // so an interloper carrying it carries it there.
+    const interloper = await client.query<{ id: string }>(
+      "insert into public.people (given_name, family_name) values ($1, $2) returning id",
+      ["Someone", "Else"],
+    );
     await client.query(
-      "insert into public.people (given_name, family_name, known_as) values ($1, $2, $3)",
-      ["Someone", "Else", `${SENTINEL} not from this scenario`],
+      `insert into public.person_aliases (person_id, alias, source, is_display_name)
+       values ($1, $2, 'interloper', true)`,
+      [interloper.rows[0].id, `${SENTINEL} not from this scenario`],
     );
 
     await expect(runCleanup()).rejects.toThrow(/will not guess at them/i);
@@ -857,14 +878,18 @@ describe("README.md", () => {
 
   it("names every person in the matrix it asks Brian to work through", async () => {
     await client.query(SETUP);
-    const { rows } = await client.query<{ known_as: string }>(
-      "select known_as from public.people where known_as like $1",
+    const { rows } = await client.query<{ display_alias: string }>(
+      `select (select da.alias from public.person_aliases da
+                where da.person_id = people.id and da.is_display_name limit 1) as display_alias
+         from public.people
+        where (select da.alias from public.person_aliases da
+                where da.person_id = people.id and da.is_display_name limit 1) like $1`,
       [`${SENTINEL}%`],
     );
 
     expect(rows).toHaveLength(5);
-    for (const { known_as } of rows) {
-      const label = known_as.replace(`${SENTINEL} `, "");
+    for (const { display_alias: displayAlias } of rows) {
+      const label = displayAlias.replace(`${SENTINEL} `, "");
       expect(README_FILE, `README.md does not mention "${label}"`).toContain(label);
     }
   });

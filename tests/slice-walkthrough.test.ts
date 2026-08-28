@@ -433,7 +433,8 @@ async function signInAndResolve(email: string): Promise<ResolvedOperator> {
     role_codes: string[] | null;
   }>(
     `select a.person_id,
-            coalesce(nullif(btrim(p.known_as), ''), p.given_name)
+            coalesce(nullif(btrim((select da.alias from public.person_aliases da
+                     where da.person_id = p.id and da.is_display_name limit 1)), ''), p.given_name)
               || coalesce(' ' || p.family_name, '') as display_name,
             a.is_active,
             (select array_agg(distinct r.code order by r.code)
@@ -716,12 +717,14 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
 
     expect(memberships.rows.map((row) => row.status)).toEqual(["active", "active"]);
 
-    // The intake's documented status sequence, not a single `confirmed` insert:
-    // `carried_forward → confirmed` on entry, then `confirmed → onboarding →
-    // active` on activation. Every step is recorded, and the chain joins up.
+    // The intake's documented status sequence: `→ onboarding` on entry, then
+    // `onboarding → active` on activation. Two steps, since LAN-182 — the four
+    // it used to be walked through `carried_forward` and `confirmed`, and both
+    // of those now map onto `onboarding`, so writing them would record two
+    // changes from a state to itself.
     //
     // Compared as a set. `occurred_at` defaults to `now()`, which is the
-    // transaction timestamp, so the two rows the intake writes share one and
+    // transaction timestamp, so rows written in one transaction share one and
     // no column orders them — asserting a sequence would be asserting the
     // order UUIDs happened to sort in.
     const history = await db.query<{ from_status: string | null; to_status: string }>(
@@ -731,14 +734,7 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
       [sayingYes.membershipId],
     );
     const steps = history.rows.map((row) => `${row.from_status ?? "-"}>${row.to_status}`);
-    expect([...steps].sort()).toEqual(
-      [
-        "->carried_forward",
-        "carried_forward>confirmed",
-        "confirmed>onboarding",
-        "onboarding>active",
-      ].sort(),
-    );
+    expect([...steps].sort()).toEqual(["->onboarding", "onboarding>active"].sort());
 
     // The chain is closed: exactly one step starts from nothing, and every
     // other step begins where an earlier one ended.

@@ -69,7 +69,7 @@
 --
 -- OWNERSHIP MARKER — both halves, on every row this script writes:
 --   * a deterministic primary key from the block 00810081-0081-4081-8081-…
---   * the sentinel string PILOT-LAN-81 in a text column — `known_as` on a
+--   * the sentinel string PILOT-LAN-81 in a text column — the display alias of a
 --     person, `name` on an event, `reason` on the one negative RSVP answer.
 --   `season_memberships`, `event_audience_members`, `invitations` and
 --   `attendance_records` are the exceptions, for the reason LAN-78 recorded:
@@ -87,6 +87,10 @@
 -- never silently rewritten.
 --
 -- Paired with cleanup.sql in this directory. Read README.md there first.
+--
+-- That alias is where LAN-182 moved the name a person is shown under. It was
+-- `people.known_as` until the migration struck that column; the sentinel reads
+-- on screen in exactly the same place it always did.
 
 begin;
 
@@ -200,23 +204,29 @@ $preflight$;
 -- ---------------------------------------------------------------------------
 -- The people
 -- ---------------------------------------------------------------------------
--- `known_as` carries the sentinel AND is what the report displays, because the
+-- The display alias carries the sentinel AND is what the report displays, because the
 -- display name prefers it over `given_name`. So the sentinel is inside the name
 -- you will actually read on the screen rather than hidden behind it.
-insert into public.people (id, given_name, family_name, known_as)
+insert into public.people (id, given_name, family_name)
 values
-  ('00810081-0081-4081-8081-000000000001', 'Report', 'Yesabsent',
-   'PILOT-LAN-81 Said yes, marked absent'),
-  ('00810081-0081-4081-8081-000000000002', 'Report', 'Noreason',
-   'PILOT-LAN-81 Said no, with a reason'),
-  ('00810081-0081-4081-8081-000000000003', 'Report', 'Noresponse',
-   'PILOT-LAN-81 Never answered'),
-  ('00810081-0081-4081-8081-000000000004', 'Report', 'Uninvited',
-   'PILOT-LAN-81 Confirmed but never invited'),
-  ('00810081-0081-4081-8081-000000000005', 'Report', 'Walkup',
-   'PILOT-LAN-81 Turned up uninvited'),
-  ('00810081-0081-4081-8081-000000000006', 'Report', 'Briefing',
-   'PILOT-LAN-81 Briefing audience only')
+  ('00810081-0081-4081-8081-000000000001', 'Report', 'Yesabsent'),
+  ('00810081-0081-4081-8081-000000000002', 'Report', 'Noreason'),
+  ('00810081-0081-4081-8081-000000000003', 'Report', 'Noresponse'),
+  ('00810081-0081-4081-8081-000000000004', 'Report', 'Uninvited'),
+  ('00810081-0081-4081-8081-000000000005', 'Report', 'Walkup'),
+  ('00810081-0081-4081-8081-000000000006', 'Report', 'Briefing')
+on conflict (id) do nothing;
+
+-- The sentinel, in the place LAN-182 moved it to: the alias flagged as each
+-- person's display name. It reads on screen exactly where `known_as` used to.
+insert into public.person_aliases (id, person_id, alias, source, is_display_name)
+values
+  ('00810081-0081-4081-8081-000000009001', '00810081-0081-4081-8081-000000000001', 'PILOT-LAN-81 Said yes, marked absent', 'PILOT-LAN-81', true),
+  ('00810081-0081-4081-8081-000000009002', '00810081-0081-4081-8081-000000000002', 'PILOT-LAN-81 Said no, with a reason', 'PILOT-LAN-81', true),
+  ('00810081-0081-4081-8081-000000009003', '00810081-0081-4081-8081-000000000003', 'PILOT-LAN-81 Never answered', 'PILOT-LAN-81', true),
+  ('00810081-0081-4081-8081-000000009004', '00810081-0081-4081-8081-000000000004', 'PILOT-LAN-81 Confirmed but never invited', 'PILOT-LAN-81', true),
+  ('00810081-0081-4081-8081-000000009005', '00810081-0081-4081-8081-000000000005', 'PILOT-LAN-81 Turned up uninvited', 'PILOT-LAN-81', true),
+  ('00810081-0081-4081-8081-000000009006', '00810081-0081-4081-8081-000000000006', 'PILOT-LAN-81 Briefing audience only', 'PILOT-LAN-81', true)
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------

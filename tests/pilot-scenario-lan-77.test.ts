@@ -127,7 +127,10 @@ async function count(sql: string, params: unknown[] = []): Promise<number> {
 /** Every scenario-owned row, counted the way the scripts identify them. */
 async function scenarioCounts() {
   return {
-    people: await count("public.people where known_as = $1", [SENTINEL]),
+    people: await count(
+      "public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) = $1",
+      [SENTINEL],
+    ),
     contacts: await count("public.contact_points where source = $1", [`${SENTINEL} setup script`]),
     memberships: await count("public.season_memberships where id = any($1::uuid[])", [MEMBERSHIPS]),
     statusEvents: await count("public.season_membership_status_events where actor_label = $1", [
@@ -256,7 +259,9 @@ describe("setup.sql installs exactly the scenario", () => {
       people: 3,
       contacts: 4,
       memberships: 3,
-      statusEvents: 9,
+      // Two steps each, not three: LAN-182 collapsed `confirmed` onto
+      // `onboarding`, and the step between them would be a change to itself.
+      statusEvents: 6,
       events: 2,
       audience: 0,
       invitations: 0,
@@ -296,8 +301,7 @@ describe("setup.sql installs exactly the scenario", () => {
       [MEMBERSHIPS[0]],
     );
     expect(rows.rows).toEqual([
-      { from_status: null, to_status: "confirmed" },
-      { from_status: "confirmed", to_status: "onboarding" },
+      { from_status: null, to_status: "onboarding" },
       { from_status: "onboarding", to_status: "active" },
     ]);
   });
@@ -369,6 +373,7 @@ describe("setup.sql installs exactly the scenario", () => {
         "public.events",
         "public.notification_jobs",
         "public.people",
+        "public.person_aliases",
         "public.season_membership_status_events",
         "public.season_memberships",
       ].sort(),
@@ -395,9 +400,11 @@ describe("setup.sql refuses a target it does not understand", () => {
   });
 
   it("aborts when one of its ids belongs to somebody else", async () => {
+    // Somebody else's row on one of the scenario's identifiers, and no sentinel
+    // alias — which is what the ownership check reads since LAN-182.
     await client.query(
-      `insert into public.people (id, given_name, known_as)
-       values ($1, 'Somebody Real', 'not the scenario')`,
+      `insert into public.people (id, given_name)
+       values ($1, 'Somebody Real')`,
       [PEOPLE[0]],
     );
 
@@ -456,18 +463,22 @@ describe("cleanup.sql removes the scenario and only the scenario", () => {
 
   it("preserves the season, and every person who is not the scenario's", async () => {
     const seasonsBefore = await count("public.seasons");
-    const othersBefore = await count("public.people where coalesce(known_as, '') <> $1", [
-      SENTINEL,
-    ]);
+    const othersBefore = await count(
+      "public.people where coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), '') <> $1",
+      [SENTINEL],
+    );
 
     await client.query(SETUP);
     await approveScenarioEvent(APPROVAL_EVENT);
     await client.query(CLEANUP);
 
     expect(await count("public.seasons")).toBe(seasonsBefore);
-    expect(await count("public.people where coalesce(known_as, '') <> $1", [SENTINEL])).toBe(
-      othersBefore,
-    );
+    expect(
+      await count(
+        "public.people where coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), '') <> $1",
+        [SENTINEL],
+      ),
+    ).toBe(othersBefore);
   });
 
   it("preserves durable pilot identities, access records and unrelated audit history", async () => {

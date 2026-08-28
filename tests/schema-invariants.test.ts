@@ -45,7 +45,7 @@ describe("identity (I1–I6)", () => {
     await expectRejected(
       client,
       `insert into public.season_memberships (person_id, season_id, status, entry)
-       values ($1, $2, 'confirmed', 'new')`,
+       values ($1, $2, 'onboarding', 'new')`,
       [base.personId, base.seasonId],
       "season_memberships_one_per_person_per_season",
     );
@@ -439,7 +439,7 @@ describe("participation (P1–P8)", () => {
     const foreign = await one<{ id: string }>(
       client,
       `insert into public.season_memberships (person_id, season_id, status, entry)
-       values ($1, $2, 'confirmed', 'new') returning id`,
+       values ($1, $2, 'onboarding', 'new') returning id`,
       [base.personId, base.otherSeasonId],
     );
 

@@ -111,9 +111,11 @@ begin
   end if;
 
   if exists (
-    select 1 from public.people
-     where id = '00930093-0093-4093-8093-000000000004'
-       and known_as is distinct from 'PILOT-LAN-93'
+    select 1 from public.people p
+     where p.id = '00930093-0093-4093-8093-000000000004'
+       and not exists (
+         select 1 from public.person_aliases a
+          where a.person_id = p.id and a.alias = 'PILOT-LAN-93')
   ) then
     raise exception 'LAN-93 pilot setup refused: people …0004 exists and is not this scenario''s row. Never adopt a person record.';
   end if;
@@ -212,22 +214,36 @@ values (
 )
 on conflict (id) do nothing;
 
--- 4. A synthetic person. Not an operator, not a login, no contact point, and
---    `known_as` carries the sentinel so the row is identifiable in any listing.
+-- 4. A synthetic person. Not an operator, not a login, no contact point, and a
+--    display alias carries the sentinel so the row is identifiable in any
+--    listing. That alias is where LAN-182 moved the name a person is shown
+--    under; it was `people.known_as` until then, and the row still reads
+--    PILOT-LAN-93 wherever the application prints a name.
 --    This is scenario data, NOT a durable pilot identity — durable identities
 --    are provisioned by the procedure in docs/pilot-data-runbook.md and are
 --    never created or removed by a scenario script.
-insert into public.people (id, given_name, family_name, known_as)
+insert into public.people (id, given_name, family_name)
 values (
   '00930093-0093-4093-8093-000000000004',
   'Pilot',
-  'Scenario',
-  'PILOT-LAN-93'
+  'Scenario'
 )
 on conflict (id) do nothing;
 
--- 5. The membership that ties the two together. `confirmed` rather than
+insert into public.person_aliases (id, person_id, alias, source, is_display_name)
+values (
+  '00930093-0093-4093-8093-000000000094',
+  '00930093-0093-4093-8093-000000000004',
+  'PILOT-LAN-93',
+  'PILOT-LAN-93',
+  true
+)
+on conflict (id) do nothing;
+
+-- 5. The membership that ties the two together. `onboarding` rather than
 --    `active`: nothing about this scenario should read as a player on a roster.
+--    It was `confirmed` until LAN-182 struck that value; `onboarding` is where
+--    the mapping sends it and carries the same meaning here.
 insert into public.season_memberships (
   id, person_id, season_id, status, entry, confirmed_on
 )
@@ -235,7 +251,7 @@ values (
   '00930093-0093-4093-8093-000000000005',
   '00930093-0093-4093-8093-000000000004',
   '00930093-0093-4093-8093-000000000003',
-  'confirmed',
+  'onboarding',
   'new',
   date '2026-08-11'
 )

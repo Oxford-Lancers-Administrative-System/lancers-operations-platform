@@ -11,6 +11,7 @@ import {
 
 import { recordAudit } from "./audit";
 import { resolveRsvpTokenIn, type TokenState } from "./rsvp-tokens";
+import { personDisplayAliasSql } from "./sql-text";
 
 /**
  * The player's own RSVP, answered through a signed link. LAN-79.
@@ -128,7 +129,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
             -- name null and render a player no name at all. The seed contains
             -- such a person, which is the point of the seed.
             concat_ws(' ',
-              coalesce(nullif(btrim(p.known_as), ''), p.given_name),
+              coalesce(nullif(btrim(${personDisplayAliasSql("p")}), ''), p.given_name),
               nullif(btrim(coalesce(p.family_name, '')), '')) as player_name,
             i.expires_at as response_deadline,
             r.response::text as response,

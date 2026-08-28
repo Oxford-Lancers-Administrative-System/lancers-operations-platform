@@ -58,7 +58,7 @@ while the whole window is this scenario's.
 
 | Row                    | Count | Sentinel carried in                  |
 | ---------------------- | ----- | ------------------------------------ |
-| People                 | 6     | `known_as`                           |
+| People                 | 6     | its display alias                    |
 | Season memberships     | 6     | (parent chain)                       |
 | Events                 | 3     | `name`                               |
 | Event audience members | 6     | (parent chain)                       |

@@ -93,7 +93,7 @@ select
   current_user as connected_as,
   now() as at,
   (select count(*) from public.people
-    where known_as like 'PILOT-LAN-110%') as scenario_people,
+    where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-110%') as scenario_people,
   (select count(*) from pilot_lan_110_walk_ups) as typed_walk_up_people,
   (select count(*) from public.role_assignments
     where note like 'PILOT-LAN-110%') as scenario_role_assignments,
@@ -137,7 +137,7 @@ begin
   select count(*) into offending
     from pilot_lan_110_walk_ups w
     join public.people p on p.id = w.person_id
-   where 'PILOT-LAN-110' not in (upper(btrim(p.given_name)), upper(btrim(coalesce(p.known_as, ''))));
+   where 'PILOT-LAN-110' not in (upper(btrim(p.given_name)), upper(btrim(coalesce((select da.alias from public.person_aliases da where da.person_id = p.id and da.is_display_name limit 1), ''))));
   if offending > 0 then
     raise exception
       'LAN-110 pilot cleanup: % walk-up person/people recorded against this scenario do not carry the PILOT-LAN-110 sentinel in their name. This script will not guess whether they are synthetic. Rename them so the sentinel is the first word and run this again, or remove them deliberately yourself.',
@@ -198,7 +198,7 @@ begin
   -- can prove are walk-ups.
   select count(*) into offending
     from public.people
-   where known_as like 'PILOT-LAN-110%'
+   where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-110%'
      and id <> all (scenario_people)
      and id not in (select person_id from pilot_lan_110_walk_ups);
   if offending > 0 then
@@ -249,20 +249,20 @@ delete from public.attendance_records
 -- was given. Removed before the person, which they reference.
 delete from public.contact_points
  where person_id in (select person_id from pilot_lan_110_walk_ups)
-   and person_id in (select id from public.people where 'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, '')))));
+   and person_id in (select id from public.people where 'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), '')))));
 
 -- The recruitment prospect the walk-on created. `person_id` is `on delete
 -- restrict`, so without this the person delete below fails outright and the
 -- whole script aborts — which is how this was found.
 delete from public.recruitment_prospects
  where person_id in (select person_id from pilot_lan_110_walk_ups)
-   and person_id in (select id from public.people where 'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, '')))));
+   and person_id in (select id from public.people where 'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), '')))));
 
 -- The walk-up people themselves. The preflight has already refused to reach
 -- this statement if any of them lacks the sentinel.
 delete from public.people
  where id in (select person_id from pilot_lan_110_walk_ups)
-   and 'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, ''))));
+   and 'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1), ''))));
 
 -- ---------------------------------------------------------------------------
 -- The RSVP answers
@@ -339,13 +339,13 @@ update public.role_assignments
 -- ---------------------------------------------------------------------------
 delete from public.season_memberships
  where id = '01100110-0110-4110-8110-000000000021'
-   and person_id in (select id from public.people where known_as like 'PILOT-LAN-110%');
+   and person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-110%');
 delete from public.season_memberships
  where id = '01100110-0110-4110-8110-000000000022'
-   and person_id in (select id from public.people where known_as like 'PILOT-LAN-110%');
+   and person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-110%');
 delete from public.season_memberships
  where id = '01100110-0110-4110-8110-000000000023'
-   and person_id in (select id from public.people where known_as like 'PILOT-LAN-110%');
+   and person_id in (select id from public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-110%');
 
 -- ---------------------------------------------------------------------------
 -- The events
@@ -367,13 +367,13 @@ delete from public.events
 -- foundation's identities do. README.md says so under "After acceptance".
 delete from public.people
  where id = '01100110-0110-4110-8110-000000000003'
-   and known_as like 'PILOT-LAN-110%';
+   and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-110%';
 delete from public.people
  where id = '01100110-0110-4110-8110-000000000004'
-   and known_as like 'PILOT-LAN-110%';
+   and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-110%';
 delete from public.people
  where id = '01100110-0110-4110-8110-000000000005'
-   and known_as like 'PILOT-LAN-110%';
+   and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-110%';
 
 -- ---------------------------------------------------------------------------
 -- Verification — read every number
@@ -384,7 +384,7 @@ delete from public.people
 select
   'LAN-110 pilot cleanup — remaining' as check,
   (select count(*) from public.people
-    where known_as like 'PILOT-LAN-110%') as coaching_identities_preserved,
+    where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like 'PILOT-LAN-110%') as coaching_identities_preserved,
   (select count(*) from public.role_assignments
     where note like 'PILOT-LAN-110%') as seats_preserved_as_history,
   (select count(*) from public.role_assignments

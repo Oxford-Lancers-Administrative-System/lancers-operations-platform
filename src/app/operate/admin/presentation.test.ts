@@ -701,7 +701,7 @@ describe("dates", () => {
 describe("player membership", () => {
   it("uses the roster's own word for a status", () => {
     expect(membershipStatusLabel("active")).toBe("Active");
-    expect(membershipStatusLabel("carried_forward")).toBe("Carried forward");
+    expect(membershipStatusLabel("onboarding")).toBe("Onboarding");
   });
 
   it("renders an unmapped status as itself rather than as a blank", () => {

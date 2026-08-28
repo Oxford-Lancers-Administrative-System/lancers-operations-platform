@@ -146,7 +146,10 @@ async function count(sql: string, params: unknown[] = []): Promise<number> {
 /** The scenario's own row counts, as one object. */
 async function scenarioRows() {
   return {
-    people: await count("public.people where known_as like $1", [`${SENTINEL}%`]),
+    people: await count(
+      "public.people where (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) like $1",
+      [`${SENTINEL}%`],
+    ),
     events: await count("public.events where name like $1", [`${SENTINEL}%`]),
     memberships: await count("public.season_memberships where person_id = any($1::uuid[])", [
       PEOPLE,
@@ -437,10 +440,17 @@ describe("cleanup.sql", () => {
     const { sql } = installedSetup();
     await client.query(sql);
 
+    // The sentinel is a display alias since LAN-182 struck `people.known_as`,
+    // so an interloper carrying it carries it there.
+    const interloper = await one<{ id: string }>(
+      client,
+      `insert into public.people (given_name, family_name)
+       values ('Rsvp', 'Interloper') returning id`,
+    );
     await client.query(
-      `insert into public.people (given_name, family_name, known_as)
-       values ('Rsvp', 'Interloper', $1)`,
-      [`${SENTINEL} Interloper`],
+      `insert into public.person_aliases (person_id, alias, source, is_display_name)
+       values ($1, $2, 'interloper', true)`,
+      [interloper.id, `${SENTINEL} Interloper`],
     );
 
     // Deleting it would be guessing; leaving it silently would leave the

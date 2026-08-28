@@ -113,7 +113,7 @@ select
   ) as memberships_affected,
   (
     select count(*) from public.people
-     where 'PILOT-LAN-75' in (upper(btrim(known_as)), upper(btrim(family_name)))
+     where 'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)))
   ) as pilot_people,
   -- Printed so the operator can see they do not change.
   (select count(*) from public.operator_accounts) as operator_accounts_untouched,
@@ -136,7 +136,7 @@ begin
   --     delete it.
   if exists (
     select 1 from public.people
-     where id = scenario_person and known_as is distinct from sentinel
+     where id = scenario_person and (select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1) is distinct from sentinel
   ) then
     raise exception 'LAN-75 pilot cleanup refused: people …0010 is not this scenario''s row. Refusing to delete somebody else''s person.';
   end if;
@@ -187,7 +187,7 @@ begin
   create temporary table pilot_lan_75_targets on commit drop as
   select p.id as person_id
     from public.people p
-   where sentinel in (upper(btrim(p.known_as)), upper(btrim(p.family_name)));
+   where sentinel in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = p.id and da.is_display_name limit 1))), upper(btrim(p.family_name)));
 
   -- (c) The durable foundation. A scenario cleanup never removes an identity
   --     that has become one — and `on delete restrict` would stop it anyway;
@@ -320,7 +320,7 @@ delete from public.onboarding_items
 --     anybody this script is not already removing entirely.
 delete from public.onboarding_items
  where season_membership_id in (select id from public.season_memberships where person_id in (select person_id from pilot_lan_75_targets))
-   and season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim(known_as)), upper(btrim(family_name)))));
+   and season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)))));
 
 -- 2. Status history — the scenario's own two rows, everything the application
 --    wrote against the scenario membership while it was exercised, and the
@@ -328,26 +328,32 @@ delete from public.onboarding_items
 --    set: memberships belonging to a person in the target set.
 delete from public.season_membership_status_events
  where season_membership_id in (select id from public.season_memberships where person_id in (select person_id from pilot_lan_75_targets))
-   and season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim(known_as)), upper(btrim(family_name)))));
+   and season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)))));
 
 -- 3. Memberships.
 delete from public.season_memberships
  where person_id in (select person_id from pilot_lan_75_targets)
-   and person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim(known_as)), upper(btrim(family_name))));
+   and person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name))));
 
 -- 4. Contact points and aliases.
 delete from public.contact_points
  where person_id in (select person_id from pilot_lan_75_targets)
-   and person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim(known_as)), upper(btrim(family_name))));
+   and person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name))));
 
+-- Display aliases are deliberately left to the cascade. Since LAN-182 the alias
+-- flagged as a person's display name is what carries this scenario's sentinel,
+-- so it is the ownership marker the `people` delete below pairs against;
+-- removing it here would leave every one of those statements matching nothing.
+-- Every other alias on a swept person is removed here, explicitly.
 delete from public.person_aliases
  where person_id in (select person_id from pilot_lan_75_targets)
-   and person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim(known_as)), upper(btrim(family_name))));
+   and person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name))))
+   and not is_display_name;
 
 -- 5. The people themselves.
 delete from public.people
  where id in (select person_id from pilot_lan_75_targets)
-   and 'PILOT-LAN-75' in (upper(btrim(known_as)), upper(btrim(family_name)));
+   and 'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)));
 
 -- 6. The season's pilot onboarding configuration, last — nothing may point at
 --    it by now, and if anything still does the foreign key will say so rather
@@ -380,7 +386,7 @@ select
   ) as items_remaining,
   (
     select count(*) from public.people
-     where 'PILOT-LAN-75' in (upper(btrim(known_as)), upper(btrim(family_name)))
+     where 'PILOT-LAN-75' in (upper(btrim((select da.alias from public.person_aliases da where da.person_id = people.id and da.is_display_name limit 1))), upper(btrim(family_name)))
   ) as people_remaining,
   (
     select count(*) from public.contact_points where source = 'PILOT-LAN-75'
