@@ -1,7 +1,7 @@
 {
   "mission_id": "M-RECRUITMENT",
   "ledger_version": 2,
-  "stage": "overview",
+  "stage": "inventory",
   "baseline": {
     "branch": "main",
     "commit": "c69d544d92e5e246ee763008c1db492e8c7c7c60"
@@ -9,6 +9,10 @@
   "approvals": {
     "boundary": {
       "words": "You're approved",
+      "date": "2026-08-28"
+    },
+    "overview": {
+      "words": "Close stage one.",
       "date": "2026-08-28"
     }
   },
@@ -25,5 +29,5 @@
     ],
     "decisions": []
   },
-  "next_action": "Complete and approve 01-overview.md"
+  "next_action": "Inventory every controlling decision, run the observability research, and freeze the workflow inventory in 02-workflows.md"
 }

@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mission overview</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --warn: #663c00;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: var(--grey100);
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #212121;
+        color: #fff;
+        padding: 10px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .sheet {
+        max-width: 880px;
+        margin: 26px auto 100px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 10px 30px 34px;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.12rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 1rem;
+        margin: 20px 0 6px;
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        display: block;
+        overflow-x: auto;
+        margin: 14px 0;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+        white-space: nowrap;
+      }
+      a {
+        color: var(--primary);
+      }
+      @media (max-width: 720px) {
+        .sheet {
+          margin: 14px 10px 60px;
+          padding: 6px 16px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">Mission overview<span>M-RECRUITMENT · Stage 1, approved</span></div>
+    </div>
+    <div class="sheet">
+      <h1>Overview — M-RECRUITMENT</h1>
+      <h2>Designed outcome</h2>
+      <p>
+        The club can run a recruitment season out of the application instead of out of Stewart's
+        head and a WhatsApp group.
+      </p>
+      <p>
+        Concretely, when this mission closes an operator can: capture a recruit at any of the four
+        doors without creating a duplicate; see every recruit on one board as one line, with the
+        signals the platform can honestly observe laid out alongside them; read and write notes on a
+        recruit and see who wrote them; schedule a recruitment event, invite the recruits to it, and
+        take attendance on the day exactly as at any other event; watch a recruit accumulate
+        evidence of being interested without the system ever chasing them; and — when leadership
+        decides somebody is in — flip them onto the roster with one audited action that creates the
+        membership and opens onboarding.
+      </p>
+      <p>
+        Mission 5 gives recruitment the person; Mission 7 takes the member. Everything between the
+        first contact and the flip is this mission's, including the administration of it.
+      </p>
+      <h2>Why now</h2>
+      <p>Four reasons, in order of force.</p>
+      <p>
+        <strong>The recruiting moment does not wait.</strong> Freshers' Fair and the tasters land at
+        the start of Michaelmas, weeks from now. Task 09's own decision log flagged this at approval
+        — D12 recorded that the build sequence would have to be re-thought because "Freshers' Fair
+        and tasters land at the start of Michaelmas, before Stage 4 would deliver the funnel". A
+        recruitment system that arrives after the recruiting is a record-keeping exercise.
+      </p>
+      <p>
+        <strong
+          >The club's model of recruitment exists in the database and nowhere a human can
+          reach.</strong
+        >
+        <code>recruitment_prospects</code> and the six-value <code>prospect_status</code> ladder
+        have been on <code>main</code> since the first domain migration; the
+        <code>recruits</code> audience group, the <code>recruit</code> invitation capacity and the
+        recruitment event type all shipped with Mission 2. And there is no route in the entire
+        application that creates a prospect, reads the pipeline, or performs the flip. The only path
+        that mints a prospect today is the walk-up attendance form, as a side effect of recording
+        that somebody turned up.
+      </p>
+      <p>
+        <strong>A live defect belongs to this mission by owner decision.</strong> Mission 4's
+        shipped reminder ladder inserts a rung for every invitation on an event with no capacity
+        filter (<code>messaging-scheduler.ts:156</code>), and the approval confirmation counts only
+        players, coaches and committee (<code>event-approval.ts:757</code>). Invite recruits to a
+        taster today and the system would chase them and misreport the audience. Brian routed both
+        fixes here on 2026-08-26 rather than to a bounded ticket. LAN-86 keeps real recruits
+        unreachable meanwhile, so this is due before the first real send, not after it.
+      </p>
+      <p>
+        <strong>Mission 5 is being built right now.</strong> Recruitment is a layer on its surfaces
+        by construction. Specifying the layer while the base is still in flight is the point at
+        which the two can still be made to fit.
+      </p>
+      <h2>In scope</h2>
+      <p>
+        The approved boundary is the recruitment <strong>subject</strong>, not the portfolio row's
+        bullet list — Brian's direction of 2026-08-28, read under portfolio rule 1. The 43-item
+        inventory in <code>00-boundary.md</code> governs; grouped, it is:
+      </p>
+      <ul>
+        <li>
+          <strong>The four doors</strong> (Task 09 §1.1, D2), each capturing first name, last name
+          and mobile with email optional, each running dedup-before-create: 1.
+          <strong>QR / link self-entry</strong> — the recruit fills it in themselves at Freshers'
+          Fair, a taster, or any recruiting moment. The QR points at
+          <strong>our own page on our own domain</strong> — they are signing in to the club's
+          application, not into a form somewhere else — and their information is captured there. 2.
+          <strong>Walk-up capture</strong> — an operator or coach writes somebody down at an event
+          because they turned up. This is the only door that exists on <code>main</code> today.
+          <strong>It stays available on every event type, to anyone taking attendance</strong>
+          (Brian, 2026-08-28): collecting walk-ups is part of attendance everywhere, not a
+          recruitment-only affordance, so nothing about its placement changes. A
+          <strong>unique link</strong> an operator can open to record a sign-up, rather than going
+          through the attendance screen, is an open design idea for this door. 3.
+          <strong>Operator manual add</strong> — the club sources somebody it wants, reaches out,
+          and enters them. 4. <strong>WhatsApp community join</strong> — somebody arrives through
+          the community group. <strong>The mechanism is genuinely open</strong>: the club needs a
+          way for a person who joins the group to be collected into the system, and Brian has not
+          settled how. The honest constraint is that the platform very probably cannot read group
+          membership or group messages at all, which would make this door a posted link back to door
+          1 rather than an observed join. Settled by the Stage 2 observability research, then
+          designed. Plus the administration of the doors themselves: who mints and revokes a QR,
+          which roles may capture at which door, the operator-review queue that catches a possible
+          duplicate, and what the walk-up path at the touchline really does.
+        </li>
+        <li>
+          <strong>The board</strong> — recruitment's own page, built
+          <strong>like the Roster board</strong> and copying it where copying works, because a
+          surface the club already reads is worth more than a new idea. Its columns differ:
+          <strong>person details</strong> first, then <strong>recruitment details</strong> for the
+          person going through the process. One line per recruit, notes attached, findable and
+          filterable, and actions available from the row.
+          <strong>Event columns append.</strong> Every recruitment event adds a column at the right
+          end, headed by a compact handle carrying the event name, showing whether that recruit was
+          invited, <strong>whether they answered and what they said</strong>, and whether they
+          attended — scrolled left to right through the term, read as signals rather than as a
+          register.
+        </li>
+        <li>
+          <strong>The recruit's own page</strong> — clicking a row opens that recruit, the way
+          clicking a player opens their record. Personal details, the recruitment details for that
+          recruit <strong>for that season</strong>, every signal, and the notes. It is a working
+          page, not a read-out: data can be corrected and added from there, using Mission 5's
+          correction machinery for the person facts and this mission's for the recruitment facts.
+        </li>
+        <li>
+          <strong>Signals</strong> — everything the platform can honestly observe about a recruit,
+          each a dated fact with a source. Never a score, never a ranking, never something that
+          moves a stage on its own. The set is enumerated at Stage 2 and approved with the board at
+          Stage 3 (see "Where the open definitions get fixed").
+        </li>
+        <li>
+          <strong>Messages</strong> — the recruit's whole message inventory, each with its own
+          timing and its own structure: 1. the <strong>welcome</strong> — "Welcome to the Lancers";
+          2. the <strong>community-group invite</strong> to the big group, and the acceptance of it;
+          3. the <strong>recruit-stage ask</strong> — the signed link asking about them; 4. the
+          <strong>event invitation</strong> — <strong>one touch per event, ever</strong>. A player
+          invited to an event gets the normal reminder-and-escalation sequence; a recruit invited to
+          the same event gets one invitation and nothing else. The machinery has to branch on
+          capacity, and the board shows that they were invited. Human touches — the President
+          messaging a recruit directly — happen outside the system and are not tracked by it.
+          Recruitment owns the templates, the triggers, the timing, and who may change any of it.
+        </li>
+        <li>
+          <strong>Never chased</strong> — as a property of the whole system, swept for and
+          evidenced, including the two Mission 4 fixes.
+        </li>
+        <li>
+          <strong>Recruitment events</strong> — scheduling one, inviting the Recruits audience,
+          approving it knowing what it sends, the recruits-on-top attendance sheet, and what a
+          recruit sees of an event.
+        </li>
+        <li>
+          <strong>The flip</strong> — one audited action by President, Vice President, Secretary or
+          GM that converts the prospect, creates the membership, puts the person on the roster and
+          opens onboarding. On the team is not the same as active.
+        </li>
+        <li>
+          <strong>The off-ramps</strong> — Brian's framing, 2026-08-28:
+          <em>"Recruits can get in 3 or 4 ways, but they can get off in several ways."</em> Getting
+          off the board is a first-class part of the subject, not an afterthought, because a board
+          that only ever grows stops being readable by November. The ramps: 1.
+          <strong>Converted</strong> — the flip into onboarding. The only way up, and once taken
+          there is no pathway back off except a leadership reversal. 2. <strong>Declined</strong> —
+          they said no. 3. <strong>Didn't show</strong> — invited, never came. 4.
+          <strong>Went quiet</strong> — lapsed. Recoverable by design; people resurface in Hilary.
+          5. <strong>Erroneously added</strong> — the record should not exist. A mistyped walk-up, a
+          name written twice, somebody entered who was never a recruit. 6.
+          <strong>Duplicate</strong> — the same human on the board twice, resolved through Mission
+          5's merge with recruitment reconciling the resulting prospect pair. 7.
+          <strong>Season end</strong> — the unconverted recruit at a boundary.
+        </li>
+        <li>
+          <strong>Recruitment as data</strong> — pipeline visibility for leadership, how a recruit's
+          standing shows on Mission 5's People surface, and recruitment audit.
+        </li>
+      </ul>
+      <h2>Out of scope</h2>
+      <p>
+        Everything after the flip is Mission 7's — the onboarding checklist, activation, the chase,
+        the collection request, CSV import and carry-forward, and the whole LAN-85 intake-at-scale
+        composition that the 2026-08-25/26 amendment moved there. The person record and the People
+        and Roster surfaces themselves are Mission 5's; this mission layers onto them and invents
+        none of them. Consent policy, wording, lawful basis and retention rules are Mission 8's —
+        recruitment records the evidence, Mission 8 says what it must mean. The transport, scheduler
+        and template machinery are Mission 4's and are used verbatim. The Monday report and the
+        export machinery are Mission 10's. Season creation and rollover are Mission 11's. The event
+        and calendar machinery is Mission 2's. Club roles and the capability catalogue are Mission
+        1's.
+      </p>
+      <p>
+        No real recruit data and no real sends: LAN-86 and LAN-101 remain gates outside this
+        mission. No Mission Lead DAG, work packages or sequencing in this packet, and no execution
+        before Brian merges a ready packet version.
+      </p>
+      <h2>Cross-cutting invariants</h2>
+      <ul>
+        <li>
+          <strong>Privacy and capability boundary:</strong> recruitment is operated by
+          <strong>the core four roles only</strong> — President, Vice President, Secretary and
+          General Manager (Brian's decision, 2026-08-28). The board, the recruit's page, the notes,
+          the doors and the flip are all theirs. This <strong>narrows</strong> Task 09 D9, which
+          said prospect records were visible to the operator group at large; recruitment is now a
+          four-role subject, and bringing coaches or anyone else in is a later decision, not a
+          Release One one. The one carve-out is the coach at the touchline: recording a walk-up is
+          <strong>attendance</strong>, not recruitment, and it mints a prospect as a side effect.
+          That coach keeps their narrow attendance surface and never sees the board. Prospect
+          records, their signals and their notes are never player-visible.
+          <code>recruitment_prospects</code> already enables RLS and revokes everything from
+          <code>anon</code>, <code>authenticated</code> and <code>service_role</code> before
+          granting the narrow server need; every table this mission adds does the same in its
+          creating migration. <strong>No new capability is introduced</strong> — recruitment rides
+          the existing four-role group, so Mission 1's frozen role catalogue is untouched.
+        </li>
+        <li>
+          <strong>State vocabulary — rebuilt by owner decision, 2026-08-28.</strong> There is
+          <strong>one recruitment status</strong> on the prospect record. It is not tiered, and it
+          is not split into on-board and off-board sets — whether a recruit appears on the board is
+          a display rule read off this one field, not a second structure. Brian's reading of the
+          values, in his terms: <code>joined</code> is a hard yes, <code>declined</code> is a hard
+          no, <code>disengaged</code> is a soft no, and <code>void</code> is neither.
+        </li>
+      </ul>
+      <table>
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>What it says</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>identified</code></td>
+            <td>We have identified them and put them in. Nothing much has happened yet.</td>
+          </tr>
+          <tr>
+            <td><code>engaged</code></td>
+            <td>They are actively involved — answering, showing up, joining in.</td>
+          </tr>
+          <tr>
+            <td><code>committed</code></td>
+            <td>They are committed to the team, and have not been handed to onboarding yet.</td>
+          </tr>
+          <tr>
+            <td><code>joined</code></td>
+            <td><strong>Hard yes.</strong> They are in; onboarding takes them from here.</td>
+          </tr>
+          <tr>
+            <td><code>declined</code></td>
+            <td><strong>Hard no.</strong> They are taken off the process.</td>
+          </tr>
+          <tr>
+            <td><code>disengaged</code></td>
+            <td>
+              <strong>Soft no.</strong> They stopped engaging. Recoverable — people resurface in
+              Hilary.
+            </td>
+          </tr>
+          <tr>
+            <td><code>void</code></td>
+            <td>The record was a mistake and should never have existed.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The stored enum on <code>main</code> is
+        <code>identified, engaged, committed, converted, lapsed, declined</code>. Three changes:
+        <code>converted</code> becomes <code>joined</code>, <code>lapsed</code> becomes
+        <code>disengaged</code>, and <code>void</code> is added. "Did not show up" is deliberately
+        <strong>not</strong> a value — the board's event columns already say invited, answered and
+        did not attend on that recruit's own row.
+      </p>
+      <p>
+        <strong><code>joined</code> is not a value anybody types.</strong> The schema already binds
+        it to a real membership for the same person and the same season through composite foreign
+        keys, so reaching it requires the process. Brian's thinking on what that process is,
+        recorded and still open:
+        <em
+          >"It might be the status interrupts you to say, 'Should this person be added to
+          onboarding? Yes, no,' and then the onboarding kicks off."</em
+        >
+        Designed at Stage 3.
+      </p>
+      <p>
+        <strong><code>void</code> may not belong in this field at all</strong>, and that is Brian's
+        own doubt: every other value is a statement about the person's relationship with the club,
+        while <code>void</code> is a statement about the <em>record being wrong</em>. Two ways to
+        hold it, for Stage 3:
+      </p>
+      <ol start="1">
+        <li>
+          <strong>A seventh status value.</strong> One field, one filter, one place to look. Cost:
+          the column answers two different questions, and every consumer has to know
+          <code>void</code> is not a stage.
+        </li>
+        <li>
+          <strong>A separate marker</strong> — voided, by whom, when, and why — leaving six values
+          that are all about the person. Cost: two things to check instead of one. Gain: the record
+          keeps the status it had, so "this was marked committed and it was a mistake" stays
+          visible, voiding carries an actor and a reason, and un-voiding a wrongly voided row is
+          trivial. <strong>Recommendation: this one</strong>, because Brian's instinct is right —
+          void is not a claim about the recruit.
+        </li>
+      </ol>
+      <p>
+        This is a <strong>frozen-model vocabulary change</strong>, on the same pattern Mission 5
+        accepted for <code>membership_status</code> on 2026-08-26: Postgres cannot drop enum values,
+        so it is a new type and a data migration. The known blast radius is small and named — the
+        Recruits audience derivation filters on the live stages (<code>event-audience.ts</code>),
+        and two check constraints name <code>committed</code> and
+        <code>converted</code> (<code>domain_membership.sql</code>).
+      </p>
+      <p>
+        Mission 5's approved packet settles the other half:
+        <strong
+          ><code>Recruit</code> is a displayed status derived from the prospect record, not a stored
+          membership value</strong
+        >; membership stores five values (Onboarding, Active, Inactive, Departed, Archived).
+        Recruitment's status lives on the prospect record and never on a membership, and the flip is
+        the only bridge between them.
+      </p>
+      <ul>
+        <li>
+          <strong>Audit posture:</strong> every stage change, flip, reversal, duplicate resolution
+          and opt-in evidence record is written to the existing <code>audit_events</code> substrate
+          with the actor named. Notes stay prose and commitment signals are never scored fields —
+          the schema comment on <code>recruitment_prospects.notes</code> already carries that
+          decision from 8/5, and this mission keeps it. A signal is a fact with a date and a source;
+          the judgement stays with the human reading the board.
+        </li>
+        <li>
+          <strong>Safety, consent and recovery:</strong> the welcome never fires from a door without
+          recorded opt-in evidence for that door. A failed message never blocks a capture. A
+          possible duplicate is never silently created and never silently merged — it parks for a
+          human. Consent wording and lawful basis are Clint's through Mission 8; recruitment stores
+          the evidence and enforces the gate. No real contact data in any environment before LAN-86,
+          and no real sends before LAN-101.
+        </li>
+        <li>
+          <strong>Rollout constraints:</strong> execution waits on Mission 5's implementation
+          landing. Recruitment uses Mission 4's scheduler and transport verbatim — one machine, more
+          than one stream — and builds no second scheduler and no second token system. Migrations
+          are forward-only, local Supabase only, and every schema change updates the data-model map
+          and regenerates types with it.
+        </li>
+      </ul>
+      <h3>Invariants the Mission Lead may not reinterpret</h3>
+      <ol start="1">
+        <li>
+          A recruit is never chased: no reminder rung, no escalation, no collection cadence, on any
+          surface, for any recruit-capacity invitation.
+        </li>
+        <li>Dedup runs before create, at every door, and never at the flip.</li>
+        <li>
+          The flip is the four roles only, is one audited action, and never produces an active
+          member.
+        </li>
+        <li>Missing information never blocks a capture and never blocks the flip.</li>
+        <li>
+          Nothing about a recruit is scored, ranked, or advanced automatically by a computed value.
+        </li>
+        <li>
+          Recruitment writes its states to the prospect record and never invents a membership
+          status.
+        </li>
+        <li>Recruitment is the core four roles only, and no new capability is minted for it.</li>
+      </ol>
+      <h2>Sources</h2>
+      <p>
+        Pinned in <code>sources.md</code>. The controlling brief is Task 09 as amended
+        2026-08-25/26; the commissioned boundary is portfolio row 6 of Portfolio v2; the base this
+        mission layers onto is the approved <code>M-PEOPLE-AND-ROSTER</code> packet; and implemented
+        reality is <code>main@c69d544</code>.
+      </p>
+      <h2>Where the open definitions get fixed</h2>
+      <p>
+        Two things this mission needs are not written down anywhere yet, by anyone. Both have a
+        stage:
+      </p>
+      <ul>
+        <li>
+          <strong>The signal set.</strong> Brian asked when this gets fleshed out. At
+          <strong>Stage 2</strong> I run the observability research he suggested — a bounded read of
+          the delivery, RSVP, attendance, token and webhook records on <code>main</code> — and
+          produce the list of what recruitment can honestly observe versus what it cannot. Where a
+          signal is not established as readable, the mission assumes it is not. The resulting set is
+          then approved at <strong>Stage 3</strong> as part of the board's specification and its
+          mockup, so Brian approves actual columns rather than an abstraction.
+        </li>
+        <li>
+          <strong>The recruit-stage field set.</strong> Referenced by Task 08 §4, never enumerated,
+          and recorded as an open unknown in Mission 5's approved packet. Enumerated at
+          <strong>Stage 2</strong> and approved at <strong>Stage 3</strong> with the ask's own
+          workflow.
+        </li>
+      </ul>
+      <p>
+        And on Brian's question of where the doors themselves get decided: they are
+        <strong>named here</strong>, <strong>counted at Stage 2</strong>, and
+        <strong>designed at Stage 3</strong>. Stage 2 is where the numbered workflow inventory is
+        frozen — that is the moment Brian decides whether each door is its own workflow, since one
+        workflow is one actor's journey and the QR door is the recruit's journey while the other
+        three are an operator's. Stage 3 then specifies and draws each one, and nothing is settled
+        about a door until Brian has seen it drawn.
+      </p>
+      <h2>Open owner decisions carried into Stage 2</h2>
+      <p>Recorded here so none is lost, and none blocks this stage:</p>
+      <ol start="1">
+        <li>
+          <strong>The recruit-stage ask's timing</strong> — the record says it rides the welcome or
+          the capture door (amendment 3, 2026-08-26); Brian described it a day later as its own
+          message. Recommendation: a day later, as its own message.
+        </li>
+        <li>
+          <strong>The two Notion wording corrections</strong> in <code>notion-corrections.md</code>,
+          aligning the portfolio row and Task 09 amendment 2 with the never-chased rule.
+        </li>
+        <li>
+          ~~Whether recruitment needs its own capability.~~ <strong>Settled 2026-08-28:</strong>
+          <em
+            >"It should just be the core four that you operate this with right now. If we bring
+            coaches or someone else in later, that's later."</em
+          >
+          No new capability; recruitment rides the existing four-role group.
+        </li>
+        <li>
+          <strong>The unconverted recruit at a season boundary</strong> — a recruitment-lifecycle
+          fact whose mechanism is Mission 11's.
+        </li>
+        <li>
+          <strong>How flexible the recruitment cycle is</strong> — what an operator may change about
+          timing, content and whether a step runs at all.
+        </li>
+        <li>
+          <strong>Whether a human touch is recorded at all.</strong> Brian's 2026-08-28 note says
+          human touches are not tracked here; his earlier note asked the board to show "whether or
+          not they've been contacted". The system cannot observe a President's own WhatsApp message,
+          so the reachable options are: the board shows only system-sent contact, or an operator
+          records the touch by hand — a note, or a one-tap "I spoke to them". Recommendation: the
+          latter, because the contacted question is worth answering and a note already exists to
+          carry it.
+        </li>
+        <li>
+          <strong>How a recruit leaves the board</strong> when they are not going to onboarding.
+        </li>
+        <li>
+          <strong>How the WhatsApp community-join door actually works</strong>, given the platform
+          most likely cannot observe a group join at all.
+        </li>
+        <li>
+          ~~Whether every walk-up becomes a recruit.~~ <strong>Settled 2026-08-28:</strong>
+          <em
+            >"Every walk-up is a recruit, and we just need to know there's a way to handle
+            them."</em
+          >
+          Walk-up capture stays on every event type and every walk-up enters the funnel — which is
+          what makes the off-ramps load-bearing rather than tidy-up work.
+        </li>
+        <li>
+          ~~How an erroneous record leaves the board.~~ <strong>Settled 2026-08-28:</strong>
+          <code>void</code>, within a rebuilt seven-value ladder — <code>lapsed</code> becomes
+          <code>disengaged</code>, <code>converted</code> becomes <code>joined</code>, and "did not
+          show up" is deliberately not a status. Recorded under State vocabulary.
+        </li>
+        <li>
+          <strong>How the flip is actually performed.</strong> Brian:
+          <em
+            >"when they flip to onboarding, it should be a process… there should be a button that
+            goes in where they have to flip them in. I don't have a decision for that yet."</em
+          >
+          Deliberately deferred to its own workflow at <strong>Stage 3</strong>, late in the order,
+          because it is the hand-off out of the mission and its shape depends on what the board and
+          the recruit's page become.
+        </li>
+        <li>
+          <strong>Where deletion stops being recruitment's.</strong> Removing a <em>person</em> is
+          erasure and belongs to Mission 8 by the 2026-08-25 owner decision. Removing a
+          <em>prospect from the board</em> is recruitment's. The line between "this recruit is off
+          my board" and "this human is deleted from the club's records" has to be drawn explicitly,
+          because the second is a privacy act with its own authority.
+        </li>
+        <li>
+          <strong>The unique sign-up link</strong> for recording a walk-up outside the attendance
+          screen — what it is, who holds it, and whether it is a door of its own.
+        </li>
+      </ol>
+      <h2>Brian approval</h2>
+      <ul>
+        <li>Exact words: "Close stage one."</li>
+        <li>Date: 2026-08-28</li>
+      </ul>
+    </div>
+  </body>
+</html>
