@@ -1,0 +1,24 @@
+{
+  "mission_id": "M-RECRUITMENT",
+  "ledger_version": 2,
+  "stage": "boundary",
+  "baseline": {
+    "branch": "main",
+    "commit": "c69d544d92e5e246ee763008c1db492e8c7c7c60"
+  },
+  "approvals": {},
+  "workflows": [],
+  "mockup_hub": "generated",
+  "decision_coverage": {
+    "sources": [
+      {
+        "id": "SRC-task-09-brief",
+        "ref": "https://app.notion.com/p/3bd488886d578196a9a4cd9b25d59d1b",
+        "version": "owner-approved-2026-08-15; amended-2026-08-25/26; fetched-2026-08-26T13:33Z",
+        "decision_ids": []
+      }
+    ],
+    "decisions": []
+  },
+  "next_action": "Complete and approve 00-boundary.md"
+}
