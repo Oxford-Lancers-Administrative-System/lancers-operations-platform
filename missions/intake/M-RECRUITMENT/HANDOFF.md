@@ -22,6 +22,16 @@ Expect: **stage `inventory`**, inventory not frozen. Branch
 `intake/M-RECRUITMENT`, pushed. Baseline `main@c69d544d92e5e246ee763008c1db492e8c7c7c60`.
 Working tree was clean at handoff; there is no uncommitted scratch to reconcile.
 
+**Resuming cold, from `/mission-intake 6`.** The ledger lives only on this
+branch, so `npm run intake -- status` finds nothing from the `main` checkout —
+enter the worktree first. On Brian's machine it is already registered:
+`git worktree list` shows `intake-M-RECRUITMENT`. Anywhere else, the
+`git worktree add` above creates it from the pushed branch.
+**You do not need Notion to map the number.** The portfolio row for mission 6 is
+quoted verbatim in `00-boundary.md` and pinned with its observed version in
+`sources.md`. Refetch the portfolio only to check that the row has not drifted
+since 2026-08-28 — not to find out what mission 6 is.
+
 Portfolio mission **6 · Recruitment**, Portfolio v2 (approved 2026-08-26). Read
 `SKILL.md` and `references/ported-intake-rules.md` in full before touching
 anything, and read `00-boundary.md` and `01-overview.md` completely — they carry
