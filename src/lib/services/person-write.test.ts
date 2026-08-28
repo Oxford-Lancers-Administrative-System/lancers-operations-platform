@@ -47,10 +47,14 @@ async function insertPerson(
 }
 
 async function mergeAway(losingId: string, survivorId: string): Promise<void> {
+  // `people_merge_is_fully_audited` requires all four merge columns together
+  // — invariant I6, "a merge is an audited operation".
   await observer.query(
-    `update public.people set merged_into_person_id = $2::uuid, merged_at = now(), merge_reason = 'test fixture'
+    `update public.people
+        set merged_into_person_id = $2::uuid, merged_at = now(),
+            merged_by_person_id = $3::uuid, merge_reason = 'test fixture'
       where id = $1::uuid`,
-    [losingId, survivorId],
+    [losingId, survivorId, actorPersonId],
   );
 }
 
@@ -424,8 +428,12 @@ describe("updateEmergencyContactField — restricted, four-role only, edited her
     const audit = await latestAudit("person_emergency_contacts", personId);
     expect(audit?.action).toBe("person_emergency_contact_recorded");
     // The audit trail never carries the value itself — REQ-restricted-fields.
-    expect(audit?.from_state).not.toContain("Jo");
-    expect(audit?.to_state).not.toContain("Jo");
+    // Filling a still-empty contact records `from_state: null` — never
+    // invented (`REQ-not-recorded`) — so this reads the field as a string
+    // rather than asserting `.toContain` directly on a value that is
+    // correctly absent.
+    expect(String(audit?.from_state)).not.toContain("Jo");
+    expect(String(audit?.to_state)).not.toContain("Jo");
   });
 
   it("refuses to start a record on any field but the first name", async () => {

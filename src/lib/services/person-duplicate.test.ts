@@ -10,7 +10,7 @@ vi.mock("server-only", () => ({}));
 import type { Client } from "pg";
 
 import { closePool } from "@/lib/db";
-import { openObserver } from "../../../tests/helpers/service-layer";
+import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
 import { findPersonDuplicates } from "./person-duplicate";
 
 const MARKER = "LAN183PersonDuplicate";
@@ -21,6 +21,7 @@ function unique(tag: string): string {
 let counter = 0;
 
 let observer: Client;
+let actorPersonId: string;
 const createdPersonIds: string[] = [];
 
 async function insertPerson(givenName: string, familyName: string | null = null): Promise<string> {
@@ -44,25 +45,41 @@ async function insertContact(
   personId: string,
   kind: "email" | "phone",
   rawValue: string,
-  options: { isPreferred?: boolean; validUntil?: string | null } = {},
+  options: { isPreferred?: boolean; validFrom?: string; validUntil?: string | null } = {},
 ): Promise<void> {
   await observer.query(
-    `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source, valid_until)
-     values ($1::uuid, $2::public.contact_point_kind, $3, $4, 'test fixture', $5::timestamptz)`,
-    [personId, kind, rawValue, options.isPreferred ?? true, options.validUntil ?? null],
+    `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source, valid_from, valid_until)
+     values ($1::uuid, $2::public.contact_point_kind, $3, $4, 'test fixture',
+             coalesce($5::timestamptz, now()), $6::timestamptz)`,
+    [
+      personId,
+      kind,
+      rawValue,
+      options.isPreferred ?? true,
+      options.validFrom ?? null,
+      options.validUntil ?? null,
+    ],
   );
 }
 
 async function mergeAway(losingId: string, survivorId: string): Promise<void> {
+  // `people_merge_is_fully_audited` requires all four merge columns together
+  // — invariant I6, "a merge is an audited operation". `merged_by_person_id`
+  // is the actor; a real merge write path (a later package) would carry it
+  // from `resolveOperator()`, so this fixture reuses the same seeded actor
+  // every write test in this package uses.
   await observer.query(
-    `update public.people set merged_into_person_id = $2::uuid, merged_at = now(), merge_reason = 'test fixture'
+    `update public.people
+        set merged_into_person_id = $2::uuid, merged_at = now(),
+            merged_by_person_id = $3::uuid, merge_reason = 'test fixture'
       where id = $1::uuid`,
-    [losingId, survivorId],
+    [losingId, survivorId, actorPersonId],
   );
 }
 
 beforeAll(async () => {
   observer = await openObserver();
+  actorPersonId = await seededActorPersonId(observer);
 });
 
 afterAll(async () => {
@@ -153,7 +170,10 @@ describe("findPersonDuplicates", () => {
     const givenName = unique("Superseded");
     const personId = await insertPerson(givenName);
     const email = `${unique("old")}@example.com`;
-    await insertContact(personId, "email", email, { validUntil: "2020-01-01T00:00:00Z" });
+    await insertContact(personId, "email", email, {
+      validFrom: "2019-01-01T00:00:00Z",
+      validUntil: "2020-01-01T00:00:00Z",
+    });
 
     const candidates = await findPersonDuplicates({
       givenName: "Nothing At All Like It",

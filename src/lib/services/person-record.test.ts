@@ -17,7 +17,7 @@ vi.mock("server-only", () => ({}));
 import type { Client } from "pg";
 
 import { closePool, isServiceError } from "@/lib/db";
-import { openObserver } from "../../../tests/helpers/service-layer";
+import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
 import { PERSON_MERGED_AWAY_MESSAGE, readPersonRecord, searchPeople } from "./person-record";
 
 const MARKER = "LAN183PersonRecord";
@@ -29,6 +29,7 @@ let counter = 0;
 
 let observer: Client;
 let seasonId: string;
+let actorPersonId: string;
 
 const createdPersonIds: string[] = [];
 
@@ -144,15 +145,23 @@ async function insertProspect(personId: string): Promise<void> {
 }
 
 async function mergeAway(losingId: string, survivorId: string): Promise<void> {
+  // `people_merge_is_fully_audited` requires all four merge columns together
+  // — invariant I6, "a merge is an audited operation". `merged_by_person_id`
+  // is the actor; a real merge write path (a later package) would carry it
+  // from `resolveOperator()`, so this fixture reuses the seeded actor every
+  // other suite in this package draws on.
   await observer.query(
-    `update public.people set merged_into_person_id = $2::uuid, merged_at = now(), merge_reason = 'test fixture'
+    `update public.people
+        set merged_into_person_id = $2::uuid, merged_at = now(),
+            merged_by_person_id = $3::uuid, merge_reason = 'test fixture'
       where id = $1::uuid`,
-    [losingId, survivorId],
+    [losingId, survivorId, actorPersonId],
   );
 }
 
 beforeAll(async () => {
   observer = await openObserver();
+  actorPersonId = await seededActorPersonId(observer);
   const season = await observer.query<{ id: string }>(
     `select id from public.seasons order by starts_on desc nulls last limit 1`,
   );
@@ -165,12 +174,21 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // Children before parents: emergency contacts, contact points, aliases and
-  // memberships/prospects are all `on delete cascade` or `on delete restrict`
-  // from `people`, so people go last regardless — but audit rows reference
-  // people too, so those come off first of all.
+  // Children before parents. `person_aliases`, `contact_points` and
+  // `person_emergency_contacts` are `on delete cascade` from `people` — LAN-182's
+  // own migration comments say so — but `season_memberships` and
+  // `recruitment_prospects` are `on delete restrict`, and audit rows are not
+  // foreign-keyed at all but would otherwise outlive the person they describe.
+  // Explicit, in dependency order, rather than assumed.
   await observer.query(
     `delete from public.audit_events where entity_table = 'people' and entity_id = any($1::uuid[])`,
+    [createdPersonIds],
+  );
+  await observer.query(`delete from public.season_memberships where person_id = any($1::uuid[])`, [
+    createdPersonIds,
+  ]);
+  await observer.query(
+    `delete from public.recruitment_prospects where person_id = any($1::uuid[])`,
     [createdPersonIds],
   );
   await observer.query(`delete from public.people where id = any($1::uuid[])`, [createdPersonIds]);
