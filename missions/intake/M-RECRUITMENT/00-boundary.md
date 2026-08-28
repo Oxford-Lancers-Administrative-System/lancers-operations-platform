@@ -427,5 +427,5 @@ assumed:
   portfolio rule 1 as the recruitment subject-matter lifecycle per Brian's
   2026-08-28 direction, with the `main` reconciliations above recorded as facts
   about implemented reality rather than as scope changes.
-- Brian approval words:
-- Approval date:
+- Brian approval words: "You're approved"
+- Approval date: 2026-08-28
