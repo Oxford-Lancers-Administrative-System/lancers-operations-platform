@@ -18,6 +18,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import {
   acquireMissionLease,
   coordinatorStatus,
+  findOwningSessionPid,
   implementationRecord,
   readSession,
   releaseLease,
@@ -111,6 +112,7 @@ export function repositoryExecutors({ repoPath, missionId, baseCommit, migration
           migrationHead,
           purpose: "review",
           runtimeId,
+          pid: findOwningSessionPid(),
         });
       return acquire().then((record) => {
         if (stack && record.slot === stack.slot) {

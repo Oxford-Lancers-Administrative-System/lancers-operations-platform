@@ -36,6 +36,7 @@ import {
   makeUuidFactory,
   resolveLocalDatabaseUrl,
 } from "./lib/local-db.mjs";
+import fs from "node:fs";
 import { seedFrame, shiftAuthoredValue, shiftedYearOf } from "./lib/seed-clock.mjs";
 
 const SEED = 20260810;
@@ -4899,11 +4900,14 @@ try {
   // completed sends could never show, plus the diagnostics table that reads
   // every attempt behind them. Named by event so the next walk does not have
   // to re-derive them from a database of hundreds of jobs.
-  const showDeliveryAs = (label, event, invitation) =>
+  const seededScenarios = [];
+  const showDeliveryAs = (label, event, invitation) => (
+    seededScenarios.push(label),
     console.log(
       `  ${label.padEnd(34)} ${event.name}\n${" ".repeat(37)}/operate/events/${event.id}` +
         (invitation ? `  (invitation ${invitation.id})` : ""),
-    );
+    )
+  );
 
   console.log("\nDelivery states to look at:");
   if (heldEvent) {
@@ -4930,6 +4934,15 @@ try {
   if (midChaseEvent) {
     showDeliveryAs("mid-ladder, unanswered, not yet escalated", midChaseEvent, midChaseInvitee);
   }
+
+  fs.writeFileSync(
+    new URL("../supabase/scenarios.json", import.meta.url),
+    JSON.stringify(
+      { generated_at: new Date().toISOString(), scenarios: seededScenarios },
+      null,
+      2,
+    ) + "\n",
+  );
 
   console.log("\nNo real person, contact detail or club record is present in this dataset.");
 } catch (error) {
