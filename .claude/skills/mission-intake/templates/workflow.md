@@ -7,12 +7,11 @@
 - Route/placement:
 - Controlling source:
 - User-visible result:
-- Subject disposition: retained existing / modified existing / new
 
 ## Current `main` grounding
 
 - Locally rendered route or nearest implemented analogue:
-- Existing component, language, interaction, and permission patterns reused:
+- Reused component, language, interaction, and permission patterns:
 - Desktop and 375px evidence:
 - Reason for any departure from the implemented application:
 
@@ -24,9 +23,7 @@
 
 ## Dependencies and mission boundaries
 
-- This mission's side of every seam:
-- Other mission/tool side:
-- Blocking or independently walkable without the future side:
+- Each seam: this mission's side / other mission or tool / blocking or independently walkable:
 
 ## Exceptions and recovery
 

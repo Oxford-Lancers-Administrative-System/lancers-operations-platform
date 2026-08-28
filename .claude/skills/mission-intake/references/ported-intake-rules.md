@@ -48,20 +48,16 @@ or approval convention.
 
 ## What intake must determine
 
-The mission number commissions a **subject**, not a closed list of the portfolio
-row's examples. Intake is the first complete product-definition pass: it turns
-loose gathered requirements into real workflows, pages, interactions,
-administration, states, exceptions and seams. It starts from current `main`,
-rendered locally with synthetic data, and extends established product patterns
-before proposing a new one. Existing owned behavior is retained or modified;
-implementation state never makes it disappear from the subject.
+The mission number commissions a **subject**, not the portfolio row's examples.
+Intake turns loose requirements into real workflows, pages, administration,
+states, exceptions, and seams. Start from current `main`, rendered locally with
+synthetic data, and extend established patterns. Existing owned behavior stays
+in scope.
 
-Intake may add sensible scope when grounded in club operation, Release-One
-authority, current behavior, operational necessity or an adjacent mission seam.
-It does not brainstorm an unlimited ideal product. Every discovered area has an
-owner or an owner-approved exclusion. Future mission boundaries may remain
-provisional, but a dependency that prevents this mission being walked and
-accepted is blocking.
+Add scope only when grounded in club operation, Release One, current behavior,
+operational necessity, or an adjacent seam. Every area needs an owner or an
+approved exclusion. A provisional boundary blocks if this mission cannot be
+walked and accepted without its future side.
 
 For the commissioned outcome, document:
 
@@ -84,10 +80,9 @@ For the commissioned outcome, document:
   actions, state transitions, handoffs, exceptions, and visible outcomes; and
 - classification of every consequential workflow and IA decision.
 
-Approved decisions propagate append-only. Collect all implied edits to product
-records and other missions, show Brian the whole amendment batch, and obtain his
-permission before applying any of it. Refetch every changed record and preserve
-verification. Never rewrite an approved packet or delivered history.
+Propagate approved decisions append-only. Show Brian the complete amendment
+batch before editing product records or other missions, then refetch each target.
+Never rewrite an approved packet or delivered history.
 
 Decision classifications mean:
 

@@ -1,17 +1,10 @@
-// Subject-product coverage for a mission intake ledger.
-//
-// Decision coverage proves that every decision already present in a controlling
-// source has one home. It cannot prove that intake found the subject's missing
-// pages, administration, failure paths or cross-mission seams. Version 3 ledgers
-// therefore carry a second, owner-approved map: the product areas discovered by
-// the intake and the honest disposition of each one.
+// Decision coverage maps known source decisions. Subject coverage maps the
+// areas intake discovered, including gaps and mission seams.
 
 export const SUBJECT_DISPOSITIONS = [
-  "owned_workflow",
-  "owned_invariant",
+  "workflow",
+  "invariant",
   "shared_cross_mission",
-  "retained_existing",
-  "modified_existing",
   "other_mission",
   "provisional_handoff",
   "excluded",
@@ -47,36 +40,31 @@ function validateCurrentHome(area, workflows) {
   return [];
 }
 
-function validateNamedMissions(area, field, { missionId, includeCurrent, minimum = 1 }) {
+function validateSharedOwners(area, missionId) {
   const at = `${area.id} (${area.name})`;
-  const owners = area[field];
-  if (!Array.isArray(owners) || owners.length < minimum) {
-    return [`${at} ${field} must name at least ${minimum} mission${minimum === 1 ? "" : "s"}.`];
+  const owners = area.shared_owners;
+  if (!Array.isArray(owners) || owners.length < 2) {
+    return [`${at} shared_owners must name at least 2 missions.`];
   }
   const errors = [];
   if (owners.some((owner) => !validMission(owner))) {
-    errors.push(`${at} ${field} must contain only M-<slug> mission ids.`);
+    errors.push(`${at} shared_owners must contain only M-<slug> ids.`);
   }
-  if (new Set(owners).size !== owners.length) errors.push(`${at} ${field} repeats a mission.`);
-  if (includeCurrent && missionId && !owners.includes(missionId)) {
-    errors.push(`${at} is shared but does not name this mission ${missionId}.`);
+  if (new Set(owners).size !== owners.length) errors.push(`${at} repeats a shared owner.`);
+  if (missionId && !owners.includes(missionId)) {
+    errors.push(`${at} must include this mission ${missionId}.`);
   }
   return errors;
 }
 
-/**
- * Validate the subject map against the frozen workflow inventory. This proves
- * that every area the intake discovered has a usable disposition. Brian's
- * approvals remain the semantic completeness gate: code cannot prove that the
- * intake discovered every area belonging to the subject.
- */
+/** Validate each discovered area's home; owner approvals judge completeness. */
 export function validateSubjectCoverage(coverage, options = {}) {
   const { workflowIds = [], missionId = "" } = options;
   if (!coverage || typeof coverage !== "object" || Array.isArray(coverage)) {
     return ["subject_coverage must be an object."];
   }
   if (!Array.isArray(coverage.areas) || coverage.areas.length === 0) {
-    return ["subject_coverage.areas must inventory at least one product area."];
+    return ["subject_coverage.areas must inventory at least one subject area."];
   }
 
   const errors = [];
@@ -92,49 +80,38 @@ export function validateSubjectCoverage(coverage, options = {}) {
     ids.add(area.id);
     if (!nonEmpty(area.name)) errors.push(`${area.id}.name is required.`);
     if (!nonEmpty(area.belongs)) {
-      errors.push(`${area.id}.belongs must explain why this area belongs in the subject sweep.`);
+      errors.push(`${area.id}.belongs must explain why the area belongs to this subject.`);
     }
     if (!SUBJECT_DISPOSITIONS.includes(area.disposition)) {
       errors.push(`${area.id}.disposition must be one of ${SUBJECT_DISPOSITIONS.join(", ")}.`);
       continue;
     }
     if (!nonEmpty(area.reason)) {
-      errors.push(`${area.id} requires a reason for its ${area.disposition} disposition.`);
+      errors.push(`${area.id}.reason must explain its ${area.disposition} disposition.`);
     }
 
     const at = `${area.id} (${area.name || "unnamed"})`;
     switch (area.disposition) {
-      case "owned_workflow":
+      case "workflow":
         if (!validWorkflow(area.workflow, workflows)) {
-          errors.push(`${at} is owned_workflow and must name one frozen workflow.`);
+          errors.push(`${at} must name one frozen workflow.`);
         }
-        break;
-      case "owned_invariant":
-        if (!nonEmpty(area.invariant)) {
-          errors.push(`${at} is owned_invariant and must state the binding invariant.`);
+        if (!["new", "retained", "modified"].includes(area.implementation)) {
+          errors.push(`${at}.implementation must be new, retained or modified.`);
         }
-        break;
-      case "retained_existing":
-      case "modified_existing":
-        if (!validWorkflow(area.workflow, workflows)) {
-          errors.push(`${at} is ${area.disposition} and must map to one frozen workflow.`);
-        }
-        if (!nonEmpty(area.baseline)) {
+        if (["retained", "modified"].includes(area.implementation) && !nonEmpty(area.baseline)) {
           errors.push(
-            `${at} is ${area.disposition} and must cite the implemented main baseline it retains or changes.`,
+            `${at} is ${area.implementation} and must cite the implemented main baseline.`,
           );
         }
         break;
+      case "invariant":
+        if (!nonEmpty(area.invariant)) errors.push(`${at} must state the binding invariant.`);
+        break;
       case "shared_cross_mission":
-        errors.push(
-          ...validateNamedMissions(area, "shared_owners", {
-            missionId,
-            includeCurrent: true,
-            minimum: 2,
-          }),
-        );
+        errors.push(...validateSharedOwners(area, missionId));
         if (!nonEmpty(area.current_side)) {
-          errors.push(`${at} must state this mission's side of the shared contract.`);
+          errors.push(`${at} must state this mission's side.`);
         }
         errors.push(...validateCurrentHome(area, workflows));
         if (!nonEmpty(area.seam) || !nonEmpty(area.evidence)) {
@@ -165,7 +142,7 @@ export function validateSubjectCoverage(coverage, options = {}) {
           );
         } else if (!nonEmpty(area.independent_outcome)) {
           errors.push(
-            `${at} is nonblocking only when independent_outcome explains how this mission remains walkable and acceptable without the future mission.`,
+            `${at}.independent_outcome must show the mission is walkable and acceptable alone.`,
           );
         }
         break;
@@ -222,9 +199,7 @@ export function validateAmendmentPlan(plan) {
     }
   }
   if (applied && !approved(plan.approval)) {
-    errors.push(
-      "amendment_plan contains applied changes without Brian's approval of the collected plan.",
-    );
+    errors.push("applied amendments require Brian's approval of the collected plan.");
   }
   if (plan.approval !== null && plan.approval !== undefined && !approved(plan.approval)) {
     errors.push("amendment_plan.approval must retain Brian's exact words and approval date.");
@@ -234,13 +209,10 @@ export function validateAmendmentPlan(plan) {
 
 function destination(area) {
   switch (area.disposition) {
-    case "owned_workflow":
-      return area.workflow;
-    case "owned_invariant":
+    case "workflow":
+      return [area.workflow, area.implementation, area.baseline].filter(nonEmpty).join(" · ");
+    case "invariant":
       return area.invariant;
-    case "retained_existing":
-    case "modified_existing":
-      return `${area.workflow} · ${area.baseline}`;
     case "shared_cross_mission":
       return `${area.shared_owners.join(", ")} · ${area.workflow ?? area.invariant}`;
     case "other_mission":
@@ -265,11 +237,10 @@ export function renderSubjectCoverage(state) {
   const totals = new Map(SUBJECT_DISPOSITIONS.map((name) => [name, 0]));
   for (const area of areas) totals.set(area.disposition, totals.get(area.disposition) + 1);
   const lines = [
-    `# Subject-product coverage — ${state.mission_id}`,
+    `# Subject coverage — ${state.mission_id}`,
     "",
-    "Generated by `npm run intake -- subject --write` from `state.json`. Do not",
-    "hand-edit. This proves a disposition for every area intake discovered; Brian's",
-    "boundary and inventory approvals—not this validator—judge subject completeness.",
+    "Generated from `state.json` by `npm run intake -- subject --write`. Do not hand-edit.",
+    "The map proves dispositions; Brian's approvals judge subject completeness.",
     "",
     "## Coverage summary",
     "",
@@ -281,7 +252,7 @@ export function renderSubjectCoverage(state) {
   }
   lines.push(
     "",
-    "## Product areas",
+    "## Subject areas",
     "",
     "| ID | Area | Disposition | Home | Why and seam |",
     "| --- | --- | --- | --- | --- |",

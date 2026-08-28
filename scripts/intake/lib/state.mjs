@@ -9,10 +9,9 @@ import {
   validateSubjectCoverage,
 } from "./subject.mjs";
 
-// Version 2 added decision coverage and a generated mockup hub. Version 3 adds
-// subject-product coverage and a batched amendment record. Existing live v2
-// ledgers keep their original contract; every newly bootstrapped ledger uses v3.
-// Version 1 remains accepted only as closed, already-merged history.
+// Version 2 added decision coverage and the mockup hub. Version 3 adds subject
+// coverage and amendment batches. Existing v2 ledgers keep their contract;
+// version 1 remains closed history.
 export const LEDGER_VERSION = 3;
 
 export const DECISION_COVERAGE_FILE = "decision-coverage.md";
@@ -57,7 +56,7 @@ export const ledgerVersion = (state) => state?.ledger_version ?? 1;
 export const gatesApply = (state) =>
   ledgerVersion(state) >= 2 && stageAtOrAfter(state?.stage, "workflows");
 
-/** Whether this ledger must satisfy the LAN-188 subject-product gates. */
+/** Whether this ledger must satisfy the LAN-188 subject gates. */
 export const subjectGatesApply = (state) =>
   ledgerVersion(state) >= 3 && stageAtOrAfter(state?.stage, "workflows");
 
@@ -85,7 +84,7 @@ export function validateIntakeState(state) {
   }
   if (ledgerVersion(state) === 1 && state.stage !== "merged") {
     errors.push(
-      `a version 1 ledger is a closed historical record; a live intake must set ledger_version ${LEDGER_VERSION} and carry decision coverage, subject coverage, an amendment plan and a generated mockup hub.`,
+      `a version 1 ledger is a closed historical record; live intake must use version ${LEDGER_VERSION} with decision coverage, subject coverage, amendments and a mockup hub.`,
     );
   }
   if (INTAKE_STAGES.indexOf(state.stage) >= INTAKE_STAGES.indexOf("overview")) {
@@ -179,7 +178,7 @@ export function validateIntakeState(state) {
   if (subjectGatesApply(state)) {
     if (state.subject_coverage === undefined) {
       errors.push(
-        "subject_coverage is required before the workflow stage: inventory the complete commissioned subject, not only the source's listed decisions.",
+        "subject_coverage is required before workflows; map the subject, not only listed decisions.",
       );
     } else {
       errors.push(

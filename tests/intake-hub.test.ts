@@ -138,9 +138,7 @@ describe("the generated mockup hub", () => {
 
   it("keeps generated subject coverage and its amendment batch in step with the ledger", () => {
     const helper = ledgerFor();
-    expect(helper.read("subject-coverage.md")).toContain(
-      "# Subject-product coverage — M-SYNTHETIC-INTAKE",
-    );
+    expect(helper.read("subject-coverage.md")).toContain("# Subject coverage — M-SYNTHETIC-INTAKE");
     expect(helper.read("subject-coverage.md")).toContain("M-FUTURE-SYNTHETIC portfolio row");
     const coverageFile = path.join(helper.ledger, "subject-coverage.md");
     fs.writeFileSync(coverageFile, fs.readFileSync(coverageFile, "utf8").replace("S1", "S99"));
