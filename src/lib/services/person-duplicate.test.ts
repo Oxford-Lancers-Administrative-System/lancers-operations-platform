@@ -166,7 +166,15 @@ describe("findPersonDuplicates", () => {
     expect(candidates.map((c) => c.personId)).not.toContain(losingId);
   });
 
-  it("does not match a superseded (no longer current) contact value", async () => {
+  it("still matches on a superseded (no longer current) contact value", async () => {
+    // `roster.ts`'s own duplicate check — the established precedent this
+    // module follows — is deliberately loose: "the cost of a loose match is
+    // a longer list the operator reads; the cost of a tight one is a second
+    // Person for someone who already has one." Nothing in
+    // `REQ-duplicate-check` excludes a superseded contact value, and an old
+    // address is still real evidence that a new candidate typed with it is
+    // the same person. Only a merged-away *person* is excluded — never a
+    // value still held by a live one.
     const givenName = unique("Superseded");
     const personId = await insertPerson(givenName);
     const email = `${unique("old")}@example.com`;
@@ -184,7 +192,9 @@ describe("findPersonDuplicates", () => {
       emails: [email],
     });
 
-    expect(candidates.map((c) => c.personId)).not.toContain(personId);
+    const found = candidates.find((c) => c.personId === personId);
+    expect(found).toBeDefined();
+    expect(found!.matchedOn).toContain("email");
   });
 
   it("reports every current email and phone for a matched candidate", async () => {
