@@ -303,8 +303,10 @@ describe("questions are authored on the event (amendment W4-A1)", () => {
 
   it("refuses to edit the questions of anything that is not a draft", async () => {
     // A question is part of the event, so changing one after approval is W5's
-    // amendment path like any other change.
-    const event = await newDraft(actorPersonId, draftInput(), []);
+    // amendment path like any other change. F-C1, Q-31: approval now refuses
+    // an event with no start time, so this fixture needs one — unrelated to
+    // what this test is actually about.
+    const event = await newDraft(actorPersonId, draftInput({ startsAt: "19:00" }), []);
     await giveAudience(event.id);
     await approveEvent(actorPersonId, event.id);
 
@@ -354,7 +356,10 @@ describe("approval is refused with a named reason, and holds against a direct ca
   });
 
   it("names the empty audience and leaves the event a draft (invariant E1b)", async () => {
-    const event = await newDraft(actorPersonId, draftInput());
+    // F-C1, Q-31: a start time, unrelated to what this test is about, so the
+    // completeness gate does not fire first and mask the audience gate this
+    // test exists to prove.
+    const event = await newDraft(actorPersonId, draftInput({ startsAt: "19:00" }));
 
     const error = await refusalFrom(() => approveEvent(actorPersonId, event.id));
 
@@ -364,7 +369,15 @@ describe("approval is refused with a named reason, and holds against a direct ca
   });
 
   it("reports both gaps to the screen before anybody presses anything", async () => {
-    const event = await newDraft(actorPersonId, draftInput({ scheduledOn: null }));
+    // F-C1, Q-31: `startsAt` is given here too — "both gaps" this test is
+    // about is date and audience, and a third, unrelated gap (start time)
+    // would otherwise widen `preview.missing` and break the exact-equality
+    // assertion below for a reason that has nothing to do with what this
+    // test proves.
+    const event = await newDraft(
+      actorPersonId,
+      draftInput({ scheduledOn: null, startsAt: "19:00" }),
+    );
 
     const preview = await readApprovalPreview(event.id);
 
@@ -373,7 +386,7 @@ describe("approval is refused with a named reason, and holds against a direct ca
   });
 
   it("approves once the gap is filled", async () => {
-    const event = await newDraft(actorPersonId, draftInput());
+    const event = await newDraft(actorPersonId, draftInput({ startsAt: "19:00" }));
     const size = await giveAudience(event.id);
 
     const outcome = await approveEvent(actorPersonId, event.id);
@@ -382,13 +395,20 @@ describe("approval is refused with a named reason, and holds against a direct ca
     expect(outcome.invitationCount).toBe(size);
   });
 
-  it("requires nothing the club legitimately leaves as TBD", async () => {
+  it("requires nothing the club legitimately leaves as TBD, other than the start time F-C1 now names", async () => {
     // W4: "TBD stays a legitimate value on a draft — for venue, for time".
     // Requiring a venue would refuse a fixture whose ground is not settled,
     // which the club really does approve.
+    //
+    // F-C1, Q-31 (Brian, 2026-08-27) deliberately narrowed this: a start
+    // time is the one exception now, because the dispatch path had nowhere
+    // honest to put a TBD kickoff — see `event-approval.test.ts`'s own
+    // `F-C1` describe block for that refusal proved directly. Venue, end
+    // time and description are exactly as TBD-legitimate as they always
+    // were, which is what this test still proves.
     const event = await createEventDraft(
       actorPersonId,
-      draftInput({ venue: null, startsAt: null, endsAt: null, description: null }),
+      draftInput({ venue: null, startsAt: "19:00", endsAt: null, description: null }),
     );
     await giveAudience(event.id);
 
@@ -465,7 +485,7 @@ describe("an abandoned draft is deleted, permanently (D29)", () => {
 
   it("refuses to delete an approved event, and says what to do instead", async () => {
     // People have been told about it, so it is cancelled rather than deleted.
-    const event = await newDraft(actorPersonId, draftInput());
+    const event = await newDraft(actorPersonId, draftInput({ startsAt: "19:00" }));
     await giveAudience(event.id);
     await approveEvent(actorPersonId, event.id);
 
@@ -478,7 +498,7 @@ describe("an abandoned draft is deleted, permanently (D29)", () => {
   });
 
   it("refuses to delete a cancelled event too", async () => {
-    const event = await newDraft(actorPersonId, draftInput());
+    const event = await newDraft(actorPersonId, draftInput({ startsAt: "19:00" }));
     await giveAudience(event.id);
     await approveEvent(actorPersonId, event.id);
     await observer.query(
@@ -494,7 +514,7 @@ describe("an abandoned draft is deleted, permanently (D29)", () => {
   });
 
   it("writes no audit row for a deletion it refused", async () => {
-    const event = await newDraft(actorPersonId, draftInput());
+    const event = await newDraft(actorPersonId, draftInput({ startsAt: "19:00" }));
     await giveAudience(event.id);
     await approveEvent(actorPersonId, event.id);
 

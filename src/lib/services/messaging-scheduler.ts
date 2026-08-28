@@ -11,9 +11,16 @@ import {
   emailPermitted,
 } from "@/lib/delivery/email";
 import { NO_USABLE_NUMBER_REASON, selectMobileNumber } from "@/lib/delivery/phone";
+import type { OutboundMessage } from "@/lib/delivery/provider";
 
 import { recordAudit } from "./audit";
-import { DISPATCH_ACTOR_LABEL, MAX_ATTEMPTS, dispatchJob } from "./delivery";
+import {
+  DISPATCH_ACTOR_LABEL,
+  EMAIL_FALLBACK_SUFFIX,
+  EVENT_HAS_NO_START_TIME_REASON,
+  MAX_ATTEMPTS,
+  dispatchJob,
+} from "./delivery";
 import type { MessagingPlan } from "./messaging-schedule";
 
 /**
@@ -123,12 +130,21 @@ export async function scheduleEventLadderIn(
   // The anchor. `max(now, event start − lead)`, already resolved by the plan.
   // Until this existed, an invitation job carried no `scheduled_for` at all and
   // approval dispatched it immediately whatever the event's lead said.
+  // `status in ('pending', 'ready')` is a guard this function's original,
+  // only call site (`approveEvent`) never needed — the invitation job it just
+  // inserted a moment earlier in the same transaction is always `pending`.
+  // F-A2/F-C3 gave this function a second call site, an amendment repairing
+  // an already-approved event that was never given a ladder at all. There the
+  // invitation job can already be `completed`, `processing` or `cancelled`,
+  // and this statement must never rewrite the anchor of a message that has
+  // already gone — or already been stood down — under the pretence of
+  // freshly scheduling it.
   const anchored = await tx.query(
     `update public.notification_jobs
         set scheduled_for = $2::timestamptz,
             ladder_rung = 0,
             updated_at = now()
-      where event_id = $1 and job_type = 'invitation'`,
+      where event_id = $1 and job_type = 'invitation' and status in ('pending', 'ready')`,
     [eventId, invitationRung?.at ?? plan.invitationAt],
   );
 
@@ -201,6 +217,37 @@ export async function currentPresidentIn(tx: Tx): Promise<string | null> {
 }
 
 /**
+ * F-B1, mechanism 1. Which channel to mint the office holder's escalation
+ * job on — WhatsApp when they have any phone on file, email otherwise.
+ *
+ * Deliberately the same, cheap existence check `dispatchEscalationJob`'s own
+ * recipient lookup repeats and can still disagree with: a phone recorded here
+ * as "present" can still fail to convert to E.164, or fail the deployment's
+ * allowlist, once dispatch actually reads it with `selectMobileNumber`. That
+ * disagreement is not a bug to close here — it is exactly what
+ * `dispatchEscalationJob`'s new fallback-to-email exists to recover from, the
+ * same shape `scheduleWhatsAppFallbackIn` already gives a player-facing job.
+ * This function only has to avoid the *systematic* case F-B1 found: a
+ * President with no phone at all, whatsapp chosen anyway, forever.
+ */
+async function presidentEscalationChannelIn(
+  tx: Tx,
+  presidentPersonId: string,
+): Promise<"whatsapp" | "email"> {
+  const result = await tx.query<{ has_phone: boolean }>(
+    `select exists (
+       select 1 from public.contact_points
+        where person_id = $1
+          and kind = 'phone'
+          and valid_from <= current_date
+          and (valid_until is null or valid_until > current_date)
+     ) as has_phone`,
+    [presidentPersonId],
+  );
+  return result.rows[0]?.has_phone ? "whatsapp" : "email";
+}
+
+/**
  * Raises the escalation threshold for every event that has crossed it.
  *
  * ## Idempotent because the database says so, not because this checks first
@@ -251,6 +298,21 @@ async function raiseDueEscalations(): Promise<{
     let escalationsHeld = 0;
 
     const president = await currentPresidentIn(tx);
+
+    // F-B1, mechanism 1. Every escalation job used to be minted on the
+    // `whatsapp` channel unconditionally, whatever contact detail the office
+    // holder actually has on file — a President with only an email, which the
+    // seed's own Bertram genuinely is, got a job whose one channel he cannot
+    // receive and which nothing then falls back from. Resolved once, from the
+    // office holder's own contact points, the same way an invitee's channel
+    // is a fact about the person rather than an assumption about the
+    // deployment. A phone on file, however it later turns out to convert,
+    // is preferred — `dispatchEscalationJob`'s own recipient lookup is the
+    // place that discovers a phone was unusable after all, and its new
+    // WhatsApp-to-email fallback (mirroring `scheduleWhatsAppFallbackIn`) is
+    // what recovers from that, exactly as a player-facing job already does.
+    const escalationChannel =
+      president === null ? "whatsapp" : await presidentEscalationChannelIn(tx, president);
 
     for (const { event_id: eventId } of due.rows) {
       // `nonresponse_queue` is the shipped view and it is the definition of who
@@ -312,10 +374,10 @@ async function raiseDueEscalations(): Promise<{
            (idempotency_key, job_type, status, event_id, person_id, channel,
             scheduled_for, template_variables)
          values ('event:' || $1::uuid::text || ':escalation', 'escalation', 'pending',
-                 $1::uuid, $2::uuid, 'whatsapp', now(), $3::jsonb)
+                 $1::uuid, $2::uuid, $4::public.notification_channel, now(), $3::jsonb)
          on conflict (idempotency_key) do nothing
          returning id`,
-        [eventId, president, JSON.stringify({ outstanding: count })],
+        [eventId, president, JSON.stringify({ outstanding: count }), escalationChannel],
       );
 
       const jobId = job.rows[0]?.id ?? null;
@@ -540,12 +602,36 @@ export async function runMessagingSweep(
  *
  * What it shares is the shape — claim, send, record — and the claim's
  * concurrency control, so two sweeps produce one escalation.
+ *
+ * ## F-B1: the channel is the job's own, and a WhatsApp failure falls back
+ *
+ * The provider used to be resolved on the hard-coded `whatsapp` channel,
+ * whatever the job itself carried. It is now read from the job first, exactly
+ * as `dispatchJob` reads it, and `raiseDueEscalations` is what decided that
+ * channel from the office holder's real contact points. A WhatsApp attempt
+ * that still turns out unusable — no convertible number, an unpermitted one,
+ * or the provider itself refusing terminally — schedules and dispatches a
+ * one-off email shadow job, `scheduleEscalationFallbackIn`'s mirror of
+ * `scheduleWhatsAppFallbackIn`, so the President is not left silently
+ * unreachable the way F-B1 found him.
  */
 export async function dispatchEscalationJob(
   jobId: string,
   options: { source?: EnvironmentSource; transport?: Transport } = {},
 ): Promise<"accepted" | "refused" | "skipped"> {
-  const resolution = resolveDeliveryProvider(options.source ?? process.env, options.transport);
+  const routed = await withTransaction(async (tx) =>
+    tx.query<{ channel: string | null }>(
+      "select channel::text as channel from public.notification_jobs where id = $1 and job_type = 'escalation'",
+      [jobId],
+    ),
+  );
+  const channel = routed.rows[0]?.channel === "email" ? "email" : "whatsapp";
+
+  const resolution = resolveDeliveryProvider(
+    options.source ?? process.env,
+    options.transport,
+    channel,
+  );
 
   if (!resolution.ok) {
     await withTransaction(async (tx) => {
@@ -561,14 +647,36 @@ export async function dispatchEscalationJob(
 
   const context = resolution.context;
 
-  const claim = await withTransaction(async (tx) => {
-    const claimed = await tx.query<{
-      id: string;
-      event_id: string;
-      person_id: string;
-      attempt_count: number;
-    }>(
-      `update public.notification_jobs
+  // A single "did not send" outcome, deliberately not distinguishing why —
+  // matching `dispatchNoticeJob`'s own convention below (and its test's own
+  // comment): the claim itself found nothing to send, so this is "skipped"
+  // rather than "refused" (a refusal means the provider was asked and said
+  // no, which the terminal branch further down still reports as such). The
+  // `fallbackId` returned alongside is what actually distinguishes these
+  // cases from one another; the outward kind does not need to.
+  type EscalationOutcome =
+    | { readonly kind: "no-send" }
+    | {
+        readonly kind: "send";
+        readonly attemptId: string;
+        readonly attemptNumber: number;
+        readonly message: OutboundMessage;
+      };
+
+  const claim = await withTransaction(
+    async (
+      tx,
+    ): Promise<{
+      outcome: EscalationOutcome;
+      fallbackId: string | null;
+    }> => {
+      const claimed = await tx.query<{
+        id: string;
+        event_id: string;
+        person_id: string;
+        attempt_count: number;
+      }>(
+        `update public.notification_jobs
           set status = 'processing', claimed_at = now(), claimed_by = $2,
               attempt_count = attempt_count + 1, last_error = null, updated_at = now()
         where id = $1
@@ -579,19 +687,21 @@ export async function dispatchEscalationJob(
           and event_id is not null
           and person_id is not null
         returning id, event_id, person_id, attempt_count`,
-      [jobId, `${SWEEP_ACTOR_LABEL}:${jobId}`, MAX_ATTEMPTS],
-    );
+        [jobId, `${SWEEP_ACTOR_LABEL}:${jobId}`, MAX_ATTEMPTS],
+      );
 
-    const job = claimed.rows[0];
-    if (!job) return null;
+      const job = claimed.rows[0];
+      if (!job) return { outcome: { kind: "no-send" }, fallbackId: null };
 
-    const details = await tx.query<{
-      event_name: string;
-      when_label: string;
-      deadline_label: string | null;
-      outstanding: number;
-    }>(
-      `select e.name as event_name,
+      const details = await tx.query<{
+        event_name: string;
+        event_starts_at_set: boolean;
+        when_label: string;
+        deadline_label: string | null;
+        outstanding: number;
+      }>(
+        `select e.name as event_name,
+              (e.starts_at is not null) as event_starts_at_set,
               to_char(
                 (e.scheduled_on + coalesce(e.starts_at, '00:00'::time))
                   at time zone 'Europe/London' at time zone 'Europe/London',
@@ -607,119 +717,150 @@ export async function dispatchEscalationJob(
          from public.events e
          left join public.event_messaging_plans p on p.event_id = e.id
         where e.id = $1`,
-      [job.event_id],
-    );
+        [job.event_id],
+      );
 
-    const detail = details.rows[0];
-    if (!detail) return null;
+      const detail = details.rows[0];
+      if (!detail) return { outcome: { kind: "no-send" }, fallbackId: null };
 
-    // The office holder's own contact details, read the same way an invitee's
-    // are. This is the one personal datum an escalation touches, and it is the
-    // recipient's rather than a player's.
-    const contacts = await tx.query<{
-      kind: string;
-      raw_value: string;
-      normalised_value: string | null;
-      is_preferred: boolean;
-    }>(
-      `select kind::text as kind, raw_value, normalised_value, is_preferred
+      // F-C1. `starts_at` is nullable, and Q-31's forward-only approval guard
+      // cannot reach an event that already slipped through it. The `when_label`
+      // above is still computed with the fabricated-midnight `coalesce` — every
+      // other reader of this event's start shares that expression — but it is
+      // never used once this branch is taken, and no different channel would
+      // fix it, so this is never a fallback trigger the way an unreachable
+      // recipient is.
+      if (!detail.event_starts_at_set) {
+        await failClaimTerminallyIn(
+          tx,
+          jobId,
+          EVENT_HAS_NO_START_TIME_REASON,
+          job.attempt_count,
+          context.channel,
+          context.provider.name,
+        );
+        return { outcome: { kind: "no-send" }, fallbackId: null };
+      }
+
+      // The office holder's own contact details, read the same way an invitee's
+      // are. This is the one personal datum an escalation touches, and it is the
+      // recipient's rather than a player's.
+      const contacts = await tx.query<{
+        kind: string;
+        raw_value: string;
+        normalised_value: string | null;
+        is_preferred: boolean;
+      }>(
+        `select kind::text as kind, raw_value, normalised_value, is_preferred
          from public.contact_points
         where person_id = $1
           and valid_from <= current_date
           and (valid_until is null or valid_until > current_date)
         order by is_preferred desc, valid_from desc, created_at desc, id`,
-      [job.person_id],
-    );
-
-    const rows = contacts.rows.map((row) => ({
-      kind: row.kind,
-      rawValue: row.raw_value,
-      normalisedValue: row.normalised_value,
-      isPreferred: row.is_preferred,
-    }));
-
-    const recipient =
-      context.channel === "email"
-        ? (rows.find((row) => row.kind === "email")?.normalisedValue ??
-          rows.find((row) => row.kind === "email")?.rawValue ??
-          null)
-        : selectMobileNumber(rows, context.defaultCallingCode);
-
-    if (!recipient) {
-      await failClaimTerminallyIn(
-        tx,
-        jobId,
-        context.channel === "email" ? NO_USABLE_EMAIL_REASON : NO_USABLE_NUMBER_REASON,
-        job.attempt_count,
-        context.channel,
-        context.provider.name,
+        [job.person_id],
       );
-      return null;
-    }
 
-    const permitted =
-      context.channel === "email"
-        ? emailPermitted(recipient, context.emailAllowlist)
-        : recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode);
+      const rows = contacts.rows.map((row) => ({
+        kind: row.kind,
+        rawValue: row.raw_value,
+        normalisedValue: row.normalised_value,
+        isPreferred: row.is_preferred,
+      }));
 
-    if (!permitted) {
-      await failClaimTerminallyIn(
-        tx,
-        jobId,
-        context.channel === "email" ? EMAIL_NOT_PERMITTED_REASON : RECIPIENT_NOT_PERMITTED_REASON,
-        job.attempt_count,
-        context.channel,
-        context.provider.name,
-      );
-      return null;
-    }
+      const recipient =
+        context.channel === "email"
+          ? (rows.find((row) => row.kind === "email")?.normalisedValue ??
+            rows.find((row) => row.kind === "email")?.rawValue ??
+            null)
+          : selectMobileNumber(rows, context.defaultCallingCode);
 
-    const attempt = await tx.query<{ id: string }>(
-      `insert into public.delivery_attempts
+      if (!recipient) {
+        await failClaimTerminallyIn(
+          tx,
+          jobId,
+          context.channel === "email" ? NO_USABLE_EMAIL_REASON : NO_USABLE_NUMBER_REASON,
+          job.attempt_count,
+          context.channel,
+          context.provider.name,
+        );
+        const fallbackId =
+          channel === "whatsapp" ? await scheduleEscalationFallbackIn(tx, jobId) : null;
+        return { outcome: { kind: "no-send" }, fallbackId };
+      }
+
+      const permitted =
+        context.channel === "email"
+          ? emailPermitted(recipient, context.emailAllowlist)
+          : recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode);
+
+      if (!permitted) {
+        await failClaimTerminallyIn(
+          tx,
+          jobId,
+          context.channel === "email" ? EMAIL_NOT_PERMITTED_REASON : RECIPIENT_NOT_PERMITTED_REASON,
+          job.attempt_count,
+          context.channel,
+          context.provider.name,
+        );
+        const fallbackId =
+          channel === "whatsapp" ? await scheduleEscalationFallbackIn(tx, jobId) : null;
+        return { outcome: { kind: "no-send" }, fallbackId };
+      }
+
+      const attempt = await tx.query<{ id: string }>(
+        `insert into public.delivery_attempts
          (notification_job_id, attempt_number, channel, provider)
        values ($1, $2, $3, $4)
        returning id`,
-      [jobId, job.attempt_count, context.channel, context.provider.name],
-    );
+        [jobId, job.attempt_count, context.channel, context.provider.name],
+      );
 
-    return {
-      attemptId: attempt.rows[0].id,
-      attemptNumber: job.attempt_count,
-      message: {
-        kind: "escalation" as const,
-        recipient,
-        // Deliberately not a name. The escalation template declares no name
-        // parameter at all — see `templates.ts` — and these two fields exist
-        // only because they are on the shared message type. A template with a
-        // name slot is a template something can later put a player's name into.
-        inviteeName: "",
-        eventName: detail.event_name,
-        whenLabel: detail.when_label.replace(/\s+/g, " ").trim(),
-        deadlineLabel: detail.deadline_label?.replace(/\s+/g, " ").trim() ?? null,
-        outstandingCount: detail.outstanding,
-        // The queue, not the names. The club login is the boundary that decides
-        // who reads a roster, and this message travels outside it.
-        queueUrl: `${context.appBaseUrl}/operate/follow-ups`,
-        // Empty, and not a URL. An escalation is a message *about* players, to
-        // a committee officer; there is nothing here for anybody to answer, and
-        // the escalation template declares no link parameter. Building a
-        // `/rsvp/` URL with no token would put a dead link on a message object
-        // that something later might decide to render.
-        rsvpUrl: "",
-      },
-    };
-  });
+      return {
+        outcome: {
+          kind: "send",
+          attemptId: attempt.rows[0].id,
+          attemptNumber: job.attempt_count,
+          message: {
+            kind: "escalation" as const,
+            recipient,
+            // Deliberately not a name. The escalation template declares no name
+            // parameter at all — see `templates.ts` — and these two fields exist
+            // only because they are on the shared message type. A template with a
+            // name slot is a template something can later put a player's name into.
+            inviteeName: "",
+            eventName: detail.event_name,
+            whenLabel: detail.when_label.replace(/\s+/g, " ").trim(),
+            deadlineLabel: detail.deadline_label?.replace(/\s+/g, " ").trim() ?? null,
+            outstandingCount: detail.outstanding,
+            // The queue, not the names. The club login is the boundary that decides
+            // who reads a roster, and this message travels outside it.
+            queueUrl: `${context.appBaseUrl}/operate/follow-ups`,
+            // Empty, and not a URL. An escalation is a message *about* players, to
+            // a committee officer; there is nothing here for anybody to answer, and
+            // the escalation template declares no link parameter. Building a
+            // `/rsvp/` URL with no token would put a dead link on a message object
+            // that something later might decide to render.
+            rsvpUrl: "",
+          },
+        },
+        fallbackId: null,
+      };
+    },
+  );
 
-  if (claim === null) return "skipped";
+  if (claim.fallbackId) await dispatchEscalationFallbackBestEffort(claim.fallbackId, options);
 
-  const outcome = await context.provider.send(claim.message);
+  if (claim.outcome.kind !== "send") return "skipped";
+  const claimed = claim.outcome;
 
-  await withTransaction(async (tx) => {
+  const outcome = await context.provider.send(claimed.message);
+
+  const secondFallbackId = await withTransaction(async (tx) => {
     if (outcome.status === "accepted") {
       await tx.query(
         `update public.delivery_attempts
             set accepted_at = now(), provider_message_id = $2 where id = $1`,
-        [claim.attemptId, outcome.providerMessageId],
+        [claimed.attemptId, outcome.providerMessageId],
       );
       await tx.query("update public.notification_jobs set next_attempt_at = null where id = $1", [
         jobId,
@@ -730,18 +871,18 @@ export async function dispatchEscalationJob(
         entityTable: "notification_jobs",
         entityId: jobId,
         context: {
-          attemptNumber: claim.attemptNumber,
+          attemptNumber: claimed.attemptNumber,
           provider: context.provider.name,
           channel: context.channel,
           providerMessageId: outcome.providerMessageId,
         },
       });
-      return;
+      return null;
     }
 
     await tx.query(
       "update public.delivery_attempts set concluded_at = now(), failure_reason = $2 where id = $1",
-      [claim.attemptId, outcome.reason],
+      [claimed.attemptId, outcome.reason],
     );
     await tx.query(
       `insert into public.delivery_results
@@ -750,7 +891,7 @@ export async function dispatchEscalationJob(
        on conflict (notification_job_id, attempt_number) do nothing`,
       [
         jobId,
-        claim.attemptNumber,
+        claimed.attemptNumber,
         outcome.retryable ? "failed" : "rejected",
         context.channel,
         context.provider.name,
@@ -768,15 +909,81 @@ export async function dispatchEscalationJob(
         where id = $1`,
       [jobId, outcome.reason, outcome.retryable],
     );
+
+    // F-B1. Terminal exactly when there is nothing further this channel will
+    // do on its own — the provider refused outright, or this was the attempt
+    // that reached the ceiling — mirroring `dispatchJob`'s identical
+    // condition for a player-facing job.
+    const terminal = !outcome.retryable || claimed.attemptNumber >= MAX_ATTEMPTS;
+    return terminal && channel === "whatsapp"
+      ? await scheduleEscalationFallbackIn(tx, jobId)
+      : null;
   });
 
+  if (secondFallbackId) await dispatchEscalationFallbackBestEffort(secondFallbackId, options);
+
   return outcome.status === "accepted" ? "accepted" : "refused";
+}
+
+/**
+ * F-B1's escalation-shaped `scheduleWhatsAppFallbackIn`.
+ *
+ * That function requires `invitation_id is not null`, which an escalation
+ * never has — it is keyed to `event_id`/`person_id` instead, and that is the
+ * whole reason F-B1's first mechanism could never be reached by the existing
+ * fallback at all. This copies its shape: a shadow job on the email channel,
+ * same idempotency-key convention (`EMAIL_FALLBACK_SUFFIX`), created only
+ * from a job that was actually on `whatsapp` and only once.
+ */
+async function scheduleEscalationFallbackIn(tx: Tx, jobId: string): Promise<string | null> {
+  const created = await tx.query<{ id: string }>(
+    `insert into public.notification_jobs
+       (idempotency_key, job_type, status, event_id, person_id,
+        channel, scheduled_for, template_variables)
+     select j.idempotency_key || '${EMAIL_FALLBACK_SUFFIX}', j.job_type, 'pending',
+            j.event_id, j.person_id,
+            'email'::public.notification_channel, now(), j.template_variables
+       from public.notification_jobs j
+      where j.id = $1 and j.job_type = 'escalation' and j.channel = 'whatsapp'
+        and j.event_id is not null and j.person_id is not null
+     on conflict (idempotency_key) do nothing
+     returning id`,
+    [jobId],
+  );
+
+  return created.rows[0]?.id ?? null;
+}
+
+/**
+ * Dispatches a just-created escalation fallback, swallowing its own failure —
+ * `dispatchFallbackBestEffort`'s reasoning, one function over: the original
+ * failure is already durable on its own job row by the time this runs.
+ */
+async function dispatchEscalationFallbackBestEffort(
+  fallbackId: string,
+  options: { source?: EnvironmentSource; transport?: Transport },
+): Promise<void> {
+  try {
+    await dispatchEscalationJob(fallbackId, options);
+  } catch {
+    // See the doc comment above.
+  }
 }
 
 /**
  * Records a claim that could not be attempted at all — no usable route, or
  * one this deployment may not message. Shared by the escalation dispatcher
  * and {@link dispatchNoticeJob} below; nothing in it is escalation-specific.
+ *
+ * F-B1, mechanism 3. Used to write only `delivery_results`. Diagnostics
+ * (`readEventDeliveryDiagnostics`, `./delivery.ts`) inner-joins
+ * `delivery_attempts`, so a job that failed here — no usable route, an
+ * unpermitted recipient, no start time — had zero rows to show, even in
+ * principle, and was invisible to the one screen built to make a failure
+ * checkable. `recordUndeliverableIn` in `./delivery.ts` already writes both
+ * tables for a player-facing job that never got as far as a provider; this
+ * now does the same, so an escalation or a cancellation notice that fails the
+ * identical way is equally visible.
  */
 async function failClaimTerminallyIn(
   tx: Tx,
@@ -792,6 +999,14 @@ async function failClaimTerminallyIn(
             next_attempt_at = null, updated_at = now()
       where id = $1`,
     [jobId, reason],
+  );
+  await tx.query(
+    `insert into public.delivery_attempts
+       (notification_job_id, attempt_number, channel, provider, requested_at,
+        concluded_at, failure_reason)
+     values ($1, $2, $3, $4, now(), now(), $5)
+     on conflict (notification_job_id, attempt_number) do nothing`,
+    [jobId, attemptNumber, channel, provider, reason],
   );
   await tx.query(
     `insert into public.delivery_results
@@ -889,13 +1104,29 @@ export async function dispatchNoticeJob(
 
     const details = await tx.query<{
       event_name: string;
+      event_starts_at_set: boolean;
       when_label: string;
       given_name: string;
       known_as: string | null;
     }>(
+      // F-C2. `to_char(timestamp at time zone 'Europe/London', …)` is a single
+      // conversion — the `timestamptz` this whole expression already produces,
+      // rendered as club-local wall-clock text. `dispatchEscalationJob` above
+      // and `claimJobIn` in `./delivery.ts` both apply that conversion a
+      // *second* time first, because their own starting point is a bare
+      // `timestamp` with no zone attached at all: `e.scheduled_on +
+      // coalesce(e.starts_at, …)` is club-local wall-clock arithmetic on two
+      // columns that carry no zone of their own, and the first `at time zone
+      // 'Europe/London'` is what attaches one, turning it into the correct
+      // `timestamptz`, before the second converts it back to text. This
+      // query was missing that first conversion, so what it formatted was the
+      // wall-clock sum reinterpreted as if it had been UTC all along — an
+      // hour early for every date inside BST.
       `select e.name as event_name,
+              (e.starts_at is not null) as event_starts_at_set,
               to_char(
-                (e.scheduled_on + coalesce(e.starts_at, '00:00'::time)) at time zone 'Europe/London',
+                (e.scheduled_on + coalesce(e.starts_at, '00:00'::time))
+                  at time zone 'Europe/London' at time zone 'Europe/London',
                 'FMDay FMDD FMMonth, HH24:MI') as when_label,
               p.given_name, p.known_as
          from public.invitations i
@@ -908,6 +1139,22 @@ export async function dispatchNoticeJob(
 
     const detail = details.rows[0];
     if (!detail) return null;
+
+    // F-C1. See the identical guard and its comment in `dispatchEscalationJob`
+    // above — a cancellation notice's `when_label` is exactly as capable of
+    // stating a fabricated midnight as an escalation's is, and this is the
+    // notice's own copy of that same forward-only repair.
+    if (!detail.event_starts_at_set) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        EVENT_HAS_NO_START_TIME_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return null;
+    }
 
     const contacts = await tx.query<{
       kind: string;

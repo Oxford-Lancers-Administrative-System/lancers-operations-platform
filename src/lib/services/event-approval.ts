@@ -187,18 +187,30 @@ export const APPROVAL_INCOMPLETE_RULE = "event_approval_requires_complete_event"
  *
  * ## Which fields, and why the list is this short
  *
- * The date, and that is all that can be missing. `name` and `event_type` are
- * `not null` and are the minimum to save a draft at all (D15), so an event that
- * exists has both; everything else on the record is legitimately absent on an
- * approved event:
+ * The date and the start time, and that is all that can be missing. `name`
+ * and `event_type` are `not null` and are the minimum to save a draft at all
+ * (D15), so an event that exists has both; everything else on the record is
+ * legitimately absent on an approved event:
  *
  *   * **Venue** — `TBD` is what the club writes on its own term card for a
  *     fixture whose ground is not settled, and W4 says so in as many words: "TBD
  *     stays a legitimate value on a draft — for venue, for time". Requiring one
  *     would refuse an event the club really does approve.
- *   * **Times** — same reason, and D78 governs their *entry*, not their presence.
  *   * **Description and required equipment** — W8 makes every template field
  *     optional, and a meeting that needs no equipment has nothing to say here.
+ *
+ * **Start time is the one exception to "TBD stays legitimate", and it is
+ * deliberate.** F-C1, owner decision Q-31 (Brian, 2026-08-27): the dispatch
+ * path had nowhere honest to put a TBD kickoff — `coalesce(starts_at,
+ * '00:00'::time)` rendered it as a fact, and 31 people were told an event
+ * started at midnight because nobody had set a time. Chosen over rendering
+ * "time to be confirmed" and over warning-but-allowing: this narrows W4's own
+ * words to a *draft*, and removes the TBD-approval workflow for a start time
+ * specifically. This guard is forward-only — it cannot reach a row that was
+ * already approved with a null `starts_at` before it existed; the dispatch
+ * path's own guard (`EVENT_HAS_NO_START_TIME_REASON`, `./delivery.ts` and
+ * `./messaging-scheduler.ts`) is what stops one of those from still
+ * fabricating a time.
  *
  * The list is a function rather than a constant so the refusal can name which
  * fields are missing rather than which fields exist, which is what W4-06 shows
@@ -207,13 +219,18 @@ export const APPROVAL_INCOMPLETE_RULE = "event_approval_requires_complete_event"
  * ## Where it is enforced
  *
  * Here, above the database, in the service layer — so it holds when the screen
- * is bypassed and `approveEvent` is called directly. `events_approval_requires_date_and_audience`
- * (invariant E1a) says the same thing in the database and remains the backstop;
- * what it cannot do is name the field in a sentence an operator can act on.
+ * is bypassed and `approveEvent` is called directly. Invariant E1a
+ * (`events_approval_requires_date_and_audience`) is the database's own
+ * backstop for the date; it was **not** extended to the start time, because
+ * that would need a migration and this correction adds none. The service
+ * layer is documented as the primary authorization boundary and the database
+ * as the backstop (`AGENTS.md`) — this guard is narrower than that principle
+ * ordinarily allows, and is recorded here rather than left implicit.
  */
 export function missingForApproval(event: EventDetail): string[] {
   const missing: string[] = [];
   if (event.scheduledOn === null) missing.push("date");
+  if (event.startsAt === null) missing.push("start time");
   if (event.name.trim() === "") missing.push("name");
   return missing;
 }

@@ -68,6 +68,15 @@ interface QueueRow {
   delivery_channel: string | null;
   delivery_failure_reason: string | null;
   escalation_job_id: string | null;
+  /**
+   * F-B1, mechanism 4. `notification_jobs.status` of the escalation job
+   * itself — `null` when `escalation_job_id` is null (the office was vacant
+   * when the threshold was crossed). Read here rather than through
+   * `readChaseJobsForIn` below, which joins on `invitation_id` and can never
+   * reach an escalation job: those are addressed to the office about the
+   * event, keyed to `event_id`/`person_id`, never to one invitee.
+   */
+  escalation_status: string | null;
   flag_open: boolean;
 }
 
@@ -90,6 +99,7 @@ async function readQueueRowsIn(tx: Tx): Promise<QueueRow[]> {
             delivery.channel as delivery_channel,
             delivery.failure_reason as delivery_failure_reason,
             f.escalation_job_id,
+            ej.status::text as escalation_status,
             (f.invitation_id is not null) as flag_open
        from public.nonresponse_queue q
        join public.invitations i on i.id = q.invitation_id
@@ -108,6 +118,9 @@ async function readQueueRowsIn(tx: Tx): Promise<QueueRow[]> {
        ) delivery on true
        left join public.nonresponse_flags f
          on f.invitation_id = i.id and f.threshold = 'escalation' and f.resolved_at is null
+       -- F-B1, mechanism 4. The escalation job's own state, not merely
+       -- whether one was created.
+       left join public.notification_jobs ej on ej.id = f.escalation_job_id
       order by q.scheduled_on nulls last, q.event_name, display_name`,
   );
   return result.rows;
@@ -177,14 +190,27 @@ export async function readFollowUpsQueue(): Promise<readonly FollowUpEvent[]> {
         (row.delivery_failure_reason === NO_USABLE_NUMBER_REASON ||
           row.delivery_failure_reason === NO_USABLE_EMAIL_REASON);
 
+      // F-B1, mechanism 4. `escalation_job_id` being non-null used to be read
+      // as "escalated", full stop — three people read "Escalated to the
+      // President" while their own escalation job was terminally `failed`
+      // and would never be looked at again. A job that exists is not the
+      // same claim as a job that was delivered; `escalation_status` is what
+      // actually was.
+      const escalationDelivered =
+        row.escalation_status === "completed" || row.escalation_status === "processing";
+
       // F4: one list, two streams. A delivery problem is shown as one, ahead
       // of where escalation or chasing would otherwise put this row — the
-      // club cannot chase somebody it has never reached.
+      // club cannot chase somebody it has never reached. Reused here for a
+      // failed escalation too, for the identical reason: the club cannot
+      // tell this person's story is even known to the President.
       const status: FollowUpStatus = noUsableRoute
         ? "delivery_problem"
         : row.flag_open
           ? row.escalation_job_id
-            ? "escalated"
+            ? escalationDelivered
+              ? "escalated"
+              : "delivery_problem"
             : // T03-escalation-office: a vacant seat holds the escalation
               // visibly rather than dropping it or sending it to a stale
               // holder — messaging-scheduler.ts's own words for this state.
@@ -197,6 +223,7 @@ export async function readFollowUpsQueue(): Promise<readonly FollowUpEvent[]> {
             responseState: "awaiting_response",
             isWalkUp: false,
             escalated: row.flag_open,
+            escalationJobStatus: row.escalation_status,
             jobs: jobsByInvitation.get(row.invitation_id) ?? [],
           });
 
