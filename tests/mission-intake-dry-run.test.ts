@@ -24,6 +24,7 @@ describe("synthetic mission intake", () => {
 
     // The ledger publishes its generated artifacts before it can be read.
     expect(helper.intake("coverage", missionId, "--write").status).toBe(0);
+    expect(helper.intake("subject", missionId, "--write").status).toBe(0);
     expect(helper.intake("hub", missionId, "--write").status).toBe(0);
 
     const assembling = helper.state();

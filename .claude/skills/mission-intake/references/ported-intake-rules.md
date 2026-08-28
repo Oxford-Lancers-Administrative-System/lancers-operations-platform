@@ -48,6 +48,17 @@ or approval convention.
 
 ## What intake must determine
 
+The mission number commissions a **subject**, not the portfolio row's examples.
+Intake turns loose requirements into real workflows, pages, administration,
+states, exceptions, and seams. Start from current `main`, rendered locally with
+synthetic data, and extend established patterns. Existing owned behavior stays
+in scope.
+
+Add scope only when grounded in club operation, Release One, current behavior,
+operational necessity, or an adjacent seam. Every area needs an owner or an
+approved exclusion. A provisional boundary blocks if this mission cannot be
+walked and accepted without its future side.
+
 For the commissioned outcome, document:
 
 - intended outcome and why it matters now;
@@ -68,6 +79,10 @@ For the commissioned outcome, document:
 - actors, triggers, entry points, consequential route or action placement,
   actions, state transitions, handoffs, exceptions, and visible outcomes; and
 - classification of every consequential workflow and IA decision.
+
+Propagate approved decisions append-only. Show Brian the complete amendment
+batch before editing product records or other missions, then refetch each target.
+Never rewrite an approved packet or delivered history.
 
 Decision classifications mean:
 

@@ -14,6 +14,7 @@ const ledgerFor = () => {
   const helper = createSyntheticLedger();
   open.push(helper);
   expect(helper.intake("coverage", helper.missionId, "--write").status).toBe(0);
+  expect(helper.intake("subject", helper.missionId, "--write").status).toBe(0);
   expect(helper.intake("hub", helper.missionId, "--write").status).toBe(0);
   return helper;
 };

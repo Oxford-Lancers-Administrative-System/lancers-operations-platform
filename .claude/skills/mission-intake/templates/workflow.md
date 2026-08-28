@@ -8,6 +8,13 @@
 - Controlling source:
 - User-visible result:
 
+## Current `main` grounding
+
+- Locally rendered route or nearest implemented analogue:
+- Reused component, language, interaction, and permission patterns:
+- Desktop and 375px evidence:
+- Reason for any departure from the implemented application:
+
 ## Required actions
 
 ## State transitions
@@ -15,6 +22,8 @@
 ## Handoffs
 
 ## Dependencies and mission boundaries
+
+- Each seam: this mission's side / other mission or tool / blocking or independently walkable:
 
 ## Exceptions and recovery
 

@@ -1,5 +1,16 @@
 # Mission Intake changelog
 
+## 2026-08-28
+
+Subject coverage (LAN-188), from the Recruitment intake correction:
+
+- Version 3 maps the whole commissioned subject before workflows freeze and
+  refuses ownerless areas, unsupported exclusions, unresolved gaps, and blocking
+  handoffs. Brian's approvals still judge completeness.
+- Rendered current `main` is the UI baseline, with desktop and 375px proof.
+- One approved append-only amendment batch carries decisions to other records;
+  applied edits require refetch proof. Version 1/2 ledgers remain valid.
+
 ## 2026-08-22
 
 First-run corrections (LAN-149), from the completed

@@ -11,11 +11,11 @@ Invocation: `/mission-intake $ARGUMENTS`
 
 ## Intent
 
-Turn one commissioned portfolio mission number into an owner-approved,
-source-traceable packet. Never execute, decompose implementation packages, or
-write application code. Done means the ledger and packet land together in one
-owner-merged intake-only PR and the Project Manager receipt identifies the next
-action.
+Turn one commissioned subject—not merely the portfolio examples—into its first
+complete, owner-approved product definition and source-traceable packet. Never
+execute, decompose implementation packages, or write application code. Done
+means the ledger and packet land in one owner-merged intake-only PR and the
+Project Manager receipt identifies the next action.
 
 Require one positive integer. Map it to one approved mission id with the minimum
 read and inspect worktrees.
@@ -56,9 +56,12 @@ acceptable outcomes plus Brian's explicit one-line decision.
 
 ## Stage 0 — boundary
 
-Create `00-boundary.md` from its template and reconcile the commissioned
-boundary. Record any amendment and exact approval in the file and
-`state.json.approvals.boundary`; advance atomically to `overview`.
+Create `00-boundary.md` around the commissioned outcome: owned operation, pages,
+administration, states/failures, external tools, and adjacent-mission seams. Add
+only scope grounded in club operation, Release One, implemented behavior, or a
+concrete seam. Present the whole boundary, including additions, for one approval.
+Record Brian's words in the file and `state.json.approvals.boundary`; advance
+atomically to `overview`.
 
 ## Stage 1 — overview
 
@@ -67,6 +70,19 @@ state vocabulary, audit posture, and shared invariants. Brian corrects the file,
 then explicit approval advances atomically to `inventory`.
 
 ## Stage 2 — decisions and frozen workflows
+
+Draft the workflow inventory and `state.json.subject_coverage` together; show
+both before Brian approves either. Each area records why it belongs and one
+disposition—workflow (`new|retained|modified`), invariant, shared, another
+mission, provisional handoff, approved exclusion, or unresolved. A provisional
+handoff blocks unless this mission defines its side and remains independently
+walkable and acceptable.
+Brian's boundary and inventory approvals judge completeness; the validator only
+checks dispositions. After approval advances to `workflows`, generate
+`subject-coverage.md` with `npm run intake -- subject --write`.
+
+Use the map to sweep users, administration, states/failures, shared machinery,
+external tools, inputs, and mission gaps. Retained behavior stays in scope.
 
 Inventory every controlling source's decisions, exclusions, handoffs,
 delegations, and shared dependencies before defining workflows. In
@@ -102,20 +118,24 @@ normal journey, key actions/states, handoffs, failures, dependencies/boundaries,
 and each real owner decision with a recommendation. Then show it and request
 approval.
 
-User-facing workflows build template-backed HTML mockups under
-`docs/ux/mockup-standards.md`. Both sides of a screen come from the same
-producer. A surface that exists on `main` is photographed on both sides:
+For user-facing work, render current `main` locally with synthetic data and
+inspect equivalent interactions, states, errors, navigation, and permissions.
+Reuse its routes, components, language, and patterns unless approved intent or a
+concrete defect justifies a departure. Default to current-versus-proposed proof
+at desktop and 375px.
+
+Build template-backed HTML mockups under `docs/ux/mockup-standards.md`. Both
+sides of a screen come from the same producer. A surface that exists on `main`
+is photographed on both sides:
 
 ```bash
 npm run intake -- shoot --screen <Wn-nn> --route <path> [--proposal <file.js>]
 ```
 
-A surface that does not exist is drawn on both sides, and its current side
-reads `New surface, nothing to compare`. Never pair a photograph with a
-drawing on one screen — every difference in rendering then reads as a
-proposal, and a page Brian owns daily stops being recognisable. When the
-application cannot run, every screen in that mockup is drawn and the
-acceptance record is marked `grounding: code-only`; never restore only some.
+A new surface uses the nearest implemented route/shell; with no analogue, draw
+both sides and label the current side `New surface, nothing to compare`. Never
+pair a photograph with a drawing on one screen. If the application cannot run,
+draw every screen and mark acceptance `grounding: code-only`.
 Generate—never hand-edit—the mockup hub after state/artifact/feedback changes
 and show revised mocks in the browser.
 
@@ -133,8 +153,8 @@ npm run intake -- edit --file <path> --find <text> --replace <text> --expect <n>
 ```
 
 The helper proves match count/locations, reloads formatted bytes, validates, and
-rolls back invalid output. Regenerate `mockups/index.html` and
-`decision-coverage.md`; never hand-edit them.
+rolls back invalid output. Regenerate `mockups/index.html`,
+`decision-coverage.md`, and `subject-coverage.md`; never hand-edit them.
 
 Assemble `missions/packets/<mission-id>/` mechanically from approved ledger
 facts. The workflow matrix exactly matches the frozen inventory. Use the packet
@@ -155,8 +175,10 @@ new intake-only PR.
 
 Create owner-action Linear issues only at closeout when the referenced
 five-condition test passes; deduplicate first. Questions and visual judgments
-remain normal intake. Never edit Notion unprompted: propose exact old/new text,
-obtain approval for that edit, apply, refetch, and record verification.
+remain normal intake. Collect append-only consequences for briefs,
+requirements, portfolio entries, and other missions in
+`state.json.amendment_plan`. Show Brian the full batch before editing anything;
+apply only the approved batch, then refetch each target and record proof.
 
 The final PR contains exactly this mission's `missions/intake/**` and
 `missions/packets/**` artifacts. Prove paths and state with:

@@ -3,16 +3,19 @@ import path from "node:path";
 import { renderDecisionCoverage, validateDecisionCoverage } from "./decisions.mjs";
 import { formatAs } from "./format.mjs";
 import { HUB_FILE, renderMockupHub } from "./hub.mjs";
+import {
+  renderSubjectCoverage,
+  validateAmendmentPlan,
+  validateSubjectCoverage,
+} from "./subject.mjs";
 
-// Ledger schema version. Version 2 adds the gates LAN-149 proved necessary:
-// source-scoped controlling-decision coverage, and a generated mockup hub that
-// cannot drift. A version 1 ledger predates them and is accepted only as the
-// closed historical record of an already-merged intake — no live intake can
-// avoid the gates by omitting the field, because `merged` is the one stage a
-// version 1 ledger may sit at.
-export const LEDGER_VERSION = 2;
+// Version 2 added decision coverage and the mockup hub. Version 3 adds subject
+// coverage and amendment batches. Existing v2 ledgers keep their contract;
+// version 1 remains closed history.
+export const LEDGER_VERSION = 3;
 
 export const DECISION_COVERAGE_FILE = "decision-coverage.md";
+export const SUBJECT_COVERAGE_FILE = "subject-coverage.md";
 
 export const INTAKE_STAGES = [
   "boundary",
@@ -53,6 +56,10 @@ export const ledgerVersion = (state) => state?.ledger_version ?? 1;
 export const gatesApply = (state) =>
   ledgerVersion(state) >= 2 && stageAtOrAfter(state?.stage, "workflows");
 
+/** Whether this ledger must satisfy the LAN-188 subject gates. */
+export const subjectGatesApply = (state) =>
+  ledgerVersion(state) >= 3 && stageAtOrAfter(state?.stage, "workflows");
+
 export function validateIntakeState(state) {
   const errors = [];
   if (!state || typeof state !== "object" || Array.isArray(state)) {
@@ -69,12 +76,15 @@ export function validateIntakeState(state) {
   }
   if (!nonEmpty(state.next_action)) errors.push("next_action is required.");
   if (!Array.isArray(state.workflows)) errors.push("workflows must be an array.");
-  if (state.ledger_version !== undefined && ![1, LEDGER_VERSION].includes(state.ledger_version)) {
-    errors.push(`ledger_version must be 1 or ${LEDGER_VERSION}.`);
+  if (
+    state.ledger_version !== undefined &&
+    ![1, 2, LEDGER_VERSION].includes(state.ledger_version)
+  ) {
+    errors.push(`ledger_version must be 1, 2 or ${LEDGER_VERSION}.`);
   }
   if (ledgerVersion(state) === 1 && state.stage !== "merged") {
     errors.push(
-      `a version 1 ledger is a closed historical record; a live intake must set ledger_version ${LEDGER_VERSION} and carry decision coverage and a generated mockup hub.`,
+      `a version 1 ledger is a closed historical record; live intake must use version ${LEDGER_VERSION} with decision coverage, subject coverage, amendments and a mockup hub.`,
     );
   }
   if (INTAKE_STAGES.indexOf(state.stage) >= INTAKE_STAGES.indexOf("overview")) {
@@ -164,6 +174,21 @@ export function validateIntakeState(state) {
       );
     }
     errors.push(...validateMockupHubDeclaration(state));
+  }
+  if (subjectGatesApply(state)) {
+    if (state.subject_coverage === undefined) {
+      errors.push(
+        "subject_coverage is required before workflows; map the subject, not only listed decisions.",
+      );
+    } else {
+      errors.push(
+        ...validateSubjectCoverage(state.subject_coverage, {
+          workflowIds: (state.workflows ?? []).map((workflow) => workflow.id),
+          missionId: state.mission_id,
+        }),
+      );
+    }
+    errors.push(...validateAmendmentPlan(state.amendment_plan));
   }
 
   return errors;
@@ -273,11 +298,16 @@ export function validateIntakeLedger(state, ledgerRoot, { requireGenerated = tru
 /** The generated artifacts this ledger must publish at its current stage. */
 export function requiredGeneratedFiles(state) {
   const files = [DECISION_COVERAGE_FILE];
+  if (subjectGatesApply(state)) files.push(SUBJECT_COVERAGE_FILE);
   if (state.mockup_hub === "generated") files.push(HUB_FILE);
   return files;
 }
 
-const generatorFor = (file) => (file === HUB_FILE ? "hub --write" : "coverage --write");
+const generatorFor = (file) => {
+  if (file === HUB_FILE) return "hub --write";
+  if (file === SUBJECT_COVERAGE_FILE) return "subject --write";
+  return "coverage --write";
+};
 
 /**
  * Compare every generated ledger artifact with what the ledger would generate
@@ -287,6 +317,9 @@ export async function validateGeneratedArtifacts(state, ledgerRoot) {
   const errors = [];
   if (!gatesApply(state)) return errors;
   const expected = new Map([[DECISION_COVERAGE_FILE, renderDecisionCoverage(state)]]);
+  if (subjectGatesApply(state)) {
+    expected.set(SUBJECT_COVERAGE_FILE, renderSubjectCoverage(state));
+  }
   if (state.mockup_hub === "generated") {
     expected.set(HUB_FILE, renderMockupHub(state, ledgerRoot));
   }
