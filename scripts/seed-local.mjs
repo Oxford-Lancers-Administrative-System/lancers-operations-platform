@@ -361,19 +361,24 @@ const VOCAB_2026 = {
   label: `OULAFC position list (${NEW_VOCAB_ERA} term-card era)`,
   adopted_on: NEW_VOCAB_ADOPTED_ON,
   positions: [
+    ["QB", "Quarterback", "offence"],
+    ["RB", "Running Back", "offence"],
+    ["FB", "Full Back", "offence"],
+    ["WB", "Wing Back", "offence"],
     ["WR", "Wide Receiver", "offence"],
     ["TE", "Tight End", "offence"],
-    ["WB", "Wing Back", "offence"],
     ["T", "Tackle", "offence"],
     ["G", "Guard", "offence"],
     ["C", "Centre", "offence"],
-    ["QB", "Quarterback", "offence"],
-    ["RB", "Running Back", "offence"],
-    ["CB", "Cornerback", "defence"],
+    ["DE", "Defensive End", "defence"],
+    ["DT", "Defensive Tackle", "defence"],
     ["NT", "Nose Tackle", "defence"],
-    ["LB", "Linebacker", "defence"],
-    ["E", "End", "defence"],
-    ["S", "Safety", "defence"],
+    ["MLB", "Mike Linebacker", "defence"],
+    ["WLB", "Will Linebacker", "defence"],
+    ["SLB", "Sam Linebacker", "defence"],
+    ["CB", "Cornerback", "defence"],
+    ["FS", "Free Safety", "defence"],
+    ["SS", "Strong Safety", "defence"],
     // Source Data Analysis §11.1: four special-teams slots, 0% populated. The
     // structure is reproduced deliberately — the model must tolerate
     // anticipated-but-unused vocabulary.
@@ -396,12 +401,24 @@ const OFFENCE_MIX_2026 = [
   ["RB", 2],
   [null, 24],
 ];
+// The workbook only ever recorded generic "LB" and "S". The 2025-26 Defensive
+// Playbook (Coach Casson) is the source for how that generic weight splits
+// across the named alignments it actually coaches: Mike/Will/Sam linebacker
+// mentions run 20/103/18, so the old LB weight (19) is carried over in that
+// ratio (rounded to whole numbers: 3/14/2). The playbook separates Free
+// Safety from Strong Safety without giving a second mention count, so the old
+// S weight (2) is split evenly rather than collapsed onto one. E folds
+// straight into DE — the playbook and the 2023 vocabulary already treat them
+// as the same position — so its weight (7) moves unchanged.
 const DEFENCE_MIX_2026 = [
   ["CB", 31],
   ["NT", 21],
-  ["LB", 19],
-  ["E", 7],
-  ["S", 2],
+  ["WLB", 14],
+  ["DE", 7],
+  ["MLB", 3],
+  ["SLB", 2],
+  ["FS", 1],
+  ["SS", 1],
   [null, 19],
 ];
 const OFFENCE_MIX_2023 = [
