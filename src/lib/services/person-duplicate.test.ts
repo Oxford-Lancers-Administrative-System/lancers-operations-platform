@@ -171,6 +171,10 @@ describe("findPersonDuplicates", () => {
     const personId = await insertPerson(givenName);
     const email = `${unique("old")}@example.com`;
     await insertContact(personId, "email", email, {
+      // `contact_points_preferred_must_be_current` refuses a preferred row
+      // that is also dated -- a superseded value cannot be the current
+      // preferred one, by definition.
+      isPreferred: false,
       validFrom: "2019-01-01T00:00:00Z",
       validUntil: "2020-01-01T00:00:00Z",
     });
