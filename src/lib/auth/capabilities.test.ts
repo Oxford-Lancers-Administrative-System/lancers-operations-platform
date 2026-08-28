@@ -622,6 +622,7 @@ describe("row 8 — the map is the single source of truth, and is not editable a
         "event_calendar_management",
         "leadership_report",
         "membership_activation",
+        "person_record_authority",
         "role_management",
       ].sort(),
     );
