@@ -1,5 +1,22 @@
 # Mission Intake changelog
 
+## 2026-08-28
+
+Subject-product coverage (LAN-188), from Brian's Recruitment intake correction:
+
+- A portfolio row commissions a subject, not a closed feature list. Version 3
+  ledgers map discovered operation, pages, administration, failures, external
+  tools and mission seams before workflows freeze.
+- `subject-coverage.md` is generated from canonical ledger state. Mechanical
+  gates refuse ownerless areas, unsupported exclusions, unresolved gaps and
+  blocking or unexplained provisional handoffs; Brian's approvals remain the
+  conceptual-completeness gate.
+- Current `main`, rendered locally with synthetic data, is the product baseline;
+  user-facing work defaults to current-versus-proposed desktop and 375px proof.
+- Cross-record consequences accumulate into one append-only amendment plan.
+  Brian approves the collected plan before edits; applied changes record refetch
+  verification. Existing version 1/2 ledgers retain their original contracts.
+
 ## 2026-08-22
 
 First-run corrections (LAN-149), from the completed

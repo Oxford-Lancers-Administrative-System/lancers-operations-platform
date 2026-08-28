@@ -1,6 +1,6 @@
 {
   "mission_id": "M-REPLACE-ME",
-  "ledger_version": 2,
+  "ledger_version": 3,
   "stage": "boundary",
   "baseline": {
     "branch": "main",
@@ -19,6 +19,13 @@
       }
     ],
     "decisions": []
+  },
+  "subject_coverage": {
+    "areas": []
+  },
+  "amendment_plan": {
+    "items": [],
+    "approval": null
   },
   "next_action": "Complete and approve 00-boundary.md"
 }

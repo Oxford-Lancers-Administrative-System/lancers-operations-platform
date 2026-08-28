@@ -48,6 +48,21 @@ or approval convention.
 
 ## What intake must determine
 
+The mission number commissions a **subject**, not a closed list of the portfolio
+row's examples. Intake is the first complete product-definition pass: it turns
+loose gathered requirements into real workflows, pages, interactions,
+administration, states, exceptions and seams. It starts from current `main`,
+rendered locally with synthetic data, and extends established product patterns
+before proposing a new one. Existing owned behavior is retained or modified;
+implementation state never makes it disappear from the subject.
+
+Intake may add sensible scope when grounded in club operation, Release-One
+authority, current behavior, operational necessity or an adjacent mission seam.
+It does not brainstorm an unlimited ideal product. Every discovered area has an
+owner or an owner-approved exclusion. Future mission boundaries may remain
+provisional, but a dependency that prevents this mission being walked and
+accepted is blocking.
+
 For the commissioned outcome, document:
 
 - intended outcome and why it matters now;
@@ -68,6 +83,11 @@ For the commissioned outcome, document:
 - actors, triggers, entry points, consequential route or action placement,
   actions, state transitions, handoffs, exceptions, and visible outcomes; and
 - classification of every consequential workflow and IA decision.
+
+Approved decisions propagate append-only. Collect all implied edits to product
+records and other missions, show Brian the whole amendment batch, and obtain his
+permission before applying any of it. Refetch every changed record and preserve
+verification. Never rewrite an approved packet or delivered history.
 
 Decision classifications mean:
 

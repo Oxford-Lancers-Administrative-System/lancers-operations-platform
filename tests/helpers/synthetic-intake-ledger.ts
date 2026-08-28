@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 /**
- * A synthetic version 2 intake ledger, written to a throwaway directory. It is
+ * A synthetic version 3 intake ledger, written to a throwaway directory. It is
  * deliberately not a copy of an approved mission: the approved Events artifacts
  * are read-only history, and a fixture that drifted from them would be worse
  * than one that never claimed to be them.
@@ -50,6 +50,89 @@ export const syntheticDecisionCoverage = (missionId: string) => ({
   ],
 });
 
+export const syntheticSubjectCoverage = (missionId: string) => ({
+  areas: [
+    {
+      id: "S1",
+      name: "Review the synthetic outcome",
+      belongs: "The commissioned subject exists to produce this visible outcome.",
+      disposition: "owned_workflow",
+      workflow: "W1",
+      reason: "W1 owns the end-to-end journey.",
+    },
+    {
+      id: "S2",
+      name: "Keep the result synthetic",
+      belongs: "The subject must never mutate an external system.",
+      disposition: "owned_invariant",
+      invariant: "No external mutation.",
+      reason: "This constraint binds every workflow.",
+    },
+    {
+      id: "S3",
+      name: "Retain the current review page",
+      belongs: "The existing page is part of the owned user journey.",
+      disposition: "retained_existing",
+      workflow: "W1",
+      baseline: "main:/operate/synthetic rendered locally at desktop and 375px",
+      reason: "The implemented interaction already matches the intended behavior.",
+    },
+    {
+      id: "S4",
+      name: "Extend the current result state",
+      belongs: "The subject adds one visible state to the existing page.",
+      disposition: "modified_existing",
+      workflow: "W1",
+      baseline: "main:/operate/synthetic rendered locally at desktop and 375px",
+      reason: "W1 changes the existing page without inventing a new route.",
+    },
+    {
+      id: "S5",
+      name: "Share delivery vocabulary",
+      belongs: "The subject consumes a vocabulary another mission also owns.",
+      disposition: "shared_cross_mission",
+      shared_owners: [missionId, "M-OTHER-SYNTHETIC"],
+      workflow: "W1",
+      current_side: "This mission renders the outcome using the shared vocabulary.",
+      seam: "The other mission defines transport; this mission defines visible meaning.",
+      evidence: "Synthetic §5 seam.",
+      reason: "Both sides must agree without duplicating the machinery.",
+    },
+    {
+      id: "S6",
+      name: "Administer the transport",
+      belongs: "Operation depends on transport administration but does not own it.",
+      disposition: "other_mission",
+      other_mission: "M-OTHER-SYNTHETIC",
+      seam: "This mission consumes the configured transport.",
+      evidence: "Synthetic §6 handoff.",
+      reason: "The other mission owns generic administration.",
+    },
+    {
+      id: "S7",
+      name: "Extend the result later",
+      belongs: "A future mission will add detail after this outcome ships.",
+      disposition: "provisional_handoff",
+      other_mission: "M-FUTURE-SYNTHETIC",
+      invariant: "The future extension cannot change W1's accepted result.",
+      seam: "The future mission adds fields without changing W1's result.",
+      evidence: "Synthetic portfolio adjacency.",
+      blocking: false,
+      independent_outcome: "W1 is fully walkable and acceptable before that extension exists.",
+      reason: "The later enhancement does not gate this mission.",
+    },
+    {
+      id: "S8",
+      name: "Export the synthetic result",
+      belongs: "Export is adjacent enough to require an explicit disposition.",
+      disposition: "excluded",
+      evidence: "The commissioned outcome explicitly stops at on-screen review.",
+      approval: { words: "Approve export as excluded.", date: "2026-08-28" },
+      reason: "The approved boundary does not include export.",
+    },
+  ],
+});
+
 export function createSyntheticLedger(
   options: { missionId?: string; visual?: boolean } = {},
 ): SyntheticLedger {
@@ -84,7 +167,7 @@ export function createSyntheticLedger(
 
   const state = {
     mission_id: missionId,
-    ledger_version: 2,
+    ledger_version: 3,
     stage: "workflows",
     baseline: { branch: "main", commit: "315fbbbcdff2da3a5b6ead2d4352785bb12943be" },
     approvals: {
@@ -107,6 +190,19 @@ export function createSyntheticLedger(
     ],
     mockup_hub: visual ? "generated" : { not_applicable: "This mission draws no surfaces." },
     decision_coverage: syntheticDecisionCoverage(missionId),
+    subject_coverage: syntheticSubjectCoverage(missionId),
+    amendment_plan: {
+      items: [
+        {
+          id: "A1",
+          target: "M-FUTURE-SYNTHETIC portfolio row",
+          change: "Append the dated future extension from S7.",
+          reason: "The current intake discovered the future mission seam.",
+          status: "proposed",
+        },
+      ],
+      approval: null,
+    },
     next_action: "Assemble the synthetic packet from approved ledger files",
   };
 

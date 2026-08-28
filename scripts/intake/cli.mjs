@@ -9,12 +9,15 @@ import { formatAs } from "./lib/format.mjs";
 import { HUB_FILE, renderMockupHub } from "./lib/hub.mjs";
 import { validateFinalPrPaths } from "./lib/pr.mjs";
 import { shootScreen } from "./lib/shoot.mjs";
+import { renderSubjectCoverage } from "./lib/subject.mjs";
 import {
   DECISION_COVERAGE_FILE,
+  SUBJECT_COVERAGE_FILE,
   findStateFile,
   gatesApply,
   readIntakeState,
   renderResumeBanner,
+  subjectGatesApply,
   validateGeneratedArtifacts,
 } from "./lib/state.mjs";
 
@@ -23,6 +26,7 @@ const USAGE = `Usage:
   npm run intake -- check [M-<mission-id>]
   npm run intake -- hub [M-<mission-id>] --write|--check
   npm run intake -- coverage [M-<mission-id>] --write|--check
+  npm run intake -- subject [M-<mission-id>] --write|--check
   npm run intake -- pr-paths [M-<mission-id>] --diff <ref>
   npm run intake -- shoot [M-<mission-id>] --screen <Wn-nn> --route <path> \\
                           [--proposal <file.js>]
@@ -113,14 +117,24 @@ async function generate(command, missionId, options) {
       `mission intake system not ready: ${state.mission_id} is a version 1 ledger before the workflow stage and generates no ${command}.`,
     );
   }
+  if (command === "subject" && !subjectGatesApply(state)) {
+    fail(
+      `mission intake system not ready: ${state.mission_id} is a version ${state.ledger_version ?? 1} ledger and generates no subject coverage.`,
+    );
+  }
   const isHub = command === "hub";
   if (isHub && state.mockup_hub !== "generated") {
     fail(
       `mission intake system not ready: ${state.mission_id} declares mockup_hub not_applicable.`,
     );
   }
-  const file = isHub ? HUB_FILE : DECISION_COVERAGE_FILE;
-  const content = isHub ? renderMockupHub(state, root) : renderDecisionCoverage(state);
+  const isSubject = command === "subject";
+  const file = isHub ? HUB_FILE : isSubject ? SUBJECT_COVERAGE_FILE : DECISION_COVERAGE_FILE;
+  const content = isHub
+    ? renderMockupHub(state, root)
+    : isSubject
+      ? renderSubjectCoverage(state)
+      : renderDecisionCoverage(state);
   const target = path.join(root, file);
   const expected = await formatAs(content, file);
 
@@ -163,7 +177,8 @@ async function main() {
       return;
     }
     case "hub":
-    case "coverage": {
+    case "coverage":
+    case "subject": {
       const options = parse(argv.slice(1), { flags: ["--write", "--check"] });
       if (options.write && options.check) fail(`Pass --write or --check, not both.\n${USAGE}`);
       await generate(command, missionArgument(options._), options);

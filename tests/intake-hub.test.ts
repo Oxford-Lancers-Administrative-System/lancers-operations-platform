@@ -14,6 +14,7 @@ const ledgerFor = (options?: Parameters<typeof createSyntheticLedger>[0]) => {
   open.push(helper);
   // Every gated ledger publishes its generated decision coverage.
   expect(helper.intake("coverage", helper.missionId, "--write").status).toBe(0);
+  expect(helper.intake("subject", helper.missionId, "--write").status).toBe(0);
   if (helper.state().mockup_hub === "generated") {
     expect(helper.intake("hub", helper.missionId, "--write").status).toBe(0);
   }
@@ -133,6 +134,19 @@ describe("the generated mockup hub", () => {
     const drifted = helper.intake("status", helper.missionId);
     expect(drifted.status).toBe(1);
     expect(drifted.stderr).toContain("decision-coverage.md differs from the ledger");
+  });
+
+  it("keeps generated subject coverage and its amendment batch in step with the ledger", () => {
+    const helper = ledgerFor();
+    expect(helper.read("subject-coverage.md")).toContain(
+      "# Subject-product coverage — M-SYNTHETIC-INTAKE",
+    );
+    expect(helper.read("subject-coverage.md")).toContain("M-FUTURE-SYNTHETIC portfolio row");
+    const coverageFile = path.join(helper.ledger, "subject-coverage.md");
+    fs.writeFileSync(coverageFile, fs.readFileSync(coverageFile, "utf8").replace("S1", "S99"));
+    const drifted = helper.intake("status", helper.missionId);
+    expect(drifted.status).toBe(1);
+    expect(drifted.stderr).toContain("subject-coverage.md differs from the ledger");
   });
 });
 
