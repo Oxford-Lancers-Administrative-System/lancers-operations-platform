@@ -44,6 +44,25 @@ const MARKER = "LAN169SchedulerSuite";
 const PHONE = "07700 900321";
 const EMAIL = "lan169.invitee@example.test";
 
+/**
+ * A short, unique disambiguator for a fixture's event name — distinct runs
+ * must not collide, but the digits `crypto.randomUUID()` freely produces are
+ * exactly what `escalationCarriesNoPersonalData` (correctly) treats as
+ * phone-number-shaped. A raw hex slice draws from a 16-symbol alphabet that
+ * is 10/16 digits, so roughly one run in twenty produces seven or more of
+ * them in a row — long enough on its own to trip that check with no player
+ * phone number anywhere in the message: this fixture's own event name,
+ * mistaken for personal data it never contained. Every digit is mapped onto
+ * a letter instead, so the identifier stays unique per call and never once
+ * looks like a phone number.
+ */
+function fixtureTag(): string {
+  return crypto
+    .randomUUID()
+    .slice(0, 8)
+    .replace(/\d/g, (digit) => "ghijklmnop"[Number(digit)]);
+}
+
 const CONFIGURED: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
   WHATSAPP_PHONE_NUMBER_ID: "5550001",
@@ -312,7 +331,7 @@ async function fixture(
               (select local::date from target), (select local::time from target),
               now() + interval '24 hours', now(), $3, now(), $3
        returning id`,
-      [seasonId, `${MARKER} practice ${crypto.randomUUID().slice(0, 8)}`, personId],
+      [seasonId, `${MARKER} practice ${fixtureTag()}`, personId],
     );
     const eventId = event.rows[0].id;
 
@@ -824,6 +843,28 @@ describe("crossing the escalation threshold", () => {
     expect(escalationCarriesNoPersonalData([text])).toBe(true);
   });
 
+  it("fixtureTag never renders a digit, so this suite's own event names can never masquerade as a phone number", () => {
+    // Regression for a flake discovered repairing `main`: `fixture()`'s event
+    // name used to end in a raw `crypto.randomUUID().slice(0, 8)` — 8 symbols
+    // from a 16-symbol alphabet that is 10/16 digits — and roughly one run in
+    // twenty produced seven or more of them in a row, long enough on its own
+    // to trip `escalationCarriesNoPersonalData`'s phone-number heuristic with
+    // no player phone number anywhere in the message: this suite's own event
+    // name, mistaken for the personal data it never contained. Reproduced
+    // directly: reverting `fixtureTag` to that raw slice and looping the
+    // "sends a body carrying no player personal data" test failed it on
+    // attempt 14 of one run and attempt 21 of another, both
+    // `expected false to be true` at that test's own final assertion, with no
+    // player data involved either time — proving the flake, not a privacy
+    // defect. `fixtureTag` now maps every digit onto a letter, which is a
+    // structural guarantee checkable directly: run it enough times that a
+    // digit surviving by chance is not the explanation for it never
+    // appearing.
+    for (let i = 0; i < 500; i += 1) {
+      expect(fixtureTag()).not.toMatch(/\d/);
+    }
+  });
+
   it("holds the escalation visibly when the office is vacant", async () => {
     // W5: held and visibly unsent, never dropped and never sent to a stale
     // holder. The flag with no job is that visible held state.
@@ -1064,7 +1105,7 @@ async function noticeFixture(
               (select local::date from target), (select local::time from target),
               now() + interval '24 hours', now(), $3, now(), $3
        returning id`,
-      [seasonId, `${MARKER} notice ${crypto.randomUUID().slice(0, 8)}`, personId],
+      [seasonId, `${MARKER} notice ${fixtureTag()}`, personId],
     );
     const eventId = event.rows[0].id;
 
