@@ -111,6 +111,52 @@ export function deriveGitVisualFiles(repoPath, fromSha, toSha, currentHead) {
   );
 }
 
+/**
+ * The real diff a package's head introduces, read from the repository.
+ *
+ * LAN-179 round 1, R-001. The review contract is generated from this list, so
+ * where the list comes from decides whether "the Lead cannot remove a generated
+ * capability or job" is true. A Lead-supplied `--files` argument made the
+ * re-derivation prove only that the journaled contract was a faithful function
+ * of whatever list was declared — an understated list produced a self-consistent
+ * but weaker contract, which is the Mission 4 shape the ticket exists to close.
+ *
+ * Three dots on purpose: the package's own changes since it left the base
+ * branch, not everything that landed on the base branch since.
+ *
+ * Returns the source alongside the files. `unknown` is not an error and not an
+ * empty diff — it is the honest answer when this checkout cannot resolve the
+ * head or the base, and the caller fails closed on it.
+ *
+ * @param {string} repoPath
+ * @param {string} headSha
+ * @param {string} [baseBranch]
+ * @returns {{ files: Array<{status: string, path: string, previousPath?: string}>,
+ *   source: "derived" | "unknown", detail: string | null }}
+ */
+export function deriveChangedFiles(repoPath, headSha, baseBranch = loadRules().baseBranch) {
+  if (!/^[0-9a-f]{40}$/.test(headSha ?? "")) {
+    return { files: [], source: "unknown", detail: "the head is not a full 40-character SHA" };
+  }
+  for (const base of [`origin/${baseBranch}`, baseBranch]) {
+    try {
+      const output = execFileSync("git", ["diff", "--name-status", `${base}...${headSha}`, "--"], {
+        cwd: repoPath,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+      return { files: parseNameStatus(output), source: "derived", detail: base };
+    } catch {
+      // Try the local branch name next; report unknown only when neither answers.
+    }
+  }
+  return {
+    files: [],
+    source: "unknown",
+    detail: `this checkout cannot diff ${headSha} against ${baseBranch}`,
+  };
+}
+
 function canonicalFiles(files) {
   return [...(files ?? [])]
     .map(({ status, path: file, previousPath }) => ({

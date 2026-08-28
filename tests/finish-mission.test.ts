@@ -190,6 +190,23 @@ function recordMissionStack(input: Awaited<ReturnType<typeof fixture>>) {
   return { marker, slot };
 }
 
+describe("finish-mission and the review runtimes a mission also took out", () => {
+  /**
+   * LAN-179 round 1, R-002. A review runtime carries the same `missionId` as the
+   * mission's shared stack, so an unfiltered registry lookup can report a stray
+   * review lease's disposition as the mission's own. The script has to ask for
+   * the implementation record by name.
+   */
+  it("asks the coordinator for the implementation record, never a bare mission match", () => {
+    const source = fs.readFileSync(
+      path.join(__dirname, "..", "scripts", "mission", "finish-mission.mjs"),
+      "utf8",
+    );
+    expect(source).toMatch(/implementationRecord\(coordinatorStatus\(repoPath\), missionId\)/);
+    expect(source).not.toMatch(/record\.missionId === missionId/);
+  });
+});
+
 describe("finish-mission executable reclamation", () => {
   it("auto-reclaims through the real merge-record command", async () => {
     const input = await fixture(false, false);

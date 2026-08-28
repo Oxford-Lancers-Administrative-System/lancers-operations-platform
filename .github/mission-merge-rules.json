@@ -157,5 +157,45 @@
     "src/components/**",
     "src/theme.ts"
   ],
-  "_visualSurfacesNote": "The coherence tripwire: a receipt claiming nonvisual work is refused when the diff touches any of these, so ADR 0020's live visual review cannot be skipped by mislabelling. Plain .ts files under src/app are included deliberately — presentation shaping and user-visible copy live there too."
+  "_visualSurfacesNote": "The coherence tripwire: a receipt claiming nonvisual work is refused when the diff touches any of these, so ADR 0020's live visual review cannot be skipped by mislabelling. Plain .ts files under src/app are included deliberately — presentation shaping and user-visible copy live there too.",
+  "reviewContract": {
+    "_purpose": "The path classifiers that generate a package review contract in scripts/mission/lib/review-contract.mjs. They decide which capabilities and jobs an invocation must carry; the Mission Lead may add a diagnostic question but may never remove what these produce.",
+    "sensitiveSurfaces": [
+      "supabase/migrations/**",
+      "src/proxy.ts",
+      "src/lib/supabase/**",
+      "src/lib/db/**",
+      "src/lib/auth/**",
+      "src/app/login/**",
+      "src/app/auth/**",
+      "src/lib/rsvp/**",
+      "src/lib/services/rsvp-tokens.ts",
+      "src/lib/services/player-answer-tokens.ts",
+      "scripts/production/**",
+      ".github/workflows/**"
+    ],
+    "_sensitiveSurfacesNote": "Auth, authorization, schema, privileged clients, public token issuance, production procedure and workflow surfaces. A non-empty intersection always requires a fresh reviewer.",
+    "databaseSurfaces": ["supabase/**", "src/lib/services/**", "src/lib/db/**", "src/app/api/**"],
+    "_databaseSurfacesNote": "Behaviour whose acceptance depends on rows. A non-empty intersection requires the database and database-reset-seed capabilities and live job evidence; static reasoning cannot clear it.",
+    "publicSurfaces": [
+      "src/lib/rsvp/**",
+      "src/app/answer/**",
+      "src/app/r/**",
+      "src/lib/services/rsvp-tokens.ts",
+      "src/lib/services/player-answer-tokens.ts"
+    ],
+    "_publicSurfacesNote": "Token and answer flows reachable without a session. They require a public browser context and the scanner and reload negative jobs.",
+    "transportSurfaces": ["src/lib/delivery/**", "src/app/api/webhooks/**"],
+    "_transportSurfacesNote": "The provider/local transport seam. Changing it requires the seam capability so delivery is exercised against the local transport rather than reasoned about.",
+    "evidenceSurfaces": [
+      "supabase/seed*.sql",
+      "supabase/seeds/**",
+      "scripts/seed*.mjs",
+      "scripts/lib/seed-clock.mjs",
+      "src/lib/showcase/**",
+      "tests/fixtures/**",
+      "docs/showcase/**"
+    ],
+    "_evidenceSurfacesNote": "Seed and fixture sources. A change here alters what every later proof is measured against, so it is review-affecting even when no component changed; deterministic clearance is refused."
+  }
 }

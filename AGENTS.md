@@ -195,6 +195,12 @@ implementation workers.
 The Lead holds one harness-derived epoch at a time and never mutates a mission
 past its boundary; only Brian extends one. `docs/mission-harness.md` governs.
 
+Reviewers and walkers do not share the implementation stack. A broker prepares
+one fresh exact-head runtime per invocation, queues when capacity is busy, and
+reclaims it; the Lead never picks a port or a lease. Capabilities and jobs are
+generated from durable state and cannot be narrowed, evidence is per job, and no
+Lead or implementer identity files reviewer or walker evidence.
+
 Exactly five user-invoked workflows and three subagents are approved:
 
 | Role                     | Contract                                  |

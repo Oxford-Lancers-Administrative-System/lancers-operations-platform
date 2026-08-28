@@ -544,16 +544,52 @@ export async function acquireLease({
  * between — it never limits how many missions may exist and never spans a
  * slow wait.
  */
+/**
+ * What a mission stack is for.
+ *
+ * LAN-179. `implementation` is the shared mission stack every implementation
+ * worker attaches to, one per mission, unchanged. `review` is a disposable
+ * stack brokered for exactly one review or walker invocation: it is keyed by
+ * runtime id rather than by mission, so requesting one never returns the
+ * implementation record, and resetting one can never destroy the state the
+ * implementers are working against.
+ */
+export const LEASE_PURPOSES = ["implementation", "review"];
+
+const purposeOf = (record) => record?.purpose ?? "implementation";
+
+/** The one implementation stack for this mission, if it is still held. */
+export function implementationRecord(registry, missionId) {
+  return (
+    Object.values(registry?.slots ?? {}).find(
+      (record) =>
+        record.missionId === missionId &&
+        purposeOf(record) === "implementation" &&
+        !["released", "stale"].includes(record.state),
+    ) ?? null
+  );
+}
+
 export async function acquireMissionLease({
   missionId,
   repoPath,
   baseCommit,
   migrationHead,
+  purpose = "implementation",
+  runtimeId = null,
   pid = requiredSessionPid("acquireMissionLease"),
   now = Date.now(),
   env = process.env,
   portProbe = portIsOccupied,
 }) {
+  if (!LEASE_PURPOSES.includes(purpose)) {
+    throw new Error(`A mission lease's purpose is one of ${LEASE_PURPOSES.join(", ")}.`);
+  }
+  if (purpose === "review" && !/^rt-[0-9a-f]{6,}$/.test(runtimeId ?? "")) {
+    throw new Error(
+      "A review runtime lease is bound to the broker's runtime id, so it is never mistaken for the mission's shared implementation stack.",
+    );
+  }
   if (!/^M-[A-Za-z0-9][A-Za-z0-9-]*$/.test(missionId)) {
     throw new Error("A mission identifier such as M-2026-08-pilot is required.");
   }
@@ -568,7 +604,10 @@ export async function acquireMissionLease({
     const step = await withAllocatorLock(paths, () => {
       const registry = readRegistry(paths.registry);
       const existing = Object.values(registry.slots).find(
-        (record) => record.missionId === missionId,
+        (record) =>
+          record.missionId === missionId &&
+          purposeOf(record) === purpose &&
+          (record.runtimeId ?? null) === runtimeId,
       );
       if (existing && !["released", "stale"].includes(existing.state)) {
         existing.lastHeartbeat = new Date(now).toISOString();
@@ -591,6 +630,8 @@ export async function acquireMissionLease({
         existing.migrationHead = Number(migrationHead);
         existing.attachedRepoPaths = [resolvedRepo];
         existing.appliedConfig = null;
+        existing.purpose = purpose;
+        existing.runtimeId = runtimeId;
         existing.runtimeRoot = prepareRuntime(resolvedRepo, existing);
         writeRegistry(paths.registry, registry);
         writeSession(resolvedRepo, existing);
@@ -657,6 +698,8 @@ export async function acquireMissionLease({
       const runtimeRoot = prepareRuntime(resolvedRepo, free);
       const record = {
         missionId,
+        purpose,
+        runtimeId,
         repoPath: resolvedRepo,
         attachedRepoPaths: [resolvedRepo],
         baseCommit,
@@ -700,7 +743,14 @@ export async function attachMissionLease({ missionId, repoPath, token, env = pro
   return withAllocatorLock(paths, () => {
     const registry = readRegistry(paths.registry);
     const record = Object.values(registry.slots).find((candidate) => candidate.token === token);
-    if (!record || record.missionId !== missionId || record.state !== "active") {
+    if (
+      !record ||
+      record.missionId !== missionId ||
+      purposeOf(record) !== "implementation" ||
+      record.state !== "active"
+    ) {
+      // A review runtime is deliberately unattachable: an implementation worker
+      // that borrowed one would be mutating a stack a reviewer is about to reset.
       throw new Error("Missing, invalid, stale, or mismatched mission database token.");
     }
     if (!record.attachedRepoPaths.includes(resolvedRepo))
@@ -725,7 +775,7 @@ export async function detachMissionLease({ missionId, repoPath, env = process.en
   return withAllocatorLock(paths, () => {
     const registry = readRegistry(paths.registry);
     const record = Object.values(registry.slots).find(
-      (candidate) => candidate.missionId === missionId,
+      (candidate) => candidate.missionId === missionId && purposeOf(candidate) === "implementation",
     );
     if (!record) throw new Error(`No mission stack is recorded for ${missionId}.`);
     const attached = record.attachedRepoPaths ?? [];
@@ -895,7 +945,7 @@ export async function retireMissionLease({
 }) {
   return retireRecord({
     repoPath,
-    select: (record) => record.missionId === missionId,
+    select: (record) => record.missionId === missionId && purposeOf(record) === "implementation",
     authorize(record) {
       if ((record.attachedRepoPaths ?? []).length > 0) {
         throw new Error(`${record.slot} still has attached worktrees; refusing to retire it.`);
