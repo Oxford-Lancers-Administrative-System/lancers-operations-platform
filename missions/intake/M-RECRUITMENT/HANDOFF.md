@@ -3,6 +3,13 @@
 Written 2026-08-28 when Brian paused the intake. Read this, then run the CLI —
 never infer position from a transcript.
 
+> **Start here, with Brian, out loud.** His instruction at the pause: _"We should
+> start by opening this exact file up and talking about it."_ So before you
+> inventory anything or write a line: open `HANDOFF.html` on his machine
+> (`open missions/intake/M-RECRUITMENT/HANDOFF.html`), walk him through where the
+> intake is, what he already settled, and what the research found — and let him
+> correct it. He resumes by talking, not by reading a status line.
+
 ## Where you are
 
 ```bash
