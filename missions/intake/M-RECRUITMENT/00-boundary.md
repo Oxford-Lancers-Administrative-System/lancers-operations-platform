@@ -137,25 +137,38 @@ approved beyond the row.
     may edit, who may flip, and what a coach or ordinary operator sees of the
     pipeline at all (D9's operator-only visibility rule).
 
-### C. Talking to a recruit — exactly once
+### C. Talking to a recruit — never chasing one
 
-11. `[row]` **The one-time notify** — a recruit receives exactly one message, the
-    D3 welcome + community-group invite, and nothing after it, ever (owner
-    amendment 2026-08-25).
+**Owner amendment, 2026-08-28.** Brian: _"No, no one message ever. That's not the
+rule. What we should do is that we're going to invite them to an event, and
+they're a recruit. They should only get one message, right? One invite. They
+don't get a chase."_ The rule is **recruits are never chased** — which is what
+the 2026-08-25 owner decision and the portfolio row's own parenthetical say. The
+gloss "a recruit gets exactly one message, ever", carried in the portfolio row
+and in Task 09's amendment 2, is superseded as too tight: it forbids the
+outreach, the form ask and the per-event invitations Brian describes below. A
+recruit may receive the welcome, the recruit-stage ask, one invitation per event,
+and any message a human chooses to send them. A recruit never receives a
+reminder, an escalation, or a collection cadence.
+
+11. `[row]` **The welcome and community-group invite** at capture (D3), and the
+    per-event invitation — **one invitation per event, no reminder rung, no
+    escalation, ever**. This is the operative form of the never-chased rule.
 12. `[row]` Per-door WhatsApp **opt-in evidence** recorded at capture, and the
     rule that the welcome never fires from a door without it (Task 09 §9.1).
-13. `[subject]` **Administration of that one message**: its template and content,
-    the community-group link it carries and how that link is rotated when it
-    changes, what an operator sees when it fails to deliver, and what happens
-    when delivery is down at the moment of capture (Task 09 §9.1's open
+13. `[subject]` **Administration of the recruit messages**: their templates and
+    content, the community-group link one carries and how that link is rotated
+    when it changes, what an operator sees when one fails to deliver, and what
+    happens when delivery is down at the moment of capture (Task 09 §9.1's open
     welcome-flow mechanics, inherited from the walk-ups brief).
 14. `[row]` The correction to Mission 4's shipped ladder: **capacity suppression**
     so no recruit invitation is ever given a reminder rung, and the
     `countByCapacity` recruit-count fix (owner decision 2026-08-26).
-15. `[subject]` The **whole-system sweep** that rule implies: every other place a
-    recruit could be messaged, chased, escalated, counted into a chase, or
-    included in a broadcast — each one either suppressed or evidenced as already
-    unreachable. One message, ever, is a system property, not a feature.
+15. `[subject]` The **whole-system sweep** that rule implies: every place a
+    recruit could be chased, escalated, counted into a chase, or swept into a
+    collection cadence — each one either suppressed or evidenced as already
+    unreachable. Never chased is a system property, not a feature. Ordinary
+    invitations and human-sent messages are explicitly not chases.
 
 ### D. The recruit-stage ask
 
@@ -249,6 +262,68 @@ approved beyond the row.
     Mission 5 is being built now; this mission layers onto whatever it lands.
     The layering itself is scope — a named section of the mission, not an
     assumption that the base will fit.
+
+### I. Added by the owner's second 2026-08-28 dump
+
+> "Recruitment is going to be rather loosey-goosey. What I'd rather have is to
+> start with a bunch of data, and we can almost copy how normal event attendance
+> works, except for recruitment. I want to see them as one line. What we have as
+> the recruitment table, I want to see it for the recruits themselves, except
+> it's a recruitment stuff thing, like a bunch of signals.
+>
+> If we have a recruitment event that we invited a bunch of people to, and we
+> invite recruits to that event, it shows who was invited and who showed up. Did
+> they show up? We'll take attendance of those things just like we do at the
+> normal events. If a recruit shows up and there's a recruit at the event, I want
+> to know that they're there. You want everyone to see, 'Oh, this is a hot
+> recruit. This is someone who's there,' and I want to see notes and stuff like
+> that.
+>
+> What I think is that we should just grab whatever signals we can. If we maybe do
+> a research sprint where we know what signals they have versus not, that might be
+> helpful. But for now, let's just err on the side of 'we can't know that
+> information,' but we can know if they accepted the WhatsApp. Accepting the
+> WhatsApp invitation is a good first step, and if they filled out the
+> information, that's a good signal. That's like, 'Hey, they're going through the
+> process. That's good.'
+>
+> The president should see them and say, 'Hey, how are you doing?' and send them
+> out to do stuff and see that. Proactive outreach is fine, and they get signed
+> up. We may know that after a day, they get their proactive outreach for that,
+> right? It's like, 'Hey, welcome to Lancers. We'd love to know some more about
+> you. Consider taking 5 minutes to fill out this form,' right? It's basically a
+> form that asks for details about them."
+
+36. `[owner]` **The board's shape is the attendance table, for recruits.** One
+    line per recruit, columns of signals — "almost copy how normal event
+    attendance works, except for recruitment… I want to see them as one line".
+    The shipped participation and attendance tables are the working model, so
+    the surface is recognisable rather than invented. This refines item 33.
+37. `[owner]` **Recruitment-event attendance is a first-class signal.** Invited
+    versus showed up, taken exactly as attendance is taken at any event, visible
+    on the event's own sheet and flowing back onto the board — "if a recruit
+    shows up… I want to know that they're there". The reading a human then makes
+    of it — "this is a hot recruit" — comes from the signals and the notes
+    together, never from a computed field.
+38. `[owner]` **A signal research sprint**, owner-suggested: establish what the
+    platform can honestly observe about a recruit versus what it cannot, before
+    the signal set is fixed. Its output is an intake input, not build scope.
+39. `[owner]` **Conservative observability default.** Where it is not established
+    that a signal can be read, the mission assumes it cannot. Two are recorded as
+    good today: the recruit **accepted the WhatsApp**, and the recruit **filled
+    out the form** — "they're going through the process".
+40. `[owner]` **Operator-initiated outreach is permitted and recorded.** The
+    President opening a recruit and asking how they are doing is an ordinary
+    human act; the system records it as a signal and never treats it as a chase.
+41. `[owner]` **A delayed recruit-stage ask** — roughly a day after capture,
+    "Welcome to Lancers. We'd love to know some more about you. Consider taking
+    5 minutes to fill out this form." Owner-proposed and not yet locked: the
+    timing, and whether the ask is a second message or rides the welcome, are
+    open for Brian's decision.
+42. `[owner]` **"Loosey-goosey" is a design constraint, not an apology.**
+    Recruitment is not a rigid funnel, and the product must not enforce one:
+    stages are readable and adjustable by a human, signals accumulate without
+    gating anything, and nothing about a recruit is blocked for want of data.
 
 ## Out of scope
 
