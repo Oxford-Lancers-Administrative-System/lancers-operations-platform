@@ -324,6 +324,17 @@ reminder, an escalation, or a collection cadence.
     Recruitment is not a rigid funnel, and the product must not enforce one:
     stages are readable and adjustable by a human, signals accumulate without
     gating anything, and nothing about a recruit is blocked for want of data.
+43. `[owner]` **Where the recruit messaging machinery lives, and how the
+    recruitment cycle is administered.** Brian: _"One of the things we need to
+    figure out here is how that message gets sent out, where that machinery
+    lives, and how the administration of the recruitment cycle gets handled on
+    the flexibility. I'm not sure where."_ Two halves, both this mission's to
+    settle: what fires the welcome, the ask and the invitations, and on what
+    trigger; and what an operator may change about a recruitment cycle — its
+    timing, its content, whether a step runs at all, and whether a Freshers'
+    push and a mid-season push are the same machine configured differently.
+    Mission 4 owns the transport and the scheduler; recruitment owns what it
+    sends, when, and who may change it.
 
 ## Out of scope
 
