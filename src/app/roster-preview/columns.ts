@@ -104,6 +104,12 @@ export interface ColumnDef {
   readonly edit: EditKind;
   /** The fixed value set, where there is one. Absent means free entry. */
   readonly options?: readonly string[];
+  /**
+   * Fuller wording for an option, shown in the dropdown and the filter menu
+   * while the cell keeps the short code. `QB` is what fits in a grid column;
+   * `Quarterback` is what somebody who does not know the codes needs to read.
+   */
+  readonly optionLabels?: Readonly<Record<string, string>>;
   readonly width: number;
   readonly sortable: boolean;
   /** Whether the header carries a filter caret. */
@@ -136,7 +142,54 @@ export const STATUSES = Object.freeze([
  * People, where the population is mixed.
  */
 export const ENTRIES = Object.freeze(["Returning", "New"]);
-export const POSITIONS = Object.freeze(["O", "D", "ST"]);
+
+/**
+ * The club's own position vocabulary, split by side.
+ *
+ * This is **`VOCAB_2026`** from `scripts/seed-local.mjs` — the OULAFC list of
+ * the term-card era, adopted 2026-08-01, which is the vocabulary the 2026-27
+ * season carries. Not invented here: invariant S3 makes a position's
+ * vocabulary a foreign key to the season's own, so a board for this season can
+ * only ever offer this list.
+ *
+ * Codes rather than names in the cell, because eight characters of "Wide
+ * Receiver" is most of a column; the dropdown carries both.
+ *
+ * Two things a reader should know rather than discover:
+ *
+ *   * `scripts/production/showcase/plan.mjs` carries a slightly different set —
+ *     it adds `FB` Full Back and writes Nose Tackle as `N/T`. That is the
+ *     production showcase's reference data, not this season's vocabulary.
+ *
+ *   * The special-teams slots were measured at 0% populated in the 2023
+ *     workbook (SDA §11.1). They are offered anyway, deliberately: the model
+ *     tolerates anticipated-but-unused vocabulary, and a column that cannot be
+ *     filled is how it stays that way.
+ */
+export const OFFENCE_POSITIONS = Object.freeze(["WR", "TE", "WB", "T", "G", "C", "QB", "RB"]);
+export const DEFENCE_POSITIONS = Object.freeze(["CB", "NT", "LB", "E", "S"]);
+export const SPECIAL_TEAMS_POSITIONS = Object.freeze(["KO", "KR", "PUNT", "FG"]);
+
+export const POSITION_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  WR: "Wide Receiver",
+  TE: "Tight End",
+  WB: "Wing Back",
+  T: "Tackle",
+  G: "Guard",
+  C: "Centre",
+  QB: "Quarterback",
+  RB: "Running Back",
+  CB: "Cornerback",
+  NT: "Nose Tackle",
+  LB: "Linebacker",
+  E: "End",
+  S: "Safety",
+  KO: "Kickoff",
+  KR: "Kick Return",
+  PUNT: "Punt",
+  FG: "Field Goal",
+});
+
 export const COACH_GROUPS = Object.freeze(["Offense", "Defense", "Special teams"]);
 export const FORMALWEAR = Object.freeze(["Tie", "Bowtie", "Socks"]);
 export const BLUES = Object.freeze(["Full", "Half", "None"]);
@@ -144,11 +197,15 @@ export const ELIGIBILITY = Object.freeze(["Eligible", "Pending", "Ineligible"]);
 export const AVAILABILITY = Object.freeze(["Green", "Orange", "Red"]);
 
 /**
- * Eighteen columns, Player included and pinned.
+ * Twenty columns, Player included and pinned.
  *
- * Six Person, one Onboarding, ten Season. The Onboarding group is deliberately
- * near-empty: Mission 7 adds the rest of it, and drawing a lonely group now is
- * what makes room for them later without a second redesign.
+ * Six Person, one Onboarding, twelve Season. W5's approved set was eighteen,
+ * with one `Positions` column; Brian split it into Offence, Defence and Special
+ * teams on 2026-08-28 so a side can be ticked without opening a combined list.
+ *
+ * The Onboarding group is deliberately near-empty: Mission 7 adds the rest of
+ * it, and drawing a lonely group now is what makes room for them later without
+ * a second redesign.
  */
 export const PLAYER_COLUMN_WIDTH = 200;
 
@@ -246,12 +303,35 @@ export const COLUMNS: readonly ColumnDef[] = Object.freeze([
     filterable: true,
   },
   {
-    key: "positions",
-    label: "Positions",
+    key: "offencePositions",
+    label: "Offence",
     band: "season",
     edit: "multiselect",
-    options: POSITIONS,
-    width: 124,
+    options: OFFENCE_POSITIONS,
+    optionLabels: POSITION_LABELS,
+    width: 156,
+    sortable: true,
+    filterable: true,
+  },
+  {
+    key: "defencePositions",
+    label: "Defence",
+    band: "season",
+    edit: "multiselect",
+    options: DEFENCE_POSITIONS,
+    optionLabels: POSITION_LABELS,
+    width: 148,
+    sortable: true,
+    filterable: true,
+  },
+  {
+    key: "specialTeams",
+    label: "Special teams",
+    band: "season",
+    edit: "multiselect",
+    options: SPECIAL_TEAMS_POSITIONS,
+    optionLabels: POSITION_LABELS,
+    width: 168,
     sortable: true,
     filterable: true,
   },

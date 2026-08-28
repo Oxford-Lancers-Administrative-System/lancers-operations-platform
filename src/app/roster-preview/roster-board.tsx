@@ -724,7 +724,9 @@ export default function RosterBoard({
                   setMenu(null);
                 }}
               >
-                {option}
+                {menu.column.optionLabels?.[option]
+                  ? `${option} · ${menu.column.optionLabels[option]}`
+                  : option}
               </MenuItem>
             ))
           : null}
@@ -902,7 +904,17 @@ function Cell({
                     sx={{ p: 0, mr: 1 }}
                     checked={((current as string[]) ?? []).includes(option)}
                   />
-                  <ListItemText primary={option} />
+                  {/* The code leads because it is what the cell will show; the
+                      name follows because nobody should have to already know
+                      the codes to use the control. */}
+                  <ListItemText
+                    primary={option}
+                    secondary={column.optionLabels?.[option]}
+                    slotProps={{
+                      primary: { sx: { fontWeight: 700, fontVariantNumeric: "tabular-nums" } },
+                      secondary: { sx: { fontSize: 12 } },
+                    }}
+                  />
                 </>
               ) : (
                 option
@@ -1071,8 +1083,16 @@ function PlayerCard({ row, grants }: { row: Row; grants: readonly string[] }) {
         <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
           <Chip size="small" color={STATUS_COLOUR[row.status] ?? "default"} label={row.status} />
           <Chip size="small" label={row.entry} />
-          {row.positions.length > 0 ? (
-            <Chip size="small" variant="outlined" label={row.positions.join(" · ")} />
+          {/* All three sides on one line at 375px — the card has room for the
+              codes but not for three labelled groups. */}
+          {[...row.offencePositions, ...row.defencePositions, ...row.specialTeams].length > 0 ? (
+            <Chip
+              size="small"
+              variant="outlined"
+              label={[...row.offencePositions, ...row.defencePositions, ...row.specialTeams].join(
+                " · ",
+              )}
+            />
           ) : null}
           {grants.includes("availability_read") && row.availability ? (
             <Chip

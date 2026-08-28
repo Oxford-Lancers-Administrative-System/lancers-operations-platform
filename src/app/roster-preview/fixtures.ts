@@ -18,7 +18,15 @@
  * everything or nothing, and a handful of rows carrying almost nothing at all.
  */
 
-import { AVAILABILITY, BLUES, COACH_GROUPS, ELIGIBILITY } from "./columns";
+import {
+  AVAILABILITY,
+  BLUES,
+  COACH_GROUPS,
+  DEFENCE_POSITIONS,
+  ELIGIBILITY,
+  OFFENCE_POSITIONS,
+  SPECIAL_TEAMS_POSITIONS,
+} from "./columns";
 
 export interface Row {
   readonly id: string;
@@ -40,7 +48,10 @@ export interface Row {
   /** Season facts. Every one of these edits in the cell. */
   status: string;
   entry: string;
-  positions: string[];
+  /** One list per side, each multi-tick. Codes from the season's vocabulary. */
+  offencePositions: string[];
+  defencePositions: string[];
+  specialTeams: string[];
   blueNumber: string | null;
   whiteNumber: string | null;
   coachGroup: string | null;
@@ -176,6 +187,26 @@ function maybe<T>(random: () => number, value: T, blankRate: number): T | null {
   return random() < blankRate ? null : value;
 }
 
+/**
+ * Zero, one, or occasionally several values from a list.
+ *
+ * `holdRate` is the chance of holding any at all; `extraRate` is the chance,
+ * each time round, of adding another. Kept in the vocabulary's own order rather
+ * than the order they were drawn, so a cell reads the same way as the dropdown
+ * it was picked from.
+ */
+function some(
+  random: () => number,
+  from: readonly string[],
+  holdRate: number,
+  extraRate: number,
+): string[] {
+  if (random() >= holdRate) return [];
+  const held = new Set<string>([pick(random, from)]);
+  while (random() < extraRate && held.size < from.length) held.add(pick(random, from));
+  return from.filter((code) => held.has(code));
+}
+
 export function buildRoster(): Row[] {
   const random = seeded(20260827);
 
@@ -194,11 +225,14 @@ export function buildRoster(): Row[] {
               ? "Archived"
               : "Active";
 
-    const positions = [pick(random, ["O", "D", "ST"])];
-    if (random() < 0.22) {
-      const second = pick(random, ["O", "D", "ST"]);
-      if (!positions.includes(second)) positions.push(second);
-    }
+    // About 83% of the club's records carry both an offence and a defence
+    // position (SDA §11.1), so two-way is the normal case here rather than the
+    // exception. A few carry several on a side, and a few carry none.
+    const offencePositions = some(random, OFFENCE_POSITIONS, 0.83, 0.25);
+    const defencePositions = some(random, DEFENCE_POSITIONS, 0.83, 0.2);
+    // Measured at 0% populated in the 2023 workbook. Sparse here for the same
+    // reason: the column has to look right when almost nobody is in it.
+    const specialTeams = some(random, SPECIAL_TEAMS_POSITIONS, 0.18, 0.3);
 
     const formalwear: string[] = [];
     // Measured ownership from the field inventory: tie 79%, bowtie 31%,
@@ -227,7 +261,9 @@ export function buildRoster(): Row[] {
       onboarding: pick(random, ONBOARDING_STATES),
       status,
       entry: random() < 0.62 ? "Returning" : "New",
-      positions,
+      offencePositions,
+      defencePositions,
+      specialTeams,
       blueNumber: maybe(random, String(1 + Math.floor(random() * 98)), 0.35),
       whiteNumber: maybe(random, String(1 + Math.floor(random() * 98)), 0.55),
       // Offense is deliberately the commonest group. The board opens with
