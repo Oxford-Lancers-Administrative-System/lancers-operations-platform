@@ -3,7 +3,9 @@
 import { useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Checkbox from "@mui/material/Checkbox";
 import Chip from "@mui/material/Chip";
+import ListItemText from "@mui/material/ListItemText";
 import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
 import Select from "@mui/material/Select";
@@ -107,8 +109,22 @@ export default function PlayerRecord({
    */
   const constitutional = row.otherSeasons.length + 1 >= 2;
 
-  const edit = (key: string, field: string, next: string | string[]) => {
+  /**
+   * A multi-value field commits without closing.
+   *
+   * Ticking a second position or a second jersey number is one continuous act,
+   * so the list stays open across picks and closes on the gestures that mean
+   * "finished" — a click outside, the arrow, or Escape. This is the board's
+   * behaviour, and the two surfaces must not disagree about how the same
+   * control works.
+   */
+  const change = (key: string, field: string, next: string | string[]) => {
     onCommit(row, field, key, next);
+  };
+
+  /** A single-value field commits and closes in one click. */
+  const edit = (key: string, field: string, next: string | string[]) => {
+    change(key, field, next);
     setEditing(null);
   };
 
@@ -255,7 +271,7 @@ export default function PlayerRecord({
           readOnly={closed}
           onOpen={() => setEditing("offencePositions")}
           onClose={() => setEditing(null)}
-          onCommit={(next) => edit("offencePositions", "Offence", next)}
+          onCommit={(next) => change("offencePositions", "Offence", next)}
         />
         <Field
           label="Defence positions"
@@ -268,7 +284,7 @@ export default function PlayerRecord({
           readOnly={closed}
           onOpen={() => setEditing("defencePositions")}
           onClose={() => setEditing(null)}
-          onCommit={(next) => edit("defencePositions", "Defence", next)}
+          onCommit={(next) => change("defencePositions", "Defence", next)}
         />
         <Field
           label="Special teams"
@@ -281,7 +297,7 @@ export default function PlayerRecord({
           readOnly={closed}
           onOpen={() => setEditing("specialTeams")}
           onClose={() => setEditing(null)}
-          onCommit={(next) => edit("specialTeams", "Special teams", next)}
+          onCommit={(next) => change("specialTeams", "Special teams", next)}
         />
 
         {/* The same picker the board uses, and the same season-wide holder map
@@ -295,7 +311,7 @@ export default function PlayerRecord({
           readOnly={closed}
           onOpen={() => setEditing("blueNumbers")}
           onClose={() => setEditing(null)}
-          onCommit={(next) => edit("blueNumbers", "Blue #", next)}
+          onCommit={(next) => change("blueNumbers", "Blue #", next)}
         />
         <JerseyField
           label="Jersey — White"
@@ -306,7 +322,7 @@ export default function PlayerRecord({
           readOnly={closed}
           onOpen={() => setEditing("whiteNumbers")}
           onClose={() => setEditing(null)}
-          onCommit={(next) => edit("whiteNumbers", "White #", next)}
+          onCommit={(next) => change("whiteNumbers", "White #", next)}
         />
 
         <Field
@@ -333,7 +349,7 @@ export default function PlayerRecord({
           readOnly={closed}
           onOpen={() => setEditing("formalwear")}
           onClose={() => setEditing(null)}
-          onCommit={(next) => edit("formalwear", "Formalwear", next)}
+          onCommit={(next) => change("formalwear", "Formalwear", next)}
         />
         <Field
           label="Half / Full Blue"
@@ -593,7 +609,8 @@ function Field({
             onClose={onClose}
             onChange={(event) => onCommit?.(event.target.value as string | string[])}
             renderValue={(picked) => (Array.isArray(picked) ? picked.join(", ") : String(picked))}
-            sx={{ minWidth: 240 }}
+            sx={{ minWidth: 260 }}
+            MenuProps={{ slotProps: { paper: { sx: { maxHeight: 360 } } } }}
           >
             {!multiple ? (
               <MenuItem value="">
@@ -602,7 +619,30 @@ function Field({
             ) : null}
             {options.map((option) => (
               <MenuItem key={option} value={option}>
-                {optionLabels?.[option] ? `${option} · ${optionLabels[option]}` : option}
+                {multiple ? (
+                  <>
+                    {/* The same tick the board shows. A multi-value control that
+                        looked single-value on one surface and multi on the other
+                        would teach two different things about one field. */}
+                    <Checkbox
+                      size="small"
+                      sx={{ p: 0, mr: 1 }}
+                      checked={(selected ?? []).includes(option)}
+                    />
+                    <ListItemText
+                      primary={option}
+                      secondary={optionLabels?.[option]}
+                      slotProps={{
+                        primary: { sx: { fontWeight: 700 } },
+                        secondary: { sx: { fontSize: 12 } },
+                      }}
+                    />
+                  </>
+                ) : optionLabels?.[option] ? (
+                  `${option} · ${optionLabels[option]}`
+                ) : (
+                  option
+                )}
               </MenuItem>
             ))}
           </Select>
