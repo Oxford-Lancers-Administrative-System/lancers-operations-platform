@@ -1,0 +1,253 @@
+/**
+ * Fake data, standing in for the service layer.
+ *
+ * **Nothing here touches the database.** The real board will call a service
+ * under `src/lib/services/`; this module exists so the mockup can be opened and
+ * driven without a Supabase lease, which matters while the mission's own
+ * packages hold theirs.
+ *
+ * Fifty invented players. Not the seeded dataset and not real club data — the
+ * names are made up, and LAN-86 keeps real roster data out of every environment
+ * anyway. Fifty rather than a dozen because a board is a different thing to
+ * look at when it is full: the pinned column has to earn its place, the sort
+ * has to be worth using, and a filter has to leave something behind.
+ *
+ * The values are shaped to make the board's *behaviour* visible rather than to
+ * be plausible club data: enough empties to show `not recorded`, enough spread
+ * across every value set that a filter returns a real list rather than
+ * everything or nothing, and a handful of rows carrying almost nothing at all.
+ */
+
+import { AVAILABILITY, BLUES, COACH_GROUPS, ELIGIBILITY } from "./columns";
+
+export interface Row {
+  readonly id: string;
+  readonly displayName: string;
+  /** Dedupe evidence, and searchable. Never roster display — W1 owns showing it. */
+  readonly aliases: readonly string[];
+  /** Person facts. `null` is `not recorded`, and is never defaulted to anything. */
+  college: string | null;
+  matriculation: string | null;
+  graduation: string | null;
+  degree: string | null;
+  /** Indicators, not values. The raw email and phone are off this surface. */
+  readonly hasMobile: boolean;
+  readonly hasEmail: boolean;
+  /** Required facts with nothing recorded against them. */
+  readonly missing: number;
+  /** Mission 7 owns the behaviour; the board shows completeness and filters it. */
+  readonly onboarding: string;
+  /** Season facts. Every one of these edits in the cell. */
+  status: string;
+  entry: string;
+  positions: string[];
+  blueNumber: string | null;
+  whiteNumber: string | null;
+  coachGroup: string | null;
+  formalwear: string[];
+  blues: string | null;
+  eligibility: string | null;
+  availability: string | null;
+}
+
+/**
+ * Fifty invented players, sorted by surname where there is one.
+ *
+ * Seven carry a first name only. That is not padding: a first-name-only legacy
+ * record is a real case in this club's data, it is what the missing-data queue
+ * exists to work, and a board built only against tidy rows hides the fact that
+ * the Player column has to stay readable when the name is one word. The
+ * working agreement forbids tidy fixtures for exactly this reason.
+ *
+ * The second element is the college, or `null` for `not recorded` — which is
+ * explicit, visible and never defaulted.
+ */
+const NAMES: readonly (readonly [string, string | null])[] = Object.freeze([
+  ["Aurelian Ashdown-Pike", "Rushbourne"],
+  ["Barnaby Ashgrove", null],
+  ["Cassius Beltingham", "Eastgate"],
+  ["Rowan Blackwater", "Hallamshire"],
+  ["Tobias Brackenmoor", "Fernhurst"],
+  ["Alaric Bramblewick", null],
+  ["Ignatius Carrowvale", "Kestrelhall"],
+  ["Dorian", null],
+  ["Ellery Coldstream", "Inglewood"],
+  ["Fitzwilliam Cranleigh", "Quarrendon"],
+  ["Hugo Darnwood", null],
+  ["Wendell Dunmoor", "Lowmoor"],
+  ["Marcus Elderfield", "Yelverton"],
+  ["Fenwick", null],
+  ["Oscar Fallowmere", "Harewell"],
+  ["Xavien Frostwick", "Marlbrook"],
+  ["Peregrine Garrowby", "Ivybridge"],
+  ["Hadrian", null],
+  ["Caspian Hallowfield", "Wardleigh"],
+  ["Isambard Harrowgate", null],
+  ["Kestrel Havenbrook", "Pyrford"],
+  ["Jarrah", null],
+  ["Yorick Ingelow", "Uppingham"],
+  ["Jorvik Kestrelmoor", "Netherfield"],
+  ["Osgood Langmere", "Oldstead"],
+  ["Lucian", "Vauxhold"],
+  ["Emrys Larkspur", "Rushbourne"],
+  ["Kenelm Mallowfield", "Eastgate"],
+  ["Rafferty Marchmont", "Hallamshire"],
+  ["Norbert", null],
+  ["Ambrose Netherby", "Fernhurst"],
+  ["Julian Oakhanger", "Kestrelhall"],
+  ["Percival", "Inglewood"],
+  ["Quillon Pennycross", "Quarrendon"],
+  ["Rufus", null],
+  ["Sebastian Quillfeather", "Lowmoor"],
+  ["Barnaby Ravenscroft", "Yelverton"],
+  ["Gideon Rookwood", null],
+  ["Merrick Sallowby", "Harewell"],
+  ["Theodore Sedgemoor", "Marlbrook"],
+  ["Vaughn", "Ivybridge"],
+  ["Corwin Stannerly", "Wardleigh"],
+  ["Hollis Thornbury", "Pyrford"],
+  ["Nicodemus Underhill", null],
+  ["Ulric Vellacott-Quy", "Uppingham"],
+  ["Wilfred Wandsmere", "Netherfield"],
+  ["Silas Winterbourne", "Oldstead"],
+  ["Edmund Wrayburn", "Vauxhold"],
+  ["Casimir Yaxlington", "Rushbourne"],
+  ["Zephyr", "Eastgate"],
+]);
+
+/**
+ * Aliases exist on a handful of rows only, which is what makes alias search
+ * worth demonstrating: search `Chumley` and one player comes back, on a board
+ * where the word appears in no visible cell. Aliases are dedupe evidence and
+ * never roster display — `W1` owns showing them.
+ */
+const ALIASES: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  "Aurelian Ashdown-Pike": ["Relly"],
+  "Ignatius Carrowvale": ["Iggy", "Nate"],
+  "Fitzwilliam Cranleigh": ["Chumley", "Fitz"],
+  "Peregrine Garrowby": ["Perry"],
+  "Ulric Vellacott-Quy": ["Rick"],
+  "Sebastian Quillfeather": ["Baz"],
+  Zephyr: ["Zeph"],
+});
+
+const DEGREES: readonly string[] = Object.freeze([
+  "Engineering",
+  "History",
+  "Law",
+  "Medicine",
+  "PPE",
+  "Physics",
+  "Classics",
+  "Economics",
+]);
+
+const ONBOARDING_STATES: readonly string[] = Object.freeze([
+  "Complete",
+  "1 outstanding",
+  "2 outstanding",
+  "1 outstanding, none blocking",
+  "3 outstanding",
+  "No items configured",
+]);
+
+/**
+ * A tiny deterministic pseudo-random source.
+ *
+ * Deterministic on purpose: the board must look the same every time it is
+ * opened, so that two people discussing it are discussing the same screen, and
+ * so a screenshot taken today still matches the page tomorrow. `Math.random()`
+ * would also differ between the server render and the client hydration.
+ */
+function seeded(seed: number): () => number {
+  let value = seed >>> 0;
+  return () => {
+    value = (value * 1664525 + 1013904223) >>> 0;
+    return value / 0x100000000;
+  };
+}
+
+function pick<T>(random: () => number, from: readonly T[]): T {
+  return from[Math.floor(random() * from.length)] as T;
+}
+
+/** `null` at the given rate, so `not recorded` appears often enough to matter. */
+function maybe<T>(random: () => number, value: T, blankRate: number): T | null {
+  return random() < blankRate ? null : value;
+}
+
+export function buildRoster(): Row[] {
+  const random = seeded(20260827);
+
+  return NAMES.map(([displayName, college], index) => {
+    // Weighted so the board is mostly a working squad rather than an even
+    // spread across five statuses — a roster where a fifth of everybody is
+    // Departed would misrepresent what this screen is usually looking at.
+    const status =
+      index % 17 === 3
+        ? "Departed"
+        : index % 13 === 5
+          ? "Inactive"
+          : index % 11 === 7
+            ? "Onboarding"
+            : index % 23 === 19
+              ? "Archived"
+              : "Active";
+
+    const positions = [pick(random, ["O", "D", "ST"])];
+    if (random() < 0.22) {
+      const second = pick(random, ["O", "D", "ST"]);
+      if (!positions.includes(second)) positions.push(second);
+    }
+
+    const formalwear: string[] = [];
+    // Measured ownership from the field inventory: tie 79%, bowtie 31%,
+    // socks 93%.
+    if (random() < 0.79) formalwear.push("Tie");
+    if (random() < 0.31) formalwear.push("Bowtie");
+    if (random() < 0.93) formalwear.push("Socks");
+
+    const hasMobile = random() < 0.72;
+    const hasEmail = random() < 0.86;
+
+    return {
+      id: `m-${String(index + 1).padStart(3, "0")}`,
+      displayName,
+      aliases: ALIASES[displayName] ?? [],
+      college,
+      matriculation: maybe(random, String(2022 + Math.floor(random() * 4)), 0.45),
+      graduation: maybe(random, String(2026 + Math.floor(random() * 3)), 0.55),
+      degree: maybe(random, pick(random, DEGREES), 0.5),
+      hasMobile,
+      hasEmail,
+      // The count understates, and says so in the mission's own words: date of
+      // birth, emergency contact and the academic fields have no substrate to
+      // count yet.
+      missing: (hasMobile ? 0 : 1) + (hasEmail ? 0 : 1) + (college === null ? 1 : 0),
+      onboarding: pick(random, ONBOARDING_STATES),
+      status,
+      entry: random() < 0.62 ? "Returning" : "New",
+      positions,
+      blueNumber: maybe(random, String(1 + Math.floor(random() * 98)), 0.35),
+      whiteNumber: maybe(random, String(1 + Math.floor(random() * 98)), 0.55),
+      // Offense is deliberately the commonest group. The board opens with
+      // `Coach group: Offense` set from a column far off to the right, and that
+      // demonstration is only worth anything if what survives the filter still
+      // looks like a squad.
+      coachGroup: maybe(
+        random,
+        random() < 0.5 ? "Offense" : pick(random, COACH_GROUPS),
+        0.12,
+      ),
+      formalwear,
+      blues: maybe(random, pick(random, BLUES), 0.4),
+      eligibility: maybe(random, pick(random, ELIGIBILITY), 0.25),
+      availability: maybe(random, pick(random, AVAILABILITY), 0.2),
+    } satisfies Row;
+  });
+}
+
+export const SEASON_LABEL = "2026-27";
+
+/** Who the audit events are attributed to. Every commit names an actor. */
+export const SIGNED_IN_OPERATOR = "Caspian Hallowfield";
