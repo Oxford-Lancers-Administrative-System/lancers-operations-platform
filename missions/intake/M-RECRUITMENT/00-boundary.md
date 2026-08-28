@@ -1,14 +1,345 @@
 # Boundary — M-RECRUITMENT
 
-- Portfolio mission number:
-- Commissioned outcome:
+- Portfolio mission number: 6
+- Commissioned outcome: "**6 · Recruitment** _(v2 layer, 2026-08-26)_ — the recruit
+  journey layered onto Mission 5's surfaces: four entry doors with
+  dedup-before-create and the operator-review queue; the recruits list beside the
+  roster; funnel identified → engaged → committed/converted with lapsed/declined
+  exits; **the one-time notify** (a recruit gets exactly one message, ever — owner
+  decision 2026-08-25: recruits are never chased); recruit-door WhatsApp opt-in
+  evidence; recruitment events with the derived Recruits audience, person-scoped
+  invitations and the recruits-on-top attendance sheet; the flip by
+  President/VP/Secretary/GM. Builds the shared **signed-link → form substrate**
+  with the recruit-stage field set (enumerated at intake); Missions 7/8 extend it"
+  — quoted from the portfolio row.
 - Portfolio row URL and observed version:
-- Observed `main` SHA:
-- Primary coverage:
+  [Lancers Current Project Status](https://app.notion.com/p/3bb488886d578126a88cdd747f590a01),
+  Release One Mission Portfolio **v2**, restructure approved by Brian Schuster
+  2026-08-26; page fetched 2026-08-28T14:48Z. Authority state: **Owner-approved
+  direction**.
+- Observed `main` SHA: `c69d544d92e5e246ee763008c1db492e8c7c7c60`
+- Primary coverage: Task 09 (Recruitment & Squad Intake brief) — funnel side ·
+  R2 (recruitment side) · Scope 4 (funnel half) · the Task 04 welcome-flow
+  residual slice.
 - Deliberately shared coverage:
-- In scope:
-- Out of scope:
-- Split decision: no split / proposed split
-- Portfolio deviation: none / exact one-line amendment
+  - The signed-link → form substrate is built here with the recruit-stage field
+    set and **extended** by Mission 7 (onboarding field set) and Mission 8
+    (consent/correction); at most one open request per person, ever.
+  - The recruit contact rule (one message, ever) **constrains** Mission 4's
+    shipped chase machinery; this mission ships the capacity suppression and the
+    `countByCapacity` recruit-count fix.
+  - Recruits render on Mission 5's People surface as prospect-persons; the
+    recruits list, funnel and notes are this mission's.
+  - Per-door opt-in **evidence** is captured here; consent wording, lawful basis
+    and retention remain Mission 8's (Clint).
+  - Recruitment events reuse Mission 2's shipped event machinery, its `recruits`
+    derived audience group and its attendance board — the recruitment side of
+    each is this mission's.
+
+## Subject ownership — the governing reading of this boundary
+
+Brian's boundary direction, 2026-08-28, in his words:
+
+> "The big thing I want you to know is that you own recruitment as a subject, as
+> in anything related to recruitment. Anything that does this and touches this is
+> yours. This means we need to be thinking about not just what goes into
+> recruitment, but also the administration of this, the scheduling, the other
+> tools that this may touch, and everything that this looks like. I want to make
+> sure that when we go through all the workflows, we've covered everything that
+> has to do with recruitment. You own the subject, not merely the workflows that
+> are mentioned."
+
+This is portfolio rule 1 applied — "a mission is a subject-matter lifecycle: it
+owns one subject and handles everything related to that subject's lifecycle" —
+and it is not a portfolio amendment. It governs how the in-scope list below is
+built: the portfolio row's bullets are the **named minimum**, not the boundary.
+The boundary is the recruitment subject, end to end, including the
+administration of recruitment, the scheduling of recruitment, the recruitment
+side of every tool recruitment touches, and what all of it looks like. Anything
+in the inventory below that turns out to belong elsewhere is dispositioned
+explicitly at Stage 2 with evidence; nothing drops out silently.
+
+### Owner subject notes — 2026-08-28 (recorded verbatim, dump in progress)
+
+Brian, restating the subject in his own words:
+
+> "This is about the whole process in which recruits get added into the system.
+>
+> Sometimes we find recruits that we want to add in: people that we like, that we
+> contact, and that we go in. Some people are added to the system proactively,
+> where we get their names and say, 'Hey, you want to join? Pop their
+> information.' They get a message sent out so there's a WhatsApp connection
+> where they get added to the WhatsApp group, and then there's a QR code they can
+> scan. There are multiple ways to get them into the group to see if they're
+> there and whether or not they've been contacted.
+>
+> We want to get as many signals as we can on the recruit as possible. I'm not
+> sure how many we can get, but there are signals to tell us how well they're
+> doing. Recruits are going to be handled as a separate thing outside of
+> onboarding, because onboarding is almost like they're a player. Recruits need
+> their own thing where it's like, 'I see a recruitment board, a page, and I see
+> information.' I see it being very onboarding-like, where it has its own page
+> with recruits and people there, and some information there.
+>
+> I really think one of the things I want to get there should be notes that
+> people take. I see a recruit, I see information, and I write notes there and
+> stuff. I want to think through some of the details there."
+
+And on Mission 5:
+
+> "That 5 is still being built, so we're going to have to layer on top of
+> anything that they build there. This is going to be a whole section that we
+> need to have in."
+
+This dump is **in progress**; the inventory below stays open until Brian says the
+subject is down.
+
+## In scope — the recruitment subject inventory
+
+The row's named bullets are marked `[row]`; the items the subject-ownership
+reading adds are marked `[subject]` so it is visible exactly what is being
+approved beyond the row.
+
+### A. Getting a recruit into the system
+
+1. `[row]` The four entry doors of Task 09 §1.1 — QR/link self-entry, walk-up
+   capture, operator manual add, WhatsApp community join — each capturing
+   name + mobile with email optional.
+2. `[row]` **Dedup-before-create at every door** (D7), with the operator-review
+   queue for self-serve matches, no silent create and no silent merge.
+3. `[subject]` **Administration of the capture doors themselves**: who mints and
+   holds the QR/link, whether it is standing or per-recruitment-moment, how it
+   expires or is revoked, where an unrecognised or dead link lands, and which
+   roles may capture at each door.
+4. `[subject]` The **walk-up door's** recruitment behaviour on `main` — it
+   already mints a person and a `recruit`-capacity prospect with no interactive
+   duplicate check. Reconciling that drift is this mission's, including what a
+   coach at the touchline is and is not asked.
+
+### B. The recruit's life in the pipeline
+
+5. `[row]` The recruits list beside the roster: a visible, operator-only
+   pipeline surface with notes as prose (D4, D9).
+6. `[subject]` What that surface has to **do** as a working tool — find a
+   recruit, filter and sort the pipeline, read one recruit's whole recruitment
+   history in one place, and act on them from there.
+7. `[row]` The funnel stages `identified → engaged → committed/converted` with
+   `lapsed` and `declined` exits: triggers, actors, derived-versus-manual
+   transitions, and the reversal rule (D4, D6).
+8. `[subject]` **How `engaged` is actually derived** — the brief says "any
+   recorded interaction: RSVP, event attendance, reply to the welcome message";
+   what counts, what is observable on `main`, and what an operator may override.
+9. `[subject]` **How `lapsed` is reached** — the brief has an operator mark it,
+   with no automatic timeout ever. Whether anything surfaces the candidates, and
+   where.
+10. `[subject]` **Recruitment ownership and authority in the product**: the
+    President as the named day-to-day pipeline owner (D9), who may capture, who
+    may edit, who may flip, and what a coach or ordinary operator sees of the
+    pipeline at all (D9's operator-only visibility rule).
+
+### C. Talking to a recruit — exactly once
+
+11. `[row]` **The one-time notify** — a recruit receives exactly one message, the
+    D3 welcome + community-group invite, and nothing after it, ever (owner
+    amendment 2026-08-25).
+12. `[row]` Per-door WhatsApp **opt-in evidence** recorded at capture, and the
+    rule that the welcome never fires from a door without it (Task 09 §9.1).
+13. `[subject]` **Administration of that one message**: its template and content,
+    the community-group link it carries and how that link is rotated when it
+    changes, what an operator sees when it fails to deliver, and what happens
+    when delivery is down at the moment of capture (Task 09 §9.1's open
+    welcome-flow mechanics, inherited from the walk-ups brief).
+14. `[row]` The correction to Mission 4's shipped ladder: **capacity suppression**
+    so no recruit invitation is ever given a reminder rung, and the
+    `countByCapacity` recruit-count fix (owner decision 2026-08-26).
+15. `[subject]` The **whole-system sweep** that rule implies: every other place a
+    recruit could be messaged, chased, escalated, counted into a chase, or
+    included in a broadcast — each one either suppressed or evidenced as already
+    unreachable. One message, ever, is a system property, not a feature.
+
+### D. The recruit-stage ask
+
+16. `[row]` The shared **signed-link → form substrate** with the recruit-stage
+    field set — football background, experience, gear ownership, referenced by
+    Task 08 §4 and never enumerated; **enumerated at this intake** — riding the
+    one-time welcome or the capture door itself, never followed up.
+17. `[subject]` What the recruit sees and can do on that link: the form, the
+    already-submitted case, the expired/revoked case, and the uniform
+    no-information-leakage page the E1 precedent requires.
+18. `[subject]` The substrate's shape as a **substrate** — the one-open-request
+    rule, and the seam that lets Missions 7 and 8 add their field sets without
+    re-minting a second token system on top of Mission 4's shipped
+    person-token machinery.
+
+### E. Recruitment events
+
+19. `[row]` Recruitment events: the derived Recruits audience, person-scoped
+    invitations and RSVP for recruits, and the recruits-on-top attendance sheet
+    (D11), with turnout as the sum of attendance records (D8).
+20. `[subject]` **Scheduling and running a recruitment event end to end** — a
+    Freshers' Fair, a taster — as the recruitment operator experiences it:
+    creating it, its type rules (the owner-locked 2-day RSVP deadline), choosing
+    the Recruits audience, approving it knowing what it will send given rule 11,
+    and working its attendance sheet on the day.
+21. `[subject]` The **recruitment side of the calendar and its access tiers**:
+    whether and how a recruitment event appears publicly, since the public
+    calendar is exactly where a prospective recruit would look.
+22. `[subject]` What a **recruit sees of an event** — the invitation, the RSVP
+    surface, and whether the club-link participation view is appropriate for
+    someone who is not a member.
+
+### F. Leaving the pipeline
+
+23. `[row]` **The flip** — President, Vice President, Secretary or GM declares a
+    recruit committed; one audited action marks the prospect converted, creates
+    the season membership, puts the person on the roster and opens onboarding.
+    On the team ≠ active (D5).
+24. `[subject]` **Where the flip is performed from**, given it normally happens
+    out of the Monday review, and what leadership sees of the pipeline when they
+    make that call.
+25. `[subject]` The `declined` and `lapsed` ends of the subject: what the record
+    keeps, what it stops doing, and — as a seam, not a policy — where Mission 8's
+    retention rule attaches.
+26. `[subject]` **The recruit at a season boundary.** `recruitment_prospects` is
+    season-scoped on `main`. What happens to an unconverted recruit when a season
+    ends is a recruitment-lifecycle fact; the season _mechanism_ is Mission 11's.
+
+### G. Recruitment as data the club reads
+
+27. `[subject]` **Leadership visibility of the pipeline** — the recruitment
+    content of the Monday review and any pipeline counts. Mission 10 owns the
+    report; the recruitment section's definition is this mission's.
+28. `[subject]` How a **prospect-person renders on Mission 5's People surface**,
+    which Mission 5 deliberately excluded ("nothing about the recruit process
+    renders on a person record"). The recruitment side of that seam is settled
+    here.
+29. `[subject]` **Audit and history for recruitment** — every stage change, flip,
+    reversal, duplicate resolution and opt-in evidence record, on the durable
+    audit substrate that already exists.
+
+### H. Added by the owner's 2026-08-28 subject notes
+
+30. `[owner]` **Proactive sourcing as a first-class path.** The club finds
+    someone it wants, reaches out, and enters them — "people that we like, that
+    we contact, and that we go in". The row's "operator manual add" door
+    understates this: sourcing, outreach and entry are one recruitment act, and
+    the board has to show **whether a recruit has been contacted**.
+31. `[owner]` **The WhatsApp group connection as a tracked outcome.** The recruit
+    gets a message, gets added to the community group, and the QR is another way
+    in — "multiple ways to get them into the group to see if they're there".
+    What the system can honestly observe about group presence is an open
+    feasibility question (see the questions below), not an assumption.
+32. `[owner]` **Signals.** "We want to get as many signals as we can on the
+    recruit as possible… there are signals to tell us how well they're doing."
+    The inventory of every signal recruitment can honestly observe — message
+    delivered, link opened, form submitted, RSVP, attendance, reply, contacted
+    by an operator — with its date and its source, rendered so a human can read
+    how a recruit is doing. Constrained by Task 09 §6: commitment signals are
+    deliberately **never scored fields**.
+33. `[owner]` **The recruitment board.** Not a list beside the roster but its own
+    page — "a recruitment board, a page, and I see information" — deliberately
+    onboarding-like in shape, holding the recruits, their signals and their
+    notes. This supersedes the plainer reading of row item 5; the board is the
+    mission's primary surface.
+34. `[owner]` **Notes people take.** First-class on the board: an operator opens
+    a recruit, reads what is known, and writes notes. Attribution, dating,
+    editing and who may read them are details Brian has flagged for thinking
+    through.
+35. `[owner]` **Layering onto Mission 5's in-flight surfaces as its own section.**
+    Mission 5 is being built now; this mission layers onto whatever it lands.
+    The layering itself is scope — a named section of the mission, not an
+    assumption that the base will fit.
+
+## Out of scope
+
+- **Mission 7 · Onboarding:** the LAN-85 intake-at-scale composition (Task 09
+  §2, D1) in every part — carry-forward seeding, returner-verification links,
+  the §2.1 verification-link states, the D10 non-responder rule, CSV import and
+  carry-forward, E.164 normalization as an intake step. Moved by the owner
+  amendment of 2026-08-25/26. Also the onboarding checklist, activation, nudges
+  and the bounded chase, the collection request, and formalwear's seasonal
+  reask. Everything after the flip is Mission 7's.
+- **Mission 5 · People & Roster:** the person record and its field inventory,
+  the People and Roster surfaces themselves, correction, audited merge,
+  add-or-link without membership, the missing-data queue's definition, the
+  season bootstrap. This mission layers onto them and invents none of them.
+- **Mission 8 · Consent, Privacy & Data Rights:** consent policy, wording,
+  versioning and lawful basis; prospect/lapsed/declined retention rules;
+  correction workflow; subject-access export; erasure and destructive removal.
+  Recruitment records the evidence; Mission 8 says what it must mean.
+- **Mission 4:** the transport, scheduler, template inventory and delivery
+  states themselves. This mission constrains and corrects them for recruits; it
+  does not rebuild them.
+- **Mission 10:** the Monday review report and export machinery. Recruitment
+  defines its recruitment content only.
+- **Mission 11:** season lifecycle, creation, rollover, eligibility,
+  offboarding — the mechanism behind item 26.
+- **Mission 9:** football assignments, positions, squad groups, coach registry.
+- **Mission 2:** the event, calendar, template and attendance machinery itself.
+  Recruitment owns its recruitment behaviour, not the machinery.
+- **Mission 1:** club roles, login grants and the role catalogue behind item 10.
+- Legacy import of historical rosters, bulk spreadsheet import, statistics,
+  public player profiles, and everything else on the Authority Manifest §8
+  exclusion list.
+- Real recruit data and real sends: LAN-86 (cutover) and LAN-101 (WhatsApp
+  production) remain gates outside this mission.
+- No Mission Lead DAG, work packages, worker assignment or implementation
+  sequencing in this packet, and no execution before Brian merges a ready packet
+  version.
+
+## Reconciliation against `main@c69d544` (recorded, not silent)
+
+The Task 09 brief was written 2026-08-15, before Missions 2 and 4 shipped. Four
+of its named gaps are already closed, and one of its statements is drift:
+
+- **The "Recruits" audience group exists.** Mission 2 shipped it (D46) —
+  `src/lib/services/event-audience.ts:214` derives it from
+  `recruitment_prospects` at `identified/engaged/committed`, and
+  `src/lib/services/audience-selection.ts:136` offers it on Recruitment events
+  alone. Task 09 §9.1 lists it as an unowned gap; it is not.
+- **Person-scoped invitations at `recruit` capacity exist**
+  (`invitation_capacity` includes `recruit`).
+- **The signed-link person-token substrate exists.** Mission 4 shipped
+  `player-answer-tokens`, `/a/[token]` and `/me/[token]`. This mission builds
+  the **form/ask** layer on that machinery rather than minting a second token
+  system; "built once in Mission 6" reads as the form substrate, not the tokens.
+- **The walk-up door already ships, and its dedup drift is real.**
+  `recordWalkUpAttendance` (`src/lib/services/attendance.ts:699`) always creates
+  a new person and a `recruit`-capacity prospect with no interactive duplicate
+  check — wider than Task 09 §3's LAN-110 coach-only exception. Recorded as
+  drift by the 2026-08-26 owner amendment and reconciled at this intake.
+- **The capacity-blind ladder is confirmed.** `scheduleEventLadderIn`
+  (`src/lib/services/messaging-scheduler.ts:156`) inserts a reminder job for
+  every invitation of the event with no capacity filter, and `countByCapacity`
+  (`src/lib/services/event-approval.ts:757`) counts player, coach and committee
+  only. Both are this mission's to fix.
+- **No recruit surface exists.** There is no recruits list, no prospect capture
+  route and no flip action anywhere in `src/app`; the only path that creates a
+  prospect today is the walk-up form.
+
+## Sequencing fact recorded at commissioning
+
+The portfolio's next step for this row is "Intake after Mission 5", and the
+default dependency order is M5 → M6. Mission 5's packet is **approved and merged**
+(PR #96, `M-PEOPLE-AND-ROSTER` v1), which satisfies that gate for _intake_, but
+its implementation has not started — LAN-182–187 are staged in Backlog and none
+of Mission 5's surfaces exist on `main`. Two consequences, recorded rather than
+assumed:
+
+1. Mockups for screens that layer onto Mission 5 surfaces will be **drawn on
+   both sides**, because those surfaces do not exist on `main` to photograph.
+2. Mission 6 **execution** still depends on Mission 5's implementation landing;
+   that is a packet gate, not an intake blocker.
+
+- Split decision: no split. The recruit journey is one actor-visible outcome
+  with one authority (Task 09), one owner (the President), and one acceptance —
+  Brian walks a recruit from a door to the roster. The subject-ownership reading
+  widens what the mission must cover; it does not create a second independently
+  approvable outcome, and nothing here poses a safety, authority, readiness,
+  dependency or outcome-coherence problem the Mission Lead's DAG cannot contain.
+- Portfolio deviation: none. The boundary is the portfolio row's, read under
+  portfolio rule 1 as the recruitment subject-matter lifecycle per Brian's
+  2026-08-28 direction, with the `main` reconciliations above recorded as facts
+  about implemented reality rather than as scope changes.
 - Brian approval words:
 - Approval date:
