@@ -531,6 +531,12 @@ export default function RosterBoard({
                 >
                   Player
                 </TableSortLabel>
+                {/* Player carries no funnel — the search field above is its
+                    filter. The blank line keeps its header the same height as
+                    every other, so the two sticky rows stay square. */}
+                <Typography variant="caption" sx={{ display: "block", lineHeight: 1.3 }}>
+                  &nbsp;
+                </Typography>
               </TableCell>
 
               {columns.map((column) => {
@@ -546,9 +552,21 @@ export default function RosterBoard({
                       width: column.width,
                       verticalAlign: "bottom",
                       whiteSpace: "nowrap",
+                      // A filtered column says so at the column, not only in
+                      // the chip bar — so scrolling onto one answers "why is
+                      // this board short" without a trip back to the top.
+                      borderBottom: filtered ? 2 : 1,
+                      borderBottomColor: filtered ? "primary.main" : "divider",
                     }}
                   >
-                    <Stack direction="row" spacing={0.25} sx={{ alignItems: "center" }}>
+                    <Stack
+                      direction="row"
+                      spacing={0.5}
+                      sx={{ alignItems: "center", justifyContent: "space-between" }}
+                    >
+                      {/* Sort is the label. Filter is the funnel. Two jobs,
+                          two shapes, and neither is a bare caret that could be
+                          mistaken for the other. */}
                       <TableSortLabel
                         active={sort.key === column.key}
                         direction={sort.key === column.key ? sort.dir : "asc"}
@@ -562,38 +580,46 @@ export default function RosterBoard({
                       >
                         {column.label}
                       </TableSortLabel>
-                      <Box
-                        component="button"
-                        type="button"
-                        aria-label={`Filter ${column.label}`}
-                        onClick={(event) =>
-                          setMenu({ anchor: event.currentTarget as HTMLElement, column })
-                        }
+                      <FilterButton
+                        label={column.label}
+                        active={filtered}
+                        onOpen={(anchor) => setMenu({ anchor, column })}
+                      />
+                    </Stack>
+                    {/*
+                      The second line carries the live filter value where there
+                      is one, and otherwise tells a Person column where it is
+                      edited. The filter value wins the space because an active
+                      filter is the fact that changes what the board is showing.
+                    */}
+                    {filtered ? (
+                      <Typography
+                        variant="caption"
                         sx={{
-                          border: "none",
-                          background: "none",
-                          cursor: "pointer",
-                          p: 0.25,
-                          lineHeight: 1,
-                          fontSize: 11,
-                          borderRadius: 0.5,
-                          color: filtered ? "primary.main" : "text.secondary",
-                          fontWeight: filtered ? 900 : 400,
-                          "&:hover": { bgcolor: "action.hover" },
+                          display: "block",
+                          color: "primary.main",
+                          fontWeight: 700,
+                          lineHeight: 1.3,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
                         }}
                       >
-                        ▾
-                      </Box>
-                    </Stack>
-                    {/* Person columns say where they are edited, under the name. */}
-                    {column.edit === "record" ? (
+                        {filters[column.key]}
+                      </Typography>
+                    ) : column.edit === "record" ? (
                       <Typography
                         variant="caption"
                         sx={{ display: "block", color: "text.disabled", lineHeight: 1.3 }}
                       >
                         edit on the record
                       </Typography>
-                    ) : null}
+                    ) : (
+                      // Holds the line's height so a filter appearing or
+                      // clearing never makes the header row jump.
+                      <Typography variant="caption" sx={{ display: "block", lineHeight: 1.3 }}>
+                        &nbsp;
+                      </Typography>
+                    )}
                   </TableCell>
                 );
               })}
@@ -706,6 +732,85 @@ export default function RosterBoard({
 
       <AuditLog events={audit} />
     </Stack>
+  );
+}
+
+/* --------------------------------------------------------- filter button -- */
+
+/**
+ * The per-column filter control.
+ *
+ * A funnel rather than a caret, in a bordered target rather than loose in the
+ * header. The caret this replaces failed twice over: at eleven pixels with no
+ * border it read as punctuation rather than as a control, and it sat next to
+ * the sort arrow, so the two marks that do the header's two different jobs
+ * looked like the same kind of thing.
+ *
+ * Drawn inline because `@mui/icons-material` is not a dependency of this
+ * repository, and a mockup is the wrong reason to add one.
+ *
+ * Filled and primary-coloured when the filter is set, outlined and grey when it
+ * is not — but the fill is never the only signal. The value appears under the
+ * column label and the header takes a 2px rule, because colour and shape alone
+ * would fail exactly the reader this board cannot afford to fail.
+ */
+function FilterButton({
+  label,
+  active,
+  onOpen,
+}: {
+  label: string;
+  active: boolean;
+  onOpen: (anchor: HTMLElement) => void;
+}) {
+  return (
+    <Tooltip title={active ? `Filtering ${label}` : `Filter ${label}`} placement="top">
+      <Box
+        component="button"
+        type="button"
+        aria-label={active ? `Filtering ${label}` : `Filter ${label}`}
+        aria-pressed={active}
+        onClick={(event) => onOpen(event.currentTarget as HTMLElement)}
+        sx={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          width: 24,
+          height: 24,
+          p: 0,
+          cursor: "pointer",
+          borderRadius: 1,
+          border: 1,
+          borderColor: active ? "primary.main" : "divider",
+          bgcolor: active ? "primary.main" : "transparent",
+          color: active ? "common.white" : "text.secondary",
+          transition: "background-color 120ms ease, border-color 120ms ease",
+          "&:hover": {
+            borderColor: "primary.main",
+            bgcolor: active ? "primary.dark" : "action.hover",
+            color: active ? "common.white" : "primary.main",
+          },
+          "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main" },
+        }}
+      >
+        <Funnel filled={active} />
+      </Box>
+    </Tooltip>
+  );
+}
+
+function Funnel({ filled }: { filled: boolean }) {
+  return (
+    <Box component="svg" viewBox="0 0 24 24" aria-hidden sx={{ width: 14, height: 14 }}>
+      <path
+        d="M4 5.5h16l-6.2 7.2V19l-3.6 1.8v-8.1z"
+        fill={filled ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth={1.7}
+        strokeLinejoin="round"
+      />
+    </Box>
   );
 }
 
