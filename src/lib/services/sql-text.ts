@@ -42,6 +42,40 @@ export function personDisplayAliasSql(alias: string): string {
 }
 
 /**
+ * The six-rung status ladder an operator sees, in SQL — LAN-183,
+ * `REQ-status-ladder`. `Recruit` from `recruitment_prospects` when a person
+ * holds no membership, one of the five stored `membership_status` values from
+ * their most recent membership otherwise, or `null` for a person on neither
+ * record (a coach or committee member holding no season tie at all —
+ * `REQ-create-without-roles`).
+ *
+ * "Most recent" is the membership whose season started latest, tie-broken by
+ * the membership row's own `created_at`. The person record is season-agnostic
+ * (`DEC-w1-01`) and nothing in this mission's substrate names a "current"
+ * membership independent of a season, so this is the reading `person-record.ts`
+ * makes: cheap for a later mission to replace with an explicit "current
+ * season" join if a source ever asks for one.
+ *
+ * `alias` is a table alias the caller controls; it is never user input.
+ */
+export function personAssembledStatusSql(alias: string): string {
+  return `coalesce(
+            (select m.status::text
+               from public.season_memberships m
+               join public.seasons s on s.id = m.season_id
+              where m.person_id = ${alias}.id
+              order by s.starts_on desc nulls last, m.created_at desc
+              limit 1),
+            case
+              when exists (
+                select 1 from public.recruitment_prospects rp
+                 where rp.person_id = ${alias}.id
+              ) then 'recruit'
+            end
+          )`;
+}
+
+/**
  * How a Person's name is rendered in SQL, for the queries that select one.
  *
  * The same three rules everywhere, because getting any of them wrong is

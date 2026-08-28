@@ -59,6 +59,7 @@
  * | Delivery administration   | President, VP, Secretary, General Manager      | Lead, 13 Aug 2026  |
  * | Leadership report         | President, VP, Secretary, General Manager      | Lead, 14 Aug 2026  |
  * | Role management           | President, General Manager, IT Officer         | Brian, 18 Aug 2026 |
+ * | Person record authority   | President, VP, Secretary, General Manager      | Brian, 28 Aug 2026 |
  *
  * **Every capability above also lists `it_officer`.** Brian decided on 15
  * August 2026 (LAN-124) that the IT Officer is the club's administrative seat
@@ -100,7 +101,8 @@ export type CapabilityKey =
   | "attendance_recording"
   | "role_management"
   | "delivery_administration"
-  | "leadership_report";
+  | "leadership_report"
+  | "person_record_authority";
 
 export interface Capability {
   readonly key: CapabilityKey;
@@ -747,6 +749,45 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
       "§ 3, which names the report and RSVP reasons among the surfaces a coaching seat never " +
       "receives. Replaces the empty grant LAN-73 recorded and LAN-81 owed. Recorded as an " +
       "assumption on LAN-81 and narrowed by editing this list. " +
+      "Brian, 15 August 2026 (LAN-124) added it_officer, the administrative seat that " +
+      "holds every capability in this file.",
+  }),
+
+  /**
+   * Every category of a person's record — LAN-183, `REQ-authority`,
+   * `REQ-restricted-fields`, `Q-4`.
+   *
+   * `src/lib/auth/person-authority.ts` reads this grant rather than naming a
+   * role code of its own: `tests/capability-map-single-source.test.ts` makes
+   * this file the only place in `src/` allowed to, and column visibility on
+   * the person record is exactly the kind of policy that test exists to keep
+   * from growing a second, divergent copy.
+   *
+   * Brian's Q-4 answer, quoted in full because every word carries weight:
+   * "The four offices keep everything; coaching seats reach no contact value
+   * at all; column visibility is a function of category grants, so widening
+   * access later drops restricted columns automatically. No login, seat or
+   * club role is granted or changed anywhere in this mission." No coaching
+   * seat holds this, and neither does any other role Q-4 does not name.
+   *
+   * `it_officer` is added for the same reason every other entry in this file
+   * carries it — Brian, 15 August 2026 (LAN-124): the administrative seat
+   * holds every capability here. Q-4's answer predates this file gaining a
+   * person-record entry and does not mention the IT Officer either way; LAN-124
+   * is the standing decision that resolves the silence, the same way it
+   * resolved it for `role_management`, `delivery_administration` and every
+   * other grant above. A reviewed owner decision may narrow it later.
+   */
+  person_record_authority: capability({
+    key: "person_record_authority",
+    action:
+      "see every category of a person's record — contact detail, academic fields, and the " +
+      "restricted category (date of birth, emergency contact)",
+    roleCodes: ["president", "vice_president", "secretary", "general_manager", "it_officer"],
+    decision:
+      'Brian, 28 August 2026 (Q-4, LAN-183): "The four offices keep everything; coaching ' +
+      "seats reach no contact value at all; column visibility is a function of category " +
+      'grants, so widening access later drops restricted columns automatically." ' +
       "Brian, 15 August 2026 (LAN-124) added it_officer, the administrative seat that " +
       "holds every capability in this file.",
   }),
