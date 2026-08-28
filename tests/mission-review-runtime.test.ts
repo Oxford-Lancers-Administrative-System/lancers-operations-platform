@@ -1185,6 +1185,39 @@ describe("owner-ready promotion and reclamation", () => {
     expect(reclamationDefects(proof, "rt-1")).toEqual([]);
   });
 
+  // A squash merge deletes the branch, so the reviewed head stops being
+  // reachable from any remote while its content sits on main under a new SHA.
+  // Counting `--not --remotes` alone then called an untouched runtime unpushed
+  // and refused it forever, and two such runtimes exhausted the mission's
+  // review capacity. The runtime is detached at the invocation's head and never
+  // authors a commit, so an unmoved HEAD is proof there is nothing to lose.
+  it("reclaims a runtime still sitting at its invocation head after a squash merge", async () => {
+    const reviewedHead = "3b101e1a2928d4becb12af54b8c2f76aff5f5898";
+    const seen: Array<Record<string, unknown>> = [];
+    const proof = await releaseReviewRuntime({
+      runtime: { runtime_id: "rt-1" },
+      invocation: {
+        invocation_id: "inv-1",
+        disposition: "completed",
+        head_sha: reviewedHead,
+      },
+      executors: {
+        "inspect-worktree": async (input: Record<string, unknown>) => {
+          seen.push(input);
+          // What git reports once the branch is gone: unreachable from remotes.
+          const authored = input.expectedHead !== reviewedHead;
+          return { dirty: false, unpushedCommits: authored ? 1 : 0 };
+        },
+        "stop-application": async () => ({}),
+        "release-lease": async () => ({ slot: "mission-review-1" }),
+        "remove-worktree": async () => ({}),
+        "read-status": async () => ({ active: false }),
+      },
+    });
+    expect(seen[0]).toMatchObject({ expectedHead: reviewedHead });
+    expect(reclamationDefects(proof, "rt-1")).toEqual([]);
+  });
+
   it("asks for a release on every terminal invocation path", async () => {
     const m = fixture();
     await readyMission(m);
