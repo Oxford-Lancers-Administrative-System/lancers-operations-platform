@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { RosterBoardRow } from "@/lib/services/roster-board";
 import { buildColumns } from "./board-columns";
-import { applyBoard, displayOf, filterOptions, NOT_RECORDED, onboardingLabel } from "./board-data";
+import {
+  applyBoard,
+  displayOf,
+  filterOptions,
+  NOT_RECORDED,
+  onboardingLabel,
+  optionListLabel,
+} from "./board-data";
 
 const POSITION_OPTIONS = {
   offence: [{ code: "QB", label: "Quarterback" }],
@@ -205,6 +212,38 @@ describe("displayOf — positions show the code alone, never the full name (item
 describe("displayOf — every other select column shows the label alone (item 9)", () => {
   it('shows "Eligible", never "eligible · Eligible"', () => {
     const text = displayOf(row({ eligibility: "eligible" }), ELIGIBILITY_COLUMN);
+    expect(text).toBe("Eligible");
+    expect(text).not.toContain("eligible ·");
+  });
+});
+
+/**
+ * Brian's walkthrough of the built board, correcting item 7's dropdown half:
+ * "In the dropdown, it shouldn't just be the name. If it says QB, it should
+ * be QB-quarterback." The cell half of item 7 (above) stands unchanged — only
+ * an *open list of choices* pairs the code with the full name, read from the
+ * column's own `optionLabels`, itself sourced from the season vocabulary (S3)
+ * by `readPositionOptions()` — never a hardcoded map.
+ */
+describe("optionListLabel — a position's open list of choices pairs the code with the full name (walkthrough correction of item 7)", () => {
+  it('shows "QB — Quarterback", not "QB" alone', () => {
+    expect(optionListLabel(OFFENCE_COLUMN, "QB")).toBe("QB — Quarterback");
+  });
+
+  it("falls back to the code alone if the vocabulary carries no label for it", () => {
+    expect(optionListLabel(OFFENCE_COLUMN, "ZZ")).toBe("ZZ");
+  });
+});
+
+/**
+ * Item 9 stands for every other select column: eligibility and availability's
+ * value and label are the same word, so pairing them the way positions are
+ * now paired would reintroduce exactly the `"eligible · Eligible"` echo this
+ * round already removed.
+ */
+describe("optionListLabel — every other select column still shows the label alone (item 9 stands)", () => {
+  it('shows "Eligible", never "eligible · Eligible"', () => {
+    const text = optionListLabel(ELIGIBILITY_COLUMN, "eligible");
     expect(text).toBe("Eligible");
     expect(text).not.toContain("eligible ·");
   });

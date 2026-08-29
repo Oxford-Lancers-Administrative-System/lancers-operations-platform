@@ -109,11 +109,11 @@ const CODE_ONLY_COLUMNS = new Set(["offencePosition", "defencePosition", "specia
  * beside it (`REQ`, LAN-186 item 9: no `"eligible · Eligible"` anywhere).
  *
  * Positions are the deliberate exception, in the other direction: the club's
- * vocabulary IS the code (`T`, `NT`, `KO` …), so this returns it unchanged
- * rather than the fuller name `optionLabels` also carries — LAN-186 item 7,
- * "letters only... no full names anywhere on the board." `optionLabels` for a
- * position column exists only for a dropdown's own accessible name, never for
- * visible text.
+ * vocabulary IS the code (`T`, `NT`, `KO` …), so this returns it unchanged —
+ * LAN-186 item 7's cell half, which Brian's walkthrough of the built board
+ * left standing: "letters in the grid" has not changed. Item 7's *dropdown*
+ * half is superseded by `optionListLabel` below, for the one context where a
+ * list of choices, not a selected value, is on screen.
  */
 function optionLabel(column: ColumnDef, code: string): string {
   if (CODE_ONLY_COLUMNS.has(column.key)) return code;
@@ -149,9 +149,37 @@ export function filterOptions(
   return blanks ? [...values, NOT_RECORDED] : values;
 }
 
-/** The chip and menu label for a filter's option — a fuller word where one exists. */
+/** The chip and menu label for a filter's *selected* value — a fuller word where one exists. */
 export function filterOptionLabel(column: ColumnDef, value: string): string {
   if (value === NOT_RECORDED) return value;
+  return optionLabel(column, value);
+}
+
+/**
+ * Display text for one entry in an *open list of choices* — the in-cell edit
+ * dropdown and the column filter's own popover — as distinct from a value
+ * already chosen, which `filterOptionLabel` and `displayOf` still show as the
+ * label alone.
+ *
+ * Position columns are the one case where the two differ: Brian's walkthrough
+ * of the built board asked for the code *and* the full name in the open
+ * dropdown ("If it says QB, it should be QB-quarterback"), while the selected
+ * value — the cell, the active-filter chip, the filtered column's own caption
+ * — stays the code alone, per item 7's cell half. The full name comes from
+ * `column.optionLabels`, itself read from the season's vocabulary (S3) in
+ * `readPositionOptions()`, never hardcoded here.
+ *
+ * Every other column's list already shows the label alone with nothing beside
+ * it, so this delegates straight to `optionLabel` for them — no `${value} ·
+ * ${label}` echo reappears (item 9), because eligibility and availability's
+ * value and label are the same word and doubling either would repeat it.
+ */
+export function optionListLabel(column: ColumnDef, value: string): string {
+  if (value === NOT_RECORDED) return value;
+  if (CODE_ONLY_COLUMNS.has(column.key)) {
+    const label = column.optionLabels?.[value];
+    return label ? `${value} — ${label}` : value;
+  }
   return optionLabel(column, value);
 }
 

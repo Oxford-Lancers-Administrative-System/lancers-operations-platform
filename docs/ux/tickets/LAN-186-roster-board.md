@@ -69,10 +69,14 @@ nowhere on this board and cannot.
 effective_from` strictly and there is no history in a row that lived zero
   calendar days. Position options come from the season's own vocabulary
   (`position_vocabularies`, invariant S3) — never a hardcoded list. **Codes
-  only, in the cell and in the dropdown** (2026-08-29): the cells read
-  "Tackle" at first build, where the club's own vocabulary is `T` — the fuller
-  name never renders anywhere on this board, though the column still carries
-  it for a control's own accessible name.
+  only in the cell** (2026-08-29): the cells read `T`, never "Tackle" — the
+  club's own vocabulary is the code, and the cell, closed, shows it alone.
+  **Code and full name together in the open dropdown** (2026-08-29
+  walkthrough correction, superseding this item's original "codes only... in
+  the dropdown" half): "In the dropdown, it shouldn't just be the name. If
+  it says QB, it should be QB-quarterback." Each open option now reads
+  `QB — Quarterback`, the full name still read from the season's own
+  vocabulary and never hardcoded; the selected value, closed, is unchanged.
 - **Blue # and White # are pickers** over every number 1-99, taking several
   numbers per kit, rendered under the player name (`chore/roster-fidelity-mockup`'s
   `jersey-picker.tsx`, kept exactly). A number held by another current
@@ -147,6 +151,16 @@ in the sticky band-label row, never in the body cells, so only the boundary
 beside the always-bordered pinned Player column ever read as separated. The
 same seam now draws in the column-header row and every body cell, so all three
 boundaries read with equal weight.
+
+**The padding inside each band header, not only the seam between them
+(2026-08-29 walkthrough correction).** `PERSON` sat with a left inset before
+its label; `ONBOARDING` and `SEASON` sat flush against their own band's left
+edge with none. The inset `PERSON` had was never real padding — it was an
+artifact of the sticky label's own scroll-following offset, which only ever
+coincided with a visible gap for the band immediately after the pinned Player
+column. Every band header now carries the same explicit left inset from one
+shared rule, so a fourth band inherits it automatically; the seam between
+bands above is unrelated and stands as it was.
 
 ### Column visibility is grant-driven, not merely role-gated once
 

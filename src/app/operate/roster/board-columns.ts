@@ -43,6 +43,18 @@ export interface BandDef {
 
 export const BAND_ROW_HEIGHT = 28;
 
+/**
+ * The left inset every band header's label sits at — one rule so a fourth
+ * band inherits it rather than each band cell carrying its own padding (or
+ * not). Brian's walkthrough of the built board: PERSON sat with this inset,
+ * ONBOARDING sat flush against its band's left edge with none at all — an
+ * artifact of the label's `position: sticky` doing double duty as the
+ * *static* inset too, which only ever worked for the band immediately after
+ * the pinned Player column. This is the actual, explicit inset; the sticky
+ * offset below still uses it too, so the two never drift apart.
+ */
+export const BAND_LABEL_INSET_PX = 16;
+
 export const BANDS: readonly BandDef[] = Object.freeze([
   Object.freeze({
     key: "person" as const,

@@ -46,7 +46,13 @@ import {
   commitJerseyNumbersAction,
   commitPositionAction,
 } from "./board-actions";
-import { BAND_ROW_HEIGHT, bandOf, PLAYER_COLUMN_WIDTH, type ColumnDef } from "./board-columns";
+import {
+  BAND_LABEL_INSET_PX,
+  BAND_ROW_HEIGHT,
+  bandOf,
+  PLAYER_COLUMN_WIDTH,
+  type ColumnDef,
+} from "./board-columns";
 import {
   applyBoard,
   displayOf,
@@ -54,6 +60,7 @@ import {
   filterOptions,
   NOT_RECORDED,
   onboardingLabel,
+  optionListLabel,
   rawValue,
 } from "./board-data";
 import JerseyPicker from "./jersey-picker";
@@ -476,7 +483,9 @@ export default function RosterBoard({
                       top: 0,
                       bgcolor: band.header,
                       color: "common.white",
-                      p: 0,
+                      pl: `${BAND_LABEL_INSET_PX}px`,
+                      pr: 0,
+                      py: 0,
                       height: BAND_ROW_HEIGHT,
                       borderBottom: "none",
                       borderRight: 2,
@@ -490,7 +499,7 @@ export default function RosterBoard({
                         fontWeight: 700,
                         lineHeight: `${BAND_ROW_HEIGHT}px`,
                         position: "sticky",
-                        left: PLAYER_COLUMN_WIDTH + 16,
+                        left: PLAYER_COLUMN_WIDTH + BAND_LABEL_INSET_PX,
                         display: "inline-block",
                       }}
                     >
@@ -713,7 +722,7 @@ export default function RosterBoard({
                   setMenu(null);
                 }}
               >
-                {filterOptionLabel(menu.column, option)}
+                {optionListLabel(menu.column, option)}
               </MenuItem>
             ))
           : null}
@@ -922,11 +931,12 @@ function Cell({
       );
     }
 
-    // The label alone, never the raw value beside it (LAN-186 item 9) — the
-    // same `filterOptionLabel` the column header's own filter chip already
-    // uses, so a value reads identically wherever it appears on the board.
-    // Positions are `filterOptionLabel`'s own deliberate exception: the code
-    // *is* the label there (item 7), so nothing extra ever appears.
+    // The open list of choices reads `optionListLabel` — the label alone
+    // (LAN-186 item 9), except for a position column, whose options carry the
+    // code *and* the full name (Brian's walkthrough of the built board). The
+    // selected value shown when the dropdown is closed is `displayOf` below,
+    // unaffected: item 7's cell half — the code alone for a position — still
+    // stands.
     const current = rawValue(row, column.key);
     return (
       <TableCell sx={shell}>
@@ -950,7 +960,7 @@ function Cell({
           )}
           {(column.options ?? []).map((option) => (
             <MenuItem key={option} value={option}>
-              {filterOptionLabel(column, option)}
+              {optionListLabel(column, option)}
             </MenuItem>
           ))}
         </Select>

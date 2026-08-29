@@ -504,20 +504,24 @@ describe("select cells never echo the raw value beside the label (item 9)", () =
     expect(screen.queryByText(/eligible\s*·\s*Eligible/i)).not.toBeInTheDocument();
   });
 
-  it("shows only the code for a position, in the cell and in the dropdown (item 7)", async () => {
+  it("shows the code alone in the cell; the open dropdown pairs it with the full name (item 7, corrected)", async () => {
+    // Item 7's cell half stands unchanged: closed, the board shows the
+    // club's vocabulary code and never the full name.
     givenBoard({ rows: [row({ offencePosition: "QB" })] });
     render(await RosterPage(pageProps()));
 
-    // The club's vocabulary code, closed — never "Quarterback".
     expect(screen.getByText("QB")).toBeInTheDocument();
     expect(screen.queryByText("Quarterback")).not.toBeInTheDocument();
 
+    // Item 7's dropdown half is superseded by Brian's walkthrough of the
+    // built board: "If it says QB, it should be QB-quarterback." The open
+    // list pairs the code with the full name; the code alone is gone from it.
     await act(async () => {
       fireEvent.click(editableCellFor("QB"));
     });
 
-    expect(screen.getByRole("option", { name: "QB" })).toBeInTheDocument();
-    expect(screen.queryByText("Quarterback")).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "QB — Quarterback" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "QB" })).not.toBeInTheDocument();
   });
 });
 
