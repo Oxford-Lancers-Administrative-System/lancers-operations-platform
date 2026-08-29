@@ -22,15 +22,11 @@ import type { Client } from "pg";
 import { closePool, isServiceError, withTransaction } from "@/lib/db";
 import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
 import {
-  ACTIVATION_NEEDS_OVERRIDE_RULE,
-  activateMembership,
   generateOnboardingItems,
   listCurrentSeasonRoster,
-  MEMBERSHIP_TRANSITIONS,
-  reactivateMembership,
   readMembership,
   resolveOnboardingItem,
-  setMembershipInactive,
+  setMembershipStatus,
   type MembershipStatus,
 } from "./membership";
 import { enterReturningPlayer, resolveOpenSeason } from "./roster";
@@ -78,10 +74,10 @@ let counter = 0;
  * for, written directly rather than through the service.
  *
  * Direct inserts on purpose: the point of most of these tests is what
- * `activateMembership` does when it *finds* a membership in a given state, and
- * several of those states — `departed`, `archived` — have no service path that
- * produces them. Building them through the application would mean building the
- * season-close workflow this slice explicitly excludes.
+ * `setMembershipStatus` does when it *finds* a membership in a given state, and
+ * several of those states — `departed`, `archived` — have no other service path
+ * that produces them (there is no season-close workflow; this slice excludes
+ * it). Building them any other way would mean building that workflow.
  */
 async function givenMembership(
   status: MembershipStatus,
@@ -386,17 +382,17 @@ describe("generateOnboardingItems", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Rows 3, 4, 7 and 8 — activation
+// The free ladder — LAN-186's owner walkthrough, Q-12
 // ---------------------------------------------------------------------------
 
-describe("activateMembership — the legal path", () => {
-  it("activates from `onboarding` with one transition, and dates it", async () => {
+describe("setMembershipStatus — activating (onboarding → active)", () => {
+  it("moves from `onboarding` to `active` with one transition, and dates it", async () => {
     const membershipId = await givenMembership("onboarding");
     await settleRequiredItems(membershipId);
 
-    const outcome = await activateMembership({ actorPersonId, membershipId });
+    const membership = await setMembershipStatus({ actorPersonId, membershipId, status: "active" });
 
-    expect(outcome.membership.status).toBe("active");
+    expect(membership.status).toBe("active");
     expect(await currentStatus(membershipId)).toBe("active");
 
     const events = await statusEvents(membershipId);
@@ -432,7 +428,11 @@ describe("activateMembership — the legal path", () => {
     });
     await settleRequiredItems(intake.membershipId);
 
-    await activateMembership({ actorPersonId, membershipId: intake.membershipId });
+    await setMembershipStatus({
+      actorPersonId,
+      membershipId: intake.membershipId,
+      status: "active",
+    });
 
     const events = await statusEvents(intake.membershipId);
     expect(events.map((event) => [event.from_status, event.to_status])).toEqual([
@@ -442,94 +442,57 @@ describe("activateMembership — the legal path", () => {
     expect(events.some((event) => event.from_status === event.to_status)).toBe(false);
   });
 
-  it("writes a status event and an audit row naming the operator, together", async () => {
+  it("writes a status event and an audit row naming the operator, together, with no reason", async () => {
     const membershipId = await givenMembership("onboarding");
     await settleRequiredItems(membershipId);
 
-    await activateMembership({ actorPersonId, membershipId });
+    await setMembershipStatus({ actorPersonId, membershipId, status: "active" });
 
     const audit = await auditRows(membershipId);
     expect(audit).toHaveLength(1);
     expect(audit[0]).toMatchObject({
-      action: "season_membership_activated",
+      action: "season_membership_status_changed",
       actor_person_id: actorPersonId,
       from_state: "onboarding",
       to_state: "active",
+      reason: null,
     });
     expect(audit[0].context).toMatchObject({
-      issue: "LAN-75",
+      issue: "LAN-186",
       transitions_recorded_in: "season_membership_status_events",
     });
-    expect(await statusEvents(membershipId)).toHaveLength(2);
+    const events = await statusEvents(membershipId);
+    expect(events).toHaveLength(2);
+    expect(events.at(-1)?.reason).toBeNull();
   });
 
   it("generates missing items on the way through, for a membership confirmed earlier", async () => {
     const membershipId = await givenMembership("onboarding", { generateItems: false });
 
-    // No items at all, so nothing is outstanding and nothing is asked.
-    await activateMembership({ actorPersonId, membershipId, overrideReason: "Backfilled" });
+    await setMembershipStatus({ actorPersonId, membershipId, status: "active" });
 
     const membership = await readMembership(membershipId);
     expect(membership.status).toBe("active");
     expect(membership.onboardingItems).toHaveLength(seasonTypes.length);
   });
-});
 
-describe("activateMembership — outstanding required items", () => {
-  it("refuses once, naming the items, when no reason to proceed was given", async () => {
+  /**
+   * Q-12, verbatim: "We can flip to whatever status we want to go in." An
+   * outstanding required item is no longer asked about at all — it simply
+   * carries on being outstanding, exactly like any other season fact.
+   */
+  it("activates straight through outstanding required items, asking nothing and recording no reason", async () => {
     const membershipId = await givenMembership("onboarding");
     const required = seasonTypes.find((type) => type.isRequired && !type.isSubscription)!;
     await settleRequiredItems(membershipId);
     await setItemStatus(membershipId, required.code, "pending");
 
-    const failure = await activateMembership({ actorPersonId, membershipId }).catch(
-      (error: unknown) => error,
-    );
+    const membership = await setMembershipStatus({ actorPersonId, membershipId, status: "active" });
 
-    expect(isServiceError(failure) && failure.rule).toBe(ACTIVATION_NEEDS_OVERRIDE_RULE);
-    expect(await currentStatus(membershipId)).toBe("onboarding");
-    // Refused, not half-done: no transition and no audit row.
-    expect(await statusEvents(membershipId)).toHaveLength(1);
-    expect(await auditRows(membershipId)).toHaveLength(0);
-  });
-
-  it("proceeds when the operator gives a reason, and records what was outstanding", async () => {
-    const membershipId = await givenMembership("onboarding");
-    const required = seasonTypes.find((type) => type.isRequired && !type.isSubscription)!;
-    await settleRequiredItems(membershipId);
-    await setItemStatus(membershipId, required.code, "pending");
-
-    const outcome = await activateMembership({
-      actorPersonId,
-      membershipId,
-      overrideReason: "Returning player; details being reconciled",
-    });
-
-    expect(outcome.membership.status).toBe("active");
-    expect(outcome.proceededOver.map((item) => item.code)).toEqual([required.code]);
-
+    expect(membership.status).toBe("active");
+    expect(membership.outstandingRequired.map((item) => item.code)).toEqual([required.code]);
     const audit = await auditRows(membershipId);
-    expect(audit[0].reason).toContain("Returning player; details being reconciled");
-    expect(audit[0].context).toMatchObject({
-      proceeded_over_outstanding: [required.code],
-      override_reason: "Returning player; details being reconciled",
-    });
-
-    // And the status history carries it too, not only the audit stream.
-    const events = await statusEvents(membershipId);
-    expect(events.at(-1)?.reason).toContain("Returning player; details being reconciled");
-  });
-
-  it("counts a waived required item as met — 'or consciously waived'", async () => {
-    const membershipId = await givenMembership("onboarding");
-    const required = seasonTypes.find((type) => type.isRequired && !type.isSubscription)!;
-    await settleRequiredItems(membershipId);
-    await setItemStatus(membershipId, required.code, "waived");
-
-    const outcome = await activateMembership({ actorPersonId, membershipId });
-
-    expect(outcome.membership.status).toBe("active");
-    expect(outcome.proceededOver).toHaveLength(0);
+    expect(audit[0]).toMatchObject({ action: "season_membership_status_changed", reason: null });
   });
 
   /**
@@ -569,10 +532,12 @@ describe("activateMembership — outstanding required items", () => {
       // The subscription really is unresolved — otherwise this passes vacuously.
       expect(entry.itemsResolved).toBeLessThan(entry.itemsTotal);
 
-      // No override reason, and it still goes through.
-      const outcome = await activateMembership({ actorPersonId, membershipId });
-      expect(outcome.membership.status).toBe("active");
-      expect(outcome.proceededOver).toHaveLength(0);
+      const activated = await setMembershipStatus({
+        actorPersonId,
+        membershipId,
+        status: "active",
+      });
+      expect(activated.status).toBe("active");
     } finally {
       await observer.query(
         "update public.onboarding_item_types set is_required = $2 where id = $1::uuid",
@@ -583,46 +548,78 @@ describe("activateMembership — outstanding required items", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Row 5 — the illegal transitions
+// Q-11/Q-12 — every status now reaches every other, including `archived`
 // ---------------------------------------------------------------------------
 
-describe("activateMembership — states it is not legal from", () => {
-  const illegal: MembershipStatus[] = ["active", "inactive", "departed", "archived"];
+describe("setMembershipStatus — the free ladder", () => {
+  const every: MembershipStatus[] = ["onboarding", "active", "inactive", "departed", "archived"];
 
-  for (const status of illegal) {
-    it(`refuses a \`${status}\` membership, naming the state it is in`, async () => {
-      const membershipId = await givenMembership(status);
+  for (const from of every) {
+    for (const to of every) {
+      if (from === to) continue;
+      it(`moves \`${from}\` straight to \`${to}\`, no transition table in the way`, async () => {
+        const membershipId = await givenMembership(from);
 
-      const failure = await activateMembership({
-        actorPersonId,
-        membershipId,
-        overrideReason: "trying anyway",
-      }).catch((error: unknown) => error);
+        const membership = await setMembershipStatus({ actorPersonId, membershipId, status: to });
 
-      expect(isServiceError(failure)).toBe(true);
-      expect(isServiceError(failure) && failure.kind).toBe("invalid_transition");
-      // The acceptance criterion: the message names the current state.
-      expect(isServiceError(failure) && failure.message).toContain("This membership is");
-      expect(await currentStatus(membershipId)).toBe(status);
-      expect(await auditRows(membershipId)).toHaveLength(0);
-    });
+        expect(membership.status).toBe(to);
+        expect(await currentStatus(membershipId)).toBe(to);
+      });
+    }
   }
 
+  /**
+   * `archived` was unreachable by any built path before this round — Q-11 left
+   * it that way, and Q-12 explicitly accepted a free ladder reaching it by
+   * construction as a deliberate consequence, not an oversight. Covered above
+   * in the full cross-product; called out here by name because it is the one
+   * value this suite could previously never produce through the service.
+   */
+  it("reaches `archived`, previously unreachable by any built path", async () => {
+    const membershipId = await givenMembership("onboarding");
+    const membership = await setMembershipStatus({
+      actorPersonId,
+      membershipId,
+      status: "archived",
+    });
+    expect(membership.status).toBe("archived");
+  });
+
+  it("never records a reason, on any transition", async () => {
+    const membershipId = await givenMembership("active");
+    await setMembershipStatus({ actorPersonId, membershipId, status: "departed" });
+    expect((await statusEvents(membershipId)).at(-1)?.reason).toBeNull();
+    expect((await auditRows(membershipId))[0].reason).toBeNull();
+  });
+
+  it("is a no-op — no event, no audit row — when the requested status is already current", async () => {
+    const membershipId = await givenMembership("active");
+
+    const membership = await setMembershipStatus({ actorPersonId, membershipId, status: "active" });
+
+    expect(membership.status).toBe("active");
+    expect(await statusEvents(membershipId)).toHaveLength(1); // only the creation event
+    expect(await auditRows(membershipId)).toHaveLength(0);
+  });
+
   it("refuses a membership that does not exist", async () => {
-    const failure = await activateMembership({
+    const failure = await setMembershipStatus({
       actorPersonId,
       membershipId: "00000000-0000-4000-8000-000000000000",
+      status: "active",
     }).catch((error: unknown) => error);
 
     expect(isServiceError(failure) && failure.kind).toBe("not_found");
   });
 
-  it("refuses an activation that names no operator, before touching the database", async () => {
+  it("refuses a change that names no operator, before touching the database", async () => {
     const membershipId = await givenMembership("onboarding");
 
-    const failure = await activateMembership({ actorPersonId: "  ", membershipId }).catch(
-      (error: unknown) => error,
-    );
+    const failure = await setMembershipStatus({
+      actorPersonId: "  ",
+      membershipId,
+      status: "active",
+    }).catch((error: unknown) => error);
 
     expect(isServiceError(failure) && failure.rule).toBe("audit_events_has_an_actor");
     expect(await currentStatus(membershipId)).toBe("onboarding");
@@ -630,109 +627,70 @@ describe("activateMembership — states it is not legal from", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Row 9 — active ⇄ inactive, register D1
+// The one place a free ladder can still fail — the dated-field checks
 // ---------------------------------------------------------------------------
 
-describe("active ⇄ inactive", () => {
-  it("records the stint's end with a reason, in both streams", async () => {
-    const membershipId = await givenMembership("active");
+describe("setMembershipStatus — the surviving database checks", () => {
+  it("dates `departed` in the same write, whatever status it came from", async () => {
+    for (const from of ["onboarding", "active", "inactive", "archived"] as MembershipStatus[]) {
+      const membershipId = await givenMembership(from);
 
-    const membership = await setMembershipInactive({
-      actorPersonId,
-      membershipId,
-      reason: "Stepped away for term",
-    });
+      await setMembershipStatus({ actorPersonId, membershipId, status: "departed" });
 
-    expect(membership.status).toBe("inactive");
-    expect(membership.inactivityLabel).toBe("Stepped away for term");
-    expect((await statusEvents(membershipId)).at(-1)).toMatchObject({
-      from_status: "active",
-      to_status: "inactive",
-      reason: "Stepped away for term",
-    });
-    expect((await auditRows(membershipId))[0]).toMatchObject({
-      action: "season_membership_made_inactive",
-      actor_person_id: actorPersonId,
-      from_state: "active",
-      to_state: "inactive",
-    });
+      const row = await observer.query<{ departed_on: Date | null }>(
+        "select departed_on from public.season_memberships where id = $1::uuid",
+        [membershipId],
+      );
+      expect(row.rows[0].departed_on, `from ${from}`).not.toBeNull();
+    }
   });
 
-  it("refuses to go inactive without a reason", async () => {
-    const membershipId = await givenMembership("active");
+  it("preserves the original `departed_on` across a return and a second departure", async () => {
+    const membershipId = await givenMembership("departed");
+    const before = await observer.query<{ departed_on: Date }>(
+      "select departed_on from public.season_memberships where id = $1::uuid",
+      [membershipId],
+    );
 
-    const failure = await setMembershipInactive({
-      actorPersonId,
-      membershipId,
-      reason: "   ",
-    }).catch((error: unknown) => error);
+    await setMembershipStatus({ actorPersonId, membershipId, status: "inactive" });
+    await setMembershipStatus({ actorPersonId, membershipId, status: "departed" });
 
-    expect(isServiceError(failure) && failure.rule).toBe("membership_inactivity_reason_required");
-    expect(await currentStatus(membershipId)).toBe("active");
+    const after = await observer.query<{ departed_on: Date }>(
+      "select departed_on from public.season_memberships where id = $1::uuid",
+      [membershipId],
+    );
+    expect(after.rows[0].departed_on.toISOString()).toBe(before.rows[0].departed_on.toISOString());
   });
 
-  it("brings an inactive membership back, clearing the label", async () => {
+  it("preserves the original `activated_on` across a departure and a return, same as before", async () => {
+    const membershipId = await givenMembership("active");
+    const before = await observer.query<{ activated_on: Date }>(
+      "select activated_on from public.season_memberships where id = $1::uuid",
+      [membershipId],
+    );
+
+    await setMembershipStatus({ actorPersonId, membershipId, status: "inactive" });
+    await setMembershipStatus({ actorPersonId, membershipId, status: "active" });
+
+    const after = await observer.query<{ activated_on: Date }>(
+      "select activated_on from public.season_memberships where id = $1::uuid",
+      [membershipId],
+    );
+    expect(after.rows[0].activated_on.toISOString()).toBe(
+      before.rows[0].activated_on.toISOString(),
+    );
+  });
+
+  it("clears a stale inactivity label once the membership leaves `inactive`", async () => {
     const membershipId = await givenMembership("inactive");
     await observer.query(
       "update public.season_memberships set inactivity_label = 'Away' where id = $1::uuid",
       [membershipId],
     );
 
-    const membership = await reactivateMembership({
-      actorPersonId,
-      membershipId,
-      reason: "Back after Christmas",
-    });
+    const membership = await setMembershipStatus({ actorPersonId, membershipId, status: "active" });
 
-    expect(membership.status).toBe("active");
     expect(membership.inactivityLabel).toBeNull();
-    expect((await statusEvents(membershipId)).at(-1)).toMatchObject({
-      from_status: "inactive",
-      to_status: "active",
-      reason: "Back after Christmas",
-    });
-  });
-
-  it("is one membership carrying the gap, not two records", async () => {
-    // Register D1's stated case, end to end.
-    const membershipId = await givenMembership("active");
-    await setMembershipInactive({ actorPersonId, membershipId, reason: "Quit in November" });
-    await reactivateMembership({ actorPersonId, membershipId, reason: "Back in February" });
-
-    const memberships = await observer.query<{ count: string }>(
-      `select count(*)::text as count from public.season_memberships
-        where person_id = (select person_id from public.season_memberships where id = $1::uuid)
-          and season_id = $2::uuid`,
-      [membershipId, openSeasonId],
-    );
-    expect(memberships.rows[0].count).toBe("1");
-    expect(await statusEvents(membershipId)).toHaveLength(3);
-  });
-
-  const notInactivatable: MembershipStatus[] = ["onboarding", "departed"];
-  for (const status of notInactivatable) {
-    it(`refuses to make a \`${status}\` membership inactive`, async () => {
-      const membershipId = await givenMembership(status);
-
-      const failure = await setMembershipInactive({
-        actorPersonId,
-        membershipId,
-        reason: "no",
-      }).catch((error: unknown) => error);
-
-      expect(isServiceError(failure) && failure.kind).toBe("invalid_transition");
-      expect(await currentStatus(membershipId)).toBe(status);
-    });
-  }
-
-  it("refuses to reactivate a membership that is not inactive", async () => {
-    const membershipId = await givenMembership("active");
-
-    const failure = await reactivateMembership({ actorPersonId, membershipId }).catch(
-      (error: unknown) => error,
-    );
-
-    expect(isServiceError(failure) && failure.kind).toBe("invalid_transition");
   });
 });
 
@@ -1068,75 +1026,42 @@ describe("listCurrentSeasonRoster", () => {
 });
 
 // ---------------------------------------------------------------------------
-// The transition table itself
-// ---------------------------------------------------------------------------
-
-describe("the transition table", () => {
-  it("names only transitions the frozen model gives this slice", async () => {
-    expect(
-      MEMBERSHIP_TRANSITIONS.map((transition) => `${transition.from}→${transition.to}`),
-    ).toEqual(["onboarding→active", "active→inactive", "inactive→active"]);
-  });
-
-  it("attributes every remaining transition to the operator, not the system", async () => {
-    // LAN-182 removed the one system step there was. `confirmed → onboarding`
-    // described a membership moving out of a state that no longer exists, and
-    // a membership now starts at `onboarding` — so there is nothing left for
-    // the system to author, and every transition has a person behind it.
-    expect(MEMBERSHIP_TRANSITIONS.filter((transition) => transition.system)).toEqual([]);
-  });
-
-  it("contains no departure or archival — those are outside the slice", async () => {
-    const terminal = ["departed", "archived"];
-    expect(MEMBERSHIP_TRANSITIONS.some((transition) => terminal.includes(transition.to))).toBe(
-      false,
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
 // Row 13 — nothing half-written
 // ---------------------------------------------------------------------------
 
 describe("atomicity", () => {
-  it("leaves no transition, no audit row and no status change when activation is refused", async () => {
-    const membershipId = await givenMembership("archived");
-
-    await activateMembership({ actorPersonId, membershipId }).catch(() => null);
-
-    expect(await currentStatus(membershipId)).toBe("archived");
-    expect(await statusEvents(membershipId)).toHaveLength(1);
-    expect(await auditRows(membershipId)).toHaveLength(0);
-  });
-
   /**
    * The `for update` row lock in `lockMembership`, which nothing held to its
    * claim until independent review removed it and watched the whole suite stay
    * green — while two concurrent activations wrote two `onboarding → active`
    * events and two audit rows for a transition that happened once.
    *
-   * `season_membership_status_events` has no unique constraint to fall back on,
-   * so the lock is the only thing standing between two Exec/GM operators — or
-   * one operator with two tabs — and a corrupted audit history.
+   * With the transition table gone the loser no longer gets refused — it reads
+   * `active` (whatever the winner just wrote) and the no-op path returns
+   * successfully rather than throwing. That is a real, deliberate change from
+   * the old behaviour, and the assertion below is written for it: both calls
+   * resolve, but the lock still keeps the history to exactly one event and one
+   * audit row, because the loser's own read happens only after the winner's
+   * write commits.
    */
-  it("records one activation, not two, when two operators activate at once", async () => {
+  it("records one status change, not two, when two operators change status at once", async () => {
     const membershipId = await givenMembership("onboarding");
     await settleRequiredItems(membershipId);
 
     const outcomes = await Promise.allSettled([
-      activateMembership({ actorPersonId, membershipId }),
-      activateMembership({ actorPersonId, membershipId }),
+      setMembershipStatus({ actorPersonId, membershipId, status: "active" }),
+      setMembershipStatus({ actorPersonId, membershipId, status: "active" }),
     ]);
 
-    // Exactly one wins; the loser reads `active` and is refused by the rule
-    // that already exists.
-    expect(outcomes.filter((each) => each.status === "fulfilled")).toHaveLength(1);
+    expect(outcomes.every((each) => each.status === "fulfilled")).toBe(true);
     expect(await currentStatus(membershipId)).toBe("active");
 
     const events = await statusEvents(membershipId);
     expect(events.filter((event) => event.to_status === "active")).toHaveLength(1);
     expect(
-      (await auditRows(membershipId)).filter((row) => row.action === "season_membership_activated"),
+      (await auditRows(membershipId)).filter(
+        (row) => row.action === "season_membership_status_changed",
+      ),
     ).toHaveLength(1);
   });
 
@@ -1146,13 +1071,13 @@ describe("atomicity", () => {
 
     await expect(
       withTransaction(async () => {
-        await activateMembership({ actorPersonId, membershipId });
-        throw new Error("the caller failed after the activation succeeded");
+        await setMembershipStatus({ actorPersonId, membershipId, status: "active" });
+        throw new Error("the caller failed after the change succeeded");
       }),
-    ).rejects.toThrow("the caller failed after the activation succeeded");
+    ).rejects.toThrow("the caller failed after the change succeeded");
 
-    // Read from outside: the nested activation joined the caller's transaction,
-    // so the rollback took it too.
+    // Read from outside: the nested change joined the caller's transaction, so
+    // the rollback took it too.
     expect(await currentStatus(membershipId)).toBe("onboarding");
     expect(await statusEvents(membershipId)).toHaveLength(1);
   });

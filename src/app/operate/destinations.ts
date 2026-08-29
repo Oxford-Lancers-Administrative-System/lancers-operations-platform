@@ -12,10 +12,19 @@ import { isNarrowAttendanceRecorder, roleCodesPermit } from "@/lib/auth/capabili
  * `capability` is what the destination *requires*, read from the capability map
  * rather than restated here:
  *
- *   * Roster and Events are ordinary operator surfaces (§ 8, first row). Any
- *     linked active operator opens them; the privileged actions *inside* them —
+ *   * Events is an ordinary operator surface (§ 8, first row). Any linked
+ *     active operator opens it; the privileged actions *inside* it —
  *     activation, approval — are guarded individually by the issues that build
  *     them.
+ *
+ *   * Roster stopped being ordinary on 2026-08-28 (LAN-186, `Q-4`,
+ *     `REQ-authority`): "Four-role only, for the grid and every column on it."
+ *     The redesigned board carries season-editing controls and restricted
+ *     categories no coaching seat or single-purpose committee role should
+ *     reach, so it now requires `person_record_authority` — the same four
+ *     offices plus the administrative seat LAN-183 already gates the full
+ *     person record behind. `/operate/roster/[membershipId]` is unchanged by
+ *     this package (LAN-187's), and stays open to any linked operator.
  *
  *   * Report is not ordinary. § 8 restricts it to an "authorized report
  *     operator" and does not say who that is, so `leadership_report` was an
@@ -39,7 +48,11 @@ export interface Destination {
 }
 
 export const DESTINATIONS: readonly Destination[] = Object.freeze([
-  Object.freeze({ href: "/operate/roster", label: "Roster", capability: null }),
+  Object.freeze({
+    href: "/operate/roster",
+    label: "Roster",
+    capability: "person_record_authority" as CapabilityKey,
+  }),
   Object.freeze({ href: "/operate/events", label: "Events", capability: null }),
   Object.freeze({
     href: "/operate/report",

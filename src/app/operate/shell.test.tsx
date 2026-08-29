@@ -369,12 +369,15 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     await expect(OperatePage()).rejects.toThrow("REDIRECT:/operate/roster");
   });
 
-  it("opens on the same first destination for an operator holding no role", async () => {
-    // Roster is an ordinary operator surface, so an unroled operator still has
-    // somewhere to land. The shell is not role-gated; the actions are.
+  it("opens on the first destination an unroled operator actually holds", async () => {
+    // Roster stopped being an ordinary operator surface on 2026-08-28
+    // (LAN-186, `Q-4`): "Four-role only, for the grid and every column on
+    // it." An unroled operator's first permitted destination is now Events —
+    // the shell is not role-gated, but Roster's own capability is, and the
+    // redirect follows what is actually open rather than a fixed default.
     givenAccess({ state: "active", operator: actor([]) });
 
-    await expect(OperatePage()).rejects.toThrow("REDIRECT:/operate/roster");
+    await expect(OperatePage()).rejects.toThrow("REDIRECT:/operate/events");
   });
 
   it("shows the same destinations to an operator who holds no role", async () => {
@@ -397,10 +400,10 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     expect(container.innerHTML.toLowerCase()).not.toContain("president");
   });
 
-  it("renders each destination for any active operator", async () => {
-    givenAccess({ state: "active", operator: actor([]) });
-    expect(render(await RosterPage(rosterProps())).container.textContent).toContain("Roster");
-
+  it("renders each ordinary destination for any active operator", async () => {
+    // Roster is no longer one of them (LAN-186, `Q-4`) — its own describe
+    // block below proves that boundary; this covers the destinations that
+    // remain ordinary.
     givenAccess({ state: "active", operator: actor([]) });
     expect(render(await EventsPage(eventsProps())).container.textContent).toContain("Events");
   });
@@ -474,8 +477,10 @@ describe("row 14 — an operator with no relevant role is refused, and told what
 
     render(await ReportPage(reportProps()));
 
+    // Events, not Roster — Roster now requires `person_record_authority`
+    // (LAN-186, `Q-4`), which this unroled operator does not hold.
     const back = screen.getByRole("link", { name: "Return to an authorized area" });
-    expect(back).toHaveAttribute("href", "/operate/roster");
+    expect(back).toHaveAttribute("href", "/operate/events");
   });
 });
 

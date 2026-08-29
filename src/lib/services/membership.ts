@@ -24,21 +24,25 @@ import { escapeLikePattern, personDisplayAliasSql } from "./sql-text";
  * a player operationally ready. Two different questions, two different sets of
  * rules, and only one of them is privileged.
  *
- * ## The transitions, and where the model puts each one
+ * ## The transitions — a free ladder, LAN-186's owner walkthrough
  *
- * Frozen model §2.1 gives activation two steps, and they have different
- * authors:
+ * There is no transition table any more. `MEMBERSHIP_TRANSITIONS` and
+ * `transitionIsLegal` were removed on Brian's explicit decision at the
+ * walkthrough of `feat/lan-186-roster-board`, recorded verbatim as `Q-12` in
+ * the `M-PEOPLE-AND-ROSTER` mission journal: "Okay, then we just remove it. We
+ * can flip to whatever status we want to go in." Any of the five statuses may
+ * become any other, `archived` included — a status a membership could
+ * previously never reach by any built path. Nothing asks a reason and nothing
+ * confirms first (a warn-only confirmation on `onboarding → active` was
+ * proposed and then withdrawn in the same walkthrough, journal event 132's
+ * correction).
  *
- *   * `confirmed → onboarding` is **created by the system on confirmation** —
- *     "onboarding items generated for the season". No operator chooses it.
- *   * `onboarding → active` is triggered by an **operator declaring the player
- *     operationally ready (required item set met or consciously waived)**, and
- *     the permitted actor is **Exec/GM only**.
- *
- * `docs/architecture/data-model.md` § _Rules deliberately left to TypeScript_
- * puts legal transitions and who may trigger them above the database, so the
- * table below is data rather than a chain of `if`s, exactly as `events.ts`
- * does it. A pair not in the table is refused.
+ * What still governs a flip is not legality but two dated-field checks the
+ * database itself enforces and this module honours rather than renegotiates —
+ * see `setMembershipStatus()`. `season_membership_status_events` stays the
+ * complete, append-only record of every flip regardless of the sequence, which
+ * is what Brian's own test for the decision asked for: "We can still get an
+ * audit history to know what happened, right?"
  *
  * ## The one interpretation this module makes, and why
  *
@@ -80,10 +84,6 @@ import { escapeLikePattern, personDisplayAliasSql } from "./sql-text";
  * a test proves an unpaid subscription does not appear in the outstanding set.
  */
 
-// ---------------------------------------------------------------------------
-// The transition table
-// ---------------------------------------------------------------------------
-
 /**
  * `public.membership_status`, in the ladder's own order.
  *
@@ -98,57 +98,14 @@ import { escapeLikePattern, personDisplayAliasSql } from "./sql-text";
  */
 export type MembershipStatus = "onboarding" | "active" | "inactive" | "departed" | "archived";
 
-/** The transitions this slice performs. Anything absent is refused. */
-export interface MembershipTransition {
-  from: MembershipStatus;
-  to: MembershipStatus;
-  /**
-   * True when the frozen model attributes the step to the system rather than
-   * to the operator who happened to trigger it. Recorded in the status event's
-   * reason so the history says which of the two it was.
-   */
-  system: boolean;
-}
-
-export const MEMBERSHIP_TRANSITIONS: readonly MembershipTransition[] = Object.freeze([
-  Object.freeze({ from: "onboarding", to: "active", system: false }),
-  // Register D1: the club's normal case. One membership whose history carries
-  // the gap, never a second record.
-  Object.freeze({ from: "active", to: "inactive", system: false }),
-  Object.freeze({ from: "inactive", to: "active", system: false }),
-]) as readonly MembershipTransition[];
-
-/**
- * The statuses activation may start from.
- *
- * One, since LAN-182. It used to be two because a membership could sit at
- * `confirmed` before onboarding began; now every membership starts at
- * `onboarding`, so there is nowhere else to activate from.
- */
-const ACTIVATABLE_FROM: readonly MembershipStatus[] = Object.freeze([
+/** Every value the ladder holds, in the order the board and every filter offer them. */
+export const MEMBERSHIP_STATUSES: readonly MembershipStatus[] = Object.freeze([
   "onboarding",
+  "active",
+  "inactive",
+  "departed",
+  "archived",
 ]) as readonly MembershipStatus[];
-
-/**
- * How a refusal names the state the membership is actually in.
- *
- * The acceptance criterion asks for "a message naming the current state", so
- * every one of these is a sentence an operator can act on rather than an enum
- * value leaking onto the screen.
- */
-const STATE_NAMES: Readonly<Record<MembershipStatus, string>> = Object.freeze({
-  onboarding: "working through onboarding",
-  active: "already active",
-  inactive: "inactive",
-  departed: "departed",
-  archived: "archived",
-});
-
-/** "This membership is departed." — the half of a refusal that says why. */
-export function describeMembershipState(status: MembershipStatus | string): string {
-  const name = STATE_NAMES[status as MembershipStatus] ?? status;
-  return `This membership is ${name}.`;
-}
 
 // ---------------------------------------------------------------------------
 // Onboarding items
@@ -692,11 +649,11 @@ const requireActor = actorRequirement("A membership change has to name the opera
  * Locks the membership row for the rest of the transaction and returns its
  * current status.
  *
- * `for update` rather than a plain read: two operators pressing Activate at the
- * same moment would otherwise both see `onboarding`, both pass the transition
- * check and both write an `onboarding → active` event, leaving a history that
- * claims the same transition happened twice. The lock makes the second one read
- * `active` and be refused by the rule that already exists.
+ * `for update` rather than a plain read: two operators changing status at the
+ * same moment would otherwise both read the same starting status and both
+ * write a status event for it, leaving a history that claims the same flip
+ * happened twice. The lock serialises the second one onto whatever the first
+ * actually left behind.
  */
 async function lockMembership(
   tx: Tx,
@@ -714,12 +671,6 @@ async function lockMembership(
     throw new NotFound(MEMBERSHIP_NOT_FOUND_MESSAGE, { rule: "season_memberships_not_found" });
   }
   return { status: row.status, seasonId: row.season_id };
-}
-
-function transitionIsLegal(from: MembershipStatus, to: MembershipStatus): boolean {
-  return MEMBERSHIP_TRANSITIONS.some(
-    (transition) => transition.from === from && transition.to === to,
-  );
 }
 
 async function recordStatusEvent(
@@ -740,276 +691,90 @@ async function recordStatusEvent(
   );
 }
 
-export interface ActivationOutcome {
-  membership: MembershipRecord;
-  /** The required items that were outstanding when the operator proceeded. */
-  proceededOver: OnboardingItem[];
-}
-
 /**
- * Thrown when required items are outstanding and the operator has not yet said
- * to proceed. UX-22 is the screen that answers it.
+ * Sets a membership's status to any other value in the ladder — there is no
+ * legal-transition check any more, `archived` included, and no reason is
+ * asked. `Q-12`, verbatim: "Okay, then we just remove it. We can flip to
+ * whatever status we want to go in."
  *
- * A distinct `rule` rather than a message match, so the screen can tell "you
- * need to confirm an override" apart from "this membership cannot be activated
- * at all" without reading English.
- */
-export const ACTIVATION_NEEDS_OVERRIDE_RULE = "activation_requires_override_reason";
-
-/**
- * `onboarding → active` — the operator declaring a player operationally ready.
- *
- * **Authorization is not here.** It is `requireCapability("membership_activation")`
+ * **Authorization is not here.** It is `requireCapability("person_record_authority")`
  * in the server action, which resolves the actor from the verified session; a
  * service that took "who am I" as an argument would believe whatever it was
  * told. `actorPersonId` is the already-verified operator, and this function's
- * job is the domain rule, not the boundary. `src/lib/services/README.md` rule 1.
+ * job is the write, not the boundary. `src/lib/services/README.md` rule 1.
  *
- * Everything below commits together: the system's `confirmed → onboarding` step
- * where one is needed, the operator's `onboarding → active` step, the
- * membership row itself and the audit record. A failure at any statement leaves
- * the membership exactly as it was, with no half-written history.
+ * Two things still happen on the way through, and neither is a gate:
  *
- * ## Outstanding required items do not block, they ask
+ *   * **Flipping to `active` seeds onboarding items when none exist yet** —
+ *     belt and braces for a membership confirmed before onboarding items
+ *     existed, or reached `active` by any path that never generated them.
+ *     `generateOnboardingItems()` is idempotent, so the ordinary case (items
+ *     already there) inserts nothing. Outstanding required items are never
+ *     asked about — they simply carry on being outstanding, visible on the
+ *     record, exactly as any other season fact would be.
+ *   * **The two dated-field checks the database itself enforces are honoured,
+ *     not renegotiated**: `season_memberships_activation_is_dated` (`active`
+ *     needs `activated_on`) and `season_memberships_departure_is_dated`
+ *     (`departed` needs `departed_on`). Both use the same
+ *     `coalesce(existing, current_date)` pattern, so flipping out of and back
+ *     into either status preserves the original date rather than resetting it
+ *     on every visit.
  *
- * The frozen model's activation trigger is "required item set met **or
- * consciously waived**", and the acceptance criterion is explicit that
- * activation with outstanding items "is possible and records that the operator
- * proceeded". So an outstanding required item is refused *once*, with
- * `ACTIVATION_NEEDS_OVERRIDE_RULE`, and accepted as soon as the operator
- * supplies a reason — which is written to both the status event and the audit
- * row. It is a confirmation step, never a veto.
- *
- * An unpaid subscription is not in the outstanding set at all. See
- * `outstandingFrom()`.
+ * A membership already at the requested status is a no-op: writing a
+ * from-equals-to row is refused by `season_membership_status_events_is_a_change`,
+ * and there is nothing to change. Everything below commits together — the
+ * status event, the membership row and the audit record — so a failure at any
+ * statement leaves the membership exactly as it was, with no half-written
+ * history.
  */
-export async function activateMembership(params: {
+export async function setMembershipStatus(params: {
   actorPersonId: string;
   membershipId: string;
-  /** Required only when required items are outstanding. */
-  overrideReason?: string | null;
-}): Promise<ActivationOutcome> {
-  const { actorPersonId, membershipId } = params;
+  status: MembershipStatus;
+}): Promise<MembershipRecord> {
+  const { actorPersonId, membershipId, status } = params;
   requireActor(actorPersonId);
-  const overrideReason = optional(params.overrideReason);
 
   return withTransaction(async (tx) => {
-    const { status, seasonId } = await lockMembership(tx, membershipId);
+    const { status: current, seasonId } = await lockMembership(tx, membershipId);
+    if (current === status) return readMembershipIn(tx, membershipId);
 
-    if (!ACTIVATABLE_FROM.includes(status)) {
-      throw new InvalidTransition(
-        `${describeMembershipState(status)} Only a membership working through onboarding ` +
-          "can be activated.",
-        { rule: "membership_activation_illegal_from_state" },
-      );
+    if (status === "active") {
+      await generateOnboardingItems(tx, membershipId, seasonId);
     }
 
-    // Belt and braces for a membership confirmed before this issue shipped, or
-    // by any path that did not generate them. Idempotent, so the ordinary case
-    // — items already generated at confirmation — inserts nothing.
-    await generateOnboardingItems(tx, membershipId, seasonId);
+    await recordStatusEvent(tx, { membershipId, from: current, to: status, actorPersonId });
 
-    const items = await readOnboardingItems(tx, membershipId);
-    const outstanding = outstandingFrom(items);
-
-    if (outstanding.length > 0 && overrideReason === null) {
-      throw new ConstraintViolated(
-        `${outstanding.length === 1 ? "One required onboarding item is" : `${outstanding.length} required onboarding items are`} ` +
-          `still outstanding: ${outstanding.map((item) => item.label).join(", ")}. ` +
-          "Activation is still allowed — give a reason for proceeding and it will be recorded.",
-        { rule: ACTIVATION_NEEDS_OVERRIDE_RULE },
-      );
-    }
-
-    // There is no `confirmed → onboarding` system step to write any more. Under
-    // the five-value ladder a membership is created at `onboarding`, so the step
-    // this used to record has already happened by the time anybody can activate.
-
-    if (!transitionIsLegal("onboarding", "active")) {
-      throw new InvalidTransition(describeMembershipState(status), {
-        rule: "membership_transition_not_permitted",
-      });
-    }
-
-    // Keyed on what was actually outstanding, not on whether a reason arrived.
-    // The dialog only appears when something is outstanding, but a direct POST
-    // can carry a reason regardless — and a history that says "activated with
-    // outstanding required onboarding" beside an empty
-    // `proceeded_over_outstanding` is a record asserting something that did not
-    // happen. Found by independent review.
-    const reason =
-      outstanding.length === 0
-        ? overrideReason === null
-          ? "Operator declared the player operationally ready."
-          : `Operator declared the player operationally ready: ${overrideReason}`
-        : `Activated with outstanding required onboarding: ${overrideReason}`;
-
-    await recordStatusEvent(tx, {
-      membershipId,
-      from: "onboarding",
-      to: "active",
-      actorPersonId,
-      reason,
-    });
-
-    // `season_memberships_activation_is_dated` requires the date, and
-    // `current_date` comes from the database so every date in one transaction
-    // agrees. `coalesce` keeps the original activation date if this membership
-    // has ever been active before.
+    // `inactivity_label` is the schema's own optional, non-medical home for why
+    // a membership went inactive — and, since no path collects a reason any
+    // more, nothing ever writes a fresh one here. It is cleared on leaving
+    // `inactive` so a stale reason from a past stint never survives a flip
+    // through some other status and back.
     await tx.query(
       `update public.season_memberships
-          set status = 'active',
-              activated_on = coalesce(activated_on, current_date),
-              inactivity_label = null,
+          set status = $2::public.membership_status,
+              activated_on = case when $2 = 'active'
+                then coalesce(activated_on, current_date) else activated_on end,
+              departed_on = case when $2 = 'departed'
+                then coalesce(departed_on, current_date) else departed_on end,
+              inactivity_label = case when $2 = 'inactive' then inactivity_label else null end,
               updated_at = now()
         where id = $1::uuid`,
-      [membershipId],
+      [membershipId, status],
     );
 
     await recordAudit(tx, {
       actorPersonId,
-      action: "season_membership_activated",
+      action: "season_membership_status_changed",
       entityTable: "season_memberships",
       entityId: membershipId,
-      fromState: status,
-      toState: "active",
-      reason,
+      fromState: current,
+      toState: status,
+      reason: null,
       context: {
-        issue: "LAN-75",
-        proceeded_over_outstanding: outstanding.map((item) => item.code),
-        override_reason: overrideReason,
+        issue: "LAN-186",
         // Register D9: the transitions live in the typed table. This names
         // where to read them rather than restating them.
-        transitions_recorded_in: "season_membership_status_events",
-      },
-    });
-
-    return {
-      membership: await readMembershipIn(tx, membershipId),
-      proceededOver: outstanding,
-    };
-  });
-}
-
-/**
- * `active → inactive` and `inactive → active` — register D1's normal case.
- *
- * "He was out from November to February" is one membership whose status history
- * carries the gap, never two records, so both directions write their own status
- * event and neither rewrites the other. `inactivity_label` is the schema's own
- * optional, non-medical home for why; *why somebody cannot play* is
- * availability's job and is not recorded here.
- */
-export async function setMembershipInactive(params: {
-  actorPersonId: string;
-  membershipId: string;
-  reason: string;
-}): Promise<MembershipRecord> {
-  const { actorPersonId, membershipId } = params;
-  requireActor(actorPersonId);
-  const reason = optional(params.reason);
-
-  if (reason === null) {
-    throw new ConstraintViolated("Say why this membership is going inactive.", {
-      rule: "membership_inactivity_reason_required",
-    });
-  }
-
-  return withTransaction(async (tx) => {
-    const { status } = await lockMembership(tx, membershipId);
-
-    if (!transitionIsLegal(status, "inactive")) {
-      throw new InvalidTransition(
-        `${describeMembershipState(status)} Only an active membership can be made inactive.`,
-        { rule: "membership_transition_not_permitted" },
-      );
-    }
-
-    await recordStatusEvent(tx, {
-      membershipId,
-      from: status,
-      to: "inactive",
-      actorPersonId,
-      reason,
-    });
-
-    await tx.query(
-      `update public.season_memberships
-          set status = 'inactive', inactivity_label = $2, updated_at = now()
-        where id = $1::uuid`,
-      [membershipId, reason],
-    );
-
-    await recordAudit(tx, {
-      actorPersonId,
-      action: "season_membership_made_inactive",
-      entityTable: "season_memberships",
-      entityId: membershipId,
-      fromState: status,
-      toState: "inactive",
-      reason,
-      context: {
-        issue: "LAN-75",
-        transitions_recorded_in: "season_membership_status_events",
-      },
-    });
-
-    return readMembershipIn(tx, membershipId);
-  });
-}
-
-/**
- * `inactive → active`. Deliberately not `activateMembership()`: returning after
- * a break is not a fresh declaration of operational readiness, and re-asking
- * about onboarding items that were settled in September would be noise.
- */
-export async function reactivateMembership(params: {
-  actorPersonId: string;
-  membershipId: string;
-  reason?: string | null;
-}): Promise<MembershipRecord> {
-  const { actorPersonId, membershipId } = params;
-  requireActor(actorPersonId);
-  const reason = optional(params.reason) ?? "Back from a period of inactivity.";
-
-  return withTransaction(async (tx) => {
-    const { status } = await lockMembership(tx, membershipId);
-
-    if (status !== "inactive" || !transitionIsLegal(status, "active")) {
-      throw new InvalidTransition(
-        `${describeMembershipState(status)} Only an inactive membership can be brought back.`,
-        { rule: "membership_transition_not_permitted" },
-      );
-    }
-
-    await recordStatusEvent(tx, {
-      membershipId,
-      from: "inactive",
-      to: "active",
-      actorPersonId,
-      reason,
-    });
-
-    await tx.query(
-      `update public.season_memberships
-          set status = 'active',
-              activated_on = coalesce(activated_on, current_date),
-              inactivity_label = null,
-              updated_at = now()
-        where id = $1::uuid`,
-      [membershipId],
-    );
-
-    await recordAudit(tx, {
-      actorPersonId,
-      action: "season_membership_reactivated",
-      entityTable: "season_memberships",
-      entityId: membershipId,
-      fromState: "inactive",
-      toState: "active",
-      reason,
-      context: {
-        issue: "LAN-75",
         transitions_recorded_in: "season_membership_status_events",
       },
     });

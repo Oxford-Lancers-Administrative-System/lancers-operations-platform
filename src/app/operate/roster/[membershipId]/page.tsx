@@ -18,12 +18,7 @@ import {
   type OnboardingItem,
 } from "@/lib/services/membership";
 import { gateShellPage } from "../../gate";
-import {
-  ActivateMembershipForm,
-  DeactivateMembershipForm,
-  OnboardingItemForm,
-  ReactivateMembershipForm,
-} from "../membership-actions";
+import { MembershipStatusControl, OnboardingItemForm } from "../membership-actions";
 import {
   ENTRY_LABELS,
   formatDay,
@@ -36,16 +31,19 @@ import {
 
 /**
  * `/operate/roster/[membershipId]` — UX-21, the membership record, with UX-13's
- * confirmation still on it and UX-22 reached from its primary action.
+ * confirmation still on it. UX-22's override dialog is gone — LAN-186's owner
+ * walkthrough replaced it, and every other transition control this record used
+ * to carry, with the single free-form status control `MembershipStatusControl`
+ * defines once.
  *
- * ## Three screens, one route, and why that is right
+ * ## Two screens, one route, and why that is right
  *
- * The approved registry puts UX-13 ("Returning player added"), UX-21 (the
- * record) and UX-22 (activation with outstanding onboarding) at this same
- * route. They are not three pages: UX-13 is this record with a confirmation
- * banner, and UX-22 is a decision taken from it. LAN-74 built the first;
- * LAN-75 builds the record underneath it and the transition out of it, and
- * keeps UX-13's behaviour exactly as it was accepted.
+ * The approved registry puts UX-13 ("Returning player added") and UX-21 (the
+ * record) at this same route. They are not two pages: UX-13 is this record
+ * with a confirmation banner. LAN-74 built the first; LAN-75 built the record
+ * underneath it, and LAN-186 simplified the transition out of it to a plain
+ * select — `Q-12`, verbatim: "We can flip to whatever status we want to go
+ * in."
  *
  * `?created=1` keeps the success state a real, linkable, refreshable page
  * rather than a message that vanishes on reload — which matters because the
@@ -55,20 +53,21 @@ import {
  * submission. A confirmation that echoes what was typed can tell you a write
  * succeeded when it did not.
  *
- * ## Who sees the transition controls
+ * ## Who sees the status control
  *
  * Reading a membership is ordinary operator work, so the page gates on nothing
- * beyond a linked, active operator. Activation is Exec/GM, so the activation
- * and inactivity controls render only for an operator holding
- * `membership_activation` — and that is presentation only. The actions behind
- * them call `requireCapability` themselves, so a request that never rendered
- * this page is refused identically. A hidden button is a courtesy; the boundary
- * is in the action.
+ * beyond a linked, active operator — wider than the status boundary itself, so
+ * this flag cannot be skipped as redundant. The control renders only for an
+ * operator holding `person_record_authority`, the same grant
+ * `setMembershipStatusAction` requires (RVW-186-001) — and that is presentation
+ * only. The action behind it calls `requireCapability` itself, so a request
+ * that never rendered this page is refused identically. A hidden control is a
+ * courtesy, kept in step with the real boundary so it never offers a control
+ * that would simply fail; the boundary itself is in the action.
  *
  * Resolving an onboarding item is deliberately not privileged. UX-21's audience
- * is "Authorized roster operator" and only UX-22's is "Exec or GM": marking the
- * kit sorted is roster work, and only the declaration of operational readiness
- * is the Exec's to make.
+ * is "Authorized roster operator": marking the kit sorted is roster work, and
+ * only changing status is the Exec's to make.
  */
 export default async function MembershipPage({
   params,
@@ -92,7 +91,7 @@ export default async function MembershipPage({
   }
 
   const justCreated = query.created === "1";
-  const mayActivate = operatorHasCapability(gate.operator, "membership_activation");
+  const mayActivate = operatorHasCapability(gate.operator, "person_record_authority");
   const { status } = membership;
 
   return (
@@ -249,47 +248,21 @@ export default async function MembershipPage({
 
         {membership.outstandingRequired.length > 0 ? (
           <Alert severity="info" sx={{ mt: 2 }} data-testid="outstanding-note">
-            {`${membership.outstandingRequired.length === 1 ? "One required item is" : `${membership.outstandingRequired.length} required items are`} still outstanding. Activation is still possible — the reason for proceeding is recorded.`}
+            {`${membership.outstandingRequired.length === 1 ? "One required item is" : `${membership.outstandingRequired.length} required items are`} still outstanding. This does not stop the membership's status from being changed.`}
           </Alert>
         ) : null}
       </Paper>
 
-      {/* The transitions this record offers, and why it offers no others. */}
+      {/* The one status control this record offers — LAN-186's owner walkthrough. */}
       <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="transitions-panel">
         <Typography variant="overline" color="text.secondary" component="h2">
           Membership status
         </Typography>
 
         {mayActivate ? (
-          <Stack spacing={2} sx={{ mt: 2, maxWidth: 480 }}>
-            {status === "onboarding" ? (
-              <>
-                <Typography variant="body2" color="text.secondary">
-                  Activation is available only to Exec/GM. Outstanding required onboarding items
-                  require an explicit recorded override; unpaid subscription is never a gate.
-                </Typography>
-                <ActivateMembershipForm
-                  membershipId={membership.membershipId}
-                  displayName={membership.displayName}
-                  outstanding={membership.outstandingRequired}
-                />
-              </>
-            ) : null}
-
-            {status === "active" ? (
-              <DeactivateMembershipForm membershipId={membership.membershipId} />
-            ) : null}
-
-            {status === "inactive" ? (
-              <ReactivateMembershipForm membershipId={membership.membershipId} />
-            ) : null}
-
-            {!["confirmed", "onboarding", "active", "inactive"].includes(status) ? (
-              <Alert severity="info" data-testid="no-transition">
-                {`This membership is ${labelFor(MEMBERSHIP_STATUS_LABELS, status).toLowerCase()}. Season close, departure and reinstatement are outside this slice.`}
-              </Alert>
-            ) : null}
-          </Stack>
+          <Box sx={{ mt: 2, maxWidth: 280 }}>
+            <MembershipStatusControl membershipId={membership.membershipId} status={status} />
+          </Box>
         ) : (
           <Alert severity="info" sx={{ mt: 2 }} data-testid="activation-not-permitted">
             Changing a membership&rsquo;s status is available only to the Exec and the General

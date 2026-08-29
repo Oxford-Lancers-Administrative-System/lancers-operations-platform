@@ -97,7 +97,7 @@ import type { EnvironmentSource } from "@/lib/delivery/config";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/delivery/whatsapp-cloud";
 import type { Transport } from "@/lib/delivery/provider";
 import { enterReturningPlayer } from "@/lib/services/roster";
-import { activateMembership } from "@/lib/services/membership";
+import { setMembershipStatus } from "@/lib/services/membership";
 import { createEventDraft, listCurrentSeasonEvents } from "@/lib/services/events";
 import { formatCsv } from "@/lib/services/csv";
 import { IMPORT_COLUMNS } from "@/lib/services/event-csv";
@@ -469,10 +469,10 @@ async function enterAndActivate(familyName: string, phone: string): Promise<Walk
     decision: { kind: "new", confirmed: true },
   });
 
-  await activateMembership({
+  await setMembershipStatus({
     actorPersonId: operator.personId,
     membershipId: intake.membershipId,
-    overrideReason: `${MARKER}: onboarding items outstanding, activated for the slice walk.`,
+    status: "active",
   });
 
   return { personId: intake.personId, membershipId: intake.membershipId, authUserId: "" };

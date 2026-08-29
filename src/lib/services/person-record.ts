@@ -442,7 +442,7 @@ export async function readPersonRecordIn(tx: Tx, personId: string): Promise<Pers
  * invariant I6.
  *
  * Returns the **full** record. Authorization is not here — the same
- * separation `membership.ts` states for `activateMembership()`: a caller
+ * separation `membership.ts` states for `setMembershipStatus()`: a caller
  * redacts with `src/lib/auth/person-authority.ts`'s `redactPersonRecord()`
  * before this reaches anybody outside the four offices. Keeping the two apart
  * means this function is testable against the database with an arbitrary role,

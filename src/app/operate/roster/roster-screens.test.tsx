@@ -1,7 +1,16 @@
 /**
- * UX-20, UX-21, UX-22 and UX-23 — LAN-75, matrix rows 11 and 12.
+ * UX-21 and UX-22 — the membership record and its activation dialog. LAN-75,
+ * matrix rows 11 and 12.
  *
- * These render the real pages with the service layer mocked, so what is under
+ * `RosterPage` (UX-20/UX-23) moved out of this file with LAN-186: the board
+ * that replaced the six-column list has its own tests in
+ * `board-screens.test.tsx`, and its search-and-filter component
+ * (`./roster-filters.tsx`) is unchanged and still covered below — it stays a
+ * live consumer of the shared `ListFilters` component
+ * (`src/app/operate/list-filters.test.tsx`) even though the board no longer
+ * uses it, and deleting it would break that outside test.
+ *
+ * These render the real page with the service layer mocked, so what is under
  * test is the screen: which facts it states, which actions it offers, and which
  * of them it offers to whom. The writes are proved against the real database in
  * `src/lib/services/membership.test.ts`, and the authorization boundary in
@@ -47,7 +56,7 @@ vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("../../login/actions", () => ({ signOut: vi.fn() }));
 vi.mock("@/lib/services/membership", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/membership")>();
-  return { ...actual, listCurrentSeasonRoster: vi.fn(), readMembership: vi.fn() };
+  return { ...actual, readMembership: vi.fn(), setMembershipStatus: vi.fn() };
 });
 
 import { NotFound } from "@/lib/db";
@@ -57,15 +66,12 @@ import {
   type ResolvedOperator,
 } from "@/lib/auth/operator";
 import {
-  listCurrentSeasonRoster,
   readMembership,
+  setMembershipStatus,
   type MembershipRecord,
   type OnboardingItem,
-  type Roster,
-  type RosterEntry,
 } from "@/lib/services/membership";
 import RosterFilters, { SEARCH_DEBOUNCE_MS } from "./roster-filters";
-import RosterPage from "./page";
 import MembershipPage from "./[membershipId]/page";
 
 const MEMBERSHIP_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
@@ -88,71 +94,6 @@ function readerOperator(): ResolvedOperator {
 
 function signedInAs(operator: ResolvedOperator): void {
   vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator });
-}
-
-function rosterProps(query: Record<string, string> = {}) {
-  return {
-    params: Promise.resolve({}),
-    searchParams: Promise.resolve(query),
-  } as unknown as Parameters<typeof RosterPage>[0];
-}
-
-const ENTRIES: RosterEntry[] = [
-  {
-    membershipId: MEMBERSHIP_ID,
-    personId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-    givenName: "Avery",
-    familyName: "Fielding",
-    displayAlias: "Avery",
-    displayName: "Avery Fielding",
-    status: "active",
-    entry: "returning",
-    email: "avery.fielding@example.invalid",
-    phone: "+44 7700 900101",
-    itemsTotal: 5,
-    itemsResolved: 5,
-    requiredOutstanding: 0,
-  },
-  {
-    membershipId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-    personId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-    givenName: "Samira",
-    familyName: "Quinn",
-    displayAlias: null,
-    displayName: "Samira Quinn",
-    status: "onboarding",
-    entry: "returning",
-    email: "samira.quinn@example.invalid",
-    phone: "+44 7700 900103",
-    itemsTotal: 5,
-    itemsResolved: 3,
-    requiredOutstanding: 2,
-  },
-  {
-    // A first-name-only person, and no contact at all — the club's real shape.
-    membershipId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
-    personId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-    givenName: "Ari",
-    familyName: null,
-    displayAlias: null,
-    displayName: "Ari",
-    status: "inactive",
-    entry: "new",
-    email: null,
-    phone: null,
-    itemsTotal: 0,
-    itemsResolved: 0,
-    requiredOutstanding: 0,
-  },
-];
-
-function givenRoster(overrides: Partial<Roster> = {}): void {
-  vi.mocked(listCurrentSeasonRoster).mockResolvedValue({
-    season: { id: "season", label: "2026-27", status: "active" },
-    entries: ENTRIES,
-    totalInSeason: ENTRIES.length,
-    ...overrides,
-  } as Roster);
 }
 
 function item(overrides: Partial<OnboardingItem> = {}): OnboardingItem {
@@ -247,175 +188,6 @@ beforeEach(() => {
 
 // ---------------------------------------------------------------------------
 
-describe("UX-20 — Roster", () => {
-  beforeEach(async () => {
-    givenRoster();
-    render(await RosterPage(rosterProps()));
-  });
-
-  it("shows the approved heading, the season and how many memberships it holds", () => {
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Roster");
-    expect(screen.getByTestId("season-label")).toHaveTextContent("Season 2026-27 · 3 memberships");
-  });
-
-  it("offers the one primary action the wireframe carries", () => {
-    expect(screen.getByRole("link", { name: "Add player" })).toHaveAttribute(
-      "href",
-      "/operate/roster/new",
-    );
-  });
-
-  it("carries the approved columns", () => {
-    const table = screen.getByRole("table", { name: "Roster" });
-    const headings = within(table)
-      .getAllByRole("columnheader")
-      .map((cell) => cell.textContent?.trim());
-    for (const column of ["Member", "Status", "Entry", "Email", "Phone", "Onboarding"]) {
-      expect(headings).toContain(column);
-    }
-  });
-
-  it("renders one row per membership, with its status in words", () => {
-    expect(screen.getAllByTestId("roster-row")).toHaveLength(3);
-
-    // Read out of the Status cell rather than searched for across the table:
-    // "Onboarding" is now both a status word and a column heading, so a plain
-    // text query is ambiguous and would pass on the wrong element.
-    const words = screen
-      .getAllByTestId("roster-row")
-      .map((row) => within(row).getAllByRole("cell")[1].textContent?.trim());
-    expect(words).toEqual(["Active", "Onboarding", "Inactive"]);
-  });
-
-  it("opens the membership record from the row", () => {
-    // The approved criterion: "activating a row opens the correct
-    // membership-detail route".
-    expect(screen.getAllByRole("link", { name: "Avery Fielding" })[0]).toHaveAttribute(
-      "href",
-      `/operate/roster/${MEMBERSHIP_ID}`,
-    );
-  });
-
-  it("states onboarding without making the operator open every record", () => {
-    const table = screen.getByRole("table", { name: "Roster" });
-    expect(within(table).getByText("Complete")).toBeInTheDocument();
-    expect(within(table).getByText("2 outstanding")).toBeInTheDocument();
-    expect(within(table).getByText("No items configured")).toBeInTheDocument();
-  });
-
-  it("shows a dash rather than an empty cell for missing contact detail", () => {
-    // 26% of the club's records are first-name-only; a blank cell reads as a
-    // rendering fault rather than as "the club does not have this".
-    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
-  });
-
-  it("offers search, status and entry filters, and sortable columns", () => {
-    expect(screen.getByTestId("roster-filters")).toBeInTheDocument();
-    expect(screen.getByLabelText("Search name or contact")).toBeInTheDocument();
-    expect(screen.getByLabelText("Status")).toBeInTheDocument();
-    expect(screen.getByLabelText("Entry")).toBeInTheDocument();
-
-    const table = screen.getByRole("table", { name: "Roster" });
-    expect(within(table).getByRole("link", { name: /Member/ })).toHaveAttribute(
-      "href",
-      expect.stringContaining("sort=name"),
-    );
-  });
-
-  it("also renders the phone card for every membership", () => {
-    // Both presentations are in this DOM because jsdom ignores breakpoints;
-    // what is assertable here is that the phone layout drops nobody.
-    expect(screen.getAllByTestId("roster-card")).toHaveLength(3);
-  });
-});
-
-describe("UX-20 — the sort links", () => {
-  it("carries the current filters through a sort, rather than clearing them", async () => {
-    givenRoster();
-    render(await RosterPage(rosterProps({ q: "Avery", status: "active" })));
-
-    const header = within(screen.getByRole("table", { name: "Roster" })).getByRole("link", {
-      name: /Status/,
-    });
-    expect(header).toHaveAttribute("href", expect.stringContaining("q=Avery"));
-    expect(header).toHaveAttribute("href", expect.stringContaining("status=active"));
-  });
-
-  it("flips the direction of the column already sorted", async () => {
-    givenRoster();
-    render(await RosterPage(rosterProps({ sort: "name", dir: "asc" })));
-
-    expect(
-      within(screen.getByRole("table", { name: "Roster" })).getByRole("link", { name: /Member/ }),
-    ).toHaveAttribute("href", expect.stringContaining("dir=desc"));
-  });
-});
-
-// ---------------------------------------------------------------------------
-
-describe("UX-23 — No memberships match these filters", () => {
-  it("uses the approved copy and offers both recoveries", async () => {
-    givenRoster({ entries: [], totalInSeason: 42 });
-    render(await RosterPage(rosterProps({ q: "nobody" })));
-
-    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(
-      "No memberships match these filters",
-    );
-    expect(screen.getByTestId("roster-filter-empty")).toHaveTextContent(
-      "The roster is available, but the current search and filter combination returned no results.",
-    );
-    expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute(
-      "href",
-      "/operate/roster",
-    );
-    expect(screen.getByRole("link", { name: "Add player" })).toBeInTheDocument();
-  });
-
-  /**
-   * The wireframe's own note: "A system-empty roster uses different copy and
-   * points to the authorized intake workflow." The recovery differs, so the
-   * sentence has to.
-   */
-  it("says something different when the season is genuinely empty", async () => {
-    givenRoster({ entries: [], totalInSeason: 0 });
-    render(await RosterPage(rosterProps()));
-
-    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(
-      "This season has no memberships yet",
-    );
-    expect(screen.getByTestId("roster-empty")).toBeInTheDocument();
-    expect(screen.queryByTestId("roster-filter-empty")).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Clear filters" })).not.toBeInTheDocument();
-  });
-
-  /**
-   * The third empty-looking state, and the one that is not an empty state at
-   * all: the service refused, so the screen knows nothing about the season.
-   *
-   * Untested until LAN-118 moved this markup into a shared `UnavailableScreen`.
-   * The refusal is only reachable when a read fails, which is precisely why it
-   * needs a test rather than a look — and why sharing it was worth doing: the
-   * three list screens that render it were each carrying their own copy.
-   *
-   * The heading level is asserted because it is the claim that is silently easy
-   * to break. At this moment it is the page's only heading, and one that came
-   * back as anything but `h1` would leave the screen unreachable by heading
-   * navigation without changing a pixel.
-   */
-  it("shows the service's own sentence when the roster cannot be read", async () => {
-    vi.mocked(listCurrentSeasonRoster).mockRejectedValue(new NotFound("No season is open."));
-
-    render(await RosterPage(rosterProps()));
-
-    expect(screen.getByTestId("roster-unavailable")).toHaveTextContent("No season is open.");
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Roster");
-    expect(screen.queryByTestId("roster-empty")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("roster-filter-empty")).not.toBeInTheDocument();
-  });
-});
-
-// ---------------------------------------------------------------------------
-
 describe("UX-21 — the membership record", () => {
   beforeEach(async () => {
     await renderMembership();
@@ -490,115 +262,69 @@ describe("UX-21 — a membership that is not there", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("UX-22 — activation", () => {
-  it("offers the primary action to an Exec operator on a confirmed membership", async () => {
+/**
+ * The membership status control — LAN-186's owner walkthrough replaced UX-22's
+ * override dialog and the record's "Mark inactive" / "Mark active again" pair
+ * with one free-form select. `Q-12`, verbatim: "We can flip to whatever status
+ * we want to go in."
+ */
+describe("the membership status control", () => {
+  it("offers a plain select to an Exec operator, holding the current status", async () => {
     await renderMembership();
 
-    expect(screen.getByRole("button", { name: "Activate membership" })).toBeInTheDocument();
-    expect(screen.getByText(/Activation is available only to Exec\/GM/)).toBeInTheDocument();
+    const select = screen.getByTestId("membership-status-control");
+    expect(within(select).getByRole("combobox")).toHaveTextContent("Onboarding");
   });
 
-  it("says how many required items are outstanding, and that they do not block", async () => {
+  it("says how many required items are outstanding, without framing it as a gate", async () => {
     await renderMembership();
 
     expect(screen.getByTestId("outstanding-note")).toHaveTextContent(
-      "One required item is still outstanding. Activation is still possible — the reason for proceeding is recorded.",
+      "One required item is still outstanding. This does not stop the membership's status from being changed.",
     );
-  });
-
-  it("names the outstanding items and takes the reason, with the approved labels", async () => {
-    await renderMembership();
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Activate membership" }));
-    });
-
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Activate with outstanding onboarding")).toBeInTheDocument();
-    expect(within(dialog).getByTestId("override-summary")).toHaveTextContent(
-      "Avery Fielding has one required item outstanding.",
-    );
-    expect(within(dialog).getByText("Kit sorted")).toBeInTheDocument();
-    expect(within(dialog).getByLabelText(/Override reason/)).toBeRequired();
-    expect(
-      within(dialog).getByText(
-        "Only Exec/GM can perform this transition. The reason and actor are written to the audit trail.",
-      ),
-    ).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "Confirm activation" })).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeInTheDocument();
   });
 
   /**
-   * The defect this exists for was found by pressing the real button against
-   * the real database, and every other assertion in this file passed while the
-   * screen did nothing at all.
-   *
-   * MUI renders a `Dialog` through a **portal** onto `document.body`. The first
-   * implementation wrapped the dialog in the `<form>`, so in the DOM the submit
-   * button and the override-reason field were outside that form entirely:
-   * pressing Confirm submitted nothing, and the reason never reached the
-   * action. In jsdom the portal still contains the markup, so "the button
-   * exists" and "the field is required" were both true and both irrelevant.
-   *
-   * The only thing that distinguishes the broken shape from the working one is
-   * where the controls sit relative to a `form` element — so that is what is
-   * asserted, on the elements themselves rather than on the JSX.
+   * Every value the ladder holds is offered from every status — Q-12's free
+   * ladder — and picking one commits with no dialog anywhere in the DOM.
+   * `onboarding → active` is named explicitly because an earlier version of
+   * this decision had a confirmation on exactly this pair; Brian withdrew it
+   * in the same walkthrough it was proposed in (journal event 132's
+   * correction), so this is the regression this test exists to catch.
    */
-  it("keeps the override controls inside a form that carries the membership", async () => {
+  it("offers every status with no confirmation dialog anywhere, onboarding → active included", async () => {
     await renderMembership();
 
+    const select = screen.getByTestId("membership-status-control");
+    fireEvent.mouseDown(within(select).getByRole("combobox"));
+
+    for (const label of ["Onboarding", "Active", "Inactive", "Departed", "Archived"]) {
+      expect(await screen.findByRole("option", { name: label })).toBeInTheDocument();
+    }
+
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Activate membership" }));
+      fireEvent.click(screen.getByRole("option", { name: "Active" }));
     });
 
-    const dialog = await screen.findByRole("dialog");
-    const confirm = within(dialog).getByRole("button", { name: "Confirm activation" });
-    const reason = within(dialog).getByLabelText(/Override reason/);
-
-    const form = confirm.closest("form");
-    expect(form, "the confirm button is not inside any form").not.toBeNull();
-    // The same form, and one that carries the membership the action needs.
-    expect(reason.closest("form")).toBe(form);
-    expect(form?.querySelector('input[name="membershipId"]')).toHaveValue(MEMBERSHIP_ID);
-  });
-
-  it("activates directly, with no override question, when nothing is outstanding", async () => {
-    await renderMembership(
-      membership({ onboardingItems: [item({ status: "complete" }), SUBSCRIPTION_ITEM] }),
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText(/\bconfirm\b/i)).not.toBeInTheDocument();
+    expect(setMembershipStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ membershipId: MEMBERSHIP_ID, status: "active" }),
     );
-
-    const button = screen.getByRole("button", { name: "Activate membership" });
-    expect(button).toHaveAttribute("type", "submit");
-    expect(screen.queryByTestId("outstanding-note")).not.toBeInTheDocument();
   });
 
-  it("offers `active → inactive` on an active membership, and no activation", async () => {
-    await renderMembership(membership({ status: "active", activatedOn: "2026-10-04" }));
+  for (const status of ["active", "inactive", "departed", "archived"] as const) {
+    it(`offers the same free select from \`${status}\`, no transition table in the way`, async () => {
+      await renderMembership(membership({ status, activatedOn: "2026-10-04" }));
 
-    expect(screen.getByRole("button", { name: "Mark inactive" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Activate membership" })).not.toBeInTheDocument();
-  });
-
-  it("offers the way back on an inactive membership", async () => {
-    await renderMembership(
-      membership({ status: "inactive", activatedOn: "2026-10-04", inactivityLabel: "Away" }),
-    );
-
-    expect(screen.getByRole("button", { name: "Mark active again" })).toBeInTheDocument();
-  });
-
-  it("offers no transition at all from a state outside this slice", async () => {
-    await renderMembership(membership({ status: "departed" }));
-
-    expect(screen.getByTestId("no-transition")).toHaveTextContent(
-      "Season close, departure and reinstatement are outside this slice.",
-    );
-    expect(screen.queryByRole("button", { name: "Activate membership" })).not.toBeInTheDocument();
-  });
+      const select = screen.getByTestId("membership-status-control");
+      expect(within(select).getByRole("combobox")).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  }
 });
 
-describe("UX-22 — an operator who may not activate", () => {
+describe("an operator who may not change status", () => {
   let markup: string;
 
   beforeEach(async () => {
@@ -611,28 +337,26 @@ describe("UX-22 — an operator who may not activate", () => {
     expect(screen.getByTestId("activation-not-permitted")).toHaveTextContent(
       "Changing a membership’s status is available only to the Exec and the General Manager.",
     );
-    expect(screen.queryByRole("button", { name: "Activate membership" })).not.toBeInTheDocument();
-    expect(screen.queryByTestId("activate-form")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("membership-status-control")).not.toBeInTheDocument();
   });
 
   /**
    * The control is absent from the markup the browser receives, not merely
-   * unpainted. A hidden form is still a form somebody can submit.
+   * unpainted. A hidden control is still a control somebody can submit past.
    */
-  it("ships no activation form in the DOM at all", () => {
-    // Scoped to the activation controls. `membershipId` legitimately appears in
-    // the onboarding-item forms, which this operator may use — asserting on it
+  it("ships no status control in the DOM at all", () => {
+    // Scoped to the status control. `membershipId` legitimately appears in the
+    // onboarding-item forms, which this operator may use — asserting on it
     // would fail for the wrong reason and would hide the thing being checked.
-    expect(markup).not.toContain('name="overrideReason"');
-    expect(markup).not.toContain('data-testid="activate-form"');
-    expect(markup).not.toContain('data-testid="deactivate-form"');
+    expect(markup).not.toContain('data-testid="membership-status-control"');
     expect(markup).not.toContain("Activate membership");
     expect(markup).not.toContain("Mark inactive");
+    expect(markup).not.toContain("Mark active again");
   });
 
   it("still reads the record, and still resolves onboarding items", () => {
-    // Marking the kit sorted is roster work; only the readiness declaration is
-    // the Exec's. UX-21's audience is "Authorized roster operator".
+    // Marking the kit sorted is roster work; only changing status is the
+    // Exec's. UX-21's audience is "Authorized roster operator".
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Avery Fielding");
     expect(screen.getAllByTestId("onboarding-item-form").length).toBeGreaterThan(0);
   });
@@ -644,18 +368,6 @@ describe("an operator who may not be here at all", () => {
   const denied: OperatorAccess[] = [{ state: "unlinked" }, { state: "inactive" }];
 
   for (const access of denied) {
-    it(`shows ${access.state} no roster data`, async () => {
-      vi.mocked(resolveOperatorAccess).mockResolvedValue(access);
-      givenRoster();
-
-      const { container } = render(await RosterPage(rosterProps()));
-
-      for (const secret of ["Avery", "Fielding", "avery.fielding@example.invalid", "Samira"]) {
-        expect(container.innerHTML).not.toContain(secret);
-      }
-      expect(listCurrentSeasonRoster).not.toHaveBeenCalled();
-    });
-
     it(`shows ${access.state} no membership record`, async () => {
       vi.mocked(resolveOperatorAccess).mockResolvedValue(access);
       vi.mocked(readMembership).mockResolvedValue(membership());
@@ -673,14 +385,6 @@ describe("an operator who may not be here at all", () => {
       expect(readMembership).not.toHaveBeenCalled();
     });
   }
-
-  it("sends a request with no session to the sign-in page, keeping the route", async () => {
-    vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "no_session" });
-
-    await expect(RosterPage(rosterProps())).rejects.toThrow(
-      "REDIRECT:/login?redirectTo=%2Foperate%2Froster",
-    );
-  });
 });
 
 // ---------------------------------------------------------------------------
