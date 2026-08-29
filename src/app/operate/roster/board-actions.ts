@@ -33,13 +33,13 @@ import type { BoardActionState } from "./board-action-state";
  *   * revalidates the roster path so the refreshed server render carries the
  *     new value straight back into the cell that changed.
  *
- * Status transitions are deliberately **not** here. `./actions.ts` already
- * carries `activateMembershipAction`, `setMembershipInactiveAction` and
- * `reactivateMembershipAction`, gated on `membership_activation` and enforcing
- * the legal-transition table and the reason `active → inactive` has always
- * required — rules `membership.ts` owns and this package does not edit. The
- * board's Status cell reuses those actions directly rather than reimplementing
- * a second, looser path to the same column.
+ * The status change is deliberately **not** here, even though it is now a
+ * free `select` column like every other one above. `./actions.ts` carries
+ * `setMembershipStatusAction`, gated on `membership_activation` rather than
+ * `person_record_authority` — a stronger grant `membership.ts` has always
+ * required for this one column, and this package does not relax. The board's
+ * Status cell calls that action directly rather than reimplementing a second,
+ * looser path to the same column.
  */
 
 function refresh(): void {

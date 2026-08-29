@@ -158,31 +158,29 @@ silently creates a person."
 4. Press **Confirm this is a new person**.
 
 **Expected.** **Returning player added** — "Person and 2026-27 membership were
-created together." The three summary figures read `Confirmed`, `0 of 7`
+created together." The three summary figures read `Onboarding`, `0 of 7`
 onboarding items resolved, and `Returning`.
 
-5. Scroll to **Membership status** and press **Activate membership**.
+5. Scroll to **Membership status** and open the select.
 
-**Expected.** A dialog, **Activate with outstanding onboarding**, naming the four
-required items that are outstanding — Subscription invoiced, Kit sorted, BUCS
-Play registration, Comms groups joined — and requiring an override reason. This
-is the confirmation step, not a veto: activation is allowed, and the reason is
-recorded.
+**Expected.** A plain dropdown over all five statuses — Onboarding, Active,
+Inactive, Departed, Archived — no dialog, no reason field, no confirmation.
+LAN-186's owner walkthrough removed the activation-override dialog and every
+other status-specific control: any status may become any other, outstanding
+required onboarding items included, and nothing is asked about them.
 
-6. Type a reason and press **Confirm activation**.
+6. Choose **Active**.
 
-**Expected.** **Status history** now shows four entries, each with a timestamp
-and your name:
+**Expected.** The status changes immediately — no second step. **Status
+history** now shows two entries, each with a timestamp and your name:
 
 ```
-Created as carried forward
-Carried forward → Confirmed      Returner verification completed (operator entry)
-Confirmed → Onboarding           Onboarding started by the system; items generated for the season
-Onboarding → Active              Activated with outstanding required onboarding: <your reason>
+Created as onboarding
+Onboarding → Active
 ```
 
-Four rows, not one. The intake performs the documented state machine rather than
-inserting a finished membership.
+Two rows, not one: intake and activation are still two distinct events, but
+neither carries a reason any more.
 
 ---
 

@@ -56,7 +56,7 @@ vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("../../login/actions", () => ({ signOut: vi.fn() }));
 vi.mock("@/lib/services/membership", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/membership")>();
-  return { ...actual, readMembership: vi.fn() };
+  return { ...actual, readMembership: vi.fn(), setMembershipStatus: vi.fn() };
 });
 
 import { NotFound } from "@/lib/db";
@@ -67,6 +67,7 @@ import {
 } from "@/lib/auth/operator";
 import {
   readMembership,
+  setMembershipStatus,
   type MembershipRecord,
   type OnboardingItem,
 } from "@/lib/services/membership";
@@ -261,115 +262,69 @@ describe("UX-21 — a membership that is not there", () => {
 
 // ---------------------------------------------------------------------------
 
-describe("UX-22 — activation", () => {
-  it("offers the primary action to an Exec operator on a confirmed membership", async () => {
+/**
+ * The membership status control — LAN-186's owner walkthrough replaced UX-22's
+ * override dialog and the record's "Mark inactive" / "Mark active again" pair
+ * with one free-form select. `Q-12`, verbatim: "We can flip to whatever status
+ * we want to go in."
+ */
+describe("the membership status control", () => {
+  it("offers a plain select to an Exec operator, holding the current status", async () => {
     await renderMembership();
 
-    expect(screen.getByRole("button", { name: "Activate membership" })).toBeInTheDocument();
-    expect(screen.getByText(/Activation is available only to Exec\/GM/)).toBeInTheDocument();
+    const select = screen.getByTestId("membership-status-control");
+    expect(within(select).getByRole("combobox")).toHaveTextContent("Onboarding");
   });
 
-  it("says how many required items are outstanding, and that they do not block", async () => {
+  it("says how many required items are outstanding, without framing it as a gate", async () => {
     await renderMembership();
 
     expect(screen.getByTestId("outstanding-note")).toHaveTextContent(
-      "One required item is still outstanding. Activation is still possible — the reason for proceeding is recorded.",
+      "One required item is still outstanding. This does not stop the membership's status from being changed.",
     );
-  });
-
-  it("names the outstanding items and takes the reason, with the approved labels", async () => {
-    await renderMembership();
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Activate membership" }));
-    });
-
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Activate with outstanding onboarding")).toBeInTheDocument();
-    expect(within(dialog).getByTestId("override-summary")).toHaveTextContent(
-      "Avery Fielding has one required item outstanding.",
-    );
-    expect(within(dialog).getByText("Kit sorted")).toBeInTheDocument();
-    expect(within(dialog).getByLabelText(/Override reason/)).toBeRequired();
-    expect(
-      within(dialog).getByText(
-        "Only Exec/GM can perform this transition. The reason and actor are written to the audit trail.",
-      ),
-    ).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "Confirm activation" })).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeInTheDocument();
   });
 
   /**
-   * The defect this exists for was found by pressing the real button against
-   * the real database, and every other assertion in this file passed while the
-   * screen did nothing at all.
-   *
-   * MUI renders a `Dialog` through a **portal** onto `document.body`. The first
-   * implementation wrapped the dialog in the `<form>`, so in the DOM the submit
-   * button and the override-reason field were outside that form entirely:
-   * pressing Confirm submitted nothing, and the reason never reached the
-   * action. In jsdom the portal still contains the markup, so "the button
-   * exists" and "the field is required" were both true and both irrelevant.
-   *
-   * The only thing that distinguishes the broken shape from the working one is
-   * where the controls sit relative to a `form` element — so that is what is
-   * asserted, on the elements themselves rather than on the JSX.
+   * Every value the ladder holds is offered from every status — Q-12's free
+   * ladder — and picking one commits with no dialog anywhere in the DOM.
+   * `onboarding → active` is named explicitly because an earlier version of
+   * this decision had a confirmation on exactly this pair; Brian withdrew it
+   * in the same walkthrough it was proposed in (journal event 132's
+   * correction), so this is the regression this test exists to catch.
    */
-  it("keeps the override controls inside a form that carries the membership", async () => {
+  it("offers every status with no confirmation dialog anywhere, onboarding → active included", async () => {
     await renderMembership();
 
+    const select = screen.getByTestId("membership-status-control");
+    fireEvent.mouseDown(within(select).getByRole("combobox"));
+
+    for (const label of ["Onboarding", "Active", "Inactive", "Departed", "Archived"]) {
+      expect(await screen.findByRole("option", { name: label })).toBeInTheDocument();
+    }
+
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Activate membership" }));
+      fireEvent.click(screen.getByRole("option", { name: "Active" }));
     });
 
-    const dialog = await screen.findByRole("dialog");
-    const confirm = within(dialog).getByRole("button", { name: "Confirm activation" });
-    const reason = within(dialog).getByLabelText(/Override reason/);
-
-    const form = confirm.closest("form");
-    expect(form, "the confirm button is not inside any form").not.toBeNull();
-    // The same form, and one that carries the membership the action needs.
-    expect(reason.closest("form")).toBe(form);
-    expect(form?.querySelector('input[name="membershipId"]')).toHaveValue(MEMBERSHIP_ID);
-  });
-
-  it("activates directly, with no override question, when nothing is outstanding", async () => {
-    await renderMembership(
-      membership({ onboardingItems: [item({ status: "complete" }), SUBSCRIPTION_ITEM] }),
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText(/\bconfirm\b/i)).not.toBeInTheDocument();
+    expect(setMembershipStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ membershipId: MEMBERSHIP_ID, status: "active" }),
     );
-
-    const button = screen.getByRole("button", { name: "Activate membership" });
-    expect(button).toHaveAttribute("type", "submit");
-    expect(screen.queryByTestId("outstanding-note")).not.toBeInTheDocument();
   });
 
-  it("offers `active → inactive` on an active membership, and no activation", async () => {
-    await renderMembership(membership({ status: "active", activatedOn: "2026-10-04" }));
+  for (const status of ["active", "inactive", "departed", "archived"] as const) {
+    it(`offers the same free select from \`${status}\`, no transition table in the way`, async () => {
+      await renderMembership(membership({ status, activatedOn: "2026-10-04" }));
 
-    expect(screen.getByRole("button", { name: "Mark inactive" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Activate membership" })).not.toBeInTheDocument();
-  });
-
-  it("offers the way back on an inactive membership", async () => {
-    await renderMembership(
-      membership({ status: "inactive", activatedOn: "2026-10-04", inactivityLabel: "Away" }),
-    );
-
-    expect(screen.getByRole("button", { name: "Mark active again" })).toBeInTheDocument();
-  });
-
-  it("offers no transition at all from a state outside this slice", async () => {
-    await renderMembership(membership({ status: "departed" }));
-
-    expect(screen.getByTestId("no-transition")).toHaveTextContent(
-      "Season close, departure and reinstatement are outside this slice.",
-    );
-    expect(screen.queryByRole("button", { name: "Activate membership" })).not.toBeInTheDocument();
-  });
+      const select = screen.getByTestId("membership-status-control");
+      expect(within(select).getByRole("combobox")).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  }
 });
 
-describe("UX-22 — an operator who may not activate", () => {
+describe("an operator who may not change status", () => {
   let markup: string;
 
   beforeEach(async () => {
@@ -382,28 +337,26 @@ describe("UX-22 — an operator who may not activate", () => {
     expect(screen.getByTestId("activation-not-permitted")).toHaveTextContent(
       "Changing a membership’s status is available only to the Exec and the General Manager.",
     );
-    expect(screen.queryByRole("button", { name: "Activate membership" })).not.toBeInTheDocument();
-    expect(screen.queryByTestId("activate-form")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("membership-status-control")).not.toBeInTheDocument();
   });
 
   /**
    * The control is absent from the markup the browser receives, not merely
-   * unpainted. A hidden form is still a form somebody can submit.
+   * unpainted. A hidden control is still a control somebody can submit past.
    */
-  it("ships no activation form in the DOM at all", () => {
-    // Scoped to the activation controls. `membershipId` legitimately appears in
-    // the onboarding-item forms, which this operator may use — asserting on it
+  it("ships no status control in the DOM at all", () => {
+    // Scoped to the status control. `membershipId` legitimately appears in the
+    // onboarding-item forms, which this operator may use — asserting on it
     // would fail for the wrong reason and would hide the thing being checked.
-    expect(markup).not.toContain('name="overrideReason"');
-    expect(markup).not.toContain('data-testid="activate-form"');
-    expect(markup).not.toContain('data-testid="deactivate-form"');
+    expect(markup).not.toContain('data-testid="membership-status-control"');
     expect(markup).not.toContain("Activate membership");
     expect(markup).not.toContain("Mark inactive");
+    expect(markup).not.toContain("Mark active again");
   });
 
   it("still reads the record, and still resolves onboarding items", () => {
-    // Marking the kit sorted is roster work; only the readiness declaration is
-    // the Exec's. UX-21's audience is "Authorized roster operator".
+    // Marking the kit sorted is roster work; only changing status is the
+    // Exec's. UX-21's audience is "Authorized roster operator".
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Avery Fielding");
     expect(screen.getAllByTestId("onboarding-item-form").length).toBeGreaterThan(0);
   });

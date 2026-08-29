@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
@@ -29,17 +28,14 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { roleCodesPermit } from "@/lib/auth/capabilities";
+import type { MembershipStatus } from "@/lib/services/membership";
 import type {
   RosterBoardRow,
   PositionColumn,
   Kit,
   FormalwearItemKey,
 } from "@/lib/services/roster-board";
-import {
-  ActivateMembershipForm,
-  DeactivateMembershipForm,
-  ReactivateMembershipForm,
-} from "./membership-actions";
+import { setMembershipStatusAction } from "./actions";
 import {
   commitAvailabilityAction,
   commitBluesAction,
@@ -52,6 +48,7 @@ import {
 } from "./board-actions";
 import { BAND_ROW_HEIGHT, bandOf, PLAYER_COLUMN_WIDTH, type ColumnDef } from "./board-columns";
 import {
+  applyBoard,
   displayOf,
   filterOptionLabel,
   filterOptions,
@@ -87,27 +84,30 @@ export default function RosterBoard({
   seasonId,
   seasonLabel,
   jerseyHolders,
-  search,
-  filters,
-  sortKey,
-  sortDirection,
+  initialSearch,
+  initialFilters,
+  initialSortKey,
+  initialSortDirection,
 }: {
   operator: ResolvedOperator;
   columns: readonly ColumnDef[];
-  /** Already filtered, sorted, and — for a narrower future grant — redacted. */
+  /** The whole season, redacted for this viewer's grant — never pre-filtered or pre-sorted. */
   rows: readonly RosterBoardRow[];
   totalInSeason: number;
   seasonId: string;
   seasonLabel: string;
   jerseyHolders: { blue: Record<string, string>; white: Record<string, string> };
-  search: string;
-  filters: Readonly<Record<string, string>>;
-  sortKey: string;
-  sortDirection: "asc" | "desc";
+  /** The URL's own search/filter/sort at the moment this page was requested — seeds, not props this component stays synced to. */
+  initialSearch: string;
+  initialFilters: Readonly<Record<string, string>>;
+  initialSortKey: string;
+  initialSortDirection: "asc" | "desc";
 }) {
-  const router = useRouter();
   const [, startTransition] = useTransition();
-  const [searchBox, setSearchBox] = useState(search);
+  const [searchBox, setSearchBox] = useState(initialSearch);
+  const [filters, setFilters] = useState<Readonly<Record<string, string>>>(initialFilters);
+  const [sortKey, setSortKey] = useState(initialSortKey);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">(initialSortDirection);
   const [editing, setEditing] = useState<{ id: string; key: string } | null>(null);
   const [menu, setMenu] = useState<{ anchor: HTMLElement; column: ColumnDef } | null>(null);
   const [phoneFilters, setPhoneFilters] = useState(false);
@@ -115,38 +115,95 @@ export default function RosterBoard({
 
   const canManageStatus = roleCodesPermit(operator.roleCodes, "membership_activation");
   const seasonEmpty = totalInSeason === 0;
-  const isFiltered = Object.values(filters).some((value) => value !== "") || search.trim() !== "";
+  /**
+   * Which column is the last in its band's run — Person, Onboarding, Season.
+   *
+   * Brian's own complaint at the walkthrough: "ONBOARDING and SEASON butt
+   * straight against each other while PERSON has breathing room." The header's
+   * overline row already drew a 2px seam between bands; the body rows drew
+   * none at all, so only the boundary next to the always-bordered pinned
+   * Player column ever looked separated. The same seam, computed once here, is
+   * now applied to the column-header row *and* every body cell — one rule, all
+   * three boundaries, equally.
+   */
+  const bandBoundaries = bandBoundaryKeys(columns);
 
-  const navigate = useCallback(
-    (patch: Record<string, string | null>) => {
+  /**
+   * Search, filter and sort — applied here, over the one set of rows this page
+   * already fetched, rather than by re-running the server component. LAN-186
+   * item 11: "everything after [the first load], as fast as we can" — a
+   * `router.push()` on every change used to re-query the whole board for data
+   * this page was already holding. `applyBoard()` is the same pure function
+   * `page.tsx` used to call server-side; only where it runs has changed.
+   */
+  const applied = useMemo(
+    () =>
+      applyBoard(rows, {
+        search: searchBox,
+        filters,
+        sort: { key: sortKey, direction: sortDirection },
+      }),
+    [rows, searchBox, filters, sortKey, sortDirection],
+  );
+  const { visible, isFiltered } = applied;
+
+  /**
+   * Keeps the address bar in step with the live view — LAN-186 item 11: "it
+   * should be snappy and fast", and still "a filtered view is still linkable
+   * and survives a refresh". `history.replaceState` rather than `router.push`
+   * or `router.replace` on purpose: either of those asks Next.js to re-render
+   * this route from the server, which is exactly the per-keystroke re-fetch
+   * this round removes. A plain history update changes only what the browser
+   * shows in the address bar and what a refresh or a copied link would carry —
+   * it asks nothing of the server, and does not re-run `listRosterBoard()`.
+   */
+  const syncUrl = useCallback(
+    (next: {
+      search: string;
+      filters: Readonly<Record<string, string>>;
+      sortKey: string;
+      sortDirection: "asc" | "desc";
+    }) => {
       const params = new URLSearchParams();
-      if (search.trim() !== "") params.set("q", search);
-      for (const [key, value] of Object.entries(filters)) if (value !== "") params.set(key, value);
-      params.set("sort", sortKey);
-      params.set("dir", sortDirection);
-      for (const [key, value] of Object.entries(patch)) {
-        if (value === null || value === "") params.delete(key);
-        else params.set(key, value);
-      }
-      router.push(buildUrl("/operate/roster", params));
+      if (next.search.trim() !== "") params.set("q", next.search);
+      for (const [key, value] of Object.entries(next.filters))
+        if (value !== "") params.set(key, value);
+      params.set("sort", next.sortKey);
+      params.set("dir", next.sortDirection);
+      window.history.replaceState(null, "", buildUrl("/operate/roster", params));
     },
-    [router, search, filters, sortKey, sortDirection],
+    [],
   );
 
   const setFilter = useCallback(
-    (key: string, value: string) => navigate({ [key]: value || null }),
-    [navigate],
+    (key: string, value: string) => {
+      const next = { ...filters, [key]: value };
+      if (value === "") delete next[key];
+      setFilters(next);
+      syncUrl({ search: searchBox, filters: next, sortKey, sortDirection });
+    },
+    [filters, searchBox, sortKey, sortDirection, syncUrl],
   );
   const clearAll = useCallback(() => {
-    const params = new URLSearchParams();
-    params.set("sort", sortKey);
-    params.set("dir", sortDirection);
-    router.push(buildUrl("/operate/roster", params));
-  }, [router, sortKey, sortDirection]);
+    setSearchBox("");
+    setFilters({});
+    syncUrl({ search: "", filters: {}, sortKey, sortDirection });
+  }, [sortKey, sortDirection, syncUrl]);
   const setSort = useCallback(
-    (key: string) =>
-      navigate({ sort: key, dir: sortKey === key && sortDirection === "asc" ? "desc" : "asc" }),
-    [navigate, sortKey, sortDirection],
+    (key: string) => {
+      const direction = sortKey === key && sortDirection === "asc" ? "desc" : "asc";
+      setSortKey(key);
+      setSortDirection(direction);
+      syncUrl({ search: searchBox, filters, sortKey: key, sortDirection: direction });
+    },
+    [filters, searchBox, sortDirection, sortKey, syncUrl],
+  );
+  const setSearch = useCallback(
+    (value: string) => {
+      setSearchBox(value);
+      syncUrl({ search: value, filters, sortKey, sortDirection });
+    },
+    [filters, sortDirection, sortKey, syncUrl],
   );
 
   const labelForKey = useCallback(
@@ -165,6 +222,14 @@ export default function RosterBoard({
     startTransition(() => {
       void (async () => {
         switch (column.key) {
+          case "status":
+            await runCommit(row.membershipId, () =>
+              setMembershipStatusAction({
+                membershipId: row.membershipId,
+                status: next as MembershipStatus,
+              }),
+            );
+            return;
           case "entry":
             await runCommit(row.membershipId, () =>
               commitEntryAction({
@@ -265,10 +330,7 @@ export default function RosterBoard({
         size="small"
         label="Search name or alias"
         value={searchBox}
-        onChange={(event) => {
-          setSearchBox(event.target.value);
-          navigate({ q: event.target.value || null });
-        }}
+        onChange={(event) => setSearch(event.target.value)}
         sx={{ minWidth: { xs: "100%", md: 260 } }}
       />
       <PinnedSelect
@@ -306,15 +368,8 @@ export default function RosterBoard({
       <Typography variant="body2" color="text.secondary">
         Filtered by
       </Typography>
-      {search.trim() !== "" ? (
-        <Chip
-          size="small"
-          label={`Search: ${search}`}
-          onDelete={() => {
-            setSearchBox("");
-            navigate({ q: null });
-          }}
-        />
+      {searchBox.trim() !== "" ? (
+        <Chip size="small" label={`Search: ${searchBox}`} onDelete={() => setSearch("")} />
       ) : null}
       {activeFilters.map(([key, value]) => (
         <Chip
@@ -337,7 +392,7 @@ export default function RosterBoard({
     </Stack>
   ) : null;
 
-  if (rows.length === 0) {
+  if (visible.length === 0) {
     return (
       <Stack spacing={3}>
         <Heading
@@ -380,7 +435,7 @@ export default function RosterBoard({
 
   return (
     <Stack spacing={3}>
-      <Heading count={rows.length} columns={columns.length + 1} seasonLabel={seasonLabel} />
+      <Heading count={visible.length} columns={columns.length + 1} seasonLabel={seasonLabel} />
       {pinned}
       {chips}
 
@@ -488,6 +543,8 @@ export default function RosterBoard({
                       whiteSpace: "nowrap",
                       borderBottom: filtered ? 2 : 1,
                       borderBottomColor: filtered ? "primary.main" : "divider",
+                      borderRight: bandBoundaries.has(column.key) ? 2 : 0,
+                      borderRightColor: "background.paper",
                     }}
                   >
                     <Stack
@@ -549,7 +606,7 @@ export default function RosterBoard({
           </TableHead>
 
           <TableBody>
-            {rows.map((row) => (
+            {visible.map((row) => (
               <TableRow key={row.membershipId} hover data-testid="roster-row">
                 <TableCell
                   sx={{
@@ -597,6 +654,7 @@ export default function RosterBoard({
                           : undefined
                     }
                     canManageStatus={canManageStatus}
+                    bandEnd={bandBoundaries.has(column.key)}
                     onOpen={() => setEditing({ id: row.membershipId, key: column.key })}
                     onClose={() => setEditing(null)}
                     onCommit={(next) => commitFor(row, column, next)}
@@ -614,7 +672,7 @@ export default function RosterBoard({
           Filters{activeFilters.length > 0 ? ` (${activeFilters.length})` : ""}
         </Button>
         <Stack spacing={2}>
-          {rows.map((row) => (
+          {visible.map((row) => (
             <PlayerCard key={row.membershipId} row={row} />
           ))}
         </Stack>
@@ -646,7 +704,7 @@ export default function RosterBoard({
         </MenuItem>
         <Divider />
         {menu
-          ? filterOptions(menu.column, rows).map((option) => (
+          ? filterOptions(menu.column, visible).map((option) => (
               <MenuItem
                 key={option}
                 selected={(filters[menu.column.key] ?? "") === option}
@@ -785,6 +843,7 @@ function Cell({
   editing,
   holders,
   canManageStatus,
+  bandEnd,
   onOpen,
   onClose,
   onCommit,
@@ -795,6 +854,8 @@ function Cell({
   editing: boolean;
   holders?: Record<string, string>;
   canManageStatus: boolean;
+  /** Whether this column is the last in its band's run — see `bandBoundaryKeys`. */
+  bandEnd: boolean;
   onOpen: () => void;
   onClose: () => void;
   onCommit: (next: string | string[]) => void;
@@ -806,15 +867,13 @@ function Cell({
     minWidth: column.width,
     width: column.width,
     whiteSpace: "nowrap" as const,
+    // The same seam the band header draws, carried into the body so all three
+    // boundaries — Person|Onboarding, Onboarding|Season — read with equal
+    // weight instead of only the always-bordered Player column looking
+    // separated (LAN-186 item 12).
+    borderRight: bandEnd ? 2 : 0,
+    borderRightColor: "background.paper",
   };
-
-  if (column.edit === "status") {
-    return (
-      <TableCell sx={shell}>
-        <StatusCell row={row} canManage={canManageStatus} />
-      </TableCell>
-    );
-  }
 
   if (editing) {
     if (column.edit === "jersey") {
@@ -863,6 +922,11 @@ function Cell({
       );
     }
 
+    // The label alone, never the raw value beside it (LAN-186 item 9) — the
+    // same `filterOptionLabel` the column header's own filter chip already
+    // uses, so a value reads identically wherever it appears on the board.
+    // Positions are `filterOptionLabel`'s own deliberate exception: the code
+    // *is* the label there (item 7), so nothing extra ever appears.
     const current = rawValue(row, column.key);
     return (
       <TableCell sx={shell}>
@@ -876,23 +940,17 @@ function Cell({
             onCommit(event.target.value);
             onClose();
           }}
-          renderValue={(value) =>
-            column.optionLabels?.[value as string]
-              ? `${value} · ${column.optionLabels[value as string]}`
-              : displayOf(row, column)
-          }
+          renderValue={() => displayOf(row, column)}
           sx={{ width: Math.max(column.width - 24, 64) }}
         >
-          <MenuItem value="">
-            <em>{NOT_RECORDED}</em>
-          </MenuItem>
+          {column.key === "status" ? null : (
+            <MenuItem value="">
+              <em>{NOT_RECORDED}</em>
+            </MenuItem>
+          )}
           {(column.options ?? []).map((option) => (
             <MenuItem key={option} value={option}>
-              {column.optionLabels?.[option]
-                ? `${option} · ${column.optionLabels[option]}`
-                : column.optionLabels
-                  ? option
-                  : filterOptionLabel(column, option)}
+              {filterOptionLabel(column, option)}
             </MenuItem>
           ))}
         </Select>
@@ -901,7 +959,8 @@ function Cell({
   }
 
   const editable =
-    column.edit === "select" || column.edit === "multiselect" || column.edit === "jersey";
+    (column.edit === "select" || column.edit === "multiselect" || column.edit === "jersey") &&
+    (column.key !== "status" || canManageStatus);
 
   return (
     <TableCell
@@ -964,6 +1023,20 @@ function CellValue({ row, column }: { row: RosterBoardRow; column: ColumnDef }) 
     return <Typography variant="body2">{onboardingLabel(row)}</Typography>;
   }
 
+  if (column.key === "status") {
+    // A colour-coded chip, same as the mockup and the card view — the one
+    // exception to "plain text like every other select cell", kept because a
+    // status is the single fact an operator scans the whole row for. Editing
+    // still opens the identical generic dropdown every other season fact uses.
+    return (
+      <Chip
+        size="small"
+        color={STATUS_COLOUR[row.status] ?? "default"}
+        label={labelFor(MEMBERSHIP_STATUS_LABELS, row.status)}
+      />
+    );
+  }
+
   if (column.key === "availability" && row.availability) {
     return (
       <Stack direction="row" spacing={0.75} sx={{ alignItems: "center" }}>
@@ -1012,115 +1085,110 @@ function CellValue({ row, column }: { row: RosterBoardRow; column: ColumnDef }) 
 }
 
 /**
- * The Status column. Reuses `membership.ts`'s own transition rules and forms
- * rather than a bare dropdown: `onboarding → active` commits with one click
- * when nothing required is outstanding; `active → inactive` and
- * `inactive → active` reuse the exact controls the membership record already
- * carries, because those transitions' legality and reason requirements are
- * `membership.ts`'s to enforce, not this board's to reinterpret.
+ * The phone card — LAN-186's owner walkthrough, item 15.
+ *
+ * Not a miniature board. Brian, 2026-08-29: "the mobile view is horrendous.
+ * Most of the time, the operators aren't going to be using this as a mobile
+ * view anyway, so it should just be a way to click in." So the card carries
+ * exactly three things — the player's name, their status, and the missing-data
+ * flag when it is set — and nothing else from the twenty columns. There is no
+ * in-cell editing at 375px; editing is desktop work, and the phone is for
+ * finding somebody and opening them.
+ *
+ * The whole card is the tap target, not a chevron or a "View" link in a
+ * corner — the anchor wraps the name and the chips. The call button is the one
+ * deliberate exception: its own control, its own tap target, `stopPropagation`
+ * on both so a call can never fire from a tap meant for the card and a card
+ * navigation can never fire from a tap meant for the call. W5 locks voice call
+ * as the mobile quick action and nothing else — a one-tap WhatsApp link would
+ * be manual sending outside the pipeline's consent checks, which R12 and R15
+ * prohibit.
  */
-function StatusCell({ row, canManage }: { row: RosterBoardRow; canManage: boolean }) {
-  const colour = STATUS_COLOUR[row.status] ?? "default";
-  if (!canManage || row.status === "departed" || row.status === "archived") {
-    return (
-      <Chip size="small" color={colour} label={labelFor(MEMBERSHIP_STATUS_LABELS, row.status)} />
-    );
-  }
-
-  if (row.status === "onboarding") {
-    return (
-      <Stack spacing={0.5} sx={{ minWidth: 140 }}>
-        <Chip size="small" color={colour} label={labelFor(MEMBERSHIP_STATUS_LABELS, row.status)} />
-        <ActivateMembershipForm
-          membershipId={row.membershipId}
-          displayName={row.displayName}
-          outstanding={[]}
-        />
-        {row.requiredOutstanding > 0 ? (
-          <Typography variant="caption" color="text.secondary">
-            {row.requiredOutstanding} required outstanding — open the record for the override reason
-          </Typography>
-        ) : null}
-      </Stack>
-    );
-  }
-
-  if (row.status === "active") {
-    return (
-      <Stack spacing={0.5} sx={{ minWidth: 140 }}>
-        <Chip size="small" color={colour} label={labelFor(MEMBERSHIP_STATUS_LABELS, row.status)} />
-        <DeactivateMembershipForm membershipId={row.membershipId} />
-      </Stack>
-    );
-  }
-
+function PlayerCard({ row }: { row: RosterBoardRow }) {
   return (
-    <Stack spacing={0.5} sx={{ minWidth: 140 }}>
-      <Chip size="small" color={colour} label={labelFor(MEMBERSHIP_STATUS_LABELS, row.status)} />
-      <ReactivateMembershipForm membershipId={row.membershipId} />
-    </Stack>
+    <Card variant="outlined" sx={{ position: "relative", p: 0 }} data-testid="roster-card">
+      <Box
+        component="a"
+        href={`/operate/roster/${row.membershipId}`}
+        data-testid="roster-card-open"
+        sx={{
+          display: "block",
+          p: 2,
+          pr: 8,
+          minHeight: 44,
+          textDecoration: "none",
+          color: "inherit",
+          borderRadius: 1,
+          "&:hover": { bgcolor: "action.hover" },
+          "&:focus-visible": {
+            outline: "2px solid",
+            outlineColor: "primary.main",
+            outlineOffset: -2,
+          },
+        }}
+      >
+        <Stack spacing={1}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            {row.displayName}
+          </Typography>
+          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+            <Chip
+              size="small"
+              color={STATUS_COLOUR[row.status] ?? "default"}
+              label={labelFor(MEMBERSHIP_STATUS_LABELS, row.status)}
+            />
+            {row.missingCount > 0 ? (
+              <Chip
+                size="small"
+                color="warning"
+                variant="outlined"
+                label={`${row.missingCount} missing`}
+                data-testid="card-missing-flag"
+              />
+            ) : null}
+          </Stack>
+        </Stack>
+      </Box>
+
+      {/* A sibling of the card-opening anchor, never nested inside it — two
+          anchors cannot nest, and stacking this one on top by position rather
+          than by DOM order is what keeps both tap targets independently real. */}
+      <Box
+        sx={{ position: "absolute", top: 8, right: 8 }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <Button
+          variant="contained"
+          component="a"
+          href={row.phoneForCall ? `tel:${row.phoneForCall}` : undefined}
+          disabled={!row.phoneForCall}
+          aria-label="Call"
+          onClick={(event) => event.stopPropagation()}
+          sx={{
+            minHeight: 44,
+            minWidth: 44,
+            width: 44,
+            height: 44,
+            p: 0,
+            borderRadius: "50%",
+          }}
+        >
+          <PhoneIcon />
+        </Button>
+      </Box>
+    </Card>
   );
 }
 
-function PlayerCard({ row }: { row: RosterBoardRow }) {
-  const positions = [row.offencePosition, row.defencePosition, row.specialTeamsPosition].filter(
-    (value): value is string => value !== null,
-  );
+/** Drawn inline, the same reason `FilterButton`'s funnel is: no icon package in this dependency tree. */
+function PhoneIcon() {
   return (
-    <Card variant="outlined" sx={{ p: 2 }} data-testid="roster-card">
-      <Stack spacing={1}>
-        <Typography
-          variant="subtitle2"
-          component="a"
-          href={`/operate/roster/${row.membershipId}`}
-          sx={{ fontWeight: 700, color: "primary.main" }}
-        >
-          {row.displayName}
-        </Typography>
-        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-          <Chip
-            size="small"
-            color={STATUS_COLOUR[row.status] ?? "default"}
-            label={labelFor(MEMBERSHIP_STATUS_LABELS, row.status)}
-          />
-          {positions.length > 0 ? (
-            <Chip size="small" variant="outlined" label={positions.join(" · ")} />
-          ) : null}
-          {row.availability ? (
-            <Chip
-              size="small"
-              variant="outlined"
-              label={row.availability}
-              sx={{ borderColor: AVAILABILITY_COLOUR[row.availability] }}
-            />
-          ) : null}
-          {row.missingCount > 0 ? (
-            <Chip
-              size="small"
-              color="warning"
-              variant="outlined"
-              label={`${row.missingCount} missing`}
-            />
-          ) : null}
-        </Stack>
-        <Typography variant="body2" color="text.secondary">
-          {onboardingLabel(row)}
-        </Typography>
-        {/* The only channel action on this surface — a voice call, and nothing that composes, schedules or sends a message. */}
-        <Box>
-          <Button
-            size="small"
-            variant="outlined"
-            component="a"
-            href={row.phoneForCall ? `tel:${row.phoneForCall}` : undefined}
-            disabled={!row.phoneForCall}
-            sx={{ minHeight: 44, minWidth: 44 }}
-          >
-            Call
-          </Button>
-        </Box>
-      </Stack>
-    </Card>
+    <Box component="svg" viewBox="0 0 24 24" aria-hidden sx={{ width: 18, height: 18 }}>
+      <path
+        fill="currentColor"
+        d="M6.6 10.8c1.4 2.7 3.6 4.9 6.3 6.3l2.1-2.1c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.5.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.4 21 3 13.6 3 4.5c0-.6.4-1 1-1h3.6c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.5.1.4 0 .8-.2 1L6.6 10.8z"
+      />
+    </Box>
   );
 }
 
@@ -1132,6 +1200,16 @@ function groupRuns(columns: readonly ColumnDef[]): { band: ColumnDef["band"]; sp
     else runs.push({ band: column.band, span: 1 });
   }
   return runs;
+}
+
+/** The key of the last column in each band's run — see the caller's own comment. */
+function bandBoundaryKeys(columns: readonly ColumnDef[]): ReadonlySet<string> {
+  const keys = new Set<string>();
+  columns.forEach((column, index) => {
+    const next = columns[index + 1];
+    if (!next || next.band !== column.band) keys.add(column.key);
+  });
+  return keys;
 }
 
 export { MISSING_DATA_ROUTE };

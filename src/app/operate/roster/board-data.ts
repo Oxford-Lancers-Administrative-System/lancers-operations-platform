@@ -101,8 +101,22 @@ function comparable(row: RosterBoardRow, key: string): string | number | null {
   return Number.isNaN(asNumber) ? value : asNumber;
 }
 
-/** Display text for a column's option code, where one has a fuller label. */
+/** Columns whose stored value already IS the season vocabulary's code. */
+const CODE_ONLY_COLUMNS = new Set(["offencePosition", "defencePosition", "specialTeamsPosition"]);
+
+/**
+ * Display text for a column's option code — the label alone, never the code
+ * beside it (`REQ`, LAN-186 item 9: no `"eligible · Eligible"` anywhere).
+ *
+ * Positions are the deliberate exception, in the other direction: the club's
+ * vocabulary IS the code (`T`, `NT`, `KO` …), so this returns it unchanged
+ * rather than the fuller name `optionLabels` also carries — LAN-186 item 7,
+ * "letters only... no full names anywhere on the board." `optionLabels` for a
+ * position column exists only for a dropdown's own accessible name, never for
+ * visible text.
+ */
 function optionLabel(column: ColumnDef, code: string): string {
+  if (CODE_ONLY_COLUMNS.has(column.key)) return code;
   if (column.key === "status") return labelFor(MEMBERSHIP_STATUS_LABELS, code);
   if (column.key === "entry") return labelFor(ENTRY_LABELS, code);
   if (column.key === "eligibility") return labelFor(ELIGIBILITY_LABELS, code);
@@ -221,7 +235,6 @@ export function displayOf(row: RosterBoardRow, column: ColumnDef): string {
     if (value.length === 0) return column.edit === "none" ? "—" : NOT_RECORDED;
     return value.map((entry) => optionLabel(column, entry)).join(", ");
   }
-  if (column.edit === "select" || column.edit === "status")
-    return optionLabel(column, String(value));
+  if (column.edit === "select") return optionLabel(column, String(value));
   return String(value);
 }

@@ -53,13 +53,7 @@ vi.mock("@/lib/services/membership", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/membership")>();
   return {
     ...actual,
-    activateMembership: vi.fn(() => {
-      throw REACHED_THE_SERVICE;
-    }),
-    setMembershipInactive: vi.fn(() => {
-      throw REACHED_THE_SERVICE;
-    }),
-    reactivateMembership: vi.fn(() => {
+    setMembershipStatus: vi.fn(() => {
       throw REACHED_THE_SERVICE;
     }),
     resolveOnboardingItem: vi.fn(() => {
@@ -145,10 +139,8 @@ import {
 } from "@/lib/auth/operator";
 import { FIXED_COACHING_ROLE_CODES } from "@/lib/auth/capabilities";
 import {
-  activateMembershipAction,
-  reactivateMembershipAction,
   resolveOnboardingItemAction,
-  setMembershipInactiveAction,
+  setMembershipStatusAction,
 } from "@/app/operate/roster/actions";
 import { submitReturnerIntake } from "@/app/operate/roster/new/actions";
 import {
@@ -228,14 +220,13 @@ async function refusalFrom(call: () => Promise<unknown>): Promise<ServiceError> 
 
 /** Every privileged action a coach must not reach, by the name it is refused under. */
 const FORBIDDEN: ReadonlyArray<{ name: string; call: () => Promise<unknown> }> = [
-  { name: "activateMembershipAction", call: () => activateMembershipAction(null as never, form()) },
   {
-    name: "setMembershipInactiveAction",
-    call: () => setMembershipInactiveAction(null as never, form()),
-  },
-  {
-    name: "reactivateMembershipAction",
-    call: () => reactivateMembershipAction(null as never, form()),
+    name: "setMembershipStatusAction",
+    call: () =>
+      setMembershipStatusAction({
+        membershipId: "55555555-5555-4555-8555-555555555555",
+        status: "active",
+      }),
   },
   {
     name: "resolveOnboardingItemAction",
@@ -318,7 +309,7 @@ describe("LAN-110 — a coaching assignment is refused every action that is not 
     // Not every action on the list is open to a Secretary — delivery is,
     // membership activation is, the report is not — so this asserts that the
     // narrowing did not close the ones that were open.
-    expect(reached).toContain("activateMembershipAction");
+    expect(reached).toContain("setMembershipStatusAction");
     expect(reached).toContain("resolveOnboardingItemAction");
     expect(reached).toContain("approveEventAction");
     expect(reached).toContain("retryDeliveryAction");

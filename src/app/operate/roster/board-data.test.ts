@@ -46,6 +46,8 @@ const COLUMNS = buildColumns(POSITION_OPTIONS);
 const STATUS_COLUMN = COLUMNS.find((c) => c.key === "status")!;
 const COLLEGE_COLUMN = COLUMNS.find((c) => c.key === "college")!;
 const MISSING_COLUMN = COLUMNS.find((c) => c.key === "missing")!;
+const OFFENCE_COLUMN = COLUMNS.find((c) => c.key === "offencePosition")!;
+const ELIGIBILITY_COLUMN = COLUMNS.find((c) => c.key === "eligibility")!;
 
 describe("applyBoard — search, filter and sort together", () => {
   const rows = [
@@ -181,6 +183,30 @@ describe("displayOf — REQ-not-recorded", () => {
 
   it("renders the value when present", () => {
     expect(displayOf(row({ college: "Wadham" }), COLLEGE_COLUMN)).toBe("Wadham");
+  });
+});
+
+/**
+ * LAN-186 items 7 and 9: a position column's stored value IS the season
+ * vocabulary's code, so the fuller name `optionLabels` also carries must never
+ * render — the reverse of every other select column, which shows the fuller
+ * label and never the raw code beside it.
+ */
+describe("displayOf — positions show the code alone, never the full name (item 7)", () => {
+  it('shows "QB", not "Quarterback", though the column carries both', () => {
+    expect(displayOf(row({ offencePosition: "QB" }), OFFENCE_COLUMN)).toBe("QB");
+  });
+
+  it("still says Not recorded when nothing is assigned", () => {
+    expect(displayOf(row({ offencePosition: null }), OFFENCE_COLUMN)).toBe(NOT_RECORDED);
+  });
+});
+
+describe("displayOf — every other select column shows the label alone (item 9)", () => {
+  it('shows "Eligible", never "eligible · Eligible"', () => {
+    const text = displayOf(row({ eligibility: "eligible" }), ELIGIBILITY_COLUMN);
+    expect(text).toBe("Eligible");
+    expect(text).not.toContain("eligible ·");
   });
 });
 

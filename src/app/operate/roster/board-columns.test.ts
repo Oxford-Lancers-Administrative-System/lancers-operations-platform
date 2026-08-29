@@ -111,3 +111,20 @@ describe("buildColumns — positions are sourced from the season vocabulary pass
     expect(columns.length + 1).toBe(20);
   });
 });
+
+/**
+ * LAN-186's owner walkthrough, item 4: the three bespoke transition controls
+ * are gone, replaced by one in-cell dropdown — Status is now `edit: "select"`
+ * like every other season fact, not its own kind.
+ */
+describe("buildColumns — Status is an ordinary select column (item 4)", () => {
+  it("carries `select`, not a bespoke edit kind, and the full status labels", () => {
+    const columns = buildColumns(POSITION_OPTIONS);
+    const status = columns.find((column) => column.key === "status")!;
+
+    expect(status.edit).toBe("select");
+    expect(status.options).toEqual(["onboarding", "active", "inactive", "departed", "archived"]);
+    expect(status.optionLabels?.active).toBe("Active");
+    expect(status.optionLabels?.onboarding).toBe("Onboarding");
+  });
+});

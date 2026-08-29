@@ -2,7 +2,7 @@ import { isServiceError } from "@/lib/db";
 import { listRosterBoard } from "@/lib/services/roster-board";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../gate";
-import { applyBoard, type BoardFilters } from "./board-data";
+import type { BoardFilters } from "./board-data";
 import { buildColumns, redactRow, visibleColumns } from "./board-columns";
 import RosterBoard from "./roster-board";
 
@@ -65,28 +65,28 @@ export default async function RosterPage({ searchParams }: PageProps<"/operate/r
       : "displayName";
   const sortDirection = first(params.dir) === "desc" ? "desc" : "asc";
 
-  // Redacted before it is filtered or sorted: a viewer's column grant decides
-  // what exists to search, not only what is drawn on screen.
-  const redactedRows = data.rows.map((row) => redactRow(row, columns));
-  const applied = applyBoard(redactedRows as typeof data.rows, {
-    search,
-    filters,
-    sort: { key: sortKey, direction: sortDirection },
-  });
+  // Redacted, full width. Search, filter and sort all happen client-side now
+  // (LAN-186 item 11) over this one fetch: `RosterBoard` calls `applyBoard()`
+  // itself for every interaction, rather than this page re-running for each
+  // one. The URL's own params seed only the client's *initial* state below, so
+  // a bookmarked or refreshed link still opens already filtered — that first
+  // load is the one real fetch Brian accepted taking a few seconds; nothing
+  // after it does.
+  const redactedRows = data.rows.map((row) => redactRow(row, columns)) as typeof data.rows;
 
   return (
     <RosterBoard
       operator={operator}
       columns={columns}
-      rows={applied.visible}
+      rows={redactedRows}
       totalInSeason={data.totalInSeason}
       seasonId={data.season.id}
       seasonLabel={data.season.label}
       jerseyHolders={data.jerseyHolders}
-      search={search}
-      filters={filters}
-      sortKey={sortKey}
-      sortDirection={sortDirection}
+      initialSearch={search}
+      initialFilters={filters}
+      initialSortKey={sortKey}
+      initialSortDirection={sortDirection}
     />
   );
 }

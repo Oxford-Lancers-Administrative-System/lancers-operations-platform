@@ -1,5 +1,6 @@
 import { roleCodesPermit } from "@/lib/auth/capabilities";
 import type { PositionOptions, RosterBoardRow } from "@/lib/services/roster-board";
+import { MEMBERSHIP_STATUS_LABELS } from "./presentation";
 
 /**
  * The board's column model — LAN-186. What `chore/roster-fidelity-mockup`'s
@@ -75,12 +76,17 @@ export function bandOf(key: Band): BandDef {
 /**
  * `record` — a person fact: renders and routes to the person record, W2's
  * rules apply there. `select` / `multiselect` / `jersey` — a season fact,
- * edits in the cell, commits on its own, audited, no reason asked. `status` is
- * its own kind because its legal next values and its reason requirements are
- * `membership.ts`'s, not this board's, to decide. `none` is derived or owned
- * elsewhere.
+ * edits in the cell, commits on its own, audited, no reason asked. `none` is
+ * derived or owned elsewhere.
+ *
+ * Status used to be its own kind, gated by a legal-transition table
+ * `membership.ts` owned. LAN-186's owner walkthrough removed that table
+ * entirely (`Q-12`: "We can flip to whatever status we want to go in."), so
+ * Status is now an ordinary `select` column like every other season fact —
+ * the one in-cell dropdown Brian asked for, in place of the three bespoke
+ * controls the board used to render for it.
  */
-export type EditKind = "none" | "record" | "select" | "multiselect" | "jersey" | "status";
+export type EditKind = "none" | "record" | "select" | "multiselect" | "jersey";
 
 export interface ColumnDef {
   readonly key: string;
@@ -98,6 +104,12 @@ export interface ColumnDef {
 }
 
 export const STATUSES = Object.freeze(["onboarding", "active", "inactive", "departed", "archived"]);
+/**
+ * The Status column's own label map — the same words `presentation.ts` fixes
+ * for the rest of the roster, so the board's dropdown, its filter chip and the
+ * player page's status control never invent a second wording for one value.
+ */
+export const STATUS_OPTION_LABELS: Readonly<Record<string, string>> = MEMBERSHIP_STATUS_LABELS;
 export const ENTRIES = Object.freeze(["new", "returning"]);
 export const COACH_GROUPS = Object.freeze(["Offense", "Defense", "Special teams"]);
 export const FORMALWEAR_ITEMS = Object.freeze(["tie", "bowtie", "socks"] as const);
@@ -212,8 +224,9 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       key: "status",
       label: "Status",
       band: "season",
-      edit: "status",
+      edit: "select",
       options: STATUSES,
+      optionLabels: STATUS_OPTION_LABELS,
       width: 128,
       sortable: true,
       filterable: true,
