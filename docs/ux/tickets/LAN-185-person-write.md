@@ -282,6 +282,48 @@ history — stays with the merged-away record and does not join the survivor's
 season; Brian considered re-pointing that participation history and rejected
 it. Not built, and not attempted.
 
+### `Q-17` — a second package's test file appears in this diff
+
+This round's own tests proved themselves clean against `main`, but CI still
+failed at the correction round's head — four times out of four, never on
+anything B1–B6 touch. Investigated rather than assumed: `npx vitest run
+--project database` alone (no `unit` project) passed every time;
+`unit`+`database` together — exactly how `npm run test`/CI's own `test:ci`
+invoke it — failed, identically, on one single test in
+`src/lib/services/messaging-scheduler.test.ts` (LAN-169, a different
+mission), and reproduced the same way on round 1's own head once actually
+run against a freshly reset database rather than a reused one. Established
+cause: that one test's own single `runMessagingSweep()` call assumed its
+fixture's fresh escalation would be dispatched within that one tick, but
+`readDueJobs` orders strictly oldest-due-first with a fixed batch limit, and
+the seeded database carries its own ambient backlog of jobs already due,
+every one older than a job this fixture creates with `scheduled_for =
+now()`. Nothing scoped that backlog to the test, so a slower run (contention
+from the `unit` project's own parallel load, more of the backlog crossing
+due in the meantime) could leave the fixture's own escalation still queued
+after one tick — a timing dependency that was already latent, not something
+this round's diff introduced, but one this round's own added test load
+plausibly pushed CI's already-thin margin past.
+
+Brian (correction round 2, `Q-17`):
+
+> Fix it inside this PR, accepting that another mission's test file appears
+> in this package's diff and that the two changes merge as one, in exchange
+> for saving a separate PR cycle.
+
+Fixed entirely inside `messaging-scheduler.test.ts`'s own fixture — sweeping
+in a bounded loop until the fixture's own escalation is actually dispatched,
+rather than assuming one tick is enough — never touching
+`messaging-scheduler.ts` or weakening the privacy assertion it makes.
+Injection-proven the same way as B1–B6: the single-call version was
+reintroduced, observed to fail under the identical `unit`+`database`
+invocation against a freshly reset database, restored, and then shown
+passing three consecutive full-suite runs, each against its own freshly
+reset database. `Q-17` is this file's authority for being in this package's
+diff at all — LAN-185 does not own `messaging-scheduler.test.ts` or any
+other part of LAN-169's messaging package, and this is the one, narrow,
+Brian-approved exception.
+
 ## Acceptance criteria
 
 The twenty-two checkboxes under **Acceptance** on the LAN-185 Linear issue are
