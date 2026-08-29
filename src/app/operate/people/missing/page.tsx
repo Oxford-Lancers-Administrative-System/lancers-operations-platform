@@ -176,10 +176,9 @@ export default async function MissingDataPage({
                   />
                   <TableCell>Status</TableCell>
                   <TableCell>To the club</TableCell>
-                  <TableCell>Missing</TableCell>
                   <SortableHeader
                     column="missing"
-                    label="How much"
+                    label="Missing"
                     sort={sort}
                     direction={direction}
                     query={params}
@@ -354,7 +353,6 @@ function QueueRow({ person }: { person: PersonListEntry }) {
       <TableCell>
         <GapsCell person={person} />
       </TableCell>
-      <TableCell>{person.missingRequiredFields.length}</TableCell>
       <TableCell>
         {/* LAN-185 builds `/operate/people/[personId]/edit`; this routes to
             correction and, once that surface writes a redirect back here, will

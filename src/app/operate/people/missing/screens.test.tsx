@@ -2,7 +2,7 @@
  * `W7-01` … `W7-05`, `W7-07` — the missing-data queue. LAN-184.
  */
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -136,5 +136,106 @@ describe("the missing-data queue, for an authorized operator", () => {
     });
     const filtered = render(await MissingDataPage(pageProps({ q: "Nobody Named This" })));
     expect(filtered.getByTestId("missing-filter-empty")).toBeVisible();
+  });
+});
+
+describe("the desktop table's Missing column — W7-01, correcting F1", () => {
+  it("carries no separate How much column; the Missing column itself sorts by how much is missing", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(listMissingDataQueue).mockResolvedValue({
+      season: SEASON,
+      scope: "in_season",
+      totalMissing: 1,
+      entries: [
+        {
+          personId: "p1",
+          displayName: "Bertram",
+          matchedAlias: null,
+          status: "active",
+          clubRoleSummary: "Player",
+          hasMobile: true,
+          hasPersonalEmail: false,
+          missingRequiredFields: ["family_name", "emergency_contact"],
+        },
+      ],
+    });
+
+    render(await MissingDataPage(pageProps()));
+
+    // The approved W7-01 mockup draws five columns — Name, Status, To the
+    // club, Missing, action — with sorting reached through the Missing
+    // header itself, never a separate numeric column.
+    const table = screen.getByRole("table", { name: "Missing data" });
+    expect(within(table).queryByText("How much")).not.toBeInTheDocument();
+    // The count that the removed column used to render as a bare number
+    // (2, for these two gaps) must not have moved into a bare table cell.
+    expect(within(table).queryByText("2", { selector: "td" })).not.toBeInTheDocument();
+
+    const missingHeader = within(table).getByRole("link", { name: /Missing/ });
+    expect(missingHeader).toHaveAttribute("href", expect.stringContaining("sort=missing"));
+  });
+
+  it("sorted by name ascending, still offers sorting to missing (most-missing-first default)", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(listMissingDataQueue).mockResolvedValue({
+      season: SEASON,
+      scope: "in_season",
+      totalMissing: 1,
+      entries: [
+        {
+          personId: "p1",
+          displayName: "Bertram",
+          matchedAlias: null,
+          status: "active",
+          clubRoleSummary: "Player",
+          hasMobile: true,
+          hasPersonalEmail: false,
+          missingRequiredFields: ["emergency_contact"],
+        },
+      ],
+    });
+
+    render(await MissingDataPage(pageProps({ sort: "name", dir: "asc" })));
+    const table = screen.getByRole("table", { name: "Missing data" });
+    expect(within(table).getByRole("link", { name: /Missing/ })).toHaveAttribute(
+      "href",
+      expect.stringContaining("sort=missing"),
+    );
+    expect(within(table).getByRole("link", { name: /Name/ })).toHaveAttribute(
+      "href",
+      expect.stringContaining("dir=desc"),
+    );
+  });
+
+  it("sorted by missing descending, still offers sorting to name and flips its own direction", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(listMissingDataQueue).mockResolvedValue({
+      season: SEASON,
+      scope: "in_season",
+      totalMissing: 1,
+      entries: [
+        {
+          personId: "p1",
+          displayName: "Bertram",
+          matchedAlias: null,
+          status: "active",
+          clubRoleSummary: "Player",
+          hasMobile: true,
+          hasPersonalEmail: false,
+          missingRequiredFields: ["emergency_contact"],
+        },
+      ],
+    });
+
+    render(await MissingDataPage(pageProps({ sort: "missing", dir: "desc" })));
+    const table = screen.getByRole("table", { name: "Missing data" });
+    expect(within(table).getByRole("link", { name: /Name/ })).toHaveAttribute(
+      "href",
+      expect.stringContaining("sort=name"),
+    );
+    expect(within(table).getByRole("link", { name: /Missing/ })).toHaveAttribute(
+      "href",
+      expect.stringContaining("dir=asc"),
+    );
   });
 });
