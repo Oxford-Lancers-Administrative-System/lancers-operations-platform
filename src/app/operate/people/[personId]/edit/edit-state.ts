@@ -35,6 +35,12 @@ export interface EditFieldErrors {
  * These twelve cover the remaining fields the rule applies to: the seven
  * `PersonFieldUpdate` fields (`given_name` through `date_of_birth`) and all
  * five `EmergencyContactFieldUpdate` fields.
+ *
+ * B1, LAN-185 correction round 2 (Brian's walk): `edit-person-form.tsx`
+ * renders each `*Reason` input only once the field's live value actually
+ * differs from what is stored — never up front just because the field is
+ * populated. That is client behaviour (`edit-person-form.tsx`'s own state),
+ * not a shape change here.
  */
 export interface CorrectionReasonFormValues {
   givenNameReason: string;
@@ -51,16 +57,6 @@ export interface CorrectionReasonFormValues {
   emergencyEmailReason: string;
 }
 
-export interface MobileConfirmation {
-  /** What the operator typed, unmodified. */
-  raw: string;
-  /** The E.164 preview — `+` plus digits — for "will be saved as …". */
-  normalisedPreview: string;
-  reason: string;
-  /** The WhatsApp seam banner, when it applies. Always absent today — see `person-whatsapp-seam.ts`. */
-  whatsappWarning: string | null;
-}
-
 export interface EditState {
   errors: EditFieldErrors;
   formError?: string;
@@ -72,8 +68,6 @@ export interface EditState {
   };
   /** A concurrent save happened underneath this one. */
   concurrentEditMessage?: string;
-  /** W2-05: the mobile change is validated but not yet committed. */
-  pendingMobileConfirmation?: MobileConfirmation;
   /** Set after a successful save, read once by the client to show a toast-free confirmation via redirect instead. */
 }
 
@@ -107,7 +101,6 @@ export interface EditFormValues extends CorrectionReasonFormValues {
   emergencyPhone: string;
   emergencyEmail: string;
   expectedVersion: string;
-  confirmMobile: string;
 }
 
 export function readEditFormValues(formData: FormData): EditFormValues {
@@ -143,6 +136,5 @@ export function readEditFormValues(formData: FormData): EditFormValues {
     emergencyEmail: optional(formData.get("emergencyEmail")),
     emergencyEmailReason: optional(formData.get("emergencyEmailReason")),
     expectedVersion: optional(formData.get("expectedVersion")),
-    confirmMobile: optional(formData.get("confirmMobile")),
   };
 }

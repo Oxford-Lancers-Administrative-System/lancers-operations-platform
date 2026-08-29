@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { isServiceError } from "@/lib/db";
 import { readPersonRecord } from "@/lib/services/person-record";
 import { personVersion } from "@/lib/services/person-write";
+import { readCurrentSeason } from "@/lib/services/seasons";
 import { gateShellPage } from "../../../gate";
 import EditPersonForm from "./edit-person-form";
 
@@ -27,6 +28,17 @@ export default async function EditPersonPage({
   }
 
   const version = await personVersion(personId);
+  // B3, correction round 2: the mobile field's inline WhatsApp-seam preview
+  // needs the active season's label, the same input `actions.ts` already
+  // reads server-side before it existed inline.
+  const season = await readCurrentSeason().catch(() => null);
 
-  return <EditPersonForm personId={personId} record={record} expectedVersion={version} />;
+  return (
+    <EditPersonForm
+      personId={personId}
+      record={record}
+      expectedVersion={version}
+      seasonLabel={season?.label ?? "the active season"}
+    />
+  );
 }

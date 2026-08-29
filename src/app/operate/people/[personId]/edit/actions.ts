@@ -15,8 +15,6 @@ import {
 import { findPersonDuplicates } from "@/lib/services/person-duplicate";
 import { readPersonRecord, type PersonRecord } from "@/lib/services/person-record";
 import { validatePhoneNumber } from "@/lib/services/person-validation";
-import { describeWhatsappSeamConsequence } from "@/lib/services/person-whatsapp-seam";
-import { readCurrentSeason } from "@/lib/services/seasons";
 import {
   GENERIC_FAILURE,
   readEditFormValues,
@@ -44,6 +42,16 @@ import {
  * submission makes. Every later write in the same submission omits it — by
  * then this submission's own earlier write has legitimately moved the
  * version, and checking again would refuse a save against itself.
+ *
+ * ## Mobile is one inline field, not a second screen (B3, correction round 2)
+ *
+ * The normalised preview and the WhatsApp-seam warning render inline in
+ * `edit-person-form.tsx` as the operator types — both `validatePhoneNumber`
+ * and `describeWhatsappSeamConsequence` are pure and client-safe by design
+ * (their own module notes say so). This action re-validates and re-normalises
+ * server-side regardless, the same posture `person-validation.ts` states for
+ * why a client check never substitutes for the one here, and commits the
+ * change in the same single submission as every other field.
  */
 export async function submitPersonEdit(
   previous: EditState,
@@ -69,31 +77,11 @@ export async function submitPersonEdit(
     return expectedVersion;
   }
 
-  // ---- Mobile: validated, normalised and read back before it commits -----
+  // ---- Mobile: validated and normalised in the same submission -----------
   const mobileChanged = values.mobile.trim() !== (currentMobile(current)?.rawValue ?? "");
   if (mobileChanged && values.mobile.trim() !== "") {
     const validation = validatePhoneNumber(values.mobile);
-    if (!validation.valid) {
-      errors.mobile = validation.message;
-    } else if (values.confirmMobile !== "1") {
-      const season = await readCurrentSeason().catch(() => null);
-      const previousMobile = currentMobile(current);
-      const seam = describeWhatsappSeamConsequence(
-        previousMobile?.rawValue ?? "",
-        season?.label ?? "the active season",
-        // Honest today: no substrate answers this — see person-whatsapp-seam.ts.
-        false,
-      );
-      return {
-        errors: {},
-        pendingMobileConfirmation: {
-          raw: values.mobile.trim(),
-          normalisedPreview: `+${validation.e164}`,
-          reason: values.mobileReason,
-          whatsappWarning: seam.message,
-        },
-      };
-    }
+    if (!validation.valid) errors.mobile = validation.message;
   } else if (mobileChanged && values.mobile.trim() === "" && currentMobile(current)) {
     errors.mobile = "A mobile number cannot be cleared here — supersede it with a new one instead.";
   }

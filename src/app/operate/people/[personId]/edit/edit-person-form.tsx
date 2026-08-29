@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useActionState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
@@ -11,6 +12,8 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 
 import type { PersonRecord } from "@/lib/services/person-record";
+import { validatePhoneNumber } from "@/lib/services/person-validation";
+import { describeWhatsappSeamConsequence } from "@/lib/services/person-whatsapp-seam";
 import {
   submitAddAlias,
   submitPersonEdit,
@@ -37,32 +40,31 @@ function currentContact(
  * `/operate/people/[personId]/edit` — W2-01 … W2-10. One page, sectioned
  * exactly as the record reads, one Save. See `actions.ts`'s module note for
  * why every field lives on one submission.
+ *
+ * B1/B3, LAN-185 correction round 2 (Brian's walk): every reason-bearing
+ * field is a `CorrectableField` below — one inline interaction, the same
+ * shape for all fifteen fields including mobile. Its *Reason for the change*
+ * box appears only once the operator's live value actually differs from what
+ * is stored, and disappears again if they put the original value back;
+ * mobile's normalised preview and WhatsApp-seam warning render inline the
+ * same way, with no second screen.
  */
 export default function EditPersonForm({
   personId,
   record,
   expectedVersion,
+  seasonLabel,
 }: {
   personId: string;
   record: PersonRecord;
   expectedVersion: string | null;
+  seasonLabel: string;
 }) {
   const [state, formAction, pending] = useActionState(submitPersonEdit, INITIAL_EDIT_STATE);
   const mobile = currentContact(record, "phone", null);
   const personalEmail = currentContact(record, "email", "personal");
   const collegeEmail = currentContact(record, "email", "college");
   const ec = record.emergencyContact;
-
-  if (state.pendingMobileConfirmation) {
-    return (
-      <MobileConfirmStep
-        personId={personId}
-        record={record}
-        expectedVersion={expectedVersion}
-        confirmation={state.pendingMobileConfirmation}
-      />
-    );
-  }
 
   return (
     <Box component="form" action={formAction} sx={{ maxWidth: 880 }}>
@@ -143,245 +145,140 @@ export default function EditPersonForm({
 
         <Section title="Who they are">
           <Stack spacing={2}>
-            <TextField
+            <CorrectableField
               name="givenName"
+              reasonName="givenNameReason"
               label="First name"
               required
-              defaultValue={record.givenName}
-              error={Boolean(state.errors.givenName)}
-              helperText={state.errors.givenName}
-              fullWidth
+              original={record.givenName}
+              error={state.errors.givenName}
             />
-            {record.givenName ? (
-              <TextField
-                name="givenNameReason"
-                label="Reason for the change"
-                helperText="Required only if you change this value."
-                fullWidth
-              />
-            ) : null}
-            <TextField
+            <CorrectableField
               name="familyName"
+              reasonName="familyNameReason"
               label="Last name"
-              defaultValue={record.familyName ?? ""}
-              error={Boolean(state.errors.familyName)}
-              helperText={state.errors.familyName}
-              fullWidth
+              original={record.familyName ?? ""}
+              error={state.errors.familyName}
             />
-            {record.familyName ? (
-              <TextField
-                name="familyNameReason"
-                label="Reason for the change"
-                helperText="Required only if you change this value."
-                fullWidth
-              />
-            ) : null}
             <AliasesEditor personId={personId} record={record} />
           </Stack>
         </Section>
 
         <Section title="How to reach them">
           <Stack spacing={2}>
-            <TextField
+            <CorrectableField
               name="mobile"
+              reasonName="mobileReason"
               label="Mobile phone"
-              defaultValue={mobile?.rawValue ?? ""}
-              error={Boolean(state.errors.mobile)}
-              helperText={state.errors.mobile ?? "Validated and read back before saving."}
-              fullWidth
+              original={mobile?.rawValue ?? ""}
+              error={state.errors.mobile}
+              unchangedHelperText="Validated and read back before saving."
+              renderExtra={(value, changed) =>
+                changed ? (
+                  <MobilePreview
+                    value={value}
+                    original={mobile?.rawValue ?? ""}
+                    seasonLabel={seasonLabel}
+                  />
+                ) : null
+              }
             />
-            {mobile ? (
-              <TextField
-                name="mobileReason"
-                label="Reason for the change"
-                helperText="Required only if you change this value."
-                fullWidth
-              />
-            ) : null}
-            <TextField
+            <CorrectableField
               name="personalEmail"
+              reasonName="personalEmailReason"
               label="Personal email"
-              defaultValue={personalEmail?.rawValue ?? ""}
-              error={Boolean(state.errors.personalEmail)}
-              helperText={state.errors.personalEmail}
-              fullWidth
+              original={personalEmail?.rawValue ?? ""}
+              error={state.errors.personalEmail}
             />
-            {personalEmail ? (
-              <TextField
-                name="personalEmailReason"
-                label="Reason for the change"
-                helperText="Required only if you change this value."
-                fullWidth
-              />
-            ) : null}
-            <TextField
+            <CorrectableField
               name="collegeEmail"
+              reasonName="collegeEmailReason"
               label="College email"
-              defaultValue={collegeEmail?.rawValue ?? ""}
-              error={Boolean(state.errors.collegeEmail)}
-              helperText={state.errors.collegeEmail}
-              fullWidth
+              original={collegeEmail?.rawValue ?? ""}
+              error={state.errors.collegeEmail}
             />
-            {collegeEmail ? (
-              <TextField
-                name="collegeEmailReason"
-                label="Reason for the change"
-                helperText="Required only if you change this value."
-                fullWidth
-              />
-            ) : null}
           </Stack>
         </Section>
 
         <Section title="Academic">
           <Stack spacing={2}>
-            <TextField
+            <CorrectableField
               name="college"
+              reasonName="collegeReason"
               label="College"
-              defaultValue={record.college ?? ""}
-              fullWidth
+              original={record.college ?? ""}
             />
-            {record.college ? (
-              <TextField
-                name="collegeReason"
-                label="Reason for the change"
-                helperText="Required only if you change this value."
-                fullWidth
-              />
-            ) : null}
-            <TextField
+            <CorrectableField
               name="matriculationYear"
+              reasonName="matriculationYearReason"
               label="Matriculation year"
-              defaultValue={record.matriculationYear ?? ""}
-              fullWidth
+              original={record.matriculationYear !== null ? String(record.matriculationYear) : ""}
             />
-            {record.matriculationYear !== null ? (
-              <TextField
-                name="matriculationYearReason"
-                label="Reason for the change"
-                helperText="Required only if you change this value."
-                fullWidth
-              />
-            ) : null}
-            <TextField
+            <CorrectableField
               name="expectedGraduationYear"
+              reasonName="expectedGraduationYearReason"
               label="Expected graduation"
-              defaultValue={record.expectedGraduationYear ?? ""}
-              fullWidth
+              original={
+                record.expectedGraduationYear !== null ? String(record.expectedGraduationYear) : ""
+              }
             />
-            {record.expectedGraduationYear !== null ? (
-              <TextField
-                name="expectedGraduationYearReason"
-                label="Reason for the change"
-                helperText="Required only if you change this value."
-                fullWidth
-              />
-            ) : null}
-            <TextField
+            <CorrectableField
               name="degreeField"
+              reasonName="degreeFieldReason"
               label="Degree field"
-              defaultValue={record.degreeField ?? ""}
-              fullWidth
+              original={record.degreeField ?? ""}
             />
-            {record.degreeField ? (
-              <TextField
-                name="degreeFieldReason"
-                label="Reason for the change"
-                helperText="Required only if you change this value."
-                fullWidth
-              />
-            ) : null}
           </Stack>
         </Section>
 
         <Section title="Restricted">
           <Stack spacing={2}>
-            <TextField
+            <CorrectableField
               name="dateOfBirth"
+              reasonName="dateOfBirthReason"
               label="Date of birth"
               type="date"
-              defaultValue={record.dateOfBirth ?? ""}
-              slotProps={{ inputLabel: { shrink: true } }}
-              fullWidth
+              original={record.dateOfBirth ?? ""}
             />
-            {record.dateOfBirth ? (
-              <TextField
-                name="dateOfBirthReason"
-                label="Reason for the change"
-                helperText="Required only if you change this value."
-                fullWidth
-              />
-            ) : null}
-            <TextField
-              name="emergencyGivenName"
-              label="Emergency contact — first name"
-              defaultValue={ec?.givenName ?? ""}
-              fullWidth
-            />
-            {ec?.givenName ? (
-              <TextField
-                name="emergencyGivenNameReason"
-                label="Reason for the change"
-                helperText="Required only if you change this value."
-                fullWidth
-              />
-            ) : null}
-            <TextField
-              name="emergencyFamilyName"
-              label="Emergency contact — last name"
-              defaultValue={ec?.familyName ?? ""}
-              fullWidth
-            />
-            {ec?.familyName ? (
-              <TextField
-                name="emergencyFamilyNameReason"
-                label="Reason for the change"
-                helperText="Required only if you change this value."
-                fullWidth
-              />
-            ) : null}
-            <TextField
-              name="emergencyRelationship"
-              label="Relationship"
-              defaultValue={ec?.relationship ?? ""}
-              fullWidth
-            />
-            {ec?.relationship ? (
-              <TextField
-                name="emergencyRelationshipReason"
-                label="Reason for the change"
-                helperText="Required only if you change this value."
-                fullWidth
-              />
-            ) : null}
-            <TextField
-              name="emergencyPhone"
-              label="Phone"
-              defaultValue={ec?.phone ?? ""}
-              fullWidth
-            />
-            {ec?.phone ? (
-              <TextField
-                name="emergencyPhoneReason"
-                label="Reason for the change"
-                helperText="Required only if you change this value."
-                fullWidth
-              />
-            ) : null}
-            <TextField
-              name="emergencyEmail"
-              label="Email"
-              defaultValue={ec?.email ?? ""}
-              fullWidth
-            />
-            {ec?.email ? (
-              <TextField
-                name="emergencyEmailReason"
-                label="Reason for the change"
-                helperText="Required only if you change this value."
-                fullWidth
-              />
-            ) : null}
+
+            {/* B2, LAN-185 correction round 2: the emergency contact is one
+                subject — the way the record itself reads it as a single
+                `Fact` — so its five fields render as their own labelled
+                group, not loose among the restricted fields. */}
+            <Subsection title="Emergency contact">
+              <Stack spacing={2}>
+                <CorrectableField
+                  name="emergencyGivenName"
+                  reasonName="emergencyGivenNameReason"
+                  label="First name"
+                  original={ec?.givenName ?? ""}
+                />
+                <CorrectableField
+                  name="emergencyFamilyName"
+                  reasonName="emergencyFamilyNameReason"
+                  label="Last name"
+                  original={ec?.familyName ?? ""}
+                />
+                <CorrectableField
+                  name="emergencyRelationship"
+                  reasonName="emergencyRelationshipReason"
+                  label="Relationship"
+                  original={ec?.relationship ?? ""}
+                />
+                <CorrectableField
+                  name="emergencyPhone"
+                  reasonName="emergencyPhoneReason"
+                  label="Phone"
+                  original={ec?.phone ?? ""}
+                />
+                <CorrectableField
+                  name="emergencyEmail"
+                  reasonName="emergencyEmailReason"
+                  label="Email"
+                  original={ec?.email ?? ""}
+                />
+              </Stack>
+            </Subsection>
           </Stack>
         </Section>
       </Stack>
@@ -397,6 +294,123 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       </Typography>
       {children}
     </Paper>
+  );
+}
+
+/**
+ * A titled group nested inside a `Section` — B2's "one subject" grouping for
+ * the emergency contact, visually distinct without being a second `Section`
+ * (the record's own four top-level sections stay four).
+ */
+function Subsection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 2 }}>
+      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
+        {title}
+      </Typography>
+      {children}
+    </Box>
+  );
+}
+
+/**
+ * One reason-governed field — B1/B3's single shared shape for every one of
+ * the fifteen fields `person-write.ts`'s reason rule covers, mobile
+ * included. `original` is the value currently on record (`""` means
+ * genuinely empty, `REQ-not-recorded`). The *Reason for the change* box
+ * appears only once the live value differs from `original` **and**
+ * `original` is not empty — required to correct a value, never to fill an
+ * empty one — and disappears again the moment the operator puts the
+ * original value back, per field, live, the way B1 asked for it.
+ */
+function CorrectableField({
+  name,
+  reasonName,
+  label,
+  original,
+  error,
+  type,
+  required,
+  unchangedHelperText,
+  renderExtra,
+}: {
+  name: string;
+  reasonName: string;
+  label: string;
+  original: string;
+  error?: string;
+  type?: string;
+  required?: boolean;
+  unchangedHelperText?: string;
+  renderExtra?: (value: string, changed: boolean) => React.ReactNode;
+}) {
+  const [value, setValue] = useState(original);
+  const changed = value.trim() !== original.trim();
+  const needsReason = changed && original.trim() !== "";
+
+  return (
+    <>
+      <TextField
+        name={name}
+        label={label}
+        type={type}
+        required={required}
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        error={Boolean(error)}
+        helperText={error ?? (changed ? undefined : unchangedHelperText)}
+        slotProps={type === "date" ? { inputLabel: { shrink: true } } : undefined}
+        fullWidth
+      />
+      {renderExtra ? renderExtra(value, changed) : null}
+      {needsReason ? (
+        <TextField
+          name={reasonName}
+          label="Reason for the change"
+          helperText="Required only if you change this value."
+          fullWidth
+        />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * B3's inline normalise-and-confirm, in place of the old second screen.
+ * `validatePhoneNumber` is pure and explicitly documented safe to call from
+ * a client component — the same posture `describeWhatsappSeamConsequence`
+ * states for the same reason. Neither call writes anything; the server
+ * action re-validates and re-normalises before it ever commits.
+ */
+function MobilePreview({
+  value,
+  original,
+  seasonLabel,
+}: {
+  value: string;
+  original: string;
+  seasonLabel: string;
+}) {
+  if (value.trim() === "") return null;
+  const validation = validatePhoneNumber(value);
+  if (!validation.valid) return null;
+  const seam = describeWhatsappSeamConsequence(
+    original,
+    seasonLabel,
+    // Honest today: no substrate answers this — see person-whatsapp-seam.ts.
+    false,
+  );
+  return (
+    <Stack spacing={1}>
+      <Typography variant="body2" color="text.secondary" data-testid="mobile-normalised-preview">
+        Will be saved as <strong>+{validation.e164}</strong>
+      </Typography>
+      {seam.message ? (
+        <Alert severity="warning" data-testid="whatsapp-seam-banner">
+          {seam.message}
+        </Alert>
+      ) : null}
+    </Stack>
   );
 }
 
@@ -467,115 +481,6 @@ function AliasesEditor({ personId, record }: { personId: string; record: PersonR
         >
           Add
         </Button>
-      </Stack>
-    </Box>
-  );
-}
-
-function MobileConfirmStep({
-  personId,
-  record,
-  expectedVersion,
-  confirmation,
-}: {
-  personId: string;
-  record: PersonRecord;
-  expectedVersion: string | null;
-  confirmation: {
-    raw: string;
-    normalisedPreview: string;
-    reason: string;
-    whatsappWarning: string | null;
-  };
-}) {
-  const [, formAction, pending] = useActionState(submitPersonEdit, INITIAL_EDIT_STATE);
-  const mobile = currentContact(record, "phone", null);
-  const personalEmail = currentContact(record, "email", "personal");
-  const collegeEmail = currentContact(record, "email", "college");
-  return (
-    <Box component="form" action={formAction} sx={{ maxWidth: 880 }}>
-      <input type="hidden" name="personId" value={personId} />
-      <input type="hidden" name="expectedVersion" value={expectedVersion ?? ""} />
-      <input type="hidden" name="confirmMobile" value="1" />
-      <input type="hidden" name="mobile" value={confirmation.raw} />
-      <input type="hidden" name="givenName" value={record.givenName} />
-      <input type="hidden" name="familyName" value={record.familyName ?? ""} />
-      <input type="hidden" name="personalEmail" value={personalEmail?.rawValue ?? ""} />
-      <input type="hidden" name="collegeEmail" value={collegeEmail?.rawValue ?? ""} />
-      <input type="hidden" name="college" value={record.college ?? ""} />
-      <input type="hidden" name="matriculationYear" value={record.matriculationYear ?? ""} />
-      <input
-        type="hidden"
-        name="expectedGraduationYear"
-        value={record.expectedGraduationYear ?? ""}
-      />
-      <input type="hidden" name="degreeField" value={record.degreeField ?? ""} />
-      <input type="hidden" name="dateOfBirth" value={record.dateOfBirth ?? ""} />
-      <input
-        type="hidden"
-        name="emergencyGivenName"
-        value={record.emergencyContact?.givenName ?? ""}
-      />
-      <input
-        type="hidden"
-        name="emergencyFamilyName"
-        value={record.emergencyContact?.familyName ?? ""}
-      />
-      <input
-        type="hidden"
-        name="emergencyRelationship"
-        value={record.emergencyContact?.relationship ?? ""}
-      />
-      <input type="hidden" name="emergencyPhone" value={record.emergencyContact?.phone ?? ""} />
-      <input type="hidden" name="emergencyEmail" value={record.emergencyContact?.email ?? ""} />
-
-      <Stack spacing={3}>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          Correct this record
-        </Typography>
-
-        {confirmation.whatsappWarning ? (
-          <Alert severity="warning" data-testid="whatsapp-seam-banner">
-            {confirmation.whatsappWarning}
-          </Alert>
-        ) : null}
-
-        <Section title="How to reach them">
-          <Stack spacing={2}>
-            <Typography>
-              Will be saved as <strong>{confirmation.normalisedPreview}</strong>
-            </Typography>
-            {mobile ? (
-              <Typography variant="body2" color="text.secondary">
-                was {mobile.rawValue}
-              </Typography>
-            ) : null}
-            <TextField
-              name="mobileReason"
-              label="Reason for the change"
-              defaultValue={confirmation.reason}
-              fullWidth
-              required={Boolean(mobile)}
-            />
-          </Stack>
-        </Section>
-
-        <Stack direction="row" spacing={2}>
-          <Button
-            href={`/operate/people/${personId}`}
-            sx={{ minHeight: MIN_TOUCH_TARGET, textTransform: "none" }}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={pending}
-            sx={{ minHeight: MIN_TOUCH_TARGET }}
-          >
-            Save
-          </Button>
-        </Stack>
       </Stack>
     </Box>
   );

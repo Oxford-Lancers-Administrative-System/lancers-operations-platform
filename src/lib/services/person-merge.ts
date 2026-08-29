@@ -23,6 +23,12 @@ import { personDisplayNameSql } from "./sql-text";
  * > kept, dated and re-pointed at the survivor so a manual repair stays
  * > possible, and the confirmation says plainly that there is no undo.
  *
+ * `Q-16` (Brian, correction round 2 — `evaluateSeasonOverlap()` below builds
+ * this) narrows `Q-5`'s season-overlap refusal from a dead end into a real
+ * path forward: the refusal names the season, links to the loser's own
+ * membership, and clears once that membership is archived — at which point
+ * the merge proceeds and that one membership, alone, stays on the loser.
+ *
  * ## Field application reuses the ordinary correction path
  *
  * The workflow's own words: "Chosen field values are written onto the
@@ -46,10 +52,11 @@ import { personDisplayNameSql } from "./sql-text";
  * `people.merged_*_person_id` (the merge event's own columns),
  * `operator_accounts.person_id` (a login/seat — Mission 1's, and the reason
  * the active-seat refusal exists at all), and the five tables whose *shape*
- * the merge changes rather than a plain re-point:  `contact_points`,
+ * the merge changes rather than a plain re-point: `contact_points`,
  * `person_aliases`, `person_emergency_contacts`, `recruitment_prospects`, and
- * `season_memberships` needs no special handling beyond the refusal gate
- * that makes a blind re-point always safe.
+ * `season_memberships` — the last since `Q-16` (correction round 2), which
+ * excludes one specific membership (the overlap season the operator archived
+ * to clear the refusal) rather than every row on the loser.
  * `tests/person-merge-reference-catalogue.test.ts` asks `pg_constraint` for
  * the real, current list and fails if this module's declared set has drifted
  * from it — "ask the catalogue, not the migrations."
@@ -110,6 +117,32 @@ export type MergeFieldChoices = Partial<Record<MergePersonField, MergeChoice>> &
 export interface MergeRefusal {
   rule: string;
   message: string;
+  /**
+   * `Q-16` (Brian, correction round 2): the season-overlap refusal names the
+   * exact membership to archive and links to it — one entry per season still
+   * blocking the merge. Absent for the active-operator-seat refusal, which
+   * already links to Mission 1's administration surface generically.
+   */
+  blockingMemberships?: { seasonLabel: string; membershipId: string }[];
+}
+
+/** One season where both records hold a membership — `Q-16`'s overlap check. */
+interface SeasonOverlap {
+  seasonId: string;
+  seasonLabel: string;
+  loserMembershipId: string;
+  loserStatus: string;
+}
+
+/**
+ * An overlap `Q-16` resolves by archiving rather than by refusing — the
+ * loser's own membership row, named so both the preview's `staysWithLoser`
+ * note and the write's re-point exclusion can use the same id.
+ */
+interface RetainedMembership {
+  seasonId: string;
+  seasonLabel: string;
+  membershipId: string;
 }
 
 async function readMergeSide(
@@ -126,6 +159,84 @@ async function readMergeSide(
 }
 
 /**
+ * Every season where both the survivor and the loser hold a membership,
+ * naming the loser's own membership row and its status — the input both the
+ * refusal and the write's exclusion (below) are computed from.
+ */
+async function findSeasonOverlaps(
+  tx: Tx,
+  survivorId: string,
+  loserId: string,
+): Promise<SeasonOverlap[]> {
+  const result = await tx.query<{
+    season_id: string;
+    label: string;
+    loser_membership_id: string;
+    status: string;
+  }>(
+    `select s.id as season_id, s.label, b.id as loser_membership_id, b.status
+       from public.season_memberships a
+       join public.season_memberships b
+         on b.season_id = a.season_id and b.person_id = $2::uuid
+       join public.seasons s on s.id = a.season_id
+      where a.person_id = $1::uuid`,
+    [survivorId, loserId],
+  );
+  return result.rows.map((row) => ({
+    seasonId: row.season_id,
+    seasonLabel: row.label,
+    loserMembershipId: row.loser_membership_id,
+    loserStatus: row.status,
+  }));
+}
+
+/**
+ * `Q-16` (Brian, correction round 2, superseding the original season-overlap
+ * refusal): "A merge may proceed once the losing record's membership for the
+ * shared season is archived. The refusal says so explicitly: it names the
+ * season, links to that membership, and tells the operator to archive it on
+ * the roster before merging." An overlap whose loser-side status is already
+ * `archived` is not a refusal — it is returned as `retained` instead, so the
+ * caller can exclude that one membership row from the re-point (below) and
+ * report that it stays with the loser.
+ */
+async function evaluateSeasonOverlap(
+  tx: Tx,
+  survivorId: string,
+  loserId: string,
+): Promise<{
+  refusal: MergeRefusal | null;
+  retained: RetainedMembership[];
+}> {
+  const overlaps = await findSeasonOverlaps(tx, survivorId, loserId);
+  const blocking = overlaps.filter((o) => o.loserStatus !== "archived");
+  const retained = overlaps
+    .filter((o) => o.loserStatus === "archived")
+    .map((o) => ({
+      seasonId: o.seasonId,
+      seasonLabel: o.seasonLabel,
+      membershipId: o.loserMembershipId,
+    }));
+
+  if (blocking.length === 0) return { refusal: null, retained };
+
+  const labels = blocking.map((b) => b.seasonLabel).join(", ");
+  return {
+    refusal: {
+      rule: "person_merge_membership_overlap",
+      message:
+        `Both records hold a membership for ${labels}. Archive the losing record's ` +
+        `membership for ${labels} on the roster before merging.`,
+      blockingMemberships: blocking.map((b) => ({
+        seasonLabel: b.seasonLabel,
+        membershipId: b.loserMembershipId,
+      })),
+    },
+    retained,
+  };
+}
+
+/**
  * The two refusals `Q-5` names, checked read-only — used by the preview
  * screen so a refusal renders without attempting a write, and re-checked
  * (under a real lock) inside `mergePersons()` itself, because a preview is
@@ -135,37 +246,27 @@ async function checkMergeRefusal(
   tx: Tx,
   survivorId: string,
   loserId: string,
-): Promise<MergeRefusal | null> {
+): Promise<{
+  refusal: MergeRefusal | null;
+  retainedMemberships: RetainedMembership[];
+}> {
   const seat = await tx.query<{ id: string }>(
     `select id from public.operator_accounts where person_id = $1::uuid and is_active`,
     [loserId],
   );
   if (seat.rows.length > 0) {
     return {
-      rule: "person_merge_active_operator_seat",
-      message:
-        "This record holds an active operator seat. End the seat before merging — Mission 1's administration surface.",
+      refusal: {
+        rule: "person_merge_active_operator_seat",
+        message:
+          "This record holds an active operator seat. End the seat before merging — Mission 1's administration surface.",
+      },
+      retainedMemberships: [],
     };
   }
 
-  const overlap = await tx.query<{ label: string }>(
-    `select s.label
-       from public.season_memberships a
-       join public.season_memberships b
-         on b.season_id = a.season_id and b.person_id = $2::uuid
-       join public.seasons s on s.id = a.season_id
-      where a.person_id = $1::uuid`,
-    [survivorId, loserId],
-  );
-  if (overlap.rows.length > 0) {
-    const labels = overlap.rows.map((r) => r.label).join(", ");
-    return {
-      rule: "person_merge_membership_overlap",
-      message: `Both records hold a membership for ${labels}. Resolve that on the roster before merging.`,
-    };
-  }
-
-  return null;
+  const overlap = await evaluateSeasonOverlap(tx, survivorId, loserId);
+  return { refusal: overlap.refusal, retainedMemberships: overlap.retained };
 }
 
 // ---------------------------------------------------------------------------
@@ -219,6 +320,13 @@ export interface PersonMergePreview {
   aliases: MergeAliasComparison;
   prospectCombinations: MergeProspectCombination[];
   willMove: MergeMovementLine[];
+  /**
+   * `Q-16`: an archived season membership that cleared the overlap refusal
+   * stays on the merged-away record — never re-pointed. Named here so the
+   * confirmation screen says so plainly before the merge, per Brian's own
+   * words.
+   */
+  staysWithLoser: { seasonLabel: string }[];
 }
 
 function fieldValue(record: PersonRecord, field: MergePersonField): string | null {
@@ -324,7 +432,17 @@ async function readProspectCombinations(
   });
 }
 
-async function readWillMove(tx: Tx, loserId: string): Promise<MergeMovementLine[]> {
+/**
+ * `retainedMembershipIds` — `Q-16`'s archived overlap memberships — are
+ * excluded from the "season membership" count: they will not move, so
+ * counting them as "will move" would contradict `staysWithLoser`'s own note
+ * on the same screen.
+ */
+async function readWillMove(
+  tx: Tx,
+  loserId: string,
+  retainedMembershipIds: readonly string[],
+): Promise<MergeMovementLine[]> {
   const counts = await tx.query<{
     memberships: string;
     prospects: string;
@@ -335,7 +453,8 @@ async function readWillMove(tx: Tx, loserId: string): Promise<MergeMovementLine[
     history: string;
   }>(
     `select
-       (select count(*) from public.season_memberships where person_id = $1::uuid) as memberships,
+       (select count(*) from public.season_memberships
+         where person_id = $1::uuid and not (id = any($2::uuid[]))) as memberships,
        (select count(*) from public.recruitment_prospects where person_id = $1::uuid) as prospects,
        (select count(*) from public.role_assignments where person_id = $1::uuid) as roles,
        (select count(*) from public.contact_points where person_id = $1::uuid) as contacts,
@@ -345,7 +464,7 @@ async function readWillMove(tx: Tx, loserId: string): Promise<MergeMovementLine[
        (select count(*) from public.attendance_records where person_id = $1::uuid) as attendance,
        (select count(*) from public.audit_events where entity_table = 'people' and entity_id = $1::uuid) as history
      `,
-    [loserId],
+    [loserId, retainedMembershipIds],
   );
   const row = counts.rows[0];
   const line = (label: string, value: string): MergeMovementLine | null => {
@@ -402,7 +521,11 @@ export async function previewPersonMerge(
       );
     }
 
-    const refusal = await checkMergeRefusal(tx, survivorPersonId, loserPersonId);
+    const { refusal, retainedMemberships } = await checkMergeRefusal(
+      tx,
+      survivorPersonId,
+      loserPersonId,
+    );
 
     const fields: MergeFieldComparison[] = (
       Object.keys(MERGE_PERSON_FIELD_LABELS) as MergePersonField[]
@@ -458,7 +581,16 @@ export async function previewPersonMerge(
       prospectCombinations: refusal
         ? []
         : await readProspectCombinations(tx, survivorPersonId, loserPersonId),
-      willMove: refusal ? [] : await readWillMove(tx, loserPersonId),
+      willMove: refusal
+        ? []
+        : await readWillMove(
+            tx,
+            loserPersonId,
+            retainedMemberships.map((m) => m.membershipId),
+          ),
+      staysWithLoser: refusal
+        ? []
+        : retainedMemberships.map((m) => ({ seasonLabel: m.seasonLabel })),
     };
   });
 }
@@ -472,9 +604,10 @@ export async function previewPersonMerge(
  * `UPDATE <table> SET <column> = survivor WHERE <column> = loser`. Safe
  * unconditionally — none of these columns sits in a unique constraint that
  * also names another foreign key `mergePersons()` does not already
- * neutralise first (`season_memberships` by the overlap refusal;
- * `recruitment_prospects` and `person_emergency_contacts` are re-pointed
- * separately, above this list, precisely because they are not safe blind).
+ * neutralise first (`recruitment_prospects` and `person_emergency_contacts`
+ * are re-pointed separately, above this list, precisely because they are not
+ * safe blind; `season_memberships` joins them as of `Q-16` — correction
+ * round 2 — because an archived overlap membership must stay on the loser).
  * `tests/person-merge-reference-catalogue.test.ts` proves this against
  * `pg_constraint` directly.
  */
@@ -514,7 +647,6 @@ export const PERSON_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: st
   { table: "schedule_changes", column: "approved_by_person_id" },
   { table: "schedule_changes", column: "recorded_by_person_id" },
   { table: "season_membership_status_events", column: "actor_person_id" },
-  { table: "season_memberships", column: "person_id" },
   { table: "seasons", column: "closed_by_person_id" },
   { table: "seasons", column: "opened_by_person_id" },
   { table: "staging.legacy_roster_rows", column: "matched_person_id" },
@@ -558,6 +690,13 @@ export const PERSON_REFERENCE_COLUMNS_EXCLUDED: ReadonlyArray<{
     table: "recruitment_prospects",
     column: "person_id",
     reason: "combined per season before re-pointing",
+  },
+  {
+    table: "season_memberships",
+    column: "person_id",
+    reason:
+      "re-pointed with one exclusion — Q-16: an overlap season the operator archived to clear " +
+      "the refusal stays on the merged-away record, never re-pointed onto the survivor",
   },
 ];
 
@@ -698,6 +837,29 @@ async function repointProspects(
   await tx.query(
     `update public.recruitment_prospects set person_id = $2::uuid where person_id = $1::uuid`,
     [loserId, survivorId],
+  );
+}
+
+/**
+ * `Q-16` (Brian, correction round 2): a season membership the operator
+ * archived to clear the overlap refusal stays on the merged-away record —
+ * re-pointing it here would violate `season_memberships_one_per_person_per_
+ * season` and re-break the very thing archiving cleared. Excluded
+ * deliberately, the same shape `repointProspects()` already uses for a
+ * converted prospect it also declines to re-point. Everything else the loser
+ * holds — a season with no survivor counterpart — is a plain re-point, safe
+ * because the excluded row is the only one that could collide.
+ */
+async function repointSeasonMemberships(
+  tx: Tx,
+  survivorId: string,
+  loserId: string,
+  retainedMembershipIds: readonly string[],
+): Promise<void> {
+  await tx.query(
+    `update public.season_memberships set person_id = $2::uuid
+      where person_id = $1::uuid and not (id = any($3::uuid[]))`,
+    [loserId, survivorId, retainedMembershipIds],
   );
 }
 
@@ -885,10 +1047,18 @@ export async function mergePersons(params: {
       );
     }
 
-    const refusal = await checkMergeRefusal(tx, survivorPersonId, loserPersonId);
+    const { refusal, retainedMemberships } = await checkMergeRefusal(
+      tx,
+      survivorPersonId,
+      loserPersonId,
+    );
     if (refusal) throw new ConstraintViolated(refusal.message, { rule: refusal.rule });
 
-    const willMove = await readWillMove(tx, loserPersonId);
+    const willMove = await readWillMove(
+      tx,
+      loserPersonId,
+      retainedMemberships.map((m) => m.membershipId),
+    );
     const combinations = await readProspectCombinations(tx, survivorPersonId, loserPersonId);
 
     const reasonNote = `From merging "${(await readSideLabelIn(tx, loserPersonId)).displayName}" into this record.`;
@@ -906,6 +1076,12 @@ export async function mergePersons(params: {
     await repointContacts(tx, survivorPersonId, loserPersonId, fieldChoices);
     await repointAliases(tx, survivorPersonId, loserPersonId);
     await repointProspects(tx, survivorPersonId, loserPersonId, combinations);
+    await repointSeasonMemberships(
+      tx,
+      survivorPersonId,
+      loserPersonId,
+      retainedMemberships.map((m) => m.membershipId),
+    );
 
     for (const { table, column } of PERSON_REFERENCE_COLUMNS) {
       // `staging.legacy_roster_rows` already names its own schema; every

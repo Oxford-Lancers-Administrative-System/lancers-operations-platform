@@ -24,8 +24,10 @@ vi.mock("@/lib/services/person-record", () => ({
 }));
 vi.mock("@/lib/services/person-merge", () => ({ previewPersonMerge: vi.fn() }));
 
+import { ConstraintViolated } from "@/lib/db";
 import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator";
 import { readPersonRecord } from "@/lib/services/person-record";
+import { previewPersonMerge } from "@/lib/services/person-merge";
 import MergePage from "./page";
 
 function signedInAs(roleCodes: string[]): void {
@@ -73,5 +75,34 @@ describe("a four-role operator", () => {
 
     expect(screen.getByRole("heading", { name: "Merge two records" })).toBeTruthy();
     expect(screen.getByLabelText(/search name or alias/i)).toBeTruthy();
+  });
+
+  // B5, LAN-185 correction round 2 (Brian's walk): `previewPersonMerge`'s
+  // refusals — same record, already merged away, not on record — used to
+  // reach `MergePage` unhandled and render as a Next.js runtime error screen
+  // with a stack frame. It must render as the product's own refusal state.
+  it("renders a refusal, not a crash, when the comparison target has already been merged away", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readPersonRecord).mockResolvedValue({
+      personId: "22222222-1111-4111-8111-111111111111",
+      displayName: "Hollis Jarrowdale",
+    } as never);
+    vi.mocked(previewPersonMerge).mockRejectedValue(
+      new ConstraintViolated(
+        "That record has already been merged away, so it cannot be merged again.",
+        { rule: "person_merge_already_away" },
+      ),
+    );
+
+    const element = await MergePage(pageProps({ with: "33333333-1111-4111-8111-111111111111" }));
+    const { container } = render(element);
+
+    expect(screen.getByTestId("merge-preview-refused")).toHaveTextContent(
+      "That record has already been merged away, so it cannot be merged again.",
+    );
+    // Not a crash: no stack frame, and a real recovery action back to the record.
+    expect(
+      container.querySelector('a[href="/operate/people/22222222-1111-4111-8111-111111111111"]'),
+    ).toBeTruthy();
   });
 });

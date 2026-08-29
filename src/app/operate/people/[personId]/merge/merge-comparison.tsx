@@ -89,17 +89,25 @@ export default function MergeComparison({
             <Alert severity="warning" data-testid="merge-refusal">
               {refusal.message}
             </Alert>
-            <Stack direction="row" spacing={2}>
+            <Stack direction="row" spacing={2} sx={{ flexWrap: "wrap", gap: 1 }}>
               {refusal.rule === "person_merge_active_operator_seat" ? (
                 <Button variant="contained" href="/operate/admin/operators">
                   Open operator administration
                 </Button>
               ) : null}
-              {refusal.rule === "person_merge_membership_overlap" ? (
-                <Button variant="contained" href="/operate/roster">
-                  Open the roster
+              {/* Q-16, LAN-185 correction round 2: the refusal links to the
+                  exact membership to archive, not a bare "open the roster" —
+                  the same shape the active-seat refusal's link already had. */}
+              {refusal.blockingMemberships?.map((blocking) => (
+                <Button
+                  key={blocking.membershipId}
+                  variant="contained"
+                  href={`/operate/roster/${blocking.membershipId}`}
+                  data-testid="merge-refusal-membership-link"
+                >
+                  Open the {blocking.seasonLabel} membership
                 </Button>
-              ) : null}
+              ))}
             </Stack>
           </Stack>
         ) : (
@@ -181,6 +189,29 @@ export default function MergeComparison({
                     <Typography key={line.label} variant="body2">
                       {line.count} {line.label}
                       {line.count === 1 ? "" : "s"}
+                    </Typography>
+                  ))}
+                </Stack>
+              </Paper>
+            ) : null}
+
+            {/* Q-16, LAN-185 correction round 2: an archived overlap
+                membership stays on {loser.displayName} — never re-pointed —
+                said plainly here before the merge, per Brian's own words. */}
+            {preview.staysWithLoser.length > 0 ? (
+              <Paper variant="outlined" sx={{ p: 3 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
+                  What stays on {loser.displayName}
+                </Typography>
+                <Stack spacing={1}>
+                  {preview.staysWithLoser.map((line) => (
+                    <Typography
+                      key={line.seasonLabel}
+                      variant="body2"
+                      data-testid="stays-with-loser"
+                    >
+                      The {line.seasonLabel} membership, archived — not moved onto{" "}
+                      {survivor.displayName}.
                     </Typography>
                   ))}
                 </Stack>

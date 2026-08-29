@@ -1,6 +1,11 @@
 import { notFound } from "next/navigation";
+import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
-import { previewPersonMerge } from "@/lib/services/person-merge";
+import { previewPersonMerge, type PersonMergePreview } from "@/lib/services/person-merge";
 import { readPersonRecord, searchPeople } from "@/lib/services/person-record";
 import { gateShellPage } from "../../../gate";
 import FindOtherRecord from "./find-other-record";
@@ -14,6 +19,13 @@ import MergeComparison from "./merge-comparison";
  * comparison is the most disclosing screen this mission draws, and this is
  * why: two people's contact details, academic detail, date of birth and
  * emergency contact, side by side.
+ *
+ * B5, LAN-185 correction round 2 (Brian's walk): `previewPersonMerge` refuses
+ * — same record, the comparison target not on record, or already merged
+ * away — by throwing, the same posture every service in this codebase takes.
+ * Those are refusals the product owns, not crashes; rendered here as
+ * `Refusal`, the same shape `events/[id]/edit/page.tsx` already uses for an
+ * uneditable draft.
  */
 export default async function MergePage({
   params,
@@ -48,6 +60,30 @@ export default async function MergePage({
     );
   }
 
-  const preview = await previewPersonMerge(personId, withId);
+  let preview: PersonMergePreview;
+  try {
+    preview = await previewPersonMerge(personId, withId);
+  } catch (error) {
+    if (!isServiceError(error)) throw error;
+    return <Refusal message={error.message} personId={personId} />;
+  }
   return <MergeComparison survivorRouteId={personId} preview={preview} />;
+}
+
+function Refusal({ message, personId }: { message: string; personId: string }) {
+  return (
+    <Stack spacing={2} sx={{ maxWidth: 720 }}>
+      <Typography variant="h6" component="h1">
+        Merge two records
+      </Typography>
+      <Alert severity="warning" data-testid="merge-preview-refused">
+        {message}
+      </Alert>
+      <Box>
+        <Button variant="outlined" href={`/operate/people/${personId}`}>
+          Back to the record
+        </Button>
+      </Box>
+    </Stack>
+  );
 }

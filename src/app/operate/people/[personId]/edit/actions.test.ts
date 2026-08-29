@@ -99,7 +99,6 @@ async function formFrom(
   const base: Record<string, string> = {
     personId,
     expectedVersion: version ?? "",
-    confirmMobile: "1",
     givenName: record.givenName,
     familyName: record.familyName ?? "",
     mobile: mobile?.rawValue ?? "",

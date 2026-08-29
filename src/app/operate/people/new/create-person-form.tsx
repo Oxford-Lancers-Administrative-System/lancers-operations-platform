@@ -78,13 +78,30 @@ export default function CreatePersonForm() {
 
         {state.formError ? <Alert severity="warning">{state.formError}</Alert> : null}
 
-        {candidates && candidates.length > 0 ? (
-          <Section title="Already in the club">
-            <Stack spacing={0}>
-              {candidates.map((candidate) => (
-                <CandidateRow key={candidate.personId} candidate={candidate} pending={pending} />
-              ))}
-            </Stack>
+        {/* B4, LAN-185 correction round 2 (Brian's walk): the duplicate check
+            must answer even when it finds nothing — a silent no-match reads
+            as though the check never ran. Matches the count sentence
+            `returner-intake-form.tsx`'s `CandidatesStep` already uses for the
+            same check elsewhere in the application, rather than inventing a
+            second shape. */}
+        {candidates !== null ? (
+          <Section title={candidates.length > 0 ? "Already in the club" : "Duplicate check"}>
+            <Typography
+              color="text.secondary"
+              sx={{ mb: candidates.length > 0 ? 1.5 : 0 }}
+              data-testid="candidate-count"
+            >
+              {candidates.length === 0
+                ? "No existing person matches the supplied names or contact details."
+                : `${candidates.length} ${candidates.length === 1 ? "person matches" : "people match"} the supplied names or contact details.`}
+            </Typography>
+            {candidates.length > 0 ? (
+              <Stack spacing={0}>
+                {candidates.map((candidate) => (
+                  <CandidateRow key={candidate.personId} candidate={candidate} pending={pending} />
+                ))}
+              </Stack>
+            ) : null}
           </Section>
         ) : null}
 

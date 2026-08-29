@@ -61,11 +61,15 @@ async function insertAlias(personId: string, alias: string): Promise<void> {
   );
 }
 
-async function insertMembership(personId: string, season: string): Promise<string> {
+async function insertMembership(
+  personId: string,
+  season: string,
+  status: string = "active",
+): Promise<string> {
   const result = await observer.query<{ id: string }>(
     `insert into public.season_memberships (person_id, season_id, status, entry, activated_on)
-     values ($1::uuid, $2::uuid, 'active', 'new', '2020-01-01') returning id`,
-    [personId, season],
+     values ($1::uuid, $2::uuid, $3::public.membership_status, 'new', '2020-01-01') returning id`,
+    [personId, season, status],
   );
   return result.rows[0].id;
 }
@@ -198,6 +202,11 @@ describe("mergePersons — the two refusals Q-5 names", () => {
 
     const preview = await previewPersonMerge(survivorId, loserId);
     expect(preview.refusal?.rule).toBe("person_merge_active_operator_seat");
+    // As actionable as Q-16's season-overlap refusal is: names the action
+    // (end the seat) and the destination (Mission 1's administration
+    // surface) — confirmed unchanged by this correction round.
+    expect(preview.refusal?.message).toContain("End the seat");
+    expect(preview.refusal?.message).toContain("Mission 1's administration surface");
   });
 
   it("does not refuse on a deactivated operator seat", async () => {
@@ -213,11 +222,18 @@ describe("mergePersons — the two refusals Q-5 names", () => {
     const survivorId = await insertPerson({ givenName: unique("Survivor") });
     const loserId = await insertPerson({ givenName: unique("Loser") });
     await insertMembership(survivorId, seasonId);
-    await insertMembership(loserId, seasonId);
+    const loserMembershipId = await insertMembership(loserId, seasonId);
 
     const preview = await previewPersonMerge(survivorId, loserId);
     expect(preview.refusal?.rule).toBe("person_merge_membership_overlap");
     expect(preview.refusal?.message).toContain(seasonLabel);
+    // Q-16, LAN-185 correction round 2: names the season, links to the exact
+    // membership, and tells the operator to archive it — not a bare "resolve
+    // that on the roster".
+    expect(preview.refusal?.message).toContain("Archive");
+    expect(preview.refusal?.blockingMemberships).toEqual([
+      { seasonLabel, membershipId: loserMembershipId },
+    ]);
 
     await expect(
       mergePersons({
@@ -228,6 +244,47 @@ describe("mergePersons — the two refusals Q-5 names", () => {
         fieldChoices: {},
       }),
     ).rejects.toMatchObject({ rule: "person_merge_membership_overlap" });
+  });
+
+  // Q-16, LAN-185 correction round 2 (Brian): "A merge may proceed once the
+  // losing record's membership for the shared season is archived... the
+  // archived membership stays on the merged-away record — never deleted,
+  // never re-pointed onto the survivor."
+  it("proceeds once the losing record's overlapping membership is archived, and it stays on the loser", async () => {
+    const survivorId = await insertPerson({ givenName: unique("Survivor") });
+    const loserId = await insertPerson({ givenName: unique("Loser") });
+    await insertMembership(survivorId, seasonId);
+    const archivedMembershipId = await insertMembership(loserId, seasonId, "archived");
+
+    const preview = await previewPersonMerge(survivorId, loserId);
+    expect(preview.refusal).toBeNull();
+    expect(preview.staysWithLoser).toEqual([{ seasonLabel }]);
+    // Excluded from "will move" — it will not.
+    const membershipLine = preview.willMove.find((l) => l.label === "season membership");
+    expect(membershipLine).toBeUndefined();
+
+    await expect(
+      mergePersons({
+        actorPersonId,
+        survivorPersonId: survivorId,
+        loserPersonId: loserId,
+        reason: "Same person, one archived membership",
+        fieldChoices: {},
+      }),
+    ).resolves.toMatchObject({ survivorPersonId: survivorId, loserPersonId: loserId });
+
+    const archivedRow = await observer.query<{ person_id: string; status: string }>(
+      `select person_id, status from public.season_memberships where id = $1::uuid`,
+      [archivedMembershipId],
+    );
+    expect(archivedRow.rows[0].person_id).toBe(loserId);
+    expect(archivedRow.rows[0].status).toBe("archived");
+
+    const survivorMemberships = await observer.query<{ id: string }>(
+      `select id from public.season_memberships where person_id = $1::uuid`,
+      [survivorId],
+    );
+    expect(survivorMemberships.rows.map((r) => r.id)).not.toContain(archivedMembershipId);
   });
 
   it("refuses to merge a record already merged away", async () => {
