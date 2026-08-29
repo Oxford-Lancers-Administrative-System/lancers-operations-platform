@@ -12,6 +12,7 @@ import {
   holdsFullPersonRecordAuthority,
   PERSON_CATEGORY_CAPABILITY,
   PERSON_FIELD_CATEGORIES,
+  PERSON_RECORD_FIELD_CATEGORY,
   redactPersonRecord,
   roleCodesHoldCategory,
 } from "./person-authority";
@@ -22,10 +23,20 @@ const GRANTED = capabilityRoleCodes("person_record_authority");
 const FULL_RECORD = {
   personId: "11111111-1111-1111-1111-111111111111",
   givenName: "Bertram",
+  givenNameSource: null,
   familyName: "Fielding",
+  familyNameSource: "Caspian Hallowfield",
   status: "active",
   college: "Merton",
+  collegeSource: "Caspian Hallowfield",
+  matriculationYear: 2023,
+  matriculationYearSource: null,
+  expectedGraduationYear: 2026,
+  expectedGraduationYearSource: null,
+  degreeField: "Materials Science",
+  degreeFieldSource: null,
   dateOfBirth: "2005-01-01",
+  dateOfBirthSource: null,
   emergencyContact: { givenName: "Jo", familyName: "Fielding", phone: "+447700900123" },
   contacts: [{ kind: "phone", rawValue: "+447700900123" }],
 };
@@ -68,11 +79,14 @@ describe("redactPersonRecord — absent from the payload, not hidden in it", () 
   it("strips date of birth and emergency contact for a role outside the four offices", () => {
     const visible = redactPersonRecord(FULL_RECORD, ["head_coach"]);
     expect(Object.keys(visible)).not.toContain("dateOfBirth");
+    expect(Object.keys(visible)).not.toContain("dateOfBirthSource");
     expect(Object.keys(visible)).not.toContain("emergencyContact");
     expect(Object.keys(visible)).not.toContain("contacts");
     expect(Object.keys(visible)).not.toContain("college");
+    expect(Object.keys(visible)).not.toContain("collegeSource");
     // Absent, not present-and-undefined: `in` reads own enumerable keys.
     expect("dateOfBirth" in visible).toBe(false);
+    expect("dateOfBirthSource" in visible).toBe(false);
     expect("emergencyContact" in visible).toBe(false);
   });
 
@@ -92,5 +106,28 @@ describe("redactPersonRecord — absent from the payload, not hidden in it", () 
     expect(serialised).not.toContain("dateOfBirth");
     expect(serialised).not.toContain("emergencyContact");
     expect(serialised).not.toContain("Fielding"); // the emergency contact's own family name
+  });
+});
+
+describe("PERSON_RECORD_FIELD_CATEGORY — a derived caption is governed exactly as the value it describes", () => {
+  // `Q-13`/LAN-184 added seven `*Source` keys with no `source` column of
+  // their own — `readPersonRecord()` derives them from `audit_events`. Each
+  // has to sit in the same category as the value field it is a caption for,
+  // or a future partial-capability grant (`Q-4`'s own example — "coaching
+  // seats may hold `contact`") could show *who supplied* a restricted fact to
+  // a role that is refused the fact itself. Nothing distinguishes categories
+  // behaviourally today (every category still reads one all-or-nothing
+  // capability), so this asserts the table directly — the only way this gap
+  // is provable before that day arrives.
+  it.each([
+    ["givenNameSource", "identity"],
+    ["familyNameSource", "identity"],
+    ["collegeSource", "academic"],
+    ["matriculationYearSource", "academic"],
+    ["expectedGraduationYearSource", "academic"],
+    ["degreeFieldSource", "academic"],
+    ["dateOfBirthSource", "restricted"],
+  ])("%s is categorised %s, matching the field it captions", (key, category) => {
+    expect(PERSON_RECORD_FIELD_CATEGORY[key]).toBe(category);
   });
 });
