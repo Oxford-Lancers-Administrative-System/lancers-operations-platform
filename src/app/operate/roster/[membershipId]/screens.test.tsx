@@ -307,6 +307,40 @@ describe("not recorded — REQ-not-recorded", () => {
   });
 });
 
+describe("F1 — REQ-no-narrative: no explanatory caption beyond the allowed states", () => {
+  it("gives Emergency contact, Formalwear and Half/Full Blue no caption beyond their label and value", async () => {
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    expect(screen.queryByText(/never a Person row/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/reasked each season/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/the total across seasons is derived/)).not.toBeInTheDocument();
+  });
+
+  it("states the outstanding-items count with no explanatory second sentence", async () => {
+    const outstandingItem = {
+      id: "item-1",
+      code: "kit",
+      label: "Kit sorted",
+      isRequired: true,
+      isSubscription: false,
+      sortOrder: 1,
+      status: "pending" as const,
+      completedOn: null,
+      waivedReason: null,
+      waivedByName: null,
+      updatedAt: new Date(),
+    };
+    givenRecord({ outstandingRequired: [outstandingItem] });
+    render(await PlayerRecordPage(pageProps()));
+
+    expect(screen.getByTestId("outstanding-note")).toHaveTextContent(
+      "One required item is still outstanding.",
+    );
+    expect(screen.queryByText(/does not stop the membership's status/)).not.toBeInTheDocument();
+  });
+});
+
 describe("the Attendance band — Q15-attendance", () => {
   function attendanceEvent(overrides: Partial<AttendanceEvent> = {}): AttendanceEvent {
     return {
