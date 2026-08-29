@@ -54,7 +54,11 @@ vi.mock("./record-actions", () => ({
 
 import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator";
 import { readPlayerRecord } from "@/lib/services/player-record";
-import type { PlayerRecordData, PlayerRecordResult } from "@/lib/services/player-record";
+import type {
+  AttendanceEvent,
+  PlayerRecordData,
+  PlayerRecordResult,
+} from "@/lib/services/player-record";
 import { recordSetStatusAction } from "./record-actions";
 import PlayerRecordPage from "./page";
 
@@ -119,6 +123,7 @@ function record(overrides: Partial<PlayerRecordData> = {}): PlayerRecordData {
     positionOptions: { offence: [], defence: [], specialTeams: [] },
     jerseyHolders: { blue: {}, white: {} },
     otherSeasons: [],
+    attendance: [],
     person: {
       personId: PERSON_ID,
       givenName: "Avery",
@@ -298,6 +303,173 @@ describe("not recorded — REQ-not-recorded", () => {
     expect(screen.getByTestId("onboarding-empty")).toHaveTextContent(
       "This season has no onboarding items configured, so this membership has none.",
     );
+  });
+});
+
+describe("the Attendance band — Q15-attendance", () => {
+  function attendanceEvent(overrides: Partial<AttendanceEvent> = {}): AttendanceEvent {
+    return {
+      id: "ev-default",
+      eventName: "Default event",
+      date: "2026-09-06",
+      isMandatory: true,
+      invitationStatus: "responded",
+      rsvp: "yes",
+      attendance: "present",
+      ...overrides,
+    };
+  }
+
+  // Every case the brief names: a mandatory event attended, one missed, a
+  // late, an excused, an event with no RSVP recorded, a cancelled
+  // invitation, and an upcoming invited event — plus one non-mandatory row
+  // so the Mandatory filter has something to narrow away.
+  const EVENTS: AttendanceEvent[] = [
+    attendanceEvent({
+      id: "ev-present",
+      eventName: "Term 1 opening training",
+      date: "2026-09-06",
+      attendance: "present",
+    }),
+    attendanceEvent({
+      id: "ev-absent",
+      eventName: "BUCS league opener vs Cambridge",
+      date: "2026-09-13",
+      attendance: "absent",
+    }),
+    attendanceEvent({
+      id: "ev-late",
+      eventName: "BUCS league vs Reading",
+      date: "2026-09-27",
+      attendance: "late",
+    }),
+    attendanceEvent({
+      id: "ev-excused",
+      eventName: "Term 1 closing training",
+      date: "2026-10-11",
+      attendance: "excused",
+    }),
+    attendanceEvent({
+      id: "ev-no-rsvp",
+      eventName: "BUCS playoff fixture",
+      date: "2026-10-18",
+      invitationStatus: "issued",
+      rsvp: null,
+      attendance: "present",
+    }),
+    attendanceEvent({
+      id: "ev-cancelled",
+      eventName: "Term 2 friendly vs Durham",
+      date: "2026-11-01",
+      invitationStatus: "cancelled",
+      attendance: null,
+    }),
+    attendanceEvent({
+      id: "ev-upcoming",
+      eventName: "Term 3 opener vs Durham",
+      date: "2027-01-17",
+      invitationStatus: "issued",
+      attendance: null,
+    }),
+    attendanceEvent({
+      id: "ev-social",
+      eventName: "Committee welcome social",
+      date: "2026-10-02",
+      isMandatory: false,
+      attendance: "present",
+    }),
+  ];
+
+  it("lists every event with a sent invitation, and no more", async () => {
+    givenRecord({ attendance: EVENTS });
+    render(await PlayerRecordPage(pageProps()));
+    const section = screen.getByTestId("section-attendance");
+    // One row per event in the fixture — a `pending` invitation would not be
+    // in this list at all, so there is nothing here that filters it out.
+    expect(within(section).getAllByTestId("attendance-row")).toHaveLength(EVENTS.length);
+  });
+
+  it("excludes an upcoming invitation and a cancelled one from the score's denominator", async () => {
+    givenRecord({ attendance: EVENTS });
+    render(await PlayerRecordPage(pageProps()));
+    const section = screen.getByTestId("section-attendance");
+    // 5 mandatory events carry an attendance record (present, absent, late,
+    // excused, present) — ev-cancelled and ev-upcoming both hold no record and
+    // must not move the denominator. 3 of those 5 attended (present, late,
+    // present).
+    expect(within(section).getByTestId("attendance-score")).toHaveTextContent(
+      "3 of 5 mandatory · 60%",
+    );
+  });
+
+  it("counts present and late as attended; absent and excused do not", async () => {
+    givenRecord({
+      attendance: [
+        attendanceEvent({ id: "e1", attendance: "present" }),
+        attendanceEvent({ id: "e2", attendance: "late" }),
+        attendanceEvent({ id: "e3", attendance: "absent" }),
+        attendanceEvent({ id: "e4", attendance: "excused" }),
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+    const section = screen.getByTestId("section-attendance");
+    expect(within(section).getByTestId("attendance-score")).toHaveTextContent(
+      "2 of 4 mandatory · 50%",
+    );
+  });
+
+  it("says not recorded when nothing scored has an attendance record yet", async () => {
+    givenRecord({
+      attendance: [attendanceEvent({ id: "e1", invitationStatus: "issued", attendance: null })],
+    });
+    render(await PlayerRecordPage(pageProps()));
+    const section = screen.getByTestId("section-attendance");
+    expect(within(section).getByTestId("attendance-score")).toHaveTextContent("not recorded");
+  });
+
+  it("recomputes the score against the filtered set, not the season", async () => {
+    givenRecord({ attendance: EVENTS });
+    render(await PlayerRecordPage(pageProps()));
+    const section = screen.getByTestId("section-attendance");
+    expect(within(section).getByTestId("attendance-score")).toHaveTextContent(
+      "3 of 5 mandatory · 60%",
+    );
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.click(within(section).getByRole("button", { name: "Filter Attendance" }));
+    });
+    await act(async () => {
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Present" }));
+    });
+
+    // Filtered to Attendance: Present — ev-present, ev-no-rsvp and (non-
+    // mandatory) ev-social all read Present; only the two mandatory ones
+    // score, and both attended.
+    expect(within(section).getByTestId("attendance-score")).toHaveTextContent(
+      "2 of 2 mandatory · 100%",
+    );
+    expect(within(section).getByTestId("attendance-filter-chips")).toHaveTextContent(
+      "Attendance: Present",
+    );
+  });
+
+  it("states an absent RSVP or attendance value as not recorded, never blank", async () => {
+    givenRecord({
+      attendance: [
+        attendanceEvent({ id: "e1", rsvp: null, invitationStatus: "issued", attendance: null }),
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+    const section = screen.getByTestId("section-attendance");
+    expect(within(section).getAllByText("not recorded").length).toBeGreaterThan(0);
+  });
+
+  it("says nothing was sent this season when there are no attendance rows", async () => {
+    givenRecord({ attendance: [] });
+    render(await PlayerRecordPage(pageProps()));
+    const section = screen.getByTestId("section-attendance");
+    expect(within(section).getByText("No invitations sent this season.")).toBeInTheDocument();
   });
 });
 

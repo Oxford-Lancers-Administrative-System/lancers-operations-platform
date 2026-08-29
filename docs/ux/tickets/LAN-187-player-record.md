@@ -1,8 +1,10 @@
 # LAN-187 - One player's record, rebuilt so the person and the season are visibly different things
 
-Status: implemented, as built. This is the contract the shipped surface was
-built against, not a plan — see `../slice-ux.md` for the shared vocabulary,
-authorization and responsive rules this ticket does not restate.
+Status: implemented, as built, including the Attendance band added in this
+package's correction round (`Q15-attendance`, owner question `Q-15`). This is
+the contract the shipped surface was built against, not a plan — see
+`../slice-ux.md` for the shared vocabulary, authorization and responsive rules
+this ticket does not restate.
 
 > **Synthetic scenario data:** all displayed people, positions, jersey numbers
 > and onboarding states are synthetic and do not correspond to real members.
@@ -38,9 +40,10 @@ widens the boundary to the whole surface, per `REQ-authority`'s own words.
 
 ## What renders
 
-**Person · Onboarding · Season**, banded in the board's own three colours
-(`bandOf()` from `board-columns.ts`), in that order, so the two surfaces read
-as one product and a field's group is never a guess.
+**Person · Onboarding · Season · Attendance**, banded in that order. The first
+three share the board's own three colours (`bandOf()` from `board-columns.ts`),
+so the two surfaces read as one product and a field's group is never a guess.
+Attendance carries its own violet (`Q15-attendance`) — see "Attendance" below.
 
 **Person** — name, aliases, mobile phone, personal email, college,
 matriculation year, expected graduation, degree field, date of birth,
@@ -61,6 +64,8 @@ Jersey — White, Coach group, Formalwear, Half / Full Blue, Eligibility,
 Availability. Every one of these edits in place, exactly as the board's own
 cells do: one click, a dropdown only where the value set is fixed, commits on
 its own, audited, no reason asked.
+
+**Attendance** — see "Attendance" below, its own section for the full design.
 
 **Their other seasons** — every other season membership this person holds,
 newest first, each with its status and predominant Blue jersey number.
@@ -174,25 +179,61 @@ once in the reference fidelity mockup (`chore/roster-fidelity-mockup`'s
 `player-record.tsx`) — so this page's own copy follows the mockup rather than
 the board's terser header the way a label column reasonably can.
 
-## Deviation recorded: RSVP and attendance history
+## Attendance — built in this package's correction round (`Q15-attendance`)
 
-The Linear issue body and `workflows/W6-open-one-players-record.md` both state
-this season's RSVP and attendance history renders here, read-only, from
-Mission 2. **It is not built.** The approved photographs — both screens, full
-page, desktop and 375px, ending at "Back to roster" — carry no such section,
-and `acceptance/W6.md`'s own "What this approval settles" and "Carried, not
-settled here" sections are silent about it: the approval covers exactly the
-five panels the mockup's own overlay script builds (Person, Onboarding,
-Season, Their other seasons, What changed), and no more.
+The first pass read the approved photographs' silence as authoritative over
+the Linear issue body and `workflows/W6-open-one-players-record.md`, both of
+which state this season's RSVP and attendance history renders here, read-only,
+from Mission 2; the gap was put to Brian as owner question `Q-15` and he ruled
+**the prose stands**: the section ships this mission, on this page, and
+nowhere else — the person record keeps only its change-history section. Brian
+then saw and approved a fidelity mockup of exactly this section
+(`chore/roster-fidelity-attendance`'s `attendance-section.tsx`), which this
+build follows for behaviour, restyled rather than copied wholesale.
 
-This is not the fifteen written acceptance checkboxes on LAN-187, none of
-which names RSVP or attendance. Given the project's own repeated rule — "the
-wireframe is binding, not an illustration" and "mockup structure and copy
-bind" — the approved photograph is read as authoritative over the outcome
-prose here: adding an unapproved section would itself be "a departure from an
-approved mockup's structure," which `packet.json`'s own escalation rules name
-as requiring packet revision. Recorded as a known gap rather than built
-silently or blocked on.
+**Its own band**, not nested inside Season or under Availability, in **violet
+`#4527a0`** — a dark hex on a ~5% alpha wash, constructed like the other
+three. Deliberately not red, orange or green: the band carries a percentage,
+and a traffic-light hue would read as a verdict on the number.
+
+**Rows** — every event this membership had an invitation **sent** for
+(`public.invitations.status <> 'pending'`), this season only. An audience
+member with no invitation is not a row.
+
+**Columns, all sortable by clicking the header** — Event · Date · Mandatory ·
+RSVP · Attendance. Default sort is date, most recent first.
+
+**One score** — mandatory events only, attended ÷ mandatory events carrying a
+recorded attendance, shown with the raw counts. `present` and `late` count as
+attended (`isShowedPresence()`, `attendance-vocabulary.ts`, unmodified);
+`absent` and `excused` do not. Rows with an invitation but no attendance
+record — anything upcoming, and cancelled invitations — appear in the table
+and are excluded from the score for the same reason: the score reads
+attendance, not the calendar or the invitation status, so neither needs a
+special case.
+
+**Three filters** — Mandatory, RSVP, Attendance — restyled from the board's
+own funnel-in-a-bordered-button and "Filtered by … · Clear all" chip row
+(`attendance-section.tsx` reimplements the small presentational pieces rather
+than importing them from `roster-board.tsx`, which this package does not
+edit). Filters combine; there is a plain way back to unfiltered. **The score
+follows the filter**, recomputing against the filtered set, with a `Filtered`
+chip marking that it is describing a subset rather than the season.
+
+**At 375px** each event stacks as a labelled block, not a sideways scroll,
+with the filters as compact labelled selects above the sort control.
+
+**Read-only.** Mission 2 owns this data: displayed, never edited. No write
+path, no action, no edit affordance anywhere in this band.
+
+`not recorded` is explicit for every absent RSVP or attendance value — never
+blank, never conflated with No. RSVP and attendance are two independent
+reads (`public.current_rsvp`, `public.attendance_records`); a `yes` never
+implies a `present`, per locked Requirement 7.
+
+Data access is `readAttendanceHistoryIn()` in `player-record.ts`, a plain read
+alongside the module's other season-scoped reads — no migration, and player
+capacity's own `season_membership_id` anchor gives the season scope for free.
 
 ## Explicitly not in this ticket
 
@@ -203,7 +244,8 @@ silently or blocked on.
 - What positions, jersey, coach group and availability _mean_ — Mission 9's.
 - Eligibility records — Mission 11's.
 - Per-person change history — the person record's, linked and not duplicated.
-- RSVP and attendance history — see "Deviation recorded" above.
+- Writing RSVP or attendance — Mission 2's; this page only ever reads it. See
+  "Attendance" above for what is built.
 
 ## Acceptance criteria
 

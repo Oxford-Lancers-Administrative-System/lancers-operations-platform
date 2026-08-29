@@ -1,6 +1,7 @@
 import "server-only";
 
 import { isServiceError, withTransaction, type Tx } from "@/lib/db";
+import { isAttendancePresence, type AttendancePresence } from "./attendance-vocabulary";
 import {
   readMembership,
   type MembershipRecord,
@@ -91,6 +92,41 @@ export interface OtherSeasonSummary {
   blues: BluesValue;
 }
 
+/**
+ * `public.invitations.status` — never `pending` on a row this module returns:
+ * `readAttendanceHistoryIn` excludes it below, the same "sent" filter
+ * `Q15-attendance`'s approved design applies.
+ */
+export type AttendanceInvitationStatus = "issued" | "responded" | "expired" | "cancelled";
+
+/** `public.rsvp_value` — binary, no "maybe" (Requirement 5). */
+export type AttendanceRsvp = "yes" | "no";
+
+/**
+ * One event this membership held a sent invitation for, this season —
+ * `WP-player-record`'s Attendance band, `Q15-attendance`. Every event the
+ * membership was actually asked about, whether or not it has an attendance
+ * record yet.
+ */
+export interface AttendanceEvent {
+  id: string;
+  eventName: string;
+  /** `YYYY-MM-DD`, or `null` on the rare approved event scheduled with no date yet. */
+  date: string | null;
+  isMandatory: boolean;
+  invitationStatus: AttendanceInvitationStatus;
+  /** `null` is `not recorded` — never blank, never defaulted. */
+  rsvp: AttendanceRsvp | null;
+  /**
+   * `null` is no attendance record yet — an event that has not occurred, or an
+   * invitation cancelled before one was taken. Never defaulted to `absent`: an
+   * unrecorded event is a different fact from a recorded miss, and the score
+   * this band shows excludes both for the same reason it reads this column
+   * rather than the calendar or the invitation status.
+   */
+  attendance: AttendancePresence | null;
+}
+
 export interface PlayerRecordData {
   membershipId: string;
   personId: string;
@@ -114,6 +150,11 @@ export interface PlayerRecordData {
   /** Every current holder in this membership's season, both kits — never the filtered view. */
   jerseyHolders: JerseyHolders;
   otherSeasons: OtherSeasonSummary[];
+  /**
+   * Every event this membership had an invitation sent for, this season —
+   * `Q15-attendance`. Displayed, never edited; Mission 2 owns the write path.
+   */
+  attendance: AttendanceEvent[];
   /** The full, unredacted person record. The caller redacts for the viewer's role. */
   person: PersonRecord;
 }
@@ -216,6 +257,77 @@ async function readSeasonFactsIn(
     eligibility: eligibility.rows[0]?.status ?? null,
     availability: availability.rows[0]?.level ?? null,
   };
+}
+
+interface AttendanceEventRow {
+  event_id: string;
+  event_name: string;
+  date: string | null;
+  is_mandatory: boolean;
+  invitation_status: string;
+  rsvp: string | null;
+  presence: string | null;
+}
+
+/**
+ * The Attendance band's own read — `WP-player-record`'s correction round,
+ * `Q15-attendance`. Brian ruled the prose stands: this season's RSVP and
+ * attendance history renders here, read-only, from Mission 2's own tables.
+ *
+ * ## Every event with a *sent* invitation, this season
+ *
+ * `public.invitations.status <> 'pending'` is the whole filter — `pending`
+ * never reached the player, so there is nothing yet to show them (the same
+ * read `chore/roster-fidelity-attendance`'s approved mockup demonstrates).
+ * `cancelled` and `expired` invitations stay rows: the invitation was sent,
+ * whatever became of it afterwards.
+ *
+ * ## `rsvp` and `attendance` are two independent reads, never one derived
+ * from the other (locked Requirement 7) — `public.current_rsvp` for the
+ * standing answer, `public.attendance_records` for what was actually
+ * observed. Neither implies the other, and either may be `null` while the
+ * invitation itself is real.
+ *
+ * ## Scoring is the caller's job
+ *
+ * This function returns the raw rows only. `attendance-section.tsx` computes
+ * the mandatory-attendance score against whichever rows the viewer's filters
+ * currently show — "the score follows the filter" is a presentation rule,
+ * not a second query.
+ */
+async function readAttendanceHistoryIn(
+  tx: Tx,
+  membershipId: string,
+  seasonId: string,
+): Promise<AttendanceEvent[]> {
+  const result = await tx.query<AttendanceEventRow>(
+    `select e.id as event_id, e.name as event_name,
+            to_char(e.scheduled_on, 'YYYY-MM-DD') as date,
+            e.is_mandatory,
+            i.status::text as invitation_status,
+            cr.response::text as rsvp,
+            ar.presence::text as presence
+       from public.invitations i
+       join public.events e on e.id = i.event_id
+       left join public.current_rsvp cr on cr.invitation_id = i.id
+       left join public.attendance_records ar
+         on ar.event_id = i.event_id and ar.season_membership_id = i.season_membership_id
+      where i.season_membership_id = $1::uuid
+        and i.season_id = $2::uuid
+        and i.status <> 'pending'
+      order by e.scheduled_on desc nulls last, e.name`,
+    [membershipId, seasonId],
+  );
+
+  return result.rows.map((row) => ({
+    id: row.event_id,
+    eventName: row.event_name,
+    date: row.date,
+    isMandatory: row.is_mandatory,
+    invitationStatus: row.invitation_status as AttendanceInvitationStatus,
+    rsvp: row.rsvp === "yes" || row.rsvp === "no" ? row.rsvp : null,
+    attendance: isAttendancePresence(row.presence) ? row.presence : null,
+  }));
 }
 
 /**
@@ -395,6 +507,7 @@ export async function readPlayerRecord(membershipId: string): Promise<PlayerReco
     isConstitutionalMember,
     otherSeasons,
     milestones,
+    attendance,
   ] = await withTransaction(async (tx) =>
     Promise.all([
       readSeasonFactsIn(tx, membershipId, membership.seasonId),
@@ -403,6 +516,7 @@ export async function readPlayerRecord(membershipId: string): Promise<PlayerReco
       readConstitutionalMembershipIn(tx, membershipId),
       readOtherSeasonsIn(tx, membership.personId, membershipId),
       readMilestonesIn(tx, membershipId),
+      readAttendanceHistoryIn(tx, membershipId, membership.seasonId),
     ]),
   );
 
@@ -426,6 +540,7 @@ export async function readPlayerRecord(membershipId: string): Promise<PlayerReco
     positionOptions,
     jerseyHolders,
     otherSeasons,
+    attendance,
     person,
   };
 

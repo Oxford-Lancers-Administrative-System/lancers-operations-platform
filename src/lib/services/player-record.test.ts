@@ -200,6 +200,147 @@ describe("readPlayerRecord — assembling one season's board facts for one membe
   });
 });
 
+describe("readPlayerRecord — Attendance band, Q15-attendance", () => {
+  let attendedEventId: string;
+  let cancelledEventId: string;
+  let pendingEventId: string;
+  let expiredEventId: string;
+  const eventIds: string[] = [];
+  const audienceMemberIds: string[] = [];
+  const invitationIds: string[] = [];
+
+  async function insertEvent(name: string, isMandatory: boolean): Promise<string> {
+    const event = await observer.query<{ id: string }>(
+      `insert into public.events (
+         season_id, name, event_type, status, scheduled_on, is_mandatory,
+         audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
+       values ($1::uuid, $2, 'practice', 'approved', current_date - 7, $3,
+               now(), $4::uuid, now(), $4::uuid)
+       returning id`,
+      [seasonId, name, isMandatory, actorPersonId],
+    );
+    const id = event.rows[0].id;
+    eventIds.push(id);
+    return id;
+  }
+
+  async function inviteMembership(eventId: string, status: string): Promise<string> {
+    const audience = await observer.query<{ id: string }>(
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, season_membership_id, added_by_person_id)
+       values ($1::uuid, $2::uuid, 'player', $3::uuid, $4::uuid) returning id`,
+      [eventId, seasonId, membershipId, actorPersonId],
+    );
+    audienceMemberIds.push(audience.rows[0].id);
+
+    const invitation = await observer.query<{ id: string }>(
+      `insert into public.invitations (
+         event_id, event_status, season_id, audience_member_id,
+         capacity, season_membership_id, status,
+         issued_at, cancelled_at)
+       values ($1::uuid, 'approved', $2::uuid, $3::uuid, 'player', $4::uuid, $5::public.invitation_status,
+               case when $5 = 'pending' then null else now() end,
+               case when $5 = 'cancelled' then now() else null end)
+       returning id`,
+      [eventId, seasonId, audience.rows[0].id, membershipId, status],
+    );
+    invitationIds.push(invitation.rows[0].id);
+    return invitation.rows[0].id;
+  }
+
+  beforeAll(async () => {
+    // Attended: mandatory, invited, RSVP'd yes, and Present is on file — the
+    // ordinary scored-and-attended row.
+    attendedEventId = await insertEvent(`${MARKER} attended`, true);
+    const attendedInvitationId = await inviteMembership(attendedEventId, "responded");
+    await observer.query(
+      `insert into public.rsvp_responses (invitation_id, response, source, responded_at, recorded_by_person_id)
+       values ($1::uuid, 'yes', 'operator', now(), $2::uuid)`,
+      [attendedInvitationId, actorPersonId],
+    );
+    await observer.query(
+      `insert into public.attendance_records (event_id, event_status, season_id, capacity, season_membership_id, presence, recorded_by_person_id)
+       values ($1::uuid, 'approved', $2::uuid, 'player', $3::uuid, 'present', $4::uuid)`,
+      [attendedEventId, seasonId, membershipId, actorPersonId],
+    );
+
+    // Cancelled: the invitation was sent and then cancelled before anyone
+    // took a register — a row, with no RSVP and no attendance record.
+    cancelledEventId = await insertEvent(`${MARKER} cancelled`, true);
+    await inviteMembership(cancelledEventId, "cancelled");
+
+    // Pending: never sent. Must not appear at all.
+    pendingEventId = await insertEvent(`${MARKER} pending`, false);
+    await inviteMembership(pendingEventId, "pending");
+
+    // Expired: lapsed unanswered, but the event still happened and Absent was
+    // recorded — attendance reads attendance, not the invitation's own status.
+    expiredEventId = await insertEvent(`${MARKER} expired`, true);
+    await inviteMembership(expiredEventId, "expired");
+    await observer.query(
+      `insert into public.attendance_records (event_id, event_status, season_id, capacity, season_membership_id, presence, recorded_by_person_id)
+       values ($1::uuid, 'approved', $2::uuid, 'player', $3::uuid, 'absent', $4::uuid)`,
+      [expiredEventId, seasonId, membershipId, actorPersonId],
+    );
+  });
+
+  afterAll(async () => {
+    await observer.query(`delete from public.attendance_records where event_id = any($1::uuid[])`, [
+      eventIds,
+    ]);
+    await observer.query(
+      `delete from public.rsvp_responses where invitation_id = any($1::uuid[])`,
+      [invitationIds],
+    );
+    await observer.query(`delete from public.invitations where id = any($1::uuid[])`, [
+      invitationIds,
+    ]);
+    await observer.query(`delete from public.event_audience_members where id = any($1::uuid[])`, [
+      audienceMemberIds,
+    ]);
+    await observer.query(`delete from public.events where id = any($1::uuid[])`, [eventIds]);
+  });
+
+  it("lists only invitations actually sent, excluding a pending one", async () => {
+    const result = await readPlayerRecord(membershipId);
+    const data = (result as PlayerRecordFound).data;
+    const ids = data.attendance.map((event) => event.id);
+    expect(ids).toEqual(
+      expect.arrayContaining([attendedEventId, cancelledEventId, expiredEventId]),
+    );
+    expect(ids).not.toContain(pendingEventId);
+  });
+
+  it("reads RSVP and attendance as two independent records, neither implying the other", async () => {
+    const result = await readPlayerRecord(membershipId);
+    const data = (result as PlayerRecordFound).data;
+    const attended = data.attendance.find((event) => event.id === attendedEventId);
+    expect(attended?.isMandatory).toBe(true);
+    expect(attended?.rsvp).toBe("yes");
+    expect(attended?.attendance).toBe("present");
+  });
+
+  it("keeps a cancelled invitation as a row with no RSVP and no attendance record", async () => {
+    const result = await readPlayerRecord(membershipId);
+    const data = (result as PlayerRecordFound).data;
+    const cancelled = data.attendance.find((event) => event.id === cancelledEventId);
+    expect(cancelled).toBeDefined();
+    expect(cancelled?.invitationStatus).toBe("cancelled");
+    expect(cancelled?.rsvp).toBeNull();
+    expect(cancelled?.attendance).toBeNull();
+  });
+
+  it("reads an expired invitation's real recorded attendance rather than treating expiry as a value", async () => {
+    const result = await readPlayerRecord(membershipId);
+    const data = (result as PlayerRecordFound).data;
+    const expired = data.attendance.find((event) => event.id === expiredEventId);
+    expect(expired).toBeDefined();
+    expect(expired?.invitationStatus).toBe("expired");
+    expect(expired?.rsvp).toBeNull();
+    expect(expired?.attendance).toBe("absent");
+  });
+});
+
 describe("readPlayerRecord — a membership whose person was merged away (I6, W1-09)", () => {
   let loserId: string;
   let loserMembershipId: string;

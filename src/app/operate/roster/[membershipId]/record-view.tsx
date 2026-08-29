@@ -45,8 +45,10 @@ import {
   FORMALWEAR_LABELS,
   STATUS_OPTION_LABELS,
   STATUSES,
+  type BandDef,
 } from "../board-columns";
 import JerseyPicker from "../jersey-picker";
+import AttendanceSection from "./attendance-section";
 import {
   ENTRY_LABELS,
   formatDay,
@@ -568,6 +570,11 @@ export default function PlayerRecordView({
         />
       </Section>
 
+      {/* ----------------------------------------------------- Attendance -- */}
+      <Section band="attendance" title="Attendance" testId="attendance">
+        <AttendanceSection events={record.attendance} />
+      </Section>
+
       {/* ---------------------------------------------------- Other seasons -- */}
       <Section band="person" title="Their other seasons" testId="other-seasons">
         <OtherSeasons seasons={record.otherSeasons} />
@@ -641,6 +648,19 @@ function Headline({
 }
 
 /** One banded section — the board's own three groups and colours (`bandOf`), so the two surfaces read as one product. */
+/**
+ * Attendance's own colour — `Q15-attendance`. Violet, constructed the same
+ * way as the board's three (a dark hex on a ~5% alpha wash), and defined here
+ * rather than added to `board-columns.ts`'s `BANDS`: that file drives the
+ * board's own columns, this package does not edit it, and Attendance is not a
+ * board column. Deliberately not red, orange or green — the band carries a
+ * percentage, and a traffic-light hue would read as a verdict on the number.
+ */
+const ATTENDANCE_BAND: Pick<BandDef, "header" | "tint"> = Object.freeze({
+  header: "#4527a0",
+  tint: "rgba(69, 39, 160, 0.05)",
+});
+
 function Section({
   band,
   title,
@@ -648,14 +668,14 @@ function Section({
   children,
   testId,
 }: {
-  band: "person" | "onboarding" | "season";
+  band: "person" | "onboarding" | "season" | "attendance";
   title: string;
   action?: ReactNode;
   children: ReactNode;
   /** Distinguishes sections that share a band — "person" covers three panels. */
   testId: string;
 }) {
-  const colours = bandOf(band);
+  const colours = band === "attendance" ? ATTENDANCE_BAND : bandOf(band);
   return (
     <Paper variant="outlined" sx={{ overflow: "hidden" }} data-testid={`section-${testId}`}>
       <Stack
