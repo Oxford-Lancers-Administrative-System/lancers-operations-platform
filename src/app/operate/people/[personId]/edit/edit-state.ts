@@ -26,6 +26,31 @@ export interface EditFieldErrors {
   emergencyEmail?: string;
 }
 
+/**
+ * F1, LAN-185 correction (`inv-ae866233-f12`): every field
+ * `person-write.ts`'s `requireReasonForChange` covers needs a reachable
+ * *Reason for the change* input, the same way `mobileReason` /
+ * `personalEmailReason` / `collegeEmailReason` already work — required only
+ * to change a value that is already on record, never to fill an empty one.
+ * These twelve cover the remaining fields the rule applies to: the seven
+ * `PersonFieldUpdate` fields (`given_name` through `date_of_birth`) and all
+ * five `EmergencyContactFieldUpdate` fields.
+ */
+export interface CorrectionReasonFormValues {
+  givenNameReason: string;
+  familyNameReason: string;
+  collegeReason: string;
+  matriculationYearReason: string;
+  expectedGraduationYearReason: string;
+  degreeFieldReason: string;
+  dateOfBirthReason: string;
+  emergencyGivenNameReason: string;
+  emergencyFamilyNameReason: string;
+  emergencyRelationshipReason: string;
+  emergencyPhoneReason: string;
+  emergencyEmailReason: string;
+}
+
 export interface MobileConfirmation {
   /** What the operator typed, unmodified. */
   raw: string;
@@ -62,7 +87,7 @@ function optional(value: FormDataEntryValue | null): string {
   return typeof value === "string" ? value : "";
 }
 
-export interface EditFormValues {
+export interface EditFormValues extends CorrectionReasonFormValues {
   givenName: string;
   familyName: string;
   mobile: string;
@@ -88,7 +113,9 @@ export interface EditFormValues {
 export function readEditFormValues(formData: FormData): EditFormValues {
   return {
     givenName: optional(formData.get("givenName")),
+    givenNameReason: optional(formData.get("givenNameReason")),
     familyName: optional(formData.get("familyName")),
+    familyNameReason: optional(formData.get("familyNameReason")),
     mobile: optional(formData.get("mobile")),
     mobileReason: optional(formData.get("mobileReason")),
     personalEmail: optional(formData.get("personalEmail")),
@@ -96,15 +123,25 @@ export function readEditFormValues(formData: FormData): EditFormValues {
     collegeEmail: optional(formData.get("collegeEmail")),
     collegeEmailReason: optional(formData.get("collegeEmailReason")),
     college: optional(formData.get("college")),
+    collegeReason: optional(formData.get("collegeReason")),
     matriculationYear: optional(formData.get("matriculationYear")),
+    matriculationYearReason: optional(formData.get("matriculationYearReason")),
     expectedGraduationYear: optional(formData.get("expectedGraduationYear")),
+    expectedGraduationYearReason: optional(formData.get("expectedGraduationYearReason")),
     degreeField: optional(formData.get("degreeField")),
+    degreeFieldReason: optional(formData.get("degreeFieldReason")),
     dateOfBirth: optional(formData.get("dateOfBirth")),
+    dateOfBirthReason: optional(formData.get("dateOfBirthReason")),
     emergencyGivenName: optional(formData.get("emergencyGivenName")),
+    emergencyGivenNameReason: optional(formData.get("emergencyGivenNameReason")),
     emergencyFamilyName: optional(formData.get("emergencyFamilyName")),
+    emergencyFamilyNameReason: optional(formData.get("emergencyFamilyNameReason")),
     emergencyRelationship: optional(formData.get("emergencyRelationship")),
+    emergencyRelationshipReason: optional(formData.get("emergencyRelationshipReason")),
     emergencyPhone: optional(formData.get("emergencyPhone")),
+    emergencyPhoneReason: optional(formData.get("emergencyPhoneReason")),
     emergencyEmail: optional(formData.get("emergencyEmail")),
+    emergencyEmailReason: optional(formData.get("emergencyEmailReason")),
     expectedVersion: optional(formData.get("expectedVersion")),
     confirmMobile: optional(formData.get("confirmMobile")),
   };

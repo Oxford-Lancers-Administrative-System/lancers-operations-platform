@@ -250,6 +250,98 @@ describe("filling and correcting", () => {
     expect(after.familyName).toBe("Someone Else");
   });
 
+  // F1, LAN-185 correction (`inv-ae866233-f12`): the reason rule was
+  // unreachable for twelve of fifteen correctable fields — the seven
+  // `PersonFieldUpdate` fields and all five emergency-contact fields carried
+  // no `*Reason` input anywhere, so an operator could never correct any of
+  // them once populated. Reverting the `reason:` threading in `actions.ts`
+  // (or the reason inputs in `edit-person-form.tsx`) makes this test fail
+  // exactly the way the reviewer reproduced it live.
+  it("corrects an existing college, matriculation year, expected graduation, degree field, date of birth and last name with a reason apiece, and reads back — LAN-185 F1", async () => {
+    signedInAs();
+    const personId = await insertPerson({ givenName: unique("Alaric"), familyName: "Brindlewood" });
+    await observer.query(
+      `update public.people
+          set college = 'Beaumont', matriculation_year = 2023, expected_graduation_year = 2026,
+              degree_field = 'Engineering Science', date_of_birth = '2004-03-11'
+        where id = $1::uuid`,
+      [personId],
+    );
+
+    const data = await formFrom(personId, {
+      familyName: "Winterhold",
+      familyNameReason: "Corrected spelling from passport",
+      college: "Merton",
+      collegeReason: "Transferred colleges",
+      matriculationYear: "2024",
+      matriculationYearReason: "Original year was a typo",
+      expectedGraduationYear: "2027",
+      expectedGraduationYearReason: "Took a year out",
+      degreeField: "Materials Science",
+      degreeFieldReason: "Changed course",
+      dateOfBirth: "2004-03-12",
+      dateOfBirthReason: "Corrected after seeing a passport",
+    });
+
+    await expect(submitPersonEdit(INITIAL_EDIT_STATE, data)).rejects.toThrow(RedirectSignal);
+
+    const after = await readPersonRecord(personId);
+    expect(after.familyName).toBe("Winterhold");
+    expect(after.college).toBe("Merton");
+    expect(after.matriculationYear).toBe(2024);
+    expect(after.expectedGraduationYear).toBe(2027);
+    expect(after.degreeField).toBe("Materials Science");
+    expect(after.dateOfBirth).toBe("2004-03-12");
+  });
+
+  it("refuses those same corrections without a reason, per field — LAN-185 F1", async () => {
+    signedInAs();
+    const personId = await insertPerson({ givenName: unique("Alaric"), familyName: "Brindlewood" });
+    await observer.query(`update public.people set college = 'Beaumont' where id = $1::uuid`, [
+      personId,
+    ]);
+
+    const data = await formFrom(personId, { college: "Merton" });
+    const result = await submitPersonEdit(INITIAL_EDIT_STATE, data);
+    expect(result.formError).toBeTruthy();
+
+    const after = await readPersonRecord(personId);
+    expect(after.college).toBe("Beaumont");
+  });
+
+  it("corrects every existing emergency-contact field with a reason apiece, and reads back — LAN-185 F1", async () => {
+    signedInAs();
+    const personId = await insertPerson({ givenName: unique("Rosalind") });
+    await observer.query(
+      `insert into public.person_emergency_contacts
+         (person_id, given_name, family_name, relationship, phone, email, recorded_by_person_id)
+       values ($1::uuid, 'Iris', 'Thistlewood', 'Mother', '+447700900111', 'iris@example.invalid', $2::uuid)`,
+      [personId, actorPersonId],
+    );
+
+    const data = await formFrom(personId, {
+      emergencyGivenName: "Ivy",
+      emergencyGivenNameReason: "Preferred name",
+      emergencyFamilyName: "Hawthorne",
+      emergencyFamilyNameReason: "Remarried",
+      emergencyRelationship: "Guardian",
+      emergencyRelationshipReason: "Updated after a custody change",
+      emergencyPhone: "+447700900222",
+      emergencyPhoneReason: "New number",
+      emergencyEmail: "ivy@example.invalid",
+      emergencyEmailReason: "New email",
+    });
+
+    await expect(submitPersonEdit(INITIAL_EDIT_STATE, data)).rejects.toThrow(RedirectSignal);
+
+    const after = await readPersonRecord(personId);
+    expect(after.emergencyContact?.givenName).toBe("Ivy");
+    expect(after.emergencyContact?.familyName).toBe("Hawthorne");
+    expect(after.emergencyContact?.relationship).toBe("Guardian");
+    expect(after.emergencyContact?.phone).toBe("+447700900222");
+    expect(after.emergencyContact?.email).toBe("ivy@example.invalid");
+  });
+
   it("moves nothing on the ladder", async () => {
     signedInAs();
     const personId = await insertPerson({ givenName: unique("Hollis") });

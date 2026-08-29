@@ -152,6 +152,14 @@ export default function EditPersonForm({
               helperText={state.errors.givenName}
               fullWidth
             />
+            {record.givenName ? (
+              <TextField
+                name="givenNameReason"
+                label="Reason for the change"
+                helperText="Required only if you change this value."
+                fullWidth
+              />
+            ) : null}
             <TextField
               name="familyName"
               label="Last name"
@@ -160,6 +168,14 @@ export default function EditPersonForm({
               helperText={state.errors.familyName}
               fullWidth
             />
+            {record.familyName ? (
+              <TextField
+                name="familyNameReason"
+                label="Reason for the change"
+                helperText="Required only if you change this value."
+                fullWidth
+              />
+            ) : null}
             <AliasesEditor personId={personId} record={record} />
           </Stack>
         </Section>
@@ -225,24 +241,56 @@ export default function EditPersonForm({
               defaultValue={record.college ?? ""}
               fullWidth
             />
+            {record.college ? (
+              <TextField
+                name="collegeReason"
+                label="Reason for the change"
+                helperText="Required only if you change this value."
+                fullWidth
+              />
+            ) : null}
             <TextField
               name="matriculationYear"
               label="Matriculation year"
               defaultValue={record.matriculationYear ?? ""}
               fullWidth
             />
+            {record.matriculationYear !== null ? (
+              <TextField
+                name="matriculationYearReason"
+                label="Reason for the change"
+                helperText="Required only if you change this value."
+                fullWidth
+              />
+            ) : null}
             <TextField
               name="expectedGraduationYear"
               label="Expected graduation"
               defaultValue={record.expectedGraduationYear ?? ""}
               fullWidth
             />
+            {record.expectedGraduationYear !== null ? (
+              <TextField
+                name="expectedGraduationYearReason"
+                label="Reason for the change"
+                helperText="Required only if you change this value."
+                fullWidth
+              />
+            ) : null}
             <TextField
               name="degreeField"
               label="Degree field"
               defaultValue={record.degreeField ?? ""}
               fullWidth
             />
+            {record.degreeField ? (
+              <TextField
+                name="degreeFieldReason"
+                label="Reason for the change"
+                helperText="Required only if you change this value."
+                fullWidth
+              />
+            ) : null}
           </Stack>
         </Section>
 
@@ -256,36 +304,84 @@ export default function EditPersonForm({
               slotProps={{ inputLabel: { shrink: true } }}
               fullWidth
             />
+            {record.dateOfBirth ? (
+              <TextField
+                name="dateOfBirthReason"
+                label="Reason for the change"
+                helperText="Required only if you change this value."
+                fullWidth
+              />
+            ) : null}
             <TextField
               name="emergencyGivenName"
               label="Emergency contact — first name"
               defaultValue={ec?.givenName ?? ""}
               fullWidth
             />
+            {ec?.givenName ? (
+              <TextField
+                name="emergencyGivenNameReason"
+                label="Reason for the change"
+                helperText="Required only if you change this value."
+                fullWidth
+              />
+            ) : null}
             <TextField
               name="emergencyFamilyName"
               label="Emergency contact — last name"
               defaultValue={ec?.familyName ?? ""}
               fullWidth
             />
+            {ec?.familyName ? (
+              <TextField
+                name="emergencyFamilyNameReason"
+                label="Reason for the change"
+                helperText="Required only if you change this value."
+                fullWidth
+              />
+            ) : null}
             <TextField
               name="emergencyRelationship"
               label="Relationship"
               defaultValue={ec?.relationship ?? ""}
               fullWidth
             />
+            {ec?.relationship ? (
+              <TextField
+                name="emergencyRelationshipReason"
+                label="Reason for the change"
+                helperText="Required only if you change this value."
+                fullWidth
+              />
+            ) : null}
             <TextField
               name="emergencyPhone"
               label="Phone"
               defaultValue={ec?.phone ?? ""}
               fullWidth
             />
+            {ec?.phone ? (
+              <TextField
+                name="emergencyPhoneReason"
+                label="Reason for the change"
+                helperText="Required only if you change this value."
+                fullWidth
+              />
+            ) : null}
             <TextField
               name="emergencyEmail"
               label="Email"
               defaultValue={ec?.email ?? ""}
               fullWidth
             />
+            {ec?.email ? (
+              <TextField
+                name="emergencyEmailReason"
+                label="Reason for the change"
+                helperText="Required only if you change this value."
+                fullWidth
+              />
+            ) : null}
           </Stack>
         </Section>
       </Stack>

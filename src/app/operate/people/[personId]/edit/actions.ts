@@ -171,6 +171,7 @@ export async function submitPersonEdit(
         personId,
         field: "given_name",
         value: values.givenName,
+        reason: values.givenNameReason || null,
         expectedVersion: nextExpectedVersion(),
       });
     }
@@ -180,6 +181,7 @@ export async function submitPersonEdit(
         personId,
         field: "family_name",
         value: values.familyName.trim() === "" ? null : values.familyName.trim(),
+        reason: values.familyNameReason || null,
         expectedVersion: nextExpectedVersion(),
       });
     }
@@ -189,6 +191,7 @@ export async function submitPersonEdit(
         personId,
         field: "college",
         value: values.college.trim() === "" ? null : values.college.trim(),
+        reason: values.collegeReason || null,
         expectedVersion: nextExpectedVersion(),
       });
     }
@@ -198,6 +201,7 @@ export async function submitPersonEdit(
         personId,
         field: "degree_field",
         value: values.degreeField.trim() === "" ? null : values.degreeField.trim(),
+        reason: values.degreeFieldReason || null,
         expectedVersion: nextExpectedVersion(),
       });
     }
@@ -207,6 +211,7 @@ export async function submitPersonEdit(
         personId,
         field: "date_of_birth",
         value: values.dateOfBirth.trim() === "" ? null : values.dateOfBirth.trim(),
+        reason: values.dateOfBirthReason || null,
         expectedVersion: nextExpectedVersion(),
       });
     }
@@ -217,6 +222,7 @@ export async function submitPersonEdit(
         personId,
         field: "matriculation_year",
         value: matricNumber,
+        reason: values.matriculationYearReason || null,
         expectedVersion: nextExpectedVersion(),
       });
     }
@@ -227,6 +233,7 @@ export async function submitPersonEdit(
         personId,
         field: "expected_graduation_year",
         value: gradNumber,
+        reason: values.expectedGraduationYearReason || null,
         expectedVersion: nextExpectedVersion(),
       });
     }
@@ -238,6 +245,7 @@ export async function submitPersonEdit(
         personId,
         field: "given_name",
         value: values.emergencyGivenName,
+        reason: values.emergencyGivenNameReason || null,
         expectedVersion: nextExpectedVersion(),
       });
     }
@@ -247,6 +255,7 @@ export async function submitPersonEdit(
         personId,
         field: "family_name",
         value: values.emergencyFamilyName.trim() === "" ? null : values.emergencyFamilyName.trim(),
+        reason: values.emergencyFamilyNameReason || null,
         expectedVersion: nextExpectedVersion(),
       });
     }
@@ -257,6 +266,7 @@ export async function submitPersonEdit(
         field: "relationship",
         value:
           values.emergencyRelationship.trim() === "" ? null : values.emergencyRelationship.trim(),
+        reason: values.emergencyRelationshipReason || null,
         expectedVersion: nextExpectedVersion(),
       });
     }
@@ -266,6 +276,7 @@ export async function submitPersonEdit(
         personId,
         field: "phone",
         value: values.emergencyPhone.trim() === "" ? null : values.emergencyPhone.trim(),
+        reason: values.emergencyPhoneReason || null,
         expectedVersion: nextExpectedVersion(),
       });
     }
@@ -275,6 +286,7 @@ export async function submitPersonEdit(
         personId,
         field: "email",
         value: values.emergencyEmail.trim() === "" ? null : values.emergencyEmail.trim(),
+        reason: values.emergencyEmailReason || null,
         expectedVersion: nextExpectedVersion(),
       });
     }

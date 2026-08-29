@@ -49,12 +49,16 @@ are defined in [`../slice-ux.md`](../slice-ux.md) and
   remove and flag-as-display-name. Contact values supersede (dated history,
   one preferred value per kind and scope); every other field overwrites, its
   previous value surviving in the audit trail. A reason is required to change
-  an existing value and never to fill an empty one. Phone and email validated
-  per field, naming the rule, before any write; every correct international
-  form of a number saves, only a bare national number defaults to UK. A
-  mobile change is read back, normalised, before it commits. Refused: an
-  email already held by another person (offered the merge); a concurrent save
-  (told what changed underneath it). Nothing here moves a membership,
+  an existing value and never to fill an empty one — reachable per field for
+  every one of the fifteen correctable fields (first name, last name, mobile,
+  personal email, college email, college, matriculation year, expected
+  graduation, degree field, date of birth, and all five emergency-contact
+  fields), rendered only when that field currently holds a value. Phone and
+  email validated per field, naming the rule, before any write; every correct
+  international form of a number saves, only a bare national number defaults
+  to UK. A mobile change is read back, normalised, before it commits. Refused:
+  an email already held by another person (offered the merge); a concurrent
+  save (told what changed underneath it). Nothing here moves a membership,
   prospect, role or seat.
 - `/operate/people/new`: first name, last name, one contact point. The
   duplicate check runs before creation, matching name, alias, every email and
@@ -155,6 +159,26 @@ are defined in [`../slice-ux.md`](../slice-ux.md) and
   row automatically — `recruitment_prospects_one_per_person_per_season`
   then refuses the whole merge cleanly if both sides hold one, rather than
   this package guessing which conversion record is authoritative.
+
+## Correction round (`inv-ae866233-f12`, F1 and F2)
+
+- **F1 — the reason rule was unreachable for twelve of fifteen correctable
+  fields.** Only mobile, personal email and college email carried a _Reason
+  for the change_ input; `person-write.ts`'s server-side rule was always
+  correct, but the edit form and its action supplied no reason field, and
+  passed no `reason`, for first name, last name, college, matriculation year,
+  expected graduation, degree field, date of birth, or any of the five
+  emergency-contact fields — a functional dead end once any of those twelve
+  held a value. Fixed by threading a `*Reason` input and parameter through
+  each, the same way the original three already worked: rendered only when
+  the field currently holds a value, required only to change it.
+- **F2 — the merge route's own authorization test could not distinguish a
+  refusal from a completed merge.** The mocked `redirect()` throws on success
+  too, so `.rejects.toThrow()` passed whether the operator was correctly
+  refused or the merge actually completed. Fixed to assert the specific
+  `NotPermitted` error and confirm the loser record was never touched, the
+  same stronger pattern the reason-gate test in the same file already used.
+  `capabilities.ts` was already correct and needed no change.
 
 ## Acceptance criteria
 
