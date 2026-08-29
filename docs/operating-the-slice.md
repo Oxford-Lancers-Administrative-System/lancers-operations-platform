@@ -132,11 +132,14 @@ Sign in with the local review account. Its address is
 `db:start` provisions, and is never written down here or anywhere else in this
 repository.
 
-**Expected.** You land on **/operate/roster**. The left sidebar shows **Roster**,
+**Expected.** You land on **/operate/roster** — the season's squad as a
+twenty-column board (LAN-186), open only to the President, Vice-President,
+Secretary, General Manager and IT Officer. The left sidebar shows **Roster**,
 **Events** and **Report**. Bottom left it says who you are signed in as and
 "Authorized operator".
 
-The heading reads `Roster` and beneath it `Season 2026-27 · 42 memberships`.
+The heading reads `Roster` and beneath it `Season 2026-27 · 42 players · 20
+columns`.
 
 ---
 

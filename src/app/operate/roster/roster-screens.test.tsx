@@ -1,7 +1,16 @@
 /**
- * UX-20, UX-21, UX-22 and UX-23 — LAN-75, matrix rows 11 and 12.
+ * UX-21 and UX-22 — the membership record and its activation dialog. LAN-75,
+ * matrix rows 11 and 12.
  *
- * These render the real pages with the service layer mocked, so what is under
+ * `RosterPage` (UX-20/UX-23) moved out of this file with LAN-186: the board
+ * that replaced the six-column list has its own tests in
+ * `board-screens.test.tsx`, and its search-and-filter component
+ * (`./roster-filters.tsx`) is unchanged and still covered below — it stays a
+ * live consumer of the shared `ListFilters` component
+ * (`src/app/operate/list-filters.test.tsx`) even though the board no longer
+ * uses it, and deleting it would break that outside test.
+ *
+ * These render the real page with the service layer mocked, so what is under
  * test is the screen: which facts it states, which actions it offers, and which
  * of them it offers to whom. The writes are proved against the real database in
  * `src/lib/services/membership.test.ts`, and the authorization boundary in
@@ -47,7 +56,7 @@ vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("../../login/actions", () => ({ signOut: vi.fn() }));
 vi.mock("@/lib/services/membership", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/membership")>();
-  return { ...actual, listCurrentSeasonRoster: vi.fn(), readMembership: vi.fn() };
+  return { ...actual, readMembership: vi.fn() };
 });
 
 import { NotFound } from "@/lib/db";
@@ -57,15 +66,11 @@ import {
   type ResolvedOperator,
 } from "@/lib/auth/operator";
 import {
-  listCurrentSeasonRoster,
   readMembership,
   type MembershipRecord,
   type OnboardingItem,
-  type Roster,
-  type RosterEntry,
 } from "@/lib/services/membership";
 import RosterFilters, { SEARCH_DEBOUNCE_MS } from "./roster-filters";
-import RosterPage from "./page";
 import MembershipPage from "./[membershipId]/page";
 
 const MEMBERSHIP_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
@@ -88,71 +93,6 @@ function readerOperator(): ResolvedOperator {
 
 function signedInAs(operator: ResolvedOperator): void {
   vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator });
-}
-
-function rosterProps(query: Record<string, string> = {}) {
-  return {
-    params: Promise.resolve({}),
-    searchParams: Promise.resolve(query),
-  } as unknown as Parameters<typeof RosterPage>[0];
-}
-
-const ENTRIES: RosterEntry[] = [
-  {
-    membershipId: MEMBERSHIP_ID,
-    personId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-    givenName: "Avery",
-    familyName: "Fielding",
-    displayAlias: "Avery",
-    displayName: "Avery Fielding",
-    status: "active",
-    entry: "returning",
-    email: "avery.fielding@example.invalid",
-    phone: "+44 7700 900101",
-    itemsTotal: 5,
-    itemsResolved: 5,
-    requiredOutstanding: 0,
-  },
-  {
-    membershipId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-    personId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-    givenName: "Samira",
-    familyName: "Quinn",
-    displayAlias: null,
-    displayName: "Samira Quinn",
-    status: "onboarding",
-    entry: "returning",
-    email: "samira.quinn@example.invalid",
-    phone: "+44 7700 900103",
-    itemsTotal: 5,
-    itemsResolved: 3,
-    requiredOutstanding: 2,
-  },
-  {
-    // A first-name-only person, and no contact at all — the club's real shape.
-    membershipId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
-    personId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-    givenName: "Ari",
-    familyName: null,
-    displayAlias: null,
-    displayName: "Ari",
-    status: "inactive",
-    entry: "new",
-    email: null,
-    phone: null,
-    itemsTotal: 0,
-    itemsResolved: 0,
-    requiredOutstanding: 0,
-  },
-];
-
-function givenRoster(overrides: Partial<Roster> = {}): void {
-  vi.mocked(listCurrentSeasonRoster).mockResolvedValue({
-    season: { id: "season", label: "2026-27", status: "active" },
-    entries: ENTRIES,
-    totalInSeason: ENTRIES.length,
-    ...overrides,
-  } as Roster);
 }
 
 function item(overrides: Partial<OnboardingItem> = {}): OnboardingItem {
@@ -243,175 +183,6 @@ async function renderMembership(record: MembershipRecord | null = membership()) 
 beforeEach(() => {
   vi.clearAllMocks();
   signedInAs(execOperator());
-});
-
-// ---------------------------------------------------------------------------
-
-describe("UX-20 — Roster", () => {
-  beforeEach(async () => {
-    givenRoster();
-    render(await RosterPage(rosterProps()));
-  });
-
-  it("shows the approved heading, the season and how many memberships it holds", () => {
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Roster");
-    expect(screen.getByTestId("season-label")).toHaveTextContent("Season 2026-27 · 3 memberships");
-  });
-
-  it("offers the one primary action the wireframe carries", () => {
-    expect(screen.getByRole("link", { name: "Add player" })).toHaveAttribute(
-      "href",
-      "/operate/roster/new",
-    );
-  });
-
-  it("carries the approved columns", () => {
-    const table = screen.getByRole("table", { name: "Roster" });
-    const headings = within(table)
-      .getAllByRole("columnheader")
-      .map((cell) => cell.textContent?.trim());
-    for (const column of ["Member", "Status", "Entry", "Email", "Phone", "Onboarding"]) {
-      expect(headings).toContain(column);
-    }
-  });
-
-  it("renders one row per membership, with its status in words", () => {
-    expect(screen.getAllByTestId("roster-row")).toHaveLength(3);
-
-    // Read out of the Status cell rather than searched for across the table:
-    // "Onboarding" is now both a status word and a column heading, so a plain
-    // text query is ambiguous and would pass on the wrong element.
-    const words = screen
-      .getAllByTestId("roster-row")
-      .map((row) => within(row).getAllByRole("cell")[1].textContent?.trim());
-    expect(words).toEqual(["Active", "Onboarding", "Inactive"]);
-  });
-
-  it("opens the membership record from the row", () => {
-    // The approved criterion: "activating a row opens the correct
-    // membership-detail route".
-    expect(screen.getAllByRole("link", { name: "Avery Fielding" })[0]).toHaveAttribute(
-      "href",
-      `/operate/roster/${MEMBERSHIP_ID}`,
-    );
-  });
-
-  it("states onboarding without making the operator open every record", () => {
-    const table = screen.getByRole("table", { name: "Roster" });
-    expect(within(table).getByText("Complete")).toBeInTheDocument();
-    expect(within(table).getByText("2 outstanding")).toBeInTheDocument();
-    expect(within(table).getByText("No items configured")).toBeInTheDocument();
-  });
-
-  it("shows a dash rather than an empty cell for missing contact detail", () => {
-    // 26% of the club's records are first-name-only; a blank cell reads as a
-    // rendering fault rather than as "the club does not have this".
-    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
-  });
-
-  it("offers search, status and entry filters, and sortable columns", () => {
-    expect(screen.getByTestId("roster-filters")).toBeInTheDocument();
-    expect(screen.getByLabelText("Search name or contact")).toBeInTheDocument();
-    expect(screen.getByLabelText("Status")).toBeInTheDocument();
-    expect(screen.getByLabelText("Entry")).toBeInTheDocument();
-
-    const table = screen.getByRole("table", { name: "Roster" });
-    expect(within(table).getByRole("link", { name: /Member/ })).toHaveAttribute(
-      "href",
-      expect.stringContaining("sort=name"),
-    );
-  });
-
-  it("also renders the phone card for every membership", () => {
-    // Both presentations are in this DOM because jsdom ignores breakpoints;
-    // what is assertable here is that the phone layout drops nobody.
-    expect(screen.getAllByTestId("roster-card")).toHaveLength(3);
-  });
-});
-
-describe("UX-20 — the sort links", () => {
-  it("carries the current filters through a sort, rather than clearing them", async () => {
-    givenRoster();
-    render(await RosterPage(rosterProps({ q: "Avery", status: "active" })));
-
-    const header = within(screen.getByRole("table", { name: "Roster" })).getByRole("link", {
-      name: /Status/,
-    });
-    expect(header).toHaveAttribute("href", expect.stringContaining("q=Avery"));
-    expect(header).toHaveAttribute("href", expect.stringContaining("status=active"));
-  });
-
-  it("flips the direction of the column already sorted", async () => {
-    givenRoster();
-    render(await RosterPage(rosterProps({ sort: "name", dir: "asc" })));
-
-    expect(
-      within(screen.getByRole("table", { name: "Roster" })).getByRole("link", { name: /Member/ }),
-    ).toHaveAttribute("href", expect.stringContaining("dir=desc"));
-  });
-});
-
-// ---------------------------------------------------------------------------
-
-describe("UX-23 — No memberships match these filters", () => {
-  it("uses the approved copy and offers both recoveries", async () => {
-    givenRoster({ entries: [], totalInSeason: 42 });
-    render(await RosterPage(rosterProps({ q: "nobody" })));
-
-    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(
-      "No memberships match these filters",
-    );
-    expect(screen.getByTestId("roster-filter-empty")).toHaveTextContent(
-      "The roster is available, but the current search and filter combination returned no results.",
-    );
-    expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute(
-      "href",
-      "/operate/roster",
-    );
-    expect(screen.getByRole("link", { name: "Add player" })).toBeInTheDocument();
-  });
-
-  /**
-   * The wireframe's own note: "A system-empty roster uses different copy and
-   * points to the authorized intake workflow." The recovery differs, so the
-   * sentence has to.
-   */
-  it("says something different when the season is genuinely empty", async () => {
-    givenRoster({ entries: [], totalInSeason: 0 });
-    render(await RosterPage(rosterProps()));
-
-    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(
-      "This season has no memberships yet",
-    );
-    expect(screen.getByTestId("roster-empty")).toBeInTheDocument();
-    expect(screen.queryByTestId("roster-filter-empty")).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Clear filters" })).not.toBeInTheDocument();
-  });
-
-  /**
-   * The third empty-looking state, and the one that is not an empty state at
-   * all: the service refused, so the screen knows nothing about the season.
-   *
-   * Untested until LAN-118 moved this markup into a shared `UnavailableScreen`.
-   * The refusal is only reachable when a read fails, which is precisely why it
-   * needs a test rather than a look — and why sharing it was worth doing: the
-   * three list screens that render it were each carrying their own copy.
-   *
-   * The heading level is asserted because it is the claim that is silently easy
-   * to break. At this moment it is the page's only heading, and one that came
-   * back as anything but `h1` would leave the screen unreachable by heading
-   * navigation without changing a pixel.
-   */
-  it("shows the service's own sentence when the roster cannot be read", async () => {
-    vi.mocked(listCurrentSeasonRoster).mockRejectedValue(new NotFound("No season is open."));
-
-    render(await RosterPage(rosterProps()));
-
-    expect(screen.getByTestId("roster-unavailable")).toHaveTextContent("No season is open.");
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Roster");
-    expect(screen.queryByTestId("roster-empty")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("roster-filter-empty")).not.toBeInTheDocument();
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -644,18 +415,6 @@ describe("an operator who may not be here at all", () => {
   const denied: OperatorAccess[] = [{ state: "unlinked" }, { state: "inactive" }];
 
   for (const access of denied) {
-    it(`shows ${access.state} no roster data`, async () => {
-      vi.mocked(resolveOperatorAccess).mockResolvedValue(access);
-      givenRoster();
-
-      const { container } = render(await RosterPage(rosterProps()));
-
-      for (const secret of ["Avery", "Fielding", "avery.fielding@example.invalid", "Samira"]) {
-        expect(container.innerHTML).not.toContain(secret);
-      }
-      expect(listCurrentSeasonRoster).not.toHaveBeenCalled();
-    });
-
     it(`shows ${access.state} no membership record`, async () => {
       vi.mocked(resolveOperatorAccess).mockResolvedValue(access);
       vi.mocked(readMembership).mockResolvedValue(membership());
@@ -673,14 +432,6 @@ describe("an operator who may not be here at all", () => {
       expect(readMembership).not.toHaveBeenCalled();
     });
   }
-
-  it("sends a request with no session to the sign-in page, keeping the route", async () => {
-    vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "no_session" });
-
-    await expect(RosterPage(rosterProps())).rejects.toThrow(
-      "REDIRECT:/login?redirectTo=%2Foperate%2Froster",
-    );
-  });
 });
 
 // ---------------------------------------------------------------------------
