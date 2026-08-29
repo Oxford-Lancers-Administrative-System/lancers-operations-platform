@@ -41,12 +41,23 @@ import {
  * `matriculation_year`, `expected_graduation_year`, `degree_field` and
  * `date_of_birth` have no provenance column on `main`, and
  * `person_emergency_contacts.recorded_by_person_id` exists in the schema but
- * is not part of what `readPersonRecord()` returns. So "who supplied it"
- * renders beside a mobile number, a personal or college email and an alias,
- * because that is what the record this package reads actually carries, and
- * renders nowhere else — not because those facts are less real, but because
- * inventing a caption the data cannot back would be the false statement
- * amendment `W1-A2` struck the `Verified` mark for being.
+ * is not part of what `readPersonRecord()` returns.
+ *
+ * `Q-13` (Brian's walkthrough of this page at 2934b787, 2026-08-29): for
+ * those same seven fields, `readPersonRecord()` now derives "who supplied it"
+ * from `audit_events` instead of a stored column — the most recent
+ * `person_<field>_updated` row `person-write.ts`'s `updatePersonField` wrote
+ * naming this person. `DerivedBy` below renders that name where one was
+ * found, and reads "not recorded" — plainly, not silently — where it was
+ * not: a value that arrived by seed or import and was never edited through
+ * the application has no such row. Almost nothing has been changed through
+ * the application yet, so this renders sparsely today and becomes truthful as
+ * the club uses it; that is the intended shape, not a gap. Inventing a
+ * caption the data cannot back is still the false statement amendment
+ * `W1-A2` struck the `Verified` mark for being — reading one back out of the
+ * record's own history is not that. The emergency contact keeps carrying no
+ * caption at all: its `recorded_by_person_id` column is real but still not
+ * part of what this package reads, and stays a later package's decision.
  *
  * ## Redaction, applied even though nothing here can exercise it today
  *
@@ -81,6 +92,27 @@ function By({ who }: { who: string | null }) {
       sx={{ border: 1, borderColor: "divider", borderRadius: 0.5, px: 0.5, ml: 1 }}
     >
       {who}
+    </Typography>
+  );
+}
+
+/**
+ * "Who supplied it" for a field with no stored `source` of its own —
+ * `person-record.ts` derives `who` from `audit_events` (`Q-13`). Unlike
+ * `By`, whose silence on a contact or alias means "this substrate carries no
+ * source at all", `null` here means "no audit row exists yet" — a different
+ * fact, and one `Q-13` chose to say plainly rather than leave blank.
+ */
+function DerivedBy({ who }: { who: string | null }) {
+  if (who) return <By who={who} />;
+  return (
+    <Typography
+      component="span"
+      variant="caption"
+      color="text.disabled"
+      sx={{ fontStyle: "italic", ml: 1 }}
+    >
+      not recorded
     </Typography>
   );
 }
@@ -285,9 +317,25 @@ export default async function PersonRecordPage({
 
       <Section title="Who they are">
         <Fact label="First name">
-          {visible.givenName ? <>{record.givenName}</> : <NotRecorded />}
+          {visible.givenName ? (
+            <>
+              {record.givenName}
+              <DerivedBy who={record.givenNameSource} />
+            </>
+          ) : (
+            <NotRecorded />
+          )}
         </Fact>
-        <Fact label="Last name">{record.familyName ?? <NotRecorded />}</Fact>
+        <Fact label="Last name">
+          {record.familyName !== null ? (
+            <>
+              {record.familyName}
+              <DerivedBy who={record.familyNameSource} />
+            </>
+          ) : (
+            <NotRecorded />
+          )}
+        </Fact>
         <Fact label="Aliases">
           {record.aliases.length === 0 ? (
             <NotRecorded />
@@ -349,18 +397,61 @@ export default async function PersonRecordPage({
 
       {visible.college !== undefined ? (
         <Section title="Academic">
-          <Fact label="College">{record.college ?? <NotRecorded />}</Fact>
-          <Fact label="Matriculation year">{record.matriculationYear ?? <NotRecorded />}</Fact>
-          <Fact label="Expected graduation">
-            {record.expectedGraduationYear ?? <NotRecorded />}
+          <Fact label="College">
+            {record.college !== null ? (
+              <>
+                {record.college}
+                <DerivedBy who={record.collegeSource} />
+              </>
+            ) : (
+              <NotRecorded />
+            )}
           </Fact>
-          <Fact label="Degree field">{record.degreeField ?? <NotRecorded />}</Fact>
+          <Fact label="Matriculation year">
+            {record.matriculationYear !== null ? (
+              <>
+                {record.matriculationYear}
+                <DerivedBy who={record.matriculationYearSource} />
+              </>
+            ) : (
+              <NotRecorded />
+            )}
+          </Fact>
+          <Fact label="Expected graduation">
+            {record.expectedGraduationYear !== null ? (
+              <>
+                {record.expectedGraduationYear}
+                <DerivedBy who={record.expectedGraduationYearSource} />
+              </>
+            ) : (
+              <NotRecorded />
+            )}
+          </Fact>
+          <Fact label="Degree field">
+            {record.degreeField !== null ? (
+              <>
+                {record.degreeField}
+                <DerivedBy who={record.degreeFieldSource} />
+              </>
+            ) : (
+              <NotRecorded />
+            )}
+          </Fact>
         </Section>
       ) : null}
 
       {visible.dateOfBirth !== undefined ? (
         <Section title="Restricted">
-          <Fact label="Date of birth">{record.dateOfBirth ?? <NotRecorded />}</Fact>
+          <Fact label="Date of birth">
+            {record.dateOfBirth !== null ? (
+              <>
+                {record.dateOfBirth}
+                <DerivedBy who={record.dateOfBirthSource} />
+              </>
+            ) : (
+              <NotRecorded />
+            )}
+          </Fact>
           <Fact label="Under 18">
             {record.isUnder18 === null ? <NotRecorded /> : record.isUnder18 ? "Yes" : "No"}
           </Fact>

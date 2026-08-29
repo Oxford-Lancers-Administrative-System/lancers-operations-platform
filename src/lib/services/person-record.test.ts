@@ -16,9 +16,11 @@ vi.mock("server-only", () => ({}));
 
 import type { Client } from "pg";
 
-import { closePool, isServiceError } from "@/lib/db";
+import { closePool, isServiceError, withTransaction } from "@/lib/db";
 import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
+import { recordAudit } from "./audit";
 import { PERSON_MERGED_AWAY_MESSAGE, readPersonRecord, searchPeople } from "./person-record";
+import { updatePersonField } from "./person-write";
 
 const MARKER = "LAN183PersonRecord";
 
@@ -309,6 +311,73 @@ describe("readPersonRecord — assembly", () => {
       kind: "not_found",
       message: PERSON_MERGED_AWAY_MESSAGE,
     });
+  });
+});
+
+describe("readPersonRecord — derived provenance (Q-13)", () => {
+  it("derives who supplied a field with no source column from the most recent audit event, and never from person_created", async () => {
+    const personId = await insertPerson({
+      givenName: unique("Provenance"),
+      familyName: "Original",
+      college: "Merton",
+    });
+
+    // A value on file that has never been changed through the application —
+    // seeded, imported, or freshly created — has no audit row at all and
+    // reads not-recorded rather than a guess.
+    let record = await readPersonRecord(personId);
+    expect(record.college).toBe("Merton");
+    expect(record.collegeSource).toBeNull();
+    expect(record.givenNameSource).toBeNull();
+    expect(record.familyNameSource).toBeNull();
+
+    // `person_created` names no single field, even when explicitly recorded —
+    // it must never be read as attributing one.
+    await withTransaction(async (tx) => {
+      await recordAudit(tx, {
+        actorPersonId,
+        action: "person_created",
+        entityTable: "people",
+        entityId: personId,
+        reason: "test fixture",
+        context: { issue: "test" },
+      });
+    });
+    record = await readPersonRecord(personId);
+    expect(record.givenNameSource).toBeNull();
+    expect(record.collegeSource).toBeNull();
+
+    // An edit through `updatePersonField` names its actor, and only for the
+    // one field it changed.
+    await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "college",
+      value: "Balliol",
+      reason: "Corrected at Freshers' Fair",
+    });
+    record = await readPersonRecord(personId);
+    expect(record.college).toBe("Balliol");
+    expect(record.collegeSource).not.toBeNull();
+    expect(record.familyNameSource).toBeNull(); // unrelated field, untouched
+
+    // A second edit, by a different actor, is who supplied the value now —
+    // the most recent row wins, not the first.
+    const secondActorFamilyName = unique("SecondActor");
+    const secondActorId = await insertPerson({
+      givenName: "Second",
+      familyName: secondActorFamilyName,
+    });
+    await updatePersonField({
+      actorPersonId: secondActorId,
+      personId,
+      field: "college",
+      value: "Christ Church",
+      reason: "Corrected again",
+    });
+    record = await readPersonRecord(personId);
+    expect(record.college).toBe("Christ Church");
+    expect(record.collegeSource).toContain(secondActorFamilyName);
   });
 });
 

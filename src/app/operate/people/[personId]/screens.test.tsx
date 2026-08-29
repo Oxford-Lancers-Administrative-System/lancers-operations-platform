@@ -63,15 +63,22 @@ function baseRecord(overrides: Partial<PersonRecord> = {}): PersonRecord {
   return {
     personId: "p1",
     givenName: "Bertram",
+    givenNameSource: null,
     familyName: null,
+    familyNameSource: null,
     aliases: [],
     displayName: "Bertram",
     status: "active",
     college: null,
+    collegeSource: null,
     matriculationYear: null,
+    matriculationYearSource: null,
     expectedGraduationYear: null,
+    expectedGraduationYearSource: null,
     degreeField: null,
+    degreeFieldSource: null,
     dateOfBirth: null,
+    dateOfBirthSource: null,
     emergencyContact: null,
     contacts: [],
     isPastMember: false,
@@ -132,12 +139,11 @@ describe("the person record, for an authorized operator", () => {
     expect(container.textContent).not.toContain("undefined");
   });
 
-  it("shows who supplied a contact value, and shows no such caption where the substrate has none", async () => {
+  it("shows who supplied a contact value, from its own stored source", async () => {
     signedInAs(["secretary"]);
     vi.mocked(readPersonRecord).mockResolvedValue(
       baseRecord({
         familyName: "Fielding",
-        college: "Merton",
         contacts: [
           {
             id: "c1",
@@ -160,8 +166,36 @@ describe("the person record, for an authorized operator", () => {
 
     expect(screen.getByText("+447700900233")).toBeVisible();
     expect(screen.getByText("Norbert Mereworth")).toBeVisible();
-    // College has no provenance column on `people` — no caption is fabricated for it.
+  });
+
+  // Q-13: college, matriculation year, expected graduation, degree field,
+  // given name, family name and date of birth have no `source` column of
+  // their own — `readPersonRecord()` derives who supplied them from
+  // `audit_events` instead. This is the acceptance test for that derivation.
+  it("shows who supplied a field derived from history, and says so plainly where history has none", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(
+      baseRecord({
+        familyName: "Fielding",
+        familyNameSource: null, // never edited through the application
+        college: "Merton",
+        collegeSource: "Norbert Mereworth", // most recent person_college_updated
+        matriculationYear: 2023,
+        matriculationYearSource: null,
+        missingRequiredFields: [],
+      }),
+    );
+    stubReads();
+
+    render(await PersonRecordPage(pageProps("p1")));
+
     expect(screen.getByText("Merton")).toBeVisible();
+    expect(screen.getByText("Norbert Mereworth")).toBeVisible();
+    // Matriculation year has a value but no audit row naming who set it —
+    // this is the "not recorded" caption `Q-13` chose over inventing one,
+    // not the absent-value caption (2023 itself is plainly visible).
+    expect(screen.getByText("2023")).toBeVisible();
+    expect(screen.getAllByText("not recorded").length).toBeGreaterThan(0);
   });
 
   it("opens a recruit with their status, and no funnel control", async () => {
