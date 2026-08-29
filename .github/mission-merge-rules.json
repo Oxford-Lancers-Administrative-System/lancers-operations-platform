@@ -19,8 +19,32 @@
       "reason": "Agent roles and guardrails are protected governance."
     },
     {
-      "path": "scripts/**",
-      "reason": "Scripts include the mission control plane, the fast lane, and production procedures."
+      "path": "scripts/mission/**",
+      "reason": "The mission control plane cannot merge changes to itself."
+    },
+    {
+      "path": "scripts/fast-lane/**",
+      "reason": "The fast-lane classifier and gate cannot merge changes to themselves."
+    },
+    {
+      "path": "scripts/intake/**",
+      "reason": "Mission intake authors the packet whose owner merge grants authority."
+    },
+    {
+      "path": "scripts/production/**",
+      "reason": "Production procedures remain owner-gated."
+    },
+    {
+      "path": "scripts/pilot/**/*.sql",
+      "reason": "Hosted pilot SQL is a human-run production-data procedure."
+    },
+    {
+      "path": "scripts/gcp-bootstrap.sh",
+      "reason": "The production infrastructure bootstrap remains owner-gated."
+    },
+    {
+      "path": "scripts/lib/local-db.mjs",
+      "reason": "The local-only database target guard remains owner-gated."
     },
     {
       "path": "package.json",
@@ -75,8 +99,16 @@
       "reason": "Privileged clients, environment handling, and generated types are security surfaces."
     },
     {
-      "path": "src/lib/db/**",
-      "reason": "The local-only database guards and the hosted runtime target are trust boundaries."
+      "path": "src/lib/db/runtime-target.ts",
+      "reason": "The fixed hosted runtime target is a production trust boundary."
+    },
+    {
+      "path": "src/lib/db/url.ts",
+      "reason": "The local-only database URL guard is a production trust boundary."
+    },
+    {
+      "path": "src/lib/db/connection.ts",
+      "reason": "Database connection routing is a production trust boundary."
     },
     {
       "path": "src/app/login/**",
@@ -105,34 +137,6 @@
     {
       "path": "next.config.ts",
       "reason": "Build configuration is owner-gated."
-    },
-    {
-      "path": "tsconfig.json",
-      "reason": "Build configuration is owner-gated."
-    },
-    {
-      "path": "eslint.config.mjs",
-      "reason": "Quality-gate configuration is owner-gated."
-    },
-    {
-      "path": "postcss.config.mjs",
-      "reason": "Build configuration is owner-gated."
-    },
-    {
-      "path": "vitest.config.ts",
-      "reason": "Test-harness configuration is owner-gated."
-    },
-    {
-      "path": "vitest.setup.ts",
-      "reason": "Test-harness configuration is owner-gated."
-    },
-    {
-      "path": ".prettierrc.json",
-      "reason": "Quality-gate configuration is owner-gated."
-    },
-    {
-      "path": ".prettierignore",
-      "reason": "Quality-gate configuration is owner-gated."
     },
     {
       "path": ".gitignore",

@@ -115,23 +115,15 @@ allow silent merges over consequential surfaces. The tiers:
    interlock on real-world messaging; it is expected to loosen once the
    allowlist becomes database records, which arrives via an owner-merged
    migration in any case.
-3. **Prohibited** — refused from the diff itself, whatever any receipt
-   says: schema, workflows, governance, scripts, the auth _routes_, the
-   public RSVP token surfaces (`src/lib/rsvp/**`, zero-trust because they
-   are reachable by the whole internet), and `missions/**` (packet PRs are
-   approval acts and only Brian performs them). Alternative channels
-   were considered and rejected: a check-run or commit status must be written
-   by a workflow from the same Lead-authored text and adds nothing; a CI
-   artifact is produced by executing PR code, which is strictly worse; a
-   committed receipt cannot contain its own SHA. The residual trust is a
-   bounded, auditable extension Brian approved for **standard application work
-   at low or normal risk only**: migrations, RLS/auth/security, secrets,
-   deployment, WhatsApp and external configuration, Highest-risk work, and
-   visual work without recorded approval can never travel the lane, because the
-   prohibited-path scan and the receipt schema refuse them from evidence. The
-   lane cannot widen itself — its rules, workflow, gate, proofs, and runbook
-   are prohibited from both automatic lanes and protected in the fast lane's
-   rules.
+3. **Prohibited** — refused from the diff itself, whatever a receipt says:
+   schema; merge, mission, fast-lane and intake control planes; governance;
+   production and hosted-pilot procedures; deployed database targeting; auth
+   routes; public token surfaces; and mission packets. These carry authority or
+   external effect. Test, lint and build support, local evidence tooling and
+   ordinary database helpers instead rely on the mandatory independent review
+   and exact-head CI; an owner merge click adds no evidence. The lane still
+   cannot widen itself: its rules, workflow, gate, proofs and runbook remain
+   prohibited from both automatic lanes.
 
 **4a. Packet approval is Brian's merge of a packet-only pull request.**
 Decided 2026-08-18 to align with the Mission Intake Agent's contract: the
