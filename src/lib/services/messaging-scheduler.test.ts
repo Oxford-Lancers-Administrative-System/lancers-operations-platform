@@ -854,12 +854,21 @@ describe("crossing the escalation threshold", () => {
     await makePresident(target.personId);
 
     const { sent, transport } = acceptingTransport();
-    await runMessagingSweep({ source: CONFIGURED, transport });
-
-    const escalation = sent.find((request) => {
-      const template = (request.body.template ?? {}) as { name?: string };
-      return template.name?.includes("escalation");
-    });
+    // readDueJobs orders strictly oldest-due-first and caps one tick at
+    // SWEEP_BATCH_LIMIT; the seeded database carries an ambient backlog of
+    // already-due jobs older than this fixture's own. Under load a single
+    // sweep can finish without ever reaching this test's escalation.
+    // Re-sweeping is safe — raiseDueEscalations inserts on conflict do
+    // nothing, and dispatchJob claims with a guarded update — and the bound
+    // fails honestly rather than looping forever.
+    let escalation: (typeof sent)[number] | undefined;
+    for (let tick = 0; tick < 40 && !escalation; tick += 1) {
+      await runMessagingSweep({ source: CONFIGURED, transport });
+      escalation = sent.find((request) => {
+        const template = (request.body.template ?? {}) as { name?: string };
+        return template.name?.includes("escalation");
+      });
+    }
     expect(escalation, "an escalation should have been sent").toBeDefined();
 
     const parameters = (
