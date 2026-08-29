@@ -647,7 +647,6 @@ function Headline({
   );
 }
 
-/** One banded section — the board's own three groups and colours (`bandOf`), so the two surfaces read as one product. */
 /**
  * Attendance's own colour — `Q15-attendance`. Violet, constructed the same
  * way as the board's three (a dark hex on a ~5% alpha wash), and defined here
@@ -661,6 +660,11 @@ const ATTENDANCE_BAND: Pick<BandDef, "header" | "tint"> = Object.freeze({
   tint: "rgba(69, 39, 160, 0.05)",
 });
 
+/**
+ * One banded section — the board's own three groups and colours (`bandOf`),
+ * plus Attendance's own (`ATTENDANCE_BAND`, above) — so every surface reads
+ * as one product.
+ */
 function Section({
   band,
   title,
