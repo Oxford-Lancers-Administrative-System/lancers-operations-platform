@@ -17,21 +17,30 @@ import type { MembershipActionState } from "./action-state";
  *
  * ## Authorization, and where it actually lives
  *
- * A status change opens with `requireCapability("membership_activation")`,
+ * A status change opens with `requireCapability("person_record_authority")`,
  * which resolves the actor from the **verified session** and refuses unless
- * they hold an Exec seat or the General Manager's. It takes no actor argument,
- * and may not: a server action is a POST endpoint the browser can call
- * directly, so an action that accepted "who am I" would accept whatever was
- * sent. The acceptance criterion — "activation is refused for an operator
- * without an Exec/GM role, **in the server action and not only in the UI**" —
- * is this line and the test that calls the action with a coach.
+ * they hold one of the four board offices `REQ-authority` names — "four-role
+ * only, for the grid and every column on it." It takes no actor argument, and
+ * may not: a server action is a POST endpoint the browser can call directly,
+ * so an action that accepted "who am I" would accept whatever was sent. The
+ * acceptance criterion — "activation is refused for an operator without that
+ * grant, **in the server action and not only in the UI**" — is this line and
+ * the test that calls the action with a coach.
+ *
+ * `membership_activation` was this gate until RVW-186-001: it reads as
+ * "Exec/GM", which includes the Treasurer, and until this correction that was
+ * academic — a legal-transition table let a Treasurer reach only three narrow,
+ * legal destinations. Removing that table (`Q-12`) was correct and did not
+ * touch who may change a status; it just meant `membership_activation` alone
+ * no longer bounded anything, and the Treasurer's three narrow reaches became
+ * every status including `departed` and `archived`, with no reason and no
+ * legality check. This line closes that back onto the board's own boundary
+ * rather than deciding a new one.
  *
  * The role list is read from `src/lib/auth/capabilities.ts` and is not restated
- * here, so no call site carries a policy of its own. Q-12 removed the legal-
- * transition table and every reason a transition used to ask for; it did not
- * touch who may change a status, so every direction — including the ones a
- * free ladder newly permits, like flipping straight to `departed` or
- * `archived` — stays behind this same gate.
+ * here, so no call site carries a policy of its own. Every direction the free
+ * ladder permits — including flipping straight to `departed` or `archived` —
+ * stays behind this same gate.
  *
  * Resolving an onboarding item is deliberately **not** gated that way. UX-21's
  * audience is "Authorized roster operator"; marking the kit sorted is ordinary
@@ -82,7 +91,7 @@ export async function setMembershipStatusAction(params: {
   membershipId: string;
   status: MembershipStatus;
 }): Promise<MembershipActionState> {
-  const operator = await requireCapability("membership_activation");
+  const operator = await requireCapability("person_record_authority");
 
   try {
     await setMembershipStatus({

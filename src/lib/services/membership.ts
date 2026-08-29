@@ -697,7 +697,7 @@ async function recordStatusEvent(
  * asked. `Q-12`, verbatim: "Okay, then we just remove it. We can flip to
  * whatever status we want to go in."
  *
- * **Authorization is not here.** It is `requireCapability("membership_activation")`
+ * **Authorization is not here.** It is `requireCapability("person_record_authority")`
  * in the server action, which resolves the actor from the verified session; a
  * service that took "who am I" as an argument would believe whatever it was
  * told. `actorPersonId` is the already-verified operator, and this function's

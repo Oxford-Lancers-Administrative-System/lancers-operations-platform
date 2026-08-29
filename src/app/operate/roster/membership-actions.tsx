@@ -30,9 +30,9 @@ import { labelFor } from "../labels";
  * needs changing, so a future surface never grows its own bespoke version of
  * this decision.
  *
- * Rendered only for an operator who holds the activation capability — but that
+ * Rendered only for an operator who holds `person_record_authority` — but that
  * is a courtesy, never the boundary. The boundary is
- * `requireCapability("membership_activation")` inside `setMembershipStatusAction`,
+ * `requireCapability("person_record_authority")` inside `setMembershipStatusAction`,
  * and it holds for a request that never rendered this component at all.
  */
 export function MembershipStatusControl({

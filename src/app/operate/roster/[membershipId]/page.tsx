@@ -56,12 +56,14 @@ import {
  * ## Who sees the status control
  *
  * Reading a membership is ordinary operator work, so the page gates on nothing
- * beyond a linked, active operator. Changing status is Exec/GM, so the control
- * renders only for an operator holding `membership_activation` — and that is
- * presentation only. The action behind it, `setMembershipStatusAction`, calls
- * `requireCapability` itself, so a request that never rendered this page is
- * refused identically. A hidden control is a courtesy; the boundary is in the
- * action.
+ * beyond a linked, active operator — wider than the status boundary itself, so
+ * this flag cannot be skipped as redundant. The control renders only for an
+ * operator holding `person_record_authority`, the same grant
+ * `setMembershipStatusAction` requires (RVW-186-001) — and that is presentation
+ * only. The action behind it calls `requireCapability` itself, so a request
+ * that never rendered this page is refused identically. A hidden control is a
+ * courtesy, kept in step with the real boundary so it never offers a control
+ * that would simply fail; the boundary itself is in the action.
  *
  * Resolving an onboarding item is deliberately not privileged. UX-21's audience
  * is "Authorized roster operator": marking the kit sorted is roster work, and
@@ -89,7 +91,7 @@ export default async function MembershipPage({
   }
 
   const justCreated = query.created === "1";
-  const mayActivate = operatorHasCapability(gate.operator, "membership_activation");
+  const mayActivate = operatorHasCapability(gate.operator, "person_record_authority");
   const { status } = membership;
 
   return (

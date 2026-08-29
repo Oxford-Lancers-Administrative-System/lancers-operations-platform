@@ -35,11 +35,12 @@ import type { BoardActionState } from "./board-action-state";
  *
  * The status change is deliberately **not** here, even though it is now a
  * free `select` column like every other one above. `./actions.ts` carries
- * `setMembershipStatusAction`, gated on `membership_activation` rather than
- * `person_record_authority` — a stronger grant `membership.ts` has always
- * required for this one column, and this package does not relax. The board's
- * Status cell calls that action directly rather than reimplementing a second,
- * looser path to the same column.
+ * `setMembershipStatusAction`, gated on this same `person_record_authority` —
+ * not a second, looser path to the same column, and not (after RVW-186-001)
+ * `membership_activation`, whose role list includes the Treasurer and stopped
+ * being bounded to three narrow transitions the moment the legal-transition
+ * table was removed. The board's Status cell calls that action directly
+ * rather than reimplementing this boundary a second time.
  */
 
 function refresh(): void {
