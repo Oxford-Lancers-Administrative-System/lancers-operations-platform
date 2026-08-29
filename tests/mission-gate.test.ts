@@ -111,7 +111,6 @@ describe("the guarded mission merge gate", () => {
       "src/lib/db/url.ts",
       "src/app/login/page.tsx",
       ".env.example",
-      "vitest.config.ts",
     ]) {
       const verdict = gate({ files: [{ status: "M", path: file }] });
       expect(verdict.merge).toBe(false);
@@ -131,6 +130,9 @@ describe("the guarded mission merge gate", () => {
           { status: "A", path: "src/lib/events/filters.ts" },
           { status: "A", path: "src/lib/events/filters.test.ts" },
           { status: "M", path: "tests/slice-walkthrough.test.ts" },
+          { status: "M", path: "vitest.config.ts" },
+          { status: "M", path: "scripts/seed-local.mjs" },
+          { status: "M", path: "src/lib/db/errors.ts" },
         ],
         rules,
       ),
