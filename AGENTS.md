@@ -192,8 +192,10 @@ Review is always Sonnet and capped there. No agent self-escalates above its cap.
 A mission runs at most three agents concurrently, including at most two
 implementation workers.
 
-The Lead holds one harness-derived epoch at a time and never mutates a mission
-past its boundary; only Brian extends one. `docs/mission-harness.md` governs.
+The approved plan groups packages into ordered one- or two-package execution
+epochs. The Lead finishes the current group, checkpoints, and stops before the
+next; time and Lead replacement never change the group. `docs/mission-harness.md`
+governs.
 
 Reviewers and walkers do not share the implementation stack. A broker prepares
 one fresh exact-head runtime per invocation, queues when capacity is busy, and

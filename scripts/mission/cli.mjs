@@ -22,11 +22,9 @@ import { fileURLToPath } from "node:url";
 import { execFileSync, spawnSync } from "node:child_process";
 
 import {
-  EPOCH_LIMITS,
   appendEvent,
+  currentExecutionEpoch,
   dependencyUsable,
-  deriveEpochDefinition,
-  epochView,
   leadLeaseAvailable,
   missionPaths,
   nextActions,
@@ -34,11 +32,9 @@ import {
   liveReviewRuntimes,
   readJournal,
   replayState,
-  resumeDossier,
   reviewQueue,
   validateEvent,
 } from "./lib/state.mjs";
-import { EPOCH_EVENT_TYPES } from "./lib/epochs.mjs";
 import { promoteRule, readRules } from "./lib/owner-rules.mjs";
 import {
   buildPackageReviewContract,
@@ -124,27 +120,6 @@ function currentReviewSlot(runtimeId) {
   return record?.slot;
 }
 
-/**
- * The events a mission that has never adopted a Lead epoch may still record:
- * reading, heartbeating, writing down what Brian decided, and giving resources
- * back. Everything else waits for an epoch, so an existing journal keeps
- * replaying untouched but cannot quietly carry on executing without one.
- */
-const EPOCH_EXEMPT_COMMANDS = new Set([
-  "mission-init",
-  "lead-heartbeat",
-  "checkpoint",
-  "owner-question",
-  "owner-answer",
-  "journal-annotation",
-  "mission-stopped",
-  "mission-resumed",
-  "package-reclaimed",
-  "mission-finalized",
-  "mission-abandoned",
-  ...EPOCH_EVENT_TYPES,
-]);
-
 async function append(missionId, event) {
   try {
     if (event.type !== "mission-init") {
@@ -152,11 +127,6 @@ async function append(missionId, event) {
       const current = replayState(repoPath, missionId);
       if (!leadLeaseAvailable(current, { leadId, pid: process.pid })) {
         fail(`Mission ${missionId} is fenced to another live Lead (${current.lead.lead_id}).`);
-      }
-      if (current.initialized && !current.epoch && !EPOCH_EXEMPT_COMMANDS.has(event.type)) {
-        fail(
-          `Mission ${missionId} has no Lead epoch, so nothing bounds what this Lead may do. An epoch is opened from durable state before mission work: npm run mission -- resume ${missionId}`,
-        );
       }
     }
     return await appendEvent(repoPath, missionId, event);
@@ -166,116 +136,14 @@ async function append(missionId, event) {
   }
 }
 
-/**
- * The host session identity, and an honest label for what it proves.
- *
- * A trustworthy host-provided session UUID is used when one exists. When none
- * does, the fallback is the fresh `LANCERS_MISSION_LEAD_ID` contract plus the
- * one-use token — harness-level fencing and a user-started handshake. A pid is
- * never offered as evidence of a fresh model context, because it is not.
- */
-function sessionIdentity() {
-  const hosted = process.env.CLAUDE_SESSION_ID || process.env.LANCERS_LEAD_SESSION_ID;
-  return hosted
-    ? { source: "host-session-id", value: hosted }
-    : {
-        source: "lead-id-fallback",
-        value: leadId,
-        proves:
-          "A different recorded Lead identity presented a token issued once. This is harness-level fencing plus a user-started fresh-session handshake, not proof of a fresh model context.",
-      };
-}
-
-function currentHead() {
-  try {
-    return execFileSync("git", ["rev-parse", "HEAD"], {
-      cwd: repoPath,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-  } catch {
-    // A checkout that cannot name its head still opens an epoch; the opening
-    // head is evidence when it exists, never a precondition.
-    return null;
-  }
-}
-
-/** Write the generated dossier beside the journal — never into the repository. */
-function writeDossier(missionId, state, label) {
-  const directory = path.join(missionPaths(repoPath, missionId).missionRoot, "dossiers");
-  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const file = path.join(directory, `${label}.json`);
-  const dossier = resumeDossier(state);
-  fs.writeFileSync(file, `${JSON.stringify(dossier, null, 2)}\n`, { mode: 0o600 });
-  return { path: file, source_index: dossier.source_event_index, dossier };
-}
-
-async function openEpoch(missionId, state, { token, bootstrapped = false } = {}) {
-  const derived = deriveEpochDefinition(state);
-  const epochId = `E-${state.epochHistory.length + (state.epoch ? 1 : 0) + 1}`;
-  const dossier = writeDossier(missionId, state, epochId);
-  return append(missionId, {
-    type: "lead-epoch-opened",
-    epoch_id: epochId,
-    mission_id: missionId,
-    lead_id: leadId,
-    pid: process.pid,
-    session_identity: sessionIdentity(),
-    opening_head: currentHead(),
-    ...derived,
-    ...(token === undefined ? {} : { resume_token: token }),
-    ...(bootstrapped ? { bootstrapped: true } : {}),
-    dossier: dossier.path,
-    dossier_source_index: dossier.source_index,
-  });
-}
-
-async function closeEpoch(missionId, state, reason) {
-  const view = epochView(state);
-  const dossier = writeDossier(missionId, state, `${view.epoch_id}-closed`);
-  const token = crypto.randomUUID();
-  const closed = await append(missionId, {
-    type: "lead-epoch-closed",
-    reason,
-    resume_token: token,
-    dossier: dossier.path,
-    dossier_source_index: dossier.source_index,
-  });
-  return { state: closed, token, dossier: dossier.path };
-}
-
-/** The epoch block every owner-facing surface prints the same way. */
+/** The planned issue group every owner-facing surface prints the same way. */
 function renderEpoch(view) {
-  if (!view) {
-    return ["Lead epoch: none — the next mutating resume bootstraps one from durable state."];
-  }
-  const lines = [
-    `Lead epoch ${view.epoch_id}: ${view.phase} (${view.status}), held by ${view.lead_id}`,
-    `- Scope: ${view.scope?.packages?.length ? view.scope.packages.join(", ") : (view.scope?.gate ?? "none")}`,
-    `- Exit condition: ${view.exit_condition}`,
-    `- Health: ${view.health.color}${view.health.reasons.length > 0 ? ` — ${view.health.reasons.map((reason) => reason.code).join(", ")}` : ""}`,
+  if (!view) return ["Execution epoch: none"];
+  return [
+    `Execution epoch ${view.id}: ${view.complete ? "complete — checkpoint and stop" : "active"}`,
+    `- Packages: ${view.package_ids.join(", ")}`,
+    `- Complete: ${view.completed_packages.length}/${view.package_ids.length}`,
   ];
-  for (const reason of view.health.reasons) {
-    lines.push(
-      `  · ${reason.code}${reason.event_index === null ? "" : ` (event ${reason.event_index})`}: ${reason.detail}`,
-    );
-  }
-  for (const entry of view.health.unknown) {
-    lines.push(`  · ${entry.signal}: unknown — ${entry.detail}`);
-  }
-  if (view.boundary_reason) lines.push(`- Boundary: ${view.boundary_reason}`);
-  if (view.extension) {
-    lines.push(
-      `- Owner extension by ${view.extension.approved_by} expires ${view.extension.expires_at}`,
-    );
-  }
-  lines.push(`- Adjustments used: ${view.adjustments_used}/${view.adjustment_budget}`);
-  if (view.status !== "open") {
-    lines.push(
-      `- Next derived epoch: ${view.next.phase}${view.next.scope?.packages?.length ? ` over ${view.next.scope.packages.join(", ")}` : ""}`,
-    );
-  }
-  return lines;
 }
 
 function openQuestions(state) {
@@ -370,16 +238,15 @@ export function renderCheckpoint(state, events, options = {}) {
     lines.push(`- ${event.rule_id} answered a question without asking (${event.context})`);
   }
 
-  lines.push("", "## Lead epoch");
+  lines.push("", "## Execution epoch");
   if (options.epoch) {
     const epoch = options.epoch;
     lines.push(
-      `- ${epoch.epoch_id} — ${epoch.phase} (${epoch.status}), health ${epoch.health.color}${epoch.health.reasons.length > 0 ? ` (${epoch.health.reasons.map((reason) => reason.code).join(", ")})` : ""}`,
-      `- Scope: ${epoch.scope?.packages?.length ? epoch.scope.packages.join(", ") : (epoch.scope?.gate ?? "none")}; exit: ${epoch.exit_condition}`,
+      `- ${epoch.id} — ${epoch.complete ? "complete; checkpoint and stop" : "active"}`,
+      `- Packages: ${epoch.package_ids.join(", ")}; complete: ${epoch.completed_packages.length}/${epoch.package_ids.length}`,
     );
-    if (epoch.boundary_reason) lines.push(`- Boundary: ${epoch.boundary_reason}`);
   } else {
-    lines.push("- None — the next mutating resume bootstraps one from durable state.");
+    lines.push("- None");
   }
 
   lines.push("", "## Next hour");
@@ -431,17 +298,13 @@ async function main() {
       }
       // The fence is part of initialization; no separate heartbeat is needed
       // to establish it (LAN-148).
-      const initialized = await append(missionId, {
+      await append(missionId, {
         type: "mission-init",
         packet,
         lead_id: leadId,
         pid: process.pid,
       });
-      // Initialization opens the planning epoch in the same breath, so there is
-      // never a window in which a Lead is unbounded (LAN-178).
-      const opened = await openEpoch(missionId, initialized);
       console.log(`Mission ${missionId} initialized from its approved packet.`);
-      console.log(renderEpoch(epochView(opened)).join("\n"));
       break;
     }
 
@@ -1224,7 +1087,7 @@ async function main() {
         mainCommit: flags["main-commit"],
         deployedCommit: flags["deployed-commit"],
         resourceLine: resourceLine(),
-        epoch: epochView(state),
+        epoch: currentExecutionEpoch(state),
       });
       await append(missionId, { type: "checkpoint", number: state.checkpoints + 1 });
       console.log(report);
@@ -1276,174 +1139,6 @@ async function main() {
       break;
     }
 
-    case "epoch": {
-      const [subcommand, epochMission] = positional;
-      if (!subcommand || !epochMission) {
-        fail("Usage: mission epoch status|close|boundary|drain|adjust <mission-id> [options]");
-      }
-      const state = replayState(repoPath, epochMission);
-      if (!state.initialized) fail(`No mission ${epochMission} exists here.`);
-      const view = epochView(state);
-
-      if (subcommand === "status") {
-        if (flags.json === true) {
-          console.log(JSON.stringify({ epoch: view, next_actions: nextActions(state) }, null, 2));
-          break;
-        }
-        console.log(renderEpoch(view).join("\n"));
-        for (const action of nextActions(state)) {
-          console.log(
-            `next: ${action.action}${action.package_id ? ` ${action.package_id}` : ""} — ${action.detail}`,
-          );
-        }
-        break;
-      }
-
-      if (!view) {
-        fail(
-          `Mission ${epochMission} has no Lead epoch yet. npm run mission -- resume ${epochMission} bootstraps one from durable state.`,
-        );
-      }
-
-      switch (subcommand) {
-        case "boundary": {
-          if (!flags.reason)
-            fail("Usage: mission epoch boundary <mission-id> --reason <what was met>");
-          await append(epochMission, {
-            type: "lead-epoch-boundary-reached",
-            reason: flags.reason,
-          });
-          console.log(
-            `Lead epoch ${view.epoch_id} is at its boundary. It may drain already-active in-scope work; it starts nothing new.`,
-          );
-          break;
-        }
-
-        case "drain": {
-          const packages = flags.packages
-            ? String(flags.packages).split(",").filter(Boolean)
-            : state.activeWorkers
-                .map((worker) => worker.package_id)
-                .filter((id) => (view.scope?.packages ?? []).includes(id));
-          await append(epochMission, { type: "lead-epoch-draining", packages });
-          console.log(
-            `Draining ${packages.join(", ") || "no active work"}. Completion evidence for exactly that work is accepted; every new dispatch is refused.`,
-          );
-          break;
-        }
-
-        case "close": {
-          const { token, dossier } = await closeEpoch(
-            epochMission,
-            state,
-            flags.reason ||
-              `The ${view.phase} epoch reached its boundary and handed the mission on.`,
-          );
-          console.log(
-            [
-              `Lead epoch ${view.epoch_id} is closed. It never reopens.`,
-              `Resume dossier: ${dossier}`,
-              "",
-              "Start a NEW session, give it a fresh LANCERS_MISSION_LEAD_ID, and run:",
-              `  npm run mission -- resume ${epochMission} --token ${token}`,
-              "",
-              "The token is one use. The same Lead identity cannot resume its own closed epoch.",
-            ].join("\n"),
-          );
-          break;
-        }
-
-        case "adjust": {
-          const extending = flags["extend-current"] === true;
-          const recutting = flags["recut-future"] === true;
-          if (extending === recutting) {
-            fail(
-              "Usage: mission epoch adjust <mission-id> --extend-current | --recut-future (exactly one)",
-            );
-          }
-          if (!flags.by || !flags.authorization || !flags.reason) {
-            fail(
-              "An epoch adjustment records --by <who>, --authorization <Brian's own words or durable evidence> and --reason <why>. The agent may propose; only an explicit owner message authorizes filing.",
-            );
-          }
-          const health = {
-            color: view.health.color,
-            reason_codes: view.health.reasons.map((reason) => reason.code),
-          };
-          if (extending) {
-            if (!flags.package && !flags.correction) {
-              fail(
-                "extend-current adds one adjacent eligible package (--package WP-x) or finishes one already-active correction cycle (--correction WP-x).",
-              );
-            }
-            const before = view.scope?.packages ?? [];
-            const packages = flags.package ? [...before, String(flags.package)] : before;
-            await append(epochMission, {
-              type: "lead-epoch-adjusted",
-              kind: "extend-current",
-              source_epoch_id: view.epoch_id,
-              target_epoch_id: view.epoch_id,
-              old_scope: view.scope,
-              new_scope: { ...view.scope, packages },
-              old_exit_condition: view.exit_condition,
-              new_exit_condition: flags.correction
-                ? `The active correction cycle on ${flags.correction} is finished and ${packages.join(" and ")} ${packages.length === 1 ? "has" : "have"} merged to main.`
-                : `${packages.join(" and ")} ${packages.length === 1 ? "has" : "have"} merged to main.`,
-              health,
-              accepted_reason_codes: flags["accept-risk"]
-                ? String(flags["accept-risk"]).split(",").filter(Boolean)
-                : [],
-              approved_by: flags.by,
-              authorization: flags.authorization,
-              reason: flags.reason,
-              limit: {
-                added_packages: flags.package ? 1 : 0,
-                correction_cycles: flags.correction ? 1 : 0,
-                expires_after_hours: EPOCH_LIMITS.extensionMs / 3_600_000,
-              },
-              ...(flags.correction ? { correction_package_id: String(flags.correction) } : {}),
-              expires_at: new Date(Date.now() + EPOCH_LIMITS.extensionMs).toISOString(),
-            });
-            console.log(
-              `Epoch ${view.epoch_id} extended by ${flags.by} at ${health.color}. It expires when the named work stabilizes or in ${EPOCH_LIMITS.extensionMs / 3_600_000} hours, and this epoch has no further extension.`,
-            );
-            break;
-          }
-          if (!flags.waves) {
-            fail(
-              "recut-future takes --waves <file>, a JSON array of package-id arrays describing the proposed future waves.",
-            );
-          }
-          await append(epochMission, {
-            type: "lead-epoch-adjusted",
-            kind: "recut-future",
-            source_epoch_id: view.epoch_id,
-            target_epoch_id: null,
-            old_scope: view.scope,
-            new_scope: view.scope,
-            old_exit_condition: view.exit_condition,
-            new_exit_condition: view.exit_condition,
-            future_waves: readJson(flags.waves),
-            health,
-            approved_by: flags.by,
-            authorization: flags.authorization,
-            reason: flags.reason,
-            limit: { future_grouping_only: true },
-          });
-          console.log(
-            "Future waves re-cut. The current epoch is unchanged and keeps its extension budget; the approved packages, requirements, dependency DAG and acceptance criteria are untouched.",
-          );
-          break;
-        }
-
-        default:
-          fail(
-            `Unknown epoch subcommand "${subcommand}". Use status, close, boundary, drain or adjust.`,
-          );
-      }
-      break;
-    }
-
     case "heartbeat": {
       if (!missionId) fail("Usage: mission heartbeat <mission-id>");
       await append(missionId, { type: "lead-heartbeat", lead_id: leadId, pid: process.pid });
@@ -1481,45 +1176,13 @@ async function main() {
           `Mission Lead pid ${state.lead.pid} still holds this mission (heartbeat ${state.lead.at}). A second live Lead is refused.`,
         );
       }
-      let resumed = state.stopped
-        ? await append(missionId, {
-            type: "mission-resumed",
-            lead_id: leadId,
-            pid: process.pid,
-          })
-        : state;
-      const held = resumed.epoch ? epochView(resumed) : null;
-      if (!held) {
-        // An existing journal adopts epochs here, prospectively. Nothing in its
-        // history is rewritten and no epoch is invented for work already done.
-        resumed = await openEpoch(missionId, resumed, { bootstrapped: true });
-      } else if (held.status === "closed") {
-        if (!flags.token) {
-          fail(
-            `Lead epoch ${held.epoch_id} is closed. Present the one-use token it issued: npm run mission -- resume ${missionId} --token <token>`,
-          );
-        }
-        resumed = await openEpoch(missionId, resumed, { token: String(flags.token) });
-      } else if (held.lead_id === leadId) {
-        resumed = await append(missionId, {
-          type: "lead-heartbeat",
-          lead_id: leadId,
-          pid: process.pid,
-        });
-      } else {
-        // A different Lead, and the lease checked out above: the recorded Lead
-        // is gone. Its epoch closes as lost — not as finished — and the fresh
-        // Lead opens the next one the harness derives.
-        const { state: after } = await closeEpoch(
-          missionId,
-          resumed,
-          `Lead ${held.lead_id} did not return; its lease expired and a fresh Lead resumed.`,
-        );
-        resumed = await openEpoch(missionId, after, { token: after.resumeToken.token });
-      }
-      const view = epochView(resumed);
-      console.error(renderEpoch(view).join("\n"));
-      if (view?.dossier) console.error(`- Resume dossier: ${view.dossier}`);
+      const resumed = await append(missionId, {
+        type: state.stopped ? "mission-resumed" : "lead-heartbeat",
+        lead_id: leadId,
+        pid: process.pid,
+      });
+      const epoch = currentExecutionEpoch(resumed);
+      console.error(renderEpoch(epoch).join("\n"));
       const lifecycle = Object.fromEntries(
         Object.values(resumed.packages)
           .map((pkg) => [pkg.id, packageLifecycle(resumed, pkg)])
@@ -1527,7 +1190,7 @@ async function main() {
       );
       console.log(
         JSON.stringify(
-          { lifecycle, epoch: view, state: resumed, next_actions: nextActions(resumed) },
+          { lifecycle, epoch, state: resumed, next_actions: nextActions(resumed) },
           null,
           2,
         ),
@@ -1543,7 +1206,7 @@ async function main() {
           .map((pkg) => [pkg.id, packageLifecycle(state, pkg)])
           .filter(([, status]) => status !== null),
       );
-      const view = state.initialized ? epochView(state) : null;
+      const view = state.initialized ? currentExecutionEpoch(state) : null;
       if (flags.json === true) {
         console.log(
           JSON.stringify(
@@ -1576,7 +1239,7 @@ async function main() {
 
     default:
       fail(
-        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, integrated-review, closeout, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, annotate, rules, merge-record, checkpoint, epoch, review, walker, runtime, heartbeat, stop, resume, status.`,
+        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, integrated-review, closeout, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, annotate, rules, merge-record, checkpoint, review, walker, runtime, heartbeat, stop, resume, status.`,
       );
   }
 }

@@ -443,5 +443,52 @@ export function validateDecomposition(decomposition, packages) {
       errors.push(`decomposition.${field} must be a count of what this plan will ask of Brian.`);
     }
   }
+  const epochs = decomposition.execution_epochs;
+  if (!Array.isArray(epochs) || epochs.length === 0) {
+    errors.push("decomposition.execution_epochs must be a non-empty array.");
+  } else {
+    const epochIds = new Set();
+    const packageEpoch = new Map();
+    for (const [index, epoch] of epochs.entries()) {
+      if (!isNonEmptyString(epoch?.id) || epochIds.has(epoch.id)) {
+        errors.push(`execution epoch ${index + 1} must have a unique non-empty id.`);
+      } else {
+        epochIds.add(epoch.id);
+      }
+      if (
+        !Array.isArray(epoch?.package_ids) ||
+        epoch.package_ids.length < 1 ||
+        epoch.package_ids.length > 2
+      ) {
+        errors.push(`execution epoch ${epoch?.id ?? index + 1} must contain one or two packages.`);
+        continue;
+      }
+      for (const packageId of epoch.package_ids) {
+        if (!ids.has(packageId)) {
+          errors.push(`execution epoch ${epoch.id} names unplanned package ${packageId}.`);
+        } else if (packageEpoch.has(packageId)) {
+          errors.push(`${packageId} belongs to more than one execution epoch.`);
+        } else {
+          packageEpoch.set(packageId, index);
+        }
+      }
+    }
+    for (const pkg of packages ?? []) {
+      if (!packageEpoch.has(pkg.id)) {
+        errors.push(`${pkg.id} does not belong to an execution epoch.`);
+        continue;
+      }
+      for (const dependency of pkg.depends_on ?? []) {
+        if (
+          packageEpoch.has(dependency) &&
+          packageEpoch.get(dependency) > packageEpoch.get(pkg.id)
+        ) {
+          errors.push(
+            `${pkg.id} depends on ${dependency}, so ${dependency} must be in the same or an earlier execution epoch.`,
+          );
+        }
+      }
+    }
+  }
   return errors;
 }

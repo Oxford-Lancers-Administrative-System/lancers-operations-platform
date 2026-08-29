@@ -51,6 +51,16 @@
     "achievable_concurrency": 2,
     "critical_path": ["WP-attendance-export", "WP-report-footer"],
     "expected_owner_merges": 3,
-    "expected_visual_approvals": 2
+    "expected_visual_approvals": 2,
+    "execution_epochs": [
+      {
+        "id": "E-1",
+        "package_ids": ["WP-events-filter", "WP-attendance-export"]
+      },
+      {
+        "id": "E-2",
+        "package_ids": ["WP-report-footer"]
+      }
+    ]
   }
 }
