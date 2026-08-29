@@ -26,7 +26,7 @@ Require one exact `M-<id>`. Generate one UUID in `LANCERS_MISSION_LEAD_ID` for
 this Lead session and never reuse it. Run:
 
 ```bash
-npm run mission -- resume M-<id> [--token <token>]
+npm run mission -- resume M-<id>
 ```
 
 For a new mission, Brian supplies the approved packet:
@@ -35,11 +35,11 @@ For a new mission, Brian supplies the approved packet:
 npm run mission -- init M-<id> --packet <file>
 ```
 
-Resume opens the epoch the harness derives; a closed one needs its one-use token
-and a Lead identity that did not close it. Work from the dossier the resume
-prints, never a narrative handoff. At a boundary, close the epoch and stop; only
-an explicit owner message authorizes `epoch adjust`, which records Brian's words
-verbatim. `docs/mission-harness.md` governs epochs.
+Resume reports the current planned execution epoch: the one- or two-package
+issue group this run must finish. A replacement Lead continues that same group.
+When every package in it has merged and been reclaimed, checkpoint and stop;
+the next invocation takes the next planned group. `docs/mission-harness.md`
+governs epochs.
 
 The CLI owns the append-only journal, fence, refusals, lifecycle, and executable
 frontier. Record every transition through it when it occurs; never reconstruct
@@ -73,14 +73,16 @@ work. Record every question and answer before dependent work continues.
 Default one coherent issue to one package. A split must use the CLI's closed
 separation vocabulary and name concrete collision, safety, visual-gate, or
 verification evidence plus its cost to Brian. Risk, directory, tidiness, and
-estimated duration are not package boundaries. Present packages, concurrency,
-critical path, and owner cost; record Brian's approval before creating Linear
-issues, branches, or worktrees.
+estimated duration are not package boundaries. Present packages, their ordered
+one- or two-package execution epochs, concurrency, critical path, and owner
+cost; record Brian's approval before creating Linear issues, branches, or
+worktrees.
 
-After approval, close the planning epoch and stop. On the fresh resume, run one
-read-only Linear preflight, then use the write-ahead `sync-intent`/`sync-result`
-pair. Reconcile a pending intent before retrying so a crash cannot duplicate an
-issue. No worker starts before its package has a Linear issue.
+After approval, run one read-only Linear preflight, then use the write-ahead
+`sync-intent`/`sync-result` pair. Reconcile a pending intent before retrying so a
+crash cannot duplicate an issue. No worker starts before its package has a
+Linear issue. Work only the current epoch; packages inside it may run
+concurrently or sequentially as the existing frontier allows.
 
 At each resume and checkpoint, query existing Linear issues labelled
 `owner-action` that reference this mission. Linear remains their only ledger.
@@ -223,8 +225,8 @@ acceptance pending`, or `Incomplete`. Merged code or a completed owner action is
 not acceptance without the linked verification. Name every pending criterion,
 owner action, remaining verification, and next actor.
 
-For usage exhaustion, owner stop, or blocking drift, record `mission stop` and
-close the epoch; a fresh Lead resumes from the journal. Wait for agent
+For usage exhaustion, owner stop, or blocking drift, record `mission stop`; a
+fresh Lead resumes the same planned group from the journal. Wait for agent
 completion notifications—never poll.
 
 ## Boundaries

@@ -3,12 +3,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
-  EPOCH_LIMITS,
   LEAD_TTL_MS,
   MAX_ACTIVE_WORKERS,
   appendEvent,
-  deriveEpochDefinition,
-  epochView,
+  currentExecutionEpoch,
+  executionEpochs,
   guardedLaneRefusals,
   leadLeaseAvailable,
   missionPaths,
@@ -17,7 +16,6 @@ import {
   readJournal,
   reduce,
   replayState,
-  resumeDossier,
   validateEvent,
 } from "../scripts/mission/lib/state.mjs";
 import { buildMissionReceipt } from "../scripts/mission/merge-gate.mjs";
@@ -31,7 +29,6 @@ import {
 } from "../scripts/mission/lib/packet.mjs";
 import { promoteRule, readRules, validateRule } from "../scripts/mission/lib/owner-rules.mjs";
 import { withReviewInvocations } from "./helpers/mission-invocations";
-import { emptyEpochSignals, epochHealth } from "../scripts/mission/lib/epochs.mjs";
 
 const packet = JSON.parse(
   fs.readFileSync(path.join(__dirname, "fixtures", "mission", "approved-packet.json"), "utf8"),
@@ -67,7 +64,26 @@ function fixture() {
  * about cycles, domains or dependencies asserts that and not LAN-148 §A's
  * bookkeeping. Tests that are about the bookkeeping build their own.
  */
-type PlanPackage = Record<string, unknown> & { separation?: Record<string, string> };
+type PlanPackage = Record<string, unknown> & {
+  id: string;
+  depends_on?: string[];
+  separation?: Record<string, string>;
+};
+
+function plannedEpochs(packages: PlanPackage[]) {
+  const ids = new Set(packages.map((pkg) => pkg.id));
+  const planned = plan.decomposition.execution_epochs
+    .map((epoch: { id: string; package_ids: string[] }) => ({
+      ...epoch,
+      package_ids: epoch.package_ids.filter((id) => ids.has(id)),
+    }))
+    .filter((epoch: { package_ids: string[] }) => epoch.package_ids.length > 0);
+  const original = new Set(plan.packages.map((pkg: { id: string }) => pkg.id));
+  for (const pkg of packages.filter((candidate) => !original.has(candidate.id))) {
+    planned.push({ id: `E-${planned.length + 1}`, package_ids: [pkg.id] });
+  }
+  return planned;
+}
 
 const planEvent = (packages: PlanPackage[], extra: object = {}) => ({
   type: "plan-recorded",
@@ -78,6 +94,7 @@ const planEvent = (packages: PlanPackage[], extra: object = {}) => ({
   ),
   decomposition: {
     ...plan.decomposition,
+    execution_epochs: plannedEpochs(packages),
     critical_path: packages.length ? [packages[0].id] : [],
   },
   ...extra,
@@ -1853,6 +1870,26 @@ describe("drift, stops, and resumption", () => {
 });
 
 describe("owner-last review and the final mission smoke", () => {
+  async function checkpointMergedEpochs(m: ReturnType<typeof fixture>) {
+    let state = replayState(m.repo, MISSION, m.env);
+    for (let epoch = currentExecutionEpoch(state); epoch; epoch = currentExecutionEpoch(state)) {
+      for (const packageId of epoch.package_ids) {
+        const pkg = state.packages[packageId];
+        if (pkg.status === "merged" && !state.reclaimed.includes(packageId)) {
+          state = await m.append({
+            type: "package-reclaimed",
+            package_id: packageId,
+            merge_sha: pkg.merged.sha,
+          });
+        }
+      }
+      epoch = currentExecutionEpoch(state);
+      if (!epoch?.complete) throw new Error(`${epoch?.id ?? "epoch"} is not complete`);
+      state = await m.append({ type: "checkpoint", number: state.checkpoints + 1 });
+    }
+    return state;
+  }
+
   it.each([
     ["no conformance evidence", undefined, /clear visual review records/],
     [
@@ -1998,7 +2035,7 @@ describe("owner-last review and the final mission smoke", () => {
         route: "owner",
       });
     }
-    const merged = replayState(m.repo, MISSION, m.env);
+    const merged = await checkpointMergedEpochs(m);
     expect(nextActions(merged)).toContainEqual(
       expect.objectContaining({ action: "workflow-walker" }),
     );
@@ -2013,6 +2050,7 @@ describe("owner-last review and the final mission smoke", () => {
     for (const pkg of plan.packages) {
       await m.append({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
     }
+    await checkpointMergedEpochs(m);
     const blocked = await m.append({
       type: "integrated-review",
       mode: "workflow-walker",
@@ -2046,6 +2084,7 @@ describe("owner-last review and the final mission smoke", () => {
     for (const pkg of plan.packages) {
       await m.append({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
     }
+    await checkpointMergedEpochs(m);
     await m.append({
       type: "integrated-review",
       mode: "workflow-walker",
@@ -2078,6 +2117,7 @@ describe("owner-last review and the final mission smoke", () => {
     for (const pkg of plan.packages) {
       await m.append({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
     }
+    await checkpointMergedEpochs(m);
     await m.append({
       type: "integrated-review",
       mode: "workflow-walker",
@@ -2117,7 +2157,7 @@ describe("owner-last review and the final mission smoke", () => {
       sha: "b".repeat(40),
       route: "owner",
     });
-    const corrected = replayState(m.repo, MISSION, m.env);
+    const corrected = await checkpointMergedEpochs(m);
     expect(nextActions(corrected)).toContainEqual(
       expect.objectContaining({ action: "workflow-walker" }),
     );
@@ -2165,6 +2205,7 @@ describe("owner-last review and the final mission smoke", () => {
     for (const pkg of plan.packages) {
       await m.append({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
     }
+    await checkpointMergedEpochs(m);
 
     // Round 1: a blocked smoke, a corrective merge, then a clear re-walk.
     // Mission history now carries two lifetime workflow-walker reviews —
@@ -2197,6 +2238,7 @@ describe("owner-last review and the final mission smoke", () => {
       sha: "b".repeat(40),
       route: "owner",
     });
+    await checkpointMergedEpochs(m);
     await m.append({
       type: "integrated-review",
       mode: "workflow-walker",
@@ -2225,6 +2267,7 @@ describe("owner-last review and the final mission smoke", () => {
       sha: "c".repeat(40),
       route: "owner",
     });
+    await checkpointMergedEpochs(m);
 
     // This is the exact bug: a fresh, fully post-merge smoke, refused
     // forever under the old all-time count even though a merge intervened.
@@ -2275,6 +2318,7 @@ describe("owner-last review and the final mission smoke", () => {
       sha: "d".repeat(40),
       route: "owner",
     });
+    await checkpointMergedEpochs(m);
     const round2Rewalk = await m.append({
       type: "integrated-review",
       mode: "workflow-walker",
@@ -2918,1237 +2962,154 @@ describe("owner rule registry", () => {
   });
 });
 
-/**
- * Lead epochs (LAN-178).
- *
- * Mission 4 ran one Lead from plan approval through every package because the
- * recycle rule was prose. These assert it is now a precondition on the events
- * that change state, and that the only way past it is Brian saying so.
- *
- * The suite timeout is raised for this block alone. Every append here takes the
- * mission lock and re-reduces the whole journal, and a case that drives packages
- * to merge across two Lead rotations writes enough events to outgrow the 5s
- * default under the full suite's parallelism. The 92 cases above keep the
- * default.
- */
-describe("Lead epochs", { timeout: 60_000 }, () => {
-  const dossier = (state: { eventCount: number }) => ({
-    dossier: "/tmp/synthetic-dossier.json",
-    dossier_source_index: state.eventCount - 1,
-  });
-
-  type EpochState = ReturnType<typeof reduce>;
-
-  const openEvent = (state: EpochState, overrides: Record<string, unknown> = {}) => ({
-    type: "lead-epoch-opened",
-    epoch_id: `E-${state.epochHistory.length + (state.epoch ? 1 : 0) + 1}`,
-    lead_id: "lead-1",
-    pid: 4242,
-    ...deriveEpochDefinition(state),
-    ...dossier(state),
-    ...overrides,
-  });
-
-  const read = (m: ReturnType<typeof fixture>) => replayState(m.repo, MISSION, m.env);
-
-  /**
-   * The journal's own clock. These fixtures stamp synthetic timestamps a second
-   * apart, so asking for the view at wall-clock time would read every epoch as
-   * hours old — which is the right answer for a real journal and the wrong one
-   * here. Tests that are about age set `now` themselves.
-   */
-  const clock = (m: ReturnType<typeof fixture>) => {
-    const events = readJournal(missionPaths(m.repo, MISSION, m.env).journal as string);
-    return Date.parse(events.at(-1)!.at);
-  };
-  const view = (m: ReturnType<typeof fixture>, now = clock(m)) => epochView(read(m), { now });
-
-  /** Initialize and open the planning epoch the harness derives. */
-  async function planningEpoch(m: ReturnType<typeof fixture>, leadId = "lead-1") {
-    await m.append({ type: "mission-init", packet, lead_id: leadId, pid: 4242 });
-    return m.append(openEvent(read(m), { lead_id: leadId }));
-  }
-
-  /** Close the current epoch and open the next one as a genuinely fresh Lead. */
-  async function rotate(m: ReturnType<typeof fixture>, leadId: string) {
-    const before = read(m);
-    const token = `token-${before.eventCount}`;
-    await m.append({
-      type: "lead-epoch-closed",
-      reason: "The epoch reached its boundary.",
-      resume_token: token,
-      ...dossier(before),
-    });
-    const closed = read(m);
-    return m.append(openEvent(closed, { lead_id: leadId, resume_token: token }));
-  }
-
-  /** Plan, approve, take the mandatory recycle, and synchronize every package. */
-  async function executionEpoch(m: ReturnType<typeof fixture>) {
-    await planningEpoch(m);
-    await m.append({
+/** Planned execution epochs (LAN-192). */
+describe("planned execution epochs", () => {
+  const baseEvents = (decomposition = plan.decomposition) => [
+    { type: "mission-init", at: "2026-08-29T12:00:00.000Z", packet, lead_id: "lead-1", pid: 4242 },
+    {
       type: "plan-recorded",
+      at: "2026-08-29T12:00:01.000Z",
       packages: plan.packages,
-      decomposition: plan.decomposition,
-    });
-    await m.append({
+      decomposition,
+    },
+    {
       type: "plan-approved",
+      at: "2026-08-29T12:00:02.000Z",
       approved_by: "Brian",
-      evidence: "decomposition and owner cost presented at checkpoint 1",
-    });
-    await rotate(m, "lead-2");
-    await m.append({ type: "linear-preflight", result: "reachable", detail: "fixture preflight" });
-    for (const [index, pkg] of plan.packages.entries()) {
-      await m.append({ type: "linear-sync-intent", package_id: pkg.id });
-      await m.append({
-        type: "linear-sync-result",
-        package_id: pkg.id,
-        issue_id: `LAN-90${index}`,
-      });
-    }
-    return read(m);
-  }
+      evidence: "approved decomposition",
+    },
+  ];
 
-  /** One package from dispatch to merge, inside whatever epoch is current. */
-  async function driveToMerge(
-    m: ReturnType<typeof fixture>,
-    packageId: string,
-    { visual = true } = {},
-  ) {
-    const worker = `worker-${packageId}`;
-    await m.append({
-      type: "worker-dispatched",
-      package_id: packageId,
-      worker_id: worker,
-      worktree: `.claude/worktrees/${packageId}`,
-      branch: `feat/${packageId}`,
+  it("uses the ordered issue groups approved with the plan", () => {
+    const state = reduce(baseEvents());
+    expect(executionEpochs(state)).toEqual(plan.decomposition.execution_epochs);
+    expect(currentExecutionEpoch(state)).toMatchObject({
+      id: "E-1",
+      package_ids: ["WP-events-filter", "WP-attendance-export"],
+      complete: false,
     });
-    await m.append({
-      type: "worker-receipt",
-      package_id: packageId,
-      worker_id: worker,
-      receipt: workerReceipt("completed"),
-    });
-    await m.append({ type: "pr-opened", package_id: packageId, pr_number: 42, head_sha: SHA });
-    await m.append({
-      type: "review-receipt",
-      package_id: packageId,
-      receipt: reviewReceipt("clear"),
-    });
-    if (visual) {
-      await m.append({
-        type: "visual-approval",
-        package_id: packageId,
-        approved_by: "Brian",
-        evidence: "synthetic live review",
-      });
-    }
-    return m.append({
-      type: "merge-recorded",
-      package_id: packageId,
-      pr_number: 42,
-      sha: SHA,
-      route: "guarded-auto",
-    });
-  }
-
-  /** Every package merged and the one integrated smoke clear, epoch by epoch. */
-  async function walkedMission(m: ReturnType<typeof fixture>) {
-    await executionEpoch(m);
-    await driveToMerge(m, "WP-events-filter");
-    await driveToMerge(m, "WP-attendance-export", { visual: false });
-    await rotate(m, "lead-3");
-    await driveToMerge(m, "WP-report-footer");
-    await rotate(m, "lead-4");
-    return m.append({
-      type: "integrated-review",
-      mode: "workflow-walker",
-      head_sha: SHA,
-      package_heads: Object.fromEntries(plan.packages.map((pkg: { id: string }) => [pkg.id, SHA])),
-      result: "clear",
-      jobs_completed:
-        "Signed in, drafted a practice, confirmed its audience and took the register.",
-      report: "reviews/final-smoke.json",
-    });
-  }
-
-  it("opens a planning epoch before the mission acts, derived from state", async () => {
-    const m = fixture();
-    await m.append({ type: "mission-init", packet, lead_id: "lead-1", pid: 4242 });
-    const derived = deriveEpochDefinition(read(m));
-    expect(derived.phase).toBe("planning");
-    expect(derived.scope).toEqual({ packages: [], gate: "plan-approval" });
-    expect(derived.permitted_action_classes).toEqual(["replan", "planning", "contract"]);
-
-    const opened = await m.append(openEvent(read(m)));
-    expect(view(m).status).toBe("open");
-    expect(opened.epoch.epoch_id).toBe("E-1");
-    // The fence exists from the opening event, exactly as it does for init.
-    expect(opened.lead).toMatchObject({ lead_id: "lead-1", pid: 4242 });
   });
 
-  it("refuses an epoch whose phase or scope the Lead chose for itself", async () => {
-    const m = fixture();
-    await m.append({ type: "mission-init", packet, lead_id: "lead-1", pid: 4242 });
-    const state = read(m);
-    await expect(m.append(openEvent(state, { phase: "implementation-wave" }))).rejects.toThrow(
-      /harness derives planning from current mission state/,
-    );
-    await expect(
-      m.append(openEvent(state, { scope: { packages: ["WP-events-filter"], gate: null } })),
-    ).rejects.toThrow(/does not choose or enlarge its own assignment/);
-  });
-
-  it("reaches a boundary on plan approval and refuses durable execution after it", async () => {
-    const m = fixture();
-    await planningEpoch(m);
-    expect(view(m).status).toBe("open");
-
-    await m.append({
-      type: "plan-recorded",
-      packages: plan.packages,
-      decomposition: plan.decomposition,
-    });
-    await m.append({
-      type: "plan-approved",
-      approved_by: "Brian",
-      evidence: "decomposition and owner cost presented at checkpoint 1",
-    });
-
-    // Nothing was recorded to make this happen. The exit condition is the fence.
-    const boundary = view(m);
-    expect(boundary.status).toBe("boundary-pending");
-    expect(boundary.boundary_reason).toMatch(/the plan is approved/);
-
-    await expect(
-      m.append({ type: "linear-sync-intent", package_id: "WP-events-filter" }),
-    ).rejects.toThrow(/"linear-sync-intent" is sync work/);
-    await expect(
-      m.append({
-        type: "worker-dispatched",
-        package_id: "WP-events-filter",
-        worker_id: "worker-1",
-        worktree: ".claude/worktrees/wp-events",
-        branch: "feat/wp-events",
-      }),
-    ).rejects.toThrow(/"worker-dispatched" is dispatch work/);
-
-    // Reading, checkpointing and recording what Brian decided still work.
-    await expect(m.append({ type: "checkpoint", number: 1 })).resolves.toBeTruthy();
-  });
-
-  it("hands the mission on only to a different Lead holding the unspent token", async () => {
-    const m = fixture();
-    await planningEpoch(m);
-    await m.append({
-      type: "plan-recorded",
-      packages: plan.packages,
-      decomposition: plan.decomposition,
-    });
-    await m.append({
-      type: "plan-approved",
-      approved_by: "Brian",
-      evidence: "decomposition and owner cost presented at checkpoint 1",
-    });
-    const before = read(m);
-    await m.append({
-      type: "lead-epoch-closed",
-      reason: "post-plan boundary",
-      resume_token: "token-1",
-      ...dossier(before),
-    });
-    const closed = read(m);
-    // Closing releases the fence, so a fresh Lead is not locked out by the
-    // outgoing Lead's still-warm heartbeat.
-    expect(closed.lead).toBeNull();
-    expect(closed.phaseRecycles).toEqual(["plan-approved"]);
-    expect(closed.resumeToken).toMatchObject({ token: "token-1", spent: false });
-
-    await expect(
-      m.append(openEvent(closed, { lead_id: "lead-1", resume_token: "token-1" })),
-    ).rejects.toThrow(/same session cannot resume its own closed epoch/);
-    await expect(
-      m.append(openEvent(closed, { lead_id: "lead-2", resume_token: "wrong" })),
-    ).rejects.toThrow(/presents the one-use token/);
-    await expect(m.append(openEvent(closed, { lead_id: "lead-2" }))).rejects.toThrow(
-      /presents the one-use token/,
-    );
-
-    const opened = await m.append(
-      openEvent(closed, { lead_id: "lead-2", resume_token: "token-1" }),
-    );
-    expect(opened.resumeToken).toMatchObject({ token: "token-1", spent: true });
-    expect(opened.epoch.phase).toBe("implementation-wave");
-
-    // The spent token cannot buy a second epoch.
-    const after = read(m);
-    await m.append({
-      type: "lead-epoch-closed",
-      reason: "wave boundary",
-      resume_token: "token-2",
-      ...dossier(after),
-    });
-    await expect(
-      m.append(openEvent(read(m), { lead_id: "lead-3", resume_token: "token-1" })),
-    ).rejects.toThrow(/token was spent when a later epoch opened/);
-  });
-
-  it("cuts a wave of at most two frontier packages and refuses the rest", async () => {
-    const m = fixture();
-    const scope = (await executionEpoch(m)).epoch!.scope.packages;
-    expect(scope).toEqual(["WP-events-filter", "WP-attendance-export"]);
-    expect(scope.length).toBeLessThanOrEqual(EPOCH_LIMITS.wavePackages);
-    expect(EPOCH_LIMITS.wavePackages).toBe(MAX_ACTIVE_WORKERS);
-
-    await expect(
-      m.append({
-        type: "worker-dispatched",
-        package_id: "WP-report-footer",
-        worker_id: "worker-3",
-        worktree: ".claude/worktrees/wp-report",
-        branch: "feat/wp-report",
-      }),
-    ).rejects.toThrow(/outside this epoch's scope/);
-  });
-
-  it("drains already-active in-scope work and refuses every new dispatch", async () => {
-    const m = fixture();
-    await executionEpoch(m);
-    await m.append({
-      type: "worker-dispatched",
-      package_id: "WP-events-filter",
-      worker_id: "worker-1",
-      worktree: ".claude/worktrees/wp-events",
-      branch: "feat/wp-events",
-    });
-    await m.append({ type: "lead-epoch-boundary-reached", reason: "Rotating the Lead." });
-    await m.append({ type: "lead-epoch-draining", packages: ["WP-events-filter"] });
-    expect(view(m).status).toBe("draining");
-
-    // Completion evidence for the work that was already running is accepted.
-    await expect(
-      m.append({
-        type: "worker-receipt",
-        package_id: "WP-events-filter",
-        worker_id: "worker-1",
-        receipt: workerReceipt("completed"),
-      }),
-    ).resolves.toBeTruthy();
-    await expect(
-      m.append({ type: "pr-opened", package_id: "WP-events-filter", pr_number: 42, head_sha: SHA }),
-    ).resolves.toBeTruthy();
-
-    // A second in-scope package that was not running is not drainable work.
-    await expect(
-      m.append({
-        type: "worker-dispatched",
-        package_id: "WP-attendance-export",
-        worker_id: "worker-2",
-        worktree: ".claude/worktrees/wp-attendance",
-        branch: "feat/wp-attendance",
-      }),
-    ).rejects.toThrow(/starts new dispatch work/);
-    await expect(
-      m.append({
-        type: "pr-opened",
-        package_id: "WP-attendance-export",
-        pr_number: 43,
-        head_sha: SHA,
-      }),
-    ).rejects.toThrow(/was not active and in scope when draining began/);
-  });
-
-  it("extends a green epoch by exactly one adjacent package, once", async () => {
-    const m = fixture();
-    await executionEpoch(m);
-    await driveToMerge(m, "WP-attendance-export", { visual: false });
-    const health = view(m).health;
-    expect(health.color).toBe("green");
-
-    const extend = (overrides: Record<string, unknown> = {}) => ({
-      type: "lead-epoch-adjusted",
-      kind: "extend-current",
-      source_epoch_id: "E-2",
-      target_epoch_id: "E-2",
-      old_scope: { packages: ["WP-events-filter", "WP-attendance-export"], gate: null },
-      new_scope: {
-        packages: ["WP-events-filter", "WP-attendance-export", "WP-report-footer"],
-        gate: null,
-      },
-      old_exit_condition: view(m).exit_condition,
-      new_exit_condition: "WP-report-footer has merged to main.",
-      health: { color: "green", reason_codes: [] },
-      approved_by: "Brian",
-      authorization: "Yes — finish the report footer under this Lead rather than rotating again.",
-      reason: "The footer's dependency merged and it is one small package.",
-      limit: { added_packages: 1, expires_after_hours: 2 },
-      expires_at: new Date(clock(m) + EPOCH_LIMITS.extensionMs).toISOString(),
-      ...overrides,
-    });
-
-    // Two packages is not "one adjacent package", and neither is none.
-    await expect(
-      m.append(
-        extend({
-          new_scope: {
-            packages: [
-              "WP-events-filter",
-              "WP-attendance-export",
-              "WP-report-footer",
-              "WP-invented",
-            ],
-            gate: null,
-          },
-        }),
-      ),
-    ).rejects.toThrow(/adds exactly one adjacent eligible package/);
-    await expect(
-      m.append(
-        extend({
-          new_scope: { packages: ["WP-events-filter", "WP-attendance-export"], gate: null },
-        }),
-      ),
-    ).rejects.toThrow(/adds neither/);
-    // Only Brian authorizes it; a proposal is not an approval.
-    await expect(m.append(extend({ authorization: "" }))).rejects.toThrow(
-      /only an explicit owner message authorizes filing/,
-    );
-
-    const extended = await m.append(extend());
-    expect(extended.epoch.scope.packages).toEqual([
-      "WP-events-filter",
+  it("allows dependent packages in one group so they may run sequentially", () => {
+    const decomposition = {
+      ...plan.decomposition,
+      execution_epochs: [
+        { id: "E-1", package_ids: ["WP-attendance-export", "WP-report-footer"] },
+        { id: "E-2", package_ids: ["WP-events-filter"] },
+      ],
+    };
+    const before = reduce(baseEvents().slice(0, 1));
+    const event = baseEvents(decomposition)[1];
+    expect(validateEvent(event, before)).toEqual([]);
+    expect(currentExecutionEpoch(reduce(baseEvents(decomposition)))?.package_ids).toEqual([
       "WP-attendance-export",
       "WP-report-footer",
     ]);
-    // The prior definition is not rewritten; it survives inside the adjustment.
-    expect(extended.epoch.adjustments[0].old_scope.packages).toEqual([
-      "WP-events-filter",
-      "WP-attendance-export",
-    ]);
-    await expect(
-      m.append({
-        type: "worker-dispatched",
-        package_id: "WP-report-footer",
-        worker_id: "worker-3",
-        worktree: ".claude/worktrees/wp-report",
-        branch: "feat/wp-report",
-      }),
-    ).resolves.toBeTruthy();
-
-    // The budget is one. A second extension is refused however healthy it is.
-    await expect(m.append(extend({ epoch_id: "E-2" }))).rejects.toThrow(
-      /already used its one normal extension/,
-    );
   });
 
-  it("refuses an extension that takes a package and a correction at once", async () => {
-    const m = fixture();
-    await executionEpoch(m);
-    await m.append({
-      type: "worker-dispatched",
-      package_id: "WP-events-filter",
-      worker_id: "worker-1",
-      worktree: ".claude/worktrees/wp-events",
-      branch: "feat/wp-events",
-    });
-    await m.append({
-      type: "worker-receipt",
-      package_id: "WP-events-filter",
-      worker_id: "worker-1",
-      receipt: workerReceipt("completed"),
-    });
-    await m.append({
-      type: "pr-opened",
-      package_id: "WP-events-filter",
-      pr_number: 42,
-      head_sha: SHA,
-    });
-    await m.append({
-      type: "review-receipt",
-      package_id: "WP-events-filter",
-      receipt: reviewReceipt("blocked"),
-    });
-    await m.append({
-      type: "correction-dispatched",
-      package_id: "WP-events-filter",
-      worker_id: "worker-1",
-      finding_ids: ["R-001"],
-    });
-    await m.append({
-      type: "merge-recorded",
-      package_id: "WP-attendance-export",
-      sha: SHA,
-      route: "owner",
-      owner_route_reason: "fixture",
-    });
+  it("validates group size, complete coverage, uniqueness and dependency order", () => {
+    const before = reduce(baseEvents().slice(0, 1));
+    const defects = (execution_epochs: Array<{ id: string; package_ids: string[] }>) =>
+      validateEvent(baseEvents({ ...plan.decomposition, execution_epochs })[1], before).join("\n");
 
-    // One bounded unit of work means one, not one of each.
-    await expect(
-      m.append({
-        type: "lead-epoch-adjusted",
-        kind: "extend-current",
-        source_epoch_id: "E-2",
-        target_epoch_id: "E-2",
-        old_scope: view(m).scope,
-        new_scope: {
-          packages: ["WP-events-filter", "WP-attendance-export", "WP-report-footer"],
-          gate: null,
-        },
-        old_exit_condition: view(m).exit_condition,
-        new_exit_condition: "Both finish.",
-        health: {
-          color: view(m).health.color,
-          reason_codes: view(m).health.reasons.map((reason: { code: string }) => reason.code),
-        },
-        accepted_reason_codes: view(m).health.reasons.map(
-          (reason: { code: string }) => reason.code,
-        ),
-        approved_by: "Brian",
-        authorization: "Take the footer and finish the correction.",
-        reason: "Both at once.",
-        correction_package_id: "WP-events-filter",
-        expires_at: new Date(clock(m) + EPOCH_LIMITS.extensionMs).toISOString(),
-      }),
-    ).rejects.toThrow(/never both/);
-  });
-
-  it("re-fences the epoch when its owner-approved extension expires", async () => {
-    const m = fixture();
-    await executionEpoch(m);
-    await driveToMerge(m, "WP-attendance-export", { visual: false });
-    const granted = clock(m);
-    await m.append({
-      type: "lead-epoch-adjusted",
-      kind: "extend-current",
-      source_epoch_id: "E-2",
-      target_epoch_id: "E-2",
-      old_scope: view(m).scope,
-      new_scope: {
-        packages: ["WP-events-filter", "WP-attendance-export", "WP-report-footer"],
-        gate: null,
-      },
-      old_exit_condition: view(m).exit_condition,
-      new_exit_condition: "WP-report-footer has merged to main.",
-      health: { color: "green", reason_codes: [] },
-      approved_by: "Brian",
-      authorization: "Yes, one more package.",
-      reason: "One small adjacent package.",
-      limit: { added_packages: 1, expires_after_hours: 2 },
-      expires_at: new Date(granted + EPOCH_LIMITS.extensionMs).toISOString(),
-    });
-    expect(view(m, granted + 1000).status).toBe("open");
-    const lapsed = view(m, granted + EPOCH_LIMITS.extensionMs + 1000);
-    expect(lapsed.status).toBe("boundary-pending");
-    expect(lapsed.boundary_reason).toMatch(/extension expired/);
-  });
-
-  it("refuses an extension that would cross into the walker, cutover or closeout", async () => {
-    const m = fixture();
-    await walkedMission(m);
-    const current = view(m);
-    expect(current.phase).toBe("integration");
-    await expect(
-      m.append({
-        type: "lead-epoch-adjusted",
-        kind: "extend-current",
-        source_epoch_id: current.epoch_id,
-        target_epoch_id: current.epoch_id,
-        old_scope: current.scope,
-        new_scope: { packages: ["WP-events-filter"], gate: "mission-workflow-smoke" },
-        old_exit_condition: current.exit_condition,
-        new_exit_condition: "One more thing.",
-        health: {
-          color: current.health.color,
-          reason_codes: current.health.reasons.map((reason: { code: string }) => reason.code),
-        },
-        approved_by: "Brian",
-        authorization: "Carry on.",
-        reason: "Convenience.",
-        expires_at: new Date(clock(m) + EPOCH_LIMITS.extensionMs).toISOString(),
-      }),
-    ).rejects.toThrow(/never crosses into the integrated walker, cutover or closeout/);
-  });
-
-  it("derives yellow and red from structured evidence with reason codes", async () => {
-    const m = fixture();
-    await executionEpoch(m);
-    const opened = Date.parse(view(m).opened_at);
-
-    // Age alone, at the named thresholds and nowhere before them.
-    expect(view(m, opened + EPOCH_LIMITS.yellowAgeMs - 1).health.color).toBe("green");
-    const yellow = view(m, opened + EPOCH_LIMITS.yellowAgeMs).health;
-    expect(yellow.color).toBe("yellow");
-    expect(yellow.reasons.map((reason: { code: string }) => reason.code)).toContain("epoch-age");
-    expect(view(m, opened + EPOCH_LIMITS.redAgeMs).health.color).toBe("red");
-
-    // Missing optional telemetry reads unknown, and is never green evidence.
-    expect(yellow.unknown.map((entry: { signal: string }) => entry.signal)).toContain(
-      "context-usage",
-    );
-
-    // A lost worker is red on its own, and points at the event that says so.
-    await m.append({
-      type: "worker-dispatched",
-      package_id: "WP-events-filter",
-      worker_id: "worker-1",
-      worktree: ".claude/worktrees/wp-events",
-      branch: "feat/wp-events",
-    });
-    await m.append({
-      type: "worker-abandoned",
-      package_id: "WP-events-filter",
-      reason: "worker process exited without a receipt",
-    });
-    const red = view(m).health;
-    expect(red.color).toBe("red");
-    const abandoned = red.reasons.find(
-      (reason: { code: string }) => reason.code === "worker-abandoned",
-    );
-    expect(abandoned.event_index).toBe(read(m).eventCount - 1);
     expect(
-      readJournal(missionPaths(m.repo, MISSION, m.env).journal)[abandoned.event_index].type,
-    ).toBe("worker-abandoned");
-  });
-
-  it("keeps running work at the head of the next wave rather than stranding it", async () => {
-    const m = fixture();
-    await executionEpoch(m);
-    await driveToMerge(m, "WP-attendance-export", { visual: false });
-    await rotate(m, "lead-3");
-    // Both remaining packages are eligible now, so the wave is plan order.
-    expect(view(m).scope.packages).toEqual(["WP-events-filter", "WP-report-footer"]);
-
-    await m.append({
-      type: "worker-dispatched",
-      package_id: "WP-report-footer",
-      worker_id: "worker-3",
-      worktree: ".claude/worktrees/wp-report",
-      branch: "feat/wp-report",
-    });
-    await rotate(m, "lead-4");
-    // The package carrying a worker leads the next wave despite plan order, so
-    // a rotation drains it instead of leaving it outside the new assignment.
-    expect(view(m).scope.packages).toEqual(["WP-report-footer", "WP-events-filter"]);
-    await expect(
-      m.append({
-        type: "worker-receipt",
-        package_id: "WP-report-footer",
-        worker_id: "worker-3",
-        receipt: workerReceipt("completed"),
-      }),
-    ).resolves.toBeTruthy();
-  });
-
-  it("counts owner answers as pressure, then as risk", async () => {
-    const m = fixture();
-    await executionEpoch(m);
-    const ask = async (index: number) => {
-      await m.append({
-        type: "owner-question",
-        id: `Q-${index}`,
-        classification: "hourly",
-        text: `Synthetic question ${index}`,
-        source: "fixture",
-        affected_packages: [],
-      });
-      await m.append({
-        type: "owner-answer",
-        question_id: `Q-${index}`,
-        answer: "Yes.",
-        answered_by: "Brian",
-        reusable: false,
-      });
-    };
-    for (let index = 1; index < EPOCH_LIMITS.yellowOwnerAnswers; index += 1) await ask(index);
-    expect(view(m).health.color).toBe("green");
-    await ask(EPOCH_LIMITS.yellowOwnerAnswers);
-    const pressured = view(m).health;
-    expect(pressured.color).toBe("yellow");
-    expect(pressured.reasons[0]).toMatchObject({ code: "owner-answers" });
-    expect(pressured.reasons[0].event_index).toBe(read(m).eventCount - 1);
-
-    for (
-      let index = EPOCH_LIMITS.yellowOwnerAnswers + 1;
-      index <= EPOCH_LIMITS.redOwnerAnswers;
-      index += 1
-    ) {
-      await ask(index);
-    }
-    expect(view(m).health.color).toBe("red");
-  });
-
-  it("reads corrected entries, repeated rounds, replaced sessions and delegated evidence as red", async () => {
-    const m = fixture();
-    await executionEpoch(m);
-
-    // The signals are recorded in the order a mission would produce them: the
-    // execution first, then the annotations. Once any of them is red the epoch
-    // is fenced, and no further dispatch would be accepted — which is the point.
-    // The Lead filing work that belongs to a worker.
-    await m.append({
-      type: "worker-dispatched",
-      package_id: "WP-events-filter",
-      worker_id: "lead-2",
-      worktree: ".claude/worktrees/wp-events",
-      branch: "feat/wp-events",
-    });
-    await m.append({
-      type: "worker-receipt",
-      package_id: "WP-events-filter",
-      worker_id: "lead-2",
-      receipt: workerReceipt("completed"),
-    });
-    await m.append({
-      type: "pr-opened",
-      package_id: "WP-events-filter",
-      pr_number: 42,
-      head_sha: SHA,
-    });
-    // A third invocation on one package lineage.
-    await m.append({
-      type: "review-receipt",
-      package_id: "WP-events-filter",
-      receipt: { ...reviewReceipt("blocked"), round: EPOCH_LIMITS.redReviewRound },
-    });
-    // A Lead correcting its own journal entry.
-    await m.append({
-      type: "journal-annotation",
-      target_event: 2,
-      disposition: "corrected",
-      reason: "The recorded plan misstated the collision domain.",
-      correction: "WP-events-filter is in the events domain.",
-    });
-    // A session acting inside an assignment it did not open.
-    await m.append({ type: "lead-heartbeat", lead_id: "lead-replacement", pid: 4243 });
-
-    const health = view(m).health;
-    expect(health.color).toBe("red");
-    expect(health.red.map((reason: { code: string }) => reason.code)).toEqual(
-      expect.arrayContaining([
-        "lead-entry-corrected",
-        "session-replaced",
-        "lead-filed-delegated-evidence",
-        "review-round-repeat",
+      defects([{ id: "E-1", package_ids: plan.packages.map((pkg: { id: string }) => pkg.id) }]),
+    ).toMatch(/one or two packages/);
+    expect(defects([{ id: "E-1", package_ids: ["WP-events-filter"] }])).toMatch(
+      /does not belong to an execution epoch/,
+    );
+    expect(
+      defects([
+        { id: "E-1", package_ids: ["WP-events-filter", "WP-report-footer"] },
+        { id: "E-2", package_ids: ["WP-attendance-export"] },
       ]),
-    );
-    // A blocked review owing a correction is its own recoverable signal.
-    expect(health.yellow.map((reason: { code: string }) => reason.code)).toContain(
-      "correction-round-active",
-    );
-    for (const reason of health.reasons) {
-      expect(typeof reason.code).toBe("string");
-      expect(reason.event_index === null || Number.isInteger(reason.event_index)).toBe(true);
-    }
+    ).toMatch(/must be in the same or an earlier execution epoch/);
   });
 
-  it("treats a reused Lead identity as red", async () => {
-    const m = fixture();
-    await planningEpoch(m, "lead-1");
-    await m.append({
-      type: "plan-recorded",
-      packages: plan.packages,
-      decomposition: plan.decomposition,
-    });
-    await m.append({
-      type: "plan-approved",
-      approved_by: "Brian",
-      evidence: "decomposition and owner cost presented at checkpoint 1",
-    });
-    await rotate(m, "lead-2");
-    // Not the epoch immediately before, so the handshake accepts it — and the
-    // health says plainly that this session has held this mission before.
-    await rotate(m, "lead-1");
-    const health = view(m).health;
-    expect(health.color).toBe("red");
-    expect(health.red.map((reason: { code: string }) => reason.code)).toContain(
-      "session-identity-reused",
-    );
-  });
-
-  it("treats an epoch with no Lead identity as red", () => {
-    // Nothing can open one through the CLI, which requires the identity. This
-    // is the fail-closed reading: an unfenced assignment is never green.
-    const health = epochHealth(
-      {
-        epoch_id: "E-unfenced",
-        lead_id: "",
-        opened_at: new Date(0).toISOString(),
-        opening_event_index: 0,
-        scope: { packages: [] },
-        signals: emptyEpochSignals(),
-      },
-      { activeWorkers: [], packages: {} },
-      { now: 0 },
-    )!;
-    expect(health.color).toBe("red");
-    expect(health.red.map((reason: { code: string }) => reason.code)).toContain(
-      "session-identity-absent",
-    );
-  });
-
-  it("warns as a wave approaches its exit condition", async () => {
-    const m = fixture();
-    await executionEpoch(m);
-    await driveToMerge(m, "WP-attendance-export", { visual: false });
-    expect(view(m).health.color).toBe("green");
-
-    // The other package in the wave is gated at its exact head, so the epoch is
-    // one merge from being over.
-    await m.append({
-      type: "worker-dispatched",
-      package_id: "WP-events-filter",
-      worker_id: "worker-1",
-      worktree: ".claude/worktrees/wp-events",
-      branch: "feat/wp-events",
-    });
-    await m.append({
-      type: "worker-receipt",
-      package_id: "WP-events-filter",
-      worker_id: "worker-1",
-      receipt: workerReceipt("completed"),
-    });
-    await m.append({
-      type: "pr-opened",
-      package_id: "WP-events-filter",
-      pr_number: 42,
-      head_sha: SHA,
-    });
-    await m.append({
-      type: "review-receipt",
-      package_id: "WP-events-filter",
-      receipt: reviewReceipt("clear"),
-    });
-    await m.append({
-      type: "visual-approval",
-      package_id: "WP-events-filter",
-      approved_by: "Brian",
-      evidence: "synthetic live review",
-    });
-    await m.append({
-      type: "package-gate-passed",
-      package_id: "WP-events-filter",
-      head_sha: SHA,
-      receipt: buildMissionReceipt(read(m), "WP-events-filter", SHA),
-    });
-    const health = view(m).health;
-    expect(health.color).toBe("yellow");
-    expect(health.yellow.map((reason: { code: string }) => reason.code)).toContain(
-      "approaching-scope-boundary",
-    );
-  });
-
-  it("recommends a recycle at yellow and fences red until Brian accepts the risk", async () => {
-    const m = fixture();
-    await executionEpoch(m);
-    const opened = Date.parse(view(m).opened_at);
-
-    const atYellow = nextActions(read(m), { now: opened + EPOCH_LIMITS.yellowAgeMs });
-    expect(atYellow[0]).toMatchObject({ action: "recycle-lead" });
-    expect(atYellow[0].health!.color).toBe("yellow");
-    // Yellow is a recommendation, not a fence: ordinary work still appears.
-    expect(atYellow.some((action) => action.action === "dispatch")).toBe(true);
-
-    // Red is a fence. The epoch reaches a boundary with nobody recording one.
-    const atRed = view(m, opened + EPOCH_LIMITS.redAgeMs);
-    expect(atRed.status).toBe("boundary-pending");
-    expect(atRed.boundary_reason).toMatch(/Health is red \(epoch-age\)/);
-
-    const proposal = (overrides: Record<string, unknown> = {}) => ({
-      type: "lead-epoch-adjusted",
-      kind: "extend-current",
-      source_epoch_id: "E-2",
-      target_epoch_id: "E-2",
-      old_scope: atRed.scope,
-      new_scope: { packages: ["WP-events-filter", "WP-attendance-export"], gate: null },
-      old_exit_condition: atRed.exit_condition,
-      new_exit_condition: "WP-events-filter and WP-attendance-export have merged to main.",
-      health: { color: "red", reason_codes: ["epoch-age"] },
-      approved_by: "Brian",
-      authorization: "I know it is long. Finish this wave.",
-      reason: "The wave is nearly done.",
-      correction_package_id: undefined,
-      expires_at: new Date(opened + EPOCH_LIMITS.redAgeMs + EPOCH_LIMITS.extensionMs).toISOString(),
-      ...overrides,
-    });
-
-    // Filing it against a red epoch without naming the risk is refused, and
-    // calling it green is refused even harder.
-    await expect(
-      m.append({ ...proposal(), at: new Date(opened + EPOCH_LIMITS.redAgeMs).toISOString() }),
-    ).rejects.toThrow(/epoch-age is unaccepted/);
-    await expect(
-      m.append({
-        ...proposal({
-          health: { color: "green", reason_codes: [] },
-          accepted_reason_codes: ["epoch-age"],
-        }),
-        at: new Date(opened + EPOCH_LIMITS.redAgeMs).toISOString(),
-      }),
-    ).rejects.toThrow(/records the health the harness computed \(red\)/);
-  });
-
-  it("keeps the implementation Lead out of the integrated walker and the closeout", async () => {
-    const m = fixture();
-    await executionEpoch(m);
-    await driveToMerge(m, "WP-events-filter");
-    await driveToMerge(m, "WP-attendance-export", { visual: false });
-    await rotate(m, "lead-3");
-    await driveToMerge(m, "WP-report-footer");
-
-    // Every package has merged, so this wave is done — and the walker is not
-    // its work to file, however eligible the mission now is.
-    const finished = view(m);
-    expect(finished.status).toBe("boundary-pending");
-    const walker = {
-      type: "integrated-review",
-      mode: "workflow-walker",
-      head_sha: SHA,
-      package_heads: Object.fromEntries(plan.packages.map((pkg: { id: string }) => [pkg.id, SHA])),
-      result: "clear",
-      jobs_completed:
-        "Signed in, drafted a practice, confirmed its audience and took the register.",
-      report: "reviews/final-smoke.json",
-    };
-    await expect(m.append(walker)).rejects.toThrow(/"integrated-review" is integration work/);
-
-    await rotate(m, "lead-4");
-    expect(view(m).phase).toBe("integration");
-    await expect(m.append(walker)).resolves.toBeTruthy();
-  });
-
-  it("gives cutover and closeout their own epochs", async () => {
-    const m = fixture();
-    await walkedMission(m);
-    expect(view(m).status).toBe("boundary-pending");
-
-    // An unanswered owner decision is acceptance work, not closeout work.
-    await m.append({
-      type: "owner-question",
-      id: "Q-cutover",
-      classification: "immediate",
-      text: "Has the external provider confirmed the cutover window?",
-      source: "packet gates.external",
-      affected_packages: [],
-    });
-    await rotate(m, "lead-5");
-    expect(view(m).phase).toBe("acceptance-cutover");
-
-    const closeout = {
-      type: "mission-closeout",
-      outcome: "delivered",
-      notion_record: "notion://synthetic/mission-record",
-      shipped: plan.packages.map(() => ({
-        linear_issue_id: "LAN-900",
-        pr_number: 42,
-        sha: SHA,
-      })),
-      owner_actions: "none",
-      next_action: "none",
-    };
-    await expect(m.append(closeout)).rejects.toThrow(/"mission-closeout" is closeout work/);
-
-    await m.append({
-      type: "owner-answer",
-      question_id: "Q-cutover",
-      answer: "Confirmed for Friday.",
-      answered_by: "Brian",
-      reusable: false,
-    });
-    expect(view(m).status).toBe("boundary-pending");
-    await rotate(m, "lead-6");
-    expect(view(m).phase).toBe("closeout");
-    await expect(m.append(closeout)).resolves.toBeTruthy();
-  });
-
-  it("re-cuts future waves only, inside the approved DAG", async () => {
-    const m = fixture();
-    await planningEpoch(m);
-    await m.append({
-      type: "plan-recorded",
-      packages: plan.packages,
-      decomposition: plan.decomposition,
-    });
-    await m.append({
-      type: "plan-approved",
-      approved_by: "Brian",
-      evidence: "decomposition and owner cost presented at checkpoint 1",
-    });
-    // An unanswered question holds the export back, so this wave is one package
-    // and two remain to be grouped.
-    await m.append({
-      type: "owner-question",
-      id: "Q-hold",
-      classification: "hourly",
-      text: "Should the export include withdrawn members?",
-      source: "packet requirement REQ-attendance-export",
-      affected_packages: ["WP-attendance-export"],
-    });
-    await rotate(m, "lead-2");
-    expect(view(m).scope.packages).toEqual(["WP-events-filter"]);
-
-    const recut = (waves: string[][]) => ({
-      type: "lead-epoch-adjusted",
-      kind: "recut-future",
-      source_epoch_id: "E-2",
-      target_epoch_id: null,
-      old_scope: view(m).scope,
-      new_scope: view(m).scope,
-      old_exit_condition: view(m).exit_condition,
-      new_exit_condition: view(m).exit_condition,
-      future_waves: waves,
-      health: { color: "green", reason_codes: [] },
-      approved_by: "Brian",
-      authorization: "Yes, group the export and the footer that way.",
-      reason: "Fewer rotations for two small packages.",
-    });
-
-    // The DAG is not up for regrouping: the footer cannot precede or share a
-    // wave with the export it depends on.
-    await expect(m.append(recut([["WP-report-footer"], ["WP-attendance-export"]]))).rejects.toThrow(
-      /depends on WP-attendance-export, no later than/,
-    );
-    await expect(m.append(recut([["WP-attendance-export", "WP-report-footer"]]))).rejects.toThrow(
-      /depends on WP-attendance-export, no later than/,
-    );
-    // Nor may it add, drop or invent approved work.
-    await expect(m.append(recut([["WP-attendance-export"]]))).rejects.toThrow(
-      /WP-report-footer is dropped by this re-cut/,
-    );
-    await expect(m.append(recut([["WP-attendance-export"], ["WP-events-filter"]]))).rejects.toThrow(
-      /WP-events-filter is not a future package/,
-    );
-
-    const before = read(m);
-    const after = await m.append(recut([["WP-attendance-export"], ["WP-report-footer"]]));
-    expect(after.epochPlan.futureWaves).toEqual([["WP-attendance-export"], ["WP-report-footer"]]);
-    // The approved plan itself is untouched — same packages, same edges.
-    expect(after.packages).toEqual(before.packages);
-    expect(after.decomposition).toEqual(before.decomposition);
-    // And it kept nobody's session alive, so it spent no extension budget.
-    expect(view(m).adjustments_used).toBe(0);
-  });
-
-  it("lets a wave propose a revised plan but never approve one", async () => {
-    const m = fixture();
-    await executionEpoch(m);
-    const revised = plan.packages.map((pkg: Record<string, unknown>) =>
-      pkg.id === "WP-report-footer" ? { ...pkg, title: "Synthetic: revised footer" } : pkg,
-    );
-
-    // Recording a revised decomposition creates nothing, so it is allowed in
-    // place — and it withdraws the approval, which is what makes the harness
-    // derive a planning epoch next.
-    const proposed = await m.append({
-      type: "plan-recorded",
-      packages: revised,
-      decomposition: plan.decomposition,
-    });
-    expect(proposed.planApproved).toBeNull();
-    expect(deriveEpochDefinition(proposed).phase).toBe("planning");
-
-    // Approving it is a different act and belongs to a fresh Lead.
-    await expect(
-      m.append({
-        type: "plan-approved",
-        approved_by: "Brian",
-        evidence: "revised decomposition presented",
-      }),
-    ).rejects.toThrow(/"plan-approved" is planning work/);
-  });
-
-  it("requires a live epoch before a revised packet may replace the contract", async () => {
-    const m = fixture();
-    await executionEpoch(m);
-    const revised = {
-      ...packet,
-      packet_version: packet.packet_version + 1,
-      gates: { owner: [], external: [] },
-    };
-
-    // A revised packet is not new execution, so a boundary still accepts the
-    // owner's contract arriving — that is how drift-stopped work resumes.
-    await m.append({ type: "lead-epoch-boundary-reached", reason: "Rotating the Lead." });
-    expect(view(m).status).toBe("boundary-pending");
-    await expect(m.append({ type: "packet-revised", packet: revised })).resolves.toBeTruthy();
-
-    // A closed epoch accepts nothing. Without this the mission's whole approved
-    // contract — requirements, owner gates, non-goals — could be replaced after
-    // the handover, by the very session that just gave the mission up.
-    const before = read(m);
-    await m.append({
-      type: "lead-epoch-closed",
-      reason: "The epoch reached its boundary.",
-      resume_token: "token-contract",
-      ...dossier(before),
-    });
-    await expect(
-      m.append({
-        type: "packet-revised",
-        packet: { ...revised, packet_version: revised.packet_version + 1 },
-      }),
-    ).rejects.toThrow(/is closed/);
-    // The contract that was there before the close is still the one in force.
-    expect(read(m).packet.packet_version).toBe(revised.packet_version);
-  });
-
-  it("replays an epoch-free journal unchanged and adopts an epoch prospectively", async () => {
-    const file = path.join(__dirname, "fixtures", "mission", "mission-4-shaped-journal.ndjson");
-    const events = readJournal(file);
-    const state = reduce(events);
-
-    // Mission 4's shape, and its consequence: a plan approved, execution
-    // continued under one Lead, and the recycle still owed at the end.
-    expect(state.eventCount).toBe(events.length);
-    expect(events.filter((event) => event.type === "lead-heartbeat").length).toBeGreaterThan(5);
-    expect(state.phaseRecycles).toEqual([]);
-    expect(state.epoch).toBeNull();
-    expect(state.epochHistory).toEqual([]);
-    // Everything the journal earned is still there.
-    expect(state.packages["WP-events-filter"].status).toBe("merged");
-    expect(state.reclaimed).toEqual(["WP-events-filter"]);
-    expect(state.planApproved).toMatchObject({ by: "Brian" });
-    expect(nextActions(state).length).toBeGreaterThan(0);
-    // Reading it rewrites nothing.
-    expect(readJournal(file)).toEqual(events);
-
-    // The next epoch is the boundary it owes, not the execution it wanted.
-    expect(deriveEpochDefinition(state).phase).toBe("post-plan-boundary");
-
-    const m = fixture();
-    const journal = missionPaths(m.repo, MISSION, m.env).journal as string;
-    fs.mkdirSync(path.dirname(journal), { recursive: true, mode: 0o700 });
-    fs.writeFileSync(journal, `${events.map((event) => JSON.stringify(event)).join("\n")}\n`);
-    const adopted = await m.append(
-      openEvent(read(m), { lead_id: "lead-fresh", bootstrapped: true }),
-    );
-    expect(adopted.epoch).toMatchObject({ phase: "post-plan-boundary", bootstrapped: true });
-    // No epoch was invented for the work already done.
-    expect(adopted.epochHistory).toEqual([]);
-    expect(adopted.epoch.opening_event_index).toBe(events.length);
-  });
-
-  it("refuses the plan-approved-to-worker-dispatched sequence Mission 4 recorded", async () => {
-    const file = path.join(__dirname, "fixtures", "mission", "mission-4-shaped-journal.ndjson");
-    const events = readJournal(file);
-    const at = events.findIndex((event) => event.type === "worker-dispatched");
-    const dispatch = events[at];
-    const before = events.slice(0, at);
-
-    // The shape: approved, then straight into durable execution, with no stop
-    // and no recycle in between.
-    expect(before.some((event) => event.type === "plan-approved")).toBe(true);
-    expect(before.some((event) => event.type === "mission-stopped")).toBe(false);
-    // Before LAN-178 this was the whole of the protection: nothing refused it.
-    expect(validateEvent(dispatch, reduce(before))).toEqual([]);
-
-    const m = fixture();
-    const journal = missionPaths(m.repo, MISSION, m.env).journal as string;
-    fs.mkdirSync(path.dirname(journal), { recursive: true, mode: 0o700 });
-    fs.writeFileSync(journal, `${before.map((event) => JSON.stringify(event)).join("\n")}\n`);
-    await m.append(openEvent(read(m), { lead_id: "lead-fresh", bootstrapped: true }));
-
-    await expect(m.append(dispatch)).rejects.toThrow(/post-plan-boundary/);
-    await expect(m.append(dispatch)).rejects.toThrow(/"worker-dispatched" is dispatch work/);
-  });
-
-  it("generates a dossier of the working set, not of the narration", async () => {
-    const file = path.join(__dirname, "fixtures", "mission", "mission-4-shaped-journal.ndjson");
-    const events = readJournal(file);
-    const m = fixture();
-    const journal = missionPaths(m.repo, MISSION, m.env).journal as string;
-    fs.mkdirSync(path.dirname(journal), { recursive: true, mode: 0o700 });
-    fs.writeFileSync(journal, `${events.map((event) => JSON.stringify(event)).join("\n")}\n`);
-    await m.append(openEvent(read(m), { lead_id: "lead-fresh", bootstrapped: true }));
-    await m.append({
-      type: "owner-question",
-      id: "Q-open",
-      classification: "immediate",
-      text: "Which recipients may the export include?",
-      source: "privacy boundary",
-      affected_packages: ["WP-attendance-export"],
-    });
-    await m.append({
-      type: "journal-annotation",
-      target_event: 16,
-      disposition: "corrected",
-      reason: "The receipt overstated its verification.",
-      correction: "Only the events suite was run, not npm run verify.",
-    });
-
-    const state = read(m);
-    const generated = resumeDossier(state, { now: clock(m) });
-    const serialized = JSON.stringify(generated);
-
-    // A third of that journal is heartbeats. None of them survive, because the
-    // dossier is a projection of state and never a reading of the narration.
-    expect(serialized).not.toMatch(/heartbeat/);
-    expect(serialized).not.toMatch(/lead-heartbeat/);
-    expect(generated.source_event_index).toBe(state.eventCount - 1);
-
-    // What does survive is the frontier and what is still owed.
-    expect(generated.objective).toBe(packet.objective);
-    expect(generated.packages.completed).toEqual([
-      expect.objectContaining({ id: "WP-events-filter", reclaimed: true }),
+  it("projects deterministic two-package groups for legacy plans", () => {
+    const decomposition = { ...plan.decomposition };
+    delete decomposition.execution_epochs;
+    const state = reduce(baseEvents(decomposition));
+    expect(executionEpochs(state)).toEqual([
+      { id: "E-1", package_ids: ["WP-events-filter", "WP-attendance-export"] },
+      { id: "E-2", package_ids: ["WP-report-footer"] },
     ]);
-    expect(generated.packages.blocked.map((entry: { id: string }) => entry.id)).toContain(
-      "WP-attendance-export",
+  });
+
+  it("keeps historical runtime epoch events readable but inert", () => {
+    const events = baseEvents();
+    const before = reduce(events);
+    const legacy = {
+      type: "lead-epoch-opened",
+      at: "2026-08-29T12:00:03.000Z",
+      epoch_id: "E-old",
+    };
+    expect(validateEvent(legacy, before)).toEqual([]);
+    expect(currentExecutionEpoch(reduce([...events, legacy]))).toEqual(
+      currentExecutionEpoch(before),
     );
-    expect(generated.packages.waiting.map((entry: { id: string }) => entry.id)).toContain(
-      "WP-report-footer",
-    );
-    expect(generated.open_owner_decisions.map((entry: { id: string }) => entry.id)).toEqual([
-      "Q-open",
-    ]);
-    expect(generated.operative_corrected_decisions).toContainEqual(
-      expect.objectContaining({ kind: "journal-correction", target_event: 16 }),
-    );
+  });
+
+  it("offers only the current group and advances only after its completion checkpoint", async () => {
+    const m = fixture();
+    await readyMission(m);
     expect(
-      generated.unverified_acceptance_criteria.map(
-        (entry: { requirement_id?: string }) => entry.requirement_id,
-      ),
-    ).toContain("REQ-attendance-export");
-    // Resource reporting stays at the abstraction the harness already uses.
-    expect(Object.keys(generated.resources)).toEqual([
-      "live_packages",
-      "active_workers",
-      "reclaimed_packages",
-      "checkpoints",
-    ]);
-    expect(serialized).not.toMatch(/"pid"/);
-  });
+      nextActions(replayState(m.repo, MISSION, m.env))
+        .filter((action) => action.action === "dispatch")
+        .map((action) => action.package_id),
+    ).toEqual(["WP-events-filter", "WP-attendance-export"]);
 
-  it("offers Brian exactly three choices at a boundary, with the health behind them", async () => {
-    const m = fixture();
-    await planningEpoch(m);
-    await m.append({
-      type: "plan-recorded",
-      packages: plan.packages,
-      decomposition: plan.decomposition,
-    });
-    await m.append({
-      type: "plan-approved",
-      approved_by: "Brian",
-      evidence: "decomposition and owner cost presented at checkpoint 1",
-    });
-
-    const actions = nextActions(read(m), { now: clock(m) });
-    expect(actions.map((action) => action.action)).toEqual([
-      "continue-fresh-lead",
-      "pause-or-stop-mission",
-      "adjust-epoch",
+    const completed = reduce([
+      ...baseEvents(),
+      ...["WP-events-filter", "WP-attendance-export"].flatMap((package_id, index) => [
+        {
+          type: "merge-recorded",
+          at: `2026-08-29T12:00:1${index}.000Z`,
+          package_id,
+          sha: SHA,
+          route: "guarded",
+        },
+        {
+          type: "package-reclaimed",
+          at: `2026-08-29T12:00:2${index}.000Z`,
+          package_id,
+          merge_sha: SHA,
+        },
+      ]),
     ]);
-    const [recommended, pause, adjust] = actions;
-    expect(recommended.health).toMatchObject({ color: "green", reasons: [] });
-    expect(recommended.health!.unknown[0].signal).toBe("context-usage");
-    expect(recommended.detail).toMatch(/Recommended/);
-    expect(recommended.detail).toMatch(/epoch close/);
-    expect(recommended.detail).toMatch(/--token/);
-    expect(recommended.next_scope).toEqual([]);
-    expect(pause.detail).toMatch(/mission -- stop/);
-    // What an adjustment may and may not change is stated where Brian reads it.
-    expect(adjust.detail).toMatch(/Owner approval required/);
-    expect(adjust.detail).toMatch(
-      /Neither changes the approved packages, requirements, dependency DAG or acceptance criteria/,
+    expect(currentExecutionEpoch(completed)?.complete).toBe(true);
+    expect(nextActions(completed).map((action) => action.action)).toContain("checkpoint-and-stop");
+
+    const advanced = reduce([
+      ...baseEvents(),
+      ...["WP-events-filter", "WP-attendance-export"].flatMap((package_id, index) => [
+        {
+          type: "merge-recorded",
+          at: `2026-08-29T12:01:1${index}.000Z`,
+          package_id,
+          sha: SHA,
+          route: "guarded",
+        },
+        {
+          type: "package-reclaimed",
+          at: `2026-08-29T12:01:2${index}.000Z`,
+          package_id,
+          merge_sha: SHA,
+        },
+      ]),
+      { type: "checkpoint", at: "2026-08-29T12:02:00.000Z", number: 1 },
+    ]);
+    expect(advanced.completedEpochs).toEqual(["E-1"]);
+    expect(currentExecutionEpoch(advanced)?.id).toBe("E-2");
+    const regrouped = baseEvents({
+      ...plan.decomposition,
+      execution_epochs: [
+        { id: "E-1", package_ids: ["WP-events-filter"] },
+        { id: "E-2", package_ids: ["WP-attendance-export", "WP-report-footer"] },
+      ],
+    })[1];
+    expect(validateEvent(regrouped, advanced).join("\n")).toMatch(
+      /Completed execution epoch E-1 is immutable/,
     );
   });
 });
