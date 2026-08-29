@@ -7,7 +7,12 @@ import {
   type RequiredField,
   missingRequiredFields,
 } from "./person-required";
-import { escapeLikePattern, personAssembledStatusSql, personDisplayAliasSql } from "./sql-text";
+import {
+  escapeLikePattern,
+  personAssembledStatusSql,
+  personDisplayAliasSql,
+  personDisplayNameSql,
+} from "./sql-text";
 
 /**
  * The person record, assembled — LAN-183, `REQ-person-record` and
@@ -28,6 +33,20 @@ import { escapeLikePattern, personAssembledStatusSql, personDisplayAliasSql } fr
  * confidence class anywhere below — not struck out, never added. A contact
  * value's `source` says who supplied it and nothing more, which is the whole
  * of what LAN-182's schema carries and the whole of what this module returns.
+ *
+ * ## Derived provenance — `Q-13`
+ *
+ * `given_name`, `family_name`, `college`, `matriculation_year`,
+ * `expected_graduation_year`, `degree_field` and `date_of_birth` have no
+ * `source` column of their own on `main`. Brian's walkthrough of LAN-184
+ * chose to derive "who supplied it" for these seven from `audit_events`
+ * instead of adding one: the most recent `person_<field>_updated` row this
+ * module finds naming the person is who supplied the value currently on file;
+ * a field never changed through the application — seeded, imported, or set at
+ * `person_created`, which names no single field and is deliberately not
+ * treated as attributing one — has no such row, and the corresponding
+ * `<field>Source` reads `null` rather than a guess. See
+ * `readFieldProvenanceIn` below.
  *
  * ## Merged-away records
  *
@@ -79,18 +98,32 @@ export interface EmergencyContact {
 export interface PersonRecord {
   personId: string;
   givenName: string;
+  /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
+  givenNameSource: string | null;
   familyName: string | null;
+  /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
+  familyNameSource: string | null;
   aliases: PersonAlias[];
   /** The alias flagged `is_display_name`, if there is one; else `givenName`, plus `familyName`. */
   displayName: string;
   /** The six-rung ladder. `null` for a person on neither the prospect nor the membership record. */
   status: AssembledStatus;
   college: string | null;
+  /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
+  collegeSource: string | null;
   matriculationYear: number | null;
+  /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
+  matriculationYearSource: string | null;
   expectedGraduationYear: number | null;
+  /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
+  expectedGraduationYearSource: string | null;
   degreeField: string | null;
+  /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
+  degreeFieldSource: string | null;
   /** `REQ-restricted-fields`: four-role only, and never on a list, board or queue. */
   dateOfBirth: string | null;
+  /** `Q-13`: derived from `audit_events`, `null` when no edit has ever named this field. */
+  dateOfBirthSource: string | null;
   /** `REQ-restricted-fields`: structurally isolated; four-role only. `null` when none is recorded. */
   emergencyContact: EmergencyContact | null;
   /** Current and superseded, oldest last within each kind and scope. */
@@ -265,6 +298,74 @@ async function readEmergencyContactIn(tx: Tx, personId: string): Promise<Emergen
   };
 }
 
+/**
+ * The seven `people` columns `person-write.ts`'s `updatePersonField` can
+ * change and LAN-182's schema gives no `source` column of their own. Each
+ * name here is also the `field` half of that function's own
+ * `person_<field>_updated` audit action — the one place these columns are
+ * ever the subject of an audit row.
+ */
+const DERIVED_PROVENANCE_FIELDS = [
+  "given_name",
+  "family_name",
+  "college",
+  "matriculation_year",
+  "expected_graduation_year",
+  "degree_field",
+  "date_of_birth",
+] as const;
+
+type DerivedProvenanceField = (typeof DERIVED_PROVENANCE_FIELDS)[number];
+
+/**
+ * "Who supplied it" for the seven fields above, read from `audit_events`
+ * rather than stored — `Q-13`. The most recent `person_<field>_updated` row
+ * naming this person is who supplied that field's current value; a field
+ * with no such row reads `null`, which the page renders as an explicit "not
+ * recorded" rather than a guess.
+ *
+ * `person_created` is deliberately excluded even though it may have set
+ * several of these columns at once: it names no single field, so treating it
+ * as provenance for every column it happened to populate would attribute a
+ * fact this row does not actually state — the exact shape of invented
+ * caption `Q-13` and amendment `W1-A2` both refuse. This is also why almost
+ * nothing renders a caption yet: almost every person on file today arrived
+ * through an intake path that writes `person_created` and nothing more.
+ */
+async function readFieldProvenanceIn(
+  tx: Tx,
+  personId: string,
+): Promise<Record<DerivedProvenanceField, string | null>> {
+  const actions = DERIVED_PROVENANCE_FIELDS.map((field) => `person_${field}_updated`);
+  const result = await tx.query<{
+    action: string;
+    actor_label: string | null;
+    actor_display_name: string | null;
+  }>(
+    `select a.action, a.actor_label,
+            ${personDisplayNameSql("actor")} as actor_display_name
+       from public.audit_events a
+       left join public.people actor on actor.id = a.actor_person_id
+      where a.entity_table = 'people' and a.entity_id = $1::uuid
+        and a.action = any($2::text[])
+      order by a.occurred_at desc`,
+    [personId, actions],
+  );
+
+  const bySource = new Map<string, string>();
+  for (const row of result.rows) {
+    // Inverse of `person_${field}_updated` — the field name is what
+    // `updatePersonField` put in the middle of its own action string.
+    const field = row.action.slice("person_".length, -"_updated".length);
+    if (bySource.has(field)) continue; // the newest row for this field is already kept
+    bySource.set(field, row.actor_display_name ?? row.actor_label ?? "Unknown");
+  }
+
+  return Object.fromEntries(
+    DERIVED_PROVENANCE_FIELDS.map((field) => [field, bySource.get(field) ?? null]),
+  ) as Record<DerivedProvenanceField, string | null>;
+}
+
 function presenceFrom(
   row: PersonRow,
   contacts: readonly PersonContactValue[],
@@ -294,10 +395,11 @@ function presenceFrom(
  */
 export async function readPersonRecordIn(tx: Tx, personId: string): Promise<PersonRecord> {
   const row = await readPersonRowIn(tx, personId);
-  const [aliases, contacts, emergencyContact] = await Promise.all([
+  const [aliases, contacts, emergencyContact, fieldProvenance] = await Promise.all([
     readAliasesIn(tx, personId),
     readContactsIn(tx, personId),
     readEmergencyContactIn(tx, personId),
+    readFieldProvenanceIn(tx, personId),
   ]);
 
   const presence = presenceFrom(row, contacts, emergencyContact);
@@ -305,15 +407,22 @@ export async function readPersonRecordIn(tx: Tx, personId: string): Promise<Pers
   return {
     personId: row.person_id,
     givenName: row.given_name,
+    givenNameSource: fieldProvenance.given_name,
     familyName: row.family_name,
+    familyNameSource: fieldProvenance.family_name,
     aliases,
     displayName: displayNameOf(row),
     status: row.status,
     college: row.college,
+    collegeSource: fieldProvenance.college,
     matriculationYear: row.matriculation_year,
+    matriculationYearSource: fieldProvenance.matriculation_year,
     expectedGraduationYear: row.expected_graduation_year,
+    expectedGraduationYearSource: fieldProvenance.expected_graduation_year,
     degreeField: row.degree_field,
+    degreeFieldSource: fieldProvenance.degree_field,
     dateOfBirth: row.date_of_birth,
+    dateOfBirthSource: fieldProvenance.date_of_birth,
     emergencyContact,
     contacts,
     isPastMember: row.is_past_member ?? false,

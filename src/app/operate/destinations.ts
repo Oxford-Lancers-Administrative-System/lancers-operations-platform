@@ -102,6 +102,15 @@ export const COACH_DESTINATIONS: readonly Destination[] = Object.freeze([
  *     is "the President, and any operator working follow-ups", not a
  *     privileged subset — the same floor Roster and Events already use.
  *     Placed first, above Operators, per the approved `W5-01` mockup.
+ *   * **People**, **Missing data** — LAN-184, `person_record_authority`. W1's
+ *     approval placed People under Administration ("It's not something that
+ *     falls into the top left") ahead of Operators and Roles, in an
+ *     Administration group of "People · Operators · Roles" that predates
+ *     Follow-ups and Messaging schedule; amendment `W1-A1` then added Missing
+ *     data as the second route into `W7`'s queue. Placed together,
+ *     immediately after Follow-ups and before Operators, which keeps
+ *     Follow-ups' own locked "placed first" position and puts the two new
+ *     entries where the approved ordering put People relative to Operators.
  *   * **Operators**, **Roles** — `role_management`,
  *     `REQ-role-management-authority`'s capability, held by three seats.
  *   * **Messaging schedule** — LAN-171, `delivery_administration`. The four
@@ -114,13 +123,14 @@ export const COACH_DESTINATIONS: readonly Destination[] = Object.freeze([
  *     Roles among themselves, matching the approved `W7-02` mockup's own
  *     sidebar.
  *
- * None of the four is shown to every operator, where Roster, Events and
+ * None of the six is shown to every operator, where Roster, Events and
  * Report are — except Follow-ups, which (like them) is `capability: null`
  * and so is shown to every seated operator alongside them; it is only
  * grouped under this heading, not gated by it. That grouping is a courtesy
- * and never a boundary either way — `src/app/operate/admin/**` gates itself
- * on the same capabilities, and an operator who types the URL is refused by
- * the page, not by this list. Hiding Operators, Roles and Messaging schedule
+ * and never a boundary either way — `src/app/operate/admin/**` and
+ * `src/app/operate/people/**` gate themselves on the same capabilities, and
+ * an operator who types the URL is refused by the page, not by this list.
+ * Hiding Operators, Roles, Messaging schedule, People and Missing data
  * matters anyway, because a low-frequency privileged area advertised to
  * everybody who cannot open it is an invitation to try.
  */
@@ -134,6 +144,26 @@ export const ADMINISTRATION_DESTINATIONS: readonly Destination[] = Object.freeze
    * `requireGeneralOperator()`, the same as the participation table's.
    */
   Object.freeze({ href: "/operate/admin/follow-ups", label: "Follow-ups", capability: null }),
+  /**
+   * LAN-184, W1. `person_record_authority` — the four offices plus the IT
+   * Officer seat, held by every capability in this file (LAN-124). Every
+   * human the club holds, findable by the four-role group.
+   */
+  Object.freeze({
+    href: "/operate/people",
+    label: "People",
+    capability: "person_record_authority" as CapabilityKey,
+  }),
+  /**
+   * LAN-184, W7, amendment `W1-A1`. The route "for an hour spent usefully",
+   * starting from no particular person — the linked count on the People list
+   * and the roster is the other route, the one an operator falls into.
+   */
+  Object.freeze({
+    href: "/operate/people/missing",
+    label: "Missing data",
+    capability: "person_record_authority" as CapabilityKey,
+  }),
   Object.freeze({
     href: "/operate/admin/operators",
     label: "Operators",

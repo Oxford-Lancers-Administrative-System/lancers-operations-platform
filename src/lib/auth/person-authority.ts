@@ -131,7 +131,9 @@ export const PERSON_RECORD_FIELD_CATEGORY: Readonly<Record<string, PersonFieldCa
   Object.freeze({
     personId: "identity",
     givenName: "identity",
+    givenNameSource: "identity",
     familyName: "identity",
+    familyNameSource: "identity",
     aliases: "identity",
     displayName: "identity",
     status: "standing",
@@ -144,10 +146,15 @@ export const PERSON_RECORD_FIELD_CATEGORY: Readonly<Record<string, PersonFieldCa
     missingRequiredFields: "standing",
     contacts: "contact",
     college: "academic",
+    collegeSource: "academic",
     matriculationYear: "academic",
+    matriculationYearSource: "academic",
     expectedGraduationYear: "academic",
+    expectedGraduationYearSource: "academic",
     degreeField: "academic",
+    degreeFieldSource: "academic",
     dateOfBirth: "restricted",
+    dateOfBirthSource: "restricted",
     emergencyContact: "restricted",
   });
 
