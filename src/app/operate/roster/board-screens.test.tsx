@@ -523,6 +523,26 @@ describe("select cells never echo the raw value beside the label (item 9)", () =
     expect(screen.getByRole("option", { name: "QB — Quarterback" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "QB" })).not.toBeInTheDocument();
   });
+
+  /**
+   * RVW-186-002: the in-cell editor and the column filter's own popover are
+   * two separate render paths over the same `optionListLabel` — Q-14 asked
+   * for the pairing in "the dropdown", and that covers both. No test opened
+   * the filter popover for a position column, so a plausible future edit at
+   * that one call site (`roster-board.tsx`, the filter `Menu`) could drop the
+   * full name there and nothing would notice; this closes that gap.
+   */
+  it("pairs the code with the full name in a position column's filter popover too (RVW-186-002)", async () => {
+    givenBoard({ rows: [row({ offencePosition: "QB" })] });
+    render(await RosterPage(pageProps()));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Filter Offence" }));
+    });
+
+    expect(await screen.findByRole("menuitem", { name: "QB — Quarterback" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "QB" })).not.toBeInTheDocument();
+  });
 });
 
 // ---------------------------------------------------------------------------
