@@ -344,13 +344,14 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     expect(screen.getByRole("link", { name: "Roster" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Events" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Report" })).toBeVisible();
-    // W5 and LAN-171: the Secretary holds `delivery_administration` (Messaging
-    // schedule reuses it) and, like every seated operator, sees Follow-ups
+    // W5, LAN-171 and LAN-184: the Secretary holds `delivery_administration`
+    // (Messaging schedule reuses it) and `person_record_authority` (People and
+    // Missing data), and, like every seated operator, sees Follow-ups
     // (`capability: null`) — see "LAN-133 — Administration in the shell" below,
-    // which is where that group's own membership is asserted in full. These two
-    // Administration entries are the fourth and fifth links here, not ordinary
-    // destinations of their own.
-    expect(screen.getAllByRole("link")).toHaveLength(5);
+    // which is where that group's own membership is asserted in full. These
+    // four Administration entries are the fourth through seventh links here,
+    // not ordinary destinations of their own.
+    expect(screen.getAllByRole("link")).toHaveLength(7);
     expect(screen.queryByRole("link", { name: /home/i })).toBeNull();
   });
 
@@ -1027,8 +1028,11 @@ describe("LAN-133 — Administration in the shell", () => {
   /** The three seats `REQ-role-management-authority` gives `role_management`. */
   const ROLE_ADMINISTRATORS = ["president", "general_manager", "it_officer"];
 
+  // LAN-184. All three `ROLE_ADMINISTRATORS` also hold `person_record_authority`
+  // (the four offices plus `it_officer`), so they now see People and Missing
+  // data too — two more entries than LAN-171 left this group with.
   it.each(ROLE_ADMINISTRATORS)(
-    "shows Follow-ups, Operators, Messaging schedule and Roles to the %s",
+    "shows Follow-ups, People, Missing data, Operators, Messaging schedule and Roles to the %s",
     async (seat) => {
       givenAccess({ state: "active", operator: actor([seat]) });
 
@@ -1037,6 +1041,14 @@ describe("LAN-133 — Administration in the shell", () => {
       expect(screen.getByRole("link", { name: "Follow-ups" })).toHaveAttribute(
         "href",
         "/operate/admin/follow-ups",
+      );
+      expect(screen.getByRole("link", { name: "People" })).toHaveAttribute(
+        "href",
+        "/operate/people",
+      );
+      expect(screen.getByRole("link", { name: "Missing data" })).toHaveAttribute(
+        "href",
+        "/operate/people/missing",
       );
       expect(screen.getByRole("link", { name: "Operators" })).toHaveAttribute(
         "href",
@@ -1050,7 +1062,7 @@ describe("LAN-133 — Administration in the shell", () => {
         "href",
         "/operate/admin/roles",
       );
-      expect(screen.getAllByRole("link")).toHaveLength(7);
+      expect(screen.getAllByRole("link")).toHaveLength(9);
     },
   );
 
@@ -1065,6 +1077,8 @@ describe("LAN-133 — Administration in the shell", () => {
       "Events",
       "Report",
       "Follow-ups",
+      "People",
+      "Missing data",
       "Operators",
       "Messaging schedule",
       "Roles",
@@ -1083,12 +1097,12 @@ describe("LAN-133 — Administration in the shell", () => {
 
   // LAN-171. The Vice-President and Secretary hold `delivery_administration`
   // but not `role_management` — `REQ-role-management-authority` excludes them
-  // from account and role administration, and that is unchanged. What changes
-  // is that they are no longer excluded from the whole group: they see
-  // Messaging schedule, the entry that capability actually permits, plus
-  // Follow-ups (W5), which every seated operator sees regardless.
+  // from account and role administration, and that is unchanged. LAN-184 adds
+  // that both also hold `person_record_authority` (the four offices), so they
+  // see People and Missing data alongside Messaging schedule and Follow-ups
+  // (W5), which every seated operator sees regardless.
   it.each(["vice_president", "secretary"])(
-    "shows Follow-ups and Messaging schedule to the %s, and nothing role_management-only",
+    "shows Follow-ups, People, Missing data and Messaging schedule to the %s, and nothing role_management-only",
     async (seat) => {
       givenAccess({ state: "active", operator: actor([seat]) });
 
@@ -1098,6 +1112,14 @@ describe("LAN-133 — Administration in the shell", () => {
         "href",
         "/operate/admin/follow-ups",
       );
+      expect(screen.getByRole("link", { name: "People" })).toHaveAttribute(
+        "href",
+        "/operate/people",
+      );
+      expect(screen.getByRole("link", { name: "Missing data" })).toHaveAttribute(
+        "href",
+        "/operate/people/missing",
+      );
       expect(screen.getByRole("link", { name: "Messaging schedule" })).toHaveAttribute(
         "href",
         "/operate/admin/messaging",
@@ -1105,16 +1127,17 @@ describe("LAN-133 — Administration in the shell", () => {
       expect(screen.queryByRole("link", { name: "Operators" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Roles" })).toBeNull();
       expect(container.textContent).toContain("Administration");
-      expect(screen.getAllByRole("link")).toHaveLength(5);
+      expect(screen.getAllByRole("link")).toHaveLength(7);
     },
   );
 
   // The empty string is the operator who holds no seat at all — as legitimate
   // here as it is for the three ordinary destinations (`capability: null`
   // already showed them Roster and Events before this package). The Treasurer
-  // holds neither `role_management` nor `delivery_administration`
-  // (`AGENTS.md`'s no-recorded-decision reasoning), so both are left with only
-  // the one entry `capability: null` gives every seated operator: Follow-ups.
+  // holds neither `role_management`, `delivery_administration` nor
+  // `person_record_authority` (`AGENTS.md`'s no-recorded-decision reasoning),
+  // so both are left with only the one entry `capability: null` gives every
+  // seated operator: Follow-ups.
   it.each(["treasurer", ""])(
     "shows Follow-ups alone, under Administration, to an operator holding '%s'",
     async (seat) => {
@@ -1126,6 +1149,8 @@ describe("LAN-133 — Administration in the shell", () => {
         "href",
         "/operate/admin/follow-ups",
       );
+      expect(screen.queryByRole("link", { name: "People" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Missing data" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Operators" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Messaging schedule" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Roles" })).toBeNull();
