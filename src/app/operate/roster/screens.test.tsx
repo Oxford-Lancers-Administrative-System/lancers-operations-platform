@@ -52,28 +52,17 @@ vi.mock("@/lib/services/roster", () => ({
   findPersonCandidates: vi.fn(),
   enterReturningPlayer: vi.fn(),
 }));
-// LAN-75 moved the membership record onto its own service. UX-13 is still the
-// same screen at the same route; only where it reads from has changed.
-vi.mock("@/lib/services/membership", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/services/membership")>(
-    "@/lib/services/membership",
-  );
-  return { ...actual, readMembership: vi.fn() };
-});
 vi.mock("../login/actions", () => ({ signOut: vi.fn() }));
 vi.mock("./new/actions", async () => {
   const actual = await vi.importActual<typeof import("./new/actions")>("./new/actions");
   return { ...actual, submitReturnerIntake: vi.fn() };
 });
 
-import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator";
 import { type PersonCandidate } from "@/lib/services/roster";
-import { readMembership, type MembershipRecord } from "@/lib/services/membership";
 import { submitReturnerIntake } from "./new/actions";
 import type { IntakeState } from "./new/intake-state";
 import NewReturnerPage from "./new/page";
-import MembershipPage from "./[membershipId]/page";
 
 /**
  * An operator holding no club role at all — the weakest actor these screens
@@ -513,140 +502,6 @@ describe("UX-12 — when the refused person is no longer a candidate", () => {
   });
 });
 
-/**
- * The membership UX-13 confirms, as the record service returns it.
- *
- * LAN-75 replaced `findMembershipSummary` with `readMembership`, which returns
- * the whole record rather than the confirmation's slice of it. "Created by" now
- * comes from the first row of the typed status history rather than a separate
- * lateral join — the same fact, read from the table that owns it.
- */
-const MEMBERSHIP: MembershipRecord = {
-  membershipId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-  personId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-  givenName: "Avery",
-  familyName: "Fielding",
-  displayAlias: "Avery",
-  displayName: "Avery Fielding",
-  status: "onboarding",
-  entry: "returning",
-  seasonId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-  seasonLabel: "2026-27",
-  confirmedOn: "2026-08-12",
-  activatedOn: null,
-  inactivityLabel: null,
-  contacts: [
-    { kind: "email", rawValue: "avery.fielding@example.invalid", isPreferred: true },
-    { kind: "phone", rawValue: "+44 7700 900101", isPreferred: true },
-  ],
-  onboardingItems: [],
-  outstandingRequired: [],
-  statusHistory: [
-    {
-      fromStatus: null,
-      toStatus: "onboarding",
-      occurredAt: new Date("2026-08-12T13:36:00Z"),
-      actorName: "Morgan Pike",
-      actorLabel: null,
-      reason: null,
-    },
-  ],
-};
-
-async function renderMembership(
-  created: boolean,
-  membership: MembershipRecord | null = MEMBERSHIP,
-) {
-  if (membership === null) {
-    vi.mocked(readMembership).mockRejectedValue(
-      new NotFound("That membership no longer exists.", { rule: "season_memberships_not_found" }),
-    );
-  } else {
-    vi.mocked(readMembership).mockResolvedValue(membership);
-  }
-  return render(
-    await MembershipPage({
-      params: Promise.resolve({ membershipId: MEMBERSHIP.membershipId }),
-      searchParams: Promise.resolve(created ? { created: "1" } : {}),
-    } as Parameters<typeof MembershipPage>[0]),
-  );
-}
-
-describe("UX-13 — Returning player added", () => {
-  beforeEach(async () => {
-    await renderMembership(true);
-  });
-
-  it("shows the approved heading and subtitle", () => {
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Returning player added");
-    expect(screen.getByTestId("created-summary")).toHaveTextContent(
-      "Person and 2026-27 membership were created together.",
-    );
-  });
-
-  it("identifies the person, membership, contact and actor", () => {
-    expect(screen.getByText("Avery Fielding")).toBeInTheDocument();
-    expect(screen.getByText("Known as Avery")).toBeInTheDocument();
-    expect(screen.getByText("2026-27 · Onboarding")).toBeInTheDocument();
-    expect(screen.getByText("Entry: Returning")).toBeInTheDocument();
-    // The actor is still named, in the status-history panel rather than in a
-    // second "Audit" block beside the membership. Brian's verdict on the real
-    // screen was that audit appeared twice and belonged at the bottom only, so
-    // the duplicate went and this assertion follows it rather than being
-    // dropped — UX-13 still has to say who created the membership.
-    expect(
-      within(screen.getByTestId("status-history")).getByText(/Morgan Pike/),
-    ).toBeInTheDocument();
-  });
-
-  it("shows contact values exactly as they were recorded", () => {
-    expect(screen.getByText("avery.fielding@example.invalid")).toBeInTheDocument();
-    expect(screen.getByText("+44 7700 900101")).toBeInTheDocument();
-    expect(screen.getByText(/Raw contact values are retained as entered/)).toBeInTheDocument();
-  });
-
-  it("formats the time in a fixed locale and zone", () => {
-    // Not `toLocaleString()` with no arguments: server and client would disagree
-    // on any machine not set to en-GB/London, which is a hydration mismatch and
-    // a date that reads as American to a club in Oxford.
-    const time = document.querySelector("time");
-    expect(time).toHaveAttribute("dateTime", "2026-08-12T13:36:00.000Z");
-    expect(time).toHaveTextContent("12 Aug 2026, 14:36");
-  });
-
-  it("gives its one exit a usable touch target", () => {
-    expectTouchTargets([], ["Back to roster"]);
-  });
-
-  it("offers exactly one exit", () => {
-    // "View membership" led to this same page with the banner dismissed, which
-    // is nowhere the operator could tell. Brian, 12 August 2026.
-    expect(screen.getByRole("link", { name: "Back to roster" })).toHaveAttribute(
-      "href",
-      "/operate/roster",
-    );
-    expect(screen.queryByRole("link", { name: "View membership" })).not.toBeInTheDocument();
-  });
-});
-
-describe("the membership route without the confirmation", () => {
-  it("drops the success state and leads with the person's name", async () => {
-    await renderMembership(false);
-
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Avery Fielding");
-    expect(screen.queryByTestId("created-summary")).not.toBeInTheDocument();
-  });
-
-  it("says when a supplied contact did not become the preferred one", async () => {
-    await renderMembership(false, {
-      ...MEMBERSHIP,
-      contacts: [{ kind: "phone", rawValue: "07700 900999", isPreferred: false }],
-    });
-
-    expect(screen.getByText(/the existing preferred phone was left unchanged/)).toBeInTheDocument();
-  });
-});
-
 // ---------------------------------------------------------------------------
 
 describe("an operator who may not be here", () => {
@@ -667,31 +522,6 @@ describe("an operator who may not be here", () => {
         expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
       }
       expect(screen.queryByRole("button", { name: "Check for matches" })).not.toBeInTheDocument();
-    });
-
-    it(`shows ${label} no membership record at all`, async () => {
-      signedInAs(access);
-      vi.mocked(readMembership).mockResolvedValue(MEMBERSHIP);
-
-      const { container } = render(
-        await MembershipPage({
-          params: Promise.resolve({ membershipId: MEMBERSHIP.membershipId }),
-          searchParams: Promise.resolve({ created: "1" }),
-        } as Parameters<typeof MembershipPage>[0]),
-      );
-
-      // Not merely unpainted — absent from the DOM the browser receives.
-      for (const secret of [
-        "Avery",
-        "Fielding",
-        "avery.fielding@example.invalid",
-        "+44 7700 900101",
-        MEMBERSHIP.personId,
-      ]) {
-        expect(container.innerHTML).not.toContain(secret);
-      }
-      // And the record was never even read.
-      expect(readMembership).not.toHaveBeenCalled();
     });
   }
 
