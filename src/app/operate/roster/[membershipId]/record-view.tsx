@@ -352,7 +352,6 @@ export default function PlayerRecordView({
         <RecordField
           label="Emergency contact"
           value={formatEmergencyContact(person.emergencyContact)}
-          note="Third-party personal data — never a Person row, never reachable by messaging machinery"
         />
         <RecordField
           label="Under 18"
@@ -389,7 +388,7 @@ export default function PlayerRecordView({
         )}
         {record.outstandingRequired.length > 0 ? (
           <Alert severity="info" sx={{ mt: 1 }} data-testid="outstanding-note">
-            {`${record.outstandingRequired.length === 1 ? "One required item is" : `${record.outstandingRequired.length} required items are`} still outstanding. This does not stop the membership's status from being changed.`}
+            {`${record.outstandingRequired.length === 1 ? "One required item is" : `${record.outstandingRequired.length} required items are`} still outstanding.`}
           </Alert>
         ) : null}
       </Section>
@@ -409,7 +408,7 @@ export default function PlayerRecordView({
           onClose={() => setEditing(null)}
           onCommit={(next) => commitSeasonField("status", next)}
           rawValue={record.status}
-          note={closed ? "This season is closed. Nothing here is editable." : undefined}
+          note={closed ? "This season is over. Nothing here changes it." : undefined}
         />
         <RecordField
           label="Entry"
@@ -532,7 +531,6 @@ export default function PlayerRecordView({
           onClose={() => setEditing(null)}
           onCommit={(next) => commitSeasonField("blues", next)}
           rawValue={record.season.blues}
-          note="This season's award — the total across seasons is derived, above"
         />
         <RecordField
           label="Eligibility"
@@ -985,7 +983,7 @@ function FormalwearField({
     owned.length === 0 ? null : owned.map((item) => FORMALWEAR_LABELS[item]).join(", ");
 
   return (
-    <Row label="Formalwear" note="Seasonal — reasked each season, never carried forward">
+    <Row label="Formalwear">
       {editing ? (
         <Select
           size="small"

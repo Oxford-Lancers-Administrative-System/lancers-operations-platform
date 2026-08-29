@@ -61,6 +61,7 @@ import type {
 } from "@/lib/services/player-record";
 import { recordSetStatusAction } from "./record-actions";
 import PlayerRecordPage from "./page";
+import { STATUSES, STATUS_OPTION_LABELS } from "../board-columns";
 
 function operatorAccess(roleCodes: string[]): OperatorAccess {
   return {
@@ -488,11 +489,9 @@ describe("a departed membership", () => {
     expect(within(statusRow).queryByTestId("editable-field")).not.toBeInTheDocument();
   });
 
-  it("names the season as closed", async () => {
+  it("names the season as closed, matching the approved W6-02 mockup copy", async () => {
     render(await PlayerRecordPage(pageProps()));
-    expect(
-      screen.getByText("This season is closed. Nothing here is editable."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("This season is over. Nothing here changes it.")).toBeInTheDocument();
   });
 });
 
@@ -571,4 +570,87 @@ describe("a membership that does not exist", () => {
 
     await expect(PlayerRecordPage(pageProps())).rejects.toThrow("NOT_FOUND");
   });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-187 correction round 2 (review inv-fc59c691-dec, F2) — coverage that
+// existed against the two retired pages (roster/screens.test.tsx,
+// roster/roster-screens.test.tsx) and had no equivalent here once this page
+// replaced them.
+// ---------------------------------------------------------------------------
+
+describe("status-history — hydration-safe time formatting", () => {
+  it("renders the status-history time with its dateTime attribute and a fixed en-GB / Europe/London string", async () => {
+    // Not `toLocaleString()` with no arguments: server and client would
+    // disagree on any machine not set to en-GB/London, which is a hydration
+    // mismatch and a date that reads as American to a club in Oxford. Guards
+    // record-view.tsx's `<time>` element, which reuses presentation.ts's
+    // shared, otherwise-untested `formatWhen`.
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    const time = within(screen.getByTestId("status-history")).getByText("12 Aug 2026, 14:36", {
+      selector: "time",
+    });
+    expect(time).toHaveAttribute("dateTime", "2026-08-12T13:36:00.000Z");
+  });
+});
+
+describe("the single exit off a player's record", () => {
+  it("offers exactly one exit — Back to roster — with a usable touch target and no View membership link", async () => {
+    // A defect Brian identified himself on 12 August 2026: "View membership"
+    // led to this same page with the banner dismissed, which is nowhere the
+    // operator could tell. record-view.tsx:604-607 still ships the single
+    // Back-to-roster button; this is the regression test for that finding.
+    givenRecord();
+    render(await PlayerRecordPage(pageProps()));
+
+    const exit = screen.getByRole("link", { name: "Back to roster" });
+    expect(exit).toHaveAttribute("href", "/operate/roster");
+    expect(exit).toHaveStyle({ minHeight: "44px" });
+    expect(screen.queryByRole("link", { name: "View membership" })).not.toBeInTheDocument();
+  });
+});
+
+describe("the confirmation banner's contact-values disclosure", () => {
+  it("states that raw contact values are retained as entered", async () => {
+    givenRecord();
+    render(await PlayerRecordPage(pageProps({ created: "1" })));
+
+    expect(screen.getByText(/Raw contact values are retained as entered/)).toBeInTheDocument();
+  });
+});
+
+describe("the free status ladder — no confirmation dialog on any transition", () => {
+  // roster-screens.test.tsx's own parametrized table (retired when this page
+  // replaced the old membership record) proved every status offers the same
+  // free select with no confirmation anywhere — Q-12, "we can flip to
+  // whatever status we want to go in." This restores that coverage on the
+  // in-place editor that replaced the old persistent select. Closed seasons
+  // (departed/archived) render no Status editor at all — proved above in "a
+  // departed membership" — so only the three open statuses can start a
+  // transition; `to` covers every value the ladder holds.
+  for (const from of ["onboarding", "active", "inactive"] as const) {
+    for (const to of STATUSES.filter((status) => status !== from)) {
+      it(`moves from ${from} to ${to} with no confirmation dialog anywhere`, async () => {
+        const { fireEvent, act } = await import("@testing-library/react");
+        givenRecord({ status: from });
+        render(await PlayerRecordPage(pageProps()));
+
+        const statusRow = within(screen.getByTestId("section-season"))
+          .getByText("Status")
+          .closest('[data-testid="record-row"]') as HTMLElement;
+        fireEvent.click(within(statusRow).getByTestId("editable-field"));
+        const option = await screen.findByRole("option", { name: STATUS_OPTION_LABELS[to] });
+        await act(async () => fireEvent.click(option));
+
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        expect(screen.queryByText(/\bconfirm\b/i)).not.toBeInTheDocument();
+        expect(recordSetStatusAction).toHaveBeenCalledWith({
+          membershipId: MEMBERSHIP_ID,
+          status: to,
+        });
+      });
+    }
+  }
 });

@@ -1,10 +1,12 @@
 # LAN-187 - One player's record, rebuilt so the person and the season are visibly different things
 
 Status: implemented, as built, including the Attendance band added in this
-package's correction round (`Q15-attendance`, owner question `Q-15`). This is
-the contract the shipped surface was built against, not a plan — see
-`../slice-ux.md` for the shared vocabulary, authorization and responsive rules
-this ticket does not restate.
+package's first correction round (`Q15-attendance`, owner question `Q-15`) and
+the copy/coverage corrections from its second (review `inv-fc59c691-dec`,
+findings F1/F2/F4 — see "Correction round 2" below). This is the contract the
+shipped surface was built against, not a plan — see `../slice-ux.md` for the
+shared vocabulary, authorization and responsive rules this ticket does not
+restate.
 
 > **Synthetic scenario data:** all displayed people, positions, jersey numbers
 > and onboarding states are synthetic and do not correspond to real members.
@@ -177,7 +179,11 @@ header: "Jersey — Blue" / "Jersey — White" (board: "Blue #" / "White #") and
 mockup's own script (`W6-01.js`), used twice independently — once there and
 once in the reference fidelity mockup (`chore/roster-fidelity-mockup`'s
 `player-record.tsx`) — so this page's own copy follows the mockup rather than
-the board's terser header the way a label column reasonably can.
+the board's terser header the way a label column reasonably can. (Checked
+again directly against the W6-01 photograph in the review behind correction
+round 2: this is mockup-conformant, not a departure — an earlier draft of
+this ticket and the PR body carried it as a self-flagged limitation; that
+claim was wrong and is removed.)
 
 ## Attendance — built in this package's correction round (`Q15-attendance`)
 
@@ -234,6 +240,38 @@ implies a `present`, per locked Requirement 7.
 Data access is `readAttendanceHistoryIn()` in `player-record.ts`, a plain read
 alongside the module's other season-scoped reads — no migration, and player
 capacity's own `season_membership_id` anchor gives the season scope for free.
+
+## Correction round 2 (review `inv-fc59c691-dec`, findings F1/F2/F4)
+
+**F1 — `REQ-no-narrative`.** Four secondary caption lines went beyond the
+single sentence the requirement allows an empty/refusal/error state, and none
+appeared in either approved photograph: Emergency contact's third-party-data
+explanation, Formalwear's "reasked each season" note, the onboarding-alert's
+second sentence (the count itself, in the first sentence, is a legitimate
+state and stays), and Half/Full Blue's note pointing at the derived total
+elsewhere. All four are deleted outright. `record-view.tsx:365`'s "Derived
+from date of birth" stays — that is the `REQ-not-recorded` disclosure a
+derived value that cannot be derived is required to give, not narrative.
+
+**F2 — retired coverage.** Three assertions from the two pages this rebuild
+replaced had no equivalent anywhere in the new test tree: hydration-safe
+status-history time formatting, the single-exit guard (a defect Brian
+identified himself on 12 August 2026 — "View membership" led back to this
+same page with the banner dismissed, nowhere the operator could tell), and a
+parametrized no-confirmation-dialog assertion across the free status ladder
+(the surviving suite covered only onboarding→active). A fourth, the
+raw-contact-values Alert text, was also untested. All four now have named
+tests in `[membershipId]/screens.test.tsx`. A fifth retired assertion — an
+existing preferred phone left unchanged — was checked and confirmed to have
+no surviving code path: that disclosure belonged entirely to the old
+`readMembership`-based confirmation screen this package replaced, and nothing
+in `PlayerRecordData` or this page's rendering carries a preferred-contact
+narrative any more. Correctly gone, not restored.
+
+**F4 — copy drift from the binding mockup.** The departed-season caption
+shipped as "This season is closed. Nothing here is editable."; the approved
+W6-02 photograph carries "This season is over. Nothing here changes it." in
+the identical position. Corrected to match verbatim.
 
 ## Explicitly not in this ticket
 
