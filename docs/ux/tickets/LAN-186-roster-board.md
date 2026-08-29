@@ -24,8 +24,8 @@ activation dialog) are unchanged and still that ticket's; this package opens
 
 ## Owned screen and route
 
-| Screen | Route             | Audience                                                                 |
-| ------ | ----------------- | ------------------------------------------------------------------------- |
+| Screen | Route             | Audience                                                               |
+| ------ | ----------------- | ---------------------------------------------------------------------- |
 | W5     | `/operate/roster` | President, Vice-President, Secretary, General Manager, IT Officer only |
 
 `REQ-authority`: "four-role only, for the grid and every column on it." Unlike
@@ -56,7 +56,7 @@ nowhere on this board and cannot.
   current row by effective dating (S4); a same-day correction (opened and
   changed within one calendar day) deletes the same-day row instead of
   superseding it, because `..._period_ordered` requires `effective_to >
-  effective_from` strictly and there is no history in a row that lived zero
+effective_from` strictly and there is no history in a row that lived zero
   calendar days. Position options come from the season's own vocabulary
   (`position_vocabularies`, invariant S3) — never a hardcoded list.
 - **Blue # and White # are pickers** over every number 1-99, taking several
@@ -123,7 +123,7 @@ rendered as text anywhere on this board.
 - Player detail (`/operate/roster/[membershipId]`) — LAN-187's, opened and not
   rebuilt.
 - A season picker or any season lifecycle action — Mission 11's.
-- What a position, jersey number, coach group or availability level *means*
+- What a position, jersey number, coach group or availability level _means_
   on the field — Mission 9's; this ticket gives each a place to live.
 - Saved views — deferred by the approved workflow, not rejected.
 - `is_predominant` jersey selection — player detail's fuller editor.
