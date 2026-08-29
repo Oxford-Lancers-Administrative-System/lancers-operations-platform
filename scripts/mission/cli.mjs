@@ -46,7 +46,10 @@ import {
   contractHash,
 } from "./lib/review-contract.mjs";
 import { provisionReviewRuntime, releaseReviewRuntime } from "./lib/runtime-broker.mjs";
-import { repositoryExecutors } from "./runtime-broker-executors.mjs";
+import {
+  relinquishImplementationPreflight,
+  repositoryExecutors,
+} from "./runtime-broker-executors.mjs";
 import {
   deriveChangedFiles,
   deriveGitVisualFiles,
@@ -793,6 +796,16 @@ async function main() {
         const state = replayState(repoPath, missionId);
         const invocation = state.reviewInvocations[flags.invocation];
         if (!invocation) fail(`No invocation ${flags.invocation}.`);
+        const pkg = invocation.package_id ? state.packages[invocation.package_id] : null;
+        if (!flags.outcome && pkg && pkg.visual !== "nonvisual") {
+          await relinquishImplementationPreflight({
+            repoPath,
+            missionId,
+            packageWorktree: pkg.worktree,
+            packageIssueId: pkg.linear_issue_id,
+            activeImplementationWorkers: state.activeWorkers.length > 0,
+          });
+        }
         const registry = coordinatorStatus(repoPath);
         const stack = implementationRecord(registry, missionId);
         // `--outcome` records a broker run that already happened. It is how a

@@ -18,12 +18,15 @@ import { execFileSync, spawnSync } from "node:child_process";
 import {
   acquireMissionLease,
   coordinatorStatus,
+  detachMissionLease,
   findOwningSessionPid,
   implementationRecord,
   readSession,
   releaseLease,
+  retireMissionLease,
 } from "../lib/local-supabase-coordinator.mjs";
 import { readLocalReviewAccount } from "../lib/local-review-account.mjs";
+import { readEnvironment, writeEnvironment } from "../lib/visual-environment.mjs";
 
 /** Where a brokered runtime's checkout lives: beside the repository, never inside it. */
 export function runtimeWorktree(repoPath, runtimeId) {
@@ -52,6 +55,99 @@ function runIn(cwd, command, args, extraEnv = {}) {
 async function answers(url) {
   const response = await fetch(url, { redirect: "manual" }).catch(() => null);
   return Boolean(response && response.status < 500);
+}
+
+function stopPreflightApplication(worktree, kill = process.kill) {
+  const environment = readEnvironment(worktree);
+  if (!environment) return false;
+  if (Number.isInteger(environment.supervisorPid)) {
+    try {
+      kill(environment.supervisorPid, "SIGTERM");
+    } catch (error) {
+      if (error.code !== "ESRCH") throw error;
+    }
+  }
+  writeEnvironment(worktree, {
+    ...environment,
+    disposition: environment.disposition === "pending" ? "abandoned" : environment.disposition,
+    releasedAt: new Date().toISOString(),
+  });
+  return true;
+}
+
+/**
+ * Give a completed visual package's implementation preflight environment back
+ * before its fresh reviewer runtime is allocated.
+ *
+ * This is deliberately package-review-only orchestration, not a general stale
+ * lease cleanup rule. A dedicated issue stack is released. A shared mission
+ * stack loses this package's attachment and is retired only when no
+ * implementation worker remains.
+ */
+export async function relinquishImplementationPreflight({
+  repoPath,
+  missionId,
+  packageWorktree,
+  packageIssueId,
+  activeImplementationWorkers,
+  env = process.env,
+  stopProject,
+  kill = process.kill,
+}) {
+  const worktree = fs.realpathSync(path.resolve(repoPath, packageWorktree));
+  stopPreflightApplication(worktree, kill);
+
+  let registry = coordinatorStatus(repoPath, env);
+  const dedicated = Object.values(registry.slots).find(
+    (record) =>
+      record.issueId === packageIssueId &&
+      record.repoPath === worktree &&
+      !["released", "stale"].includes(record.state),
+  );
+  if (dedicated) {
+    await releaseLease({
+      repoPath: worktree,
+      token: dedicated.token,
+      slot: dedicated.slot,
+      env,
+      stopProject,
+    });
+  }
+
+  registry = coordinatorStatus(repoPath, env);
+  let shared = implementationRecord(registry, missionId);
+  if (shared?.attachedRepoPaths?.includes(worktree)) {
+    await detachMissionLease({ missionId, repoPath: worktree, env });
+  }
+
+  if (shared && !activeImplementationWorkers) {
+    shared = implementationRecord(coordinatorStatus(repoPath, env), missionId);
+    for (const attached of shared?.attachedRepoPaths ?? []) {
+      if (fs.existsSync(attached)) stopPreflightApplication(attached, kill);
+      await detachMissionLease({ missionId, repoPath: attached, env });
+    }
+    if (shared) {
+      await retireMissionLease({
+        missionId,
+        repoPath: shared.repoPath,
+        env,
+        stopProject,
+      });
+    }
+  }
+
+  const stillHeld = Object.values(coordinatorStatus(repoPath, env).slots).find(
+    (record) =>
+      (record.purpose ?? "implementation") === "implementation" &&
+      !["released", "stale"].includes(record.state) &&
+      (record.repoPath === worktree || record.attachedRepoPaths?.includes(worktree)),
+  );
+  if (stillHeld) {
+    throw new Error(
+      `${packageWorktree} still holds implementation environment ${stillHeld.slot}; reviewer provisioning is refused.`,
+    );
+  }
+  return { detail: `${packageWorktree} relinquished its implementation preflight environment` };
 }
 
 /**

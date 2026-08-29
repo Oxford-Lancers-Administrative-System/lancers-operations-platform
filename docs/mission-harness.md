@@ -162,6 +162,10 @@ integrated walker gets its own runtime at the current `main` head. A review
 runtime cannot be attached to by an implementation worker, so a reviewer's reset
 can never destroy what an implementer is working against.
 
+For a visual package, `review provision` first relinquishes that package's
+temporary implementation preflight environment. Only then does it allocate the
+fresh reviewer runtime that can later be promoted for Brian's walkthrough.
+
 Capacity is refused, never borrowed. When no slot is free the invocation records
 `waiting-for-capacity` and keeps its identity and contract. The infrastructure
 states — `ready`, `waiting-for-capacity`, `provisioning-failed`, `unhealthy`,
