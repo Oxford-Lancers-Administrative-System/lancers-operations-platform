@@ -1,0 +1,950 @@
+import "server-only";
+
+import { ConstraintViolated, NotFound, withTransaction, type Tx } from "@/lib/db";
+import { actorRequirement } from "./actor";
+import { recordAudit } from "./audit";
+import {
+  type EmergencyContact,
+  type PersonContactValue,
+  type PersonRecord,
+  readPersonRecordIn,
+} from "./person-record";
+import { updateEmergencyContactField, updatePersonField } from "./person-write";
+import { personDisplayNameSql } from "./sql-text";
+
+/**
+ * W4 — merge two records for the same human. LAN-185, `REQ-merge`, invariant
+ * I6, and `Q-5` (Brian, checkpoint 2026-08-29 — the exact shape this module
+ * builds):
+ *
+ * > Merge refuses on an active operator seat on the losing record, refuses on
+ * > two memberships in one season, requires a reason, shows exactly what will
+ * > move before it moves, and offers no undo afterwards. The losing row is
+ * > kept, dated and re-pointed at the survivor so a manual repair stays
+ * > possible, and the confirmation says plainly that there is no undo.
+ *
+ * ## Field application reuses the ordinary correction path
+ *
+ * The workflow's own words: "Chosen field values are written onto the
+ * survivor, each one an ordinary audited correction so the change history
+ * reads honestly." `withTransaction` joins a nested call to the *same*
+ * transaction rather than opening a second one (`transaction.ts`'s own
+ * guarantee), so this module calls `person-write.ts`'s
+ * `updatePersonField()`/`updateEmergencyContactField()`/
+ * `supersedeContactPoint()` directly for every field the operator chose to
+ * take from the losing record — they run inside the merge's own transaction,
+ * write the same `person_<field>_updated` / `person_contact_superseded`
+ * audit rows an ordinary edit would, and roll back with everything else if
+ * anything downstream refuses. Nothing here re-implements field validation or
+ * the reason rule a second time.
+ *
+ * ## Which references are re-pointed
+ *
+ * "Mechanical; the set is every foreign key to `people`" (delegated to the
+ * Mission Lead). `PERSON_REFERENCE_COLUMNS` below is that set, minus three
+ * kinds of exception, each named where it is excluded or special-cased:
+ * `people.merged_*_person_id` (the merge event's own columns),
+ * `operator_accounts.person_id` (a login/seat — Mission 1's, and the reason
+ * the active-seat refusal exists at all), and the five tables whose *shape*
+ * the merge changes rather than a plain re-point:  `contact_points`,
+ * `person_aliases`, `person_emergency_contacts`, `recruitment_prospects`, and
+ * `season_memberships` needs no special handling beyond the refusal gate
+ * that makes a blind re-point always safe.
+ * `tests/person-merge-reference-catalogue.test.ts` asks `pg_constraint` for
+ * the real, current list and fails if this module's declared set has drifted
+ * from it — "ask the catalogue, not the migrations."
+ */
+
+// ---------------------------------------------------------------------------
+// The comparable fields — every durable person fact but the contact points,
+// which compare separately because there can be more than one kind.
+// ---------------------------------------------------------------------------
+
+export type MergePersonField =
+  | "given_name"
+  | "family_name"
+  | "college"
+  | "matriculation_year"
+  | "expected_graduation_year"
+  | "degree_field"
+  | "date_of_birth"
+  | "emergency_contact";
+
+export const MERGE_PERSON_FIELD_LABELS: Readonly<Record<MergePersonField, string>> = Object.freeze({
+  given_name: "First name",
+  family_name: "Last name",
+  college: "College",
+  matriculation_year: "Matriculation year",
+  expected_graduation_year: "Expected graduation",
+  degree_field: "Degree field",
+  date_of_birth: "Date of birth",
+  emergency_contact: "Emergency contact",
+});
+
+export type MergeContactKind = "mobile" | "personal_email" | "college_email";
+
+const CONTACT_KIND_SCOPE: Readonly<
+  Record<MergeContactKind, { kind: "email" | "phone"; scope: "personal" | "college" | null }>
+> = Object.freeze({
+  mobile: { kind: "phone", scope: null },
+  personal_email: { kind: "email", scope: "personal" },
+  college_email: { kind: "email", scope: "college" },
+});
+
+export const MERGE_CONTACT_KIND_LABELS: Readonly<Record<MergeContactKind, string>> = Object.freeze({
+  mobile: "Mobile phone",
+  personal_email: "Personal email",
+  college_email: "College email",
+});
+
+export type MergeChoice = "survivor" | "loser";
+
+/** Every field an operator may choose per-side for. Undeclared means "keep the survivor's own value". */
+export type MergeFieldChoices = Partial<Record<MergePersonField, MergeChoice>> &
+  Partial<Record<MergeContactKind, MergeChoice>>;
+
+// ---------------------------------------------------------------------------
+// Eligibility — the two refusals `Q-5` names, read-only
+// ---------------------------------------------------------------------------
+
+export interface MergeRefusal {
+  rule: string;
+  message: string;
+}
+
+async function readMergeSide(
+  tx: Tx,
+  personId: string,
+): Promise<{ record: PersonRecord; createdAt: Date } | null> {
+  const row = await tx.query<{ merged_into_person_id: string | null; created_at: Date }>(
+    `select merged_into_person_id, created_at from public.people where id = $1::uuid`,
+    [personId],
+  );
+  if (!row.rows[0]) return null;
+  if (row.rows[0].merged_into_person_id) return null;
+  return { record: await readPersonRecordIn(tx, personId), createdAt: row.rows[0].created_at };
+}
+
+/**
+ * The two refusals `Q-5` names, checked read-only — used by the preview
+ * screen so a refusal renders without attempting a write, and re-checked
+ * (under a real lock) inside `mergePersons()` itself, because a preview is
+ * never authoritative under a race.
+ */
+async function checkMergeRefusal(
+  tx: Tx,
+  survivorId: string,
+  loserId: string,
+): Promise<MergeRefusal | null> {
+  const seat = await tx.query<{ id: string }>(
+    `select id from public.operator_accounts where person_id = $1::uuid and is_active`,
+    [loserId],
+  );
+  if (seat.rows.length > 0) {
+    return {
+      rule: "person_merge_active_operator_seat",
+      message:
+        "This record holds an active operator seat. End the seat before merging — Mission 1's administration surface.",
+    };
+  }
+
+  const overlap = await tx.query<{ label: string }>(
+    `select s.label
+       from public.season_memberships a
+       join public.season_memberships b
+         on b.season_id = a.season_id and b.person_id = $2::uuid
+       join public.seasons s on s.id = a.season_id
+      where a.person_id = $1::uuid`,
+    [survivorId, loserId],
+  );
+  if (overlap.rows.length > 0) {
+    const labels = overlap.rows.map((r) => r.label).join(", ");
+    return {
+      rule: "person_merge_membership_overlap",
+      message: `Both records hold a membership for ${labels}. Resolve that on the roster before merging.`,
+    };
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Preview — W4-02 through W4-08's comparison and "what will move"
+// ---------------------------------------------------------------------------
+
+export interface MergeFieldComparison {
+  field: MergePersonField;
+  label: string;
+  survivorValue: string | null;
+  loserValue: string | null;
+  differs: boolean;
+}
+
+export interface MergeContactComparison {
+  kind: MergeContactKind;
+  label: string;
+  survivor: { id: string; rawValue: string } | null;
+  loser: { id: string; rawValue: string } | null;
+  differs: boolean;
+}
+
+export interface MergeAliasComparison {
+  survivorAliases: string[];
+  loserAliases: string[];
+}
+
+export interface MergeProspectCombination {
+  seasonId: string;
+  seasonLabel: string;
+  survivorStatus: string;
+  loserStatus: string;
+  combinedStatus: string;
+  combinedCommittedOn: string | null;
+  survivorFirstContact: string | null;
+  loserFirstContact: string | null;
+  combinedFirstContact: string | null;
+}
+
+export interface MergeMovementLine {
+  label: string;
+  count: number;
+}
+
+export interface PersonMergePreview {
+  survivor: { personId: string; displayName: string; statusLabel: string | null; createdAt: Date };
+  loser: { personId: string; displayName: string; statusLabel: string | null; createdAt: Date };
+  refusal: MergeRefusal | null;
+  fields: MergeFieldComparison[];
+  contacts: MergeContactComparison[];
+  aliases: MergeAliasComparison;
+  prospectCombinations: MergeProspectCombination[];
+  willMove: MergeMovementLine[];
+}
+
+function fieldValue(record: PersonRecord, field: MergePersonField): string | null {
+  if (field === "emergency_contact") return emergencyContactLine(record.emergencyContact);
+  const value =
+    record[
+      field === "given_name"
+        ? "givenName"
+        : field === "family_name"
+          ? "familyName"
+          : field === "college"
+            ? "college"
+            : field === "matriculation_year"
+              ? "matriculationYear"
+              : field === "expected_graduation_year"
+                ? "expectedGraduationYear"
+                : field === "degree_field"
+                  ? "degreeField"
+                  : "dateOfBirth"
+    ];
+  return value === null || value === undefined ? null : String(value);
+}
+
+function emergencyContactLine(ec: EmergencyContact | null): string | null {
+  if (!ec) return null;
+  const name = [ec.givenName, ec.familyName].filter(Boolean).join(" ");
+  return ec.relationship ? `${name} · ${ec.relationship}` : name;
+}
+
+function currentPreferred(record: PersonRecord, kind: MergeContactKind): PersonContactValue | null {
+  const { kind: k, scope } = CONTACT_KIND_SCOPE[kind];
+  return (
+    record.contacts.find(
+      (c) => c.kind === k && c.scope === scope && c.validUntil === null && c.isPreferred,
+    ) ?? null
+  );
+}
+
+const PROSPECT_STATUS_RANK: Readonly<Record<string, number>> = Object.freeze({
+  declined: 0,
+  identified: 1,
+  lapsed: 1,
+  engaged: 2,
+  committed: 3,
+  converted: 4,
+});
+
+async function readProspectCombinations(
+  tx: Tx,
+  survivorId: string,
+  loserId: string,
+): Promise<MergeProspectCombination[]> {
+  const result = await tx.query<{
+    season_id: string;
+    season_label: string;
+    survivor_status: string | null;
+    loser_status: string | null;
+    survivor_first_contact: string | null;
+    loser_first_contact: string | null;
+    survivor_committed_on: string | null;
+    loser_committed_on: string | null;
+  }>(
+    `select s.id as season_id, s.label as season_label,
+            a.status::text as survivor_status, b.status::text as loser_status,
+            to_char(a.first_contact_on, 'YYYY-MM-DD') as survivor_first_contact,
+            to_char(b.first_contact_on, 'YYYY-MM-DD') as loser_first_contact,
+            to_char(a.committed_on, 'YYYY-MM-DD') as survivor_committed_on,
+            to_char(b.committed_on, 'YYYY-MM-DD') as loser_committed_on
+       from public.recruitment_prospects a
+       join public.recruitment_prospects b
+         on b.season_id = a.season_id and b.person_id = $2::uuid
+       join public.seasons s on s.id = a.season_id
+      where a.person_id = $1::uuid`,
+    [survivorId, loserId],
+  );
+
+  return result.rows.map((row) => {
+    const survivorRank = PROSPECT_STATUS_RANK[row.survivor_status ?? ""] ?? 0;
+    const loserRank = PROSPECT_STATUS_RANK[row.loser_status ?? ""] ?? 0;
+    const survivorWins = survivorRank >= loserRank;
+    const combinedStatus = survivorWins ? row.survivor_status! : row.loser_status!;
+    // `recruitment_prospects_commitment_is_dated`: `committed`/`converted`
+    // need a `committed_on`. Taken from whichever side's status is winning —
+    // the one side that could actually have set it truthfully.
+    const combinedCommittedOn = survivorWins ? row.survivor_committed_on : row.loser_committed_on;
+    const combinedFirstContact =
+      row.survivor_first_contact && row.loser_first_contact
+        ? row.survivor_first_contact < row.loser_first_contact
+          ? row.survivor_first_contact
+          : row.loser_first_contact
+        : (row.survivor_first_contact ?? row.loser_first_contact);
+    return {
+      seasonId: row.season_id,
+      seasonLabel: row.season_label,
+      survivorStatus: row.survivor_status ?? "identified",
+      loserStatus: row.loser_status ?? "identified",
+      combinedStatus,
+      combinedCommittedOn,
+      survivorFirstContact: row.survivor_first_contact,
+      loserFirstContact: row.loser_first_contact,
+      combinedFirstContact,
+    };
+  });
+}
+
+async function readWillMove(tx: Tx, loserId: string): Promise<MergeMovementLine[]> {
+  const counts = await tx.query<{
+    memberships: string;
+    prospects: string;
+    roles: string;
+    contacts: string;
+    rsvps: string;
+    attendance: string;
+    history: string;
+  }>(
+    `select
+       (select count(*) from public.season_memberships where person_id = $1::uuid) as memberships,
+       (select count(*) from public.recruitment_prospects where person_id = $1::uuid) as prospects,
+       (select count(*) from public.role_assignments where person_id = $1::uuid) as roles,
+       (select count(*) from public.contact_points where person_id = $1::uuid) as contacts,
+       (select count(*) from public.rsvp_responses r
+          join public.invitations i on i.id = r.invitation_id
+         where i.person_id = $1::uuid) as rsvps,
+       (select count(*) from public.attendance_records where person_id = $1::uuid) as attendance,
+       (select count(*) from public.audit_events where entity_table = 'people' and entity_id = $1::uuid) as history
+     `,
+    [loserId],
+  );
+  const row = counts.rows[0];
+  const line = (label: string, value: string): MergeMovementLine | null => {
+    const count = Number(value);
+    return count > 0 ? { label, count } : null;
+  };
+  return [
+    line("season membership", row.memberships),
+    line("prospect record", row.prospects),
+    line("role assignment", row.roles),
+    line("contact point", row.contacts),
+    line("RSVP", row.rsvps),
+    line("attendance record", row.attendance),
+    line("history entry", row.history),
+  ].filter((l): l is MergeMovementLine => l !== null);
+}
+
+async function readSideLabelIn(
+  tx: Tx,
+  personId: string,
+): Promise<{ displayName: string; createdAt: Date }> {
+  const result = await tx.query<{ display_name: string; created_at: Date }>(
+    `select ${personDisplayNameSql("p")} as display_name, p.created_at
+       from public.people p where p.id = $1::uuid`,
+    [personId],
+  );
+  const row = result.rows[0];
+  return { displayName: row?.display_name ?? "Unknown", createdAt: row?.created_at ?? new Date() };
+}
+
+/**
+ * The whole comparison, read-only. `survivorPersonId` and `loserPersonId` are
+ * the operator's current choice of which record survives — `W4-02`'s "Make
+ * this the survivor" swaps which id is passed as which.
+ */
+export async function previewPersonMerge(
+  survivorPersonId: string,
+  loserPersonId: string,
+): Promise<PersonMergePreview> {
+  return withTransaction(async (tx) => {
+    if (survivorPersonId === loserPersonId) {
+      throw new ConstraintViolated("A record cannot be merged with itself.", {
+        rule: "person_merge_same_record",
+      });
+    }
+    const survivorSide = await readMergeSide(tx, survivorPersonId);
+    const loserSide = await readMergeSide(tx, loserPersonId);
+    if (!survivorSide)
+      throw new NotFound("That person is not on record.", { rule: "people_not_found" });
+    if (!loserSide) {
+      throw new ConstraintViolated(
+        "That record has already been merged away, so it cannot be merged again.",
+        { rule: "person_merge_already_away" },
+      );
+    }
+
+    const refusal = await checkMergeRefusal(tx, survivorPersonId, loserPersonId);
+
+    const fields: MergeFieldComparison[] = (
+      Object.keys(MERGE_PERSON_FIELD_LABELS) as MergePersonField[]
+    ).map((field) => {
+      const survivorValue = fieldValue(survivorSide.record, field);
+      const loserValue = fieldValue(loserSide.record, field);
+      return {
+        field,
+        label: MERGE_PERSON_FIELD_LABELS[field],
+        survivorValue,
+        loserValue,
+        differs: survivorValue !== loserValue,
+      };
+    });
+
+    const contacts: MergeContactComparison[] = (
+      Object.keys(MERGE_CONTACT_KIND_LABELS) as MergeContactKind[]
+    ).map((kind) => {
+      const survivor = currentPreferred(survivorSide.record, kind);
+      const loser = currentPreferred(loserSide.record, kind);
+      return {
+        kind,
+        label: MERGE_CONTACT_KIND_LABELS[kind],
+        survivor: survivor ? { id: survivor.id, rawValue: survivor.rawValue } : null,
+        loser: loser ? { id: loser.id, rawValue: loser.rawValue } : null,
+        differs: (survivor?.rawValue ?? null) !== (loser?.rawValue ?? null),
+      };
+    });
+
+    const survivorLabel = await readSideLabelIn(tx, survivorPersonId);
+    const loserLabel = await readSideLabelIn(tx, loserPersonId);
+
+    return {
+      survivor: {
+        personId: survivorPersonId,
+        displayName: survivorLabel.displayName,
+        statusLabel: survivorSide.record.status,
+        createdAt: survivorLabel.createdAt,
+      },
+      loser: {
+        personId: loserPersonId,
+        displayName: loserLabel.displayName,
+        statusLabel: loserSide.record.status,
+        createdAt: loserLabel.createdAt,
+      },
+      refusal,
+      fields,
+      contacts,
+      aliases: {
+        survivorAliases: survivorSide.record.aliases.map((a) => a.alias),
+        loserAliases: loserSide.record.aliases.map((a) => a.alias),
+      },
+      prospectCombinations: refusal
+        ? []
+        : await readProspectCombinations(tx, survivorPersonId, loserPersonId),
+      willMove: refusal ? [] : await readWillMove(tx, loserPersonId),
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// The write — every reference this package knows how to re-point
+// ---------------------------------------------------------------------------
+
+/**
+ * Every foreign key to `public.people` this module blind-re-points:
+ * `UPDATE <table> SET <column> = survivor WHERE <column> = loser`. Safe
+ * unconditionally — none of these columns sits in a unique constraint that
+ * also names another foreign key `mergePersons()` does not already
+ * neutralise first (`season_memberships` by the overlap refusal;
+ * `recruitment_prospects` and `person_emergency_contacts` are re-pointed
+ * separately, above this list, precisely because they are not safe blind).
+ * `tests/person-merge-reference-catalogue.test.ts` proves this against
+ * `pg_constraint` directly.
+ */
+export const PERSON_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: string }> = [
+  { table: "attendance_records", column: "person_id" },
+  { table: "attendance_records", column: "recorded_by_person_id" },
+  { table: "audit_events", column: "actor_person_id" },
+  { table: "availability_statuses", column: "confirmed_by_person_id" },
+  { table: "availability_statuses", column: "reported_by_person_id" },
+  { table: "blues_awards", column: "recorded_by_person_id" },
+  { table: "club_link_tokens", column: "issued_by_person_id" },
+  { table: "coach_group_assignments", column: "recorded_by_person_id" },
+  { table: "coach_group_assignments", column: "responsible_coach_person_id" },
+  { table: "delivery_results", column: "actor_person_id" },
+  { table: "event_audience_members", column: "added_by_person_id" },
+  { table: "event_audience_members", column: "person_id" },
+  { table: "event_messaging_plans", column: "frozen_by_person_id" },
+  { table: "events", column: "approved_by_person_id" },
+  { table: "events", column: "audience_confirmed_by_person_id" },
+  { table: "events", column: "owner_person_id" },
+  { table: "follow_up_actions", column: "owner_person_id" },
+  { table: "follow_up_actions", column: "subject_person_id" },
+  { table: "formalwear_records", column: "recorded_by_person_id" },
+  { table: "invitations", column: "person_id" },
+  { table: "nonresponse_flags", column: "resolved_by_person_id" },
+  { table: "notification_jobs", column: "held_by_person_id" },
+  { table: "notification_jobs", column: "person_id" },
+  { table: "onboarding_items", column: "waived_by_person_id" },
+  { table: "person_access_tokens", column: "issued_by_person_id" },
+  { table: "person_access_tokens", column: "person_id" },
+  { table: "person_emergency_contacts", column: "recorded_by_person_id" },
+  { table: "position_assignments", column: "recorded_by_person_id" },
+  { table: "role_assignments", column: "appointed_by_person_id" },
+  { table: "role_assignments", column: "person_id" },
+  { table: "rsvp_access_tokens", column: "issued_by_person_id" },
+  { table: "rsvp_responses", column: "recorded_by_person_id" },
+  { table: "schedule_changes", column: "approved_by_person_id" },
+  { table: "schedule_changes", column: "recorded_by_person_id" },
+  { table: "season_membership_status_events", column: "actor_person_id" },
+  { table: "season_memberships", column: "person_id" },
+  { table: "seasons", column: "closed_by_person_id" },
+  { table: "seasons", column: "opened_by_person_id" },
+  { table: "staging.legacy_roster_rows", column: "matched_person_id" },
+  { table: "weekly_reports", column: "generated_by_person_id" },
+];
+
+/**
+ * Every foreign key to `public.people` this module deliberately leaves
+ * untouched, and why — read by the catalogue test alongside
+ * `PERSON_REFERENCE_COLUMNS` so the two together account for the whole set.
+ */
+export const PERSON_REFERENCE_COLUMNS_EXCLUDED: ReadonlyArray<{
+  table: string;
+  column: string;
+  reason: string;
+}> = [
+  { table: "people", column: "merged_by_person_id", reason: "describes the merge event itself" },
+  { table: "people", column: "merged_into_person_id", reason: "describes the merge event itself" },
+  {
+    table: "operator_accounts",
+    column: "person_id",
+    reason:
+      "a login/seat — Mission 1's boundary; the active-seat refusal exists so this never needs re-pointing",
+  },
+  {
+    table: "contact_points",
+    column: "person_id",
+    reason: "re-pointed with preference reconciliation",
+  },
+  {
+    table: "person_aliases",
+    column: "person_id",
+    reason: "re-pointed with display-name reconciliation",
+  },
+  {
+    table: "person_emergency_contacts",
+    column: "person_id",
+    reason: "one per person; the chosen side is written onto the survivor's own row instead",
+  },
+  {
+    table: "recruitment_prospects",
+    column: "person_id",
+    reason: "combined per season before re-pointing",
+  },
+];
+
+async function repointAliases(tx: Tx, survivorId: string, loserId: string): Promise<void> {
+  // A loser alias whose text the survivor already carries would collide with
+  // `person_aliases_unique_per_person` — dropped rather than duplicated; the
+  // survivor already has that name form.
+  await tx.query(
+    `delete from public.person_aliases
+      where person_id = $1::uuid
+        and alias in (select alias from public.person_aliases where person_id = $2::uuid)`,
+    [loserId, survivorId],
+  );
+  // Re-pointed aliases are never the display name on the survivor —
+  // "dedupe evidence, never as roster display."
+  await tx.query(
+    `update public.person_aliases set person_id = $2::uuid, is_display_name = false
+      where person_id = $1::uuid`,
+    [loserId, survivorId],
+  );
+}
+
+/**
+ * Every current, preferred contact point of one kind and scope, for either
+ * person — the two candidates a "differs" comparison row ever offers a
+ * choice between.
+ */
+async function currentPreferredIdIn(
+  tx: Tx,
+  personId: string,
+  kind: "email" | "phone",
+  scope: "personal" | "college" | null,
+): Promise<string | null> {
+  const result = await tx.query<{ id: string }>(
+    `select id from public.contact_points
+      where person_id = $1::uuid and kind = $2::public.contact_point_kind
+        and scope is not distinct from $3::public.contact_point_scope
+        and is_preferred and valid_until is null`,
+    [personId, kind, scope],
+  );
+  return result.rows[0]?.id ?? null;
+}
+
+async function demoteContactIn(tx: Tx, contactId: string): Promise<void> {
+  await tx.query(
+    `update public.contact_points set is_preferred = false, valid_until = now()
+      where id = $1::uuid and valid_until is null`,
+    [contactId],
+  );
+}
+
+/**
+ * Re-points every current and historical contact point of both people onto
+ * the survivor, resolving which one stays preferred per kind and scope —
+ * REQ-merge: "contact points from both are kept; one per kind stays
+ * preferred."
+ *
+ * The demotion happens *before* either row is re-pointed, while the two
+ * candidates still carry their own distinct `person_id` — demoting a row in
+ * place never collides with anything, because `contact_points_one_preferred_
+ * per_kind` is scoped per person. Only once at most one candidate is left
+ * `is_preferred` does the blind move of every remaining row follow; doing it
+ * in the other order asks the unique index to hold two preferred rows for
+ * the survivor at once, even for an instant inside one statement.
+ */
+async function repointContacts(
+  tx: Tx,
+  survivorId: string,
+  loserId: string,
+  choices: MergeFieldChoices,
+): Promise<void> {
+  for (const kind of Object.keys(MERGE_CONTACT_KIND_LABELS) as MergeContactKind[]) {
+    const { kind: k, scope } = CONTACT_KIND_SCOPE[kind];
+
+    const survivorPreferredId = await currentPreferredIdIn(tx, survivorId, k, scope);
+    const loserPreferredId = await currentPreferredIdIn(tx, loserId, k, scope);
+
+    const wantsLoser = choices[kind] === "loser" && loserPreferredId !== null;
+    const desiredId = wantsLoser ? loserPreferredId : survivorPreferredId;
+
+    if (survivorPreferredId && survivorPreferredId !== desiredId) {
+      await demoteContactIn(tx, survivorPreferredId);
+    }
+    if (loserPreferredId && loserPreferredId !== desiredId) {
+      await demoteContactIn(tx, loserPreferredId);
+    }
+
+    // Every one of the loser's contact points of this kind moves to the
+    // survivor, retained. At most one row across both sides is still
+    // `is_preferred` for this (kind, scope) at this point, so this can never
+    // collide with the survivor's own remaining row.
+    await tx.query(
+      `update public.contact_points set person_id = $2::uuid
+        where person_id = $1::uuid and kind = $3::public.contact_point_kind
+          and scope is not distinct from $4::public.contact_point_scope`,
+      [loserId, survivorId, k, scope],
+    );
+  }
+}
+
+async function repointProspects(
+  tx: Tx,
+  survivorId: string,
+  loserId: string,
+  combinations: readonly MergeProspectCombination[],
+): Promise<void> {
+  for (const combo of combinations) {
+    // A converted prospect carries `converted_membership_id`, tied to a real
+    // season membership — combining it here would either drop that link or
+    // claim a conversion the survivor's own row never had. Left alone: the
+    // blind re-point below then meets
+    // `recruitment_prospects_one_per_person_per_season` for this one season
+    // and refuses the whole merge cleanly, rather than this module silently
+    // deciding what a conversion record should say.
+    if (combo.combinedStatus === "converted") continue;
+    await tx.query(
+      `update public.recruitment_prospects
+          set status = $3::public.prospect_status,
+              first_contact_on = coalesce($4::date, first_contact_on),
+              committed_on = $5::date
+        where person_id = $1::uuid and season_id = $2::uuid`,
+      [
+        survivorId,
+        combo.seasonId,
+        combo.combinedStatus,
+        combo.combinedFirstContact,
+        combo.combinedCommittedOn,
+      ],
+    );
+    await tx.query(
+      `delete from public.recruitment_prospects where person_id = $1::uuid and season_id = $2::uuid`,
+      [loserId, combo.seasonId],
+    );
+  }
+  // Everything left on the loser has no counterpart on the survivor — a plain
+  // re-point, safe because `recruitment_prospects_one_per_person_per_season`
+  // cannot collide with a season already handled above.
+  await tx.query(
+    `update public.recruitment_prospects set person_id = $2::uuid where person_id = $1::uuid`,
+    [loserId, survivorId],
+  );
+}
+
+async function applyFieldChoices(
+  tx: Tx,
+  actorPersonId: string,
+  survivorId: string,
+  loserId: string,
+  reasonNote: string,
+  choices: MergeFieldChoices,
+  survivorRecord: PersonRecord,
+  loserRecord: PersonRecord,
+): Promise<void> {
+  for (const field of Object.keys(MERGE_PERSON_FIELD_LABELS) as MergePersonField[]) {
+    if (choices[field] !== "loser") continue;
+    const incoming = fieldValue(loserRecord, field);
+    const current = fieldValue(survivorRecord, field);
+    if (incoming === null || incoming === current) continue;
+
+    if (field === "emergency_contact") {
+      const ec = loserRecord.emergencyContact;
+      if (!ec) continue;
+      if (ec.givenName) {
+        await updateEmergencyContactField({
+          actorPersonId,
+          personId: survivorId,
+          field: "given_name",
+          value: ec.givenName,
+          reason: reasonNote,
+        });
+      }
+      if (ec.familyName) {
+        await updateEmergencyContactField({
+          actorPersonId,
+          personId: survivorId,
+          field: "family_name",
+          value: ec.familyName,
+          reason: reasonNote,
+        });
+      }
+      if (ec.relationship) {
+        await updateEmergencyContactField({
+          actorPersonId,
+          personId: survivorId,
+          field: "relationship",
+          value: ec.relationship,
+          reason: reasonNote,
+        });
+      }
+      if (ec.phone) {
+        await updateEmergencyContactField({
+          actorPersonId,
+          personId: survivorId,
+          field: "phone",
+          value: ec.phone,
+          reason: reasonNote,
+        });
+      }
+      if (ec.email) {
+        await updateEmergencyContactField({
+          actorPersonId,
+          personId: survivorId,
+          field: "email",
+          value: ec.email,
+          reason: reasonNote,
+        });
+      }
+      continue;
+    }
+
+    if (field === "given_name") {
+      await updatePersonField({
+        actorPersonId,
+        personId: survivorId,
+        field: "given_name",
+        value: incoming,
+        reason: reasonNote,
+      });
+    } else if (field === "family_name") {
+      await updatePersonField({
+        actorPersonId,
+        personId: survivorId,
+        field: "family_name",
+        value: incoming,
+        reason: reasonNote,
+      });
+    } else if (field === "college") {
+      await updatePersonField({
+        actorPersonId,
+        personId: survivorId,
+        field: "college",
+        value: incoming,
+        reason: reasonNote,
+      });
+    } else if (field === "degree_field") {
+      await updatePersonField({
+        actorPersonId,
+        personId: survivorId,
+        field: "degree_field",
+        value: incoming,
+        reason: reasonNote,
+      });
+    } else if (field === "date_of_birth") {
+      await updatePersonField({
+        actorPersonId,
+        personId: survivorId,
+        field: "date_of_birth",
+        value: incoming,
+        reason: reasonNote,
+      });
+    } else if (field === "matriculation_year") {
+      await updatePersonField({
+        actorPersonId,
+        personId: survivorId,
+        field: "matriculation_year",
+        value: Number(incoming),
+        reason: reasonNote,
+      });
+    } else if (field === "expected_graduation_year") {
+      await updatePersonField({
+        actorPersonId,
+        personId: survivorId,
+        field: "expected_graduation_year",
+        value: Number(incoming),
+        reason: reasonNote,
+      });
+    }
+  }
+  void loserId;
+}
+
+const requireActor = actorRequirement("A merge has to name the operator who performed it.");
+
+export interface MergePersonsResult {
+  survivorPersonId: string;
+  loserPersonId: string;
+}
+
+/**
+ * The merge. One transaction: every reference re-pointed, every chosen field
+ * value written as an ordinary correction, the losing row marked and dated,
+ * and one `person_merged` audit event naming what moved — invariant I6, and
+ * `Q-5` in full.
+ */
+export async function mergePersons(params: {
+  actorPersonId: string;
+  survivorPersonId: string;
+  loserPersonId: string;
+  reason: string;
+  fieldChoices: MergeFieldChoices;
+}): Promise<MergePersonsResult> {
+  const { actorPersonId, survivorPersonId, loserPersonId, fieldChoices } = params;
+  requireActor(actorPersonId);
+  const reason = params.reason.trim();
+  if (reason === "") {
+    throw new ConstraintViolated("A reason is required.", {
+      rule: "person_merge_requires_a_reason",
+    });
+  }
+  if (survivorPersonId === loserPersonId) {
+    throw new ConstraintViolated("A record cannot be merged with itself.", {
+      rule: "person_merge_same_record",
+    });
+  }
+
+  return withTransaction(async (tx) => {
+    // Row locks first, in a fixed order (survivor before loser, by id
+    // otherwise) so two concurrent merges naming the same pair can never
+    // deadlock against each other.
+    const [first, second] =
+      survivorPersonId < loserPersonId
+        ? [survivorPersonId, loserPersonId]
+        : [loserPersonId, survivorPersonId];
+    await tx.query(`select id from public.people where id = $1::uuid for update`, [first]);
+    await tx.query(`select id from public.people where id = $1::uuid for update`, [second]);
+
+    const survivorSide = await readMergeSide(tx, survivorPersonId);
+    const loserSide = await readMergeSide(tx, loserPersonId);
+    if (!survivorSide)
+      throw new NotFound("That person is not on record.", { rule: "people_not_found" });
+    if (!loserSide) {
+      throw new ConstraintViolated(
+        "That record has already been merged away, so it cannot be merged again.",
+        { rule: "person_merge_already_away" },
+      );
+    }
+
+    const refusal = await checkMergeRefusal(tx, survivorPersonId, loserPersonId);
+    if (refusal) throw new ConstraintViolated(refusal.message, { rule: refusal.rule });
+
+    const willMove = await readWillMove(tx, loserPersonId);
+    const combinations = await readProspectCombinations(tx, survivorPersonId, loserPersonId);
+
+    const reasonNote = `From merging "${(await readSideLabelIn(tx, loserPersonId)).displayName}" into this record.`;
+
+    await applyFieldChoices(
+      tx,
+      actorPersonId,
+      survivorPersonId,
+      loserPersonId,
+      reasonNote,
+      fieldChoices,
+      survivorSide.record,
+      loserSide.record,
+    );
+    await repointContacts(tx, survivorPersonId, loserPersonId, fieldChoices);
+    await repointAliases(tx, survivorPersonId, loserPersonId);
+    await repointProspects(tx, survivorPersonId, loserPersonId, combinations);
+
+    for (const { table, column } of PERSON_REFERENCE_COLUMNS) {
+      // `staging.legacy_roster_rows` already names its own schema; every
+      // other entry here is bare and lives in `public`.
+      const qualified = table.includes(".") ? table : `public.${table}`;
+      await tx.query(`update ${qualified} set ${column} = $2::uuid where ${column} = $1::uuid`, [
+        loserPersonId,
+        survivorPersonId,
+      ]);
+    }
+
+    await tx.query(
+      `update public.people
+          set merged_into_person_id = $2::uuid, merged_at = now(),
+              merged_by_person_id = $3::uuid, merge_reason = $4
+        where id = $1::uuid`,
+      [loserPersonId, survivorPersonId, actorPersonId, reason],
+    );
+
+    await recordAudit(tx, {
+      actorPersonId,
+      action: "person_merged",
+      entityTable: "people",
+      entityId: survivorPersonId,
+      fromState: loserPersonId,
+      toState: survivorPersonId,
+      reason,
+      context: {
+        issue: "LAN-185",
+        loser_person_id: loserPersonId,
+        moved: willMove,
+        prospects_combined: combinations.map((c) => ({
+          season_id: c.seasonId,
+          season_label: c.seasonLabel,
+          status: c.combinedStatus,
+        })),
+      },
+    });
+
+    return { survivorPersonId, loserPersonId };
+  });
+}
