@@ -273,6 +273,11 @@ shipped as "This season is closed. Nothing here is editable."; the approved
 W6-02 photograph carries "This season is over. Nothing here changes it." in
 the identical position. Corrected to match verbatim.
 
+This round's branch also carries one fix outside this package's own surface:
+`src/lib/services/messaging-scheduler.test.ts`'s pre-existing, repo-wide
+escalation-sweep flake (diagnosed and directed by Brian, landed here rather
+than its own PR to get both packages merged in the same window).
+
 ## Explicitly not in this ticket
 
 - The roster board itself (`/operate/roster`) — LAN-186's, opened and not
