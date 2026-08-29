@@ -14,6 +14,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     membershipId: "m1",
     personId: "p1",
     displayName: "Avery Fielding",
+    aliases: [],
     status: "active",
     entry: "returning",
     college: null,
@@ -53,9 +54,31 @@ describe("applyBoard — search, filter and sort together", () => {
     row({ membershipId: "3", displayName: "Ari", status: "active", missingCount: 1 }),
   ];
 
-  it("finds a player by a substring of their name (the alias stand-in)", () => {
+  it("finds a player by a substring of their display name", () => {
     const applied = applyBoard(rows, {
       search: "Quinn",
+      filters: {},
+      sort: { key: "displayName", direction: "asc" },
+    });
+    expect(applied.visible.map((r) => r.membershipId)).toEqual(["2"]);
+  });
+
+  /**
+   * LAN186-F1: the board's search has to find a player by an alias that is
+   * **not** their display name — `person_aliases`, the same substrate
+   * `person-record.ts`'s `searchPeople` already reads. "Sam" here is a
+   * substring of the alias only; it appears nowhere in either row's display
+   * name, so a match proves the alias was actually searched rather than the
+   * name coincidentally containing it.
+   */
+  it("finds a player by an alias that is not their display name", () => {
+    const withAliases = [
+      row({ membershipId: "1", displayName: "Bertram Fielding", aliases: [] }),
+      row({ membershipId: "2", displayName: "Samira Quinn", aliases: ["Sammy"] }),
+      row({ membershipId: "3", displayName: "Ari", aliases: [] }),
+    ];
+    const applied = applyBoard(withAliases, {
+      search: "Sammy",
       filters: {},
       sort: { key: "displayName", direction: "asc" },
     });

@@ -13,6 +13,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     membershipId: "m1",
     personId: "p1",
     displayName: "Avery Fielding",
+    aliases: [],
     status: "active",
     entry: "returning",
     college: "Hallamshire",
@@ -66,7 +67,7 @@ describe("visibleColumns / redactRow — the grant-driven mechanism", () => {
     const redacted = redactRow(row(), visible);
 
     expect(Object.keys(redacted).sort()).toEqual(
-      ["displayName", "membershipId", "personId", "phoneForCall"].sort(),
+      ["aliases", "displayName", "membershipId", "personId", "phoneForCall"].sort(),
     );
     // The restricted and season facts are absent, not merely unset.
     expect("status" in redacted).toBe(false);

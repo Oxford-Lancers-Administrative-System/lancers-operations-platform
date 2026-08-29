@@ -174,6 +174,13 @@ export interface RosterBoardRow {
   membershipId: string;
   personId: string;
   displayName: string;
+  /**
+   * Every alias on the person record, `WP-people-read`'s substrate
+   * (`person_aliases`) — including one that is not the display name, so the
+   * board's search can find a player by it. LAN-186's own acceptance:
+   * "Search by an alias and find the player."
+   */
+  aliases: string[];
   status: MembershipStatus;
   entry: string;
 
@@ -284,6 +291,7 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
   return withTransaction(async (tx) => {
     const [
       people,
+      aliasRows,
       emergencyContacts,
       positionRows,
       jerseyRows,
@@ -312,6 +320,10 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
                 ) as has_personal_email
            from public.people people
           where id = any($1::uuid[])`,
+        [personIds],
+      ),
+      tx.query<{ person_id: string; alias: string }>(
+        `select person_id, alias from public.person_aliases where person_id = any($1::uuid[])`,
         [personIds],
       ),
       tx.query<{ person_id: string }>(
@@ -372,6 +384,12 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
 
     const personById = new Map(people.rows.map((row) => [row.id, row]));
     const hasEmergencyContact = new Set(emergencyContacts.rows.map((row) => row.person_id));
+    const aliasesByPerson = new Map<string, string[]>();
+    for (const row of aliasRows.rows) {
+      const list = aliasesByPerson.get(row.person_id) ?? [];
+      list.push(row.alias);
+      aliasesByPerson.set(row.person_id, list);
+    }
 
     const offenceByMembership = new Map<string, string>();
     const defenceByMembership = new Map<string, string>();
@@ -458,6 +476,7 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
         membershipId: entry.membershipId,
         personId: entry.personId,
         displayName: entry.displayName,
+        aliases: aliasesByPerson.get(entry.personId) ?? [],
         status: entry.status,
         entry: entry.entry,
         college: person?.college ?? null,
@@ -680,10 +699,18 @@ export async function commitJerseyNumbers(params: {
         [params.seasonId, params.kit, Number(number)],
       );
       if (holder.rows.some((row) => row.season_membership_id !== params.membershipId)) {
+        // Application-level pre-check, named distinctly from the database's own
+        // `jersey_assignments_unique_within_season_and_kit` exclusion below it
+        // (LAN186-F2): both guard the same rule, but a test asserting on `rule`
+        // has to be able to tell which layer actually refused. Reusing the
+        // constraint's name here made this check and its database backstop
+        // indistinguishable to a caller — disabling this block entirely still
+        // left every test green, because the exclusion constraint threw the
+        // identical `rule` string on the very next statement.
         throw new Conflict(
           `Number ${number} is already held by another player this season. Release it from ` +
             "them before assigning it here.",
-          { rule: "jersey_assignments_unique_within_season_and_kit" },
+          { rule: "roster_board_jersey_number_held_by_another_membership" },
         );
       }
       await tx.query(

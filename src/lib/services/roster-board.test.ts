@@ -105,6 +105,24 @@ afterAll(async () => {
   await closePool();
 });
 
+/**
+ * LAN186-F1: `RosterBoardRow` has to carry alias data at all, read from
+ * `person_aliases` — the same substrate `WP-people-read`'s `searchPeople`
+ * already reads — including an alias that is not the display name.
+ */
+describe("listRosterBoard — aliases, LAN186-F1", () => {
+  it("carries every alias on the person, not only the display name", async () => {
+    await observer.query(
+      `insert into public.person_aliases (person_id, alias) values ($1::uuid, $2), ($1::uuid, $3)`,
+      [personId, "Fixture", "Not The Display Name"],
+    );
+
+    const board = await listRosterBoard();
+    const row = board.rows.find((entry) => entry.membershipId === membershipId);
+    expect(row?.aliases.sort()).toEqual(["Fixture", "Not The Display Name"]);
+  });
+});
+
 describe("readPositionOptions — S3, never hardcoded", () => {
   it("reads the season's own vocabulary, not a fixed list", async () => {
     const options = await readPositionOptions(seasonId);
@@ -353,6 +371,11 @@ describe("commitJerseyNumbers — Q-7/Q-8", () => {
       [contender.rows[0].id, seasonId],
     );
 
+    // LAN186-F2: this has to be the *application*-level rule, not the
+    // database's own `jersey_assignments_unique_within_season_and_kit`
+    // exclusion — see that guard's comment in `roster-board.ts`. Asserting the
+    // shared name here is exactly what let a disabled guard go unnoticed: the
+    // exclusion constraint one statement later threw the identical string.
     await expect(
       commitJerseyNumbers({
         actorPersonId,
@@ -361,7 +384,7 @@ describe("commitJerseyNumbers — Q-7/Q-8", () => {
         kit: "blue",
         numbers: ["17"],
       }),
-    ).rejects.toMatchObject({ rule: "jersey_assignments_unique_within_season_and_kit" });
+    ).rejects.toMatchObject({ rule: "roster_board_jersey_number_held_by_another_membership" });
 
     await observer.query(
       `delete from public.jersey_assignments where season_membership_id = $1::uuid`,

@@ -65,6 +65,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     membershipId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
     personId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     displayName: "Avery Fielding",
+    aliases: [],
     status: "active",
     entry: "returning",
     college: null,

@@ -160,8 +160,10 @@ function matches(row: RosterBoardRow, key: string, wanted: string): boolean {
 
 /** Search is name or alias — the raw contact values it used to search are gone. */
 function searchMatches(row: RosterBoardRow, term: string): boolean {
-  if (term.trim() === "") return true;
-  return row.displayName.toLowerCase().includes(term.trim().toLowerCase());
+  const wanted = term.trim().toLowerCase();
+  if (wanted === "") return true;
+  if (row.displayName.toLowerCase().includes(wanted)) return true;
+  return row.aliases.some((alias) => alias.toLowerCase().includes(wanted));
 }
 
 export interface AppliedBoard {

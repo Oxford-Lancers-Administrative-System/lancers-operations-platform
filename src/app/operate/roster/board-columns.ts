@@ -406,6 +406,11 @@ export function redactRow(
     membershipId: row.membershipId,
     personId: row.personId,
     displayName: row.displayName,
+    // Carried unconditionally alongside `displayName`, never as a column of its
+    // own (LAN186-F1): search has to find a player by an alias regardless of
+    // which columns this viewer's role grants, exactly as it already finds one
+    // by display name — an alias is identity data, not a restricted field.
+    aliases: row.aliases,
     // Carried unconditionally, never as a column: the one functional exception
     // the workflow itself asks for (voice call, phone's condensed-view-only
     // quick action). See the field's own doc comment in `roster-board.ts`.
