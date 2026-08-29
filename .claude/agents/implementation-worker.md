@@ -56,8 +56,9 @@ During iterations run affected tests plus `npm run typecheck`; CI verifies each
 PR and the Lead runs one final full verification on merged `main`. A pass means
 observed success. UI work also runs
 the real-login browser preflight for every required state at desktop and 375px,
-writes the ignored visual evidence, and leaves the protected environment ready
-for Brian without claiming his approval.
+writes the ignored visual evidence, and treats that implementation environment
+as temporary. `mission review provision` relinquishes it before creating the
+fresh exact-head environment used by the reviewer and later by Brian.
 
 Commit with an imperative subject and explanatory body, push, and open or update
 one normal draft PR against `main`. Fill every Production handoff line. Inspect
@@ -104,7 +105,7 @@ Write one `receipt.json` and notify the Lead with only its path:
   "acceptance_criteria": [],
   "verification": "observed commands and results",
   "ci_state": "exact-head result",
-  "visual_state": "not-applicable | preflight-complete-awaiting-brian",
+  "visual_state": "not-applicable | preflight-complete",
   "migration_implications": "none or exact implications",
   "limitations": "omissions and residual risk",
   "result": "completed | blocked | owner-decision-required | failed-recoverably"

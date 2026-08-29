@@ -24,6 +24,8 @@ import {
   renderedConfigFingerprint,
   updateLease,
 } from "../scripts/lib/local-supabase-coordinator.mjs";
+import { readEnvironment, writeEnvironment } from "../scripts/lib/visual-environment.mjs";
+import { relinquishImplementationPreflight } from "../scripts/mission/runtime-broker-executors.mjs";
 
 const temporary: string[] = [];
 type AcquireInput = {
@@ -86,6 +88,113 @@ function fixture() {
 
 afterEach(() => {
   for (const root of temporary.splice(0)) fs.rmSync(root, { recursive: true, force: true });
+});
+
+describe("visual implementation preflight handoff", () => {
+  it("releases a package's dedicated stack before reviewer provisioning", async () => {
+    const { repo, env } = fixture();
+    const worker = path.join(path.dirname(repo), "visual-worker");
+    fs.cpSync(repo, worker, { recursive: true });
+    const lease = await acquireLease({ issueId: "LAN-179", repoPath: worker, pid: 4242, env });
+    writeEnvironment(worker, {
+      environmentId: "env-visual-worker",
+      disposition: "pending",
+      supervisorPid: 91234,
+    });
+    const stopped: string[] = [];
+    const killed: number[] = [];
+
+    await relinquishImplementationPreflight({
+      repoPath: repo,
+      missionId: "M-PREFLIGHT",
+      packageWorktree: worker,
+      packageIssueId: "LAN-179",
+      activeImplementationWorkers: false,
+      env,
+      stopProject: (_repoPath: string, record: { slot: string }) => stopped.push(record.slot),
+      kill: (pid) => {
+        killed.push(pid);
+        return true;
+      },
+    });
+
+    expect(stopped).toEqual([lease.slot]);
+    expect(killed).toEqual([91234]);
+    expect(coordinatorStatus(repo, env).slots[lease.slot].state).toBe("released");
+    expect(readEnvironment(worker)?.disposition).toBe("abandoned");
+  });
+
+  it("retires the shared mission stack after the last implementation worker finishes", async () => {
+    const { repo, env } = fixture();
+    const worker = path.join(path.dirname(repo), "mission-visual-worker");
+    fs.cpSync(repo, worker, { recursive: true });
+    const lease = await acquireMissionLease({
+      missionId: "M-PREFLIGHT",
+      repoPath: repo,
+      baseCommit: "a".repeat(40),
+      migrationHead: 7,
+      pid: 4242,
+      env,
+      portProbe: async () => false,
+    });
+    await attachMissionLease({
+      missionId: "M-PREFLIGHT",
+      repoPath: worker,
+      token: lease.token,
+      env,
+    });
+
+    await relinquishImplementationPreflight({
+      repoPath: repo,
+      missionId: "M-PREFLIGHT",
+      packageWorktree: worker,
+      packageIssueId: "LAN-179",
+      activeImplementationWorkers: false,
+      env,
+      stopProject: () => {},
+      kill: () => true,
+    });
+
+    expect(implementationRecord(coordinatorStatus(repo, env), "M-PREFLIGHT")).toBeNull();
+  });
+
+  it("detaches the finished package without stopping a sibling's shared stack", async () => {
+    const { repo, env } = fixture();
+    const worker = path.join(path.dirname(repo), "finished-visual-worker");
+    fs.cpSync(repo, worker, { recursive: true });
+    const lease = await acquireMissionLease({
+      missionId: "M-PREFLIGHT",
+      repoPath: repo,
+      baseCommit: "a".repeat(40),
+      migrationHead: 7,
+      pid: 4242,
+      env,
+      portProbe: async () => false,
+    });
+    await attachMissionLease({
+      missionId: "M-PREFLIGHT",
+      repoPath: worker,
+      token: lease.token,
+      env,
+    });
+
+    await relinquishImplementationPreflight({
+      repoPath: repo,
+      missionId: "M-PREFLIGHT",
+      packageWorktree: worker,
+      packageIssueId: "LAN-179",
+      activeImplementationWorkers: true,
+      env,
+      stopProject: () => {
+        throw new Error("the shared stack must stay live");
+      },
+      kill: () => true,
+    });
+
+    const shared = implementationRecord(coordinatorStatus(repo, env), "M-PREFLIGHT");
+    expect(shared?.slot).toBe(lease.slot);
+    expect(shared?.attachedRepoPaths).toEqual([fs.realpathSync(repo)]);
+  });
 });
 
 /**
