@@ -18,6 +18,10 @@ import type { Client } from "pg";
 import { closePool } from "@/lib/db";
 import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
 import {
+  addPersonAlias,
+  personVersion,
+  removePersonAlias,
+  setDisplayNamePersonAlias,
   supersedeContactPoint,
   updateEmergencyContactField,
   updatePersonField,
@@ -111,6 +115,11 @@ afterAll(async () => {
   );
   await observer.query(
     `delete from public.audit_events where entity_table = 'person_emergency_contacts' and entity_id = any($1::uuid[])`,
+    [createdPersonIds],
+  );
+  await observer.query(
+    `delete from public.audit_events where entity_table = 'person_aliases'
+       and context ->> 'person_id' = any($1::text[])`,
     [createdPersonIds],
   );
   await observer.query(`delete from public.people where id = any($1::uuid[])`, [createdPersonIds]);
@@ -212,7 +221,7 @@ describe("supersedeContactPoint — replacing an existing value needs a reason",
         personId,
         kind: "email",
         scope: "personal",
-        rawValue: "player@example.com",
+        rawValue: `${unique("player")}@example.com`,
       }),
     ).resolves.toBeDefined();
   });
@@ -269,21 +278,58 @@ describe("supersedeContactPoint — every correct form saves, malformed values a
     });
   });
 
+  it("refuses an email that already belongs to another person — LAN-185, W2-07", async () => {
+    const heldEmail = `${unique("jarrah")}@example.com`;
+    const otherPersonId = await insertPerson();
+    await supersedeContactPoint({
+      actorPersonId,
+      personId: otherPersonId,
+      kind: "email",
+      scope: "personal",
+      rawValue: heldEmail,
+    });
+
+    const personId = await insertPerson();
+    await expect(
+      supersedeContactPoint({
+        actorPersonId,
+        personId,
+        kind: "email",
+        scope: "personal",
+        rawValue: heldEmail,
+      }),
+    ).rejects.toMatchObject({ rule: "person_contact_email_in_use" });
+
+    // A shared phone number is not refused the same way — a household line
+    // is common and not itself a signal of the same person recorded twice.
+    const heldPhone = "07700 900199";
+    await supersedeContactPoint({
+      actorPersonId,
+      personId: otherPersonId,
+      kind: "phone",
+      rawValue: heldPhone,
+    });
+    await expect(
+      supersedeContactPoint({ actorPersonId, personId, kind: "phone", rawValue: heldPhone }),
+    ).resolves.toBeDefined();
+  });
+
   it("keeps college and personal email as two independent preferred values", async () => {
     const personId = await insertPerson();
+    const marker = unique("player");
     await supersedeContactPoint({
       actorPersonId,
       personId,
       kind: "email",
       scope: "college",
-      rawValue: "player@college.ox.ac.uk",
+      rawValue: `${marker}@college.ox.ac.uk`,
     });
     await supersedeContactPoint({
       actorPersonId,
       personId,
       kind: "email",
       scope: "personal",
-      rawValue: "player@example.com",
+      rawValue: `${marker}@example.com`,
     });
 
     const rows = await currentContacts(personId);
@@ -520,5 +566,139 @@ describe("actor requirement", () => {
         rawValue: "07700900123",
       }),
     ).rejects.toMatchObject({ rule: "audit_events_has_an_actor" });
+  });
+});
+
+describe("aliases — add, remove, flag as the display name", () => {
+  it("adds an alias with no reason, flags it as the display name, and the list's name follows it", async () => {
+    const personId = await insertPerson({ givenName: "Hollis" });
+
+    const afterAdd = await addPersonAlias({ actorPersonId, personId, alias: "Holly" });
+    const added = afterAdd.aliases.find((a) => a.alias === "Holly");
+    expect(added).toBeDefined();
+    expect(added!.isDisplayName).toBe(false);
+
+    const afterFlag = await setDisplayNamePersonAlias({
+      actorPersonId,
+      personId,
+      aliasId: added!.id,
+    });
+    expect(afterFlag.displayName).toContain("Holly");
+    expect(afterFlag.aliases.find((a) => a.id === added!.id)?.isDisplayName).toBe(true);
+
+    const audit = await latestAudit("person_aliases", added!.id);
+    expect(audit?.action).toBe("person_alias_display_name_set");
+  });
+
+  it("moving the display flag unflags whichever alias held it before", async () => {
+    const personId = await insertPerson({ givenName: "Hollis" });
+    const holly = await addPersonAlias({ actorPersonId, personId, alias: "Holly" });
+    const hollyId = holly.aliases.find((a) => a.alias === "Holly")!.id;
+    await setDisplayNamePersonAlias({ actorPersonId, personId, aliasId: hollyId });
+
+    const hj = await addPersonAlias({ actorPersonId, personId, alias: "H.J." });
+    const hjId = hj.aliases.find((a) => a.alias === "H.J.")!.id;
+    const after = await setDisplayNamePersonAlias({ actorPersonId, personId, aliasId: hjId });
+
+    expect(after.aliases.find((a) => a.id === hjId)?.isDisplayName).toBe(true);
+    expect(after.aliases.find((a) => a.id === hollyId)?.isDisplayName).toBe(false);
+  });
+
+  it("removes an alias, and keeps the fact of it in the audit trail", async () => {
+    const personId = await insertPerson({ givenName: "Hollis" });
+    const added = await addPersonAlias({ actorPersonId, personId, alias: "Holly" });
+    const aliasId = added.aliases.find((a) => a.alias === "Holly")!.id;
+
+    const after = await removePersonAlias({ actorPersonId, personId, aliasId });
+    expect(after.aliases.find((a) => a.id === aliasId)).toBeUndefined();
+
+    const audit = await latestAudit("person_aliases", aliasId);
+    expect(audit?.action).toBe("person_alias_removed");
+    expect(audit?.from_state).toBe("Holly");
+  });
+
+  it("refuses a second alias with the same text", async () => {
+    const personId = await insertPerson({ givenName: "Hollis" });
+    await addPersonAlias({ actorPersonId, personId, alias: "Holly" });
+    await expect(addPersonAlias({ actorPersonId, personId, alias: "Holly" })).rejects.toMatchObject(
+      { rule: "person_aliases_unique_per_person" },
+    );
+  });
+});
+
+describe("a concurrent edit refuses rather than wins — W2-09", () => {
+  it("refuses a stale expectedVersion, naming what changed and who changed it", async () => {
+    const personId = await insertPerson({ givenName: "Bertram" });
+    const loadedVersion = await personVersion(personId);
+    expect(loadedVersion).toBeNull();
+
+    // Somebody else's save, in between.
+    await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "family_name",
+      value: "Brackenridge",
+    });
+
+    await expect(
+      updatePersonField({
+        actorPersonId,
+        personId,
+        field: "college",
+        value: "Hallamshire",
+        expectedVersion: loadedVersion,
+      }),
+    ).rejects.toMatchObject({ rule: "person_concurrent_edit" });
+
+    // Reloading the version and trying again succeeds.
+    const freshVersion = await personVersion(personId);
+    const record = await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "college",
+      value: "Hallamshire",
+      expectedVersion: freshVersion,
+    });
+    expect(record.college).toBe("Hallamshire");
+  });
+
+  it("does not refuse when no version was ever loaded", async () => {
+    const personId = await insertPerson({ givenName: "Bertram" });
+    const record = await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "family_name",
+      value: "Brackenridge",
+    });
+    expect(record.familyName).toBe("Brackenridge");
+  });
+
+  it("a concurrent contact supersede is refused the same way", async () => {
+    const personId = await insertPerson({ givenName: "Bertram" });
+    await supersedeContactPoint({
+      actorPersonId,
+      personId,
+      kind: "phone",
+      rawValue: "07700 900412",
+    });
+    const staleVersion = await personVersion(personId);
+
+    await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "family_name",
+      value: "Someone Else Saved This",
+    });
+
+    await expect(
+      supersedeContactPoint({
+        actorPersonId,
+        personId,
+        kind: "phone",
+        rawValue: "07700 900988",
+        reason: "New number",
+        expectedVersion: staleVersion,
+      }),
+    ).rejects.toMatchObject({ rule: "person_concurrent_edit" });
   });
 });

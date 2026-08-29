@@ -853,13 +853,39 @@ describe("crossing the escalation threshold", () => {
     const target = await fixture({ escalationOffsetHours: -1 });
     await makePresident(target.personId);
 
+    // `Q-17` (Brian, correction round 2 of a different package — LAN-185's
+    // person-write PR, which surfaced this while proving its own change
+    // clean): one `runMessagingSweep()` call does not guarantee *this* test's
+    // own escalation is among what it dispatches. `readDueJobs` orders
+    // strictly oldest-due-first and caps one tick at `SWEEP_BATCH_LIMIT` —
+    // correct scheduler behaviour — and the seeded database carries its own
+    // ambient backlog of jobs already due, every one of them older than a job
+    // this fixture creates with `scheduled_for = now()`. Nothing scopes that
+    // backlog to this test, so a slow enough run (another process competing
+    // for CPU, more of the backlog crossing due in the meantime) can leave
+    // this fixture's own escalation still queued after a single tick — while
+    // its two sibling tests above never hit this, because they assert against
+    // `notification_jobs` (written by the raise phase, uncapped by this same
+    // limit) rather than against what actually reached the transport.
+    // Sweeping in a bounded loop until this event's own escalation is
+    // dispatched — rather than asserting after exactly one tick — replaces
+    // "assume it happened by now" with "wait for the thing to actually
+    // happen", the same posture idempotence already gives every rerun here:
+    // `raiseDueEscalations`'s insert is `on conflict do nothing` and
+    // `dispatchJob`'s claim is a guarded `update`, so re-sweeping is safe and
+    // changes nothing it has already sent. The bound (40 ticks, 2,000 jobs)
+    // is generous against any backlog this seed plausibly carries; if it is
+    // ever exhausted the assertion below still fails, honestly, rather than
+    // looping forever.
     const { sent, transport } = acceptingTransport();
-    await runMessagingSweep({ source: CONFIGURED, transport });
-
-    const escalation = sent.find((request) => {
-      const template = (request.body.template ?? {}) as { name?: string };
-      return template.name?.includes("escalation");
-    });
+    let escalation: (typeof sent)[number] | undefined;
+    for (let tick = 0; tick < 40 && !escalation; tick += 1) {
+      await runMessagingSweep({ source: CONFIGURED, transport });
+      escalation = sent.find((request) => {
+        const template = (request.body.template ?? {}) as { name?: string };
+        return template.name?.includes("escalation");
+      });
+    }
     expect(escalation, "an escalation should have been sent").toBeDefined();
 
     const parameters = (

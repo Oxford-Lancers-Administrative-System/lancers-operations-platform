@@ -12,6 +12,7 @@ import {
   readPersonRecordIn,
 } from "./person-record";
 import { validateEmailAddress, validatePhoneNumber } from "./person-validation";
+import { personDisplayNameSql } from "./sql-text";
 
 /**
  * The write path for an existing person's record — LAN-183, `REQ-supersede`
@@ -90,6 +91,127 @@ async function lockPersonRow(tx: Tx, personId: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// A concurrent edit refuses rather than wins — LAN-185, W2-09
+//
+// "Nothing about a person is important enough to lose to a race." There is no
+// row version column on `people`, and adding one would be exactly the kind of
+// migration this package does not own. The audit trail is already the
+// person's history and already append-only, so it is also the version: the
+// occurred-at of the most recent audited change to anything this edit surface
+// can write is the snapshot an operator loaded, and it can only move forward.
+// `personVersion()` reads it; the edit form carries it back as a hidden field,
+// and every write below is asked to check it before it changes anything.
+// ---------------------------------------------------------------------------
+
+/** One row from every audit source this edit surface can change, shaped alike. */
+interface LatestChangeRow {
+  occurred_at: Date;
+  action: string;
+  entity_table: string;
+  from_state: string | null;
+  to_state: string | null;
+  actor_display_name: string | null;
+  actor_label: string | null;
+}
+
+const CONCURRENT_FIELD_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  person_given_name_updated: "First name",
+  person_family_name_updated: "Last name",
+  person_college_updated: "College",
+  person_matriculation_year_updated: "Matriculation year",
+  person_expected_graduation_year_updated: "Expected graduation",
+  person_degree_field_updated: "Degree field",
+  person_date_of_birth_updated: "Date of birth",
+  person_contact_superseded: "A contact value",
+  person_contact_recorded: "A contact value",
+  person_alias_added: "Aliases",
+  person_alias_removed: "Aliases",
+  person_alias_display_name_set: "Aliases",
+  person_emergency_contact_recorded: "The emergency contact",
+  person_emergency_contact_field_updated: "The emergency contact",
+});
+
+/**
+ * Every audited change to this person's record, its contact points, its
+ * aliases or its emergency contact, newest first, limited to one row.
+ *
+ * A UNION rather than four separate queries so "the most recent change,
+ * whichever table it landed in" is one comparison rather than four — the same
+ * reason `readPersonHistory()` in `people-directory.ts` will want the same
+ * union one day; this one stays local because its shape (one row, one
+ * comparison) is different from that panel's (every row, paginated).
+ */
+async function latestPersonChangeIn(tx: Tx, personId: string): Promise<LatestChangeRow | null> {
+  const result = await tx.query<LatestChangeRow>(
+    `select occurred_at, action, entity_table, from_state, to_state, actor_label,
+            ${personDisplayNameSql("actor")} as actor_display_name
+       from public.audit_events a
+       left join public.people actor on actor.id = a.actor_person_id
+      where (a.entity_table = 'people' and a.entity_id = $1::uuid)
+         or (a.entity_table = 'person_emergency_contacts' and a.entity_id = $1::uuid)
+         or (a.entity_table in ('contact_points', 'person_aliases')
+             and a.context ->> 'person_id' = $1::text)
+      order by occurred_at desc
+      limit 1`,
+    [personId],
+  );
+  return result.rows[0] ?? null;
+}
+
+/**
+ * The version an edit form loads with, and carries back on save —
+ * `personVersion()`'s ISO string, or `null` when nothing has ever been
+ * audited about this person (a legacy or freshly seeded record).
+ */
+export async function personVersion(personId: string): Promise<string | null> {
+  return withTransaction(async (tx) => personVersionIn(tx, personId));
+}
+
+async function personVersionIn(tx: Tx, personId: string): Promise<string | null> {
+  const latest = await latestPersonChangeIn(tx, personId);
+  return latest ? latest.occurred_at.toISOString() : null;
+}
+
+/**
+ * Refuses with what changed underneath the caller, when `expectedVersion` no
+ * longer matches. `undefined` skips the check entirely — a caller that never
+ * loaded a version (a script, an older test) is not suddenly refused; `null`
+ * is a real, checked claim that nothing had ever been audited yet.
+ */
+async function assertNoConcurrentPersonChange(
+  tx: Tx,
+  personId: string,
+  expectedVersion: string | null | undefined,
+): Promise<void> {
+  if (expectedVersion === undefined) return;
+  const latest = await latestPersonChangeIn(tx, personId);
+  const actual = latest ? latest.occurred_at.toISOString() : null;
+  if (actual === expectedVersion) return;
+
+  const who = latest?.actor_display_name ?? latest?.actor_label ?? "somebody else";
+  const field = latest ? (CONCURRENT_FIELD_LABELS[latest.action] ?? "This record") : "This record";
+  const at = latest
+    ? latest.occurred_at.toLocaleString("en-GB", {
+        day: "numeric",
+        month: "long",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
+  const valueClause =
+    latest?.to_state !== null && latest?.to_state !== undefined
+      ? ` was set to ${latest.to_state}`
+      : " changed";
+
+  throw new ConstraintViolated(
+    `This record changed while you were editing it. ${field}${valueClause} by ${who}` +
+      (at ? ` at ${at}` : "") +
+      `. Your changes were not saved.`,
+    { rule: "person_concurrent_edit" },
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Contact points — supersede, not overwrite
 // ---------------------------------------------------------------------------
 
@@ -104,6 +226,8 @@ export interface SupersedeContactPointParams {
   reason?: string | null;
   /** Who supplied it — `REQ-no-verification-mark`. Free text, e.g. "operator correction". */
   source?: string | null;
+  /** `personVersion()`'s snapshot, from when the edit form loaded. LAN-185, W2-09. */
+  expectedVersion?: string | null;
 }
 
 export interface SupersedeContactPointResult {
@@ -170,6 +294,7 @@ export async function supersedeContactPoint(
 
   return withTransaction(async (tx) => {
     await lockPersonRow(tx, personId);
+    await assertNoConcurrentPersonChange(tx, personId, params.expectedVersion);
 
     const current = await tx.query<{
       id: string;
@@ -202,6 +327,36 @@ export async function supersedeContactPoint(
             : "the email"
         : "the mobile number";
     requireReasonForChange(supersededRow ? supersededRow.raw_value : null, reason, fieldLabel);
+
+    // LAN-185, W2-07: "An email that already belongs to another person" is
+    // refused rather than saved twice. `contact_points` carries no unique
+    // constraint on `raw_value` — Source Data Analysis §11.1's messy real
+    // data would refuse a legitimate import on day one — so this is checked
+    // here, the one write path a duplicate email can arrive through. Phones
+    // are deliberately not checked the same way: a shared household number
+    // is common and not itself a signal of one person recorded twice, the
+    // reading the workflow's own acceptance evidence draws by only ever
+    // showing this refusal for an email.
+    if (kind === "email") {
+      const collision = await tx.query<{ person_id: string; display_name: string }>(
+        `select c.person_id, ${personDisplayNameSql("p")} as display_name
+           from public.contact_points c
+           join public.people p on p.id = c.person_id
+          where c.kind = 'email' and c.valid_until is null
+            and lower(btrim(c.raw_value)) = lower(btrim($1::text))
+            and c.person_id <> $2::uuid
+            and p.merged_into_person_id is null
+          limit 1`,
+        [rawValue, personId],
+      );
+      const other = collision.rows[0];
+      if (other) {
+        throw new ConstraintViolated(
+          `${other.display_name} already holds this email. Two records sharing a contact point is usually one person twice.`,
+          { rule: "person_contact_email_in_use" },
+        );
+      }
+    }
 
     if (supersededRow) {
       // Both columns, in one statement. `contact_points_one_preferred_per_kind`
@@ -308,7 +463,12 @@ function normalisedFieldValue(update: PersonFieldUpdate): string | number | null
  * integrity error.
  */
 export async function updatePersonField(
-  params: { actorPersonId: string; personId: string; reason?: string | null } & PersonFieldUpdate,
+  params: {
+    actorPersonId: string;
+    personId: string;
+    reason?: string | null;
+    expectedVersion?: string | null;
+  } & PersonFieldUpdate,
 ): Promise<PersonRecord> {
   const { actorPersonId, personId, field } = params;
   requireActor(actorPersonId);
@@ -323,6 +483,7 @@ export async function updatePersonField(
 
   return withTransaction(async (tx) => {
     await lockPersonRow(tx, personId);
+    await assertNoConcurrentPersonChange(tx, personId, params.expectedVersion);
 
     const column = PERSON_FIELD_COLUMNS[field];
     // `date_of_birth` is read as text, matching `person-record.ts`'s own
@@ -402,6 +563,7 @@ export async function updateEmergencyContactField(
     actorPersonId: string;
     personId: string;
     reason?: string | null;
+    expectedVersion?: string | null;
   } & EmergencyContactFieldUpdate,
 ): Promise<PersonRecord> {
   const { actorPersonId, personId, field } = params;
@@ -417,6 +579,7 @@ export async function updateEmergencyContactField(
 
   return withTransaction(async (tx) => {
     await lockPersonRow(tx, personId);
+    await assertNoConcurrentPersonChange(tx, personId, params.expectedVersion);
 
     const existing = await tx.query<{
       given_name: string;
@@ -491,6 +654,182 @@ export async function updateEmergencyContactField(
       toState: "recorded",
       reason,
       context: { issue: "LAN-183", field },
+    });
+
+    return readPersonRecordIn(tx, personId);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Aliases — add, remove, flag as the display name. LAN-185
+//
+// `person-record.ts`'s own note: LAN-182 collapsed `people.known_as` into
+// `person_aliases`, where a single row may be flagged `is_display_name`
+// (`person_aliases_one_display_name_per_person`, at most one per person).
+// Every write here needs no reason: aliases are name forms, not the durable
+// facts `REQ-audit`'s reason rule guards, and the workflow names none.
+// ---------------------------------------------------------------------------
+
+/**
+ * Adds one alias. Never a reason, never destructive — a second alias is
+ * additional evidence, not a correction to the first.
+ */
+export async function addPersonAlias(params: {
+  actorPersonId: string;
+  personId: string;
+  alias: string;
+  /** Free text — who supplied it, `REQ-no-verification-mark`'s posture applied to a name form. */
+  source?: string | null;
+  expectedVersion?: string | null;
+}): Promise<PersonRecord> {
+  const { actorPersonId, personId } = params;
+  requireActor(actorPersonId);
+  const alias = params.alias.trim();
+  if (alias === "") {
+    throw new ConstraintViolated("An alias cannot be blank.", {
+      rule: "person_aliases_alias_not_blank",
+    });
+  }
+
+  return withTransaction(async (tx) => {
+    await lockPersonRow(tx, personId);
+    await assertNoConcurrentPersonChange(tx, personId, params.expectedVersion);
+
+    const existing = await tx.query(
+      `select 1 from public.person_aliases where person_id = $1::uuid and alias = $2`,
+      [personId, alias],
+    );
+    if (existing.rows.length > 0) {
+      throw new ConstraintViolated("This person already carries that alias.", {
+        rule: "person_aliases_unique_per_person",
+      });
+    }
+
+    const inserted = await tx.query<{ id: string }>(
+      `insert into public.person_aliases (person_id, alias, source)
+       values ($1::uuid, $2, $3)
+       returning id`,
+      [personId, alias, optional(params.source)],
+    );
+
+    await recordAudit(tx, {
+      actorPersonId,
+      action: "person_alias_added",
+      entityTable: "person_aliases",
+      entityId: inserted.rows[0].id,
+      fromState: null,
+      toState: alias,
+      context: { issue: "LAN-185", person_id: personId },
+    });
+
+    return readPersonRecordIn(tx, personId);
+  });
+}
+
+/**
+ * Removes one alias. Not a delete for the *person* — `given_name`,
+ * `family_name` and every other durable fact are untouched — but it is a
+ * real row delete on `person_aliases`, which carries no soft-hide column of
+ * its own on `main`. The audit row this writes is what "kept as dedupe
+ * evidence" means once the live row is gone: the fact that this person once
+ * carried this name form survives permanently in `audit_events`, readable on
+ * the person's own history, even though `findPersonDuplicates()` — which
+ * matches only current, live rows — can no longer see it. Recorded here
+ * rather than smoothed over: a structural "hidden, not deleted" column is a
+ * migration, and this package does not own one.
+ */
+export async function removePersonAlias(params: {
+  actorPersonId: string;
+  personId: string;
+  aliasId: string;
+  expectedVersion?: string | null;
+}): Promise<PersonRecord> {
+  const { actorPersonId, personId, aliasId } = params;
+  requireActor(actorPersonId);
+
+  return withTransaction(async (tx) => {
+    await lockPersonRow(tx, personId);
+    await assertNoConcurrentPersonChange(tx, personId, params.expectedVersion);
+
+    const existing = await tx.query<{ alias: string }>(
+      `delete from public.person_aliases where id = $1::uuid and person_id = $2::uuid
+       returning alias`,
+      [aliasId, personId],
+    );
+    const row = existing.rows[0];
+    if (!row) {
+      throw new NotFound("That alias is not on this person's record.", {
+        rule: "person_aliases_not_found",
+      });
+    }
+
+    await recordAudit(tx, {
+      actorPersonId,
+      action: "person_alias_removed",
+      entityTable: "person_aliases",
+      entityId: aliasId,
+      fromState: row.alias,
+      toState: null,
+      context: { issue: "LAN-185", person_id: personId },
+    });
+
+    return readPersonRecordIn(tx, personId);
+  });
+}
+
+/**
+ * Flags one alias as the display name, replacing whichever alias held the
+ * flag before — `person_aliases_one_display_name_per_person` permits at most
+ * one. The list's name column follows this immediately, because
+ * `person-record.ts`'s `displayNameOf()` reads it directly.
+ */
+export async function setDisplayNamePersonAlias(params: {
+  actorPersonId: string;
+  personId: string;
+  aliasId: string;
+  expectedVersion?: string | null;
+}): Promise<PersonRecord> {
+  const { actorPersonId, personId, aliasId } = params;
+  requireActor(actorPersonId);
+
+  return withTransaction(async (tx) => {
+    await lockPersonRow(tx, personId);
+    await assertNoConcurrentPersonChange(tx, personId, params.expectedVersion);
+
+    const target = await tx.query<{ alias: string; is_display_name: boolean }>(
+      `select alias, is_display_name from public.person_aliases
+        where id = $1::uuid and person_id = $2::uuid`,
+      [aliasId, personId],
+    );
+    const row = target.rows[0];
+    if (!row) {
+      throw new NotFound("That alias is not on this person's record.", {
+        rule: "person_aliases_not_found",
+      });
+    }
+    if (row.is_display_name) {
+      throw new ConstraintViolated("This alias is already the display name.", {
+        rule: "person_alias_display_name_unchanged",
+      });
+    }
+
+    // Unflag whichever alias held it, then flag this one — in one statement so
+    // the partial unique index is never asked to hold two `true` rows at once.
+    await tx.query(
+      `update public.person_aliases
+          set is_display_name = (id = $1::uuid)
+        where person_id = $2::uuid and (is_display_name or id = $1::uuid)`,
+      [aliasId, personId],
+    );
+
+    await recordAudit(tx, {
+      actorPersonId,
+      action: "person_alias_display_name_set",
+      entityTable: "person_aliases",
+      entityId: aliasId,
+      fromState: null,
+      toState: row.alias,
+      context: { issue: "LAN-185", person_id: personId },
     });
 
     return readPersonRecordIn(tx, personId);
