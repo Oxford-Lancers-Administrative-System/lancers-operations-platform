@@ -1376,6 +1376,86 @@ const notReturning = previousMemberships.filter(
   (m) => !memberships.some((c) => c.person_id === m.person_id),
 );
 
+// --- Recruitment -------------------------------------------------------
+
+// LAN-194 (F1): `personAssembledStatusSql` in `sql-text.ts` derives the
+// `recruit` rung from `recruitment_prospects` for a Person who holds no
+// `season_memberships` row at all — everyone above holds at least one, so
+// without a row here nobody in the seed ever sits on that rung and the W1
+// acceptance bullet "open a recruit and see their standing, without any
+// funnel control" cannot be demonstrated. These two people are new Person
+// records rather than a reuse of anyone above, deliberately: reusing an
+// existing player or leaver would give them a membership row too and put
+// them straight back on a different rung.
+//
+// Two, not one, so the People list rendering the rung is not a single-row
+// special case — and two different `prospect_status` values, so the ladder
+// reads as a funnel rather than one fixed state.
+const recruitOne = {
+  id: uuid(),
+  given_name: "Rosalind",
+  family_name: "Penhaligon",
+  college: collegeName(COLLEGES[24]),
+  matriculation_year: 2026,
+  expected_graduation_year: 2029,
+  degree_field: DEGREE_FIELDS[8],
+  date_of_birth: "2007-08-02",
+  past_member_override: null,
+  merged_into_person_id: null,
+  merged_at: null,
+  merged_by_person_id: null,
+  merge_reason: null,
+  created_at: "2026-10-03T09:00:00Z",
+  updated_at: "2026-10-03T09:00:00Z",
+};
+const recruitTwo = {
+  id: uuid(),
+  given_name: "Tobias",
+  family_name: "Wrenfield",
+  college: null,
+  matriculation_year: null,
+  expected_graduation_year: null,
+  degree_field: null,
+  date_of_birth: null,
+  past_member_override: null,
+  merged_into_person_id: null,
+  merged_at: null,
+  merged_by_person_id: null,
+  merge_reason: null,
+  created_at: "2026-10-17T09:00:00Z",
+  updated_at: "2026-11-05T09:00:00Z",
+};
+people.push(recruitOne, recruitTwo);
+add("people", recruitOne);
+add("people", recruitTwo);
+
+add("recruitment_prospects", {
+  id: uuid(),
+  person_id: recruitOne.id,
+  season_id: seasonCurrent.id,
+  status: "identified",
+  source: "Freshers' fair sign-up sheet",
+  first_contact_on: "2026-10-03",
+  committed_on: null,
+  converted_membership_id: null,
+  notes: null,
+  created_at: "2026-10-03T09:00:00Z",
+  updated_at: "2026-10-03T09:00:00Z",
+});
+add("recruitment_prospects", {
+  id: uuid(),
+  person_id: recruitTwo.id,
+  season_id: seasonCurrent.id,
+  status: "engaged",
+  source: "Taster session, Michaelmas week 3",
+  first_contact_on: "2026-10-17",
+  committed_on: null,
+  converted_membership_id: null,
+  notes: "Came back for a second taster; waiting to hear about subs before committing.",
+  created_at: "2026-10-17T09:00:00Z",
+  updated_at: "2026-11-05T09:00:00Z",
+});
+
 // --- Positions and jerseys -------------------------------------------------
 
 function assignPositions(membership, season, vocab, offenceMix, defenceMix) {
@@ -3700,7 +3780,14 @@ add("audit_events", {
   actor_label: null,
   action: "person_merged",
   entity_table: "people",
-  entity_id: mergedAway.id,
+  // LAN-194 (F3): `person-merge.ts`'s `recordAudit()` call writes the
+  // *surviving* person as `entityId`, because that survivor is who the
+  // `What changed` panel queries by (`people-directory.ts`'s
+  // `readPersonHistory()`, `entity_table = 'people' and entity_id = $1`).
+  // This used to name the losing person instead, so the seeded merge never
+  // appeared on Marlowe Fairhurst's own history — only the one-line banner
+  // did.
+  entity_id: mergedAway.merged_into_person_id,
   from_state: "distinct",
   to_state: "merged",
   reason: mergedAway.merge_reason,
