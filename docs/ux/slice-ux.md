@@ -200,6 +200,51 @@ The table above fixes the club's words. How those words are arranged when a valu
 - Responsive reordering may not remove route context, permission boundary, data needed for the task, material alternate state or recovery action.
 - Visual implementation follows repository MUI/theme guidance; these wireframes are deliberately low fidelity and do not authorize branding polish.
 
+### LAN-195 amendment — 30 August 2026
+
+UX-02's approved phone wireframe draws the operator shell's phone navigation
+as a fixed bottom bar. It stopped being buildable once People & Roster's own
+final workflow walk found the real defect it always had: at a measured 375px
+the bar carries every destination as an equal-flex item, and once the
+navigation grew to nine — Roster, Events, Report, Follow-ups, People, Missing
+data, Operators, Messaging schedule, Roles — each label's slot narrowed to
+roughly 41.6px, well under what "Messaging schedule" or "Missing data" need
+without truncating or overlapping. Six or seven items already crowded it
+before this mission added its own two; nine made it illegible on every phone
+page in the application, including screens this mission never touched.
+
+Brian reviewed a running mockup (`chore/nav-drawer-mockup`, never merged) and
+chose a hamburger button opening a left drawer over patching the bar. This is
+a **deliberate departure from a binding wireframe**, recorded here rather than
+left for the built surface to silently disagree with an approved drawing —
+the wireframe's own bottom bar is no longer the specification for the phone
+shell.
+
+Four choices from that review, each independently reversible and none of them
+a change to what the previous line item described as needing:
+
+- The phone top bar carries **only the hamburger** — no wordmark, no section
+  label. The main content's own "Lancers Operations" heading already carries
+  that.
+- **Three dismiss paths**, deliberately not subtle given the drawer's labels:
+  an explicit close control, a backdrop tap or Escape, and selecting any
+  destination.
+- The drawer is **280px**, wider than the desktop sidebar's 226px — a touch
+  target is not a mouse pointer, and real labels like "Messaging schedule"
+  were cramped at 226.
+- The secondary detail line (used today only by the coach shell's single
+  destination, "This season's sessions") now renders at every width. It was
+  hidden at `xs` only because the retired 48px bottom-bar row had nowhere to
+  put it; the drawer has room. A known, accepted side effect of the redesign,
+  not a separate ask — not to be read as a defect or as scope creep in
+  review.
+
+Structure and copy are what the mockup governs; the application's own MUI/`sx`
+conventions govern styling, exactly as § 7's closing line already says of
+every screen in this document. Implemented in `src/app/operate/shell-nav.tsx`;
+see that file's own doc comment for how it keeps § 3's single-navigation-
+landmark invariant without the mockup's own named hydration-flash risk.
+
 ## 8. Authorization contract
 
 | Capability                | Authorized scope                                                                    |
