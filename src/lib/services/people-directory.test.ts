@@ -511,6 +511,35 @@ describe("merge redirect and history — W1-09, W1-11", () => {
     expect(entry!.reason).toBe("Activated after review");
   });
 
+  it("reads a correction back with the actor's name — LAN-185, W2 acceptance 7", async () => {
+    const { addPersonAlias, supersedeContactPoint } = await import("./person-write");
+    const personId = await insertPerson({ givenName: unique("Correction") });
+    const actorRow = await observer.query<{ given_name: string; family_name: string | null }>(
+      `select given_name, family_name from public.people where id = $1::uuid`,
+      [actorPersonId],
+    );
+    const actorDisplayName = actorRow.rows[0].family_name
+      ? `${actorRow.rows[0].given_name} ${actorRow.rows[0].family_name}`
+      : actorRow.rows[0].given_name;
+
+    await supersedeContactPoint({
+      actorPersonId,
+      personId,
+      kind: "phone",
+      rawValue: "07700 900123",
+    });
+    await addPersonAlias({ actorPersonId, personId, alias: unique("Nickname") });
+
+    const history = await readPersonHistory(personId);
+    const contactEntry = history.find((e) => e.summary === "Person contact recorded");
+    const aliasEntry = history.find((e) => e.summary === "Person alias added");
+
+    expect(contactEntry).toBeDefined();
+    expect(contactEntry!.actorDisplayName).toBe(actorDisplayName);
+    expect(aliasEntry).toBeDefined();
+    expect(aliasEntry!.actorDisplayName).toBe(actorDisplayName);
+  });
+
   it("reads the roles and seasons a person actually holds", async () => {
     const personId = await insertPerson({ givenName: unique("RolesAndSeasons") });
     await insertMembership(personId, seasonId, "active");

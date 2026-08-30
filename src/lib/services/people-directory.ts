@@ -765,6 +765,16 @@ export async function readPersonHistory(personId: string): Promise<PersonHistory
          left join public.people actor on actor.id = a.actor_person_id
         where (a.entity_table = 'people' and a.entity_id = $1::uuid)
            or (a.entity_table = 'season_memberships' and a.entity_id = any($2::uuid[]))
+           -- LAN-185: contact-point supersedes and alias changes are audited
+           -- against their own row's id, with the person carried in context
+           -- rather than as entity_id -- see person-write.ts's
+           -- supersedeContactPoint() and its alias functions. The emergency
+           -- contact's own audit rows already use entity_id = personId
+           -- directly (REQ-restricted-fields: no value ever reaches
+           -- context for that table), so it needs no extra predicate here.
+           or (a.entity_table in ('contact_points', 'person_aliases')
+               and a.context ->> 'person_id' = $1::text)
+           or (a.entity_table = 'person_emergency_contacts' and a.entity_id = $1::uuid)
         order by a.occurred_at desc`,
       [personId, membershipIds],
     );
