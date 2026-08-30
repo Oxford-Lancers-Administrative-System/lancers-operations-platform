@@ -856,23 +856,47 @@ describe("crossing the escalation threshold", () => {
     const { sent, transport } = acceptingTransport();
     // readDueJobs orders strictly oldest-due-first and caps one tick at
     // SWEEP_BATCH_LIMIT; the seeded database carries an ambient backlog of
-    // already-due jobs older than this fixture's own. Under load a single
-    // sweep can finish without ever reaching this test's escalation.
-    // Re-sweeping is safe — raiseDueEscalations inserts on conflict do
-    // nothing, and dispatchJob claims with a guarded update — and the bound
-    // fails honestly rather than looping forever.
-    let escalation: (typeof sent)[number] | undefined;
-    for (let tick = 0; tick < 40 && !escalation; tick += 1) {
-      await runMessagingSweep({ source: CONFIGURED, transport });
-      escalation = sent.find((request) => {
-        const template = (request.body.template ?? {}) as { name?: string };
-        return template.name?.includes("escalation");
-      });
-    }
-    expect(escalation, "an escalation should have been sent").toBeDefined();
+    // already-due jobs older than this fixture's own, so a single ordinary
+    // sweep tick can finish without ever reaching this test's escalation —
+    // and looping `runMessagingSweep()` to wait it out was tried and
+    // reverted. `raiseDueEscalations` inside it is global by design and not
+    // scoped to one event; every tick re-reads the live due-for-escalation
+    // list, and any tick that has crossed into ambient events not yet
+    // flagged raises them too, addressed to this fixture's throwaway
+    // President because the office is shared. Reproduced directly against a
+    // database with ambient backlog: the throwaway President ended up owning
+    // six stuck `notification_jobs`, and `afterEach` failed on a foreign-key
+    // violation deleting the person the ambient rows still pointed at.
+    //
+    // One sweep call still unavoidably raises those ambient flags — that half
+    // of `raiseDueEscalations` cannot be scoped without touching
+    // `messaging-scheduler.ts` itself — but nothing needs looping to *claim*
+    // them: `limit: 0` stops `readDueJobs` from claiming anything on this
+    // call, so this fixture's own flag (and job) exist afterwards but
+    // nothing has been sent, ambient or otherwise.
+    await runMessagingSweep({ source: CONFIGURED, transport, limit: 0 });
+
+    const flag = await observer.query<{ escalation_job_id: string | null }>(
+      `select escalation_job_id from public.nonresponse_flags
+        where invitation_id = $1 and threshold = 'escalation'`,
+      [target.invitationId],
+    );
+    const jobId = flag.rows[0]?.escalation_job_id;
+    expect(jobId, "the sweep should have raised this fixture's own escalation flag").toBeTruthy();
+
+    // Dispatched by this fixture's own job id — the same function the sweep
+    // itself would have called, scoped to the one row this fixture's own
+    // flag names rather than to the shared due queue. `sent` therefore gains
+    // exactly one entry, this fixture's own, found by identity rather than
+    // by a template name that merely contains "escalation" and could as
+    // easily match an ambient one addressed to the same shared office.
+    const outcome = await dispatchEscalationJob(jobId!, { source: CONFIGURED, transport });
+    expect(outcome).toBe("accepted");
+    expect(sent).toHaveLength(1);
+    const escalation = sent[0];
 
     const parameters = (
-      (escalation!.body.template as { components?: { parameters?: { text: string }[] }[] })
+      (escalation.body.template as { components?: { parameters?: { text: string }[] }[] })
         .components ?? []
     ).flatMap((component) => component.parameters ?? []);
     const text = parameters.map((parameter) => parameter.text).join(" ");
@@ -887,6 +911,44 @@ describe("crossing the escalation threshold", () => {
     // And the same property the template suite asserts, applied to what this
     // sweep actually put on the wire rather than to a fixture.
     expect(escalationCarriesNoPersonalData([text])).toBe(true);
+
+    // The half the loop missed: `raiseDueEscalations` above may have raised
+    // ambient flags too, each naming a `notification_jobs` row addressed to
+    // this fixture's throwaway President for an event this suite did not
+    // create. The ordinary MARKER-scoped cleanup in `afterEach` below can
+    // never find those rows — they hang off a real, non-MARKER event — so
+    // they are collateral of holding the office for this one sweep, cleared
+    // here rather than left to dangle on a foreign key deleting the person.
+    // `escalation_job_id` is `on delete restrict`, so the flag's reference is
+    // cleared first; the flag itself is genuine ambient state and is left
+    // exactly as an unheld office would have left it.
+    await observer.query(
+      `update public.nonresponse_flags
+          set escalation_job_id = null
+        where escalation_job_id in (
+          select id from public.notification_jobs
+           where person_id = $1 and event_id is distinct from $2
+        )`,
+      [target.personId, target.eventId],
+    );
+    await observer.query(
+      `delete from public.notification_jobs
+        where person_id = $1 and event_id is distinct from $2`,
+      [target.personId, target.eventId],
+    );
+
+    // Not "the count is N" -- `fixture()` itself already owns four rungs on
+    // this same event (the invitation job and three reminders) besides the
+    // escalation job dispatched above, and asserting a total would just
+    // re-encode however many of those happen to exist. What must be zero
+    // is any row for this person outside this fixture's own event: that is
+    // ambient collateral, and it is exactly what the cleanup above targets.
+    const stray = await observer.query<{ count: string }>(
+      `select count(*) as count from public.notification_jobs
+        where person_id = $1 and event_id is distinct from $2`,
+      [target.personId, target.eventId],
+    );
+    expect(Number(stray.rows[0].count)).toBe(0);
   });
 
   it("fixtureTag never renders a digit, so this suite's own event names can never masquerade as a phone number", () => {
