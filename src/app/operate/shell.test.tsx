@@ -19,7 +19,7 @@
  * disclosed whether or not it is painted.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -158,6 +158,101 @@ function reportProps() {
 /** Text with runs of whitespace collapsed, so wrapping cannot break a match. */
 function flatten(text: string | null): string {
   return (text ?? "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Opens the drawer — LAN-195. `ShellNav` mounts its one `<nav>` unconditionally
+ * but its content starts closed (`visibility: hidden`) everywhere, on purpose:
+ * see `shell-nav.tsx`'s doc comment for why that is deliberately
+ * viewport-independent rather than a `useMediaQuery` read. So a destination
+ * link is not reachable by role until this runs, at every width jsdom can
+ * represent — real desktop width is a CSS override this file cannot observe
+ * (`row 16` explains why), so every assertion below that reaches a link opens
+ * the drawer first, the way the phone width the defect was found at requires.
+ */
+function openNav(): void {
+  fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
+}
+
+/**
+ * Renders the shell for an ordinary Secretary and returns its nav and main
+ * elements. Module-scoped, rather than local to one `describe`, because both
+ * "row 16" (the shell's declared shape) and "row 17" (the drawer's open/closed
+ * state) need it.
+ */
+async function renderShell() {
+  givenAccess({ state: "active", operator: actor(["secretary"]) });
+  const { container } = render(await OperateLayout(layoutProps(<p>destination</p>)));
+  return {
+    nav: container.querySelector("nav")!,
+    main: container.querySelector("main")!,
+  };
+}
+
+/** Every rule Emotion has written into the document, as text. */
+function allStyleText(): string {
+  return Array.from(document.querySelectorAll("style"))
+    .map((tag) => tag.textContent ?? "")
+    .join("\n");
+}
+
+function emotionClassOf(element: Element): string {
+  const found = Array.from(element.classList).find((name) => name.startsWith("css-"));
+  if (!found) throw new Error(`no Emotion class on <${element.tagName.toLowerCase()}>`);
+  return found;
+}
+
+/**
+ * The declarations this element gets at a breakpoint. `minWidth: null` means
+ * the unconditional block. Returns every matching block joined, because
+ * Emotion is free to split one `sx` across several — this file's own
+ * `ShellNav` does exactly that, splitting its `sx` into an array to keep an
+ * explicit `theme.breakpoints.up("md")` override from silently swallowing a
+ * sibling property's ordinary `{ xs, md }` shorthand value (see that
+ * component's own comment on the property).
+ *
+ * **What this helper is, and what it is not.** jsdom applies no layout: it
+ * does not know the viewport is 960px wide, does not evaluate media queries,
+ * and computes no box for anything — confirmed directly against this exact
+ * Emotion output, where `getComputedStyle` never reflects a `@media`-wrapped
+ * declaration regardless of the value inside it, even `min-width:0px`. So this
+ * reads the CSS Emotion actually emitted for the element and asserts the
+ * declarations inside each breakpoint's block. That makes it a regression
+ * guard on the *declared* style — it would have caught the sticky-sidebar
+ * defect this file's own row 16 was built to catch, and will catch it coming
+ * back — and it is **not** proof that the rendered page looks right at that
+ * width. Only a person on a real screen can say that.
+ */
+function declarationsAt(element: Element, minWidth: number | null): string {
+  const css = allStyleText();
+  const cls = emotionClassOf(element);
+  const selector = `\\.${cls}\\{([^}]*)\\}`;
+  const pattern =
+    minWidth === null
+      ? new RegExp(`(?:^|\\n)${selector}`, "g")
+      : new RegExp(`@media \\(min-width:${minWidth}px\\)\\{${selector}`, "g");
+
+  const blocks = [...css.matchAll(pattern)].map((match) => match[1]);
+  if (blocks.length === 0) {
+    throw new Error(
+      `no ${minWidth === null ? "base" : `min-width:${minWidth}px`} rule found for .${cls} — ` +
+        "the test cannot assert anything about a block it did not find",
+    );
+  }
+  return blocks.join(";");
+}
+
+/**
+ * `height:100dvh` as a declaration, never as the tail of `max-height:`. One
+ * trap worth naming, because falling into it would make the whole thing
+ * decorative: `max-height:100dvh` **contains** the substring `height:100dvh`,
+ * and an assertion written with `toContain` would pass against broken code.
+ * Every declaration assertion in this file is anchored to a boundary this way.
+ */
+function declares(declarations: string, property: string, value: string): boolean {
+  return new RegExp(`(^|;)\\s*(-webkit-|-ms-)?${property}:\\s*${value}\\s*(;|$)`).test(
+    declarations,
+  );
 }
 
 /** One event, as the coach's list receives it from the service. */
@@ -340,6 +435,7 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     givenAccess({ state: "active", operator: actor(["secretary"]) });
 
     render(await OperateLayout(layoutProps(<p>destination content</p>)));
+    openNav();
 
     expect(screen.getByRole("link", { name: "Roster" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Events" })).toBeVisible();
@@ -384,6 +480,7 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     givenAccess({ state: "active", operator: actor([]) });
 
     render(await OperateLayout(layoutProps(null)));
+    openNav();
 
     // Navigation visibility is not authorization, in either direction. Four,
     // not three, since W5: Follow-ups is `capability: null` too.
@@ -588,66 +685,16 @@ describe("row 6 — the refusal screen names the requirement, never the reader's
  * code. Every height assertion below is anchored to a declaration boundary.
  */
 describe("row 16 — the shell's declared shape at each breakpoint", () => {
-  /** Every rule Emotion has written into the document, as text. */
-  function allStyleText(): string {
-    return Array.from(document.querySelectorAll("style"))
-      .map((tag) => tag.textContent ?? "")
-      .join("\n");
-  }
-
-  function emotionClassOf(element: Element): string {
-    const found = Array.from(element.classList).find((name) => name.startsWith("css-"));
-    if (!found) throw new Error(`no Emotion class on <${element.tagName.toLowerCase()}>`);
-    return found;
-  }
-
-  /**
-   * The declarations this element gets at a breakpoint. `minWidth: null` means
-   * the unconditional block. Returns every matching block joined, because
-   * Emotion is free to split one `sx` across several.
-   */
-  function declarationsAt(element: Element, minWidth: number | null): string {
-    const css = allStyleText();
-    const cls = emotionClassOf(element);
-    const selector = `\\.${cls}\\{([^}]*)\\}`;
-    const pattern =
-      minWidth === null
-        ? new RegExp(`(?:^|\\n)${selector}`, "g")
-        : new RegExp(`@media \\(min-width:${minWidth}px\\)\\{${selector}`, "g");
-
-    const blocks = [...css.matchAll(pattern)].map((match) => match[1]);
-    if (blocks.length === 0) {
-      throw new Error(
-        `no ${minWidth === null ? "base" : `min-width:${minWidth}px`} rule found for .${cls} — ` +
-          "the test cannot assert anything about a block it did not find",
-      );
-    }
-    return blocks.join(";");
-  }
-
-  /** `height:100dvh` as a declaration, never as the tail of `max-height:`. */
-  function declares(declarations: string, property: string, value: string): boolean {
-    return new RegExp(`(^|;)\\s*(-webkit-|-ms-)?${property}:\\s*${value}\\s*(;|$)`).test(
-      declarations,
-    );
-  }
-
-  async function renderShell() {
-    givenAccess({ state: "active", operator: actor(["secretary"]) });
-    const { container } = render(await OperateLayout(layoutProps(<p>destination</p>)));
-    return {
-      nav: container.querySelector("nav")!,
-      main: container.querySelector("main")!,
-    };
-  }
-
-  it("gives the desktop sidebar a full viewport of height, not a ceiling", async () => {
+  it("gives the sidebar a full viewport of height, not a ceiling — at every width now, not desktop alone", async () => {
     const { nav } = await renderShell();
-    const desktop = declarationsAt(nav, 900);
 
-    // The floor. Without it the panel collapses to its content and the rest of
-    // the column is white — which is the whole of this defect.
-    expect(declares(desktop, "height", "100dvh"), `md declarations were: ${desktop}`).toBe(true);
+    // Unconditional, unlike the breakpoint-only properties below: the LAN-195
+    // drawer at `xs` needs the same full-height, scrollable panel the desktop
+    // sidebar always needed, for the same reason — a long Administration list
+    // on a short phone. `getComputedStyle` sees this directly because it is
+    // declared outside any `@media` block; see `declarationsAt`'s own doc
+    // comment for why that distinction matters to a test running in jsdom.
+    expect(window.getComputedStyle(nav).height).toBe("100dvh");
   });
 
   it("keeps the desktop sidebar sticky at the top, and out of the stretch", async () => {
@@ -658,37 +705,43 @@ describe("row 16 — the shell's declared shape at each breakpoint", () => {
     // stretches its children, and a stretched item fills a container taller
     // than the viewport, leaving sticky nothing to do.
     expect(declares(desktop, "position", "sticky")).toBe(true);
-    expect(declares(desktop, "top", "0")).toBe(true);
     expect(declares(desktop, "align-self", "flex-start")).toBe(true);
     expect(declares(desktop, "width", "226px")).toBe(true);
   });
 
-  it("lets a short desktop viewport scroll the sidebar rather than clip it", async () => {
+  it("lets a short viewport scroll the sidebar rather than clip it — at every width now", async () => {
     const { nav } = await renderShell();
 
-    expect(declares(declarationsAt(nav, 900), "overflow-y", "auto")).toBe(true);
+    expect(window.getComputedStyle(nav).overflowY).toBe("auto");
   });
 
-  it("leaves the phone bottom bar exactly as it was", async () => {
+  it("gives the phone drawer its own position and width — LAN-195, not the retired bottom bar", async () => {
     const { nav } = await renderShell();
     const phone = declarationsAt(nav, 0);
 
     expect(declares(phone, "position", "fixed")).toBe(true);
-    expect(declares(phone, "bottom", "0")).toBe(true);
-    expect(declares(phone, "width", "100%")).toBe(true);
-    // A bottom bar is as tall as its content. A full-height panel at 375px
-    // would be a dark screen with three links on it.
-    expect(declares(phone, "height", "100dvh")).toBe(false);
-    expect(declares(phone, "align-self", "flex-start")).toBe(false);
+    // 280px, deliberately wider than the desktop sidebar's 226px — approved
+    // choice 3: real labels like "Messaging schedule" were cramped at 226.
+    expect(declares(phone, "width", "280px")).toBe(true);
+    // No longer anchored to the bottom edge sized by its own content — the
+    // retired bottom bar's shape, not this drawer's.
+    expect(declares(phone, "bottom", "0")).toBe(false);
+    expect(declares(phone, "width", "100%")).toBe(false);
   });
 
-  it("keeps the phone main column clear of the fixed bottom bar", async () => {
+  it("clears the fixed top bar on a phone, not a bottom bar any more", async () => {
     const { main } = await renderShell();
 
-    // 12 spacing units. If this goes, the last line of every page sits under
-    // the navigation and cannot be scrolled into view.
-    expect(declares(declarationsAt(main, 0), "padding-bottom", "96px")).toBe(true);
-    expect(declares(declarationsAt(main, 900), "padding-bottom", "32px")).toBe(true);
+    // LAN-195 moved the fixed bar from the bottom of the phone screen to the
+    // top (the hamburger), and the clearance moved with it: 56px of bar plus
+    // the ordinary 3-unit (24px) top spacing used everywhere else, 10 spacing
+    // units rather than 3. If this goes, the first line of every page sits
+    // under the bar.
+    expect(declares(declarationsAt(main, 0), "padding-top", "80px")).toBe(true);
+    expect(declares(declarationsAt(main, 900), "padding-top", "32px")).toBe(true);
+    // Nothing is fixed to the bottom any more, so the bottom padding is the
+    // ordinary 3-unit spacing rather than a clearance value.
+    expect(declares(declarationsAt(main, 0), "padding-bottom", "24px")).toBe(true);
   });
 
   it("does not let the main column squeeze the sidebar or overflow sideways", async () => {
@@ -699,6 +752,158 @@ describe("row 16 — the shell's declared shape at each breakpoint", () => {
     // whole layout past the viewport and producing horizontal scrolling.
     expect(declares(base, "min-width", "0")).toBe(true);
     expect(declares(base, "flex-grow", "1")).toBe(true);
+  });
+});
+
+/**
+ * LAN-195 — the drawer's open/closed state, and the invariant the mockup's own
+ * README named as the open technical question it did not resolve: whether the
+ * hydration-flash risk of a `useMediaQuery` branch is acceptable. This
+ * component does not take that risk at all — `open` never reads the viewport,
+ * so the server and the newly-hydrated client always agree on it, and the
+ * desktop/phone split lives entirely in CSS the browser resolves on first
+ * paint. These tests are the evidence.
+ */
+describe("row 17 — the drawer's open/closed state carries no hydration flash and no duplicate landmark", () => {
+  it("closes by default, deterministically — not by reading the viewport", async () => {
+    const { nav } = await renderShell();
+
+    // Unconditional: this is the declaration a browser paints with before any
+    // JavaScript runs, both on the server and on the freshly-hydrated client.
+    // There is nothing here for the two to disagree about.
+    expect(window.getComputedStyle(nav).visibility).toBe("hidden");
+    expect(window.getComputedStyle(nav).transform).toBe("translateX(-100%)");
+  });
+
+  it("opens on request", async () => {
+    const { nav } = await renderShell();
+
+    openNav();
+
+    expect(window.getComputedStyle(nav).visibility).toBe("visible");
+    expect(window.getComputedStyle(nav).transform).toBe("translateX(0)");
+  });
+
+  it("declares a desktop override that wins regardless of `open` — this is the fix, not a JS branch", async () => {
+    // Closed by default, deliberately: the point of this test is that the
+    // *declaration* already says visible/untransformed at `md`, in the same
+    // stylesheet shipped with the server-rendered page — a real browser at
+    // desktop width never needs `open` to become `true` to render correctly,
+    // because ordinary CSS cascade resolves the override before anything is
+    // painted. jsdom cannot evaluate the `@media` condition itself (see
+    // `declarationsAt`'s doc comment), so this reads the declaration text
+    // rather than the applied style, exactly as row 16 already does.
+    const { nav } = await renderShell();
+    const desktop = declarationsAt(nav, 900);
+
+    expect(declares(desktop, "visibility", "visible")).toBe(true);
+    expect(declares(desktop, "transform", "none")).toBe(true);
+  });
+
+  it("keeps exactly one navigation landmark, closed or open — never a hidden second copy", async () => {
+    // `{ hidden: true }` bypasses the accessibility-visibility filter, so this
+    // counts every `<nav>` structurally present, not only the reachable one.
+    // MUI's stock responsive-drawer pattern — a `permanent` Drawer and a
+    // `temporary` Drawer, one hidden by CSS — would fail this test at either
+    // state: it mounts two.
+    await renderShell();
+    expect(screen.getAllByRole("navigation", { hidden: true })).toHaveLength(1);
+
+    openNav();
+    expect(screen.getAllByRole("navigation", { hidden: true })).toHaveLength(1);
+  });
+
+  it("never reads window.matchMedia — the split is CSS, not a client media-query branch", async () => {
+    // The approved mockup's own `useMediaQuery` read is exactly the mechanism
+    // this component does not use. This does not merely show the *result* is
+    // flash-free; it shows the *mechanism* that could cause a flash was never
+    // reached at all. jsdom does not implement `matchMedia`, so this defines
+    // it defensively rather than relying on the call throwing.
+    const spy = vi.fn();
+    const original = window.matchMedia;
+    Object.defineProperty(window, "matchMedia", { value: spy, configurable: true });
+
+    try {
+      givenAccess({ state: "active", operator: actor(["secretary"]) });
+      render(await OperateLayout(layoutProps(null)));
+      openNav();
+
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(window, "matchMedia", { value: original, configurable: true });
+    }
+  });
+
+  it("makes every destination reachable once open, Administration included — the phone-width defect this replaces", async () => {
+    givenAccess({ state: "active", operator: actor(["it_officer"]) });
+    render(await OperateLayout(layoutProps(null)));
+
+    openNav();
+
+    for (const label of [
+      "Roster",
+      "Events",
+      "Report",
+      "Follow-ups",
+      "People",
+      "Missing data",
+      "Operators",
+      "Messaging schedule",
+      "Roles",
+    ]) {
+      expect(screen.getByRole("link", { name: label }), label).toBeVisible();
+    }
+  });
+});
+
+/** LAN-195, approved choice 2 — three dismiss paths, and none of them subtle. */
+describe("row 18 — three ways to dismiss the drawer", () => {
+  async function renderOpenShell() {
+    givenAccess({ state: "active", operator: actor(["secretary"]) });
+    render(await OperateLayout(layoutProps(null)));
+    openNav();
+  }
+
+  it("closes on the explicit close control", async () => {
+    await renderOpenShell();
+    expect(screen.getByRole("link", { name: "Roster" })).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close navigation" }));
+
+    expect(screen.queryByRole("link", { name: "Roster" })).toBeNull();
+  });
+
+  it("closes on a backdrop tap", async () => {
+    await renderOpenShell();
+
+    fireEvent.click(screen.getByTestId("nav-backdrop"));
+
+    expect(screen.queryByRole("link", { name: "Roster" })).toBeNull();
+  });
+
+  it("closes on Escape", async () => {
+    await renderOpenShell();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("link", { name: "Roster" })).toBeNull();
+  });
+
+  it("closes when a destination is selected", async () => {
+    await renderOpenShell();
+
+    fireEvent.click(screen.getByRole("link", { name: "Roster" }));
+
+    expect(screen.queryByRole("link", { name: "Roster" })).toBeNull();
+  });
+
+  it("does not render the backdrop at all while closed", async () => {
+    await renderOpenShell();
+    expect(screen.getByTestId("nav-backdrop")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close navigation" }));
+
+    expect(screen.queryByTestId("nav-backdrop")).toBeNull();
   });
 });
 
@@ -731,6 +936,7 @@ describe("LAN-110 — the coach shell", () => {
     givenAccess({ state: "active", operator: actor(COACH, "Casey North") });
 
     render(await OperateLayout(layoutProps(<p>shell content</p>)));
+    openNav();
 
     expect(screen.getByRole("link", { name: /Attendance/ })).toBeVisible();
     for (const label of ["Roster", "Events", "Report"]) {
@@ -763,6 +969,7 @@ describe("LAN-110 — the coach shell", () => {
     givenAccess({ state: "active", operator: actor(["secretary", "head_coach"]) });
 
     render(await OperateLayout(layoutProps(<p>shell content</p>)));
+    openNav();
 
     for (const label of ["Roster", "Events", "Report"]) {
       expect(screen.getByRole("link", { name: label }), label).toBeVisible();
@@ -1042,6 +1249,7 @@ describe("LAN-133 — Administration in the shell", () => {
       givenAccess({ state: "active", operator: actor([seat]) });
 
       render(await OperateLayout(layoutProps(null)));
+      openNav();
 
       expect(screen.getByRole("link", { name: "Follow-ups" })).toHaveAttribute(
         "href",
@@ -1075,6 +1283,7 @@ describe("LAN-133 — Administration in the shell", () => {
     givenAccess({ state: "active", operator: actor(["it_officer"]) });
 
     const { container } = render(await OperateLayout(layoutProps(null)));
+    openNav();
 
     expect(container.textContent).toContain("Administration");
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
@@ -1112,6 +1321,7 @@ describe("LAN-133 — Administration in the shell", () => {
       givenAccess({ state: "active", operator: actor([seat]) });
 
       const { container } = render(await OperateLayout(layoutProps(null)));
+      openNav();
 
       expect(screen.getByRole("link", { name: "Follow-ups" })).toHaveAttribute(
         "href",
@@ -1149,6 +1359,7 @@ describe("LAN-133 — Administration in the shell", () => {
       givenAccess({ state: "active", operator: actor(seat === "" ? [] : [seat]) });
 
       const { container } = render(await OperateLayout(layoutProps(null)));
+      openNav();
 
       expect(screen.getByRole("link", { name: "Follow-ups" })).toHaveAttribute(
         "href",
@@ -1168,6 +1379,7 @@ describe("LAN-133 — Administration in the shell", () => {
     givenAccess({ state: "active", operator: actor(["head_coach"]) });
 
     const { container } = render(await OperateLayout(layoutProps(null)));
+    openNav();
 
     expect(screen.getAllByRole("link")).toHaveLength(1);
     expect(container.innerHTML).not.toContain("/operate/admin");

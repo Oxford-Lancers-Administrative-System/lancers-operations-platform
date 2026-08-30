@@ -90,9 +90,12 @@ export default async function OperateLayout({ children }: LayoutProps<"/operate"
           flexGrow: 1,
           minWidth: 0,
           px: { xs: 2, md: 4 },
-          py: { xs: 3, md: 4 },
-          // Clears the fixed bottom navigation on a phone.
-          pb: { xs: 12, md: 4 },
+          pb: { xs: 3, md: 4 },
+          // LAN-195. The fixed bar moved from the bottom of the phone screen
+          // to the top (the hamburger), so the clearance moves with it: 56px
+          // of bar plus the ordinary 3-unit (24px) top spacing used everywhere
+          // else, i.e. 10 spacing units rather than 3.
+          pt: { xs: 10, md: 4 },
         }}
       >
         <Stack
