@@ -1,12 +1,13 @@
 # LAN-187 - One player's record, rebuilt so the person and the season are visibly different things
 
 Status: implemented, as built, including the Attendance band added in this
-package's first correction round (`Q15-attendance`, owner question `Q-15`) and
+package's first correction round (`Q15-attendance`, owner question `Q-15`),
 the copy/coverage corrections from its second (review `inv-fc59c691-dec`,
-findings F1/F2/F4 — see "Correction round 2" below). This is the contract the
-shipped surface was built against, not a plan — see `../slice-ux.md` for the
-shared vocabulary, authorization and responsive rules this ticket does not
-restate.
+findings F1/F2/F4 — see "Correction round 2" below), and the three findings
+from Brian's own walkthrough of the built page (owner question `Q-19` — see
+"Correction round 3" below). This is the contract the shipped surface was
+built against, not a plan — see `../slice-ux.md` for the shared vocabulary,
+authorization and responsive rules this ticket does not restate.
 
 > **Synthetic scenario data:** all displayed people, positions, jersey numbers
 > and onboarding states are synthetic and do not correspond to real members.
@@ -204,10 +205,13 @@ and a traffic-light hue would read as a verdict on the number.
 
 **Rows** — every event this membership had an invitation **sent** for
 (`public.invitations.status <> 'pending'`), this season only. An audience
-member with no invitation is not a row.
+member with no invitation is not a row. The table's own default (W1, below)
+narrows what is _shown_, never what is read: every sent invitation is still
+one row, one filter selection away.
 
 **Columns, all sortable by clicking the header** — Event · Date · Mandatory ·
-RSVP · Attendance. Default sort is date, most recent first.
+RSVP · Attendance · **Event status** (W1). Default sort is date, most recent
+first.
 
 **One score** — mandatory events only, attended ÷ mandatory events carrying a
 recorded attendance, shown with the raw counts. `present` and `late` count as
@@ -216,15 +220,19 @@ attended (`isShowedPresence()`, `attendance-vocabulary.ts`, unmodified);
 record — anything upcoming, and cancelled invitations — appear in the table
 and are excluded from the score for the same reason: the score reads
 attendance, not the calendar or the invitation status, so neither needs a
-special case.
+special case. A third figure (W2) states how many **occurred** mandatory
+events among those hold no attendance record at all — see "Correction round 3"
+below.
 
-**Three filters** — Mandatory, RSVP, Attendance — restyled from the board's
-own funnel-in-a-bordered-button and "Filtered by … · Clear all" chip row
-(`attendance-section.tsx` reimplements the small presentational pieces rather
-than importing them from `roster-board.tsx`, which this package does not
-edit). Filters combine; there is a plain way back to unfiltered. **The score
-follows the filter**, recomputing against the filtered set, with a `Filtered`
-chip marking that it is describing a subset rather than the season.
+**Four filters** — Mandatory, RSVP, Attendance, **Event status** (W1) —
+restyled from the board's own funnel-in-a-bordered-button and "Filtered by …
+· Clear all" chip row (`attendance-section.tsx` reimplements the small
+presentational pieces rather than importing them from `roster-board.tsx`,
+which this package does not edit). Filters combine; there is a plain way back
+to unfiltered — **Clear all** removes every filter, including Event status'
+own default. **The score follows the filter**, recomputing against the
+filtered set, with a `Filtered` chip marking that it is describing a subset
+rather than the season.
 
 **At 375px** each event stacks as a labelled block, not a sideways scroll,
 with the filters as compact labelled selects above the sort control.
@@ -277,6 +285,66 @@ This round's branch also carries one fix outside this package's own surface:
 `src/lib/services/messaging-scheduler.test.ts`'s pre-existing, repo-wide
 escalation-sweep flake (diagnosed and directed by Brian, landed here rather
 than its own PR to get both packages merged in the same window).
+
+## Correction round 3 (Brian's walkthrough, owner question `Q-19`)
+
+Three findings from Brian walking the built page, none disputing anything
+approved — the score rule, the mandatory-only denominator, the five original
+columns and their sorting, the three original filters — all unchanged.
+
+**W1 — the score's own table looked like it contradicted the score.** Brian:
+_"It says 7 out of 7 mandatory, 100%, but there are way more events here than
+what is said in this column."_ Correct: the table lists every event with a
+sent invitation, including ones that have not happened yet, and the score only
+ever counted occurred, recorded ones. Fixed two ways, together:
+
+- An **Event status** column, appended after Attendance rather than inserted
+  earlier, so the five original columns keep their own order. Its value —
+  `Upcoming` / `Occurred` / `Cancelled` — is `derivedEventState()`
+  (`event-input.ts`, D30), the identical derivation `/operate/events`'s own
+  Status column and filter already use (Q-6). Nothing new is stored, no
+  migration: `readAttendanceHistoryIn()` in `player-record.ts` now also reads
+  the event's own `status`, and derives the word once, server-side, against
+  `todayInClubZone()`.
+- The table now **defaults to `Occurred`** — a fourth filter, on by default,
+  restyled the same way the other three are. `Clear all` removes it exactly
+  like any other filter, and it shows in the "Filtered by …" chip row the
+  same way, so the default is visible and reversible rather than a silent
+  narrowing.
+
+**W2 — occurred-but-unrecorded events still looked uncounted.** Filtering to
+`Occurred` alone does not fully answer W1: some past events also carry no
+attendance record (the club never took a register), and without saying so the
+operator would see occurred rows above a score that still looked short. The
+score line now reads:
+
+> **7 of 7 mandatory · 100% · 8 attendants not recorded**
+
+The third figure — `countUnrecordedOccurredMandatory()` in
+`attendance-section.tsx` — counts occurred mandatory events in the filtered
+set with no attendance record: neither attended nor missed, so it says so
+(`REQ-not-recorded`) rather than being silently absorbed into the score or
+omitted. Pluralises ("1 attendant" / "N attendants") and is **absent, not
+zero**, when nothing occurred is unrecorded — a "0 attendants not recorded"
+clause would be noise on the common case. This is the Lead's call rather than
+Brian's own, made explicit as such and built as a small, separately named
+function so a later reversal to a miss-counting denominator is a one-line
+change. No new caption: the figure lives inside the same score line's
+existing label/value register, per `REQ-no-narrative`.
+
+**W3 — the outstanding onboarding item was unfindable.** Brian: _"I had to
+search through the list, and I couldn't easily see which one of these items
+was the one that was there."_ The onboarding alert's count sentence
+(F1's surviving legitimate state, above) now names the item(s) as a value
+appended to the same sentence, never a second explanatory one — "One required
+item is still outstanding: Subscription invoiced." and, with more than one,
+"2 required items are still outstanding: Subscription invoiced, Kit sorted."
+The count stays. **No new visual treatment in the item list itself:** the
+approved W6-01/W6-02 photographs show no scenario with an outstanding
+required item at all (both are fully resolved or waived), so there is no
+approved treatment to extend — inventing one (a colour, a border) would be a
+departure from the approved frames rather than a use of them, per this
+ticket's own standing rule. Only the alert's text changed.
 
 ## Explicitly not in this ticket
 

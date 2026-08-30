@@ -24,19 +24,22 @@ import type { AttendanceEvent } from "@/lib/services/player-record";
 import { formatDay } from "../presentation";
 
 /**
- * `WP-player-record`'s Attendance band — `Q15-attendance`. Brian ruled the
- * prose stands over the approved photographs' silence: this season's RSVP
- * and attendance history renders here, read-only, from Mission 2's own
- * tables. The design is a running mockup Brian saw and approved
- * (`chore/roster-fidelity-attendance`'s `attendance-section.tsx`), not a
- * description — this component follows its behaviour, restyled for the real
- * violet band rather than copied wholesale.
+ * `WP-player-record`'s Attendance band — `Q15-attendance`, corrected at W1/W2
+ * (Brian's walkthrough, `Q-19`). Brian ruled the prose stands over the
+ * approved photographs' silence: this season's RSVP and attendance history
+ * renders here, read-only, from Mission 2's own tables. The design is a
+ * running mockup Brian saw and approved (`chore/roster-fidelity-attendance`'s
+ * `attendance-section.tsx`), not a description — this component follows its
+ * behaviour, restyled for the real violet band rather than copied wholesale.
  *
  * ## Rows
  *
  * Every event this membership had an invitation **sent** for, this season —
  * `readAttendanceHistoryIn()` already filtered out `pending`, so every row
- * here really was asked.
+ * here really was asked. That includes events that have not happened yet;
+ * the **Event status** column and its filter (W1) are what let an operator
+ * tell those apart from what already occurred, on a table defaulted to
+ * showing only the latter.
  *
  * ## What counts toward the score
  *
@@ -48,21 +51,29 @@ import { formatDay } from "../presentation";
  * different reasons: one rule, reading attendance rather than the calendar or
  * the invitation status, covers both without a special case for "upcoming".
  *
+ * A third figure (W2) counts **occurred mandatory events with no attendance
+ * record** — the ones Brian's walkthrough found sitting in the table, unequal
+ * to the score above it, that neither attended nor missed anything. It reads
+ * "N attendants not recorded" and is absent, not zero, when there are none.
+ *
  * ## The score follows the filter
  *
- * Mandatory, RSVP and Attendance each filter the section — the board's own
- * funnel-in-a-bordered-button interaction, restyled here rather than
- * imported, because `roster-board.tsx` is LAN-186's and this package does not
- * edit it. The score always reads the same set the table or the cards are
- * currently showing, with a `Filtered` chip and a "Filtered by … Clear all"
- * row saying which set that is, in labels and values.
+ * Mandatory, RSVP, Attendance and Event status each filter the section — the
+ * board's own funnel-in-a-bordered-button interaction, restyled here rather
+ * than imported, because `roster-board.tsx` is LAN-186's and this package
+ * does not edit it. The score always reads the same set the table or the
+ * cards are currently showing, with a `Filtered` chip and a "Filtered by …
+ * Clear all" row saying which set that is, in labels and values — Event
+ * status defaults to `Occurred` (W1) and shows in that row exactly like any
+ * other active filter, so the default is visible and reversible rather than
+ * hidden.
  *
  * ## Two shapes, one dataset
  *
  * A table with sortable, filterable header cells at and above the board's own
  * breakpoint; a stack of labelled blocks below it, each event its own card,
- * with the same three filters as compact selects and a sort field-plus-
- * direction control, because a five-column row and a header funnel both have
+ * with the same four filters as compact selects and a sort field-plus-
+ * direction control, because a six-column row and a header funnel both have
  * nowhere to go at 375px.
  */
 export default function AttendanceSection({ events }: { events: readonly AttendanceEvent[] }) {
@@ -70,16 +81,15 @@ export default function AttendanceSection({ events }: { events: readonly Attenda
     key: "date",
     dir: "desc",
   });
-  const [filters, setFilters] = useState<Record<FilterKey, string>>({
-    isMandatory: "",
-    rsvp: "",
-    attendance: "",
-  });
+  const [filters, setFilters] = useState<Record<FilterKey, string>>(() => ({ ...DEFAULT_FILTERS }));
   const [menu, setMenu] = useState<{ anchor: HTMLElement; key: FilterKey } | null>(null);
 
   const setFilter = (key: FilterKey, value: string) =>
     setFilters((current) => ({ ...current, [key]: value }));
-  const clearAll = () => setFilters({ isMandatory: "", rsvp: "", attendance: "" });
+  // "Widen it to everything" (W1) — clearing removes every filter, including
+  // the Event status default, rather than restoring it. The default only ever
+  // governs the very first render.
+  const clearAll = () => setFilters({ isMandatory: "", rsvp: "", attendance: "", eventStatus: "" });
   const activeFilters = (Object.entries(filters) as [FilterKey, string][]).filter(
     ([, value]) => value !== "",
   );
@@ -109,6 +119,19 @@ export default function AttendanceSection({ events }: { events: readonly Attenda
   const scored = filtered.filter((event) => event.isMandatory && event.attendance !== null);
   const attended = scored.filter((event) => isShowedPresence(event.attendance));
   const pct = scored.length === 0 ? null : Math.round((attended.length / scored.length) * 100);
+  // W2/Q-19: occurred mandatory events with no attendance record, out of the
+  // same filtered set the score above reads — "occurred" is asked explicitly
+  // here (rather than only via the Event status filter) so widening that
+  // filter to show upcoming events too never counts one of *those* as
+  // unrecorded. Neither attended nor missed; a value that cannot be derived
+  // says so, per REQ-not-recorded, rather than being silently absorbed into
+  // the score. Kept as one small, named count — easy to change to a
+  // miss-counting denominator instead, should Brian reverse W2's call.
+  const unrecordedCount = countUnrecordedOccurredMandatory(filtered);
+  const unrecordedLabel =
+    unrecordedCount === 0
+      ? null
+      : `${unrecordedCount} attendant${unrecordedCount === 1 ? "" : "s"} not recorded`;
 
   const cycleSort = (key: SortKey) => {
     setSort((current) => ({
@@ -161,11 +184,13 @@ export default function AttendanceSection({ events }: { events: readonly Attenda
             data-testid="attendance-score"
             sx={{ color: "text.disabled", fontStyle: "italic" }}
           >
-            not recorded
+            {["not recorded", unrecordedLabel].filter(Boolean).join(" · ")}
           </Typography>
         ) : (
           <Typography variant="body2" data-testid="attendance-score" sx={{ fontWeight: 700 }}>
-            {`${attended.length} of ${scored.length} mandatory · ${pct}%`}
+            {[`${attended.length} of ${scored.length} mandatory · ${pct}%`, unrecordedLabel]
+              .filter(Boolean)
+              .join(" · ")}
           </Typography>
         )}
         <Typography variant="caption" color="text.secondary">
@@ -262,6 +287,7 @@ export default function AttendanceSection({ events }: { events: readonly Attenda
                             }
                           />
                         </TableCell>
+                        <TableCell>{EVENT_STATUS_LABEL[event.eventStatus]}</TableCell>
                       </TableRow>
                     ))
                   )}
@@ -374,6 +400,10 @@ export default function AttendanceSection({ events }: { events: readonly Attenda
                           event.attendance === null ? null : ATTENDANCE_LABEL[event.attendance]
                         }
                       />
+                      <CardStat
+                        label="Event status"
+                        value={EVENT_STATUS_LABEL[event.eventStatus]}
+                      />
                     </Stack>
                   </Box>
                 ))}
@@ -420,8 +450,8 @@ export default function AttendanceSection({ events }: { events: readonly Attenda
   );
 }
 
-type SortKey = "eventName" | "date" | "isMandatory" | "rsvp" | "attendance";
-type FilterKey = "isMandatory" | "rsvp" | "attendance";
+type SortKey = "eventName" | "date" | "isMandatory" | "rsvp" | "attendance" | "eventStatus";
+type FilterKey = "isMandatory" | "rsvp" | "attendance" | "eventStatus";
 
 const COLUMNS: readonly { key: SortKey; label: string; filterKey?: FilterKey }[] = Object.freeze([
   { key: "eventName", label: "Event" },
@@ -429,18 +459,36 @@ const COLUMNS: readonly { key: SortKey; label: string; filterKey?: FilterKey }[]
   { key: "isMandatory", label: "Mandatory", filterKey: "isMandatory" },
   { key: "rsvp", label: "RSVP", filterKey: "rsvp" },
   { key: "attendance", label: "Attendance", filterKey: "attendance" },
+  // Appended rather than inserted earlier (W1) — the five existing columns
+  // keep their own order and behaviour exactly; this is the one new column.
+  { key: "eventStatus", label: "Event status", filterKey: "eventStatus" },
 ]);
+
+/**
+ * Defaults the table to `Occurred` (W1, Q-19) — Brian's walkthrough found
+ * every invited event on screen, including ones that had not happened yet,
+ * above a score that only ever counted occurred ones. `clearAll()` below
+ * drops this back to "everything", same as any other filter.
+ */
+const DEFAULT_FILTERS: Readonly<Record<FilterKey, string>> = Object.freeze({
+  isMandatory: "",
+  rsvp: "",
+  attendance: "",
+  eventStatus: "Occurred",
+});
 
 const FILTER_LABEL: Readonly<Record<FilterKey, string>> = Object.freeze({
   isMandatory: "Mandatory",
   rsvp: "RSVP",
   attendance: "Attendance",
+  eventStatus: "Event status",
 });
 
 const FILTER_OPTIONS: Readonly<Record<FilterKey, readonly string[]>> = Object.freeze({
   isMandatory: ["Mandatory", "Not mandatory"],
   rsvp: ["Yes", "No", "Not recorded"],
   attendance: ["Present", "Late", "Absent", "Excused", "Not recorded"],
+  eventStatus: ["Occurred", "Upcoming", "Cancelled"],
 });
 
 const FILTERABLE: readonly { key: FilterKey; label: string; options: readonly string[] }[] =
@@ -448,6 +496,7 @@ const FILTERABLE: readonly { key: FilterKey; label: string; options: readonly st
     { key: "isMandatory", label: FILTER_LABEL.isMandatory, options: FILTER_OPTIONS.isMandatory },
     { key: "rsvp", label: FILTER_LABEL.rsvp, options: FILTER_OPTIONS.rsvp },
     { key: "attendance", label: FILTER_LABEL.attendance, options: FILTER_OPTIONS.attendance },
+    { key: "eventStatus", label: FILTER_LABEL.eventStatus, options: FILTER_OPTIONS.eventStatus },
   ]);
 
 const RSVP_LABEL: Readonly<Record<"yes" | "no", string>> = Object.freeze({ yes: "Yes", no: "No" });
@@ -460,6 +509,31 @@ const ATTENDANCE_LABEL: Readonly<Record<"present" | "late" | "excused" | "absent
     absent: "Absent",
   });
 
+/**
+ * `derivedEventState()`'s three words, in the club's language — the same
+ * wording `/operate/events`'s own Status column and filter already use
+ * (`DERIVED_STATE_LABELS`, `event-vocabulary.ts`), restyled as a local
+ * constant here for the reason this file's own `FilterButton` gives: this
+ * package does not import from `roster-board.tsx` or the events surface.
+ */
+const EVENT_STATUS_LABEL: Readonly<Record<AttendanceEvent["eventStatus"], string>> = Object.freeze({
+  upcoming: "Upcoming",
+  occurred: "Occurred",
+  cancelled: "Cancelled",
+});
+
+/**
+ * The third score figure (W2, Q-19) — occurred mandatory events with no
+ * attendance record, out of exactly the rows given. A separate, named
+ * function rather than inlined so a later reversal to a miss-counting
+ * denominator is a one-line change here, not a search through the render.
+ */
+function countUnrecordedOccurredMandatory(rows: readonly AttendanceEvent[]): number {
+  return rows.filter(
+    (event) => event.isMandatory && event.eventStatus === "occurred" && event.attendance === null,
+  ).length;
+}
+
 /** One event's display value for a given filterable field — what a filter compares against. */
 function filterLabel(event: AttendanceEvent, key: FilterKey): string {
   switch (key) {
@@ -469,6 +543,8 @@ function filterLabel(event: AttendanceEvent, key: FilterKey): string {
       return event.rsvp === null ? "Not recorded" : RSVP_LABEL[event.rsvp];
     case "attendance":
       return event.attendance === null ? "Not recorded" : ATTENDANCE_LABEL[event.attendance];
+    case "eventStatus":
+      return EVENT_STATUS_LABEL[event.eventStatus];
     default:
       return "";
   }
@@ -487,6 +563,8 @@ function comparable(event: AttendanceEvent, key: SortKey): string {
       return event.rsvp ?? "￿";
     case "attendance":
       return event.attendance ?? "￿";
+    case "eventStatus":
+      return event.eventStatus;
     default:
       return "";
   }

@@ -388,7 +388,12 @@ export default function PlayerRecordView({
         )}
         {record.outstandingRequired.length > 0 ? (
           <Alert severity="info" sx={{ mt: 1 }} data-testid="outstanding-note">
-            {`${record.outstandingRequired.length === 1 ? "One required item is" : `${record.outstandingRequired.length} required items are`} still outstanding.`}
+            {/* W3, Q-19: Brian had to check every Required badge against every
+                status to find the one still outstanding. Naming it here keeps
+                the alert's own approved shape and register — the count
+                sentence, unchanged, plus the name(s) as a value, never a
+                second explanatory sentence. */}
+            {`${record.outstandingRequired.length === 1 ? "One required item is" : `${record.outstandingRequired.length} required items are`} still outstanding: ${record.outstandingRequired.map((item) => item.label).join(", ")}.`}
           </Alert>
         ) : null}
       </Section>

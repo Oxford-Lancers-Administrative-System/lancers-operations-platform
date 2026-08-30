@@ -53,6 +53,7 @@ vi.mock("./record-actions", () => ({
 }));
 
 import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator";
+import type { OnboardingItem } from "@/lib/services/membership";
 import { readPlayerRecord } from "@/lib/services/player-record";
 import type {
   AttendanceEvent,
@@ -317,31 +318,65 @@ describe("F1 — REQ-no-narrative: no explanatory caption beyond the allowed sta
     expect(screen.queryByText(/the total across seasons is derived/)).not.toBeInTheDocument();
   });
 
-  it("states the outstanding-items count with no explanatory second sentence", async () => {
-    const outstandingItem = {
+  function outstandingItem(overrides: Partial<OnboardingItem> = {}): OnboardingItem {
+    return {
       id: "item-1",
       code: "kit",
       label: "Kit sorted",
       isRequired: true,
       isSubscription: false,
       sortOrder: 1,
-      status: "pending" as const,
+      status: "pending",
       completedOn: null,
       waivedReason: null,
       waivedByName: null,
       updatedAt: new Date(),
+      ...overrides,
     };
-    givenRecord({ outstandingRequired: [outstandingItem] });
+  }
+
+  it("states the outstanding-items count with no explanatory second sentence", async () => {
+    givenRecord({ outstandingRequired: [outstandingItem()] });
     render(await PlayerRecordPage(pageProps()));
 
     expect(screen.getByTestId("outstanding-note")).toHaveTextContent(
-      "One required item is still outstanding.",
+      "One required item is still outstanding: Kit sorted.",
     );
     expect(screen.queryByText(/does not stop the membership's status/)).not.toBeInTheDocument();
   });
+
+  it("names the outstanding item, so it does not have to be found by searching the list (W3, Q-19)", async () => {
+    givenRecord({
+      outstandingRequired: [
+        outstandingItem({ id: "item-subscription", label: "Subscription invoiced" }),
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    // The exact string, not a substring — this version's `toHaveTextContent`
+    // always does a contains match, so a reword that drops the name would
+    // still pass a substring check.
+    expect(screen.getByTestId("outstanding-note").textContent).toBe(
+      "One required item is still outstanding: Subscription invoiced.",
+    );
+  });
+
+  it("names every outstanding item when more than one is outstanding (W3, Q-19)", async () => {
+    givenRecord({
+      outstandingRequired: [
+        outstandingItem({ id: "item-subscription", label: "Subscription invoiced" }),
+        outstandingItem({ id: "item-kit", code: "kit_2", label: "Kit sorted" }),
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    expect(screen.getByTestId("outstanding-note").textContent).toBe(
+      "2 required items are still outstanding: Subscription invoiced, Kit sorted.",
+    );
+  });
 });
 
-describe("the Attendance band — Q15-attendance", () => {
+describe("the Attendance band — Q15-attendance, corrected at W1/W2/Q-19", () => {
   function attendanceEvent(overrides: Partial<AttendanceEvent> = {}): AttendanceEvent {
     return {
       id: "ev-default",
@@ -351,6 +386,7 @@ describe("the Attendance band — Q15-attendance", () => {
       invitationStatus: "responded",
       rsvp: "yes",
       attendance: "present",
+      eventStatus: "occurred",
       ...overrides,
     };
   }
@@ -358,7 +394,10 @@ describe("the Attendance band — Q15-attendance", () => {
   // Every case the brief names: a mandatory event attended, one missed, a
   // late, an excused, an event with no RSVP recorded, a cancelled
   // invitation, and an upcoming invited event — plus one non-mandatory row
-  // so the Mandatory filter has something to narrow away.
+  // so the Mandatory filter has something to narrow away. `ev-upcoming` is
+  // the fixture's one event that has not occurred, and its own
+  // `eventStatus: "upcoming"` is what the default Event status filter (W1)
+  // now hides on first render.
   const EVENTS: AttendanceEvent[] = [
     attendanceEvent({
       id: "ev-present",
@@ -405,6 +444,7 @@ describe("the Attendance band — Q15-attendance", () => {
       date: "2027-01-17",
       invitationStatus: "issued",
       attendance: null,
+      eventStatus: "upcoming",
     }),
     attendanceEvent({
       id: "ev-social",
@@ -415,13 +455,43 @@ describe("the Attendance band — Q15-attendance", () => {
     }),
   ];
 
-  it("lists every event with a sent invitation, and no more", async () => {
+  it("lists every event with a sent invitation, and no more, once every filter is cleared", async () => {
     givenRecord({ attendance: EVENTS });
     render(await PlayerRecordPage(pageProps()));
     const section = screen.getByTestId("section-attendance");
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.click(within(section).getByRole("button", { name: "Clear all" }));
+    });
+
     // One row per event in the fixture — a `pending` invitation would not be
     // in this list at all, so there is nothing here that filters it out.
     expect(within(section).getAllByTestId("attendance-row")).toHaveLength(EVENTS.length);
+  });
+
+  it("defaults the table to Occurred, hiding what has not happened yet, reversibly (W1)", async () => {
+    givenRecord({ attendance: EVENTS });
+    render(await PlayerRecordPage(pageProps()));
+    const section = screen.getByTestId("section-attendance");
+
+    // ev-upcoming is the fixture's only event that has not occurred; nobody
+    // touched a filter and it is already absent from both shapes.
+    expect(within(section).getAllByTestId("attendance-row")).toHaveLength(EVENTS.length - 1);
+    expect(within(section).queryByText("Term 3 opener vs Durham")).not.toBeInTheDocument();
+    expect(within(section).getByTestId("attendance-filter-chips")).toHaveTextContent(
+      "Event status: Occurred",
+    );
+
+    const { fireEvent, act } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.click(within(section).getByRole("button", { name: "Clear all" }));
+    });
+
+    expect(within(section).getAllByTestId("attendance-row")).toHaveLength(EVENTS.length);
+    // Desktop table and phone cards both exist in this jsdom tree at once
+    // (see the file header note), so the once-hidden row now appears twice.
+    expect(within(section).getAllByText("Term 3 opener vs Durham").length).toBeGreaterThan(0);
   });
 
   it("excludes an upcoming invitation and a cancelled one from the score's denominator", async () => {
@@ -435,6 +505,68 @@ describe("the Attendance band — Q15-attendance", () => {
     expect(within(section).getByTestId("attendance-score")).toHaveTextContent(
       "3 of 5 mandatory · 60%",
     );
+  });
+
+  it('reads "7 of 7 mandatory · 100% · 8 attendants not recorded" (W2, Q-19)', async () => {
+    // 7 occurred mandatory events, each with an attendance record, all
+    // attended; 8 more occurred mandatory events with no attendance record at
+    // all; and one mandatory event that has not happened yet. The third
+    // figure counts the second group only — the first group is the score
+    // above it, and the future one is excluded from both, exactly as Brian's
+    // walkthrough required.
+    const recorded = Array.from({ length: 7 }, (_, index) =>
+      attendanceEvent({ id: `recorded-${index}`, attendance: "present" }),
+    );
+    const unrecorded = Array.from({ length: 8 }, (_, index) =>
+      attendanceEvent({ id: `unrecorded-${index}`, invitationStatus: "issued", attendance: null }),
+    );
+    const future = attendanceEvent({
+      id: "future",
+      invitationStatus: "issued",
+      attendance: null,
+      eventStatus: "upcoming",
+    });
+    givenRecord({ attendance: [...recorded, ...unrecorded, future] });
+    render(await PlayerRecordPage(pageProps()));
+    const section = screen.getByTestId("section-attendance");
+
+    // The exact string (not a substring — this version's `toHaveTextContent`
+    // always does a contains match) so a later reword of either clause
+    // cannot pass silently.
+    expect(within(section).getByTestId("attendance-score").textContent).toBe(
+      "7 of 7 mandatory · 100% · 8 attendants not recorded",
+    );
+  });
+
+  it('pluralises one unrecorded event as "1 attendant not recorded" (W2, Q-19)', async () => {
+    givenRecord({
+      attendance: [
+        attendanceEvent({ id: "recorded-1", attendance: "present" }),
+        attendanceEvent({ id: "unrecorded-1", invitationStatus: "issued", attendance: null }),
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+    const section = screen.getByTestId("section-attendance");
+    expect(within(section).getByTestId("attendance-score").textContent).toBe(
+      "1 of 1 mandatory · 100% · 1 attendant not recorded",
+    );
+  });
+
+  it("omits the unrecorded figure entirely when nothing occurred is unrecorded (W2, Q-19)", async () => {
+    givenRecord({
+      attendance: [
+        attendanceEvent({ id: "recorded-1", attendance: "present" }),
+        attendanceEvent({ id: "recorded-2", attendance: "absent" }),
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+    const section = screen.getByTestId("section-attendance");
+    // Absent rather than reading zero — a "0 attendants not recorded" clause
+    // would be noise on the common case where the register is up to date.
+    expect(within(section).getByTestId("attendance-score").textContent).toBe(
+      "1 of 2 mandatory · 50%",
+    );
+    expect(within(section).getByTestId("attendance-score")).not.toHaveTextContent("attendant");
   });
 
   it("counts present and late as attended; absent and excused do not", async () => {

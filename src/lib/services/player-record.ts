@@ -1,7 +1,9 @@
 import "server-only";
 
 import { isServiceError, withTransaction, type Tx } from "@/lib/db";
+import { todayInClubZone } from "@/lib/club-time";
 import { isAttendancePresence, type AttendancePresence } from "./attendance-vocabulary";
+import { derivedEventState, type DerivedEventState, type EventStatus } from "./event-input";
 import {
   readMembership,
   type MembershipRecord,
@@ -125,6 +127,14 @@ export interface AttendanceEvent {
    * rather than the calendar or the invitation status.
    */
   attendance: AttendancePresence | null;
+  /**
+   * What the event itself looks like now — `derivedEventState()` in
+   * `event-input.ts`, the same D30 derivation `/operate/events` already uses
+   * for its own Status column and filter (Q-6). Nothing new is stored or
+   * asserted: this is the event's own `status` and `scheduled_on`, read once
+   * here rather than recomputed by the component (W1, Q-19).
+   */
+  eventStatus: DerivedEventState;
 }
 
 export interface PlayerRecordData {
@@ -267,6 +277,7 @@ interface AttendanceEventRow {
   invitation_status: string;
   rsvp: string | null;
   presence: string | null;
+  event_status: string;
 }
 
 /**
@@ -294,19 +305,32 @@ interface AttendanceEventRow {
  * the mandatory-attendance score against whichever rows the viewer's filters
  * currently show — "the score follows the filter" is a presentation rule,
  * not a second query.
+ *
+ * ## `eventStatus` is derived here, once, from the event's own date and status
+ *
+ * W1/Q-19: Brian's walkthrough found the table listing every invited event —
+ * including ones that have not happened yet — above a score that only counts
+ * occurred ones, so a correct number sat over a table that looked like it
+ * contradicted it. Each row now carries `derivedEventState()`'s answer
+ * (`event-input.ts`, D30, the same rule `/operate/events` already shows in its
+ * own Status column), read against `todayInClubZone()` at the moment of the
+ * read. No new column, no migration — the event's `status` and `scheduled_on`
+ * are exactly what `events` already stores.
  */
 async function readAttendanceHistoryIn(
   tx: Tx,
   membershipId: string,
   seasonId: string,
 ): Promise<AttendanceEvent[]> {
+  const today = todayInClubZone();
   const result = await tx.query<AttendanceEventRow>(
     `select e.id as event_id, e.name as event_name,
             to_char(e.scheduled_on, 'YYYY-MM-DD') as date,
             e.is_mandatory,
             i.status::text as invitation_status,
             cr.response::text as rsvp,
-            ar.presence::text as presence
+            ar.presence::text as presence,
+            e.status::text as event_status
        from public.invitations i
        join public.events e on e.id = i.event_id
        left join public.current_rsvp cr on cr.invitation_id = i.id
@@ -327,6 +351,10 @@ async function readAttendanceHistoryIn(
     invitationStatus: row.invitation_status as AttendanceInvitationStatus,
     rsvp: row.rsvp === "yes" || row.rsvp === "no" ? row.rsvp : null,
     attendance: isAttendancePresence(row.presence) ? row.presence : null,
+    eventStatus: derivedEventState(
+      { status: row.event_status as EventStatus, scheduledOn: row.date },
+      today,
+    ),
   }));
 }
 

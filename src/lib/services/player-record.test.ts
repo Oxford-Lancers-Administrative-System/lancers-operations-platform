@@ -320,6 +320,19 @@ describe("readPlayerRecord — Attendance band, Q15-attendance", () => {
     expect(attended?.attendance).toBe("present");
   });
 
+  // W1, Q-19: the Event status column reads a real derivation against the
+  // database, not a client-side guess — `insertEvent()` schedules every
+  // fixture event 7 days in the past and approved, so each row here is
+  // genuinely `occurred` under `derivedEventState()`.
+  it("derives Event status as occurred for a past, approved event (W1, Q-19)", async () => {
+    const result = await readPlayerRecord(membershipId);
+    const data = (result as PlayerRecordFound).data;
+    const attended = data.attendance.find((event) => event.id === attendedEventId);
+    const expired = data.attendance.find((event) => event.id === expiredEventId);
+    expect(attended?.eventStatus).toBe("occurred");
+    expect(expired?.eventStatus).toBe("occurred");
+  });
+
   it("keeps a cancelled invitation as a row with no RSVP and no attendance record", async () => {
     const result = await readPlayerRecord(membershipId);
     const data = (result as PlayerRecordFound).data;
