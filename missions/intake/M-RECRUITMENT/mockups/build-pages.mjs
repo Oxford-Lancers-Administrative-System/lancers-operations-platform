@@ -457,7 +457,8 @@ const WORKFLOWS = [
          new pages: the recruitment section of a page that already exists.`,
         [
           "<strong>1. The page is sectioned.</strong> Recruitment, then Event messaging. Onboarding is the third section and is deliberately not built — the structure makes room for Mission 7",
-          "<strong>2. The cycle is in the page's own rows.</strong> Each step is a cloned <code>schedule-row</code>, condensed to the fields it needs, with “Show an example” removed — a step firing once on a fixed delay has no worked example worth showing",
+          "<strong>2. The Recruitment event row carries two audiences.</strong> Brian, 2026-08-31: “on the recruit event, instead, you're going to have two sections: one for regular players, one for recruits.” <em>Regular players</em> is the shipped six-field chase, unchanged and still escalating to the President. <em>Recruits</em> is the second ladder — an invitation and one follow-up, and no escalation. One row per event type and one SAVE per row, both of which this page already enforces",
+          "<strong>The cycle is in the page's own rows.</strong> Each step is a cloned <code>schedule-row</code>, condensed to the fields it needs, with “Show an example” removed — a step firing once on a fixed delay has no worked example worth showing",
           "<strong>The QR code is NOT here.</strong> It moved to the recruit board and W1-04. Brian: “that doesn't make any damn sense for the QR code to go on the messaging page”",
           "<strong>Deleted rather than drawn:</strong> the templates page. A Meta-approved template is created in Meta's own tooling, so a page listing them would manage nothing. The approval gate survives as an owner action",
         ],
@@ -477,6 +478,27 @@ const WORKFLOWS = [
       "<strong>W11-02 was captured and then never put on this page</strong>, so the one screen that explains why a Recruits audience exists at all was invisible. It is here now",
       "<strong>Both defects are real and verified in the running code.</strong> <code>scheduleEventLadder</code> inserts a reminder for every invitation filtered only by <code>event_id</code>, and <code>countByCapacity</code> omits recruits from the approval counts",
     ],
+    afterScreens: `<h2 style="margin:44px 0 8px;font-size:20px">The recruit messaging flow</h2>
+      <p style="margin:0 0 14px;color:#555">Everything the club ever sends a recruit, in order. Moved
+      here on 2026-08-31 rather than given a workflow of its own.</p>
+      <table style="border-collapse:collapse;width:100%;font-size:14px">
+        <tr style="text-align:left"><th style="padding:6px 10px;border-bottom:1px solid #ddd">Message</th><th style="padding:6px 10px;border-bottom:1px solid #ddd">Fires</th><th style="padding:6px 10px;border-bottom:1px solid #ddd">They land on</th></tr>
+        <tr><td style="padding:6px 10px"><code>recruit_welcome</code></td><td style="padding:6px 10px">Capture — walk-up and operator-add only</td><td style="padding:6px 10px">The WhatsApp group link</td></tr>
+        <tr><td style="padding:6px 10px"><code>recruit_details_ask</code></td><td style="padding:6px 10px">1 day after capture</td><td style="padding:6px 10px">W4-01</td></tr>
+        <tr><td style="padding:6px 10px"><code>recruit_details_reminder</code></td><td style="padding:6px 10px">3 days later, once</td><td style="padding:6px 10px">The same form</td></tr>
+        <tr><td style="padding:6px 10px"><code>recruit_interest_ask</code></td><td style="padding:6px 10px">3 days after capture</td><td style="padding:6px 10px">W4-02</td></tr>
+        <tr><td style="padding:6px 10px"><code>recruit_interest_reminder</code></td><td style="padding:6px 10px">3 days later, once</td><td style="padding:6px 10px">The same form</td></tr>
+        <tr><td style="padding:6px 10px"><code>event_invitation</code></td><td style="padding:6px 10px">A recruitment event is approved</td><td style="padding:6px 10px">W11-03 or W11-04</td></tr>
+        <tr><td style="padding:6px 10px">The event follow-up</td><td style="padding:6px 10px">2 days later, once, only if no answer</td><td style="padding:6px 10px">The same two pages</td></tr>
+      </table>
+      <p style="margin:16px 0 6px"><strong>A QR recruit skips the welcome</strong> — they joined the
+      group themselves at the stand.</p>
+      <p style="margin:0 0 6px"><strong>What is never sent:</strong> anything at all to a recruit who
+      declined; a second reminder; an escalation to the President; a chase for an unanswered event;
+      free text of any kind.</p>
+      <p style="margin:0"><strong>Blocked on an owner action.</strong> Only <code>event_invitation</code>
+      exists in Meta. The other four have not been submitted, so the flow can be built and cannot run
+      until they clear.</p>`,
     screens: [
       P(
         "W11-01",
@@ -653,34 +675,6 @@ const WORKFLOWS = [
       ),
     ],
   },
-  {
-    id: "W15",
-    slug: "the-recruit-messaging-flow",
-    name: "The recruit messaging flow",
-    lede: `Everything the club ever sends a recruit, in order — the trigger, the template, what they
-      land on, and what is recorded. Added on Brian's explicit instruction after he asked for it
-      repeatedly.`,
-    grounding: "photograph",
-    noScreens: `<strong>This workflow has no screens of its own, and that is the point.</strong> The
-      flow is not a page — it is what W10 configures and what W2 observes, and drawing a third
-      surface to narrate it would be the invention this mission has struck all day.
-      <ul>
-        <li><strong>Configured</strong> — <a href="W10-administer-recruitments-machinery.html">W10</a>, the Recruitment section of the messaging schedule: steps 1–5 as cycle rows, steps 6–7 as the <code>Recruit event invitations</code> row</li>
-        <li><strong>Observed, per recruit</strong> — <a href="W2-one-recruits-record.html">W2</a>, whose audit carries every send with its date and delivery state</li>
-        <li><strong>What the recruit lands on</strong> — <a href="W4-fill-in-your-details.html">W4-01 and W4-02</a> for the questionnaires, <a href="W11-run-a-recruitment-event.html">W11-03 and W11-04</a> for an event</li>
-      </ul>
-      <p>The sequence itself, what is never sent, and the two ladders side by side are in
-      <code>workflows/W15-the-recruit-messaging-flow.md</code>. That specification is the deliverable:
-      seven messages, each bounded, and a list of what the club will never do.</p>
-      <p><strong>Blocked on an owner action.</strong> Only <code>event_invitation</code> exists in
-      Meta. Steps 1 to 5 need four templates that have not been submitted, so the flow can be built
-      and cannot run until Brian has cleared them.</p>`,
-    legend: [
-      "<strong>Never harsh, end to end.</strong> One reminder per ask and then silence; no escalation ever reaches the President; nothing at all is sent to a recruit who declined; and no message is composed, because every one is a Meta-approved template",
-      "<strong>A QR recruit skips the welcome</strong> — they joined the group themselves at the stand, so it has nothing to tell them",
-    ],
-    screens: [],
-  },
 ];
 
 // Every frame's URL bar, and every screen's disposition, are derived from
@@ -771,6 +765,19 @@ ${wf.legend.map((l) => `          <span>${l}</span>`).join("\n")}
 `;
   out = out.slice(0, headStart) + head + out.slice(headEnd);
 
+  // A workflow may carry prose that belongs after its screens rather than to
+  // any one of them. W11 carries the recruit messaging flow this way, which is
+  // where it landed on 2026-08-31 instead of becoming a workflow of its own.
+  if (wf.afterScreens) {
+    out = out.replace(
+      '      <div id="screens"></div>',
+      `      <div id="screens"></div>
+      <section class="afterscreens">
+${wf.afterScreens}
+      </section>`,
+    );
+  }
+
   const sStart = out.indexOf("      const SCREENS = [");
   const sEnd = out.indexOf("      ];", sStart) + "      ];".length;
   const screens =
@@ -859,6 +866,24 @@ ${s.deltas.map((d) => `            \`${esc(d)}\``).join(",\n")},
       }
       .noscreens ul { margin: 8px 0 0; padding-left: 20px; }
       .noscreens li { margin-bottom: 5px; }
+      /* Prose that belongs to the workflow rather than to any one screen, set
+         on the page's own card so it reads as part of the review and not as a
+         note bolted underneath it. */
+      .afterscreens {
+        max-width: 900px;
+        background: #fff;
+        border-radius: 8px;
+        padding: 4px 28px 28px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+      }
+      .afterscreens h2 { font-weight: 800; }
+      .afterscreens p { line-height: 1.6; font-size: 14px; }
+      .afterscreens code {
+        background: rgba(0, 0, 0, 0.05);
+        border-radius: 3px;
+        padding: 1px 4px;
+        font-size: 0.92em;
+      }
       .provenance {
         font-size: 12.5px;
         line-height: 1.6;

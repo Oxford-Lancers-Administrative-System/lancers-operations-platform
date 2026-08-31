@@ -57,7 +57,7 @@
     },
     {
       "id": "W3",
-      "name": "Say yes to the club — removed, no workflow here",
+      "name": "Say yes to the club \u2014 removed, no workflow here",
       "state": "done",
       "stale": false,
       "feedback": [],
@@ -159,17 +159,17 @@
     },
     {
       "id": "W9",
-      "name": "Follow up with a recruit — folded, no workflow here",
+      "name": "Follow up with a recruit \u2014 folded, no workflow here",
       "state": "done",
       "stale": false,
       "feedback": [],
       "approvals": {
         "spec": {
-          "words": "W9 feels like it's already been done in part, and I don't know what exactly it's trying to get at. … Fold it.",
+          "words": "W9 feels like it's already been done in part, and I don't know what exactly it's trying to get at. \u2026 Fold it.",
           "date": "2026-08-31"
         },
         "mock": {
-          "words": "W9 feels like it's already been done in part, and I don't know what exactly it's trying to get at. … Fold it.",
+          "words": "W9 feels like it's already been done in part, and I don't know what exactly it's trying to get at. \u2026 Fold it.",
           "date": "2026-08-31"
         }
       }
@@ -200,7 +200,7 @@
         {
           "screen_id": "W11-01",
           "date": "2026-08-31",
-          "text": "I don't approve the events, but you're not getting them right. We're just going to make a note that we're moving past it because the app will have to just reuse elements that it already has. — NOT APPROVED. Moved past on his instruction with that note recorded. Do not present W11 as approved and do not quietly mark it done; the build reuses the shipped event elements and the workflow is carried unapproved into the packet."
+          "text": "I don't approve the events, but you're not getting them right - we're moving past it because the app will reuse elements it already has. Take the one page you would have done in W15, put it in W11 at the bottom of the page. Edit the messaging template page for recruits, and on the recruit event have two sections: one for regular players, one for recruits. \u2014 DONE: W15 is removed and its number is dead; the recruit messaging flow is the last section of W11's page; and W10's Recruitment event row is split into a players chase and a recruits chase. W11 REMAINS UNAPPROVED by his instruction."
         }
       ]
     },
@@ -213,7 +213,7 @@
         {
           "screen_id": "W12-01",
           "date": "2026-08-31",
-          "text": "W12 is approved. I looked at it. It's simple. It's done. It's approved. — APPROVED IN HIS WORDS, but the ledger will not record it as done until W11 is done, because a workflow cannot be approved before every earlier one is. Flip W12 to done the moment W11 is approved; do not ask him again."
+          "text": "W12 is approved. I looked at it. It's simple. It's done. It's approved. \u2014 APPROVED IN HIS WORDS, but the ledger will not record it as done until W11 is done, because a workflow cannot be approved before every earlier one is. Flip W12 to done the moment W11 is approved; do not ask him again."
         }
       ],
       "approvals": {}
@@ -231,19 +231,6 @@
       "state": "spec_draft",
       "stale": true,
       "feedback": []
-    },
-    {
-      "id": "W15",
-      "name": "The recruit messaging flow",
-      "state": "spec_draft",
-      "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W15-01",
-          "date": "2026-08-31",
-          "text": "Where is the workflow to manage the messaging flow just for recruits? I've mentioned this a dozen times. It's not on this page... Recruit messaging flow. Get that workflow in here. — ADDED as W15 on his explicit instruction. Nothing renumbers; W3 and W9 stay folded and their numbers stay dead."
-        }
-      ]
     }
   ],
   "mockup_hub": "generated",
@@ -1093,13 +1080,13 @@
       }
     ]
   },
-  "next_action": "W1-W8 and W10 approved; W3 and W9 folded; W12 approved in his words and held by the ordering rule. W11 is NOT APPROVED - Brian moved past it with a note that the build reuses the shipped event elements; do not present it as approved. W15 - THE RECRUIT MESSAGING FLOW - was added on his explicit instruction after he asked for it repeatedly. It is the end-to-end sequence of everything the club sends a recruit: the trigger, the template, what the recruit lands on, and what gets recorded. Nothing renumbers. NEXT: finish W15, then W13 and W14, then the packet. OWNER ACTION: four WhatsApp templates to Meta. DEFECT: countByCapacity omits recruits from the event approval summary. OPEN: W2-04's real approval; who mints next season's QR; no control for turning a cycle step off; 'said no to WhatsApp' vs 'declined'; W2 button placement; events violet vs blue; channel presence on the record; the Contactable cell; Brian's copy for the declined page.",
+  "next_action": "W1-W8 and W10 approved; W3, W9 and W15 folded and their numbers dead; W12 approved in his words and held by the ordering rule. W11 is NOT APPROVED - Brian moved past it with a note that the build reuses the shipped event elements; do not present it as approved. The recruit messaging flow is now the last section of W11's review page, and W10's Recruitment event row is split into a regular-players chase and a recruits chase. NEXT: W13, then W14, then the packet. OWNER ACTION: four WhatsApp templates to Meta. DEFECT: countByCapacity omits recruits from the event approval summary. OPEN: W2-04's real approval; who mints next season's QR; no control for turning a cycle step off; 'said no to WhatsApp' vs 'declined'; W2 button placement; events violet vs blue; channel presence on the record; the Contactable cell; Brian's copy for the declined page.",
   "subject_coverage": {
     "areas": [
       {
         "id": "S1",
         "name": "The four entry doors",
-        "belongs": "Task 09 §1.1 names them and portfolio row 6 commissions them; a recruit cannot exist without a way in.",
+        "belongs": "Task 09 \u00a71.1 names them and portfolio row 6 commissions them; a recruit cannot exist without a way in.",
         "disposition": "workflow",
         "workflow": "W5",
         "implementation": "modified",
@@ -1201,19 +1188,19 @@
       {
         "id": "S12",
         "name": "Per-door WhatsApp opt-in evidence",
-        "belongs": "Task 09 §9.1 makes it a pre-production gate and portfolio row 6 names it.",
+        "belongs": "Task 09 \u00a79.1 makes it a pre-production gate and portfolio row 6 names it.",
         "disposition": "shared_cross_mission",
         "shared_owners": ["M-RECRUITMENT", "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"],
         "workflow": "W3",
         "current_side": "This mission records the opt-in evidence at each door and refuses to fire the welcome from a door without it.",
         "seam": "Mission 8 owns the consent wording, the lawful basis and the retention rule; this mission owns the evidence captured at the door.",
-        "evidence": "Task 09 §9.1 routes wording to Clint via Task 07; portfolio row 6 gates on 'per-door opt-in evidence wording (Clint via Mission 8)'.",
+        "evidence": "Task 09 \u00a79.1 routes wording to Clint via Task 07; portfolio row 6 gates on 'per-door opt-in evidence wording (Clint via Mission 8)'.",
         "reason": "Neither side is complete alone: evidence without wording cannot lawfully send, wording without evidence has nothing to attach to."
       },
       {
         "id": "S13",
         "name": "Administration of the recruit messages",
-        "belongs": "Task 09 §9.1's open welcome-flow mechanics, inherited from the walk-ups brief, have no other home.",
+        "belongs": "Task 09 \u00a79.1's open welcome-flow mechanics, inherited from the walk-ups brief, have no other home.",
         "disposition": "workflow",
         "workflow": "W10",
         "implementation": "new",

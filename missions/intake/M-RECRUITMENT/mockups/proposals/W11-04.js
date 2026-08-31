@@ -2117,6 +2117,6 @@ const change = [...document.querySelectorAll("a, button")].find((b) =>
 );
 if (change) mark(change, 2);
 
-await settle()
+await settle();
 
 })()

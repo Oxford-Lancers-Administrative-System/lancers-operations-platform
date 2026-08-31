@@ -124,9 +124,40 @@ that flow is designed.
 
 A recruit event invitation is not the event-messaging chase. That one escalates
 to the President; a recruit gets an invitation and at most one further template,
-then silence. `W10`'s Recruitment section now carries a
-**Recruit event invitations** row saying exactly that, so the two ladders are
-visible where they are set rather than only described here.
+then silence. On `W10`'s messaging schedule the **Recruitment event row is split
+into two groups** — _Regular players_, the shipped six-field chase, and
+_Recruits_, an invitation and one follow-up with no President field at all — so
+the two ladders are visible where they are set rather than only described here.
+Brian, 2026-08-31: _"on the recruit event, instead, you're going to have two
+sections: one for regular players, one for recruits."_
+
+## The recruit messaging flow
+
+Everything the club ever sends a recruit, in order. This was briefly numbered
+`W15`; Brian removed the number the same day — _"Take the one page you would
+have done in W15, put it in W11, and add it to the bottom of the page as a single
+page"_ — so it is the last section of this workflow's review page and `W15` is
+dead like `W3` and `W9`.
+
+| Message                     | Fires                                   | They land on         |
+| --------------------------- | --------------------------------------- | -------------------- |
+| `recruit_welcome`           | Capture — walk-up and operator-add only | The WhatsApp group   |
+| `recruit_details_ask`       | 1 day after capture                     | `W4-01`              |
+| `recruit_details_reminder`  | 3 days later, once                      | The same form        |
+| `recruit_interest_ask`      | 3 days after capture                    | `W4-02`              |
+| `recruit_interest_reminder` | 3 days later, once                      | The same form        |
+| `event_invitation`          | A recruitment event is approved         | `W11-03` or `W11-04` |
+| The event follow-up         | 2 days later, once, only if no answer   | The same two pages   |
+
+A QR recruit skips the welcome — they joined the group themselves at the stand.
+
+**Never sent:** anything at all to a recruit who declined; a second reminder; an
+escalation to the President; a chase for an unanswered event; free text of any
+kind.
+
+**Owner action.** Only `event_invitation` exists in Meta. The other four
+templates have not been submitted, so this flow can be built and cannot run until
+they clear.
 
 ## Required actions
 

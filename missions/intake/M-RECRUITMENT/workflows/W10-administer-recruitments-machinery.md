@@ -94,6 +94,31 @@ The page already carries a `Recruitment` row further down. **That is a different
 thing** — it is the event _type_, governing invitations to a recruitment event.
 This group is what fires when somebody is captured, so it sits beside it.
 
+### The Recruitment event row carries two audiences
+
+Brian, 2026-08-31: _"You are going to edit the messaging template page for
+recruits, and on the recruit event, instead, you're going to have two sections:
+one for regular players, one for recruits."_
+
+The `Recruitment` event row is therefore split in its body, not duplicated as a
+second row. This page has two laws — one row per `event_type`, and one SAVE per
+row (`schedule-form.tsx`, OWNER-LAN171-04) — and both survive.
+
+| Group               | Fields                          | Chase                                                    |
+| ------------------- | ------------------------------- | -------------------------------------------------------- |
+| **Regular players** | The shipped six, unchanged      | Invitation, a reminder every cadence, then the President |
+| **Recruits**        | First invitation, one follow-up | Invitation, one follow-up, then silence                  |
+
+**This is where the two ladders are configured, so it is where they differ on
+the screen.** A recruit is never escalated to the President, which is why the
+recruits' group has no `President` field to set rather than a President field
+holding a discouraging number. An earlier draft put this chase in the capture
+cycle above as a fourth step called _Recruit event invitations_; Brian moved it
+here, because an event's chase belongs to the event.
+
+The rest of the recruitment cycle is unaffected: capture fires the welcome and
+the two questionnaires, and an event fires its own invitation on its own terms.
+
 ### Gap: there is no control for turning a step off
 
 This workflow requires that an operator can decide _whether a step runs at all_,

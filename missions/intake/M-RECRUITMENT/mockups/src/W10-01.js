@@ -197,23 +197,11 @@ const STEPS = [
     on: true,
     save: "SAVE RECRUITMENT QUESTIONNAIRE",
   },
-  // The fourth step, and the one that was missing. Brian, 2026-08-31: "underneath
-  // the recruit heading, there's a recruit events heading where I have a chase
-  // specifically for them, and it's just literally one WhatsApp, maybe one
-  // follow-up, right? No escalations, anything else like that."
-  //
-  // A recruit event invitation is NOT the event-messaging chase below. That one
-  // escalates to the President; this one is an invitation and at most one more,
-  // then silence — the two ladders, expressed where they are configured.
-  {
-    name: "Recruit event invitations",
-    first: { label: "When approved", value: "0" },
-    firstUnit: "hours",
-    second: { label: "One follow-up after", value: "2" },
-    secondUnit: "days",
-    on: true,
-    save: "SAVE RECRUIT EVENTS",
-  },
+  // There is no fourth step. The recruit event chase used to be a fourth row
+  // here; Brian moved it on 2026-08-31: "on the recruit event, instead, you're
+  // going to have two sections: one for regular players, one for recruits."
+  // It is configured on the Recruitment event row below, where the event's own
+  // chase already lives, rather than in the capture cycle.
 ];
 
 const built = STEPS.map(step);
@@ -239,7 +227,86 @@ host.insertBefore(
 );
 host.insertBefore(rule, template);
 
+// ---- The Recruitment event row, split into its two audiences ---------------
+//
+// Brian, 2026-08-31: "You are going to edit the messaging template page for
+// recruits, and on the recruit event, instead, you're going to have two
+// sections: one for regular players, one for recruits."
+//
+// The row keeps its identity — one row per `event_type`, one SAVE per row, both
+// laws of this page — and its body gains two named groups. The players' group is
+// the shipped chase exactly as it stands today; the recruits' group is the
+// second ladder, and it stops after one follow-up. This is where the two ladders
+// are configured, so it is where the difference between them is stated.
+const recruitmentRow = must(
+  rows.find((row) => {
+    const label = row.querySelector('[data-testid="schedule-row-label"]');
+    return label && label.textContent.trim() === "Recruitment";
+  }),
+  `the messaging schedule has no Recruitment row; its rows are ${rows
+    .map((r) => r.querySelector('[data-testid="schedule-row-label"]')?.textContent.trim())
+    .join(", ")}`,
+);
+
+// A group heading inside the row, cloned from the row's own label so it carries
+// the page's type rather than a drawn one. Not the all-caps overline: Q-23 in
+// `schedule-form.tsx` records that heading being rejected on this very card.
+const groupHeading = (text) => {
+  const h = must(
+    recruitmentRow.querySelector('[data-testid="schedule-row-label"]'),
+    "the Recruitment row has no label to clone",
+  ).cloneNode(true);
+  h.removeAttribute("data-testid");
+  h.textContent = text;
+  h.style.cssText = "font-size:13px;font-weight:700;color:rgba(0,0,0,0.6);margin:14px 0 -4px";
+  return h;
+};
+
+const rowGrids = [...recruitmentRow.querySelectorAll("div")].filter(
+  (d) => getComputedStyle(d).display === "grid",
+);
+must(rowGrids.length >= 2, "the Recruitment row does not have its two field grids");
+const [timingGrid, ladderGrid] = rowGrids;
+
+timingGrid.parentElement.insertBefore(groupHeading("Regular players"), timingGrid);
+
+// The recruits' group, built from this row's own field boxes. Two fields, no
+// escalation: `[data-field]` is the shipped field wrapper, so these are the
+// page's inputs, not drawn ones.
+const fieldBoxes = [...recruitmentRow.querySelectorAll("[data-field]")];
+must(fieldBoxes.length, "the Recruitment row has no fields to clone");
+
+const recruitField = (label, value, unit, helper) => {
+  const box = fieldBoxes[0].cloneNode(true);
+  box.removeAttribute("data-field");
+  const lab = box.querySelector("label, .MuiInputLabel-root");
+  if (lab) lab.textContent = label;
+  const input = box.querySelector("input");
+  if (input) input.value = value;
+  const adornment = box.querySelector(".MuiInputAdornment-root");
+  if (adornment) adornment.textContent = unit;
+  const help = box.querySelector(".MuiFormHelperText-root");
+  if (help) help.textContent = helper;
+  else if (helper) {
+    const p = document.createElement("p");
+    p.className = fieldBoxes[0].querySelector("p")?.className ?? "";
+    p.style.cssText = "margin:3px 14px 0;font-size:12px;color:rgba(0,0,0,0.6)";
+    p.textContent = helper;
+    box.append(p);
+  }
+  return box;
+};
+
+const recruitGrid = ladderGrid.cloneNode(false);
+recruitGrid.append(
+  recruitField("First inv.", "5", "days", "The invitation, on the recruitment template."),
+  recruitField("One follow-up", "2", "days", "The only chase. Recruits are never escalated."),
+);
+
+ladderGrid.after(recruitGrid);
+ladderGrid.after(groupHeading("Recruits"));
+
 mark(recruitHead, 1);
-mark(built[0], 2);
+mark(recruitmentRow, 2);
 
 await settle();

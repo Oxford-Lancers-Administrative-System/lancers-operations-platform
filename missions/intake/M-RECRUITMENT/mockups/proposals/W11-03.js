@@ -2112,6 +2112,6 @@ const heading = must(
 );
 mark(heading, 1);
 
-await settle()
+await settle();
 
 })()
