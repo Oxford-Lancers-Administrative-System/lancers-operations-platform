@@ -223,5 +223,33 @@ except `joined` is a direct audited change; `joined` is intercepted by `W14`.
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- Exact words: _"Okay, no, fine. Leave a note here that I'm going to want to
+  update the button placement because you can't seem to figure out where I want
+  to put it. Fine. It's approved. W-2 is approved. I can't spend any more time on
+  this."_
+- Date: 2026-08-31
+
+### The approval carries a reservation, and it is not settled
+
+**Button placement is explicitly open.** Brian approved this workflow while
+saying he intends to change where the two send buttons sit. The current
+placement — two contained buttons in the top right, wrapping at 375px — is what
+he accepted **to stop spending time**, not what he wants. Three arrangements were
+tried and struck before it: card-header action links (_"hidden... you've done too
+much"_), one button for two questionnaires, and the flip and follow-up as further
+actions (_"No, fuck that"_).
+
+Do not treat the placement as decided, and do not defend it. When he returns to
+it, move it.
+
+## Still open on this workflow
+
+1. **Button placement**, above.
+2. **The events card is violet** `#4527a0` here, the shipped `ATTENDANCE`
+   colour, while `W1`'s approved event bands are blue `#0b3d91`. Making them
+   consistent changes approved work and needs his word.
+3. **Does channel presence render on this record at all?** `AM-presence` and
+   `T08-row8` moved here when `W3` was removed and both say it does, while
+   `On WhatsApp` was struck from the board as not a recruit field.
+4. **`W3`'s five decisions** now sit in `W10` and `W2`; he has not confirmed
+   those homes.

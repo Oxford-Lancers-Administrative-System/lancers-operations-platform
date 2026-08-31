@@ -41,35 +41,24 @@
     {
       "id": "W2",
       "name": "One recruit's record",
-      "state": "spec_draft",
-      "stale": true,
-      "feedback": [
-        {
-          "screen_id": "W2-01",
-          "date": "2026-08-31",
-          "text": "They should show the recruit page on the left, like we made consistent for everything else. The pages underneath should be very similar to the roster in the way that it's done, except it's the recruit player page, not the roster player page. It should be very clear at the top that this is underneath the recruitment. This is /recruitment, not /roster. — DONE on W2-01: Recruitment is selected in the sidebar, the page is built card-for-card on the shipped player record, the line under the name reads \"Recruitment · 2026-27\", the route is /operate/recruitment/<recruit> and the button at the foot reads BACK TO RECRUITMENT."
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Okay, no, fine. Leave a note here that I'm going to want to update the button placement because you can't seem to figure out where I want to put it. Fine. It's approved. W-2 is approved. I can't spend any more time on this.",
+          "date": "2026-08-31"
         },
-        {
-          "screen_id": "W2-01",
-          "date": "2026-08-31",
-          "text": "We shouldn't invent UI elements here. We should see what the roster is, and we should see the player and all the stuff there. — DONE: every card is a shipped card. PERSON kept; ONBOARDING becomes RECRUITMENT; SEASON becomes THE RECRUIT-STAGE ASK; the shipped ATTENDANCE table becomes RECRUITMENT EVENTS unchanged in kind; THEIR OTHER SEASONS becomes NOTES; STATUS HISTORY stays."
-        },
-        {
-          "screen_id": "W2-01",
-          "date": "2026-08-31",
-          "text": "It seems like there are two invites for some reason. There are two invite sections in W2-01. — DONE. There were: an EVENTS card AND a purple card headed WHAT WE HAVE SAID that was actually the player's own 53-row attendance table with its heading renamed over it, because rebuildCard failed silently. One events section now, and the helpers throw."
-        },
-        {
-          "screen_id": "W2-02",
-          "date": "2026-08-31",
-          "text": "W2-02 seems to be not recruitment. It seems to be something else... It's showing the roster instead of the recruit page on its proposed pages. If we deleted W2-02 and W2-03, just the screens, and just left it with this third screen, would anything be missed? — RESOLVED: both old screens deleted. W2-02 is rebuilt as the one screen that covers what they would have shown between them: the record with the ask answered and the status field open for editing. W2-03 is gone entirely and the workflow now has two screens."
+        "mock": {
+          "words": "Okay, no, fine. Leave a note here that I'm going to want to update the button placement because you can't seem to figure out where I want to put it. Fine. It's approved. W-2 is approved. I can't spend any more time on this.",
+          "date": "2026-08-31"
         }
-      ]
+      }
     },
     {
       "id": "W3",
       "name": "Say yes to the club — removed, no workflow here",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
       "approvals": {
@@ -1020,7 +1009,7 @@
       }
     ]
   },
-  "next_action": "Structure settled with Brian 2026-08-31: W4 holds TWO questionnaires (personal details, and how you came to football) sent at different times - no W15, he declined one. W10 is the machinery workflow and owns the ladder, its triggers and the WhatsApp onboarding inherited from W3. W2 must show, per recruit, what has been sent and what is due next, and must afford its six required actions - it currently affords one. Build order: finish W2's actions, then W4's two questionnaires, then W10. W1 done; W2 awaiting these additions; W3 removed; W4-W14 stale.",
+  "next_action": "W1 and W2 are done and approved in Brian's words; W3 is removed and its slot is done. Next is W4 (two questionnaires: wording less casual, the recruit's name at the top, real controls - dropdowns where the answer is a fixed set - and its trigger corrected from W3's ladder to W10's), then W10 (the machinery: what is sent, on what trigger, in what order). W4-W14 are stale; go one at a time, and open the rendered PNG of every screen INCLUDING 375px before showing him. FOUR THINGS ARE OPEN AND MUST NOT BE TREATED AS SETTLED: (1) BUTTON PLACEMENT on W2 - Brian approved W2 explicitly reserving this, 'I'm going to want to update the button placement'; it is not settled and he will move it. (2) The events card is violet #4527a0 on the record and W1's approved event bands are blue #0b3d91; making them consistent changes approved work and needs his word. (3) Does WhatsApp channel presence render on a recruit's record at all? Inherited from W3's removal. (4) W3's five decisions now sit in W10 and W2 and he has not confirmed those homes.",
   "subject_coverage": {
     "areas": [
       {
