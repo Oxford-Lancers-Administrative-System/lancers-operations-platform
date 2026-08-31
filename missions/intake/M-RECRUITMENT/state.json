@@ -73,10 +73,20 @@
     },
     {
       "id": "W3",
-      "name": "Say yes to the club",
+      "name": "Say yes to the club — removed, no workflow here",
       "state": "spec_draft",
-      "stale": true,
-      "feedback": []
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "W3 doesn't seem to hold anything. It should just be flat-out removed. Don't renumber anything. At least there are no screens associated with it. It seems to have rolled into something else.",
+          "date": "2026-08-31"
+        },
+        "mock": {
+          "words": "W3 doesn't seem to hold anything. It should just be flat-out removed. Don't renumber anything. At least there are no screens associated with it. It seems to have rolled into something else.",
+          "date": "2026-08-31"
+        }
+      }
     },
     {
       "id": "W4",
@@ -319,9 +329,9 @@
         "id": "D3",
         "source_id": "SRC-task-09-brief",
         "disposition": "workflow",
-        "workflow": "W3",
-        "reason": "The welcome and community-group invite are the sign-on flow itself, not a side effect of a door. Every door ends by firing W1, which is why Brian made it its own workflow on 2026-08-31.",
-        "also_referenced_by": ["W5", "W6", "W7", "W10"]
+        "workflow": "W10",
+        "reason": "W3 removed 2026-08-31 on Brian's instruction. The welcome and community-group invite are fired by the recruitment machinery, which is W10's: boundary item 43 gives it what fires the welcome, the ask and the invitations, and on what trigger. The doors that fire it stay W5, W6 and W7.",
+        "also_referenced_by": ["W5", "W6", "W7"]
       },
       {
         "id": "D4",
@@ -698,9 +708,9 @@
         "id": "AM-presence",
         "source_id": "SRC-authority",
         "disposition": "workflow",
-        "workflow": "W3",
-        "reason": "Channel presence is established by the sign-on flow and rendered on the record.",
-        "also_referenced_by": ["W2", "W1"]
+        "workflow": "W2",
+        "reason": "W3 removed 2026-08-31. Channel presence is a fact about one recruit and is read on the recruit's record, which is W2's.",
+        "also_referenced_by": ["W1"]
       },
       {
         "id": "AM-fieldset",
@@ -713,9 +723,9 @@
         "id": "T08-row8",
         "source_id": "SRC-task-08-brief",
         "disposition": "workflow",
-        "workflow": "W3",
-        "reason": "Row 8 channel presence - is this person on WhatsApp and in this season's group - is exactly what W1 establishes; W3 displays it.",
-        "also_referenced_by": ["W2", "W1"]
+        "workflow": "W2",
+        "reason": "W3 removed 2026-08-31. Row 8 channel presence renders on the recruit's record, which is W2's. Note that Brian struck On WhatsApp from the BOARD on the same day as not a recruit field; whether it appears on the record is an open question recorded against W2.",
+        "also_referenced_by": ["W1"]
       },
       {
         "id": "T08-recruitfields",
@@ -910,16 +920,16 @@
         "id": "SIGNON-OWNED",
         "source_id": "SRC-owner-2026-08-31",
         "disposition": "workflow",
-        "workflow": "W3",
-        "reason": "Channel registration is handled in this mission and is its own flow. Brian: 'The initial WhatsApp registration, I think, needs to be handled here... Even though it's rather small, it will define this for other steps in this process.'",
+        "workflow": "W10",
+        "reason": "W3 removed 2026-08-31. Channel registration is this mission's and is its own flow; the flow is machinery, and the machinery is administered in W10.",
         "also_referenced_by": ["W5", "W6", "W7"]
       },
       {
         "id": "SIGNON-LADDER",
         "source_id": "SRC-owner-2026-08-31",
         "disposition": "workflow",
-        "workflow": "W3",
-        "reason": "The named sequence: first notification invites them in, they sign in, they accept, they answer the standard recruit ask immediately, a polite reminder follows, and the fuller form is asked. W1 carries acceptance and the immediate ask; W4 carries the form and its reminder.",
+        "workflow": "W10",
+        "reason": "W3 removed 2026-08-31. The named sequence is the definition of what the club sends and when, which is W10's cycle administration. Its templates already moved to W10-03 when Brian folded W3 on the same day.",
         "also_referenced_by": ["W4"]
       },
       {
@@ -1003,7 +1013,7 @@
       }
     ]
   },
-  "next_action": "W2-01 is rebuilt on the shipped player record and is with Brian. W2-02 and W2-03 are NOT rebuilt and remain stale; his feedback was that neither showed him anything he understood. Proposed replacements are recorded in W2's feedback. One open question for him: the events card is violet #4527a0 here because that is the shipped ATTENDANCE colour, while W1's approved event bands are blue #0b3d91. Making them consistent means changing approved W1; do not touch W1 without his word.",
+  "next_action": "W3 is REMOVED on Brian's instruction; its slot is kept so nothing renumbers and its spec, mockup page and inventory row all say so. Its state is spec_draft only because the ledger forbids a workflow being done before every earlier one is - flip W3 to done as soon as W2 is done. Its five decisions moved to W10 (D3, SIGNON-OWNED, SIGNON-LADDER) and W2 (AM-presence, T08-row8); both homes await Brian's word. W2-02 and W2-03 are still the old stale screens and show the roster.",
   "subject_coverage": {
     "areas": [
       {

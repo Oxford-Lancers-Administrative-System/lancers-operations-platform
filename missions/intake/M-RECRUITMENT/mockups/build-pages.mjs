@@ -135,25 +135,26 @@ const WORKFLOWS = [
   {
     id: "W3",
     slug: "say-yes-to-the-club",
-    name: "Say yes to the club",
-    lede: `A newly captured recruit hears from the club, agrees to be contacted, joins the community
-      group, and answers the standard ask. The actor is the recruit and the journey happens inside
-      WhatsApp, which this product does not render.`,
+    name: "Removed — no workflow here",
+    lede: `Removed on 2026-08-31 on Brian's instruction. The number is kept so that nothing
+      renumbers; nothing should be built here.`,
     grounding: "photograph",
-    noScreens: `<strong>W3 draws no surfaces of its own — Brian's decision, 2026-08-31.</strong>
-      Asked whether W3 is a recruit-facing page we build, an operator view, or something folded into
-      the workflows around it, he chose to fold it. So this workflow keeps its specification, which
-      is where the five-step ladder is defined and where its invariants live, and every screen that
-      would have belonged to it now sits with the workflow that owns the surface:
-      <ul>
-        <li><strong>What the club sends, and in what order</strong> — <a href="W10-administer-recruitments-machinery.html">W10</a>, the recruitment cycle, and <code>W10-03</code> for the templates themselves.</li>
-        <li><strong>Where one recruit has reached in the ladder</strong> — <a href="W2-one-recruits-record.html">W2</a>, screen <code>W2-03</code>, on her own record.</li>
-        <li><strong>A welcome that did not fire for want of opt-in evidence</strong> — <a href="W6-add-a-recruit-by-hand.html">W6</a>, screen <code>W6-03</code>, the door that carries no natural opt-in.</li>
-        <li><strong>The doors that fire it</strong> — <a href="W5-capture-a-walk-up-as-a-recruit.html">W5</a>, <a href="W6-add-a-recruit-by-hand.html">W6</a> and <a href="W7-sign-yourself-in.html">W7</a>.</li>
-      </ul>
-      The decisions this workflow carries are still W3's to approve, and they are in
-      <code>workflows/W3-say-yes-to-the-club.md</code>. Nothing about the ladder was dropped; only
-      the screens moved to where a reviewer can see them in context.`,
+    noScreens: `<strong>W3 was removed on 2026-08-31.</strong> Brian:
+      <em>“W3 doesn't seem to hold anything. It should just be flat-out removed. Don't renumber
+      anything.”</em> and <em>“At least there are no screens associated with it. It seems to have
+      rolled into something else.”</em>
+      <p>Earlier the same day he had folded it into the doors and W10, and its three screens moved
+      to <code>W10-03</code>, <code>W2-03</code> and <code>W6-03</code>. What remained was a
+      specification with no actor journey of its own and no surface.</p>
+      <p><strong>The number is deliberately kept and never reused</strong>, so W4 through W14 hold
+      the numbers they were frozen with.</p>
+      <p>Its five decisions all found new owners and none was dropped —
+      <code>D3</code>, <code>SIGNON-OWNED</code> and <code>SIGNON-LADDER</code> to
+      <a href="W10-administer-recruitments-machinery.html">W10</a>, which owns what fires the
+      welcome and on what trigger; <code>AM-presence</code> and <code>T08-row8</code> to
+      <a href="W2-one-recruits-record.html">W2</a>, because channel presence is a fact about one
+      recruit. Both homes await Brian's word. See
+      <code>workflows/W3-say-yes-to-the-club.md</code>.</p>`,
     legend: [
       "<strong>Every business-initiated WhatsApp message is a Meta-approved template.</strong> <code>src/lib/delivery/config.ts</code>: <em>“template is the only production shape.”</em> Free text exists on the loopback test path alone, and only <code>event_invitation</code> is approved today",
       "<strong>So nobody types to a recruit.</strong> The club's voice is the template, not whoever is holding the phone — which is why there is no composer anywhere in this mission",
