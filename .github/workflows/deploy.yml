@@ -185,6 +185,7 @@ jobs:
           secrets: |
             SUPABASE_SECRET_KEY=${{ vars.SUPABASE_SECRET_KEY_SECRET || 'supabase-secret-key' }}:latest
             DATABASE_URL=${{ vars.DATABASE_URL_SECRET || 'database-url' }}:latest
+            WHATSAPP_ACCESS_TOKEN=${{ vars.WHATSAPP_ACCESS_TOKEN_SECRET || 'whatsapp-access-token' }}:latest
 
       - name: Smoke test the deployed revision
         env:
