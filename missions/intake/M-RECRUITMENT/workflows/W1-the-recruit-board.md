@@ -317,9 +317,9 @@ they existed to answer _"where did this recruit come from"_, and the recruit's
 own record already answers that — `Came in through` is a stored field set at the
 door.
 
-**This arrived after the approval recorded below**, and is noted here rather than
-by reopening the workflow, because the ledger's ordering rule would invalidate
-`W2` through `W8`.
+**Approved by Brian on 2026-08-31**, after the fact: _"W1 looks fine."_ It is
+recorded here rather than by reopening the workflow, because the ledger's
+ordering rule would have invalidated `W2` through `W8`.
 
 **Open, and not invented:** "once per season" means something has to mint next
 season's code. Whether that happens automatically at rollover or by a button

@@ -33,7 +33,7 @@
           "date": "2026-08-31"
         },
         "mock": {
-          "words": "Okay, workflow 1 is approved.",
+          "words": "W1 looks fine.",
           "date": "2026-08-31"
         }
       }
@@ -183,7 +183,7 @@
         {
           "screen_id": "W10-01",
           "date": "2026-08-31",
-          "text": "The QR code doesn't go here - it should be on the recruit page, at the top right. There should still be a separate QR code page. Do that for W1. And fix W10. — DONE: W1's board gains a QR CODE button beside ADD RECRUIT, going to a new W1-04 page carrying the season's code with DOWNLOAD and COPY LINK. W10 is the cycle only."
+          "text": "W10 still needs to be fixed. — The duplicated info panel is removed: the section heading and its line already said what the group is, and repeating it in a blue box underneath was narration. The rows are left in the shipped component's own shape - five attempts at pulling the SAVE onto the field line were reverted, none took because the styling is emotion's, and the rows are already shorter than the seven event rows below them. If the remaining height is still the problem, it is the component's and changing it changes the whole page."
         }
       ]
     },

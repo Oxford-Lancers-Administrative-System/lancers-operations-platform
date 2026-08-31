@@ -187,12 +187,12 @@
     {
       "id": "W10-01",
       "route": "/operate/admin/messaging",
-      "headSha": "3d2015d94b5a4150f21482927bb966d47d54b7e7",
+      "headSha": "587065eb4462944c575b2903aaeecdd14dcded57",
       "slot": "mission-m-recruitment-1",
       "proposal": {
         "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W10-01.js",
-        "sha256": "cfe9329752ddb814580939ea885c4faee8d909cc3ade675b72a9f49e21716bb6",
-        "bytes": 96432
+        "sha256": "a8b7e0ea0b61e6c09bf7e671d85ecd5df0f4efc009ec18ee08e5ee2f77dbf79e",
+        "bytes": 96373
       },
       "captures": [
         {
@@ -228,7 +228,7 @@
           "file": "shots/W10-01-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-31T22:05:04.971Z"
+      "at": "2026-08-31T22:20:18.469Z"
     },
     {
       "id": "W11-01",

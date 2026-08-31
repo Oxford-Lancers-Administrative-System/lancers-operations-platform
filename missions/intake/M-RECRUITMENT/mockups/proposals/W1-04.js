@@ -2123,8 +2123,7 @@ host.append(card);
 // The code itself. Drawn — there is nothing in this product to clone.
 const code = document.createElement("div");
 code.textContent = "▦";
-code.style.cssText =
-  "font-size:220px;line-height:1;color:#111;letter-spacing:-8px;margin:0 0 8px";
+code.style.cssText = "font-size:220px;line-height:1;color:#111;letter-spacing:-8px;margin:0 0 8px";
 card.append(code);
 
 const points = document.createElement("div");
@@ -2165,6 +2164,6 @@ card.append(note2);
 
 mark(card, 1);
 
-await settle()
+await settle();
 
 })()

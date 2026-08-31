@@ -52,23 +52,15 @@ must(rows, "the messaging schedule has no schedule-row to clone");
 const template = rows[0];
 const host = must(template.parentElement, "the schedule rows have no parent");
 
-// The heading for the new group, in the page's own rule-panel treatment.
+// No second info panel for recruitment. The section heading and its line already
+// say what this group is, and repeating it in a blue box underneath is the
+// narration Brian has struck all day. The page's own panel stays where it
+// belongs — over the event types, whose chase rules it actually describes — so
+// it is only located here, not cloned.
 const rule = must(
   document.querySelector('[data-testid="schedule-rule"]'),
-  "the messaging schedule has no rule panel to clone",
+  "the messaging schedule has no rule panel",
 );
-const cycleRule = rule.cloneNode(true);
-const ruleLeaves = [...cycleRule.querySelectorAll("*")].filter(
-  (n) => n.children.length === 0 && n.textContent.trim(),
-);
-const ruleText = [
-  "The recruitment cycle. What the club sends after somebody is captured, and when.",
-  "Days are counted from capture. A recruit who has declined receives none of it.",
-];
-ruleLeaves.forEach((leaf, i) => {
-  if (i < ruleText.length) leaf.textContent = ruleText[i];
-  else leaf.remove();
-});
 
 // One row per step, from the shipped row: same fields, same toggle, same SAVE.
 const step = ({ name, first, firstUnit, second, secondUnit, on, save }) => {
@@ -144,10 +136,15 @@ const step = ({ name, first, firstUnit, second, secondUnit, on, save }) => {
     grid.style.alignItems = "center";
     grid.style.margin = "0";
   }
-  // The SAVE button stays exactly where the shipped row puts it. Three attempts
-  // at moving it into the field row left it between the two fields with its
-  // label wrapped over three lines — fighting the component instead of using it.
-  // The height problem was the four removed fields, and that is already fixed.
+  // The SAVE button is left exactly where the shipped row puts it, and five
+  // attempts at pulling it onto the field line are reverted. None of them took —
+  // the styling is emotion's, not the inline styles' — and each one made the row
+  // worse than the component does on its own.
+  //
+  // It is also the right answer. These rows are now the same shape as the seven
+  // event rows below them, and shorter, because they carry one or two fields
+  // instead of six. Making them shorter still would make recruitment's rows
+  // diverge from the page they sit on, which is the opposite of the point.
 
   // Anything left in the row that holds neither text nor a control is spacing
   // the removed fields used to fill. It goes, or the row stays tall for content
@@ -218,7 +215,6 @@ host.insertBefore(recruitHead, template);
 // It should be on the recruit page." It lives on W1's board, behind a QR CODE
 // button top right, and on its own page at W1-04. This page is the cycle.
 
-host.insertBefore(cycleRule, template);
 for (const row of built) host.insertBefore(row, template);
 host.insertBefore(
   sectionHeading("Event messaging", "What an event sends, and how it chases, by event type."),
