@@ -92,15 +92,19 @@
     {
       "id": "W5",
       "name": "Capture a walk-up as a recruit",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W5-02",
-          "date": "2026-08-31",
-          "text": "There's a lot of narration that should be done here. This flow should be identical to the way the roster works right now. There are basically needless extensions on this and narration, particularly on W5-02. It should just be the normal workflow: added, WhatsApp approval, first questionnaire. That's it. Plus: I should see the walk-ons, and they should have their own section. I don't like the extra text - a smaller text box that says Walk-up added is fine. — REBUILT: five screens cut to three. The proposed read-back, the duplicate check (W8's) and the no-mobile refusal are deleted, and the relabelled control is back to the shipped ADD WALK-UP. W5-03 now shows the sheet's own Walk-ups group holding her, and the shipped green line is shortened to 'Walk-up added'."
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Okay, and as long as the duplicate check is the same before you add the walk-up to what we do, then this page is fine. W5 is approved.",
+          "date": "2026-08-31"
+        },
+        "mock": {
+          "words": "Okay, and as long as the duplicate check is the same before you add the walk-up to what we do, then this page is fine. W5 is approved.",
+          "date": "2026-08-31"
         }
-      ]
+      }
     },
     {
       "id": "W6",
@@ -1019,7 +1023,7 @@
       }
     ]
   },
-  "next_action": "W5 is rebuilt as three screens and is with Brian. W6-W14 stale. After W5: W6, W7, W8, W9, then W10 (the machinery). One workflow at a time; open every rendered PNG including 375px. STILL OPEN: W2 button placement (reserved when he approved), events violet vs blue, whether channel presence renders on a recruit's record, and whether W3's five decisions belong in W10 and W2.",
+  "next_action": "W1, W2, W4, W5 done and approved; W3 removed. NEXT IS W6 (add a recruit by hand), then W7, W8, W9, then W10 (the machinery). W6-W14 stale. One at a time; open every rendered PNG including 375px. RAISED WITH BRIAN AND UNANSWERED: he approved W5 on the condition that the walk-up's duplicate check is the same as the person-add flow's. IT IS NOT, by his own earlier decision - recordWalkUpAttendance has NO pre-add check ('Brian removed it - they know who's on their roster, there are only 40 people'; a walk-on is always a new person and a duplicate is reconciliation's problem), while /operate/people/new runs a Check for duplicates step. Making them the same reverses that decision. ALSO STILL OPEN: W2 button placement, events violet vs blue, whether channel presence renders on a recruit's record, and whether W3's five decisions belong in W10 and W2.",
   "subject_coverage": {
     "areas": [
       {
