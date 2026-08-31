@@ -190,5 +190,34 @@ present. `W3` fires. All four are one action from the operator's point of view.
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- Exact words: _"Okay, and as long as the duplicate check is the same before you
+  add the walk-up to what we do, then this page is fine. W5 is approved."_
+- Date: 2026-08-31
+
+### The condition attached to it is not currently true
+
+Brian approved this workflow **on the condition** that the duplicate check before
+a walk-up is added matches what the club does elsewhere. It does not, and the
+reason is a decision of his own.
+
+| Flow                                | Duplicate check before the person is created                                                               |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Add a person, `/operate/people/new` | **Yes.** A `Check for duplicates` step, candidates listed, exact match handled before anything is written. |
+| Walk-up, this workflow              | **No.** None at all.                                                                                       |
+
+`recordWalkUpAttendance` says why, in the service's own words:
+
+> "There is no longer a roster-match path. It offered to anchor the row to an
+> existing membership at `player` capacity, and **Brian removed it** — _'they
+> know who's on their roster, there are only 40 people'_. A walk-on is now always
+> a new person; **a duplicate is reconciliation's problem**, which is what the
+> prospect record exists for."
+
+So the asymmetry is deliberate: a walk-up is written down on a phone at the side
+of a pitch, where a duplicate check would be an interruption, and reconciliation
+happens afterwards in `W8`.
+
+**Making the two the same would reverse that decision**, and would put a check
+back into the one flow he explicitly stripped it from. Recorded rather than acted
+on; it needs Brian's word either way. The approval stands; the condition does
+not.
