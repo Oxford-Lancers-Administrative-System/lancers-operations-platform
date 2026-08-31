@@ -1,0 +1,316 @@
+{
+  "screens": [
+    {
+      "id": "W1-01",
+      "route": "/operate/roster",
+      "headSha": "914c1fa78e421beda74474cf1ffd2fc862c28ac3",
+      "slot": "mission-m-recruitment-1",
+      "proposal": null,
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W1-01-current-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W1-01-current-phone375.png"
+        }
+      ],
+      "at": "2026-08-31T14:02:20.711Z"
+    },
+    {
+      "id": "W1-02",
+      "route": "/operate/people",
+      "headSha": "914c1fa78e421beda74474cf1ffd2fc862c28ac3",
+      "slot": "mission-m-recruitment-1",
+      "proposal": null,
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W1-02-current-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W1-02-current-phone375.png"
+        }
+      ],
+      "at": "2026-08-31T14:03:45.653Z"
+    },
+    {
+      "id": "W10-01",
+      "route": "/operate/admin/messaging",
+      "headSha": "914c1fa78e421beda74474cf1ffd2fc862c28ac3",
+      "slot": "mission-m-recruitment-1",
+      "proposal": null,
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W10-01-current-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W10-01-current-phone375.png"
+        }
+      ],
+      "at": "2026-08-31T14:04:27.409Z"
+    },
+    {
+      "id": "W11-01",
+      "route": "/operate/events/1d76b9f8-82d2-4945-90cc-0b41bdd37ead",
+      "headSha": "914c1fa78e421beda74474cf1ffd2fc862c28ac3",
+      "slot": "mission-m-recruitment-1",
+      "proposal": null,
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W11-01-current-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W11-01-current-phone375.png"
+        }
+      ],
+      "at": "2026-08-31T14:04:33.602Z"
+    },
+    {
+      "id": "W11-02",
+      "route": "/operate/events/new",
+      "headSha": "914c1fa78e421beda74474cf1ffd2fc862c28ac3",
+      "slot": "mission-m-recruitment-1",
+      "proposal": null,
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W11-02-current-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W11-02-current-phone375.png"
+        }
+      ],
+      "at": "2026-08-31T14:04:37.660Z"
+    },
+    {
+      "id": "W12-01",
+      "route": "/operate/events/1d76b9f8-82d2-4945-90cc-0b41bdd37ead/attendance",
+      "headSha": "914c1fa78e421beda74474cf1ffd2fc862c28ac3",
+      "slot": "mission-m-recruitment-1",
+      "proposal": null,
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W12-01-current-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W12-01-current-phone375.png"
+        }
+      ],
+      "at": "2026-08-31T14:04:41.573Z"
+    },
+    {
+      "id": "W2-01",
+      "route": "/operate/people/0b938ce0-031c-4b81-880f-c3b5256e27b2",
+      "headSha": "914c1fa78e421beda74474cf1ffd2fc862c28ac3",
+      "slot": "mission-m-recruitment-1",
+      "proposal": null,
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W2-01-current-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W2-01-current-phone375.png"
+        }
+      ],
+      "at": "2026-08-31T14:03:49.960Z"
+    },
+    {
+      "id": "W3-01",
+      "route": "/operate/events/1d76b9f8-82d2-4945-90cc-0b41bdd37ead/delivery",
+      "headSha": "914c1fa78e421beda74474cf1ffd2fc862c28ac3",
+      "slot": "mission-m-recruitment-1",
+      "proposal": null,
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W3-01-current-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W3-01-current-phone375.png"
+        }
+      ],
+      "at": "2026-08-31T14:04:45.977Z"
+    },
+    {
+      "id": "W5-01",
+      "route": "/operate/events/1d76b9f8-82d2-4945-90cc-0b41bdd37ead/attendance",
+      "headSha": "914c1fa78e421beda74474cf1ffd2fc862c28ac3",
+      "slot": "mission-m-recruitment-1",
+      "proposal": null,
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-01-current-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-01-current-phone375.png"
+        }
+      ],
+      "at": "2026-08-31T14:03:54.512Z"
+    },
+    {
+      "id": "W6-01",
+      "route": "/operate/people/new",
+      "headSha": "914c1fa78e421beda74474cf1ffd2fc862c28ac3",
+      "slot": "mission-m-recruitment-1",
+      "proposal": null,
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W6-01-current-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W6-01-current-phone375.png"
+        }
+      ],
+      "at": "2026-08-31T14:03:58.691Z"
+    },
+    {
+      "id": "W8-01",
+      "route": "/operate/people/192fd288-fb48-4fb5-b36c-eb61781b9619/merge",
+      "headSha": "914c1fa78e421beda74474cf1ffd2fc862c28ac3",
+      "slot": "mission-m-recruitment-1",
+      "proposal": null,
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W8-01-current-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W8-01-current-phone375.png"
+        }
+      ],
+      "at": "2026-08-31T14:04:02.712Z"
+    },
+    {
+      "id": "W9-01",
+      "route": "/operate/admin/follow-ups",
+      "headSha": "914c1fa78e421beda74474cf1ffd2fc862c28ac3",
+      "slot": "mission-m-recruitment-1",
+      "proposal": null,
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W9-01-current-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W9-01-current-phone375.png"
+        }
+      ],
+      "at": "2026-08-31T14:04:23.302Z"
+    }
+  ]
+}
