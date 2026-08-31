@@ -967,7 +967,7 @@
       }
     ]
   },
-  "next_action": "Read missions/intake/M-RECRUITMENT/HANDOFF.md with Brian before touching anything. Stage 3 mockups are stale and unaccepted; three questions block progress.",
+  "next_action": "STOP AND READ missions/intake/M-RECRUITMENT/HANDOFF.md BEFORE ANYTHING ELSE. The previous session was stopped by Brian; all 14 workflows are stale, nothing in Stage 3 is approved, and three unanswered questions block progress. Do not rebuild any mockup before reading it.",
   "subject_coverage": {
     "areas": [
       {
