@@ -315,20 +315,39 @@ exactly like the defect below.
 | `VENUE_SEARCH_PROVIDER` | **Yes** — `photon`           | Event venue entry degrades to plain text and says "address search is not set up here"           |
 | `VENUE_SEARCH_BASE_URL` | No, on purpose               | Blank means the free public Photon instance; set it only to point at a self-hosted one          |
 | `APP_BASE_URL`          | **Yes** — the Cloud Run host | Recovery and invitation have no trusted origin: no email is sent, and the return hop falls back |
-| `WHATSAPP_*` (three)    | **No — not yet**             | Approval creates invitations and **delivers nothing**, recorded as a configuration failure      |
+| `WHATSAPP_*` (two)      | **No — not yet**             | Approval creates invitations and **delivers nothing**, recorded as a configuration failure      |
 
 `tests/deployment-configuration.test.ts` compares this table's reality against
 the workflow: a feature that refuses to run unconfigured must either be
 configured here or be listed below as knowingly absent. It fails if a new one
 appears and neither happens.
 
-**The WhatsApp variables are knowingly absent.** They are not a configuration
-oversight and cannot be fixed by editing this workflow: they need the club's own
-Meta business portfolio, WhatsApp Business Account, Cloud API access and an
-approved message template, which is **LAN-101** and is Brian's. Until it closes,
-a deployed approval queues delivery jobs that fail with a sentence naming the
-missing settings, and the invitation stays retryable. Nothing is silently lost,
-and no hand-sent message stands in for it.
+**The two remaining WhatsApp variables are knowingly absent.** They are not a
+configuration oversight and cannot be fixed by editing this workflow:
+`WHATSAPP_PHONE_NUMBER_ID` and `WHATSAPP_TEMPLATE_NAME` name the club's own
+WhatsApp Business Account and an approved message template, which is
+**LAN-101** and is Brian's. `DELIVERY_RECIPIENT_ALLOWLIST` is absent for a
+different reason: it is configuration rather than a credential, so it belongs
+in the `--set-env-vars` flag with the others — but its real values are members'
+telephone numbers, which must not be committed to this workflow. It therefore
+takes its value from a **repository variable**,
+`${{ vars.DELIVERY_RECIPIENT_ALLOWLIST }}`, set in the repository's settings
+and never in the diff. Not Secret Manager: an allowlist is a control that
+should be readable by anyone who can read this workflow, and filing it as a
+secret would misreport what it is.
+Until all three are present a deployed approval queues delivery jobs that fail
+with a sentence naming the missing settings, and the invitation stays
+retryable. Nothing is silently lost, and no hand-sent message stands in for it.
+
+**`WHATSAPP_ACCESS_TOKEN` is wired and is not in the table above**, because it
+is a credential: it is read from Secret Manager at runtime through the deploy's
+`secrets:` block, exactly as `SUPABASE_SECRET_KEY` is, and never appears in this
+workflow, the image or the repository. The secret is `whatsapp-access-token`,
+overridable with the `WHATSAPP_ACCESS_TOKEN_SECRET` repository variable. Wiring
+it enables no delivery on its own — the sender refuses until the two variables
+above and the allowlist are set as well. Cloud Run pins secret versions at
+instance start, so adding a new version does nothing until a further deploy
+rolls a revision.
 
 This gap was found by LAN-82's walk: LAN-115's address search had merged and
 worked locally, and no deployed revision had ever been told to enable it.
