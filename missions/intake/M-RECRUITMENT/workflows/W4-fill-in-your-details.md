@@ -164,5 +164,11 @@ is not already there. Nothing else moves.
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- Exact words: _"W4 seems fine. Approved."_
+- Date: 2026-08-31
+
+Given after the screens were rebuilt as two questionnaires, with the recruit's
+name at the top, plainer wording, and each question carrying the control the
+shipped `QuestionField` would give it. The screens he rejected earlier had never
+been rebuilt until that point — only this specification had changed — which is
+why they looked identical when he came back to them.
