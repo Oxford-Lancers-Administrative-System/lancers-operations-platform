@@ -7,8 +7,10 @@
 - Primary actor: an operator holding the core four authority.
 - Trigger: the operator notices somebody has gone quiet, has not answered the ask,
   or is worth a personal word before an event.
-- Entry point: an action on a board row (`W1`), on the recruit's record (`W2`), or
-  from an event's audience (`W11`).
+- Entry point: an action on the recruit — her row on the board (`W1`) or her own
+  record (`W2`) — and from an event's audience (`W11`). **Never a queue.** The
+  operator is looking at a person when they decide to say something, so the button
+  is on the person.
 - Route/placement: a composer opened in place, not a separate page.
 - Controlling source: the never-harsh amendment of 2026-08-31; Brian's ruling the
   same day that this surface is Mission 6's and Mission 7 inherits from it; his
@@ -30,11 +32,22 @@ the boundary.
 
 ## Current `main` grounding
 
-- Locally rendered route or nearest implemented analogue: `/operate/admin/follow-ups`
-  at `main@e669331`, photographed as `W9-01` — Mission 4's Follow-ups queue, which
-  is the closest thing to "who needs a word" in the product. There is **no
-  composer anywhere in the application**: Mission 5's packet is explicit that it
-  composes, schedules and sends nothing, and Mission 4 sends only from its ladder.
+- Locally rendered route or nearest implemented analogue: **the recruit's own
+  record**, `/operate/people/[personId]`, photographed as `W9-01` and `W9-03`.
+  There is **no composer anywhere in the application**: Mission 5's packet is
+  explicit that it composes, schedules and sends nothing, and Mission 4 sends only
+  from its ladder, so `W9-02` and `W9-04` are drawn.
+
+  **Corrected 2026-08-31.** The first draft grounded this workflow on Mission 4's
+  Follow-ups queue at `/operate/admin/follow-ups` and showed only that queue.
+  Brian: _"when I saw the flow to actually go and do them, you just showed me the
+  follow-up queue and no output… That's not even the right place."_ He is right
+  twice over. The queue is Mission 4's chase surface for members who owe the club
+  an answer, which is the opposite of what a recruit is; and a queue is not a
+  journey. The entry point is **the recruit** — her row on the board, or her own
+  record — and the workflow now runs end to end: where the button is, what the
+  composer looks like, what happens when it sends, and where the message lands.
+
 - Reused component, language, interaction, and permission patterns: Mission 4's
   transport and template machinery, verbatim. The queue's own language for who is
   outstanding and why.
@@ -105,8 +118,14 @@ not observable and the operator records it by hand.
 
 ## Acceptance evidence
 
-- `W9-01` `grounding: photograph`; `W9-02` `grounding: code-only`, drawn, because
-  no composer exists anywhere in the application.
+Four screens, because a send is a journey and not a screen: `W9-01` where the
+button is, `W9-02` the composer, `W9-03` what happens when it sends and where the
+message lands, `W9-04` the refusal.
+
+- `W9-01` and `W9-03` `grounding: photograph` — the recruit's record, both sides,
+  measured.
+- `W9-02` and `W9-04` `grounding: code-only`, drawn, because no composer and no
+  such refusal exist anywhere in the application.
 
 ## Core decisions
 

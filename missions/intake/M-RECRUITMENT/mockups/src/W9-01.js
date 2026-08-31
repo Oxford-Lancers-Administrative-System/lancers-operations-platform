@@ -1,40 +1,34 @@
-// W9-01 — Follow up with a recruit, proposed. Mission 4's Follow-ups queue is
-// the nearest analogue; the composer itself has no equivalent anywhere in the
-// application, because Mission 5 sends nothing and Mission 4 sends only from
-// its ladder.
+// W9-01 — Where you hit the button. The entry point is the recruit, not a
+// queue: her own record carries the action, and so does her row on the board.
+setHeading("Rosalind Penhaligon");
+dedupeHeaderChip("Recruit");
+
+// The action, in the page's own header, beside the actions that already exist.
+const header = $("h1")?.parentElement?.parentElement ?? document.body;
+const existing = $$("a, button").find((b) => /correct this record/i.test(b.textContent));
+if (existing) {
+  const btn = existing.cloneNode(true);
+  btn.textContent = "MESSAGE HER";
+  btn.style.background = "#00695c";
+  btn.style.color = "#fff";
+  btn.style.border = "none";
+  existing.parentElement.insertBefore(btn, existing);
+}
+
 appendCard(
-  "Follow up with Rosalind Penhaligon",
+  "Where they are in recruitment",
   [
-    makeRow("Outstanding", "Recruit-stage ask — never sent"),
-    makeRow("Last heard from", "Nothing since the welcome, 28 Apr"),
-    makeRow("Reachable", "WhatsApp · approved 28 Apr"),
+    makeRow("Status", "", { chip: "identified" }),
+    makeRow("Came in through", "QR · Freshers' Fair stand"),
+    makeRow("First contact", "28 April 2026"),
   ],
-  "Opened from her row. The operator is not composing blind: what she has not done is on the screen.",
+  "",
 );
 appendCard(
-  "Start from one of these",
+  "What we have said",
   [
-    makeRow(
-      "Ask for their details",
-      "“Hi Rosalind — lovely to meet you at the Fair. When you have a minute, could you fill this in? It helps us know what to put on for you.”",
-    ),
-    makeRow(
-      "Invite them along",
-      "“Hi Rosalind — we have a taster on Thursday at 6. No kit needed, no experience needed. Would be great to see you.”",
-    ),
-    makeRow(
-      "Just say hello",
-      "“Hi Rosalind — how are you finding things? Anything you want to know about the club, just ask.”",
-    ),
+    makeRow("Welcome + group invite", "28 Apr · delivered"),
+    makeRow("Event invitation", "29 Apr · delivered · no reply"),
   ],
-  "Brian, 2026-08-31: the messages should be good, and it should be easy. A blank box is neither. Every one is editable before sending.",
-);
-appendCard(
-  "What this surface will not do",
-  [
-    makeRow("No cadence", "One message, sent by a person, now"),
-    makeRow("No rung", "This never becomes an escalation ladder"),
-    makeRow("No bulk send", "One recruit at a time — the moment it sends to many it is a campaign"),
-  ],
-  "Invariant 1. The never-harsh rule permits this surface and constrains exactly what it may grow into.",
+  "Nothing since 29 April. This is what makes an operator want the button — and the button is here, on her, not in a queue somewhere else.",
 );

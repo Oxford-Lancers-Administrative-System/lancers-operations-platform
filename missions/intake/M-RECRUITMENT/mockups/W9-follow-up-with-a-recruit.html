@@ -1292,9 +1292,9 @@
         </p>
         <span class="grounding">Grounding: mixed · photographs where a surface exists, drawn where none does</span>
         <div class="legend">
-          <span>This workflow exists because of the 2026-08-31 amendment. Until then the rule was that recruits are never chased and human touches happen outside the system</span>
-          <span>Brian: <em>“That is not Mission 7. That is Mission 6. Mission 7 can inherit from Mission 6 if it wants to.”</em></span>
-          <span><strong>W9-02 is drawn</strong> — there is no composer anywhere in the application. Mission 5 sends nothing and Mission 4 sends only from its ladder</span>
+          <span><strong>Corrected 2026-08-31.</strong> The first draft grounded this on Mission 4's Follow-ups queue and showed only the queue. Brian: <em>“you just showed me the follow-up queue and no output… That's not even the right place.”</em> The queue is Mission 4's chase surface for members who owe the club an answer — the opposite of a recruit — and a queue is not a journey</span>
+          <span><strong>The entry point is the recruit</strong>, not a queue. An operator is looking at a person when they decide to say something, so the button is on the person</span>
+          <span><strong>Four screens, because a send is a journey:</strong> where the button is, the composer, what happens when it sends, and the refusal</span>
         </div>
       </header>
       <div id="screens"></div>
@@ -1314,18 +1314,17 @@
       const SCREENS = [
         {
           id: "W9-01",
-          title: "Who needs a word",
+          title: "Where you hit the button",
           disposition: "modified",
           drawn: false,
-          blurb: `Built on Mission 4's Follow-ups queue, the closest thing the product has to “who needs a
-         word”.`,
+          blurb: `Her own record, with the action beside the ones that already exist. Her row on the board carries the same action.`,
           deltas: [
-            `<strong>1. The operator is not composing blind</strong> — what the recruit has not done is on the screen`,
-            `<strong>2. Good default messages</strong>, one per common situation, in club voice. <strong>Decide:</strong> a blank box is neither good nor easy`,
-            `<strong>3. What this surface will not do</strong>: no cadence, no rung, no bulk send`,
+            `<strong>1. The button is on her</strong>, next to <em>Correct this record</em>`,
+            `<strong>2. What makes an operator want it</strong> is on the same screen: nothing said since 29 April`,
+            `<strong>3. Not a queue.</strong> Mission 4's Follow-ups queue chases members who owe an answer; a recruit owes nothing`,
           ],
           clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/admin/follow-ups",
+          url: "oxfordlancers.example/operate/recruits/0b938ce0",
         },
         {
           id: "W9-02",
@@ -1334,12 +1333,40 @@
           drawn: true,
           blurb: `One recruit, one message, sent by a person, now.`,
           deltas: [
-            `<strong>1. Opened from her row</strong>, without losing place`,
-            `<strong>2. A starting point, then edited</strong>, because a real person is sending it`,
-            `<strong>Decide:</strong> one recruit at a time, no multi-select. The moment it sends to many it is a campaign and the rule is gone`,
+            `<strong>1. The operator is not composing blind</strong> — what she has not done is on the screen`,
+            `<strong>2. Three good starting points</strong>, in club voice, editable before sending. <strong>Decide:</strong> a blank box is neither good nor easy`,
+            `<strong>3. What it will never grow into</strong>: no cadence, no rung, no bulk send`,
           ],
           clockTag: CLOCK,
-          url: "Opened from the recruit board",
+          url: "Opened from her row on the recruit board",
+        },
+        {
+          id: "W9-03",
+          title: "Sent, and where it lands",
+          disposition: "modified",
+          drawn: false,
+          blurb: `The output — the thing the first draft was missing entirely.`,
+          deltas: [
+            `<strong>1. Confirmed on the screen she is already on</strong>`,
+            `<strong>2. It lands on her record</strong>, attributed to the operator who sent it. That attribution is what makes an operator-composed message safe to allow`,
+            `<strong>3. It moves nothing on the ladder.</strong> Sending is the club talking, not the recruit answering`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/recruits/0b938ce0",
+        },
+        {
+          id: "W9-04",
+          title: "Refused: he declined",
+          disposition: "new",
+          drawn: true,
+          blurb: `The never-harsh rule is a guarantee, so it has to be visible somewhere. This is where.`,
+          deltas: [
+            `<strong>1. A recorded refusal never coexists with continued messaging</strong>`,
+            `<strong>2. It refuses and says why</strong>, rather than sending and failing`,
+            `<strong>3. Only he can change it.</strong> If he gets back in touch, an operator moves him back`,
+          ],
+          clockTag: CLOCK,
+          url: "Opened from his row on the recruit board",
         },
       ];
 
