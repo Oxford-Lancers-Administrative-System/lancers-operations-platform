@@ -1288,24 +1288,6 @@
       }
       .noscreens ul { margin: 8px 0 0; padding-left: 20px; }
       .noscreens li { margin-bottom: 5px; }
-      /* Prose that belongs to the workflow rather than to any one screen, set
-         on the page's own card so it reads as part of the review and not as a
-         note bolted underneath it. */
-      .afterscreens {
-        max-width: 900px;
-        background: #fff;
-        border-radius: 8px;
-        padding: 4px 28px 28px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-      }
-      .afterscreens h2 { font-weight: 800; }
-      .afterscreens p { line-height: 1.6; font-size: 14px; }
-      .afterscreens code {
-        background: rgba(0, 0, 0, 0.05);
-        border-radius: 3px;
-        padding: 1px 4px;
-        font-size: 0.92em;
-      }
       .provenance {
         font-size: 12.5px;
         line-height: 1.6;
@@ -1366,29 +1348,6 @@
         </div>
       </header>
       <div id="screens"></div>
-      <section class="afterscreens">
-<h2 style="margin:44px 0 8px;font-size:20px">The recruit messaging flow</h2>
-      <p style="margin:0 0 14px;color:#555">Everything the club ever sends a recruit, in order. Moved
-      here on 2026-08-31 rather than given a workflow of its own.</p>
-      <table style="border-collapse:collapse;width:100%;font-size:14px">
-        <tr style="text-align:left"><th style="padding:6px 10px;border-bottom:1px solid #ddd">Message</th><th style="padding:6px 10px;border-bottom:1px solid #ddd">Fires</th><th style="padding:6px 10px;border-bottom:1px solid #ddd">They land on</th></tr>
-        <tr><td style="padding:6px 10px"><code>recruit_welcome</code></td><td style="padding:6px 10px">Capture — walk-up and operator-add only</td><td style="padding:6px 10px">The WhatsApp group link</td></tr>
-        <tr><td style="padding:6px 10px"><code>recruit_details_ask</code></td><td style="padding:6px 10px">1 day after capture</td><td style="padding:6px 10px">W4-01</td></tr>
-        <tr><td style="padding:6px 10px"><code>recruit_details_reminder</code></td><td style="padding:6px 10px">3 days later, once</td><td style="padding:6px 10px">The same form</td></tr>
-        <tr><td style="padding:6px 10px"><code>recruit_interest_ask</code></td><td style="padding:6px 10px">3 days after capture</td><td style="padding:6px 10px">W4-02</td></tr>
-        <tr><td style="padding:6px 10px"><code>recruit_interest_reminder</code></td><td style="padding:6px 10px">3 days later, once</td><td style="padding:6px 10px">The same form</td></tr>
-        <tr><td style="padding:6px 10px"><code>event_invitation</code></td><td style="padding:6px 10px">A recruitment event is approved</td><td style="padding:6px 10px">W11-03 or W11-04</td></tr>
-        <tr><td style="padding:6px 10px">The event follow-up</td><td style="padding:6px 10px">2 days later, once, only if no answer</td><td style="padding:6px 10px">The same two pages</td></tr>
-      </table>
-      <p style="margin:16px 0 6px"><strong>A QR recruit skips the welcome</strong> — they joined the
-      group themselves at the stand.</p>
-      <p style="margin:0 0 6px"><strong>What is never sent:</strong> anything at all to a recruit who
-      declined; a second reminder; an escalation to the President; a chase for an unanswered event;
-      free text of any kind.</p>
-      <p style="margin:0"><strong>Blocked on an owner action.</strong> Only <code>event_invitation</code>
-      exists in Meta. The other four have not been submitted, so the flow can be built and cannot run
-      until they clear.</p>
-      </section>
     </div>
     <script>
       const CLOCK = "Baseline: main@e669331 · seeded synthetic data";
@@ -1467,6 +1426,47 @@
           url: "oxfordlancers.example/rsvp/DCiMFeFolh5cF4fTgfS9O1sigM9J0vJHas06RNkYtdw?saved=1",
           shotRoute: "/rsvp/DCiMFeFolh5cF4fTgfS9O1sigM9J0vJHas06RNkYtdw?saved=1",
           proposedRoute: "/rsvp/…",
+        },
+        {
+          id: "W11-05",
+          title: "What this event will send, before it is approved",
+          disposition: "new",
+          drawn: false,
+          blurb: `Events → a draft recruitment event → CHOOSE AUDIENCE AND APPROVE → the review step. The
+         messaging plan disclosure is the last thing above APPROVE EVENT, and it is the shipped
+         panel — <code>messaging-plan.tsx</code>, in its own words, <em>“which rung happens when, on
+         which channel, and for whom”</em>. Nothing is drawn; the rows are grouped by who they are
+         for.`,
+          deltas: [
+            `<strong>1. Six steps, not four.</strong> The current side plans one ladder over 37 people, two of whom are recruits, and escalates all 37 to the President. That is the two-ladders defect on screen rather than described`,
+            `<strong>2. The recruits' ladder is an invitation and one follow-up.</strong> The escalation row is <em>absent</em> for recruits — not a President row set to a discouraging number. This is what W10's Recruits group is set to, checked here before approving`,
+            `<strong>Counting is corrected too:</strong> the players' invitation reads 35, because the two recruits are counted with the recruits. Today <code>countByCapacity</code> omits them from the approval summary entirely`,
+            `<strong>Still wrong on this page, not fixed here:</strong> the question line above the plan reads “a reason is asked on No”. For a recruit it never is — W11-04 covers that, and it is the question set, not the plan`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/events/3f7c21a9-4d0e-4b6a-9c31-8e5d7a0b4c12?step=review",
+          shotRoute: "/operate/events/3f7c21a9-4d0e-4b6a-9c31-8e5d7a0b4c12?step=review",
+          proposedRoute: "/operate/events/3f7c21a9",
+        },
+        {
+          id: "W11-06",
+          title: "The timings a recruitment event runs on",
+          disposition: "modified",
+          drawn: false,
+          blurb: `Administration → Messaging schedule → <code>/operate/admin/messaging</code>. The page that
+         decides when a recruitment event's invitations go out and how each audience is chased —
+         the same page W10 administers, shown here because it is the question an operator running an
+         event actually has. One build, so the two screens cannot drift apart.`,
+          deltas: [
+            `<strong>1. Regular players.</strong> The shipped six-field chase, unchanged: an invitation, a reminder every cadence, WhatsApp then email, and the President once the deadline passes`,
+            `<strong>2. Recruits.</strong> An invitation and one follow-up. There is no President field to set — the escalation is absent for recruits rather than configured to a discouraging number`,
+            `<strong>One row per event type and one SAVE per row</strong> both survive. <code>schedule-form.tsx</code> requires both, and a second Recruitment row would have broken the first`,
+            `<strong>W11-05 is the same rule checked against one event</strong>, the moment before it is approved. This is where it is set for every recruitment event`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/admin/messaging",
+          shotRoute: "/operate/admin/messaging",
+          proposedRoute: null,
         },
       ];
 

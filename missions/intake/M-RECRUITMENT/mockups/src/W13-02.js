@@ -1,28 +1,19 @@
-// W13-02 — Bringing somebody back. disengaged is explicitly recoverable, and
-// people resurface in Hilary.
-const box = proposedBlock("green");
-blockTitle(box, "Clementine Varrow is back");
-const rows = document.createElement("div");
-rows.style.cssText =
-  "display:grid;grid-template-columns:auto 1fr;gap:7px 18px;margin-top:8px;font-size:13.5px";
-for (const [k, v] of [
-  ["Was", "disengaged \u2014 recorded 12 May"],
-  ["Now", "engaged"],
-  ["Because", "She messaged the group in Hilary and asked about training"],
-  ["Her record", "Untouched \u2014 no new person, no second recruit row"],
-  ["Her signals", "Both events, both invitations, what she answered"],
-  ["Her notes", "All of them, with their original authors and dates"],
-]) {
-  const a = document.createElement("div");
-  a.textContent = k;
-  a.style.cssText = "font-weight:700;white-space:nowrap";
-  const b = document.createElement("div");
-  b.textContent = v;
-  rows.append(a, b);
-}
-box.append(rows);
-const h1 = $("h1");
-(h1?.parentElement?.parentElement ?? document.body).insertBefore(
-  box,
-  h1?.parentElement?.nextSibling ?? null,
-);
+// W13-02 — Bringing somebody back.
+//
+// Rebuilt 2026-08-31. Brian: "Same thing with W13-02. There's a whole callout at
+// the top for Clementine's back or whatever. That's not the fucking line. I
+// don't know why that's at the top of the page. It's so silly."
+//
+// The callout is gone and so is the roster underneath it — the earlier build
+// pasted a drawn green panel over `/operate/roster` and left forty-two players
+// showing. Coming back is the same one control going the other way.
+//
+// `disengaged` is explicitly recoverable and people resurface in Hilary. No new
+// person, no second recruit row, no re-consent: the same record, re-entered.
+buildRecruitBoard();
+
+const { chip } = setRecruitStatus("Clementine Varrow", "engaged");
+
+mark(chip, 1);
+
+await settle();

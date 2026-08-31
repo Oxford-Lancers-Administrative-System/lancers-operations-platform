@@ -2502,49 +2502,29 @@ const buildMessagingSchedule = () => {
   return { recruitHead, recruitmentRow, playersLabel, recruitsLabel, built };
 };
 
-// W7-01 — Sign yourself in, at the QR code.
+// W11-06 — The timings a recruitment event runs on.
 //
-// There is no public self-entry page on main, so the surface is drawn — but the
-// controls are cloned from the shipped add-a-person form, which carries exactly
-// these four fields, so the field height, border, label behaviour and type scale
-// are the application's own.
+// Brian, 2026-08-31: "W11-06 needs to exist to show what the messaging
+// machinery looks like... The page that tells all the timing for the events,
+// like WhatsApp messages or whatever, that's the page I need to see as well."
 //
-// Brian, 2026-08-31: "The duplicate should be very simple. It should be based on
-// email or phone number or whatever, and we should just take their contact
-// information regardless." So this form refuses nobody and blocks on nothing: it
-// takes what they give and reconciles later, exactly as the walk-up door does.
-captureFormControls();
+// Administration → Messaging schedule → /operate/admin/messaging. The same page
+// W10 administers, shown here because it is what decides when a recruitment
+// event's invitations go out and how each audience is chased — the question an
+// operator running an event actually has. Nothing is proposed here that is not
+// proposed in W10: one build, `buildMessagingSchedule`, so the two screens
+// cannot drift apart.
+//
+// What this screen points at is the Recruitment event row, and only that row.
+// Its body carries two named groups: Regular players keeps the shipped
+// six-field chase that ends with the President, and Recruits is an invitation
+// and one follow-up with no President field at all. W11-05 is where an approver
+// checks that against one particular event; this is where it is set for every
+// recruitment event.
+const { playersLabel, recruitsLabel } = buildMessagingSchedule();
 
-const card = drawnSurface({
-  title: "Join the Oxford Lancers",
-  subtitle: "",
-  chrome: "oxfordlancers.example/join",
-  width: 560,
-});
-
-const lead = document.createElement("p");
-lead.textContent =
-  "Leave your name and a way to reach you. We will send you a WhatsApp message about the next session.";
-lead.style.cssText = "margin:0 0 20px;font-size:14px;color:rgba(0,0,0,0.65);line-height:1.6";
-const sub = card.querySelector("p");
-if (sub) sub.replaceWith(lead);
-else card.append(lead);
-
-for (const question of [
-  { prompt: "First name", kind: "text" },
-  { prompt: "Last name", kind: "text" },
-  { prompt: "Mobile number", kind: "text" },
-  { prompt: "Email address", kind: "text" },
-]) {
-  card.append(questionField(question));
-}
-
-card.append(formButton("SIGN ME UP"));
-card.append(
-  note(
-    "One name and one way to reach them is the whole ask. Everything else the club wants comes later, on a link sent to this number — this is a stand at a Freshers' Fair, not a registration.",
-  ),
-);
+mark(playersLabel, 1);
+mark(recruitsLabel, 2);
 
 await settle();
 

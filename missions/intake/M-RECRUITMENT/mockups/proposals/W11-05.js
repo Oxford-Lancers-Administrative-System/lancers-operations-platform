@@ -2084,46 +2084,534 @@ const addBoardQrButton = () => {
   return qr;
 };
 
-// W11-05 — What the recruit sees after answering.
-//
-// The third of the three Brian asked for. It is deliberately almost nothing: an
-// answer is recorded, the club knows, and the recruit is not given a dashboard,
-// an events list, or an account.
-//
-// The one question this screen settles is whether a recruit sees anything else.
-// Brian: "they don't see an events page, and they don't see other things that
-// they've been invited to. They just see that, or maybe they do see other
-// events, but it should be yes or no."
-//
-// PROPOSED, and the smaller answer: they see this and nothing more. A recruit
-// holds no membership, so a list of "your events" would be a list of one; and a
-// page that accumulates is a page that has to be secured, kept current and
-// reasoned about at the season boundary. If Brian wants the larger answer, the
-// shipped `/me/[token]` player home is the surface it would be built on.
-captureFormControls();
+/**
+ * Flip one recruit's status on a board `buildRecruitBoard` has already drawn.
+ *
+ * Both renderings, from one call. The board is in the DOM twice — a table above
+ * `md` and a card list below it, hidden by `display` rather than unmounted — so
+ * a screen that changes the table and not the cards ships a phone shot showing
+ * the roster's players under a recruitment heading. That defect shipped twice
+ * in this mission before the helper existed; it cannot ship from here.
+ *
+ */
+const setRecruitStatus = (name, value) => {
+  const named = (nodes, read) => nodes.find((n) => read(n)?.textContent.trim() === name);
 
-const card = drawnSurface({
-  title: "You're down for Taster 2",
-  subtitle: "",
-  chrome: "oxfordlancers.example/r/7c41",
-  width: 460,
-});
+  const row = must(
+    named($$("tbody tr"), (tr) => tr.querySelector("a")),
+    `the board has no row for ${name}`,
+  );
+  // The status column, not the first chip in the row: Contactable draws chips
+  // too and sits before it.
+  const chip = must(
+    row.children[4]?.querySelector(".MuiChip-root"),
+    `${name}'s row has no status chip in the status column`,
+  );
+  asRung(chip, value);
 
-const body = document.createElement("div");
-body.style.cssText = "font-size:15px;line-height:1.7;color:rgba(0,0,0,0.8)";
-body.innerHTML =
-  "Sunday 10 May 2026, 2:00 PM<br>Iffley Road Astro<br><br>" +
-  "See you there. If something changes, this link still works — open it again and change your answer.";
-const sub = card.querySelector("p");
-if (sub) sub.replaceWith(body);
-else card.append(body);
+  const card = must(
+    named($$('[data-testid="roster-card"]'), (c) => c.querySelector(".MuiTypography-subtitle1")),
+    `the phone list has no card for ${name}; was setRecruitCards called?`,
+  );
+  const cardChip = must(
+    card.querySelector(".MuiChip-root"),
+    `${name}'s phone card has no status chip`,
+  );
+  asRung(cardChip, value);
 
-card.append(
-  note(
-    "Changing the answer is the same link and the same two options. Nothing else appears here: no other events, no history, no account. A recruit holds no membership, so there is nothing for such a page to hold.",
-  ),
+  return { row, chip, card, cardChip };
+};
+
+/**
+ * The jump-out: a dialog over the page the operator is already on, saying what
+ * pressing the button will do.
+ *
+ * Brian, 2026-08-31, on the drawn panels this replaces: _"It should be a page
+ * over the recruit page, like a jump-out that says there and just explains what
+ * happens to them when you click Enter and they join."_ And on everything else:
+ * _"We don't need fucking callouts for this thing. The only time we need it is
+ * for Join."_ So this is used for the flip and for the flip's refusal, and
+ * nowhere else in W13 or W14.
+ */
+const confirmDialog = ({ title, body, rows, confirm, cancel = "CANCEL" }) => {
+  const paperTpl = must(
+    [...document.querySelectorAll(".MuiPaper-root")].find(
+      (p) => !p.classList.contains("MuiAlert-root") && p.offsetHeight > 60,
+    ) ?? document.querySelector(".MuiPaper-root"),
+    "the page has no Paper to build the dialog surface from",
+  );
+
+  const scrim = document.createElement("div");
+  scrim.style.cssText =
+    "position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1300;" +
+    "display:flex;align-items:flex-start;justify-content:center;padding:64px 16px";
+
+  const surface = paperTpl.cloneNode(false);
+  surface.style.cssText =
+    "display:block;width:460px;max-width:100%;height:max-content;background:#fff;" +
+    "border-radius:8px;box-shadow:0 11px 15px -7px rgba(0,0,0,.2),0 24px 38px 3px rgba(0,0,0,.14)";
+
+  const head = document.createElement("div");
+  head.style.cssText = "padding:20px 24px 2px;font-size:20px;font-weight:700";
+  head.textContent = title;
+
+  const lede = document.createElement("div");
+  lede.style.cssText = "padding:4px 24px 10px;font-size:14.5px;color:rgba(0,0,0,0.7)";
+  lede.textContent = body;
+  surface.append(head, lede);
+
+  const list = document.createElement("div");
+  list.style.cssText = "margin:0 24px;border-top:1px solid rgba(0,0,0,0.12)";
+  for (const [label, value] of rows) {
+    const line = document.createElement("div");
+    line.style.cssText =
+      "display:grid;grid-template-columns:132px 1fr;gap:12px;padding:9px 0;" +
+      "border-bottom:1px solid rgba(0,0,0,0.12);font-size:14px";
+    const a = document.createElement("div");
+    a.textContent = label;
+    a.style.cssText = "color:rgba(0,0,0,0.6)";
+    const b = document.createElement("div");
+    b.textContent = value;
+    b.style.cssText = "color:rgba(0,0,0,0.87)";
+    line.append(a, b);
+    list.append(line);
+  }
+  surface.append(list);
+
+  const actions = document.createElement("div");
+  actions.style.cssText = "display:flex;justify-content:flex-end;gap:8px;padding:14px 20px 18px";
+  const contained = must(
+    [...document.querySelectorAll("a, button")].find((b) =>
+      b.className.includes("MuiButton-contained"),
+    ),
+    "no contained button to clone for the dialog",
+  );
+  if (cancel) {
+    const back = contained.cloneNode(true);
+    back.className = back.className.replace("MuiButton-contained", "MuiButton-text");
+    back.style.cssText = "background:transparent;color:#0b3d91;box-shadow:none";
+    back.textContent = cancel;
+    back.removeAttribute("href");
+    actions.append(back);
+  }
+  const go = contained.cloneNode(true);
+  go.textContent = confirm;
+  go.removeAttribute("href");
+  actions.append(go);
+  surface.append(actions);
+
+  scrim.append(surface);
+  document.body.append(scrim);
+  return { scrim, surface, head };
+};
+
+/**
+ * The messaging schedule at `/operate/admin/messaging`, as this mission
+ * proposes it: sectioned, with the recruitment cycle above the event types and
+ * the Recruitment event row split into its two audiences.
+ *
+ * Built once because two screens show this page — W10-01, where the machinery
+ * is administered, and W11-06, where an operator running a recruitment event
+ * needs to see the timings that govern it. Two copies of this would drift, and
+ * this mission has already paid for that once with the recruit record.
+ */
+const buildMessagingSchedule = () => {
+  setHeading("Messaging schedule");
+  pageSubtitle("7 event types · and the recruitment cycle");
+
+  // Section headings, in the page's own type — the h1 cloned and stepped down.
+  // Brian, 2026-08-31: "This page really needs to be split up into multiple
+  // sections. One section needs to be just event messages... then there's the
+  // recruitment heading... Onboarding should be a section." Onboarding is not
+  // built here; the structure is what makes room for it.
+  const sectionHeading = (text, note) => {
+    const h = must($("h1"), "the page has no heading to clone").cloneNode(true);
+    h.textContent = text;
+    h.style.cssText = "font-size:19px;font-weight:700;margin:28px 0 4px";
+    const wrap = document.createElement("div");
+    wrap.append(h);
+    if (note) {
+      const p = document.createElement("p");
+      p.textContent = note;
+      p.style.cssText = "margin:0 0 14px;font-size:13.5px;color:rgba(0,0,0,0.6)";
+      wrap.append(p);
+    }
+    return wrap;
+  };
+
+  const rows = $$('[data-testid="schedule-row"]');
+  must(rows, "the messaging schedule has no schedule-row to clone");
+  const template = rows[0];
+  const host = must(template.parentElement, "the schedule rows have no parent");
+
+  // No second info panel for recruitment. The section heading and its line already
+  // say what this group is, and repeating it in a blue box underneath is the
+  // narration Brian has struck all day. The page's own panel stays where it
+  // belongs — over the event types, whose chase rules it actually describes — so
+  // it is only located here, not cloned.
+  const rule = must(
+    document.querySelector('[data-testid="schedule-rule"]'),
+    "the messaging schedule has no rule panel",
+  );
+
+  // One row per step, from the shipped row: same fields, same toggle, same SAVE.
+  const step = ({ name, first, firstUnit, second, secondUnit, on, save }) => {
+    const row = template.cloneNode(true);
+    const label = must(
+      row.querySelector('[data-testid="schedule-row-label"]') ??
+        [...row.querySelectorAll("*")].find((n) => n.children.length === 0 && n.textContent.trim()),
+      "the cloned row has no label",
+    );
+    label.textContent = name;
+
+    // The shipped row carries six timing fields. A cycle step needs two, so the
+    // rest go — same component, fewer controls, nothing added.
+    const fields = [...row.querySelectorAll(".MuiFormControl-root, .MuiTextField-root")];
+    const wanted = second ? 2 : 1;
+    fields.forEach((field, i) => {
+      if (i >= wanted) {
+        field.remove();
+        return;
+      }
+      const spec = i === 0 ? first : second;
+      const unit = i === 0 ? firstUnit : secondUnit;
+      const lab = field.querySelector("label, .MuiInputLabel-root");
+      if (lab) lab.textContent = spec.label;
+      const input = field.querySelector("input");
+      if (input) input.value = spec.value;
+      const suffix = [...field.querySelectorAll("p, span")].find((n) =>
+        /^(days|h)$/.test(n.textContent.trim()),
+      );
+      if (suffix) suffix.textContent = unit;
+    });
+
+    // The shipped row lays its six fields on a grid. Removing four leaves the
+    // columns reserved and the row half empty, which is why Brian said "these seem
+    // quite big". Collapse the grid to the fields that remain.
+    const grid = fields[0]?.parentElement;
+    if (grid) {
+      grid.style.display = "flex";
+      grid.style.gap = "16px";
+      grid.style.flexWrap = "wrap";
+      grid.style.gridTemplateColumns = "none";
+      for (const field of [...grid.children]) field.style.flex = "0 1 240px";
+    }
+
+    // Any helper text under the removed fields goes with them.
+    for (const help of [...row.querySelectorAll(".MuiFormHelperText-root, p")]) {
+      if (
+        /WhatsApp messages sent|Email reminders sent|Hours after the RSVP|gap between messages/i.test(
+          help.textContent,
+        )
+      ) {
+        help.remove();
+      }
+    }
+
+    const button = [...row.querySelectorAll("a, button")].find((b) =>
+      b.className.includes("MuiButton-contained"),
+    );
+    if (button) button.textContent = save;
+
+    // "Show an example" belongs to an event's chase, which has something worth
+    // worked-examples. A step that fires once on a fixed delay does not.
+    for (const link of [...row.querySelectorAll("a, button")]) {
+      if (/show an example/i.test(link.textContent)) link.remove();
+    }
+
+    // Squeeze it. The shipped row is sized for six fields on three lines; these
+    // carry one or two, and Brian on the first attempt: "The white spacing, good
+    // fucking lord, is atrocious here... This should be squeezed down so it's much
+    // more narrow." Put the fields and the SAVE on one line.
+    row.style.padding = "12px 16px";
+    if (grid) {
+      grid.style.alignItems = "center";
+      grid.style.margin = "0";
+    }
+    // The SAVE button is left exactly where the shipped row puts it, and five
+    // attempts at pulling it onto the field line are reverted. None of them took —
+    // the styling is emotion's, not the inline styles' — and each one made the row
+    // worse than the component does on its own.
+    //
+    // It is also the right answer. These rows are now the same shape as the seven
+    // event rows below them, and shorter, because they carry one or two fields
+    // instead of six. Making them shorter still would make recruitment's rows
+    // diverge from the page they sit on, which is the opposite of the point.
+
+    // Anything left in the row that holds neither text nor a control is spacing
+    // the removed fields used to fill. It goes, or the row stays tall for content
+    // that is no longer there.
+    for (const node of [...row.querySelectorAll("div, span")]) {
+      if (
+        node !== grid &&
+        !node.contains(grid) &&
+        !node.textContent.trim() &&
+        !node.querySelector("input, button, a")
+      ) {
+        node.remove();
+      }
+    }
+    if (grid) grid.style.flexWrap = "nowrap";
+    row.style.paddingBottom = "12px";
+
+    // NOT AN ON/OFF SWITCH. W10's spec says an operator must be able to turn a
+    // step off, and the shipped row has no such control — `schedule-row-toggle` is
+    // the "Show an example" disclosure, not a switch. Rather than draw a toggle
+    // this product does not have, the gap is recorded in the specification and
+    // every step here is shown running.
+    return row;
+  };
+
+  const STEPS = [
+    {
+      name: "Welcome",
+      first: { label: "After capture", value: "0" },
+      firstUnit: "hours",
+      second: null,
+      on: true,
+      save: "SAVE WELCOME",
+    },
+    {
+      name: "Personal details questionnaire",
+      first: { label: "After capture", value: "1" },
+      firstUnit: "days",
+      second: { label: "Reminder after", value: "3" },
+      secondUnit: "days",
+      on: true,
+      save: "SAVE PERSONAL DETAILS",
+    },
+    {
+      name: "Recruitment questionnaire",
+      first: { label: "After capture", value: "3" },
+      firstUnit: "days",
+      second: { label: "Reminder after", value: "3" },
+      secondUnit: "days",
+      on: true,
+      save: "SAVE RECRUITMENT QUESTIONNAIRE",
+    },
+    // There is no fourth step. The recruit event chase used to be a fourth row
+    // here; Brian moved it on 2026-08-31: "on the recruit event, instead, you're
+    // going to have two sections: one for regular players, one for recruits."
+    // It is configured on the Recruitment event row below, where the event's own
+    // chase already lives, rather than in the capture cycle.
+  ];
+
+  const built = STEPS.map(step);
+
+  // Recruitment first, then the event types under their own heading. The page
+  // stops being one undifferentiated list and becomes three sections, of which
+  // two are built.
+  const recruitHead = sectionHeading(
+    "Recruitment",
+    "What the club sends after somebody is captured.",
+  );
+  host.insertBefore(recruitHead, template);
+
+  // The QR code is NOT here. Brian, 2026-08-31: "the QR code doesn't go here.
+  // That doesn't make any damn sense for the QR code to go on the messaging page.
+  // It should be on the recruit page." It lives on W1's board, behind a QR CODE
+  // button top right, and on its own page at W1-04. This page is the cycle.
+
+  for (const row of built) host.insertBefore(row, template);
+  host.insertBefore(
+    sectionHeading("Event messaging", "What an event sends, and how it chases, by event type."),
+    template,
+  );
+  host.insertBefore(rule, template);
+
+  // ---- The Recruitment event row, split into its two audiences ---------------
+  //
+  // Brian, 2026-08-31: "You are going to edit the messaging template page for
+  // recruits, and on the recruit event, instead, you're going to have two
+  // sections: one for regular players, one for recruits."
+  //
+  // The row keeps its identity — one row per `event_type`, one SAVE per row, both
+  // laws of this page — and its body gains two named groups. The players' group is
+  // the shipped chase exactly as it stands today; the recruits' group is the
+  // second ladder, and it stops after one follow-up. This is where the two ladders
+  // are configured, so it is where the difference between them is stated.
+  const recruitmentRow = must(
+    rows.find((row) => {
+      const label = row.querySelector('[data-testid="schedule-row-label"]');
+      return label && label.textContent.trim() === "Recruitment";
+    }),
+    `the messaging schedule has no Recruitment row; its rows are ${rows
+      .map((r) => r.querySelector('[data-testid="schedule-row-label"]')?.textContent.trim())
+      .join(", ")}`,
+  );
+
+  // A group heading inside the row, cloned from the row's own label so it carries
+  // the page's type rather than a drawn one. Not the all-caps overline: Q-23 in
+  // `schedule-form.tsx` records that heading being rejected on this very card.
+  const groupHeading = (text) => {
+    const h = must(
+      recruitmentRow.querySelector('[data-testid="schedule-row-label"]'),
+      "the Recruitment row has no label to clone",
+    ).cloneNode(true);
+    h.removeAttribute("data-testid");
+    h.textContent = text;
+    h.style.cssText = "font-size:13px;font-weight:700;color:rgba(0,0,0,0.6);margin:14px 0 -4px";
+    return h;
+  };
+
+  const rowGrids = [...recruitmentRow.querySelectorAll("div")].filter(
+    (d) => getComputedStyle(d).display === "grid",
+  );
+  must(rowGrids.length >= 2, "the Recruitment row does not have its two field grids");
+  const [timingGrid, ladderGrid] = rowGrids;
+
+  const playersLabel = groupHeading("Regular players");
+  timingGrid.parentElement.insertBefore(playersLabel, timingGrid);
+
+  // The recruits' group, built from this row's own field boxes. Two fields, no
+  // escalation: `[data-field]` is the shipped field wrapper, so these are the
+  // page's inputs, not drawn ones.
+  const fieldBoxes = [...recruitmentRow.querySelectorAll("[data-field]")];
+  must(fieldBoxes.length, "the Recruitment row has no fields to clone");
+
+  const recruitField = (label, value, unit, helper) => {
+    const box = fieldBoxes[0].cloneNode(true);
+    box.removeAttribute("data-field");
+    const lab = box.querySelector("label, .MuiInputLabel-root");
+    if (lab) lab.textContent = label;
+    const input = box.querySelector("input");
+    if (input) input.value = value;
+    const adornment = box.querySelector(".MuiInputAdornment-root");
+    if (adornment) adornment.textContent = unit;
+    const help = box.querySelector(".MuiFormHelperText-root");
+    if (help) help.textContent = helper;
+    else if (helper) {
+      const p = document.createElement("p");
+      p.className = fieldBoxes[0].querySelector("p")?.className ?? "";
+      p.style.cssText = "margin:3px 14px 0;font-size:12px;color:rgba(0,0,0,0.6)";
+      p.textContent = helper;
+      box.append(p);
+    }
+    return box;
+  };
+
+  const recruitGrid = ladderGrid.cloneNode(false);
+  recruitGrid.append(
+    recruitField("First inv.", "5", "days", "The invitation, on the recruitment template."),
+    recruitField("One follow-up", "2", "days", "The only chase. Recruits are never escalated."),
+  );
+
+  ladderGrid.after(recruitGrid);
+  const recruitsLabel = groupHeading("Recruits");
+  ladderGrid.after(recruitsLabel);
+  return { recruitHead, recruitmentRow, playersLabel, recruitsLabel, built };
+};
+
+// W11-05 — What this event will send, before it is approved.
+//
+// Brian, 2026-08-31, on the prose table that was here first: "It's supposed to
+// be a show and a page on what the page is supposed to fucking look like... it
+// just lists out a bunch of shit."
+//
+// So this is a screen, not a table, and it is a photograph on both sides.
+//
+// WHERE THIS LIVES:
+//
+//   Events → one draft recruitment event → CHOOSE AUDIENCE AND APPROVE →
+//   the review step → /operate/events/[id]?step=review
+//
+// The messaging plan disclosure is the last thing on that step, directly above
+// APPROVE EVENT, and `messaging-plan.tsx` says why in its own words: "the event
+// page's own account of what a plan looks like, in the club's language rather
+// than in job records: which rung happens when, on which channel, and for
+// whom." It is the surface an approver is already reading when they decide. It
+// is also where the two-ladders defect is visible rather than described — the
+// current side of this screen plans one ladder over 37 people, two of whom are
+// recruits, and escalates all 37 to the President.
+//
+// The change is to that panel and nothing else: the same component, the same
+// rows, grouped by who each rung is for.
+const rows = must($$('[data-testid="plan-row"]'), "the event review has no messaging plan rows");
+const list = must($('[data-testid="plan-rows"]'), "the messaging plan has no row list");
+
+// The escalation is the row carrying the President chip — found by its chip
+// rather than by position, so a schedule with a different number of reminders
+// still finds it.
+const escalation = must(
+  rows.find((row) => /^President$/.test(row.querySelector(".MuiChip-label")?.textContent.trim())),
+  "the messaging plan has no escalation row to keep with the players",
 );
 
-await settle()
+const chipOf = (row) => must(row.querySelector(".MuiChip-label"), "a plan row has no chip");
+const noteOf = (row) => {
+  const paragraphs = [...row.querySelectorAll(".MuiTypography-body2")];
+  return must(paragraphs[1], "a plan row has no note under its title");
+};
+const titleOf = (row) => must(row.querySelector(".MuiTypography-body2"), "a plan row has no title");
+
+// A group label in the page's own idiom. The review step already labels its
+// sections this way — AUDIENCE, DISTRIBUTION, WHAT THEY WILL BE ASKED — so the
+// label is cloned from one of those rather than drawn.
+const overline = must(
+  $(".MuiTypography-overline"),
+  "the event page has no overline label to clone",
+);
+const groupLabel = (text) => {
+  const node = overline.cloneNode(true);
+  node.textContent = text;
+  node.style.cssText = "display:block;margin:14px 0 2px";
+  const li = document.createElement("li");
+  li.style.cssText = "list-style:none";
+  li.append(node);
+  return li;
+};
+
+// ---- The players' ladder — unchanged, and now named -----------------------
+// 35 rather than 37: the two recruits are counted with the recruits below. The
+// wording is the component's own (`describeRungs`), with its number corrected.
+const invitation = rows[0];
+chipOf(invitation).textContent = "35 people";
+noteOf(invitation).textContent = "Automated 1:1 message to all 35 people.";
+
+list.insertBefore(groupLabel("Players · 35"), invitation);
+
+// ---- The recruits' ladder — an invitation and one follow-up ---------------
+// Cloned from the players' own rows, so these are the same rungs on the same
+// component. There is no escalation row, because a recruit is never escalated
+// to the President — not an escalation set to a discouraging number, but the
+// row absent.
+const firstReminder = must(
+  rows.find((row) => /^Unanswered$/.test(chipOf(row).textContent.trim())),
+  "the messaging plan has no first reminder to clone",
+);
+
+const recruitInvitation = invitation.cloneNode(true);
+chipOf(recruitInvitation).textContent = "2 people";
+noteOf(recruitInvitation).textContent = "Automated 1:1 message to both recruits.";
+
+const recruitFollowUp = firstReminder.cloneNode(true);
+titleOf(recruitFollowUp).textContent = "WhatsApp message 2";
+chipOf(recruitFollowUp).textContent = "Unanswered";
+noteOf(recruitFollowUp).textContent = "Only to recruits who have not answered. Nothing follows it.";
+// Two days after the invitation, which is what W10's Recruits group is set to.
+must(
+  recruitFollowUp.querySelector(".MuiTypography-caption"),
+  "the cloned follow-up has no timestamp",
+).textContent = "Mon 21 Sep · 17:00";
+recruitFollowUp.style.borderBottom = "none";
+
+const recruitsLabel = groupLabel("Recruits · 2");
+escalation.after(recruitFollowUp);
+escalation.after(recruitInvitation);
+escalation.after(recruitsLabel);
+
+// The headline counts steps, so it has to count these too.
+const headline = must(
+  [...document.querySelectorAll("*")].find(
+    (n) => n.children.length === 0 && /^Messaging plan · \d+ steps?$/.test(n.textContent.trim()),
+  ),
+  "the messaging plan has no step-count headline",
+);
+headline.textContent = "Messaging plan · 6 steps";
+
+mark(headline, 1);
+mark(recruitsLabel, 2);
+
+await settle();
 
 })()

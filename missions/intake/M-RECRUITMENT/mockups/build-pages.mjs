@@ -478,27 +478,6 @@ const WORKFLOWS = [
       "<strong>W11-02 was captured and then never put on this page</strong>, so the one screen that explains why a Recruits audience exists at all was invisible. It is here now",
       "<strong>Both defects are real and verified in the running code.</strong> <code>scheduleEventLadder</code> inserts a reminder for every invitation filtered only by <code>event_id</code>, and <code>countByCapacity</code> omits recruits from the approval counts",
     ],
-    afterScreens: `<h2 style="margin:44px 0 8px;font-size:20px">The recruit messaging flow</h2>
-      <p style="margin:0 0 14px;color:#555">Everything the club ever sends a recruit, in order. Moved
-      here on 2026-08-31 rather than given a workflow of its own.</p>
-      <table style="border-collapse:collapse;width:100%;font-size:14px">
-        <tr style="text-align:left"><th style="padding:6px 10px;border-bottom:1px solid #ddd">Message</th><th style="padding:6px 10px;border-bottom:1px solid #ddd">Fires</th><th style="padding:6px 10px;border-bottom:1px solid #ddd">They land on</th></tr>
-        <tr><td style="padding:6px 10px"><code>recruit_welcome</code></td><td style="padding:6px 10px">Capture — walk-up and operator-add only</td><td style="padding:6px 10px">The WhatsApp group link</td></tr>
-        <tr><td style="padding:6px 10px"><code>recruit_details_ask</code></td><td style="padding:6px 10px">1 day after capture</td><td style="padding:6px 10px">W4-01</td></tr>
-        <tr><td style="padding:6px 10px"><code>recruit_details_reminder</code></td><td style="padding:6px 10px">3 days later, once</td><td style="padding:6px 10px">The same form</td></tr>
-        <tr><td style="padding:6px 10px"><code>recruit_interest_ask</code></td><td style="padding:6px 10px">3 days after capture</td><td style="padding:6px 10px">W4-02</td></tr>
-        <tr><td style="padding:6px 10px"><code>recruit_interest_reminder</code></td><td style="padding:6px 10px">3 days later, once</td><td style="padding:6px 10px">The same form</td></tr>
-        <tr><td style="padding:6px 10px"><code>event_invitation</code></td><td style="padding:6px 10px">A recruitment event is approved</td><td style="padding:6px 10px">W11-03 or W11-04</td></tr>
-        <tr><td style="padding:6px 10px">The event follow-up</td><td style="padding:6px 10px">2 days later, once, only if no answer</td><td style="padding:6px 10px">The same two pages</td></tr>
-      </table>
-      <p style="margin:16px 0 6px"><strong>A QR recruit skips the welcome</strong> — they joined the
-      group themselves at the stand.</p>
-      <p style="margin:0 0 6px"><strong>What is never sent:</strong> anything at all to a recruit who
-      declined; a second reminder; an escalation to the President; a chase for an unanswered event;
-      free text of any kind.</p>
-      <p style="margin:0"><strong>Blocked on an owner action.</strong> Only <code>event_invitation</code>
-      exists in Meta. The other four have not been submitted, so the flow can be built and cannot run
-      until they clear.</p>`,
     screens: [
       P(
         "W11-01",
@@ -544,6 +523,37 @@ const WORKFLOWS = [
           "<strong>Attendance is not mandatory for somebody who is not a member</strong>, so there is nothing to explain and nothing to chase. Brian: “We never ask them for a reason.”",
         ],
         "oxfordlancers.example/rsvp/…",
+      ),
+      P(
+        "W11-05",
+        "What this event will send, before it is approved",
+        `Events → a draft recruitment event → CHOOSE AUDIENCE AND APPROVE → the review step. The
+         messaging plan disclosure is the last thing above APPROVE EVENT, and it is the shipped
+         panel — <code>messaging-plan.tsx</code>, in its own words, <em>“which rung happens when, on
+         which channel, and for whom”</em>. Nothing is drawn; the rows are grouped by who they are
+         for.`,
+        [
+          "<strong>1. Six steps, not four.</strong> The current side plans one ladder over 37 people, two of whom are recruits, and escalates all 37 to the President. That is the two-ladders defect on screen rather than described",
+          "<strong>2. The recruits' ladder is an invitation and one follow-up.</strong> The escalation row is <em>absent</em> for recruits — not a President row set to a discouraging number. This is what W10's Recruits group is set to, checked here before approving",
+          "<strong>Counting is corrected too:</strong> the players' invitation reads 35, because the two recruits are counted with the recruits. Today <code>countByCapacity</code> omits them from the approval summary entirely",
+          "<strong>Still wrong on this page, not fixed here:</strong> the question line above the plan reads “a reason is asked on No”. For a recruit it never is — W11-04 covers that, and it is the question set, not the plan",
+        ],
+        "oxfordlancers.example/operate/events/3f7c21a9?step=review",
+      ),
+      P(
+        "W11-06",
+        "The timings a recruitment event runs on",
+        `Administration → Messaging schedule → <code>/operate/admin/messaging</code>. The page that
+         decides when a recruitment event's invitations go out and how each audience is chased —
+         the same page W10 administers, shown here because it is the question an operator running an
+         event actually has. One build, so the two screens cannot drift apart.`,
+        [
+          "<strong>1. Regular players.</strong> The shipped six-field chase, unchanged: an invitation, a reminder every cadence, WhatsApp then email, and the President once the deadline passes",
+          "<strong>2. Recruits.</strong> An invitation and one follow-up. There is no President field to set — the escalation is absent for recruits rather than configured to a discouraging number",
+          "<strong>One row per event type and one SAVE per row</strong> both survive. <code>schedule-form.tsx</code> requires both, and a second Recruitment row would have broken the first",
+          "<strong>W11-05 is the same rule checked against one event</strong>, the moment before it is approved. This is where it is set for every recruitment event",
+        ],
+        "oxfordlancers.example/operate/admin/messaging",
       ),
     ],
   },
@@ -593,33 +603,32 @@ const WORKFLOWS = [
       nothing further is sent to them.`,
     grounding: "photograph",
     legend: [
-      "Brian, 2026-08-31: <em>“that's a status change, right? A moves statuses, and then the board resorts, more or less.”</em> There is deliberately no separate removal mechanism, no archive and no delete",
-      "Every walk-up is a recruit and every QR scan is a recruit — which is what makes the exits load-bearing. Without them the board fills with everybody who ever stood near the stand",
+      "<strong>Rebuilt 2026-08-31.</strong> Brian: <em>“The W13 has a bunch of narrative bullshit on the page. It's not supposed to be narrative in nature… If they're gone, it should be like ‘flip to decline’ and be like, ‘it just declined.’”</em> Both drawn panels are gone. Each screen is now one chip",
+      "Brian, earlier the same day: <em>“that's a status change, right? A moves statuses, and then the board resorts, more or less.”</em> There is deliberately no separate removal mechanism, no archive and no delete",
+      "<strong>The phone rendering was wrong and is fixed.</strong> Both screens now build W1's approved board, which draws the table and the card list from one dataset. The earlier build rewrote the table only, so the 375px shots showed the roster's forty-two players under a recruitment heading",
     ],
     screens: [
       P(
         "W13-01",
         "The board after an exit",
-        `Clementine Varrow moves to declined. She leaves the top of the board, the board resorts, and
-         her record is untouched.`,
+        `Clementine Varrow moves to declined. One control, on the board that already ships in W1.`,
         [
-          "<strong>1. A status change and nothing more</strong>",
-          "<strong>2. The board resorts</strong> — the exits sink to the bottom rather than disappearing",
-          "<strong>3. She stops receiving everything</strong>, including anything an operator tries to send from W9",
+          "<strong>1. A status change and nothing more.</strong> No archive, no delete, no second screen confirming it happened",
+          "<strong>Nothing is removed.</strong> The row stays, the record stays, every signal and note stays, and the ladder stops reaching them. Removing the person is erasure — Mission 8's, never recruitment's, owner decision 2026-08-25",
           "<strong>Decide:</strong> <code>void</code> as a separate marker rather than a seventh status value. Every other value says something about the person; <code>void</code> says the record is wrong",
         ],
-        "oxfordlancers.example/operate/recruits",
+        "oxfordlancers.example/operate/recruitment",
       ),
       P(
         "W13-02",
         "Bringing somebody back",
-        `<code>disengaged</code> is explicitly recoverable, and people resurface in Hilary.`,
+        `<code>disengaged</code> is explicitly recoverable, and people resurface in Hilary. The same
+         one control, going the other way.`,
         [
-          "<strong>1. One status change, back up the ladder</strong>",
-          "<strong>2. Nothing had to be rebuilt</strong>, because nothing was deleted when she left",
-          "<strong>3. No new person and no second recruit row</strong> — Task 09's worked example E",
+          "<strong>1. One status change, back up the ladder.</strong> The callout that used to sit at the top of this page is gone — Brian: <em>“That's not the fucking line. I don't know why that's at the top of the page.”</em>",
+          "<strong>Nothing had to be rebuilt</strong>, because nothing was deleted when they left: no new person, no second recruit row, no re-consent — Task 09's worked example E",
         ],
-        "oxfordlancers.example/operate/recruits",
+        "oxfordlancers.example/operate/recruitment",
       ),
     ],
   },
@@ -629,49 +638,44 @@ const WORKFLOWS = [
     name: "Flip a recruit to joined",
     lede: `One of the core four decides a recruit is in, and that one decision creates the season
       membership, puts them on the roster, and opens onboarding.`,
-    grounding: "mixed",
+    grounding: "photograph",
     legend: [
-      "Brian, 2026-08-31: <em>“When it flips to ‘Join,’ there should be a pop-up… ‘Join’ means these people are being officially added to some season… and they're moved on to Onboard.”</em>",
-      "<strong>W14-01 is drawn</strong> — no confirmation of this kind exists in the application",
+      "<strong>Rebuilt 2026-08-31.</strong> Brian: <em>“Why is it that it has that big fucking tall green callout at the top like that?… We don't need fucking callouts for this thing. The only time we need it is for Join.”</em> The three drawn panels are gone",
+      "<strong>The interruption is a jump-out over the board</strong>, which is what he asked for: <em>“It should be a page over the recruit page, like a jump-out that says there and just explains what happens to them when you click Enter and they join. That's good. It's fine.”</em>",
       "<strong>On the team is not active.</strong> Activation is a separate later gate and is Mission 7's",
     ],
     screens: [
       P(
         "W14-01",
         "The interruption",
-        `The status change to joined interrupts rather than committing silently, and names exactly
-         what it is about to do.`,
+        `The flip to joined interrupts rather than committing silently, over the board the operator
+         is already standing on, and names exactly what it is about to do.`,
         [
-          "<strong>1. It names the three consequences</strong> — membership, roster, onboarding — and the season",
-          "<strong>2. It says what it will not do</strong>: make her active",
-          "<strong>3. Cancel writes nothing</strong>",
-          "<strong>4. Only the four roles ever see it</strong> — Task 09 D5",
+          "<strong>1. It names the consequences</strong> — membership, roster, onboarding — and the season, and says what it will not do: make them active",
+          "<strong>This is the one interruption in W13 and W14.</strong> Declining, disengaging and coming back are one chip each",
+          "<strong>Cancel writes nothing</strong>, and only the four roles ever see this — Task 09 D5",
         ],
-        "Interrupts the status change on the recruit board",
-        "new",
+        "oxfordlancers.example/operate/roster",
       ),
       P(
         "W14-02",
-        "Where she lands",
-        `The roster, with the flip's four consequences confirmed on the surface that shows them.`,
+        "Where the flip lands",
+        `The roster, with Marguerite Ashdown on it. Nothing narrates it, on either rendering.`,
         [
-          "<strong>1. Joined this season</strong>, on the roster, in onboarding",
-          "<strong>2. Not active</strong>, and the screen says so",
-          "<strong>3. Audited</strong> — who flipped, when, into which season",
+          "<strong>1. Joined this season</strong>, in her alphabetical place on the board and in the phone card list",
+          "<strong>Who flipped it and when is a status-history line on the record</strong>, which is where every other status change in this mission is already recorded — not a banner on a board",
         ],
         "oxfordlancers.example/operate/roster",
       ),
       P(
         "W14-03",
-        "Refused: she is already on the team",
-        `A constraint refusing, said as a sentence rather than as a failed save.`,
+        "Refused: already on the team",
+        `The same jump-out, answering in one sentence and one fact.`,
         [
-          "<strong>1. One membership per person per season</strong> — invariant I2",
-          "<strong>2. Nothing was written</strong>",
-          "<strong>3. This is not a duplicate check.</strong> Task 09 D7 is explicit that there is none at the flip; I2 is the only guard",
+          "<strong>1. One membership per person per season</strong> — invariant I2. Nothing was written",
+          "<strong>This is not a duplicate check.</strong> Task 09 D7 is explicit that there is none at the flip; the person has existed for weeks and I2 is the only guard",
         ],
-        "Interrupts the status change on the recruit board",
-        "new",
+        "oxfordlancers.example/operate/roster",
       ),
     ],
   },
@@ -765,19 +769,6 @@ ${wf.legend.map((l) => `          <span>${l}</span>`).join("\n")}
 `;
   out = out.slice(0, headStart) + head + out.slice(headEnd);
 
-  // A workflow may carry prose that belongs after its screens rather than to
-  // any one of them. W11 carries the recruit messaging flow this way, which is
-  // where it landed on 2026-08-31 instead of becoming a workflow of its own.
-  if (wf.afterScreens) {
-    out = out.replace(
-      '      <div id="screens"></div>',
-      `      <div id="screens"></div>
-      <section class="afterscreens">
-${wf.afterScreens}
-      </section>`,
-    );
-  }
-
   const sStart = out.indexOf("      const SCREENS = [");
   const sEnd = out.indexOf("      ];", sStart) + "      ];".length;
   const screens =
@@ -866,24 +857,6 @@ ${s.deltas.map((d) => `            \`${esc(d)}\``).join(",\n")},
       }
       .noscreens ul { margin: 8px 0 0; padding-left: 20px; }
       .noscreens li { margin-bottom: 5px; }
-      /* Prose that belongs to the workflow rather than to any one screen, set
-         on the page's own card so it reads as part of the review and not as a
-         note bolted underneath it. */
-      .afterscreens {
-        max-width: 900px;
-        background: #fff;
-        border-radius: 8px;
-        padding: 4px 28px 28px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-      }
-      .afterscreens h2 { font-weight: 800; }
-      .afterscreens p { line-height: 1.6; font-size: 14px; }
-      .afterscreens code {
-        background: rgba(0, 0, 0, 0.05);
-        border-radius: 3px;
-        padding: 1px 4px;
-        font-size: 0.92em;
-      }
       .provenance {
         font-size: 12.5px;
         line-height: 1.6;

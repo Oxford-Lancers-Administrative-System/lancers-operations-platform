@@ -1288,24 +1288,6 @@
       }
       .noscreens ul { margin: 8px 0 0; padding-left: 20px; }
       .noscreens li { margin-bottom: 5px; }
-      /* Prose that belongs to the workflow rather than to any one screen, set
-         on the page's own card so it reads as part of the review and not as a
-         note bolted underneath it. */
-      .afterscreens {
-        max-width: 900px;
-        background: #fff;
-        border-radius: 8px;
-        padding: 4px 28px 28px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-      }
-      .afterscreens h2 { font-weight: 800; }
-      .afterscreens p { line-height: 1.6; font-size: 14px; }
-      .afterscreens code {
-        background: rgba(0, 0, 0, 0.05);
-        border-radius: 3px;
-        padding: 1px 4px;
-        font-size: 0.92em;
-      }
       .provenance {
         font-size: 12.5px;
         line-height: 1.6;
@@ -1343,9 +1325,10 @@
         <p>
           One of the core four decides a recruit is in, and that one decision creates the season
       membership, puts them on the roster, and opens onboarding.
-          <strong>Mixed grounding.</strong> Screens on a surface that exists are photographed on both
-           sides; screens with no analogue are drawn and labelled <em>New surface, nothing to
-           compare</em>.
+          <strong>Every screen here is a photograph on both sides</strong> — the same running page at
+           <code>e669331</code>, differing only by the proposal evaluated into it. Where a screen's
+           own route does not exist yet, it is photographed on the shell it reuses and its head says
+           so; the URL bar always shows what was really photographed.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1357,10 +1340,10 @@
             >Proposed — this mission</span
           >. Nothing on this page is approved.
         </p>
-        <span class="grounding">Grounding: mixed · photographs where a surface exists, drawn where none does</span>
+        <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
-          <span>Brian, 2026-08-31: <em>“When it flips to ‘Join,’ there should be a pop-up… ‘Join’ means these people are being officially added to some season… and they're moved on to Onboard.”</em></span>
-          <span><strong>W14-01 is drawn</strong> — no confirmation of this kind exists in the application</span>
+          <span><strong>Rebuilt 2026-08-31.</strong> Brian: <em>“Why is it that it has that big fucking tall green callout at the top like that?… We don't need fucking callouts for this thing. The only time we need it is for Join.”</em> The three drawn panels are gone</span>
+          <span><strong>The interruption is a jump-out over the board</strong>, which is what he asked for: <em>“It should be a page over the recruit page, like a jump-out that says there and just explains what happens to them when you click Enter and they join. That's good. It's fine.”</em></span>
           <span><strong>On the team is not active.</strong> Activation is a separate later gate and is Mission 7's</span>
         </div>
       </header>
@@ -1382,31 +1365,29 @@
         {
           id: "W14-01",
           title: "The interruption",
-          disposition: "new",
-          drawn: true,
-          blurb: `The status change to joined interrupts rather than committing silently, and names exactly
-         what it is about to do.`,
+          disposition: "modified",
+          drawn: false,
+          blurb: `The flip to joined interrupts rather than committing silently, over the board the operator
+         is already standing on, and names exactly what it is about to do.`,
           deltas: [
-            `<strong>1. It names the three consequences</strong> — membership, roster, onboarding — and the season`,
-            `<strong>2. It says what it will not do</strong>: make her active`,
-            `<strong>3. Cancel writes nothing</strong>`,
-            `<strong>4. Only the four roles ever see it</strong> — Task 09 D5`,
+            `<strong>1. It names the consequences</strong> — membership, roster, onboarding — and the season, and says what it will not do: make them active`,
+            `<strong>This is the one interruption in W13 and W14.</strong> Declining, disengaging and coming back are one chip each`,
+            `<strong>Cancel writes nothing</strong>, and only the four roles ever see this — Task 09 D5`,
           ],
           clockTag: CLOCK,
-          url: "Interrupts the status change on the recruit board",
-          shotRoute: null,
-          proposedRoute: "Interrupts the status change on the recruit board",
+          url: "oxfordlancers.example/operate/roster",
+          shotRoute: "/operate/roster",
+          proposedRoute: null,
         },
         {
           id: "W14-02",
-          title: "Where she lands",
+          title: "Where the flip lands",
           disposition: "modified",
           drawn: false,
-          blurb: `The roster, with the flip's four consequences confirmed on the surface that shows them.`,
+          blurb: `The roster, with Marguerite Ashdown on it. Nothing narrates it, on either rendering.`,
           deltas: [
-            `<strong>1. Joined this season</strong>, on the roster, in onboarding`,
-            `<strong>2. Not active</strong>, and the screen says so`,
-            `<strong>3. Audited</strong> — who flipped, when, into which season`,
+            `<strong>1. Joined this season</strong>, in her alphabetical place on the board and in the phone card list`,
+            `<strong>Who flipped it and when is a status-history line on the record</strong>, which is where every other status change in this mission is already recorded — not a banner on a board`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/operate/roster",
@@ -1415,19 +1396,18 @@
         },
         {
           id: "W14-03",
-          title: "Refused: she is already on the team",
-          disposition: "new",
-          drawn: true,
-          blurb: `A constraint refusing, said as a sentence rather than as a failed save.`,
+          title: "Refused: already on the team",
+          disposition: "modified",
+          drawn: false,
+          blurb: `The same jump-out, answering in one sentence and one fact.`,
           deltas: [
-            `<strong>1. One membership per person per season</strong> — invariant I2`,
-            `<strong>2. Nothing was written</strong>`,
-            `<strong>3. This is not a duplicate check.</strong> Task 09 D7 is explicit that there is none at the flip; I2 is the only guard`,
+            `<strong>1. One membership per person per season</strong> — invariant I2. Nothing was written`,
+            `<strong>This is not a duplicate check.</strong> Task 09 D7 is explicit that there is none at the flip; the person has existed for weeks and I2 is the only guard`,
           ],
           clockTag: CLOCK,
-          url: "Interrupts the status change on the recruit board",
-          shotRoute: null,
-          proposedRoute: "Interrupts the status change on the recruit board",
+          url: "oxfordlancers.example/operate/roster",
+          shotRoute: "/operate/roster",
+          proposedRoute: null,
         },
       ];
 
