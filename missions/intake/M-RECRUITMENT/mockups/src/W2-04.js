@@ -13,9 +13,15 @@
 // This is also the shape the refusal has to take under templates-only: there is
 // nothing to compose, so there is no "send anyway" to offer. The only way to
 // message him again is for his status to stop being `declined`.
+//
+// ONE FACT, THREE PLACES. The banner states it before anybody acts; the buttons
+// are disabled so the refusal is visible rather than discovered; the dialog
+// answers the operator who pressed regardless. None of the three is the only
+// place the fact lives, which is what Brian meant by getting it ingrained.
+captureAlert();
 buildRecruitRecord();
-pageButton("SEND PERSONAL QUESTIONNAIRE");
-pageButton("SEND RECRUITMENT QUESTIONNAIRE");
+const personalButton = pageButton("SEND PERSONAL QUESTIONNAIRE");
+const recruitmentButton = pageButton("SEND RECRUITMENT QUESTIONNAIRE");
 
 // The record has to BE Ambrose's, not Tobias's with a new heading. The first
 // attempt renamed the page and left the body alone, so a declined recruit
@@ -123,6 +129,23 @@ historyCard.append(historyBody);
 // The status control shows the rung he is actually on.
 const statusShown = document.querySelector(".MuiSelect-select");
 if (statusShown) statusShown.replaceChildren(document.createTextNode("declined"));
+
+// ---- The fact, at the top, before anybody presses anything ---------------
+// Brian: "That should be a status at the very top where they said no to the
+// WhatsApp... Figure out how to get it ingrained."
+//
+// So it is stated three times over, in descending order of how hard it is to
+// miss: the banner, the buttons that will not fire, and only then the dialog
+// for the operator who pressed anyway.
+mark(
+  pageAlert(
+    "The club will not message Ambrose.",
+    "He declined on 2 May 2026. Change his recruitment status if that is wrong.",
+  ),
+  1,
+);
+mark(disableButton(personalButton), 2);
+disableButton(recruitmentButton);
 
 const scrim = openDialog({
   title: "Ambrose has asked not to be contacted",

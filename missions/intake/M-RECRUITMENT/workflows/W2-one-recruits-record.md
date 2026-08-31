@@ -226,17 +226,55 @@ except `joined` is a direct audited change; `joined` is intercepted by `W14`.
 `W9` was folded on 2026-08-31 and its one surviving screen came here: the product
 **refusing** to message a recruit who has declined.
 
-`NEVER HARSH` is a guarantee, so it is enforced rather than left to whoever is
-holding the phone. The button stays — hiding it would leave an operator wondering
-whether they had missed something — and the dialog says why it will not fire and
-what would have to change first. There is no _send anyway_: under templates-only
-there is nothing to compose and nothing to override, so the only way to message
-him again is for his status to stop being `declined`.
+### One fact, three places — Brian, 2026-08-31
 
-**This screen arrived after the approval recorded below.** It is noted here rather
+> "W2-04 should not be a pop-up or whatever. That should be a status at the very
+> top where they said no to the WhatsApp... If you click that, then the pop-up
+> comes up, but it should be somewhere. Figure out how to get it ingrained."
+
+A dialog that appears only when you try is a trap: you find out at the moment you
+act, and only if you act. So the fact is stated three times, in descending order
+of how hard it is to miss:
+
+1. **A banner at the top of the record**, above the first card, in the
+   application's own `MuiAlert` — the one the record already renders for its
+   outstanding-items line: _"**The club will not message Ambrose.** He declined
+   on 2 May 2026. Change his recruitment status if that is wrong."_
+2. **The send buttons are disabled**, so the refusal is visible rather than
+   discovered.
+3. **The dialog**, for the operator who pressed anyway. It is no longer the
+   announcement — it is the answer at the moment of action.
+
+None of the three is the only place the fact lives. There is deliberately no
+_send anyway_: under templates-only there is nothing to compose and nothing to
+override, so the only way to message him again is for his status to stop being
+`declined`.
+
+### The question underneath it, unanswered
+
+Brian said _"where they said no to the WhatsApp"_, and that may be a **different
+fact** from `declined`:
+
+| Fact                      | Means                                                            |
+| ------------------------- | ---------------------------------------------------------------- |
+| `declined`, a ladder rung | They are not joining the club                                    |
+| Said no to WhatsApp       | Do not reach them on that channel — they may still be interested |
+
+The mission records only the first today. A recruit who is keen but will not take
+WhatsApp messages has nowhere to be recorded, and one who declined the club is
+assumed to refuse contact too. They come apart in practice: _"not this term, ask
+me in Hilary"_ is the never-harsh case and refuses no contact at all.
+
+The banner is built to carry **either** cause — one derived question, _may we
+message this person?_, with the reason named underneath — so nothing here has to
+change if the answer is "they are separate". But **whether to record the second
+fact is Brian's, and unanswered.** It would be a new field on the recruit and it
+would touch `W1`'s columns and the questionnaire.
+
+**`W2-04` arrived after the approval recorded below.** It is noted here rather
 than by reopening the workflow, because the ledger's ordering rule makes
 reopening an earlier workflow invalidate every later approval — `W4` through `W8`
-would all have fallen over. Brian has not yet seen `W2-04`.
+would all have fallen over.
 
 ## Brian approval
 

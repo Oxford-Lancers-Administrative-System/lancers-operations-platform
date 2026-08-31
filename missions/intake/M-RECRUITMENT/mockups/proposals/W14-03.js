@@ -1519,8 +1519,14 @@ const sentDates = (card, label, dates) => {
  * and there is nothing to type.
  */
 const openDialog = ({ title, question, sent, note }) => {
+  // Not just "the first Paper": an Alert is a Paper too, and once W2-04 put one
+  // at the top of the record the dialog cloned THAT and inherited its flex row,
+  // laying the title, the question and the history out as three narrow columns.
+  // Take a Paper that is actually a card.
   const paperTpl = must(
-    document.querySelector(".MuiPaper-root"),
+    [...document.querySelectorAll(".MuiPaper-root")].find(
+      (p) => !p.classList.contains("MuiAlert-root") && p.offsetHeight > 60,
+    ) ?? document.querySelector(".MuiPaper-root"),
     "the page has no Paper to build the dialog surface from",
   );
   const scrim = document.createElement("div");
@@ -1530,7 +1536,7 @@ const openDialog = ({ title, question, sent, note }) => {
 
   const surface = paperTpl.cloneNode(false);
   surface.style.cssText =
-    "width:480px;max-width:92vw;background:#fff;border-radius:8px;" +
+    "display:block;width:480px;max-width:92vw;background:#fff;border-radius:8px;" +
     "box-shadow:0 11px 15px -7px rgba(0,0,0,.2),0 24px 38px 3px rgba(0,0,0,.14);overflow:hidden";
 
   const head = document.createElement("div");
@@ -1924,6 +1930,71 @@ const formButton = (text) => {
   button.textContent = text;
   button.removeAttribute("href");
   button.style.marginTop = "8px";
+  return button;
+};
+
+/**
+ * A page-level statement at the top of a record, in the application's own Alert.
+ *
+ * Brian, 2026-08-31: "W2-04 should not be a pop-up or whatever. That should be a
+ * status at the very top... If you click that, then the pop-up comes up, but it
+ * should be somewhere."
+ *
+ * A dialog that only appears when you try is a trap: you find out at the moment
+ * you act, and only if you act. The record already renders a `MuiAlert` for the
+ * outstanding-items line, so this clones that one — same severity, same spacing,
+ * same type — and puts it above the first card.
+ */
+let ALERT_TEMPLATE = null;
+
+/**
+ * Take the record's Alert before the cards are rebuilt.
+ *
+ * The shipped one lives INSIDE the Onboarding card — it is the outstanding-items
+ * line — and `rebuildCard` strips alerts out of the card it replaces. So by the
+ * time a screen wants one there is none left on the page to clone, and
+ * `pageAlert` threw. Call this first.
+ */
+const captureAlert = () => {
+  const shipped = document.querySelector(".MuiAlert-root");
+  ALERT_TEMPLATE = shipped ? shipped.cloneNode(true) : null;
+  return ALERT_TEMPLATE;
+};
+
+const pageAlert = (headline, detail) => {
+  const shipped = must(
+    ALERT_TEMPLATE ?? document.querySelector(".MuiAlert-root"),
+    "no MuiAlert to clone; call captureAlert() before the cards are rebuilt",
+  );
+  const alert = shipped.cloneNode(true);
+  const message = must(
+    alert.querySelector(".MuiAlert-message") ?? alert,
+    "the cloned alert has no message",
+  );
+  message.replaceChildren();
+  const strong = document.createElement("strong");
+  strong.textContent = headline;
+  message.append(strong);
+  if (detail) {
+    message.append(document.createTextNode(` ${detail}`));
+  }
+  const first = must(cardTemplate(), "the record has no first card to sit above");
+  first.parentElement?.insertBefore(alert, first);
+  return alert;
+};
+
+/**
+ * A control the operator cannot use, in the application's own disabled state.
+ * Cloned classes rather than opacity guesswork, so it reads as MUI's disabled
+ * button and not as a faded one.
+ */
+const disableButton = (button) => {
+  button.classList.add("Mui-disabled");
+  button.style.pointerEvents = "none";
+  button.style.backgroundColor = "rgba(0,0,0,0.12)";
+  button.style.color = "rgba(0,0,0,0.26)";
+  button.style.boxShadow = "none";
+  button.setAttribute("aria-disabled", "true");
   return button;
 };
 

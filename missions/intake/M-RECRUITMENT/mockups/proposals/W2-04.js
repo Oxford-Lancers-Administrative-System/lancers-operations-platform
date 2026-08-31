@@ -1519,8 +1519,14 @@ const sentDates = (card, label, dates) => {
  * and there is nothing to type.
  */
 const openDialog = ({ title, question, sent, note }) => {
+  // Not just "the first Paper": an Alert is a Paper too, and once W2-04 put one
+  // at the top of the record the dialog cloned THAT and inherited its flex row,
+  // laying the title, the question and the history out as three narrow columns.
+  // Take a Paper that is actually a card.
   const paperTpl = must(
-    document.querySelector(".MuiPaper-root"),
+    [...document.querySelectorAll(".MuiPaper-root")].find(
+      (p) => !p.classList.contains("MuiAlert-root") && p.offsetHeight > 60,
+    ) ?? document.querySelector(".MuiPaper-root"),
     "the page has no Paper to build the dialog surface from",
   );
   const scrim = document.createElement("div");
@@ -1530,7 +1536,7 @@ const openDialog = ({ title, question, sent, note }) => {
 
   const surface = paperTpl.cloneNode(false);
   surface.style.cssText =
-    "width:480px;max-width:92vw;background:#fff;border-radius:8px;" +
+    "display:block;width:480px;max-width:92vw;background:#fff;border-radius:8px;" +
     "box-shadow:0 11px 15px -7px rgba(0,0,0,.2),0 24px 38px 3px rgba(0,0,0,.14);overflow:hidden";
 
   const head = document.createElement("div");
@@ -1927,6 +1933,71 @@ const formButton = (text) => {
   return button;
 };
 
+/**
+ * A page-level statement at the top of a record, in the application's own Alert.
+ *
+ * Brian, 2026-08-31: "W2-04 should not be a pop-up or whatever. That should be a
+ * status at the very top... If you click that, then the pop-up comes up, but it
+ * should be somewhere."
+ *
+ * A dialog that only appears when you try is a trap: you find out at the moment
+ * you act, and only if you act. The record already renders a `MuiAlert` for the
+ * outstanding-items line, so this clones that one — same severity, same spacing,
+ * same type — and puts it above the first card.
+ */
+let ALERT_TEMPLATE = null;
+
+/**
+ * Take the record's Alert before the cards are rebuilt.
+ *
+ * The shipped one lives INSIDE the Onboarding card — it is the outstanding-items
+ * line — and `rebuildCard` strips alerts out of the card it replaces. So by the
+ * time a screen wants one there is none left on the page to clone, and
+ * `pageAlert` threw. Call this first.
+ */
+const captureAlert = () => {
+  const shipped = document.querySelector(".MuiAlert-root");
+  ALERT_TEMPLATE = shipped ? shipped.cloneNode(true) : null;
+  return ALERT_TEMPLATE;
+};
+
+const pageAlert = (headline, detail) => {
+  const shipped = must(
+    ALERT_TEMPLATE ?? document.querySelector(".MuiAlert-root"),
+    "no MuiAlert to clone; call captureAlert() before the cards are rebuilt",
+  );
+  const alert = shipped.cloneNode(true);
+  const message = must(
+    alert.querySelector(".MuiAlert-message") ?? alert,
+    "the cloned alert has no message",
+  );
+  message.replaceChildren();
+  const strong = document.createElement("strong");
+  strong.textContent = headline;
+  message.append(strong);
+  if (detail) {
+    message.append(document.createTextNode(` ${detail}`));
+  }
+  const first = must(cardTemplate(), "the record has no first card to sit above");
+  first.parentElement?.insertBefore(alert, first);
+  return alert;
+};
+
+/**
+ * A control the operator cannot use, in the application's own disabled state.
+ * Cloned classes rather than opacity guesswork, so it reads as MUI's disabled
+ * button and not as a faded one.
+ */
+const disableButton = (button) => {
+  button.classList.add("Mui-disabled");
+  button.style.pointerEvents = "none";
+  button.style.backgroundColor = "rgba(0,0,0,0.12)";
+  button.style.color = "rgba(0,0,0,0.26)";
+  button.style.boxShadow = "none";
+  button.setAttribute("aria-disabled", "true");
+  return button;
+};
+
 // W2-04 — The send that will not fire.
 //
 // The one screen worth keeping out of W9 when it was folded on 2026-08-31.
@@ -1942,9 +2013,15 @@ const formButton = (text) => {
 // This is also the shape the refusal has to take under templates-only: there is
 // nothing to compose, so there is no "send anyway" to offer. The only way to
 // message him again is for his status to stop being `declined`.
+//
+// ONE FACT, THREE PLACES. The banner states it before anybody acts; the buttons
+// are disabled so the refusal is visible rather than discovered; the dialog
+// answers the operator who pressed regardless. None of the three is the only
+// place the fact lives, which is what Brian meant by getting it ingrained.
+captureAlert();
 buildRecruitRecord();
-pageButton("SEND PERSONAL QUESTIONNAIRE");
-pageButton("SEND RECRUITMENT QUESTIONNAIRE");
+const personalButton = pageButton("SEND PERSONAL QUESTIONNAIRE");
+const recruitmentButton = pageButton("SEND RECRUITMENT QUESTIONNAIRE");
 
 // The record has to BE Ambrose's, not Tobias's with a new heading. The first
 // attempt renamed the page and left the body alone, so a declined recruit
@@ -1994,9 +2071,27 @@ rebuildCard(
 sentDates(bandedCard("RECRUITMENT QUESTIONNAIRE"), "Recruitment questionnaire sent", []);
 
 setRecruitmentEvents([
-  { name: "Freshers' Fair", date: "30 Apr 2026", rsvp: "No", attendance: "Absent", status: "Occurred" },
-  { name: "Taster 1", date: "3 May 2026", rsvp: NOT_RECORDED, attendance: "Present", status: "Occurred" },
-  { name: "Taster 2", date: "10 May 2026", rsvp: NOT_RECORDED, attendance: NOT_RECORDED, status: "Upcoming" },
+  {
+    name: "Freshers' Fair",
+    date: "30 Apr 2026",
+    rsvp: "No",
+    attendance: "Absent",
+    status: "Occurred",
+  },
+  {
+    name: "Taster 1",
+    date: "3 May 2026",
+    rsvp: NOT_RECORDED,
+    attendance: "Present",
+    status: "Occurred",
+  },
+  {
+    name: "Taster 2",
+    date: "10 May 2026",
+    rsvp: NOT_RECORDED,
+    attendance: NOT_RECORDED,
+    status: "Upcoming",
+  },
 ]);
 
 const notesCard = bandedCard("NOTES");
@@ -2032,8 +2127,25 @@ for (const [what, when] of [
 historyCard.append(historyBody);
 
 // The status control shows the rung he is actually on.
-const statusShown = document.querySelector('.MuiSelect-select');
+const statusShown = document.querySelector(".MuiSelect-select");
 if (statusShown) statusShown.replaceChildren(document.createTextNode("declined"));
+
+// ---- The fact, at the top, before anybody presses anything ---------------
+// Brian: "That should be a status at the very top where they said no to the
+// WhatsApp... Figure out how to get it ingrained."
+//
+// So it is stated three times over, in descending order of how hard it is to
+// miss: the banner, the buttons that will not fire, and only then the dialog
+// for the operator who pressed anyway.
+mark(
+  pageAlert(
+    "The club will not message Ambrose.",
+    "He declined on 2 May 2026. Change his recruitment status if that is wrong.",
+  ),
+  1,
+);
+mark(disableButton(personalButton), 2);
+disableButton(recruitmentButton);
 
 const scrim = openDialog({
   title: "Ambrose has asked not to be contacted",
@@ -2047,9 +2159,11 @@ const scrim = openDialog({
 // override. Only CANCEL remains.
 // openDialog returns the scrim; querying for it by inline style failed because
 // cssText normalises the spacing.
-const send = [...scrim.querySelectorAll("a, button")].find((b) => /^SEND$/i.test(b.textContent.trim()));
+const send = [...scrim.querySelectorAll("a, button")].find((b) =>
+  /^SEND$/i.test(b.textContent.trim()),
+);
 if (send) send.remove();
 
-await settle()
+await settle();
 
 })()
