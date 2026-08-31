@@ -5,7 +5,7 @@
 - Primary actor: an operator holding the core four authority.
 - Trigger: somebody is mentioned, met, or recommended, away from an event.
 - Entry point: `ADD RECRUIT` on the recruit board.
-- Route/placement: `/operate/recruits/new`.
+- Route/placement: `/operate/recruitment/new`.
 - Controlling source: Task 09 D2's third door; Brian's 2026-08-28 subject note
   that the club sources people and reaches out, which the four-door framing
   under-serves.

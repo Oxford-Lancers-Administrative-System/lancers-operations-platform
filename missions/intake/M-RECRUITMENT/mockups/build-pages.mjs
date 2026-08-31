@@ -50,7 +50,7 @@ const WORKFLOWS = [
           "<strong>4. <code>On WhatsApp</code> already exists</strong> on the person record at the baseline and is empty on both seeded recruits — so channel presence needs no new storage",
           "<strong>5. The filters changed.</strong> Availability and Missing onboarding data describe memberships a recruit does not hold",
         ],
-        "oxfordlancers.example/operate/recruits",
+        "oxfordlancers.example/operate/recruitment",
       ),
       P(
         "W1-02",
@@ -63,7 +63,7 @@ const WORKFLOWS = [
           "<strong>3. A recruit never invited</strong> shows dashed outlines, so absence is visible rather than ambiguous",
           "<strong>Decide:</strong> three glyphs in one cell is dense. The alternative triples the width",
         ],
-        "oxfordlancers.example/operate/recruits",
+        "oxfordlancers.example/operate/recruitment",
       ),
       P(
         "W1-03",
@@ -74,7 +74,7 @@ const WORKFLOWS = [
           "<strong>2. It is not an error state.</strong> Every board is empty at the start of a season",
           "<strong>3. It points at where the QR and the group link are administered</strong>, which is what an operator needs next",
         ],
-        "oxfordlancers.example/operate/recruits",
+        "oxfordlancers.example/operate/recruitment",
       ),
       P(
         "W1-04",

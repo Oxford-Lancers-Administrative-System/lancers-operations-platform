@@ -1,7 +1,7 @@
 {
   "mission_id": "M-RECRUITMENT",
   "ledger_version": 3,
-  "stage": "workflows",
+  "stage": "pr_open",
   "baseline": {
     "branch": "main",
     "commit": "e669331d96fb949a3c29d7475842a6414cfe9e57"
@@ -194,75 +194,70 @@
     {
       "id": "W11",
       "name": "Run a recruitment event",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W11-01",
-          "date": "2026-08-31",
-          "text": "I don't approve the events, but you're not getting them right - we're moving past it because the app will reuse elements it already has. Take the one page you would have done in W15, put it in W11 at the bottom of the page. Edit the messaging template page for recruits, and on the recruit event have two sections: one for regular players, one for recruits. \u2014 DONE: W15 is removed and its number is dead; the recruit messaging flow is the last section of W11's page; and W10's Recruitment event row is split into a players chase and a recruits chase. W11 REMAINS UNAPPROVED by his instruction."
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "W11 is approved. Everything else is approved.",
+          "date": "2026-08-31"
         },
-        {
-          "screen_id": "W11-05",
-          "date": "2026-08-31",
-          "text": "What the fuck is happening with W11 at the bottom? It's supposed to be a show and a page on what the page is supposed to fucking look like. Like everything else at the bottom of W11, it just lists out a bunch of shit. \u2014 The prose table was wrong; a page means a screen. DONE: the table moved into W11's specification and W11-05 is the messaging plan disclosure on the approval review step, photographed both sides, with the players' and recruits' ladders as two named groups. Brian: 'W11-05 is fine.'"
-        },
-        {
-          "screen_id": "W11-06",
-          "date": "2026-08-31",
-          "text": "W11-06 needs to exist to show what the messaging machinery looks like... The page that tells all the timing for the events, like WhatsApp messages or whatever, that's the page I need to see as well. Just update the message timing page, please. \u2014 DONE: W11-06 is /operate/admin/messaging with the Recruitment event row split into Regular players and Recruits, built from the same `buildMessagingSchedule` as W10-01 so the two cannot drift. He also asked at one point for the event templates page and then withdrew it; NOT built, and do not raise it again unless he does."
+        "mock": {
+          "words": "W11 is approved. Everything else is approved.",
+          "date": "2026-08-31"
         }
-      ]
+      }
     },
     {
       "id": "W12",
       "name": "Take attendance at a recruitment event",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W12-01",
-          "date": "2026-08-31",
-          "text": "W12 is approved. I looked at it. It's simple. It's done. It's approved. \u2014 APPROVED IN HIS WORDS, but the ledger will not record it as done until W11 is done, because a workflow cannot be approved before every earlier one is. Flip W12 to done the moment W11 is approved; do not ask him again."
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "W12 is approved. I looked at it. It's simple. It's done. It's approved.",
+          "date": "2026-08-31"
+        },
+        "mock": {
+          "words": "W12 is approved. I looked at it. It's simple. It's done. It's approved.",
+          "date": "2026-08-31"
         }
-      ],
-      "approvals": {}
+      }
     },
     {
       "id": "W13",
       "name": "Take a recruit off the board",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W13-01",
-          "date": "2026-08-31",
-          "text": "The W13 has a bunch of narrative bullshit on the page. It's not supposed to be narrative in nature. If somebody's flipped to the [declined], we don't need a whole other screen to pop up and call out on it. That's fucking silly. Same thing with W13-02 - there's a whole callout at the top for Clementine's back or whatever. That's not the fucking line. If they're gone, it should be like 'flip to decline' and be like, 'it just declined.' The only time you need a real big callout is if they're going to be moving to join. Mobile looks like shit too. \u2014 DONE: both drawn panels removed; each screen is one chip on W1's approved board, which builds the table and the phone card list from one dataset. The 375px shots had been the roster's 42 players under a recruitment heading."
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "W13 approved",
+          "date": "2026-08-31"
         },
-        {
-          "screen_id": "W13-02",
-          "date": "2026-08-31",
-          "text": "W13 approved \u2014 APPROVED IN HIS WORDS after the rebuild. The ledger will not record it as done until W11 and W12 are done, because a workflow cannot be approved before every earlier one is. Flip W13 to done the moment W11 is approved; do not ask him again."
+        "mock": {
+          "words": "W13 approved",
+          "date": "2026-08-31"
         }
-      ]
+      }
     },
     {
       "id": "W14",
       "name": "Flip a recruit to joined",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W14-01",
-          "date": "2026-08-31",
-          "text": "Same problem exists with W14. Why is it that it has that big fucking tall green callout at the top like that? If somebody goes to Declined or something else, it doesn't need a callout. We don't need fucking callouts for this thing. The only time we need it is for Join, and it shouldn't be a fucking WhatsApp page like it's called out in this thing here. It should be a page over the recruit page, like a jump-out that says there and just explains what happens to them when you click Enter and they join. That's good. It's fine. \u2014 DONE: the three drawn panels are gone. W14-01 and W14-03 are one jump-out over the recruit board; W14-02 is the roster with her on it and nothing narrating it."
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "W14 approved",
+          "date": "2026-08-31"
         },
-        {
-          "screen_id": "W14-02",
-          "date": "2026-08-31",
-          "text": "W14 approved \u2014 APPROVED IN HIS WORDS after the rebuild. Held by the same ordering rule as W12 and W13. Flip to done when W11 is approved; do not ask him again."
+        "mock": {
+          "words": "W14 approved",
+          "date": "2026-08-31"
         }
-      ]
+      }
     }
   ],
   "mockup_hub": "generated",
@@ -1112,7 +1107,7 @@
       }
     ]
   },
-  "next_action": "W1-W8, W10, W13 and W14 approved in his words; W3, W9 and W15 folded and their numbers dead. W12, W13 and W14 are approved IN HIS WORDS but held by the ordering rule until W11 is approved - flip all three to done the moment W11 is, and never ask him again. W11 is the only workflow he has not approved: he moved past the event screens with a note that the build reuses shipped elements, then asked for and accepted W11-05 (the messaging plan on the approval review step) and W11-06 (the messaging schedule's Recruitment row, split). NEXT: ask him to approve W11, then flip W12-W14, then the packet. OWNER ACTION: four WhatsApp templates to Meta. DEFECT: countByCapacity omits recruits from the event approval summary. LOCAL SYNTHETIC DATA written to the mission database: an rsvp_access_tokens row, an rsvp_responses row, and a draft recruitment event 3f7c21a9-4d0e-4b6a-9c31-8e5d7a0b4c12 'Taster session 3' with a 35-player-plus-2-recruit audience, which W11-05 is photographed on. OPEN: W2-04's real approval; who mints next season's QR; no control for turning a cycle step off; 'said no to WhatsApp' vs 'declined'; W2 button placement; events violet vs blue; channel presence on the record; the Contactable cell; Brian's copy for the declined page.",
+  "next_action": "Packet v1 assembled, validated and pushed as a draft PR. Brian merges it; his merge IS the packet approval and nothing executes before it. AFTER MERGE: return the Project Manager receipt (coverage, dependencies, superseded boundary, unassigned Release One coverage, packet path/version/PR/SHA, validation, owner actions) and set stage to merged. OWNER ACTION at closeout: four WhatsApp templates to Meta - recruit_welcome, recruit_details_ask, recruit_details_reminder, recruit_interest_ask, plus the recruit event follow-up; only event_invitation exists there today. AMENDMENTS not yet applied and not yet shown to Brian: see amendment_plan. DEFECT for the Mission Lead: countByCapacity omits recruits from the event approval summary and scheduleEventLadder escalates recruits. LOCAL SYNTHETIC DATA in the mission database: an rsvp_access_tokens row, an rsvp_responses row, and draft event 3f7c21a9-4d0e-4b6a-9c31-8e5d7a0b4c12 Taster session 3.",
   "subject_coverage": {
     "areas": [
       {

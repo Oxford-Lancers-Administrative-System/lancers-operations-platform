@@ -7,7 +7,7 @@
 - Trigger: any door parked a capture.
 - Entry point: a count on the recruit board, and an item in the Administration
   navigation.
-- Route/placement: `/operate/recruits/review`.
+- Route/placement: `/operate/recruitment/review`.
 - Controlling source: Task 09 D7 and §3, which lock dedup-before-create at every
   door and put self-serve matches in an operator-review queue with the welcome
   held; Brian's 2026-08-31 note that what the self-serve door cannot resolve needs
@@ -149,7 +149,7 @@ messaged. On create: person minted, prospect at `identified`, `W3` fires.
 - `grounding: photograph`. The shipped add-a-person form and its own duplicate
   check as the shell, both sides at measured 1280px and 375px, with `W8-01`'s
   proposed side produced by driving the real form rather than by drawing its
-  output. The proposed route `/operate/recruits/review` does not exist on `main`
+  output. The proposed route `/operate/recruitment/review` does not exist on `main`
   and every frame says so.
 
 ## Core decisions

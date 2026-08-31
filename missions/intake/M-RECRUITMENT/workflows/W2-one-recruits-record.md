@@ -7,7 +7,7 @@
 - Trigger: the operator clicks a row on the board, or arrives from a follow-up or
   an event.
 - Entry point: the pinned Recruit column on `W1`.
-- Route/placement: `/operate/recruits/[prospectId]`.
+- Route/placement: `/operate/recruitment/[prospectId]`.
 - Controlling source: Task 09 D4 and D9; Brian's 2026-08-28 note that clicking a
   row opens that recruit the way clicking a player opens their record; Task 08's
   2026-08-27 amendment, which keeps recruitment facts off the person record.
@@ -204,7 +204,7 @@ except `joined` is a direct audited change; `joined` is intercepted by `W14`.
 
 - `grounding: photograph`. `/operate/roster/[membershipId]` — the player record —
   is the shell, photographed both sides at measured 1280px and 375px. The
-  proposed route `/operate/recruits/[prospectId]` does not exist on `main`, and
+  proposed route `/operate/recruitment/[prospectId]` does not exist on `main`, and
   every frame says so rather than printing a route that is not there.
 - `W2-03` carries the sign-on ladder, moved here from `W3` on 2026-08-31.
 - The duplicate Recruit chip visible on the current side is a defect this mission
