@@ -260,7 +260,48 @@ recorded` in grey, never blank, never defaulted — the roster board's rule and 
 | Status is edited in the cell, except `joined`                                       | `proposed for owner approval` | Matches the roster board's in-cell season editing; `joined` is `W14`'s                        | Open    |
 | Default sort is ladder order, then most recent first contact                        | `delegated to Mission Lead`   | Reversible, changes no meaning                                                                | Settled |
 
+## Owner feedback, and how each item was resolved
+
+Every item below is Brian's own words on 2026-08-31, with what was done about
+it. Retained here because the ledger's feedback array tracks _open_ items and
+these are closed.
+
+### W1-01
+
+> On WhatsApp. It doesn't make any sense here as far as doing that. I need to know what the whole list of things is that are going to be on this for the recruitment. That's not explained anywhere.
+
+On WhatsApp struck from the board; the complete recruit field set enumerated and put to Brian, who then settled status, source, first contact, committed_on and notes.
+
+### W1-02
+
+> The events and how they're shown are completely fucking made up. That is just absolute nonsense, what they created for the events, and the buckets don't even line up correctly for this. We don't do anything in the UI like that at all.
+
+The invited/answered/attended glyph triplet replaced by the shipped attendance vocabulary: the presence state in words, with the prefixed RSVP beneath it.
+
+### W1-01
+
+> Instead of an innocuous signals thing, we should just take the events as signals. Don't conflate those, right? Let's just make events events.
+
+The abstract signal columns (On WhatsApp, Last touch) struck. The board carries stored recruit fields and readable person facts only; events are events.
+
+### W1-01
+
+> It's a new page on the sidebar underneath Roster, and it's under /operate. That's it. There's no factual thing: roster, recruitment, events, and whatever. Don't change anything else.
+
+Recruitment is a top-level destination second in the sidebar, route /operate/recruitment. The Administration group is unchanged and carries no Recruits entry.
+
+### W1-02
+
+> How was this UI proposed? Where else are we using this particular UI element?
+
+nowhere. The two-line cell (presence chip over a prefixed RSVP) was invented and wrongly described as reuse; no grid cell in the application stacks a state over an RSVP, and no presence value is rendered as a filled pill. Rebuilt as Brian then specified: one band per event over an RSVP column and an Attendance column side by side, plain text, exactly as attendance-section.tsx renders the same two facts. Invitation is not shown at all — “I don't care if they were invited or not” — so a walk-up reads as RSVP Not recorded with an attendance of Present.
+
 ## Brian approval
 
-- Exact words:
-- Date:
+- Exact words: _"Okay, workflow 1 is approved."_
+- Date: 2026-08-31
+
+One approval, given after the event columns were rebuilt as an RSVP column and
+an Attendance column side by side under each event's own heading. It covers the
+specification and the mockups together; it is recorded against both gates
+because that is what he approved, not because he gave two answers.

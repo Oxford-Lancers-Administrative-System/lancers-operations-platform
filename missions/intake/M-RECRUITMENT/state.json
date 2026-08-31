@@ -24,35 +24,19 @@
     {
       "id": "W1",
       "name": "The recruit board",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W1-01",
-          "date": "2026-08-31",
-          "text": "On WhatsApp. It doesn't make any sense here as far as doing that. I need to know what the whole list of things is that are going to be on this for the recruitment. That's not explained anywhere. — resolved: On WhatsApp struck from the board; the complete recruit field set enumerated and put to Brian, who then settled status, source, first contact, committed_on and notes."
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Okay, workflow 1 is approved.",
+          "date": "2026-08-31"
         },
-        {
-          "screen_id": "W1-02",
-          "date": "2026-08-31",
-          "text": "The events and how they're shown are completely fucking made up. That is just absolute nonsense, what they created for the events, and the buckets don't even line up correctly for this. We don't do anything in the UI like that at all. — resolved: The invited/answered/attended glyph triplet replaced by the shipped attendance vocabulary: the presence state in words, with the prefixed RSVP beneath it."
-        },
-        {
-          "screen_id": "W1-01",
-          "date": "2026-08-31",
-          "text": "Instead of an innocuous signals thing, we should just take the events as signals. Don't conflate those, right? Let's just make events events. — resolved: The abstract signal columns (On WhatsApp, Last touch) struck. The board carries stored recruit fields and readable person facts only; events are events."
-        },
-        {
-          "screen_id": "W1-01",
-          "date": "2026-08-31",
-          "text": "It's a new page on the sidebar underneath Roster, and it's under /operate. That's it. There's no factual thing: roster, recruitment, events, and whatever. Don't change anything else. — resolved: Recruitment is a top-level destination second in the sidebar, route /operate/recruitment. The Administration group is unchanged and carries no Recruits entry."
-        },
-        {
-          "screen_id": "W1-02",
-          "date": "2026-08-31",
-          "text": "How was this UI proposed? Where else are we using this particular UI element? — resolved: nowhere. The two-line cell (presence chip over a prefixed RSVP) was invented and wrongly described as reuse; no grid cell in the application stacks a state over an RSVP, and no presence value is rendered as a filled pill. Rebuilt as Brian then specified: one band per event over an RSVP column and an Attendance column side by side, plain text, exactly as attendance-section.tsx renders the same two facts. Invitation is not shown at all — “I don't care if they were invited or not” — so a walk-up reads as RSVP Not recorded with an attendance of Present."
+        "mock": {
+          "words": "Okay, workflow 1 is approved.",
+          "date": "2026-08-31"
         }
-      ]
+      }
     },
     {
       "id": "W2",
@@ -993,7 +977,7 @@
       }
     ]
   },
-  "next_action": "W1 has been rebuilt and re-photographed against Brian's 2026-08-31 feedback and is with him for approval. W2 through W14 remain stale and are NOT to be swept: Brian goes one workflow at a time. Do not record an approval he has not given in his own words. The mockup helpers now throw rather than no-op, transitions are disabled before capture, and both the table and the phone card list are rebuilt by every board proposal.",
+  "next_action": "W1 is done and approved in Brian's words (\"Okay, workflow 1 is approved.\", 2026-08-31). W2 through W14 remain stale. Go to W2 next, one workflow at a time, with Brian. Do NOT sweep, and do not record an approval he has not given in his own words. Before showing him anything, open the rendered PNG of every screen touched. W1 is the worked example of what he accepts: the recruit's own stored fields plus readable person facts and nothing else; events rendered as events in the shipped vocabulary; and no invented UI element described as reuse.",
   "subject_coverage": {
     "areas": [
       {
