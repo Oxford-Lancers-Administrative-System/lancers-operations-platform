@@ -36,22 +36,68 @@
 
 ## The cards
 
-1. **Who they are · How to reach them · Academic** — the person record's own
-   cards, rendered read-only with one link out to the person record. Correcting a
-   person fact is Mission 5's job and costs Mission 5's rules.
-2. **Where they are in recruitment** — new. The status with its ladder colour and
-   its history, the source door, first contact, and the committed date where one
-   exists.
-3. **What we have seen** — new. Every signal as a dated fact with a source: the
-   welcome delivered, the group joined, the ask answered, each event invited,
-   answered and attended. Never a score, never a ranking, never a computed value
-   that moves a stage.
-4. **What we have said** — new. Every message the club sent this recruit, when,
-   through which door it fired, and whether it arrived. This is where `W9`'s
-   follow-ups land.
-5. **Notes** — new. Prose, first-class, with who wrote each note and when.
-6. **What changed** — the person record's own audit card, extended to
-   recruitment's own changes.
+Every card is a **shipped card from `/operate/roster/[membershipId]` with its
+content replaced**. Brian, 2026-08-31: _"The pages underneath should be very
+similar to the roster in the way that it's done, except it's the recruit player
+page, not the roster player page… We shouldn't invent UI elements here."_
+
+| Shipped card          | Colour           | Becomes                   | What it holds                                                          |
+| --------------------- | ---------------- | ------------------------- | ---------------------------------------------------------------------- |
+| `PERSON`              | slate `#455a64`  | **Person**, unchanged     | Person facts, read-only, keeping its own `Open the person record →`    |
+| `ONBOARDING`          | amber → teal     | **Recruitment**           | Status, came in through, first contact, committed on — edited in place |
+| `SEASON · 2026-27`    | blue `#0b3d91`   | **The recruit-stage ask** | Whether it was sent and answered, and the six answers                  |
+| `ATTENDANCE`          | violet `#4527a0` | **Recruitment events**    | The shipped table, reused whole, `Mandatory` dropped                   |
+| `THEIR OTHER SEASONS` | slate `#455a64`  | **Notes**                 | Prose, attributed and dated, with somewhere to write the next one      |
+| `STATUS HISTORY`      | slate `#455a64`  | **Status history**        | Recruitment's own changes, not membership's                            |
+
+The events card matters most: it already ships as a table of
+`Event · Date · Mandatory · RSVP · Attendance · Event status`, the exact treatment
+Brian approved for the board the same day, so it is reused whole rather than
+rebuilt. `Mandatory` goes because a recruit has no mandatory events.
+
+**It is clearly under recruitment.** Recruitment is selected on the left, the
+line under the name reads `Recruitment · 2026-27`, the route is
+`/operate/recruitment/<recruit>`, and the button at the foot reads
+`BACK TO RECRUITMENT`.
+
+### What was struck
+
+- **`What we have seen`** — the signal card, gone with the signal abstraction:
+  _"let's just make events events."_ Its job is now the events table.
+- **`What we have said`** — in the drafts this was never a messages card. It was
+  the player's own 53-row attendance table with a renamed heading, from the
+  silent `rebuildCard` failure, which is what Brian saw as _"two invite sections
+  in W2-01"_. `W9` owns follow-ups and `W10` owns the machinery.
+- **`On WhatsApp`** — not a recruit field. See the open question below.
+
+## The screens
+
+Two, reduced from three on 2026-08-31 after Brian found the others unreadable —
+_"W2-02 seems to be not recruitment… I'm not sure what it's doing"_ and _"W2-03
+has a fair amount of narration. I do not know what this section is trying to show
+me."_
+
+| Screen  | What it is for                                                                                                                     |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `W2-01` | The page at its emptiest — Rosalind Penhaligon, identified, ask unsent. The normal top-of-funnel case.                             |
+| `W2-02` | The page with something on it — Tobias Wrenfield: ask answered in his own words, two events attended, notes, status open for edit. |
+
+`W2-02` exists because `W2-01` alone would only ever show the ask as seven rows
+of `Not answered`, and would assert editing without showing it. Brian: _"I should
+be able to make edits and updates… I should see when they fill out information. I
+should be able to fill in my own information where it makes sense."_ One screen
+covers both. The deleted `W2-03` was the sign-on ladder moved here from `W3`;
+`W3` has since been removed outright and its decisions rehomed.
+
+## Open question inherited from W3's removal
+
+`AM-presence` and `T08-row8` moved here when `W3` was removed. Both say channel
+presence — is this person on WhatsApp and in this season's group — is **rendered
+on the record**. On the same day Brian struck `On WhatsApp` from the **board** as
+not a recruit field, and neither screen carries such a row.
+
+**Does channel presence appear on a recruit's record at all, and if so where?**
+Unanswered, and Brian's to settle.
 
 ## Required actions
 

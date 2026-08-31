@@ -1202,8 +1202,14 @@ const setRecruitmentEvents = (events, title = "Recruitment events") => {
       const target = td.querySelector("p, span, div") ?? td;
       const recorded = value !== NOT_RECORDED;
       target.replaceChildren(document.createTextNode(value));
-      target.style.color = recorded ? "" : "rgba(0,0,0,0.38)";
-      target.style.fontStyle = recorded ? "" : "italic";
+      // Set BOTH states explicitly. The row is cloned from whichever row the
+      // application happened to render first, and if that one was "not recorded"
+      // it carries the disabled colour and italic as an emotion CLASS. Clearing
+      // the inline style to "" then leaves a real value looking unrecorded,
+      // which is what W2-02 shipped on the first attempt: "Yes" and "Present"
+      // both rendered in the grey italic that means "we do not know".
+      target.style.color = recorded ? "rgba(0,0,0,0.87)" : "rgba(0,0,0,0.38)";
+      target.style.fontStyle = recorded ? "normal" : "italic";
     });
     return tr;
   });

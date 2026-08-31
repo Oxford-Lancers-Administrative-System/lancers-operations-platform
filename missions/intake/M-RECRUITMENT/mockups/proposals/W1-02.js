@@ -1203,8 +1203,14 @@ const setRecruitmentEvents = (events, title = "Recruitment events") => {
       const target = td.querySelector("p, span, div") ?? td;
       const recorded = value !== NOT_RECORDED;
       target.replaceChildren(document.createTextNode(value));
-      target.style.color = recorded ? "" : "rgba(0,0,0,0.38)";
-      target.style.fontStyle = recorded ? "" : "italic";
+      // Set BOTH states explicitly. The row is cloned from whichever row the
+      // application happened to render first, and if that one was "not recorded"
+      // it carries the disabled colour and italic as an emotion CLASS. Clearing
+      // the inline style to "" then leaves a real value looking unrecorded,
+      // which is what W2-02 shipped on the first attempt: "Yes" and "Present"
+      // both rendered in the grey italic that means "we do not know".
+      target.style.color = recorded ? "rgba(0,0,0,0.87)" : "rgba(0,0,0,0.38)";
+      target.style.fontStyle = recorded ? "normal" : "italic";
     });
     return tr;
   });
@@ -1257,13 +1263,9 @@ const firstEvent = must(
 // Measure against the SCROLLER, not the offset parent. `offsetLeft` is relative
 // to the table, which left the first event's RSVP column hidden behind the
 // sticky Recruit column.
-const pinnedWidth = document
-  .querySelector("thead tr:last-child th")
-  .getBoundingClientRect().width;
+const pinnedWidth = document.querySelector("thead tr:last-child th").getBoundingClientRect().width;
 scroller.scrollLeft +=
-  firstEvent.getBoundingClientRect().left -
-  scroller.getBoundingClientRect().left -
-  pinnedWidth;
+  firstEvent.getBoundingClientRect().left - scroller.getBoundingClientRect().left - pinnedWidth;
 
 if (scroller.scrollLeft === 0 && scroller.scrollWidth > scroller.clientWidth) {
   throw new Error("The board did not scroll; the Events band would not be in frame.");

@@ -62,12 +62,7 @@
         {
           "screen_id": "W2-02",
           "date": "2026-08-31",
-          "text": "I do not understand what it's showing. — OPEN. It was the same page for a different recruit, which is not a screen. Proposed instead: the same record with the recruit-stage ask ANSWERED, so \"I should see when they fill out information\" is what the screen is for. Not yet built."
-        },
-        {
-          "screen_id": "W2-03",
-          "date": "2026-08-31",
-          "text": "W2-03 has a fair amount of narration. I do not know what this section is trying to show me. — OPEN. It was the sign-on ladder moved here from W3. Proposed instead: the operator editing a recruitment fact and adding a note in place, so \"I should be able to fill in my own information\" is what the screen is for. Not yet built."
+          "text": "W2-02 seems to be not recruitment. It seems to be something else... It's showing the roster instead of the recruit page on its proposed pages. If we deleted W2-02 and W2-03, just the screens, and just left it with this third screen, would anything be missed? — RESOLVED: both old screens deleted. W2-02 is rebuilt as the one screen that covers what they would have shown between them: the record with the ask answered and the status field open for editing. W2-03 is gone entirely and the workflow now has two screens."
         }
       ]
     },
@@ -1013,7 +1008,7 @@
       }
     ]
   },
-  "next_action": "W3 is REMOVED on Brian's instruction; its slot is kept so nothing renumbers and its spec, mockup page and inventory row all say so. Its state is spec_draft only because the ledger forbids a workflow being done before every earlier one is - flip W3 to done as soon as W2 is done. Its five decisions moved to W10 (D3, SIGNON-OWNED, SIGNON-LADDER) and W2 (AM-presence, T08-row8); both homes await Brian's word. W2-02 and W2-03 are still the old stale screens and show the roster.",
+  "next_action": "W2 is rebuilt: two screens, W2-01 empty and W2-02 with content and an edit in progress. Both are with Brian. Open for him: (1) the events card is violet here, the shipped ATTENDANCE colour, while W1's approved event bands are blue - making them consistent means changing approved W1; (2) does channel presence render on a recruit's record at all, inherited from W3's removal; (3) confirm W3's five decisions landing in W10 and W2. Flip W3 to done once W2 is done.",
   "subject_coverage": {
     "areas": [
       {

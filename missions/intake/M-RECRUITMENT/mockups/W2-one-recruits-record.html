@@ -1342,10 +1342,12 @@
         </p>
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
-          <span><strong>Rebuilt 2026-08-31.</strong> Brian: <em>“You use the people workflow as the basis of it. It does not come from the people workflow… It needs to be a new page that's like the roster page, but it's just for the recruit.”</em> The first draft bolted cards onto the person record, which was the wrong entryway entirely</span>
-          <span><strong>Built on the player record's shell</strong> at <code>/operate/roster/[membershipId]</code> — the same banded cards, the same row markup, cloned rather than imitated. Reached by clicking a row on the recruit board</span>
-          <span><strong>The bands change because a recruit holds no membership:</strong> Person stays as it is, Onboarding becomes Recruitment, Season becomes Events, and the membership summary strip becomes a recruitment one</span>
-          <span><strong>What goes on it is not settled.</strong> Brian: <em>“I don't know what items go on this yet.”</em> This is the structure and the entry point; the contents are a proposal</span>
+          <span><strong>Built card for card on the shipped player record</strong> at <code>/operate/roster/[membershipId]</code>. Brian, 2026-08-31: <em>“We shouldn't invent UI elements here. We should see what the roster is, and we should see the player and all the stuff there.”</em> Every card below is a shipped card with its content replaced, not a new one</span>
+          <span><strong>PERSON is kept as it ships</strong> — read-only, with its own <em>Open the person record →</em>. Mission 5 owns those facts and owns correcting them</span>
+          <span><strong>ONBOARDING becomes RECRUITMENT</strong> in the board's teal, <strong>SEASON becomes THE RECRUIT-STAGE ASK</strong>, <strong>THEIR OTHER SEASONS becomes NOTES</strong>, and STATUS HISTORY stays and carries recruitment's own changes</span>
+          <span><strong>The shipped ATTENDANCE table becomes RECRUITMENT EVENTS, reused whole</strong> — <code>Event · Date · RSVP · Attendance · Event status</code>, the columns Brian approved for the board on the same day, in the violet the record already gives that card. Mandatory is dropped because a recruit has no mandatory events</span>
+          <span><strong>It is clearly under recruitment.</strong> Recruitment is selected on the left, the line under the name reads <em>Recruitment · 2026-27</em>, the route is <code>/operate/recruitment/…</code> and the button at the foot reads BACK TO RECRUITMENT</span>
+          <span><strong>Open:</strong> the events card is violet here because that is the shipped colour, while W1's approved event bands are blue. Making them consistent means changing approved work, so it waits on Brian</span>
         </div>
       </header>
       <div id="screens"></div>
@@ -1368,53 +1370,40 @@
           title: "A recruit at the top of the funnel",
           disposition: "new",
           drawn: false,
-          blurb: `Rosalind Penhaligon, identified, captured at the Freshers' Fair stand four days ago. Almost
-         nothing is recorded about her, which is the normal case and not an exception.`,
+          blurb: `Rosalind Penhaligon, identified, captured at the Freshers' Fair stand. Almost nothing is
+         recorded about her, which is the normal case at the top of the funnel and not an exception —
+         so the page has to read well when it is nearly empty.`,
           deltas: [
-            `<strong>1. The person cards are untouched</strong> and become read-only context`,
-            `<strong>2. Four recruitment cards are added</strong>: where they are, what we have seen, what we have said, and notes`,
-            `<strong>3. Signals are dated facts with a source</strong> — never scored, never ranked, and nothing moves a stage on its own`,
-            `<strong>4. Notes carry an author and a date.</strong> <strong>Decide:</strong> an unattributed note is not evidence`,
+            `<strong>1. PERSON is the shipped card</strong>, read-only, routing out to the person record`,
+            `<strong>2. RECRUITMENT holds the recruit's own stored fields</strong> and only those — status, how they came in, first contact, committed on. <code>On WhatsApp</code> is gone: Brian struck it from the board the same day as not a recruit field`,
+            `<strong>3. THE RECRUIT-STAGE ASK is unsent</strong>, so every answer reads <em>Not answered</em>. This is what the card looks like at its emptiest`,
+            `<strong>4. RECRUITMENT EVENTS is the shipped attendance table</strong>, trimmed to the recruitment events and with Mandatory dropped`,
+            `<strong>5. NOTES are the operator's own</strong>, attributed and dated, with somewhere to write the next one`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
           shotRoute: "/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
-          proposedRoute: "/operate/recruits/0b938ce0",
+          proposedRoute: "/operate/recruitment/rosalind-penhaligon",
         },
         {
           id: "W2-02",
-          title: "A recruit further along",
+          title: "The same page with something on it",
           disposition: "new",
           drawn: false,
-          blurb: `Tobias Wrenfield, engaged: in the group, ask answered, two events attended. What a full
-         signal set looks like once the sign-on flow and a couple of events have run.`,
+          blurb: `Tobias Wrenfield, engaged: the ask answered in his own words, two events attended, a note
+         already written, and one recruitment field open for editing. It exists because W2-01 alone
+         only ever shows the page empty — Brian, 2026-08-31: “I should be able to make edits and
+         updates as it makes sense for that particular user. I should see when they fill out
+         information.”`,
           deltas: [
-            `<strong>1. What they told us</strong> is the recruit-stage field set from W4, attributed to them`,
-            `<strong>2. The group join is recorded, never watched for</strong> — the 2026-08-28 research found group membership is not exposed by the Cloud API at all`,
-            `<strong>3. Every event shows invited, answered and attended</strong>, the same three facts the board's columns carry`,
+            `<strong>1. The ask is answered</strong>, and the answers are the recruit's own — the six-field set from W4 as Brian amended it, including the two yes/no questions about playing and watching`,
+            `<strong>2. A recruitment field is open for editing in place</strong>, which is the half of this workflow W2-01 asserts and never shows`,
+            `<strong>3. The events table has content</strong>: an RSVP that became an attendance, and a walk-up that never had an RSVP at all`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
           shotRoute: "/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
-          proposedRoute: "/operate/recruits/192fd288",
-        },
-        {
-          id: "W2-03",
-          title: "Where she has reached in the sign-on ladder",
-          disposition: "new",
-          drawn: false,
-          blurb: `Moved here from W3 when Brian folded that workflow on 2026-08-31. Nobody types to a recruit,
-         so there is no conversation to show — there is a sequence of templates and their delivery
-         receipts, and this is where an operator reads it.`,
-          deltas: [
-            `<strong>Five steps, each with its own delivery state.</strong> An earlier draft drew a two-way WhatsApp thread here; it was invented, and it was unsendable under the template-only rule`,
-            `<strong>What the club can honestly claim to know.</strong> <code>read</code> is stored today and mapped to nothing — widening <code>delivery_outcome</code> is a frozen-model change and is not proposed here`,
-            `<strong>Being in the community group is not observable at all.</strong> The Cloud API does not expose group membership, so she tells us or we do not know. It is recorded, never watched for`,
-          ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
-          shotRoute: "/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
-          proposedRoute: "/operate/recruits/0b938ce0",
+          proposedRoute: "/operate/recruitment/tobias-wrenfield",
         },
       ];
 
