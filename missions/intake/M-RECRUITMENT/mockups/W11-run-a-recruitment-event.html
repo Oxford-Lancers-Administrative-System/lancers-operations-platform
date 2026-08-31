@@ -1228,7 +1228,7 @@
         border-radius: 4px;
         padding: 2px 8px;
       }
-    
+
       /* Capped frames — LAN intake feedback, 2026-08-31. A full-page shot of a
          long record ran to several thousand pixels, so a page of them could not
          be scanned. The shot is unchanged; the box it sits in is scrollable. */
@@ -1324,11 +1324,11 @@
         <h1>W11 · Run a recruitment event</h1>
         <p>
           An operator schedules a session recruits are invited to, invites recruits and players
-      together where that is what the session is, and approves it knowing exactly what it sends.
-          <strong>Every screen here is a photograph on both sides</strong> — the same running page at
-           <code>e669331</code>, differing only by the proposal evaluated into it. Where a screen's
-           own route does not exist yet, it is photographed on the shell it reuses and its head says
-           so; the URL bar always shows what was really photographed.
+          together where that is what the session is, and approves it knowing exactly what it sends.
+          <strong>Every screen here is a photograph on both sides</strong> — the same running page
+          at <code>e669331</code>, differing only by the proposal evaluated into it. Where a
+          screen's own route does not exist yet, it is photographed on the shell it reuses and its
+          head says so; the URL bar always shows what was really photographed.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1342,9 +1342,27 @@
         </p>
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
-          <span>Brian, 2026-08-31: <em>“none of the machinery to explain how we separate out recruitment recruits from non-recruits.”</em> <strong>The machinery already ships.</strong> <code>audience-builder.tsx</code> offers a Capacity filter whose <em>Recruits</em> option appears on a Recruitment event and nowhere else — D46, in the running code at the baseline. The first draft answered the question with an invented table instead of pointing at the control</span>
-          <span><strong>W11-02 was captured and then never put on this page</strong>, so the one screen that explains why a Recruits audience exists at all was invisible. It is here now</span>
-          <span><strong>Both defects are real and verified in the running code.</strong> <code>scheduleEventLadder</code> inserts a reminder for every invitation filtered only by <code>event_id</code>, and <code>countByCapacity</code> omits recruits from the approval counts</span>
+          <span
+            >Brian, 2026-08-31:
+            <em
+              >“none of the machinery to explain how we separate out recruitment recruits from
+              non-recruits.”</em
+            >
+            <strong>The machinery already ships.</strong> <code>audience-builder.tsx</code> offers a
+            Capacity filter whose <em>Recruits</em> option appears on a Recruitment event and
+            nowhere else — D46, in the running code at the baseline. The first draft answered the
+            question with an invented table instead of pointing at the control</span
+          >
+          <span
+            ><strong>W11-02 was captured and then never put on this page</strong>, so the one screen
+            that explains why a Recruits audience exists at all was invisible. It is here now</span
+          >
+          <span
+            ><strong>Both defects are real and verified in the running code.</strong>
+            <code>scheduleEventLadder</code> inserts a reminder for every invitation filtered only
+            by <code>event_id</code>, and <code>countByCapacity</code> omits recruits from the
+            approval counts</span
+          >
         </div>
       </header>
       <div id="screens"></div>

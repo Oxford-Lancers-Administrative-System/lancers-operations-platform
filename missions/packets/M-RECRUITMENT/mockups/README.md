@@ -33,22 +33,22 @@ produced the proposed side.
 
 ## What the screens are grounded in
 
-| Workflow | Screens | Surface photographed |
-| --- | --- | --- |
-| W1 | W1-01 … W1-04 | `/operate/roster` — the board this one is modelled on |
-| W2 | W2-01 … W2-04 | `/operate/roster/[membershipId]` — the shipped player record |
-| W3 | none | Removed. The number draws no screens |
-| W4 | W4-01 … W4-03 | `/a/[token]` — the shared signed-link form |
-| W5 | W5-01 … W5-03 | `/operate/events/[id]/attendance` |
-| W6 | W6-01, W6-02 | `/operate/people/new` |
-| W7 | W7-01 … W7-03 | the public sign-up page |
-| W8 | W8-01 | `/operate/people/new`, driving its real duplicate check |
-| W9 | none | Folded. The number draws no screens |
-| W10 | W10-01 | `/operate/admin/messaging` |
-| W11 | W11-01 … W11-06 | `/operate/events/*`, `/rsvp/[token]`, `/operate/admin/messaging` |
-| W12 | W12-01, W12-02 | `/operate/events/[id]/attendance` |
-| W13 | W13-01, W13-02 | `/operate/roster`, rebuilt as the recruit board |
-| W14 | W14-01 … W14-03 | `/operate/roster`, rebuilt as the recruit board |
+| Workflow | Screens         | Surface photographed                                             |
+| -------- | --------------- | ---------------------------------------------------------------- |
+| W1       | W1-01 … W1-04   | `/operate/roster` — the board this one is modelled on            |
+| W2       | W2-01 … W2-04   | `/operate/roster/[membershipId]` — the shipped player record     |
+| W3       | none            | Removed. The number draws no screens                             |
+| W4       | W4-01 … W4-03   | `/a/[token]` — the shared signed-link form                       |
+| W5       | W5-01 … W5-03   | `/operate/events/[id]/attendance`                                |
+| W6       | W6-01, W6-02    | `/operate/people/new`                                            |
+| W7       | W7-01 … W7-03   | the public sign-up page                                          |
+| W8       | W8-01           | `/operate/people/new`, driving its real duplicate check          |
+| W9       | none            | Folded. The number draws no screens                              |
+| W10      | W10-01          | `/operate/admin/messaging`                                       |
+| W11      | W11-01 … W11-06 | `/operate/events/*`, `/rsvp/[token]`, `/operate/admin/messaging` |
+| W12      | W12-01, W12-02  | `/operate/events/[id]/attendance`                                |
+| W13      | W13-01, W13-02  | `/operate/roster`, rebuilt as the recruit board                  |
+| W14      | W14-01 … W14-03 | `/operate/roster`, rebuilt as the recruit board                  |
 
 ## Synthetic, and only synthetic
 
@@ -60,6 +60,6 @@ detail or club record appears on any screen.
 Three rows were written to the **local** mission database so that two screens
 could be photographed rather than drawn: an `rsvp_access_tokens` row and an
 `rsvp_responses` row for W11-03 and W11-04, and a draft recruitment event
-`3f7c21a9-4d0e-4b6a-9c31-8e5d7a0b4c12` — *Taster session 3*, 35 players and 2
+`3f7c21a9-4d0e-4b6a-9c31-8e5d7a0b4c12` — _Taster session 3_, 35 players and 2
 recruits — for W11-05, because no seeded draft carried an audience to plan
 against. Local and synthetic; nothing hosted was touched.

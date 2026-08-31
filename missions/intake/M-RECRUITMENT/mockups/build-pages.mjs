@@ -3,6 +3,7 @@
 // mission's page so the two reviews read identically; only the screen data and
 // the header prose are this mission's.
 import { readFileSync, writeFileSync } from "node:fs";
+import { format, resolveConfig } from "prettier";
 import path from "node:path";
 
 const TEMPLATE = path.resolve(
@@ -948,6 +949,11 @@ ${s.deltas.map((d) => `            \`${esc(d)}\``).join(",\n")},
     'const CLOCK = "Baseline: main@e669331 · seeded synthetic data";',
   );
 
-  writeFileSync(path.join(OUT, `${wf.id}-${wf.slug}.html`), out);
+  // Formatted on the way out, for the same reason build-proposals.mjs is.
+  const target = path.join(OUT, `${wf.id}-${wf.slug}.html`);
+  writeFileSync(
+    target,
+    await format(out, { ...(await resolveConfig(target)), parser: "html", filepath: target }),
+  );
 }
 console.log(`built ${WORKFLOWS.length} review pages`);

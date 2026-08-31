@@ -1228,7 +1228,7 @@
         border-radius: 4px;
         padding: 2px 8px;
       }
-    
+
       /* Capped frames — LAN intake feedback, 2026-08-31. A full-page shot of a
          long record ran to several thousand pixels, so a page of them could not
          be scanned. The shot is unchanged; the box it sits in is scrollable. */
@@ -1324,9 +1324,10 @@
         <h1>W7 · Sign yourself in</h1>
         <p>
           A recruit at the Freshers' Fair stand puts themselves into the club's system, on the
-      club's own page, and comes out of it in the community group.
-          <strong>Nothing like this exists on <code>main</code></strong>, so every screen is
-           <strong>drawn</strong> and labelled <em>New surface, nothing to compare</em>.
+          club's own page, and comes out of it in the community group.
+          <strong>Nothing like this exists on <code>main</code></strong
+          >, so every screen is <strong>drawn</strong> and labelled
+          <em>New surface, nothing to compare</em>.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1338,11 +1339,29 @@
             >Proposed — this mission</span
           >. Nothing on this page is approved.
         </p>
-        <span class="grounding">Grounding: code-only · drawn on both sides · measured 1280 and 375</span>
+        <span class="grounding"
+          >Grounding: code-only · drawn on both sides · measured 1280 and 375</span
+        >
         <div class="legend">
-          <span><strong>Drawn on both sides.</strong> There is no public self-entry page on main</span>
-          <span>Brian, 2026-08-31: <em>“they go to a form. And then, once they submit the form, they should get a login, basically an invite to the WhatsApp group.”</em> <strong>“A login” is read here as the group invite and the signed link, not an account</strong> — Task 08 §3 fixes that there are no player logins in Release One. Flagged rather than assumed</span>
-          <span>The <strong>375px frame is the real one</strong> — nobody scans a QR on a desktop</span>
+          <span
+            ><strong>Drawn on both sides.</strong> There is no public self-entry page on main</span
+          >
+          <span
+            >Brian, 2026-08-31:
+            <em
+              >“they go to a form. And then, once they submit the form, they should get a login,
+              basically an invite to the WhatsApp group.”</em
+            >
+            <strong
+              >“A login” is read here as the group invite and the signed link, not an
+              account</strong
+            >
+            — Task 08 §3 fixes that there are no player logins in Release One. Flagged rather than
+            assumed</span
+          >
+          <span
+            >The <strong>375px frame is the real one</strong> — nobody scans a QR on a desktop</span
+          >
         </div>
       </header>
       <div id="screens"></div>
@@ -1402,9 +1421,7 @@
           drawn: false,
           blurb: `Both answers land here. Pressing the button is the opt-in, which is why this door carries a
          natural one and the operator-add door in W6 has to ask for it.`,
-          deltas: [
-,
-          ],
+          deltas: [,],
           clockTag: CLOCK,
           url: "oxfordlancers.example/operate/people/new",
           shotRoute: "/operate/people/new",
