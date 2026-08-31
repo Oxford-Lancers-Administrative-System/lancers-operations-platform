@@ -39,7 +39,7 @@ setPersonRows([
 ]);
 
 // ---- RECRUITMENT, with one field open for editing -------------------------
-rebuildCard(
+const recruitmentCardRef = rebuildCard(
   bandedCard("ONBOARDING"),
   "Recruitment",
   [
@@ -74,7 +74,7 @@ valueBox.replaceChildren(
 );
 
 // ---- THE RECRUIT-STAGE ASK, answered --------------------------------------
-rebuildCard(
+const questionnaireCardRef = rebuildCard(
   bandedCard("SEASON"),
   "Questionnaire",
   [
@@ -91,7 +91,7 @@ rebuildCard(
 );
 
 // ---- RECRUITMENT EVENTS, with content -------------------------------------
-setRecruitmentEvents([
+const eventsCardRef = setRecruitmentEvents([
   {
     name: "Freshers' Fair",
     date: "30 Apr 2026",
@@ -151,7 +151,7 @@ for (const child of [...historyCard.children].slice(1)) child.remove();
 const historyBody = document.createElement("div");
 historyBody.style.cssText = "padding:14px 16px";
 for (const [what, when] of [
-  ["identified → engaged · answered the questionnaire", "5 May 2026, 19:40 · Caspian Hallowfield"],
+  ["identified → engaged · answered the questionnaire", "7 May 2026, 19:40 · Caspian Hallowfield"],
   ["Added as identified · walk-up at Taster 1", "3 May 2026, 18:05 · Caspian Hallowfield"],
 ]) {
   const line = document.createElement("div");
@@ -163,6 +163,24 @@ for (const [what, when] of [
   historyBody.append(line, meta);
 }
 historyCard.append(historyBody);
+
+// ---- The actions W2 requires, on the cards they belong to -----------------
+cardAction(bandedCard("PERSON"), "Ask them for their details →");
+cardAction(questionnaireCardRef, "Send a reminder →");
+cardAction(recruitmentCardRef, "Flip to joined →");
+
+// ---- What we have sent, and what is due next ------------------------------
+const sentCardRef = addSentCard(
+  [
+    ["Welcome · WhatsApp", "3 May 2026, 18:07 · delivered"],
+    ["Questionnaire — how you came to football", "4 May 2026, 09:00 · delivered"],
+    ["Reminder — how you came to football", "6 May 2026, 09:00 · delivered"],
+    ["Invitation · Taster 2", "8 May 2026, 09:00 · delivered"],
+  ],
+  ["Questionnaire — who you are", "not sent · send it by hand"],
+  eventsCardRef,
+);
+cardAction(sentCardRef, "Follow up →");
 
 relabelButton("back to roster", "BACK TO RECRUITMENT");
 window.history.replaceState(null, "", "/operate/recruitment/tobias-wrenfield");

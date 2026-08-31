@@ -44,7 +44,7 @@ setPersonRows([
 // The recruit's own stored fields, and only those. `On WhatsApp` is gone: Brian
 // struck it from the board on the same day because it is not a recruit field,
 // and it is not one here either.
-rebuildCard(
+const recruitmentCardRef = rebuildCard(
   bandedCard("ONBOARDING"),
   "Recruitment",
   [
@@ -59,7 +59,7 @@ rebuildCard(
 // ---- SEASON -> THE RECRUIT-STAGE ASK --------------------------------------
 // "I should see when they fill out information." Before they have, the card
 // says so plainly and offers the send; W2-02 is the same card answered.
-rebuildCard(
+const questionnaireCardRef = rebuildCard(
   bandedCard("SEASON"),
   "Questionnaire",
   [
@@ -78,7 +78,7 @@ rebuildCard(
 // ---- ATTENDANCE -> RECRUITMENT EVENTS -------------------------------------
 // The shipped attendance table, kept whole. Same columns Brian approved on the
 // board that morning, same violet the record already gives this card.
-setRecruitmentEvents([
+const eventsCardRef = setRecruitmentEvents([
   {
     name: "Freshers' Fair",
     date: "30 Apr 2026",
@@ -144,6 +144,20 @@ for (const [what, when] of [
 historyCard.append(historyBody);
 
 // The way back is to recruitment, not to the roster.
+// ---- The actions W2 requires, on the cards they belong to -----------------
+// Six required actions; the first build of this screen afforded one.
+cardAction(bandedCard("PERSON"), "Ask them for their details →");
+cardAction(questionnaireCardRef, "Send the questionnaire →");
+cardAction(recruitmentCardRef, "Flip to joined →");
+
+// ---- What we have sent, and what is due next ------------------------------
+const sentCardRef = addSentCard(
+  [["Welcome · WhatsApp", "28 Apr 2026, 14:14 · delivered"]],
+  ["Questionnaire — who you are", "not scheduled · send it by hand"],
+  eventsCardRef,
+);
+cardAction(sentCardRef, "Follow up →");
+
 relabelButton("back to roster", "BACK TO RECRUITMENT");
 
 window.history.replaceState(null, "", "/operate/recruitment/rosalind-penhaligon");

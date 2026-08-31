@@ -1123,15 +1123,21 @@ const RECORD_BANDS = {
 };
 
 /** The banded card whose header begins with `label`. Throws rather than guesses. */
-const bandedCard = (label) =>
-  must(
-    [...document.querySelectorAll(".MuiPaper-root")].find(
-      (c) =>
-        c.offsetHeight > 60 &&
-        c.innerText.split("\n")[0].trim().toUpperCase().startsWith(label.toUpperCase()),
-    ),
-    `the record has no ${label} card`,
+const bandedCard = (label) => {
+  const cards = [...document.querySelectorAll(".MuiPaper-root")].filter(
+    (c) => c.offsetHeight > 60 && c.innerText.trim(),
   );
+  const found = cards.find((c) =>
+    c.innerText.split("\n")[0].trim().toUpperCase().startsWith(label.toUpperCase()),
+  );
+  // Say what IS there. A bare "no X card" sends the next reader probing the DOM
+  // by hand, which has already cost this mission several turns.
+  return must(
+    found,
+    `the record has no ${label} card. Headings present: ` +
+      cards.map((c) => JSON.stringify(c.innerText.split("\n")[0].trim().slice(0, 30))).join(", "),
+  );
+};
 
 /**
  * Rebuild the shipped ATTENDANCE table as the recruit's events.
@@ -1287,6 +1293,86 @@ const cloneStatusControl = (value, options) => {
   return field;
 };
 
+// ---------------------------------------------------------------------------
+// Actions on the recruit's record — Brian, 2026-08-31.
+//
+//   "There should be buttons there to do that… it should be on the [recruit]
+//    member page itself. I should be able to click on it and say, 'Oh, I want to
+//    send out this,' and I should be able to ask for personal details about them
+//    if I see them. I should be able to ask them for the recruitment questions."
+//
+// W2 lists six required actions and the first build of these screens afforded
+// one. These put the rest on the page using the affordance the record ALREADY
+// ships: the banded card header carries an action node, which is how PERSON
+// renders "Open the person record →". Nothing new is drawn — the shipped link is
+// cloned, so the type, colour and weight cannot drift.
+// ---------------------------------------------------------------------------
+const cardAction = (card, text) => {
+  const shipped = must(
+    document.querySelector(".MuiPaper-root h2")?.parentElement?.querySelector("a, button") ??
+      [...document.querySelectorAll(".MuiPaper-root")]
+        .map((c) => c.querySelector("h2")?.parentElement?.querySelector("a, button"))
+        .find(Boolean),
+    "no card header action to clone; the record should ship at least one",
+  );
+  const bar = must(
+    card.querySelector("h2")?.parentElement,
+    "the card has no header bar to put an action on",
+  );
+  const action = shipped.cloneNode(true);
+  action.textContent = text;
+  action.removeAttribute("href");
+  bar.append(action);
+  return action;
+};
+
+/**
+ * "What we have sent", and what is due next.
+ *
+ * Brian, 2026-08-31: "When somebody gets recruited on board, we need to be able
+ * to tell when those things get sent out to them." W10 defines what due next
+ * means; this is where one recruit's answer is read.
+ *
+ * The card is cloned from a shipped banded card so it is the same object as
+ * every other section on the page.
+ */
+const addSentCard = (sent, dueNext, after) => {
+  const template = must(bandedCard("NOTES"), "no card to clone for the sent card");
+  const card = template.cloneNode(true);
+  const heading = must(card.querySelector("h2"), "the cloned card has no heading");
+  heading.textContent = "WHAT WE HAVE SENT";
+  const bar = must(heading.parentElement, "the cloned card has no header bar");
+  bar.style.backgroundColor = RECORD_BANDS.person;
+  for (const extra of [...bar.children]) if (extra !== heading) extra.remove();
+  for (const child of [...card.children]) if (child !== bar) child.remove();
+
+  const body = document.createElement("div");
+  body.style.cssText = "padding:14px 16px";
+  for (const [what, when] of sent) {
+    const line = document.createElement("div");
+    line.style.cssText = "font-size:14px;color:rgba(0,0,0,0.87);margin-top:10px";
+    line.textContent = what;
+    const meta = document.createElement("div");
+    meta.style.cssText = "margin-top:3px;font-size:12px;color:rgba(0,0,0,0.55)";
+    meta.textContent = when;
+    body.append(line, meta);
+  }
+  if (dueNext) {
+    const due = document.createElement("div");
+    due.style.cssText =
+      "margin-top:14px;padding-top:12px;border-top:1px solid rgba(0,0,0,0.10);" +
+      "font-size:14px;color:rgba(0,0,0,0.87)";
+    due.textContent = dueNext[0];
+    const dueMeta = document.createElement("div");
+    dueMeta.style.cssText = "margin-top:3px;font-size:12px;color:rgba(0,0,0,0.55)";
+    dueMeta.textContent = dueNext[1];
+    body.append(due, dueMeta);
+  }
+  card.append(body);
+  after.after(card);
+  return card;
+};
+
 // W2-02 — The same record, with something on it.
 //
 // W2-01 shows the page at its emptiest, which is the honest top-of-funnel case
@@ -1328,7 +1414,7 @@ setPersonRows([
 ]);
 
 // ---- RECRUITMENT, with one field open for editing -------------------------
-rebuildCard(
+const recruitmentCardRef = rebuildCard(
   bandedCard("ONBOARDING"),
   "Recruitment",
   [
@@ -1363,7 +1449,7 @@ valueBox.replaceChildren(
 );
 
 // ---- THE RECRUIT-STAGE ASK, answered --------------------------------------
-rebuildCard(
+const questionnaireCardRef = rebuildCard(
   bandedCard("SEASON"),
   "Questionnaire",
   [
@@ -1380,7 +1466,7 @@ rebuildCard(
 );
 
 // ---- RECRUITMENT EVENTS, with content -------------------------------------
-setRecruitmentEvents([
+const eventsCardRef = setRecruitmentEvents([
   {
     name: "Freshers' Fair",
     date: "30 Apr 2026",
@@ -1440,10 +1526,7 @@ for (const child of [...historyCard.children].slice(1)) child.remove();
 const historyBody = document.createElement("div");
 historyBody.style.cssText = "padding:14px 16px";
 for (const [what, when] of [
-  [
-    "identified → engaged · answered the questionnaire",
-    "5 May 2026, 19:40 · Caspian Hallowfield",
-  ],
+  ["identified → engaged · answered the questionnaire", "7 May 2026, 19:40 · Caspian Hallowfield"],
   ["Added as identified · walk-up at Taster 1", "3 May 2026, 18:05 · Caspian Hallowfield"],
 ]) {
   const line = document.createElement("div");
@@ -1455,6 +1538,24 @@ for (const [what, when] of [
   historyBody.append(line, meta);
 }
 historyCard.append(historyBody);
+
+// ---- The actions W2 requires, on the cards they belong to -----------------
+cardAction(bandedCard("PERSON"), "Ask them for their details →");
+cardAction(questionnaireCardRef, "Send a reminder →");
+cardAction(recruitmentCardRef, "Flip to joined →");
+
+// ---- What we have sent, and what is due next ------------------------------
+const sentCardRef = addSentCard(
+  [
+    ["Welcome · WhatsApp", "3 May 2026, 18:07 · delivered"],
+    ["Questionnaire — how you came to football", "4 May 2026, 09:00 · delivered"],
+    ["Reminder — how you came to football", "6 May 2026, 09:00 · delivered"],
+    ["Invitation · Taster 2", "8 May 2026, 09:00 · delivered"],
+  ],
+  ["Questionnaire — who you are", "not sent · send it by hand"],
+  eventsCardRef,
+);
+cardAction(sentCardRef, "Follow up →");
 
 relabelButton("back to roster", "BACK TO RECRUITMENT");
 window.history.replaceState(null, "", "/operate/recruitment/tobias-wrenfield");

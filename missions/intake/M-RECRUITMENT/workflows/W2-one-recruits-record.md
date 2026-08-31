@@ -89,6 +89,44 @@ should be able to fill in my own information where it makes sense."_ One screen
 covers both. The deleted `W2-03` was the sign-on ladder moved here from `W3`;
 `W3` has since been removed outright and its decisions rehomed.
 
+## The actions, and where each one sits
+
+W2 lists six required actions. The first build of these screens afforded one, so
+the page read well and did almost nothing. Brian, 2026-08-31: _"There should be
+buttons there to do that… it should be on the [recruit] member page itself. I
+should be able to click on it and say, 'Oh, I want to send out this.'"_
+
+Each action sits on the card it belongs to, using the header-action slot the
+record **already ships** — the same slot that renders `Open the person record →`
+on `PERSON`. The link is cloned from the shipped one, so nothing is drawn.
+
+| Action                                   | Card                | Reads                                                        |
+| ---------------------------------------- | ------------------- | ------------------------------------------------------------ |
+| Open the person record (Mission 5)       | `PERSON`            | `Open the person record →`                                   |
+| Send Questionnaire A, who you are (`W4`) | `PERSON`            | `Ask them for their details →`                               |
+| Send Questionnaire B, football (`W4`)    | `QUESTIONNAIRE`     | `Send the questionnaire →`, or `Send a reminder →` once sent |
+| Flip to joined (`W14`)                   | `RECRUITMENT`       | `Flip to joined →`                                           |
+| Follow up (`W9`)                         | `WHAT WE HAVE SENT` | `Follow up →`                                                |
+| Take off the board (`W13`)               | `RECRUITMENT`       | The status select itself                                     |
+
+**Questionnaire A's action is on `PERSON` deliberately.** Its answers are person
+facts, so the operator asks for them from the card those facts live on, and the
+answers land there rather than in the questionnaire card. `QUESTIONNAIRE` holds
+Questionnaire B alone, which is why its rows are the football ones.
+
+## What we have sent, and what is due next
+
+A seventh card, cloned from a shipped banded card. Brian, 2026-08-31: _"When
+somebody gets recruited on board, we need to be able to tell when those things
+get sent out to them."_
+
+It lists every message the club has sent this recruit with its date and delivery
+state, then, below a rule, **what is due to go out next**. `W10` defines what
+"due next" means — the ladder, its triggers and its offsets; this card is where
+one recruit's answer is read. On `W2-01` nothing is scheduled and the line says
+so; on `W2-02` the welcome, both sends of Questionnaire B and an event invitation
+are listed, with Questionnaire A still unsent.
+
 ## Open question inherited from W3's removal
 
 `AM-presence` and `T08-row8` moved here when `W3` was removed. Both say channel
