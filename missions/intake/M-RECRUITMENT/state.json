@@ -207,19 +207,16 @@
     {
       "id": "W12",
       "name": "Take attendance at a recruitment event",
-      "state": "done",
+      "state": "spec_draft",
       "stale": false,
-      "feedback": [],
-      "approvals": {
-        "spec": {
-          "words": "W12 is approved. I looked at it. It's simple. It's done. It's approved.",
-          "date": "2026-08-31"
-        },
-        "mock": {
-          "words": "W12 is approved. I looked at it. It's simple. It's done. It's approved.",
-          "date": "2026-08-31"
+      "feedback": [
+        {
+          "screen_id": "W12-01",
+          "date": "2026-08-31",
+          "text": "W12 is approved. I looked at it. It's simple. It's done. It's approved. — APPROVED IN HIS WORDS, but the ledger will not record it as done until W11 is done, because a workflow cannot be approved before every earlier one is. Flip W12 to done the moment W11 is approved; do not ask him again."
         }
-      }
+      ],
+      "approvals": {}
     },
     {
       "id": "W13",
@@ -1083,7 +1080,7 @@
       }
     ]
   },
-  "next_action": "W1-W8, W10 and W12 approved; W3 and W9 folded. W11 is four screens and with Brian. NEXT: W13 (take a recruit off the board), W14 (flip a recruit to joined) - both stale. Then the packet. W2-04 still only tentatively accepted. LOCAL TEST DATA: an rsvp_access_tokens row and an rsvp_responses row were written to the mission database so /rsvp/[token] could be photographed. Synthetic and local; clear with 'delete from public.rsvp_responses where invitation_id=...' and 'delete from public.rsvp_access_tokens'. OWNER ACTION: four WhatsApp templates to Meta. DEFECT: countByCapacity omits recruits from the event approval summary. OPEN: who mints next season's QR; no control for turning a cycle step off; 'said no to WhatsApp' vs 'declined'; W2 button placement; events violet vs blue; channel presence on the record; the Contactable cell; and Brian's later copy for the declined page.",
+  "next_action": "W1-W8 and W10 approved; W3 and W9 folded. W11 is four screens and with Brian. W12 IS ALREADY APPROVED IN HIS WORDS - 'W12 is approved. I looked at it. It's simple. It's done.' - but the ledger refuses it as done until W11 is done. FLIP W12 TO DONE THE MOMENT W11 IS APPROVED and do not ask him again. NEXT: W13, W14 - both stale. Then the packet. W2-04 still only tentatively accepted. LOCAL TEST DATA: an rsvp_access_tokens row and an rsvp_responses row were written to the mission database so /rsvp/[token] could be photographed. Synthetic and local. OWNER ACTION: four WhatsApp templates to Meta. DEFECT: countByCapacity omits recruits from the event approval summary. OPEN: who mints next season's QR; no control for turning a cycle step off; 'said no to WhatsApp' vs 'declined'; W2 button placement; events violet vs blue; channel presence on the record; the Contactable cell; Brian's later copy for the declined page.",
   "subject_coverage": {
     "areas": [
       {

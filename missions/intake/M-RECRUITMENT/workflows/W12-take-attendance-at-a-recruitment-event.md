@@ -108,5 +108,11 @@ nothing and means nothing.
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- Exact words: _"W12 is approved. I looked at it. It's simple. It's done. It's
+  approved."_
+- Date: 2026-08-31
+
+**Recorded here rather than in the ledger's state**, because the inventory
+forbids a workflow being approved before every earlier one is done and `W11` was
+still with him when he said this. The words are his and the approval stands; the
+state flips the moment `W11` lands, and he is not to be asked again.
