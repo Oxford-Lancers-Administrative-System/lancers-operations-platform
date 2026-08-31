@@ -24,7 +24,7 @@
     {
       "id": "W1",
       "name": "The recruit board",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": []
     },
@@ -967,7 +967,7 @@
       }
     ]
   },
-  "next_action": "Open Stage 3 at W1, the recruit board: specify it, photograph /operate/roster current-versus-proposed at desktop and 375px, and take Brian's spec approval before the mock.",
+  "next_action": "Brian reviews W1 in mockups/index.html; his spec and mock approvals open W2.",
   "subject_coverage": {
     "areas": [
       {
