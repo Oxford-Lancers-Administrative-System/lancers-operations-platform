@@ -1228,6 +1228,65 @@ const recolourCard = (label, title, colour) => {
   return card;
 };
 
+// ---------------------------------------------------------------------------
+// Editing a recruit's status, using the control the application already has.
+//
+// Brian, 2026-08-31: "The recruitment status UI is bullshit. That is not the UI
+// we use anywhere else. It needs to use consistent UI elements with everything.
+// That is bad UI. We should use the statuses from elsewhere."
+//
+// He is right, and it was the thing he had told me not to do one message
+// earlier. The first attempt drew a bordered popover with coloured dots and a
+// tick — no such control exists in this product.
+//
+// The shipped one is `MembershipStatusControl`
+// (`roster/membership-actions.tsx`): a MUI `TextField select`, size small,
+// labelled "Status", rendered with `data-testid="membership-status-control"`.
+// Its own comment says why it is a plain select — "We can flip to whatever
+// status we want to go in. There is no transition table any more". That is
+// exactly the recruit ladder's situation.
+//
+// So this CLONES the live control off the record page and swaps its options for
+// the ladder. It throws if the control is not there, rather than drawing one.
+// ---------------------------------------------------------------------------
+const cloneStatusControl = (value, options) => {
+  // WHAT IS ACTUALLY SHIPPED, and it is worth stating plainly:
+  // `MembershipStatusControl` exists in `roster/membership-actions.tsx` and is
+  // exported, but it is **never rendered anywhere in the application**. Nothing
+  // imports it. So there is no mounted status-editing control to photograph, and
+  // the first attempt at this screen drew a bordered popover with coloured dots
+  // instead - inventing exactly what Brian had said not to invent.
+  //
+  // What IS mounted on this page is the attendance card's filter selects: real
+  // MUI selects, rendered by this application, in its own styling. This clones
+  // one of those. It must run BEFORE `setRecruitmentEvents`, which deletes them
+  // with the rest of the card's season machinery.
+  //
+  // The control the code defines is the same component - a MUI select over every
+  // value, its own comment explaining why it is a plain select: "We can flip to
+  // whatever status we want to go in. There is no transition table any more."
+  // That is the recruit ladder's situation exactly.
+  const live = must(
+    document.querySelector(".MuiSelect-select"),
+    "this page renders no MUI select to clone; call cloneStatusControl before setRecruitmentEvents",
+  );
+  const control = must(
+    live.closest(".MuiFormControl-root") ?? live.parentElement,
+    "the cloned select has no form control around it",
+  );
+  const field = control.cloneNode(true);
+
+  const shown = must(
+    field.querySelector(".MuiSelect-select"),
+    "the cloned status control has nothing that displays its value",
+  );
+  shown.replaceChildren(document.createTextNode(value));
+
+  field.style.minWidth = "200px";
+  field.dataset.intakeStatusOptions = options.join(", ");
+  return field;
+};
+
 // W2-02 — The same record, with something on it.
 //
 // W2-01 shows the page at its emptiest, which is the honest top-of-funnel case
@@ -1254,7 +1313,7 @@ replaceSummaryStrip([
   [{ chip: "engaged" }, "Recruitment status"],
   ["3 May 2026", "First contact"],
   ["2", "Events attended"],
-  ["Answered", "Recruit-stage ask"],
+  ["Answered", "Questionnaire"],
 ]);
 
 setPersonRows([
@@ -1281,8 +1340,9 @@ rebuildCard(
   { colour: RECORD_BANDS.recruitment },
 );
 
-// The editing state, drawn from the application's own text field rather than
-// invented: an operator has clicked into Status and the ladder is open.
+// The editing state, using the application's OWN status control rather than a
+// drawing of one. Brian struck the first attempt: "That is not the UI we use
+// anywhere else… We should use the statuses from elsewhere."
 const recruitmentCard = bandedCard("RECRUITMENT");
 const statusRow = must(
   [...recruitmentCard.querySelectorAll('[data-testid="record-row"]')].find((r) =>
@@ -1291,48 +1351,24 @@ const statusRow = must(
   "the RECRUITMENT card has no Status row to open for editing",
 );
 const valueBox = must(statusRow.children[1], "the Status row has no value cell");
-valueBox.replaceChildren();
-
-const editor = document.createElement("div");
-editor.style.cssText =
-  "display:inline-flex;flex-direction:column;gap:6px;border:2px solid #00695c;border-radius:6px;" +
-  "padding:8px 10px;background:#fff;min-width:220px";
-const editorLabel = document.createElement("div");
-editorLabel.textContent = "Status";
-editorLabel.style.cssText = "font-size:11px;font-weight:700;color:#00695c;letter-spacing:.06em";
-editor.append(editorLabel);
-for (const rung of ["identified", "engaged", "committed", "declined", "disengaged"]) {
-  const option = document.createElement("div");
-  option.style.cssText =
-    "display:flex;align-items:center;gap:8px;font-size:13.5px;padding:3px 2px;" +
-    (rung === "engaged" ? "font-weight:700" : "");
-  const dot = document.createElement("span");
-  dot.style.cssText =
-    `width:10px;height:10px;border-radius:50%;background:${LADDER[rung] ?? "#78909c"}`;
-  const text = document.createElement("span");
-  text.textContent = rung;
-  option.append(dot, text);
-  if (rung === "engaged") {
-    const tick = document.createElement("span");
-    tick.textContent = "✓";
-    tick.style.cssText = "margin-left:auto;color:#00695c;font-weight:800";
-    option.append(tick);
-  }
-  editor.append(option);
-}
-const editorNote = document.createElement("div");
-editorNote.textContent = "joined is not chosen here — it goes through W14";
-editorNote.style.cssText =
-  "margin-top:4px;padding-top:6px;border-top:1px solid rgba(0,0,0,0.10);font-size:11.5px;color:rgba(0,0,0,0.55)";
-editor.append(editorNote);
-valueBox.append(editor);
+valueBox.replaceChildren(
+  cloneStatusControl("engaged", [
+    "identified",
+    "engaged",
+    "committed",
+    "declined",
+    "disengaged",
+    "void",
+  ]),
+);
 
 // ---- THE RECRUIT-STAGE ASK, answered --------------------------------------
 rebuildCard(
   bandedCard("SEASON"),
-  "The recruit-stage ask",
+  "Questionnaire",
   [
-    recordRow("Ask", "Sent 4 May · answered 5 May 2026"),
+    recordRow("Questionnaire sent", "4 May 2026 · reminder 6 May 2026"),
+    recordRow("Answered", "7 May 2026"),
     recordRow("Played American football before?", "No"),
     recordRow("Watched American football before?", "Yes"),
     recordRow("Position interest", "Wide receiver, or wherever you need"),
@@ -1375,7 +1411,10 @@ for (const child of [...notesCard.children].slice(1)) child.remove();
 const notesBody = document.createElement("div");
 notesBody.style.cssText = "padding:14px 16px";
 for (const [text, by] of [
-  ["Played at school. Asked about kit — told him the club has spares.", "Caspian Hallowfield · 3 May 2026"],
+  [
+    "Played at school. Asked about kit — told him the club has spares.",
+    "Caspian Hallowfield · 3 May 2026",
+  ],
   ["Turned up to Taster 1 without an RSVP. Keen.", "Caspian Hallowfield · 3 May 2026"],
 ]) {
   const body = document.createElement("div");
@@ -1401,7 +1440,10 @@ for (const child of [...historyCard.children].slice(1)) child.remove();
 const historyBody = document.createElement("div");
 historyBody.style.cssText = "padding:14px 16px";
 for (const [what, when] of [
-  ["identified → engaged · answered the recruit-stage ask", "5 May 2026, 19:40 · Caspian Hallowfield"],
+  [
+    "identified → engaged · answered the questionnaire",
+    "5 May 2026, 19:40 · Caspian Hallowfield",
+  ],
   ["Added as identified · walk-up at Taster 1", "3 May 2026, 18:05 · Caspian Hallowfield"],
 ]) {
   const line = document.createElement("div");
@@ -1417,6 +1459,6 @@ historyCard.append(historyBody);
 relabelButton("back to roster", "BACK TO RECRUITMENT");
 window.history.replaceState(null, "", "/operate/recruitment/tobias-wrenfield");
 
-await settle()
+await settle();
 
 })()

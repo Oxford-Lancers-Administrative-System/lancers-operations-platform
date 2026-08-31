@@ -23,7 +23,7 @@ replaceSummaryStrip([
   [{ chip: "identified" }, "Recruitment status"],
   ["28 Apr 2026", "First contact"],
   ["1", "Events attended"],
-  ["Not sent", "Recruit-stage ask"],
+  ["Not sent", "Questionnaire"],
 ]);
 
 // ---- PERSON — kept as the shipped card, read-only, routing out -------------
@@ -61,9 +61,10 @@ rebuildCard(
 // says so plainly and offers the send; W2-02 is the same card answered.
 rebuildCard(
   bandedCard("SEASON"),
-  "The recruit-stage ask",
+  "Questionnaire",
   [
-    recordRow("Ask", "Not sent", { muted: true }),
+    recordRow("Questionnaire sent", "Not sent", { muted: true }),
+    recordRow("Answered", "Not answered", { muted: true }),
     recordRow("Played American football before?", "Not answered", { muted: true }),
     recordRow("Watched American football before?", "Not answered", { muted: true }),
     recordRow("Position interest", "Not answered", { muted: true }),

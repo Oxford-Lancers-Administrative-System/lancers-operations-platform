@@ -31,17 +31,19 @@ mission and its shape depends on what everything before it became.
    appended at the right end, findable and filterable, actions from the row.
 2. `W2` — **One recruit's record**: an operator clicks a row → that recruit's own
    working page, their details, their signals, their notes, correctable there.
-3. `W3` — **Say yes to the club**: a newly captured recruit receives the club's
-   first message → they accept WhatsApp communication and answer the standard
-   recruit ask on the spot, and the club knows it can reach them.
+3. `W3` — **REMOVED, 2026-08-31.** Not a workflow. Brian: _"W3 doesn't seem to
+   hold anything. It should just be flat-out removed. Don't renumber anything."_
+   The number is kept as an empty slot and never reused, so `W4` through `W14`
+   hold the numbers they were frozen with. Its five decisions moved to `W10` and
+   `W2`; see `workflows/W3-say-yes-to-the-club.md`. Nothing is built here.
 4. `W4` — **Fill in your details**: a recruit opens the form minted for them and
    linked to their person → they tell the club as much about themselves as they
    choose, and one polite reminder follows if they do not.
 5. `W5` — **Capture a walk-up as a recruit**: an operator or coach taking
    attendance writes somebody down → that person is a recruit on the board and
-   `W3` has begun.
+   the recruitment ladder has begun (`W10`).
 6. `W6` — **Add a recruit by hand**: an operator sources somebody and enters them
-   → the recruit exists, deduped, and `W3` has begun.
+   → the recruit exists, deduped, and the recruitment ladder has begun (`W10`).
 7. `W7` — **Sign yourself in**: a recruit scans the QR at Freshers' Fair or a
    taster → they fill the club's own form on the club's own domain, and submitting
    it lands them in the community group.
@@ -85,7 +87,7 @@ or other missions' work.
 - **A recruit sees only an event's public details** — invariant 8 in
   `01-overview.md`, an access boundary rather than a screen decision.
 - **The recruit-stage field set** is enumerated as an artifact of Stage 2 and
-  approved with `W4`; the standard recruit ask is approved with `W3`.
+  approved with `W4`; the standard recruit ask is approved with `W4` too, since `W3` was removed.
 - **The signal set** is enumerated from the 2026-08-28 observability research and
   approved with `W1`'s columns.
 - **Everything after the flip** is Mission 7's; **consent wording, retention and

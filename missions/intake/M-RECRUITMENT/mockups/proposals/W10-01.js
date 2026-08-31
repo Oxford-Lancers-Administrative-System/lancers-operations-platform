@@ -1228,6 +1228,65 @@ const recolourCard = (label, title, colour) => {
   return card;
 };
 
+// ---------------------------------------------------------------------------
+// Editing a recruit's status, using the control the application already has.
+//
+// Brian, 2026-08-31: "The recruitment status UI is bullshit. That is not the UI
+// we use anywhere else. It needs to use consistent UI elements with everything.
+// That is bad UI. We should use the statuses from elsewhere."
+//
+// He is right, and it was the thing he had told me not to do one message
+// earlier. The first attempt drew a bordered popover with coloured dots and a
+// tick — no such control exists in this product.
+//
+// The shipped one is `MembershipStatusControl`
+// (`roster/membership-actions.tsx`): a MUI `TextField select`, size small,
+// labelled "Status", rendered with `data-testid="membership-status-control"`.
+// Its own comment says why it is a plain select — "We can flip to whatever
+// status we want to go in. There is no transition table any more". That is
+// exactly the recruit ladder's situation.
+//
+// So this CLONES the live control off the record page and swaps its options for
+// the ladder. It throws if the control is not there, rather than drawing one.
+// ---------------------------------------------------------------------------
+const cloneStatusControl = (value, options) => {
+  // WHAT IS ACTUALLY SHIPPED, and it is worth stating plainly:
+  // `MembershipStatusControl` exists in `roster/membership-actions.tsx` and is
+  // exported, but it is **never rendered anywhere in the application**. Nothing
+  // imports it. So there is no mounted status-editing control to photograph, and
+  // the first attempt at this screen drew a bordered popover with coloured dots
+  // instead - inventing exactly what Brian had said not to invent.
+  //
+  // What IS mounted on this page is the attendance card's filter selects: real
+  // MUI selects, rendered by this application, in its own styling. This clones
+  // one of those. It must run BEFORE `setRecruitmentEvents`, which deletes them
+  // with the rest of the card's season machinery.
+  //
+  // The control the code defines is the same component - a MUI select over every
+  // value, its own comment explaining why it is a plain select: "We can flip to
+  // whatever status we want to go in. There is no transition table any more."
+  // That is the recruit ladder's situation exactly.
+  const live = must(
+    document.querySelector(".MuiSelect-select"),
+    "this page renders no MUI select to clone; call cloneStatusControl before setRecruitmentEvents",
+  );
+  const control = must(
+    live.closest(".MuiFormControl-root") ?? live.parentElement,
+    "the cloned select has no form control around it",
+  );
+  const field = control.cloneNode(true);
+
+  const shown = must(
+    field.querySelector(".MuiSelect-select"),
+    "the cloned status control has nothing that displays its value",
+  );
+  shown.replaceChildren(document.createTextNode(value));
+
+  field.style.minWidth = "200px";
+  field.dataset.intakeStatusOptions = options.join(", ");
+  return field;
+};
+
 // W10-01 — The recruitment cycle, in the shipped messaging-schedule's language.
 //
 // Two corrections. It used to append its panels to the end of a 2,800px page,
