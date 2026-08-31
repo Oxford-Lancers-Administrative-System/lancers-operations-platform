@@ -603,45 +603,51 @@ const placeBefore = (anchor, node) => {
  */
 const proposedRegion = (title) => drawnPanel(title);
 
-// W3-02 — Where one recruit is in the sign-on ladder, on her own record. This
-// replaces the invented chat thread: what exists is a sequence of templates
-// with delivery receipts, not a conversation.
-setHeading("Rosalind Penhaligon");
-setSubtitle("Recruit · 2026-27 · opened from the recruit board");
-setPersonRows([
-  recordRow("Name", "Rosalind Penhaligon"),
-  recordRow("Mobile phone", "07700 900318"),
-  recordRow("College", "Dunsfold"),
-]);
-replaceSummaryStrip([
-  [{ chip: "identified" }, "Recruitment status"],
-  ["2 of 5", "Sign-on steps done"],
-  ["Not yet", "In the community group"],
-]);
-rebuildCard(
-  recordCard("ONBOARDING"),
-  "SIGN-ON",
-  [
-    recordRow("1 · recruit_welcome", "28 Apr 16:42 · delivered · read"),
-    recordRow("2 · She accepted", "28 Apr 16:48 · replied YES"),
-    recordRow("3 · recruit_interest_ask", "28 Apr 16:49 · delivered · no reply"),
-    recordRow("4 · recruit_gentle_reminder", "29 Apr 10:00 · delivered · no reply"),
-    recordRow("5 · recruit_details_ask", "Not sent — waiting on step 3", { muted: true }),
-  ],
-  { proposed: true, colour: "#00695c" },
+// W10-03 — The templates behind the cycle. Moved here from W3 when Brian folded
+// that workflow into the doors and W10 on 2026-08-31.
+//
+// Every business-initiated WhatsApp message is a Meta-approved template; free
+// text is not a production shape (src/lib/delivery/config.ts). Only
+// event_invitation exists today. The lead time on the other four is a real gate.
+setHeading("Recruitment messages", "Season 2026-27 · approved WhatsApp templates");
+
+const anchor = cardTemplate();
+
+// 1. The four templates recruitment needs, and the one that already exists.
+const host = proposedRegion("The recruitment templates");
+host.append(
+  templateRow(
+    "recruit_welcome",
+    "Hi {{1}} — welcome to the Oxford Lancers. Great to meet you at {{2}}. Here is our community group: {{3}}",
+    "Not yet submitted",
+  ),
+  templateRow(
+    "recruit_interest_ask",
+    "Hi {{1}} — are you interested in coming along to a session? Reply YES or NO. No commitment either way.",
+    "Not yet submitted",
+  ),
+  templateRow(
+    "recruit_details_ask",
+    "Hi {{1}} — when you have a minute, this tells us what to put on for you: {{2}}",
+    "Not yet submitted",
+  ),
+  templateRow(
+    "recruit_gentle_reminder",
+    "Hi {{1}} — no rush at all, just checking you saw this. Reply whenever suits.",
+    "Not yet submitted",
+  ),
+  templateRow(
+    "event_invitation",
+    "Hi {{1}} — {{2}} is on {{3}} at {{4}}. Let us know if you can make it.",
+    "Approved · in use",
+  ),
 );
-rebuildCard(
-  recordCard("SEASON"),
-  "WHAT THE CLUB CAN SEE",
-  [
-    recordRow("Delivered", "Yes — the provider confirmed it"),
-    recordRow("Read", "Yes — stored today and mapped to nothing"),
-    recordRow("She replied", "Only because YES is a reply we asked for"),
-    recordRow("In the community group", "Not observable — she tells us, or we do not know", {
-      muted: true,
-    }),
-  ],
-  { proposed: true },
-);
+placeBefore(anchor, host);
+mark(host, 1);
+
+// 2. The one template already approved, beside four that are not. The distance
+//    between those two states is the whole schedule risk in this mission.
+const approved = [...host.children].find((c) => /Approved · in use/.test(c.textContent));
+if (approved) mark(approved, 2);
 
 })()

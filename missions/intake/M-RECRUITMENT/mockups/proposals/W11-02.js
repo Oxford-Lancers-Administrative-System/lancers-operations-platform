@@ -603,45 +603,24 @@ const placeBefore = (anchor, node) => {
  */
 const proposedRegion = (title) => drawnPanel(title);
 
-// W3-02 — Where one recruit is in the sign-on ladder, on her own record. This
-// replaces the invented chat thread: what exists is a sequence of templates
-// with delivery receipts, not a conversation.
-setHeading("Rosalind Penhaligon");
-setSubtitle("Recruit · 2026-27 · opened from the recruit board");
-setPersonRows([
-  recordRow("Name", "Rosalind Penhaligon"),
-  recordRow("Mobile phone", "07700 900318"),
-  recordRow("College", "Dunsfold"),
-]);
-replaceSummaryStrip([
-  [{ chip: "identified" }, "Recruitment status"],
-  ["2 of 5", "Sign-on steps done"],
-  ["Not yet", "In the community group"],
-]);
-rebuildCard(
-  recordCard("ONBOARDING"),
-  "SIGN-ON",
-  [
-    recordRow("1 · recruit_welcome", "28 Apr 16:42 · delivered · read"),
-    recordRow("2 · She accepted", "28 Apr 16:48 · replied YES"),
-    recordRow("3 · recruit_interest_ask", "28 Apr 16:49 · delivered · no reply"),
-    recordRow("4 · recruit_gentle_reminder", "29 Apr 10:00 · delivered · no reply"),
-    recordRow("5 · recruit_details_ask", "Not sent — waiting on step 3", { muted: true }),
-  ],
-  { proposed: true, colour: "#00695c" },
-);
-rebuildCard(
-  recordCard("SEASON"),
-  "WHAT THE CLUB CAN SEE",
-  [
-    recordRow("Delivered", "Yes — the provider confirmed it"),
-    recordRow("Read", "Yes — stored today and mapped to nothing"),
-    recordRow("She replied", "Only because YES is a reply we asked for"),
-    recordRow("In the community group", "Not observable — she tells us, or we do not know", {
-      muted: true,
-    }),
-  ],
-  { proposed: true },
-);
+// W11-02 — Where the separation begins: the event's Type.
+//
+// This screen was captured and then never put on the review page, so the one
+// place that explains why a Recruits audience exists at all was invisible.
+//
+// The shipped form's Type control decides which audience groups the event may
+// carry. D46: recruits exist on a Recruitment event and nowhere else. Nothing
+// here is added — the control is the application's own, set to Recruitment.
+const typeField = $("[data-field='eventType']");
+const control = typeField?.closest(".MuiFormControl-root, .MuiTextField-root") ?? typeField;
+const shown = control?.querySelector(".MuiSelect-select, [role='combobox']");
+if (shown) shown.textContent = "Recruitment";
+if (control) mark(control, 1);
+
+// 2. The template's own note about what this type carries. The form already
+//    explains the consequence of the Type it is set to; on Recruitment that
+//    sentence is where the recruits group is announced.
+const note = $("[data-testid='draft-boundary-note']") ?? $(".MuiAlert-root");
+if (note) mark(note, 2);
 
 })()

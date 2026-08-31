@@ -603,45 +603,39 @@ const placeBefore = (anchor, node) => {
  */
 const proposedRegion = (title) => drawnPanel(title);
 
-// W3-02 — Where one recruit is in the sign-on ladder, on her own record. This
-// replaces the invented chat thread: what exists is a sequence of templates
-// with delivery receipts, not a conversation.
-setHeading("Rosalind Penhaligon");
-setSubtitle("Recruit · 2026-27 · opened from the recruit board");
+// W6-03 — The welcome that did not fire, because this door recorded no opt-in
+// evidence. Moved here from W3 on 2026-08-31: operator-add is the door that
+// carries no natural opt-in, so this consequence belongs to W6.
+//
+// Task 09 §9.1 is explicit that an operator adding somebody by hand has no
+// natural opt-in, so W6 has to capture one. This is what it looks like when it
+// did not.
+setHeading("Marguerite Ashdown");
+setSubtitle("Recruit · 2026-27 · added by hand on 9 May");
 setPersonRows([
-  recordRow("Name", "Rosalind Penhaligon"),
-  recordRow("Mobile phone", "07700 900318"),
-  recordRow("College", "Dunsfold"),
+  recordRow("Name", "Marguerite Ashdown"),
+  recordRow("Mobile phone", "07700 900461"),
+  recordRow("College", "Kestrelhall"),
 ]);
 replaceSummaryStrip([
   [{ chip: "identified" }, "Recruitment status"],
-  ["2 of 5", "Sign-on steps done"],
-  ["Not yet", "In the community group"],
+  ["0 of 5", "Sign-on steps done"],
+  ["Blocked", "Sign-on"],
 ]);
-rebuildCard(
-  recordCard("ONBOARDING"),
-  "SIGN-ON",
-  [
-    recordRow("1 · recruit_welcome", "28 Apr 16:42 · delivered · read"),
-    recordRow("2 · She accepted", "28 Apr 16:48 · replied YES"),
-    recordRow("3 · recruit_interest_ask", "28 Apr 16:49 · delivered · no reply"),
-    recordRow("4 · recruit_gentle_reminder", "29 Apr 10:00 · delivered · no reply"),
-    recordRow("5 · recruit_details_ask", "Not sent — waiting on step 3", { muted: true }),
-  ],
-  { proposed: true, colour: "#00695c" },
-);
-rebuildCard(
-  recordCard("SEASON"),
-  "WHAT THE CLUB CAN SEE",
-  [
-    recordRow("Delivered", "Yes — the provider confirmed it"),
-    recordRow("Read", "Yes — stored today and mapped to nothing"),
-    recordRow("She replied", "Only because YES is a reply we asked for"),
-    recordRow("In the community group", "Not observable — she tells us, or we do not know", {
-      muted: true,
-    }),
-  ],
-  { proposed: true },
+// 1. The ladder, not started, and the reason stated on the recruit it affects.
+mark(
+  rebuildCard(
+    recordCard("ONBOARDING"),
+    "SIGN-ON — NOT STARTED",
+    [
+      recordRow("1 · recruit_welcome", "Not sent", { muted: true }),
+      recordRow("Why", "No opt-in evidence was recorded for the operator-add door"),
+      recordRow("What would release it", "Record how the club came by her number"),
+      recordRow("Until then", "She exists on the board and the club says nothing to her"),
+    ],
+    { proposed: true, colour: "#b26a00" },
+  ),
+  1,
 );
 
 })()

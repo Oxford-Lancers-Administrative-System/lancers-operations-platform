@@ -1,8 +1,15 @@
-// W3-01 — The messages the club actually sends. Every business-initiated
-// WhatsApp message is a Meta-approved template; free text is not a production
-// shape (src/lib/delivery/config.ts). Only event_invitation exists today.
+// W10-03 — The templates behind the cycle. Moved here from W3 when Brian folded
+// that workflow into the doors and W10 on 2026-08-31.
+//
+// Every business-initiated WhatsApp message is a Meta-approved template; free
+// text is not a production shape (src/lib/delivery/config.ts). Only
+// event_invitation exists today. The lead time on the other four is a real gate.
 setHeading("Recruitment messages", "Season 2026-27 · approved WhatsApp templates");
-const host = drawnPanel("The recruitment templates");
+
+const anchor = cardTemplate();
+
+// 1. The four templates recruitment needs, and the one that already exists.
+const host = proposedRegion("The recruitment templates");
 host.append(
   templateRow(
     "recruit_welcome",
@@ -30,13 +37,10 @@ host.append(
     "Approved · in use",
   ),
 );
-const n = document.createElement("p");
-n.textContent =
-  "Four new templates, each needing Meta approval with real lead time before any of this can send. " +
-  "Nobody types a message to a recruit: an operator triggers one of these, and the club's voice is the " +
-  "template rather than whoever happened to be holding the phone.";
-n.style.cssText =
-  "margin:14px 0 0;font-size:12.5px;color:rgba(0,0,0,0.6);font-style:italic;line-height:1.6";
-host.append(n);
-const anchor = cardTemplate();
-(anchor?.parentElement ?? document.body).append(host);
+placeBefore(anchor, host);
+mark(host, 1);
+
+// 2. The one template already approved, beside four that are not. The distance
+//    between those two states is the whole schedule risk in this mission.
+const approved = [...host.children].find((c) => /Approved · in use/.test(c.textContent));
+if (approved) mark(approved, 2);

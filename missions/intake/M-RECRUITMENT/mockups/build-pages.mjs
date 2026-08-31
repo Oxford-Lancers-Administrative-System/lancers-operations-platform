@@ -117,55 +117,49 @@ const WORKFLOWS = [
         ],
         "oxfordlancers.example/operate/recruits/192fd288",
       ),
+      P(
+        "W2-03",
+        "Where she has reached in the sign-on ladder",
+        `Moved here from W3 when Brian folded that workflow on 2026-08-31. Nobody types to a recruit,
+         so there is no conversation to show — there is a sequence of templates and their delivery
+         receipts, and this is where an operator reads it.`,
+        [
+          "<strong>Five steps, each with its own delivery state.</strong> An earlier draft drew a two-way WhatsApp thread here; it was invented, and it was unsendable under the template-only rule",
+          "<strong>What the club can honestly claim to know.</strong> <code>read</code> is stored today and mapped to nothing — widening <code>delivery_outcome</code> is a frozen-model change and is not proposed here",
+          "<strong>Being in the community group is not observable at all.</strong> The Cloud API does not expose group membership, so she tells us or we do not know. It is recorded, never watched for",
+        ],
+        "oxfordlancers.example/operate/recruits/0b938ce0",
+      ),
     ],
   },
   {
     id: "W3",
     slug: "say-yes-to-the-club",
     name: "Say yes to the club",
-    lede: `The smallest journey in the mission and the most load-bearing outside it: Missions 7 and 8
-      inherit whatever shape it takes, and every door ends by firing it.`,
+    lede: `A newly captured recruit hears from the club, agrees to be contacted, joins the community
+      group, and answers the standard ask. The actor is the recruit and the journey happens inside
+      WhatsApp, which this product does not render.`,
     grounding: "photograph",
+    noScreens: `<strong>W3 draws no surfaces of its own — Brian's decision, 2026-08-31.</strong>
+      Asked whether W3 is a recruit-facing page we build, an operator view, or something folded into
+      the workflows around it, he chose to fold it. So this workflow keeps its specification, which
+      is where the five-step ladder is defined and where its invariants live, and every screen that
+      would have belonged to it now sits with the workflow that owns the surface:
+      <ul>
+        <li><strong>What the club sends, and in what order</strong> — <a href="W10-administer-recruitments-machinery.html">W10</a>, the recruitment cycle, and <code>W10-03</code> for the templates themselves.</li>
+        <li><strong>Where one recruit has reached in the ladder</strong> — <a href="W2-one-recruits-record.html">W2</a>, screen <code>W2-03</code>, on her own record.</li>
+        <li><strong>A welcome that did not fire for want of opt-in evidence</strong> — <a href="W6-add-a-recruit-by-hand.html">W6</a>, screen <code>W6-03</code>, the door that carries no natural opt-in.</li>
+        <li><strong>The doors that fire it</strong> — <a href="W5-capture-a-walk-up-as-a-recruit.html">W5</a>, <a href="W6-add-a-recruit-by-hand.html">W6</a> and <a href="W7-sign-yourself-in.html">W7</a>.</li>
+      </ul>
+      The decisions this workflow carries are still W3's to approve, and they are in
+      <code>workflows/W3-say-yes-to-the-club.md</code>. Nothing about the ladder was dropped; only
+      the screens moved to where a reviewer can see them in context.`,
     legend: [
-      "<strong>Rebuilt from nothing, 2026-08-31.</strong> Brian: <em>“The WhatsApp flow is not correct. That's not what a WhatsApp page looks like… This is completely invented.”</em> The first draft drew a two-way chat thread on the events delivery page. Both were wrong: wrong surface, and a conversation that does not exist",
       "<strong>Every business-initiated WhatsApp message is a Meta-approved template.</strong> <code>src/lib/delivery/config.ts</code>: <em>“template is the only production shape.”</em> Free text exists on the loopback test path alone, and only <code>event_invitation</code> is approved today",
-      "<strong>So this workflow is templates and delivery receipts</strong>, not messages somebody writes. Four new templates, each needing Meta approval with real lead time before anything sends",
+      "<strong>So nobody types to a recruit.</strong> The club's voice is the template, not whoever is holding the phone — which is why there is no composer anywhere in this mission",
+      "<strong>Group membership is not observable.</strong> The Cloud API does not expose it at all, so a recruit joining the community group is recorded when they tell us, and never watched for",
     ],
-    screens: [
-      P(
-        "W3-01",
-        "The templates the club sends",
-        `What each approved template actually says, and which have been submitted.`,
-        [
-          "<strong>1. Four new templates</strong>, plus the one already in use",
-          "<strong>2. Each needs Meta approval</strong> before it can send — that lead time is a real gate, not a formality",
-          "<strong>3. Nobody types to a recruit.</strong> The club's voice is the template, not whoever is holding the phone",
-        ],
-        "oxfordlancers.example/operate/admin/recruitment",
-      ),
-      P(
-        "W3-02",
-        "Where one recruit is in the ladder",
-        `Her own record: which templates have gone, what came back, and what the club can honestly see.`,
-        [
-          "<strong>1. Five steps, with delivery state per step</strong>",
-          "<strong>2. <code>read</code> is stored today and mapped to nothing</strong> — widening <code>delivery_outcome</code> is a frozen-model change",
-          "<strong>3. Being in the community group is not observable.</strong> The Cloud API does not expose group membership, so she tells us or we do not know",
-        ],
-        "oxfordlancers.example/operate/recruits/0b938ce0",
-      ),
-      P(
-        "W3-03",
-        "The welcome that did not fire",
-        `No opt-in evidence was recorded for the operator-add door, so the club says nothing to her.`,
-        [
-          "<strong>1. She exists on the board; the message waits</strong>",
-          "<strong>2. It says what would release it</strong>",
-          "<strong>3. This is the lawful-basis rule</strong> — Meta requires documented opt-in before a first business message, and GDPR requires a basis",
-        ],
-        "oxfordlancers.example/operate/recruits/f31a02c8",
-      ),
-    ],
+    screens: [],
   },
   {
     id: "W4",
@@ -322,6 +316,20 @@ const WORKFLOWS = [
         ],
         "oxfordlancers.example/operate/recruits/new",
       ),
+      P(
+        "W6-03",
+        "The welcome that did not fire",
+        `Moved here from W3 on 2026-08-31: operator-add is the door that carries no natural opt-in, so
+         this consequence belongs to W6. Task 09 §9.1 is explicit that an operator adding somebody by
+         hand has no natural opt-in, and W6 has to capture one. This is what it looks like when it
+         did not.`,
+        [
+          "<strong>She exists on the board, and the club says nothing to her.</strong> The capture always stands; only the message waits",
+          "<strong>The screen says what would release it</strong> — record how the club came by her number. A blocked step that does not say why is indistinguishable from a broken one",
+          "<strong>This is the lawful-basis rule made visible on the recruit it affects.</strong> Meta requires documented opt-in before a first business message and GDPR requires a basis; neither is satisfied by an operator typing a number in",
+        ],
+        "oxfordlancers.example/operate/recruits/f31a02c8",
+      ),
     ],
   },
   {
@@ -372,31 +380,33 @@ const WORKFLOWS = [
       settles it — without ever having silently created a person, merged two, or messaged a member.`,
     grounding: "photograph",
     legend: [
-      "The shipped merge screen is the nearest analogue, but <strong>merge resolves two records that both exist</strong>. This queue resolves a submission that does not exist yet against a record that does",
-      "Nothing is written until a human decides — the locked rule at the centre of R2",
+      "<strong>Re-grounded 2026-08-31.</strong> Brian: <em>“That's not where in the fucking workflow it belongs. That's not how the duplicate checks get done. That's not where it happens.”</em> The first draft used the merge screen. Merge resolves two records that both exist; this workflow resolves a submission against a record before anything is written",
+      "<strong>The check itself already ships.</strong> <code>create-person-form.tsx</code> is a check-then-create: press <em>Check for duplicates</em> and the form answers <em>Already in the club</em> with candidate rows, or says plainly that nothing matched. <code>W8-01</code> drives that real form and photographs its real answer",
+      "<strong>Only the queue is new</strong>, and it exists for one case: a self-serve door with nobody at the keyboard to choose",
     ],
     screens: [
       P(
         "W8-01",
-        "The queue",
-        `Three parked captures, each comparing what somebody submitted against what the club already
-         holds. Two outcomes: link, or create.`,
+        "How the duplicate check actually gets done",
+        `The shipped add-a-person form, driven: names and a mobile typed in, the application's own
+         <em>Check for duplicates</em> button pressed, and its own answer photographed. Nothing on
+         this screen below the form fields is drawn.`,
         [
-          "<strong>1. A submission beside a record</strong>, not two records. Nothing is written yet, so there is nothing to merge",
-          "<strong>2. Everything is held</strong> — no person, no recruit, no welcome. An existing member never receives a “welcome to the club” message",
-          "<strong>3. A declined recruit signing up again</strong> is a real case, and it is the operator's to read rather than the system's to guess",
-          "<strong>4. Attendance was recorded regardless.</strong> Capture always stands; only the recruit record waits",
+          "<strong>This is where a duplicate is caught</strong> — at capture, before a person exists. Task 09 D7 locks dedup-before-create at every door, and the form already implements it",
+          "<strong>The form already demands an explicit choice.</strong> An exact match cannot be created past without a written reason; that shipped override is the shape W8 inherits rather than replaces",
         ],
         "oxfordlancers.example/operate/recruits/review",
       ),
       P(
         "W8-02",
-        "The empty queue",
-        `What zero looks like, and why nothing drains itself.`,
+        "The one case the shipped check cannot resolve",
+        `W7's door is self-serve. A recruit types their own name at a stand, the check finds a
+         candidate, and there is no operator present to choose. Nothing is created, nothing is
+         messaged, and it parks. That queue is the only genuinely new thing in this workflow.`,
         [
-          "<strong>1. Nothing expires and nothing is auto-resolved</strong>",
-          "<strong>2. A forgotten queue is visible as a count on the board</strong> rather than silently emptying",
-          "<strong>3. Captures land here only when the check cannot decide safely</strong> — this is the normal state, not a broken one",
+          "<strong>What is waiting, and what is held while it waits.</strong> No person, no recruit, no welcome. A queue nobody can see is a queue nobody works, so its count also sits on the board",
+          "<strong>A submission beside a record</strong> — not two records, because only one of them exists. Field by field, in the language of the shipped check above, not the language of merge",
+          "<strong>Two outcomes: create and link</strong>, never survivor and loser. Linking an existing member must never fire a “welcome to the club” message — Task 09's worked example B",
         ],
         "oxfordlancers.example/operate/recruits/review",
       ),
@@ -472,7 +482,7 @@ const WORKFLOWS = [
     grounding: "photograph",
     legend: [
       "This is the workflow Brian named as the one he was least sure of: <em>“I'm most confused about this one. I think we need to go through the workflow and find the boundary there.”</em>",
-      "It is drawn tenth rather than third for exactly that reason — the boundary is found against the flows that configure it, not guessed in the abstract",
+      "<strong>Rebuilt 2026-08-31.</strong> Brian: <em>“You just fucking didn't do W10… There's literally nothing here about the QR code. You just screenshotted it.”</em> The QR administration <em>was</em> built, and appended to the bottom of a 3,557px page inside a 520px review box, so the only thing visible was the top of an untouched messaging screen. It is its own screen now, and every region lands above the page's first card",
       "<strong>The proposed boundary:</strong> Mission 4 owns the scheduler and the transport; recruitment owns what is sent, on what trigger, in what order, and whether a step runs at all. Recruitment declares a cycle and never schedules",
     ],
     screens: [
@@ -482,10 +492,32 @@ const WORKFLOWS = [
         `The shipped messaging schedule is the shell and the language. Recruitment's cycle is a
          sibling object in that language, not a new column on it.`,
         [
-          "<strong>1. The boundary, stated on the screen</strong> rather than left implicit",
-          "<strong>2. The cycle as a sequence</strong> of five named steps, each editable, each able to be turned off entirely",
-          "<strong>3. The community-group link</strong> with when it last changed — the most likely silent failure in the mission is a rotated link nobody notices",
-          "<strong>4. QR codes minted, named, counted and revocable.</strong> <strong>Decide:</strong> whether these belong here or on their own screen",
+          "<strong>The cycle as an ordered sequence</strong> of five named steps, each editable and each able to be turned off entirely — boundary item 43",
+          "<strong>The community-group link, and when it last changed.</strong> A rotated link nobody notices is the most likely silent failure in this mission: recruits receive an invitation to a dead group and nothing reports it",
+          "<strong>A step that is off, stated plainly on the cycle.</strong> Otherwise a recruit going quiet reads as disinterest when the club simply stopped asking",
+        ],
+        "oxfordlancers.example/operate/admin/recruitment",
+      ),
+      P(
+        "W10-02",
+        "QR codes — minting, counting, revoking",
+        `Its own screen, because printing a code on a poster and later turning it off is its own job
+         with its own consequences. This is what was missing.`,
+        [
+          "<strong>What is live, where it points, and how many people came through it.</strong> The submission count is what makes revoking a code a decision rather than a shrug",
+          "<strong>Minting one asks for a name and nothing else.</strong> Every code lands on the same page and carries the same group link; the name is how an operator later knows which poster took which submissions",
+          "<strong>A revoked code, and what it took before it was turned off.</strong> Posters stay up after revocation, so the scan lands on the uniform invalid page — never a message that reads as though the club has gone away",
+        ],
+        "oxfordlancers.example/operate/admin/recruitment",
+      ),
+      P(
+        "W10-03",
+        "The templates behind the cycle",
+        `Moved here from W3 when Brian folded that workflow on 2026-08-31. Every business-initiated
+         WhatsApp message is a Meta-approved template — free text is not a production shape.`,
+        [
+          "<strong>Four new templates the club does not have yet</strong>, beside the one it does. Each needs Meta approval with real lead time before anything can send: that is a schedule gate, not a formality",
+          "<strong>Only <code>event_invitation</code> is approved today.</strong> The distance between those two states is the whole delivery risk in this mission",
         ],
         "oxfordlancers.example/operate/admin/recruitment",
       ),
@@ -499,20 +531,32 @@ const WORKFLOWS = [
       together where that is what the session is, and approves it knowing exactly what it sends.`,
     grounding: "photograph",
     legend: [
-      "Brian, 2026-08-31: <em>“we should be able to invite players and recruits, but recruits get treated differently.”</em> Two ladders, not one suppressed ladder",
+      "Brian, 2026-08-31: <em>“none of the machinery to explain how we separate out recruitment recruits from non-recruits.”</em> <strong>The machinery already ships.</strong> <code>audience-builder.tsx</code> offers a Capacity filter whose <em>Recruits</em> option appears on a Recruitment event and nowhere else — D46, in the running code at the baseline. The first draft answered the question with an invented table instead of pointing at the control",
+      "<strong>W11-02 was captured and then never put on this page</strong>, so the one screen that explains why a Recruits audience exists at all was invisible. It is here now",
       "<strong>Both defects are real and verified in the running code.</strong> <code>scheduleEventLadder</code> inserts a reminder for every invitation filtered only by <code>event_id</code>, and <code>countByCapacity</code> omits recruits from the approval counts",
     ],
     screens: [
       P(
-        "W11-01",
-        "Before you approve",
-        `The change is the approval summary: today it states one audience number and omits recruits
-         from it entirely.`,
+        "W11-02",
+        "Where the separation begins — the event's Type",
+        `The shipped form's Type control decides which audience groups the event may carry. Nothing
+         here is added: the control is the application's own, set to Recruitment.`,
         [
-          "<strong>1. Both audiences and both ladders</strong>, stated before approval",
-          "<strong>2. A recruit gets one invitation and at most one polite follow-up</strong>, then nothing",
-          "<strong>3. A recruit who says no is never asked why.</strong> <strong>Decide:</strong> R5's reason-on-no is a member obligation; demanding one of a recruit is harsh",
-          "<strong>4. The defect this fixes</strong>, named on the screen with the code that causes it",
+          "<strong>D46: recruits exist on a Recruitment event and nowhere else.</strong> Setting the Type is what makes a Recruits audience exist, and it is already how the product works",
+          "<strong>The form already explains the consequence of its own Type.</strong> That sentence is where the recruits group is announced to the operator",
+        ],
+        "oxfordlancers.example/operate/events/new",
+      ),
+      P(
+        "W11-01",
+        "Choosing the audience, and what each one receives",
+        `The shipped audience builder, with the Capacity filter set to Recruits. The separation is a
+         control that exists; what does not exist is the second ladder.`,
+        [
+          "<strong>The shipped Capacity filter, set to Recruits.</strong> This is the separation, and it is running code today — not a proposal",
+          "<strong>The shipped candidate list</strong>, filtered to the recruits, in the shipped row treatment",
+          "<strong>What each audience is chased with — this is the new part.</strong> One event, two ladders: players get the escalation, recruits get one invitation and at most one polite follow-up, then nothing, ever",
+          "<strong>The approval summary omits recruits from its count today.</strong> <code>countByCapacity</code> filters them out, so an operator approves an event without being told how many recruits it reaches",
         ],
         "oxfordlancers.example/operate/events/1d76b9f8",
       ),
@@ -526,30 +570,31 @@ const WORKFLOWS = [
       everyone else below — and captures the people nobody expected.`,
     grounding: "photograph",
     legend: [
-      "The sheet derives its roster from memberships, so <strong>invited recruits do not appear on it at all</strong>. That is the gap Task 09 §9.1 names",
+      "<strong>Rebuilt 2026-08-31.</strong> Brian: <em>“I don't know why we're reinventing fucking UI. That's perfectly good. For a recruitment event, the recruits just need to go on top as their own category.”</em> The first draft authored a replacement row with its own state buttons. Nothing is authored now",
+      "<strong>The sheet already groups.</strong> Attending, Everyone else and Walk-ups each have a toggle, a label, a detail line, a count chip and a list of rows. The proposal clones that group wholesale, renames it, fills it with cloned real rows and moves it to the front — every control, chip and spacing below is the application's own markup",
+      "The sheet derives its roster from memberships, so <strong>invited recruits do not appear on it at all</strong> today. That is the gap Task 09 §9.1 names, and adding a group is the whole of the fix",
       "A recruit's funnel status never appears on a sheet a coach can open — a coach reading “declined” beside somebody standing in front of them is both a privacy leak and a bad afternoon",
     ],
     screens: [
       P(
         "W12-01",
         "The sheet on the day",
-        `Recruits at the top, everyone else below, and what a recruit's absence actually means.`,
+        `A fourth group at the top of the shipped sheet, built from the shipped sheet's own group
+         markup. Everything below it is untouched.`,
         [
-          "<strong>1. Recruits at the top</strong> — Task 09 D11, optimised for scanning who showed up",
-          "<strong>2. Names only.</strong> No funnel status on a sheet a coach can open",
-          "<strong>3. A recruit who does not turn up triggers nothing.</strong> “Did not show up” is deliberately not a recruit status",
-          "<strong>4. Turnout is the sum of the records.</strong> No separate headcount — D8, superseding Register F4",
+          "<strong>Recruits as a category at the top</strong> — Task 09 D11, and the sheet's own grouping mechanism rather than a new one. Names and the sheet's own state controls; nothing else on a recruit row that a player row does not have",
         ],
         "oxfordlancers.example/operate/events/1d76b9f8/attendance",
       ),
       P(
         "W12-02",
         "The same sheet, opened by a coach",
-        `What is absent is the point.`,
+        `What is absent is the point — and absence cannot be drawn as a card listing what is absent,
+         because that is narration. This is the real coach view; the outlines point at where to look.`,
         [
-          "<strong>1. Names and attendance states. That is the whole payload</strong>",
-          "<strong>2. Recruitment status, contact values, notes and signals are absent</strong> — not hidden. The data never reaches the browser",
-          "<strong>3. A coach reading “declined” beside somebody standing in front of them</strong> is both a privacy leak and a bad afternoon",
+          "<strong>The recruits group is here.</strong> A coach records attendance for recruits like anyone else — the group is not withheld from them",
+          "<strong>A recruit row carries a name and an RSVP line and nothing else.</strong> No status, no source, no notes, no link to the board — absent from the page <em>and</em> from the payload, which is the LAN-75 contract. The data never reaches the browser, so there is nothing to reveal by inspecting the page",
+          "<strong>The navigation a coach receives.</strong> Recruits is not in it",
         ],
         "oxfordlancers.example/operate/events/1d76b9f8/attendance",
       ),
@@ -647,6 +692,45 @@ const WORKFLOWS = [
   },
 ];
 
+// Every frame's URL bar, and every screen's disposition, are derived from
+// shots.json rather than asserted here. Eighteen of thirty-six screens used to
+// print a route that does not exist on `main` — `/operate/recruits`,
+// `/operate/recruits/review`, `/operate/admin/recruitment` — above a photograph
+// of a different page, and every one of them called itself `modified`. That
+// single defect, repeated, is what read as "the wrong screen" four times.
+const SHOTS = JSON.parse(readFileSync(path.join(OUT, "shots", "shots.json"), "utf8"));
+const SHOT_BY_ID = Object.fromEntries(SHOTS.screens.map((s) => [s.id, s]));
+const DRAWN_ROUTE = "(drawn — no route on main)";
+const routeOf = (url) =>
+  String(url ?? "")
+    .replace(/^oxfordlancers\.example/, "")
+    .split("?")[0];
+// A UUID is shortened in the frame for legibility; that is not a different page.
+const sameRoute = (a, b) =>
+  a === b ||
+  a.replace(/[0-9a-f]{8}-[0-9a-f-]{27}/g, "#") === b.replace(/[0-9a-f]{8}-[0-9a-f-]{27}/g, "#") ||
+  a.replace(/[0-9a-f]{8,}/g, "#") === b.replace(/[0-9a-f]{8,}/g, "#");
+
+for (const wf of WORKFLOWS) {
+  for (const screen of wf.screens) {
+    const record = SHOT_BY_ID[screen.id];
+    if (!record) {
+      throw new Error(
+        `${screen.id} is declared on a review page but has no entry in shots.json. ` +
+          `A screen the reviewer can open must be a screen that was actually taken.`,
+      );
+    }
+    const drawn = record.route === DRAWN_ROUTE;
+    const proposed = routeOf(screen.url);
+    screen.shotRoute = drawn ? null : record.route;
+    // The frame shows the route that was really photographed. Where the
+    // proposal's own route does not exist yet, the head says so in words.
+    screen.frameUrl = drawn ? screen.url : `oxfordlancers.example${record.route}`;
+    screen.proposedRoute = proposed && !sameRoute(proposed, record.route ?? "") ? proposed : null;
+    screen.disposition = drawn ? "new" : screen.proposedRoute ? "new" : "modified";
+  }
+}
+
 const GROUNDING_LABEL = {
   photograph: "Grounding: photographs · measured 1280 and 375",
   "code-only": "Grounding: code-only · drawn on both sides · measured 1280 and 375",
@@ -687,7 +771,7 @@ for (const wf of WORKFLOWS) {
             >Proposed — this mission</span
           >. Nothing on this page is approved.
         </p>
-        <span class="grounding">${GROUNDING_LABEL[wf.grounding]}</span>
+        ${wf.noScreens ? `<div class="noscreens">${wf.noScreens}</div>` : `<span class="grounding">${GROUNDING_LABEL[wf.grounding]}</span>`}
         <div class="legend">
 ${wf.legend.map((l) => `          <span>${l}</span>`).join("\n")}
         </div>
@@ -705,13 +789,15 @@ ${wf.legend.map((l) => `          <span>${l}</span>`).join("\n")}
           id: ${JSON.stringify(s.id)},
           title: ${JSON.stringify(s.title)},
           disposition: ${JSON.stringify(s.disposition)},
-          drawn: ${s.disposition === "new"},
+          drawn: ${s.shotRoute === null},
           blurb: \`${esc(s.blurb)}\`,
           deltas: [
 ${s.deltas.map((d) => `            \`${esc(d)}\``).join(",\n")},
           ],
           clockTag: CLOCK,
-          url: ${JSON.stringify(s.url)},
+          url: ${JSON.stringify(s.frameUrl)},
+          shotRoute: ${JSON.stringify(s.shotRoute)},
+          proposedRoute: ${JSON.stringify(s.proposedRoute)},
         }`,
       )
       .join(",\n") +
@@ -758,6 +844,44 @@ ${s.deltas.map((d) => `            \`${esc(d)}\``).join(",\n")},
         );
         border-radius: 6px;
       }
+      .noscreens {
+        font-size: 13px;
+        line-height: 1.65;
+        color: rgba(0, 0, 0, 0.78);
+        background: #f4f7f6;
+        border-left: 3px solid #00695c;
+        padding: 14px 16px;
+        margin: 12px 0 4px;
+        border-radius: 0 4px 4px 0;
+      }
+      .noscreens ul { margin: 8px 0 0; padding-left: 20px; }
+      .noscreens li { margin-bottom: 5px; }
+      .provenance {
+        font-size: 12.5px;
+        line-height: 1.6;
+        color: rgba(0, 0, 0, 0.72);
+        background: #fff4f7;
+        border-left: 3px solid #c2185b;
+        padding: 9px 12px;
+        margin: 10px 0 4px;
+        border-radius: 0 4px 4px 0;
+      }
+      .deltas.numbered li { list-style: none; position: relative; padding-left: 30px; }
+      .deltas.numbered { padding-left: 0; }
+      .pin {
+        position: absolute;
+        left: 0;
+        top: 1px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #c2185b;
+        color: #fff;
+        font: 700 11px/20px system-ui, sans-serif;
+        text-align: center;
+      }
+      .pin.inline { position: static; display: inline-block; vertical-align: -5px; }
+      .pinnote { font-size: 12px; color: rgba(0, 0, 0, 0.5); margin: 8px 0 0; line-height: 1.55; }
       .placard strong { font-size: 14px; color: rgba(0, 0, 0, 0.68); }
       .placard span { font-size: 12.5px; color: rgba(0, 0, 0, 0.5); margin-top: 6px; max-width: 42ch; line-height: 1.55; }
     </style>`,
@@ -791,6 +915,27 @@ ${s.deltas.map((d) => `            \`${esc(d)}\``).join(",\n")},
       };`,
   );
 
+  // The screen head does the explaining, because the application frame must not.
+  // Each delta is numbered, and the same number is drawn as an outline chip on
+  // the region it describes inside the proposed shot — Brian, 2026-08-31:
+  // "if there is something relevant, it needs to be pointed out. I don't want
+  // that through narration."
+  const DELTAS_FIND =
+    '            <ul class="deltas">${screen.deltas.map((d) => `<li>${d}</li>`).join("")}</ul>';
+  const DELTAS_REPLACE = [
+    '            ${screen.proposedRoute ? `<p class="provenance"><strong>Proposed route ' +
+      "<code>${screen.proposedRoute}</code> does not exist on <code>main</code>.</strong> " +
+      "The frames below are the real <code>${screen.shotRoute}</code>, the shell this reuses, " +
+      "with the proposal evaluated into it. The URL bar shows what was photographed, " +
+      'not what is proposed.</p>` : ""}',
+    '            <ul class="deltas numbered">${screen.deltas.map((d, i) => `<li>' +
+      '<span class="pin">${i + 1}</span>${d}</li>`).join("")}</ul>',
+    '            ${screen.drawn ? "" : `<p class="pinnote">Each number above is drawn as a ' +
+      '<span class="pin inline">n</span> outline on the region it describes, inside the ' +
+      "<em>Proposed</em> shot. The shots are whole pages and scroll inside their box.</p>`}",
+  ].join("\n");
+  if (!out.includes(DELTAS_FIND)) throw new Error("The template's delta list moved.");
+  out = out.replace(DELTAS_FIND, DELTAS_REPLACE);
   // Tell the reviewer the frames scroll.
   out = out.replace(
     '<div class="shotbox">',

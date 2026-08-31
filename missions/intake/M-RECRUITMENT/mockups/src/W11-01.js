@@ -1,33 +1,47 @@
-// W11-01 — Before you approve: what this event sends, to whom, on which ladder.
-// Today the approval summary states one number and omits recruits from it.
-const box = proposedBlock("teal");
-blockTitle(box, "Before you approve — who this reaches, and what they get");
-const table = document.createElement("div");
-table.style.cssText =
-  "display:grid;grid-template-columns:auto 1fr;gap:8px 18px;margin-top:10px;font-size:13.5px";
-const line = (who, what) => {
-  const a = document.createElement("div");
-  a.textContent = who;
-  a.style.cssText = "font-weight:700;white-space:nowrap";
-  const b = document.createElement("div");
-  b.textContent = what;
-  table.append(a, b);
-};
-line("18 players", "Invitation now · reminder at 48h · escalation to the President 24h before");
-line("6 recruits", "Invitation now · one polite follow-up at 48h · then nothing, ever");
-line("4 coaches", "Invitation now · reminder at 48h");
-box.append(table);
-blockText(box, "Two ladders on one event. Each audience is chased on its own terms.");
-const anchor = cardTemplate();
-anchor?.parentElement?.insertBefore(box, anchor);
+// W11-01 — How recruits are separated from everybody else on an event.
+//
+// Brian, 2026-08-31: "none of the machinery to explain how we separate out
+// recruitment recruits from non-recruits."
+//
+// The first draft answered that with an invented table asserting "6 recruits".
+// It should not have: the machinery already ships. `audience-builder.tsx`
+// offers a Capacity filter whose Recruits option appears on a Recruitment event
+// and nowhere else — D46, in the running code at the baseline. So this screen
+// points at the shipped control instead of drawing a replacement for it.
 
-const defect = proposedBlock("amber");
-blockTitle(defect, "What this fixes, verified in the running code");
-blockText(
-  defect,
-  "scheduleEventLadder inserts a reminder for every invitation on the event, filtered only by " +
-    "event_id — so a recruit invited today receives the player escalation ladder. And " +
-    "countByCapacity omits recruits from these counts, so an operator approves without being " +
-    "told how many recruits it reaches.",
+// 1. The shipped Capacity filter, set to Recruits. This is the separation, and
+//    it exists today: D46 puts the Recruits option on a Recruitment event only.
+const selects = $$(
+  "[data-testid='audience-builder'] .MuiSelect-select, [data-testid='audience-builder'] [role='combobox']",
 );
-anchor?.parentElement?.insertBefore(defect, anchor);
+const capacity = selects.find((s) => /all|players|coaches|committee|recruits/i.test(s.textContent));
+if (capacity) {
+  capacity.textContent = "Recruits (6)";
+  mark(capacity.closest(".MuiFormControl-root, .MuiTextField-root") ?? capacity, 1);
+}
+
+// 2. The candidate list, filtered to the six recruits — the shipped list, with
+//    the shipped row treatment.
+const candidates = $("[data-testid='candidate-list']");
+if (candidates) mark(candidates, 2);
+
+// 3. What each audience is chased with. This is the part that does not exist:
+//    one event carries two ladders, and today the player ladder reaches recruits.
+const anchor = $("[data-testid='review-selection']")?.closest(".MuiPaper-root") ?? cardTemplate();
+const ladders = proposedRegion("What each audience receives");
+ladders.append(
+  makeRow(
+    "18 players",
+    "Invitation now · reminder at 48h · escalation to the President 24h before",
+  ),
+  makeRow("6 recruits", "Invitation now · one polite follow-up at 48h · then nothing, ever"),
+  makeRow("4 coaches", "Invitation now · reminder at 48h"),
+);
+placeBefore(anchor, ladders);
+mark(ladders, 3);
+
+// 4. The approval summary, which omits recruits from its count today —
+//    `countByCapacity` filters them out, so an operator approves an event
+//    without being told how many recruits it reaches.
+const review = $("[data-testid='review-selection']");
+if (review) mark(review, 4);

@@ -12,7 +12,11 @@ for (const file of readdirSync(SRC).sort()) {
   if (file.startsWith("_") || !file.endsWith(".js")) continue;
   writeFileSync(
     path.join(OUT, file),
-    `(() => {\n${prelude}\n${readFileSync(path.join(SRC, file), "utf8")}\n})();\n`,
+    // An async wrapper, and no trailing semicolon, so the last expression is the
+    // promise Playwright awaits. A proposal may therefore drive the real form —
+    // fill it, press the application's own button, wait for what it renders — so
+    // the screen shows shipped behaviour rather than a drawing of it.
+    `(async () => {\n${prelude}\n${readFileSync(path.join(SRC, file), "utf8")}\n})()\n`,
   );
   n += 1;
 }

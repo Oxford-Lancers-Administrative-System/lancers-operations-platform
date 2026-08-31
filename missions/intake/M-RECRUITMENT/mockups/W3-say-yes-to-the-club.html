@@ -1228,7 +1228,7 @@
         border-radius: 4px;
         padding: 2px 8px;
       }
-
+    
       /* Capped frames — LAN intake feedback, 2026-08-31. A full-page shot of a
          long record ran to several thousand pixels, so a page of them could not
          be scanned. The shot is unchanged; the box it sits in is scrollable. */
@@ -1265,6 +1265,44 @@
         );
         border-radius: 6px;
       }
+      .noscreens {
+        font-size: 13px;
+        line-height: 1.65;
+        color: rgba(0, 0, 0, 0.78);
+        background: #f4f7f6;
+        border-left: 3px solid #00695c;
+        padding: 14px 16px;
+        margin: 12px 0 4px;
+        border-radius: 0 4px 4px 0;
+      }
+      .noscreens ul { margin: 8px 0 0; padding-left: 20px; }
+      .noscreens li { margin-bottom: 5px; }
+      .provenance {
+        font-size: 12.5px;
+        line-height: 1.6;
+        color: rgba(0, 0, 0, 0.72);
+        background: #fff4f7;
+        border-left: 3px solid #c2185b;
+        padding: 9px 12px;
+        margin: 10px 0 4px;
+        border-radius: 0 4px 4px 0;
+      }
+      .deltas.numbered li { list-style: none; position: relative; padding-left: 30px; }
+      .deltas.numbered { padding-left: 0; }
+      .pin {
+        position: absolute;
+        left: 0;
+        top: 1px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #c2185b;
+        color: #fff;
+        font: 700 11px/20px system-ui, sans-serif;
+        text-align: center;
+      }
+      .pin.inline { position: static; display: inline-block; vertical-align: -5px; }
+      .pinnote { font-size: 12px; color: rgba(0, 0, 0, 0.5); margin: 8px 0 0; line-height: 1.55; }
       .placard strong { font-size: 14px; color: rgba(0, 0, 0, 0.68); }
       .placard span { font-size: 12.5px; color: rgba(0, 0, 0, 0.5); margin-top: 6px; max-width: 42ch; line-height: 1.55; }
     </style>
@@ -1274,11 +1312,12 @@
       <header class="page-head">
         <h1>W3 · Say yes to the club</h1>
         <p>
-          The smallest journey in the mission and the most load-bearing outside it: Missions 7 and 8
-          inherit whatever shape it takes, and every door ends by firing it.
-          <strong>The surfaces here exist on <code>main</code></strong
-          >, so every screen is a <strong>photograph on both sides</strong> — the same running page
-          at <code>e669331</code>, differing only by the proposal evaluated into it.
+          A newly captured recruit hears from the club, agrees to be contacted, joins the community
+      group, and answers the standard ask. The actor is the recruit and the journey happens inside
+      WhatsApp, which this product does not render.
+          <strong>The surfaces here exist on <code>main</code></strong>, so every screen is a
+           <strong>photograph on both sides</strong> — the same running page at <code>e669331</code>,
+           differing only by the proposal evaluated into it.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1290,28 +1329,24 @@
             >Proposed — this mission</span
           >. Nothing on this page is approved.
         </p>
-        <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
+        <div class="noscreens"><strong>W3 draws no surfaces of its own — Brian's decision, 2026-08-31.</strong>
+      Asked whether W3 is a recruit-facing page we build, an operator view, or something folded into
+      the workflows around it, he chose to fold it. So this workflow keeps its specification, which
+      is where the five-step ladder is defined and where its invariants live, and every screen that
+      would have belonged to it now sits with the workflow that owns the surface:
+      <ul>
+        <li><strong>What the club sends, and in what order</strong> — <a href="W10-administer-recruitments-machinery.html">W10</a>, the recruitment cycle, and <code>W10-03</code> for the templates themselves.</li>
+        <li><strong>Where one recruit has reached in the ladder</strong> — <a href="W2-one-recruits-record.html">W2</a>, screen <code>W2-03</code>, on her own record.</li>
+        <li><strong>A welcome that did not fire for want of opt-in evidence</strong> — <a href="W6-add-a-recruit-by-hand.html">W6</a>, screen <code>W6-03</code>, the door that carries no natural opt-in.</li>
+        <li><strong>The doors that fire it</strong> — <a href="W5-capture-a-walk-up-as-a-recruit.html">W5</a>, <a href="W6-add-a-recruit-by-hand.html">W6</a> and <a href="W7-sign-yourself-in.html">W7</a>.</li>
+      </ul>
+      The decisions this workflow carries are still W3's to approve, and they are in
+      <code>workflows/W3-say-yes-to-the-club.md</code>. Nothing about the ladder was dropped; only
+      the screens moved to where a reviewer can see them in context.</div>
         <div class="legend">
-          <span
-            ><strong>Rebuilt from nothing, 2026-08-31.</strong> Brian:
-            <em
-              >“The WhatsApp flow is not correct. That's not what a WhatsApp page looks like… This
-              is completely invented.”</em
-            >
-            The first draft drew a two-way chat thread on the events delivery page. Both were wrong:
-            wrong surface, and a conversation that does not exist</span
-          >
-          <span
-            ><strong>Every business-initiated WhatsApp message is a Meta-approved template.</strong>
-            <code>src/lib/delivery/config.ts</code>:
-            <em>“template is the only production shape.”</em> Free text exists on the loopback test
-            path alone, and only <code>event_invitation</code> is approved today</span
-          >
-          <span
-            ><strong>So this workflow is templates and delivery receipts</strong>, not messages
-            somebody writes. Four new templates, each needing Meta approval with real lead time
-            before anything sends</span
-          >
+          <span><strong>Every business-initiated WhatsApp message is a Meta-approved template.</strong> <code>src/lib/delivery/config.ts</code>: <em>“template is the only production shape.”</em> Free text exists on the loopback test path alone, and only <code>event_invitation</code> is approved today</span>
+          <span><strong>So nobody types to a recruit.</strong> The club's voice is the template, not whoever is holding the phone — which is why there is no composer anywhere in this mission</span>
+          <span><strong>Group membership is not observable.</strong> The Cloud API does not expose it at all, so a recruit joining the community group is recorded when they tell us, and never watched for</span>
         </div>
       </header>
       <div id="screens"></div>
@@ -1329,48 +1364,7 @@
       });
 
       const SCREENS = [
-        {
-          id: "W3-01",
-          title: "The templates the club sends",
-          disposition: "modified",
-          drawn: false,
-          blurb: `What each approved template actually says, and which have been submitted.`,
-          deltas: [
-            `<strong>1. Four new templates</strong>, plus the one already in use`,
-            `<strong>2. Each needs Meta approval</strong> before it can send — that lead time is a real gate, not a formality`,
-            `<strong>3. Nobody types to a recruit.</strong> The club's voice is the template, not whoever is holding the phone`,
-          ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/admin/recruitment",
-        },
-        {
-          id: "W3-02",
-          title: "Where one recruit is in the ladder",
-          disposition: "modified",
-          drawn: false,
-          blurb: `Her own record: which templates have gone, what came back, and what the club can honestly see.`,
-          deltas: [
-            `<strong>1. Five steps, with delivery state per step</strong>`,
-            `<strong>2. <code>read</code> is stored today and mapped to nothing</strong> — widening <code>delivery_outcome</code> is a frozen-model change`,
-            `<strong>3. Being in the community group is not observable.</strong> The Cloud API does not expose group membership, so she tells us or we do not know`,
-          ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/recruits/0b938ce0",
-        },
-        {
-          id: "W3-03",
-          title: "The welcome that did not fire",
-          disposition: "modified",
-          drawn: false,
-          blurb: `No opt-in evidence was recorded for the operator-add door, so the club says nothing to her.`,
-          deltas: [
-            `<strong>1. She exists on the board; the message waits</strong>`,
-            `<strong>2. It says what would release it</strong>`,
-            `<strong>3. This is the lawful-basis rule</strong> — Meta requires documented opt-in before a first business message, and GDPR requires a basis`,
-          ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/recruits/f31a02c8",
-        },
+,
       ];
 
       /* ------------------------------ frames ----------------------------- */
@@ -1423,7 +1417,9 @@
             <span class="tab">${screen.id}</span>
             <h2>${screen.id} · ${screen.title}<span class="disposition ${screen.disposition}">${screen.disposition}</span></h2>
             <p>${screen.blurb}</p>
-            <ul class="deltas">${screen.deltas.map((d) => `<li>${d}</li>`).join("")}</ul>
+            ${screen.proposedRoute ? `<p class="provenance"><strong>Proposed route <code>${screen.proposedRoute}</code> does not exist on <code>main</code>.</strong> The frames below are the real <code>${screen.shotRoute}</code>, the shell this reuses, with the proposal evaluated into it. The URL bar shows what was photographed, not what is proposed.</p>` : ""}
+            <ul class="deltas numbered">${screen.deltas.map((d, i) => `<li><span class="pin">${i + 1}</span>${d}</li>`).join("")}</ul>
+            ${screen.drawn ? "" : `<p class="pinnote">Each number above is drawn as a <span class="pin inline">n</span> outline on the region it describes, inside the <em>Proposed</em> shot. The shots are whole pages and scroll inside their box.</p>`}
             ${screen.clockTag ? `<span class="clock">${screen.clockTag}</span>` : ""}
           </div>
           ${sideBlock(screen, "current")}

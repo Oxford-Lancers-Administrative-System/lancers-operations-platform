@@ -1228,7 +1228,7 @@
         border-radius: 4px;
         padding: 2px 8px;
       }
-
+    
       /* Capped frames — LAN intake feedback, 2026-08-31. A full-page shot of a
          long record ran to several thousand pixels, so a page of them could not
          be scanned. The shot is unchanged; the box it sits in is scrollable. */
@@ -1265,6 +1265,44 @@
         );
         border-radius: 6px;
       }
+      .noscreens {
+        font-size: 13px;
+        line-height: 1.65;
+        color: rgba(0, 0, 0, 0.78);
+        background: #f4f7f6;
+        border-left: 3px solid #00695c;
+        padding: 14px 16px;
+        margin: 12px 0 4px;
+        border-radius: 0 4px 4px 0;
+      }
+      .noscreens ul { margin: 8px 0 0; padding-left: 20px; }
+      .noscreens li { margin-bottom: 5px; }
+      .provenance {
+        font-size: 12.5px;
+        line-height: 1.6;
+        color: rgba(0, 0, 0, 0.72);
+        background: #fff4f7;
+        border-left: 3px solid #c2185b;
+        padding: 9px 12px;
+        margin: 10px 0 4px;
+        border-radius: 0 4px 4px 0;
+      }
+      .deltas.numbered li { list-style: none; position: relative; padding-left: 30px; }
+      .deltas.numbered { padding-left: 0; }
+      .pin {
+        position: absolute;
+        left: 0;
+        top: 1px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #c2185b;
+        color: #fff;
+        font: 700 11px/20px system-ui, sans-serif;
+        text-align: center;
+      }
+      .pin.inline { position: static; display: inline-block; vertical-align: -5px; }
+      .pinnote { font-size: 12px; color: rgba(0, 0, 0, 0.5); margin: 8px 0 0; line-height: 1.55; }
       .placard strong { font-size: 14px; color: rgba(0, 0, 0, 0.68); }
       .placard span { font-size: 12.5px; color: rgba(0, 0, 0, 0.5); margin-top: 6px; max-width: 42ch; line-height: 1.55; }
     </style>
@@ -1275,10 +1313,10 @@
         <h1>W12 · Take attendance at a recruitment event</h1>
         <p>
           On the day, whoever is holding the phone records who actually turned up — recruits first,
-          everyone else below — and captures the people nobody expected.
-          <strong>The surfaces here exist on <code>main</code></strong
-          >, so every screen is a <strong>photograph on both sides</strong> — the same running page
-          at <code>e669331</code>, differing only by the proposal evaluated into it.
+      everyone else below — and captures the people nobody expected.
+          <strong>The surfaces here exist on <code>main</code></strong>, so every screen is a
+           <strong>photograph on both sides</strong> — the same running page at <code>e669331</code>,
+           differing only by the proposal evaluated into it.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1292,16 +1330,8 @@
         </p>
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
-          <span
-            >The sheet derives its roster from memberships, so
-            <strong>invited recruits do not appear on it at all</strong>. That is the gap Task 09
-            §9.1 names</span
-          >
-          <span
-            >A recruit's funnel status never appears on a sheet a coach can open — a coach reading
-            “declined” beside somebody standing in front of them is both a privacy leak and a bad
-            afternoon</span
-          >
+          <span>The sheet derives its roster from memberships, so <strong>invited recruits do not appear on it at all</strong>. That is the gap Task 09 §9.1 names</span>
+          <span>A recruit's funnel status never appears on a sheet a coach can open — a coach reading “declined” beside somebody standing in front of them is both a privacy leak and a bad afternoon</span>
         </div>
       </header>
       <div id="screens"></div>
@@ -1322,7 +1352,7 @@
         {
           id: "W12-01",
           title: "The sheet on the day",
-          disposition: "modified",
+          disposition: "new",
           drawn: false,
           blurb: `Recruits at the top, everyone else below, and what a recruit's absence actually means.`,
           deltas: [
@@ -1332,12 +1362,14 @@
             `<strong>4. Turnout is the sum of the records.</strong> No separate headcount — D8, superseding Register F4`,
           ],
           clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/events/1d76b9f8/attendance",
+          url: "oxfordlancers.example/operate/events/1d76b9f8-82d2-4945-90cc-0b41bdd37ead/attendance",
+          shotRoute: "/operate/events/1d76b9f8-82d2-4945-90cc-0b41bdd37ead/attendance",
+          proposedRoute: "/operate/events/1d76b9f8/attendance",
         },
         {
           id: "W12-02",
           title: "The same sheet, opened by a coach",
-          disposition: "modified",
+          disposition: "new",
           drawn: false,
           blurb: `What is absent is the point.`,
           deltas: [
@@ -1346,7 +1378,9 @@
             `<strong>3. A coach reading “declined” beside somebody standing in front of them</strong> is both a privacy leak and a bad afternoon`,
           ],
           clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/events/1d76b9f8/attendance",
+          url: "oxfordlancers.example/operate/events/1d76b9f8-82d2-4945-90cc-0b41bdd37ead/attendance",
+          shotRoute: "/operate/events/1d76b9f8-82d2-4945-90cc-0b41bdd37ead/attendance",
+          proposedRoute: "/operate/events/1d76b9f8/attendance",
         },
       ];
 
@@ -1400,7 +1434,9 @@
             <span class="tab">${screen.id}</span>
             <h2>${screen.id} · ${screen.title}<span class="disposition ${screen.disposition}">${screen.disposition}</span></h2>
             <p>${screen.blurb}</p>
-            <ul class="deltas">${screen.deltas.map((d) => `<li>${d}</li>`).join("")}</ul>
+            ${screen.proposedRoute ? `<p class="provenance"><strong>Proposed route <code>${screen.proposedRoute}</code> does not exist on <code>main</code>.</strong> The frames below are the real <code>${screen.shotRoute}</code>, the shell this reuses, with the proposal evaluated into it. The URL bar shows what was photographed, not what is proposed.</p>` : ""}
+            <ul class="deltas numbered">${screen.deltas.map((d, i) => `<li><span class="pin">${i + 1}</span>${d}</li>`).join("")}</ul>
+            ${screen.drawn ? "" : `<p class="pinnote">Each number above is drawn as a <span class="pin inline">n</span> outline on the region it describes, inside the <em>Proposed</em> shot. The shots are whole pages and scroll inside their box.</p>`}
             ${screen.clockTag ? `<span class="clock">${screen.clockTag}</span>` : ""}
           </div>
           ${sideBlock(screen, "current")}

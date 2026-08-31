@@ -1228,7 +1228,7 @@
         border-radius: 4px;
         padding: 2px 8px;
       }
-
+    
       /* Capped frames — LAN intake feedback, 2026-08-31. A full-page shot of a
          long record ran to several thousand pixels, so a page of them could not
          be scanned. The shot is unchanged; the box it sits in is scrollable. */
@@ -1265,6 +1265,44 @@
         );
         border-radius: 6px;
       }
+      .noscreens {
+        font-size: 13px;
+        line-height: 1.65;
+        color: rgba(0, 0, 0, 0.78);
+        background: #f4f7f6;
+        border-left: 3px solid #00695c;
+        padding: 14px 16px;
+        margin: 12px 0 4px;
+        border-radius: 0 4px 4px 0;
+      }
+      .noscreens ul { margin: 8px 0 0; padding-left: 20px; }
+      .noscreens li { margin-bottom: 5px; }
+      .provenance {
+        font-size: 12.5px;
+        line-height: 1.6;
+        color: rgba(0, 0, 0, 0.72);
+        background: #fff4f7;
+        border-left: 3px solid #c2185b;
+        padding: 9px 12px;
+        margin: 10px 0 4px;
+        border-radius: 0 4px 4px 0;
+      }
+      .deltas.numbered li { list-style: none; position: relative; padding-left: 30px; }
+      .deltas.numbered { padding-left: 0; }
+      .pin {
+        position: absolute;
+        left: 0;
+        top: 1px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #c2185b;
+        color: #fff;
+        font: 700 11px/20px system-ui, sans-serif;
+        text-align: center;
+      }
+      .pin.inline { position: static; display: inline-block; vertical-align: -5px; }
+      .pinnote { font-size: 12px; color: rgba(0, 0, 0, 0.5); margin: 8px 0 0; line-height: 1.55; }
       .placard strong { font-size: 14px; color: rgba(0, 0, 0, 0.68); }
       .placard span { font-size: 12.5px; color: rgba(0, 0, 0, 0.5); margin-top: 6px; max-width: 42ch; line-height: 1.55; }
     </style>
@@ -1275,10 +1313,10 @@
         <h1>W4 · Fill in your details</h1>
         <p>
           The recruit-stage ask: a form minted for one recruit and linked to their person, sent by
-          the cycle rather than by a person.
-          <strong>Mixed grounding.</strong> Screens on a surface that exists are photographed on
-          both sides; screens with no analogue are drawn and labelled
-          <em>New surface, nothing to compare</em>.
+      the cycle rather than by a person.
+          <strong>Mixed grounding.</strong> Screens on a surface that exists are photographed on both
+           sides; screens with no analogue are drawn and labelled <em>New surface, nothing to
+           compare</em>.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1290,23 +1328,11 @@
             >Proposed — this mission</span
           >. Nothing on this page is approved.
         </p>
-        <span class="grounding"
-          >Grounding: mixed · photographs where a surface exists, drawn where none does</span
-        >
+        <span class="grounding">Grounding: mixed · photographs where a surface exists, drawn where none does</span>
         <div class="legend">
-          <span
-            ><strong>The field set is enumerated here for the first time anywhere.</strong> Task 08
-            routed these fields to Task 09 and never listed them; Mission 5's packet records the set
-            as an open unknown</span
-          >
-          <span
-            ><strong>W4-01 and W4-02 are drawn</strong> — every signed-link token table is empty in
-            the seeded data, so no such page renders anything but the uniform invalid state</span
-          >
-          <span
-            ><strong>W4-03 answers Brian's question</strong> about how it gets sent: automatically,
-            as an approved template carrying her own link</span
-          >
+          <span><strong>The field set is enumerated here for the first time anywhere.</strong> Task 08 routed these fields to Task 09 and never listed them; Mission 5's packet records the set as an open unknown</span>
+          <span><strong>W4-01 and W4-02 are drawn</strong> — every signed-link token table is empty in the seeded data, so no such page renders anything but the uniform invalid state</span>
+          <span><strong>W4-03 answers Brian's question</strong> about how it gets sent: automatically, as an approved template carrying her own link</span>
         </div>
       </header>
       <div id="screens"></div>
@@ -1337,6 +1363,8 @@
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/a/9f3c…",
+          shotRoute: null,
+          proposedRoute: "/a/9f3c…",
         },
         {
           id: "W4-02",
@@ -1351,11 +1379,13 @@
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/a/9f3c…",
+          shotRoute: null,
+          proposedRoute: "/a/9f3c…",
         },
         {
           id: "W4-03",
           title: "How it gets sent",
-          disposition: "modified",
+          disposition: "new",
           drawn: false,
           blurb: `Automatically, one day after the welcome, as an approved template carrying her own signed link.`,
           deltas: [
@@ -1364,7 +1394,9 @@
             `<strong>3. One reminder, three days later, once.</strong> Then nothing until an operator chooses to ask again`,
           ],
           clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/admin/recruitment",
+          url: "oxfordlancers.example/operate/admin/messaging",
+          shotRoute: "/operate/admin/messaging",
+          proposedRoute: "/operate/admin/recruitment",
         },
       ];
 
@@ -1418,7 +1450,9 @@
             <span class="tab">${screen.id}</span>
             <h2>${screen.id} · ${screen.title}<span class="disposition ${screen.disposition}">${screen.disposition}</span></h2>
             <p>${screen.blurb}</p>
-            <ul class="deltas">${screen.deltas.map((d) => `<li>${d}</li>`).join("")}</ul>
+            ${screen.proposedRoute ? `<p class="provenance"><strong>Proposed route <code>${screen.proposedRoute}</code> does not exist on <code>main</code>.</strong> The frames below are the real <code>${screen.shotRoute}</code>, the shell this reuses, with the proposal evaluated into it. The URL bar shows what was photographed, not what is proposed.</p>` : ""}
+            <ul class="deltas numbered">${screen.deltas.map((d, i) => `<li><span class="pin">${i + 1}</span>${d}</li>`).join("")}</ul>
+            ${screen.drawn ? "" : `<p class="pinnote">Each number above is drawn as a <span class="pin inline">n</span> outline on the region it describes, inside the <em>Proposed</em> shot. The shots are whole pages and scroll inside their box.</p>`}
             ${screen.clockTag ? `<span class="clock">${screen.clockTag}</span>` : ""}
           </div>
           ${sideBlock(screen, "current")}

@@ -1,11 +1,17 @@
-// W10-01 — The recruitment cycle, in the shipped messaging-schedule's own
-// language. Mission 4 owns the scheduler; recruitment declares the cycle.
+// W10-01 — The recruitment cycle, in the shipped messaging-schedule's language.
+//
+// Two corrections. It used to append its panels to the end of a 2,800px page,
+// so the review box showed the top of an untouched messaging screen and Brian
+// reported, correctly, "you just screenshotted it." The cycle now lands above
+// the page's first card. And it explained itself in a coloured card inside the
+// frame; the words are in the screen head now, and the regions are outlined.
 setHeading(
   "Recruitment cycle",
   "Season 2026-27 · what fires, in what order, and who may change it",
 );
-const host = drawnPanel(null);
-host.style.cssText += ";border:none;box-shadow:none;padding:0";
+
+const anchor = cardTemplate();
+
 const step = (n, name, when, on) => {
   const row = document.createElement("div");
   row.style.cssText =
@@ -29,26 +35,31 @@ const step = (n, name, when, on) => {
   row.append(num, body, toggle);
   return row;
 };
-host.append(
+
+// 1. The cycle as an ordered sequence of named steps, each able to be turned off.
+const cycle = proposedRegion("The cycle");
+cycle.append(
   step(1, "recruit_welcome", "On capture, from every door", true),
   step(2, "recruit_interest_ask", "Immediately after they accept", true),
   step(3, "recruit_gentle_reminder", "1 day later, only if nothing came back", true),
   step(4, "recruit_details_ask", "1 day after the welcome", true),
-  step(5, "recruit_details_reminder", "3 days later, once only", true),
+  step(5, "recruit_details_reminder", "3 days later, once only", false),
 );
-const grp = proposedBlock("amber");
-blockTitle(grp, "The community-group link");
-blockText(
-  grp,
-  "chat.whatsapp.com/… · last changed 14 April by Caspian Hallowfield · carried by step 1 and every QR page",
+placeBefore(anchor, cycle);
+mark(cycle, 1);
+
+// 2. The community-group link, and when it last changed. The most likely silent
+//    failure in the mission is a rotated link nobody notices.
+const link = proposedRegion("The community-group link");
+link.append(
+  makeRow("Current link", "chat.whatsapp.com/HxK2s…"),
+  makeRow("Last changed", "14 April 2026 by Caspian Hallowfield"),
+  makeRow("Carried by", "Step 1, and every QR landing page"),
 );
-host.append(grp);
-const qr = drawnPanel("QR codes");
-qr.append(
-  makeRow("Freshers' Fair stand", "Live · 41 submissions · minted 22 Apr"),
-  makeRow("Taster poster, Michaelmas", "Live · 7 submissions · minted 2 May"),
-  makeRow("Old handout, Hilary 2025-26", "Revoked 14 Apr · 0 since"),
-);
-host.append(qr);
-const anchor = cardTemplate();
-(anchor?.parentElement ?? document.body).append(host);
+placeBefore(anchor, link);
+mark(link, 2);
+
+// 3. The step that is off. Stated on the cycle, so a recruit going quiet is not
+//    mistaken for disinterest when the club simply stopped asking.
+const off = cycle.querySelectorAll("div[style*='margin-bottom:10px']");
+if (off.length >= 5) mark(off[4], 3);

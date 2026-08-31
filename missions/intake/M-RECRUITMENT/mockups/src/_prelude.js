@@ -544,3 +544,60 @@ const templateRow = (name, body, state) => {
   row.append(top, b);
   return row;
 };
+
+// ---------------------------------------------------------------------------
+// Pointing, not narrating — Brian, 2026-08-31.
+//
+// "I don't care if it has extra, as long as it stays bounded and I can scroll.
+//  That's fine, but if there is something relevant, it needs to be pointed out.
+//  I don't want that through narration."
+//
+// So a proposal never explains itself inside the application frame. It draws a
+// numbered outline around each region it changed, and the prose for that number
+// lives in the screen head, outside the frame, in build-pages.mjs. The number on
+// the outline and the number on the delta are the same number.
+//
+// The outline is deliberately not a component: 2px of accent, a small numbered
+// chip, and nothing else. It cannot be mistaken for product because no surface
+// in this application has one.
+const MARK_ACCENT = "#c2185b";
+
+/**
+ * Outline one element as delta `n` of this screen. Returns the element so a
+ * proposal reads `mark(rebuildCard(...), 2)`.
+ */
+const mark = (node, n) => {
+  if (!node) return node;
+  const host = node.nodeType === 1 ? node : null;
+  if (!host) return node;
+  if (getComputedStyle(host).position === "static") host.style.position = "relative";
+  host.style.outline = `2px solid ${MARK_ACCENT}`;
+  host.style.outlineOffset = "2px";
+  const chip = document.createElement("div");
+  chip.textContent = String(n);
+  chip.dataset.intakeMark = String(n);
+  chip.style.cssText =
+    `position:absolute;top:-11px;left:-11px;z-index:9;width:22px;height:22px;border-radius:50%;` +
+    `background:${MARK_ACCENT};color:#fff;font:700 12px/22px system-ui,sans-serif;text-align:center;` +
+    `box-shadow:0 1px 3px rgba(0,0,0,0.35)`;
+  host.append(chip);
+  return node;
+};
+
+/**
+ * Insert a node as high in the page's own content as it honestly belongs, so a
+ * marker is not buried four thousand pixels down a full-page shot. `anchor` is
+ * the application element the proposal is speaking about; the node lands
+ * immediately before it.
+ */
+const placeBefore = (anchor, node) => {
+  const target = anchor ?? cardTemplate();
+  target?.parentElement?.insertBefore(node, target);
+  return node;
+};
+
+/**
+ * A region built out of the page's own card treatment, carrying no prose of its
+ * own. Use for content the proposal adds; explain it in the screen head.
+ */
+const proposedRegion = (title) => drawnPanel(title);
