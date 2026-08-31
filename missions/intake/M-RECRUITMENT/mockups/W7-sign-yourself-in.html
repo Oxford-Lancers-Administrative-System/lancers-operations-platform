@@ -1366,10 +1366,10 @@
           disposition: "new",
           drawn: false,
           blurb: `A stand at a Freshers' Fair, not a registration. One name and one way to reach them is the
-         whole ask; everything else comes later on a link sent to that number.`,
+         whole ask.`,
           deltas: [
-            `<strong>1. It refuses nobody.</strong> Brian, 2026-08-31: <em>“The duplicate should be very simple. It should be based on email or phone number or whatever, and we should just take their contact information regardless.”</em> Nothing blocks and nothing is rejected — reconciliation happens afterwards, the same way the walk-up door works`,
-            `<strong>No public self-entry page exists on main</strong>, so the surface is drawn. The controls are not: they are cloned from the shipped add-a-person form, which carries exactly these four fields`,
+            `<strong>1. It refuses nobody</strong> and blocks on nothing`,
+            `<strong>No public self-entry page exists on main</strong>, so the surface is drawn; the controls are cloned from the shipped add-a-person form`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/operate/people/new",
@@ -1378,15 +1378,32 @@
         },
         {
           id: "W7-02",
+          title: "Have you signed up with us before?",
+          disposition: "new",
+          drawn: false,
+          blurb: `The whole of the duplicate handling at this door, and it takes one question. Brian,
+         2026-08-31: "There should just be a quick check to say, 'Hey, have you already registered
+         before?'... If they say yes, it says 'Great,' and then pops them to the WhatsApp board. If
+         it's no, it creates it as a new thing."`,
+          deltas: [
+            `<strong>1. The person at the stand is the one who knows.</strong> Asking them needs no operator, no queue and no notification — which is why the parked review queue that used to be W8-02 is deleted`,
+            `<strong>2. It cannot become a lookup tool.</strong> A stranger can type any name, so the match is confirmed only in terms the visitor already supplied — a first name they typed and the last three digits of the number they typed. The same reasoning as the E1 uniform-invalid page`,
+            `<strong>Both answers end in the same place.</strong> Yes adds nothing; No creates a new person; either way they go to the group`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/people/new",
+          shotRoute: "/operate/people/new",
+          proposedRoute: "/join",
+        },
+        {
+          id: "W7-03",
           title: "Signed in, and on to WhatsApp",
           disposition: "new",
           drawn: false,
-          blurb: `The step the earlier draft was missing. Brian: "It should take them to WhatsApp then. After
-         they do the information, you'll get the sign-in, and then they go to WhatsApp, right? That's
-         part of W7."`,
+          blurb: `Both answers land here. Pressing the button is the opt-in, which is why this door carries a
+         natural one and the operator-add door in W6 has to ask for it.`,
           deltas: [
-            `<strong>1. Pressing the button is the opt-in.</strong> It is the recruit's own act, which is exactly why this door carries a natural opt-in and the operator-add door in W6 has to ask for one`,
-            `<strong>The already-known case is no longer a dead end.</strong> An earlier draft gave it its own “you are already on our list” screen; somebody signing in a second time is the common case at a second event, so they see this same page and the same way into the group`,
+,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/operate/people/new",

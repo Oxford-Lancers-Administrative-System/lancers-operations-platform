@@ -311,23 +311,33 @@ const WORKFLOWS = [
         "W7-01",
         "Sign yourself in, at the QR code",
         `A stand at a Freshers' Fair, not a registration. One name and one way to reach them is the
-         whole ask; everything else comes later on a link sent to that number.`,
+         whole ask.`,
         [
-          "<strong>1. It refuses nobody.</strong> Brian, 2026-08-31: <em>“The duplicate should be very simple. It should be based on email or phone number or whatever, and we should just take their contact information regardless.”</em> Nothing blocks and nothing is rejected — reconciliation happens afterwards, the same way the walk-up door works",
-          "<strong>No public self-entry page exists on main</strong>, so the surface is drawn. The controls are not: they are cloned from the shipped add-a-person form, which carries exactly these four fields",
+          "<strong>1. It refuses nobody</strong> and blocks on nothing",
+          "<strong>No public self-entry page exists on main</strong>, so the surface is drawn; the controls are cloned from the shipped add-a-person form",
         ],
         "oxfordlancers.example/join",
       ),
       P(
         "W7-02",
-        "Signed in, and on to WhatsApp",
-        `The step the earlier draft was missing. Brian: "It should take them to WhatsApp then. After
-         they do the information, you'll get the sign-in, and then they go to WhatsApp, right? That's
-         part of W7."`,
+        "Have you signed up with us before?",
+        `The whole of the duplicate handling at this door, and it takes one question. Brian,
+         2026-08-31: "There should just be a quick check to say, 'Hey, have you already registered
+         before?'... If they say yes, it says 'Great,' and then pops them to the WhatsApp board. If
+         it's no, it creates it as a new thing."`,
         [
-          "<strong>1. Pressing the button is the opt-in.</strong> It is the recruit's own act, which is exactly why this door carries a natural opt-in and the operator-add door in W6 has to ask for one",
-          "<strong>The already-known case is no longer a dead end.</strong> An earlier draft gave it its own “you are already on our list” screen; somebody signing in a second time is the common case at a second event, so they see this same page and the same way into the group",
+          "<strong>1. The person at the stand is the one who knows.</strong> Asking them needs no operator, no queue and no notification — which is why the parked review queue that used to be W8-02 is deleted",
+          "<strong>2. It cannot become a lookup tool.</strong> A stranger can type any name, so the match is confirmed only in terms the visitor already supplied — a first name they typed and the last three digits of the number they typed. The same reasoning as the E1 uniform-invalid page",
+          "<strong>Both answers end in the same place.</strong> Yes adds nothing; No creates a new person; either way they go to the group",
         ],
+        "oxfordlancers.example/join",
+      ),
+      P(
+        "W7-03",
+        "Signed in, and on to WhatsApp",
+        `Both answers land here. Pressing the button is the opt-in, which is why this door carries a
+         natural one and the operator-add door in W6 has to ask for it.`,
+        [],
         "oxfordlancers.example/join",
       ),
     ],
@@ -349,27 +359,13 @@ const WORKFLOWS = [
         "W8-01",
         "The check, on the door being used",
         `The duplicate check is not a page of its own: it is a step belonging to whichever door is
-         open, rendered inside that door. Brian, 2026-08-31: "This is happening inside of the people
-         page. I don't want this to happen inside people. This is on the recruit page... I'm not going
-         to the people page to do this."`,
+         open, rendered inside that door. This is it while adding a recruit by hand.`,
         [
-          "<strong>1. Each candidate says who they actually are</strong> — <em>“Are they a part of the current season? Are they already a player on the season? Are they another recruit?... it could just be incredibly similar to another player.”</em> A name and a phone number cannot answer that; membership status and season can, in the shipped words",
-          "<strong>The check itself is real.</strong> The screen fills the form, presses the application's own CHECK FOR DUPLICATES and photographs the answer. The recruitment shell around it is the proposal; the proposed route is <code>/operate/recruitment/new</code>",
+          "<strong>1. Each candidate says who they actually are</strong> — a player this season, another recruit, or somebody long gone. A name and a phone number cannot separate two Brindlewoods",
+          "<strong>The check itself is real</strong>: the screen presses the application's own CHECK FOR DUPLICATES and photographs the answer",
+          "<strong>W8-02 is deleted.</strong> It was a parked review queue, and Brian replaced the whole idea with one question asked at the door in W7-02. Anything that still slips through is resolved in the people table's own merge, which already ships and belongs to Mission 5",
         ],
         "oxfordlancers.example/operate/recruitment/new",
-      ),
-      P(
-        "W8-02",
-        "Recruits waiting for review",
-        `The one case no door can settle at the door: somebody signs themselves in at a stand, matches
-         a person already in the club, and nobody is standing there to say whether it is them. W7
-         takes the details regardless and it waits here.`,
-        [
-          "<strong>1. The same identity as the check above</strong>, so an operator working the queue answers the same question the same way — the player, another recruit, or somebody who merely shares a surname",
-          "<strong>2. The decision is the shipped check's own</strong> — THIS IS THEM, or a new person. Nothing is merged behind anybody's back and nothing was refused at the stand",
-          "<strong>This is the only after-the-fact resolution in the mission.</strong> W6 settles it at the door with an operator present; W5 does not check at all, because Brian removed that path",
-        ],
-        "oxfordlancers.example/operate/recruitment/review",
       ),
     ],
   },

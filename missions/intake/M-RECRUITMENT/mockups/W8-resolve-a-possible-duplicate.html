@@ -1368,35 +1368,16 @@
           disposition: "new",
           drawn: false,
           blurb: `The duplicate check is not a page of its own: it is a step belonging to whichever door is
-         open, rendered inside that door. Brian, 2026-08-31: "This is happening inside of the people
-         page. I don't want this to happen inside people. This is on the recruit page... I'm not going
-         to the people page to do this."`,
+         open, rendered inside that door. This is it while adding a recruit by hand.`,
           deltas: [
-            `<strong>1. Each candidate says who they actually are</strong> — <em>“Are they a part of the current season? Are they already a player on the season? Are they another recruit?... it could just be incredibly similar to another player.”</em> A name and a phone number cannot answer that; membership status and season can, in the shipped words`,
-            `<strong>The check itself is real.</strong> The screen fills the form, presses the application's own CHECK FOR DUPLICATES and photographs the answer. The recruitment shell around it is the proposal; the proposed route is <code>/operate/recruitment/new</code>`,
+            `<strong>1. Each candidate says who they actually are</strong> — a player this season, another recruit, or somebody long gone. A name and a phone number cannot separate two Brindlewoods`,
+            `<strong>The check itself is real</strong>: the screen presses the application's own CHECK FOR DUPLICATES and photographs the answer`,
+            `<strong>W8-02 is deleted.</strong> It was a parked review queue, and Brian replaced the whole idea with one question asked at the door in W7-02. Anything that still slips through is resolved in the people table's own merge, which already ships and belongs to Mission 5`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/operate/people/new",
           shotRoute: "/operate/people/new",
           proposedRoute: "/operate/recruitment/new",
-        },
-        {
-          id: "W8-02",
-          title: "Recruits waiting for review",
-          disposition: "new",
-          drawn: false,
-          blurb: `The one case no door can settle at the door: somebody signs themselves in at a stand, matches
-         a person already in the club, and nobody is standing there to say whether it is them. W7
-         takes the details regardless and it waits here.`,
-          deltas: [
-            `<strong>1. The same identity as the check above</strong>, so an operator working the queue answers the same question the same way — the player, another recruit, or somebody who merely shares a surname`,
-            `<strong>2. The decision is the shipped check's own</strong> — THIS IS THEM, or a new person. Nothing is merged behind anybody's back and nothing was refused at the stand`,
-            `<strong>This is the only after-the-fact resolution in the mission.</strong> W6 settles it at the door with an operator present; W5 does not check at all, because Brian removed that path`,
-          ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/people",
-          shotRoute: "/operate/people",
-          proposedRoute: "/operate/recruitment/review",
         },
       ];
 

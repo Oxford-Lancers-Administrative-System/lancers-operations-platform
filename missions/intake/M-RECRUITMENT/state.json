@@ -128,7 +128,13 @@
       "name": "Sign yourself in",
       "state": "done",
       "stale": false,
-      "feedback": [],
+      "feedback": [
+        {
+          "screen_id": "W7-02",
+          "date": "2026-08-31",
+          "text": "AMENDMENT AFTER APPROVAL. We just need to ship something simpler here... there should just be a quick check to say 'have you already registered before?' If they say yes, it pops them to the WhatsApp board. If it's no, it creates it as a new thing. If there's a duplicate, we go through the deduplication process in the people table. — W7 gained W7-02, the question, and the old W7-02 became W7-03. W8's parked review queue is deleted entirely."
+        }
+      ],
       "approvals": {
         "spec": {
           "words": "Okay, sounds great. W7 approved.",
@@ -149,7 +155,7 @@
         {
           "screen_id": "W8-01",
           "date": "2026-08-31",
-          "text": "This is happening inside of the people page. I don't want this to happen inside people. This is on the recruit page. If I add a name and their contact details, I want to see what their status is - are they a player on the season, another recruit, who are they. W8-02 is super confusing to me. — REBUILT: W8-01 runs the real check on the recruitment shell at a proposed /operate/recruitment/new, and each candidate now carries its identity (Player Active this season / Past member last played 2024-25). W8-02 is rebuilt as 'Recruits waiting for review' on the shipped People list, reading as recruitment, with columns Signed themselves in / When / Might already be / Who that is and the shipped THIS IS THEM decision."
+          "text": "Recruits waiting for a review is ungrounded. I don't know where in the app we get to here from, where it comes from, or how they get notified that this is there. In relation to W1, where does it go? — RESOLVED BY DELETION. There was no good answer, and Brian replaced the queue with one question at the door in W7-02. W8 is now just the check itself on whichever door is open, and leftover duplicates go to the people table's shipped merge, which is Mission 5's."
         }
       ]
     },
@@ -1049,7 +1055,7 @@
       }
     ]
   },
-  "next_action": "W1, W2, W4, W5, W6, W7 approved; W3 removed; W8 rebuilt and with Brian. NEXT after W8: W9 (follow up), then W10 (the machinery), then W11-W14. W9-W14 stale. OPEN: W2 button placement; events violet vs blue; channel presence on the record; W3's five decisions in W10 and W2; W5's unmet duplicate condition (W8's spec now explains why the three doors differ); and the offered-not-taken Contactable cell reading 'No way to reach them'.",
+  "next_action": "W1, W2, W4, W5, W6 approved; W3 removed; W7 AMENDED AFTER APPROVAL with a new W7-02 (the have-you-registered question) and needs Brian's word again; W8 reduced to W8-01 and with him. NEXT: W9 (follow up), then W10 (the machinery), then W11-W14. W9-W14 stale. OPEN: W2 button placement; events violet vs blue; channel presence on the record; W3's five decisions in W10 and W2; the offered-not-taken Contactable cell. W5's duplicate condition is now ANSWERED by W8's table of the three doors.",
   "subject_coverage": {
     "areas": [
       {

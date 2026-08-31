@@ -71,29 +71,32 @@ approved on the board:
 - **Recruit · identified · this season**
 - **Past member · last played 2024-25**
 
-## `W8-02` is the queue, and it is the only after-the-fact resolution
+## The queue is deleted
 
-Rebuilt because Brian could not tell what it was: _"W8-02 is super confusing to
-me. What the hell is going on?"_
+`W8-02` was a parked review queue. Brian replaced the whole idea on 2026-08-31
+with one question asked at the door, in `W7-02`: _"have you already registered
+before?"_ The person standing at the stand is the one who knows, so no queue, no
+operator and no notification is needed.
 
-It exists for one case. `W7`'s door is self-serve: somebody signs themselves in at
-a stand, their details match a person already in the club, and **nobody is
-standing there to decide**. `W7` takes the details regardless, so nothing is
-refused at the stand and nothing is merged behind anybody's back — it waits here.
+That also answers the question that exposed it. He asked where the queue was
+reached from, how anybody would be told it was there, and where it sat in
+relation to `W1` — and there was no good answer, because a surface nobody can
+find is a surface nobody works.
 
-The queue is built on the shipped People list, reading as recruitment, with the
-columns this question needs: **Signed themselves in · When · Might already be ·
-Who that is**, and the shipped check's own decision on each row — `THIS IS THEM`
-or a new person. People's own filters and its add button are removed: a review
-queue is not filtered by membership status and is not where anybody is added.
+### So what is left of this workflow
 
-### It must not contradict the three doors
+Only the check itself, on whichever door is open, which is `W8-01`.
 
-| Door              | Duplicate handling                   | Resolved    |
-| ----------------- | ------------------------------------ | ----------- |
-| `W5` walk-up      | None                                 | Later, here |
-| `W6` operator add | The full shipped check, at the door  | At the door |
-| `W7` QR sign-in   | Simple, takes the details regardless | Later, here |
+| Door              | Duplicate handling                                   |
+| ----------------- | ---------------------------------------------------- |
+| `W5` walk-up      | None. A walk-on is always a new person               |
+| `W6` operator add | The full shipped check, at the door, with identities |
+| `W7` QR sign-in   | One question, answered by the recruit                |
+
+**Whatever still slips through is not this mission's to resolve.** The people
+table's own merge already ships at `/operate/people/[personId]/merge` and belongs
+to Mission 5 — Brian: _"we can go through the deduplication process in the people
+table, and that can be handled there simply."_
 
 ## Required actions
 

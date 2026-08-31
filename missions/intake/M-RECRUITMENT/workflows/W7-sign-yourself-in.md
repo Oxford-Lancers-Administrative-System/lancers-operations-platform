@@ -60,6 +60,42 @@ recruit acts for themselves, so joining the group is the consent; there, an
 operator types somebody in, and Task 09 §9.1 makes that door ask how the club
 came by the number.
 
+## The check is one question, asked of the person standing there
+
+Amended 2026-08-31, **after** Brian approved this workflow, on his instruction:
+
+> "We just need to ship something simpler here... If somebody puts in their name,
+> first name, last name, and phone number, there should just be a quick check to
+> say, 'Hey, have you already registered before?' and see if their name or
+> information is there. If they say yes, it says, 'Great,' and then pops them to
+> the WhatsApp board. If it's no, it creates it as a new thing. If there's a
+> duplicate, then we can go through the deduplication process in the people
+> table, and that can be handled there simply."
+
+So the door asks one question and both answers end in the group:
+
+| Answer | What happens                                        |
+| ------ | --------------------------------------------------- |
+| Yes    | Nothing is created. Straight to the WhatsApp group. |
+| No     | Created as a new person. Straight to the group.     |
+
+**This deletes the parked review queue entirely.** The person at the stand is the
+one who knows whether they have signed up before, so asking them needs no
+operator, no queue, no notification and no surface — which is why the old
+`W8-02` is gone.
+
+Anything that still slips through is resolved in **the people table's own merge**,
+which already ships at `/operate/people/[personId]/merge` and belongs to Mission 5. This mission does not own merging.
+
+### The one thing this screen must not become
+
+A stranger can type any name. If the page then showed that person's number and
+email back, the QR code would be a lookup tool for the club's contact details. So
+the match is confirmed only in terms the visitor **already supplied** — a first
+name they typed and the last three digits of the number they typed. Nothing is
+revealed that they did not already know. This is the same reasoning as the E1
+uniform-invalid page in `W4-03`.
+
 ## The duplicate check, and what it does not do
 
 Brian: _"The duplicate should be very simple. It should be based on email or

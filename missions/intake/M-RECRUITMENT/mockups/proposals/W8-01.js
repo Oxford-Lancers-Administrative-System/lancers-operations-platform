@@ -1996,6 +1996,6 @@ const heading = must(
 );
 mark(must(heading.closest(".MuiPaper-root"), "the result has no card"), 1);
 
-await settle()
+await settle();
 
 })()
