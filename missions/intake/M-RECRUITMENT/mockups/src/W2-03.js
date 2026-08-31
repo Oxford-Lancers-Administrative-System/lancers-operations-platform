@@ -14,26 +14,21 @@
 // The whole record, the same one W2-02 shows, so the dialog opens over the page
 // it belongs to rather than over the shipped player record.
 buildRecruitRecord();
-pageButton("SEND A QUESTIONNAIRE");
+pageButton("SEND PERSONAL QUESTIONNAIRE");
+pageButton("SEND RECRUITMENT QUESTIONNAIRE");
 
 // The dialog the button opens. Two templates, because there are two
 // questionnaires; each shows when it last went out, which is the whole point.
+// The dialog SEND RECRUITMENT QUESTIONNAIRE opens. There is no chooser in it,
+// because the button already chose: there are two questionnaires and therefore
+// two buttons. Brian, 2026-08-31: "There's one for the personal, and there's one
+// for the recruitment."
 openDialog({
-  title: "Send a questionnaire",
-  question: "Which questionnaire do you want to send to Tobias Wrenfield?",
-  choices: [
-    {
-      name: "Who you are",
-      template: "recruit_personal_details",
-      sent: [],
-    },
-    {
-      name: "How you came to football",
-      template: "recruit_questionnaire",
-      sent: ["4 May 2026", "reminder 6 May 2026"],
-      warning: "Answered on 7 May. Sending again will ask them the same questions.",
-    },
-  ],
+  title: "Send the recruitment questionnaire?",
+  question:
+    "Tobias Wrenfield will get a WhatsApp message with a link to the questions about how he came to football.",
+  sent: ["4 May 2026", "reminder 6 May 2026"],
+  note: "He answered it on 7 May. Sending again asks him the same questions.",
 });
 
 await settle();

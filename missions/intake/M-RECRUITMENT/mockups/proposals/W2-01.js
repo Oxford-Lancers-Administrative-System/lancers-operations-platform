@@ -1184,7 +1184,9 @@ const setRecruitmentEvents = (events, title = "Recruitment events") => {
   // so at 375px this card was an empty coloured bar. Hold it aside and rebuild
   // it from the same events, exactly as the board does.
   const phoneList = document.querySelector('[data-testid="attendance-phone"]');
-  const phoneTemplate = phoneList?.querySelector('[data-testid="attendance-card"]')?.cloneNode(true);
+  const phoneTemplate = phoneList
+    ?.querySelector('[data-testid="attendance-card"]')
+    ?.cloneNode(true);
 
   let node = table;
   while (node.parentElement && node.parentElement !== card) {
@@ -1429,15 +1431,29 @@ const pageButton = (text) => {
   // drops to its own line at full width.
   const h1 = must($("h1"), "the record has no heading to sit beside");
   const head = must(h1.parentElement, "the heading has no block");
-  const row = document.createElement("div");
-  row.style.cssText =
-    "display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px";
-  head.parentElement.insertBefore(row, head);
-  row.append(head);
-  head.style.flex = "1 1 240px";
-  head.style.minWidth = "0";
+
+  // Reuse the row if one is already here: there are TWO questionnaires and
+  // therefore two buttons, and each must sit in the same row rather than
+  // building a second one under the first.
+  let row = document.querySelector('[data-intake-actions="1"]');
+  if (!row) {
+    row = document.createElement("div");
+    row.dataset.intakeActions = "1";
+    row.style.cssText =
+      "display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px";
+    head.parentElement.insertBefore(row, head);
+    row.append(head);
+    head.style.flex = "1 1 240px";
+    head.style.minWidth = "0";
+    const actions = document.createElement("div");
+    actions.dataset.intakeActionGroup = "1";
+    actions.style.cssText = "display:flex;flex-wrap:wrap;gap:8px";
+    row.append(actions);
+  }
   button.style.flex = "0 0 auto";
-  row.append(button);
+  must(row.querySelector('[data-intake-action-group="1"]'), "the action row lost its group").append(
+    button,
+  );
   return button;
 };
 
@@ -1483,7 +1499,7 @@ const sentDates = (card, label, dates) => {
  * shape"), so this dialog chooses a template and fires it. There is no composer
  * and there is nothing to type.
  */
-const openDialog = ({ title, question, choices }) => {
+const openDialog = ({ title, question, sent, note }) => {
   const paperTpl = must(
     document.querySelector(".MuiPaper-root"),
     "the page has no Paper to build the dialog surface from",
@@ -1495,7 +1511,7 @@ const openDialog = ({ title, question, choices }) => {
 
   const surface = paperTpl.cloneNode(false);
   surface.style.cssText =
-    "width:520px;max-width:92vw;background:#fff;border-radius:8px;" +
+    "width:480px;max-width:92vw;background:#fff;border-radius:8px;" +
     "box-shadow:0 11px 15px -7px rgba(0,0,0,.2),0 24px 38px 3px rgba(0,0,0,.14);overflow:hidden";
 
   const head = document.createElement("div");
@@ -1503,39 +1519,35 @@ const openDialog = ({ title, question, choices }) => {
   head.textContent = title;
 
   const body = document.createElement("div");
-  body.style.cssText = "padding:4px 24px 8px;font-size:14.5px;color:rgba(0,0,0,0.7)";
+  body.style.cssText = "padding:4px 24px 12px;font-size:14.5px;color:rgba(0,0,0,0.7)";
   body.textContent = question;
-
   surface.append(head, body);
 
-  for (const choice of choices) {
-    const block = document.createElement("div");
-    block.style.cssText =
-      "margin:12px 24px;border:1px solid rgba(0,0,0,0.16);border-radius:8px;padding:14px 16px";
-    const name = document.createElement("div");
-    name.style.cssText = "font-size:14.5px;font-weight:700";
-    name.textContent = choice.name;
-    const template = document.createElement("code");
-    template.style.cssText = "display:block;margin-top:4px;font-size:12px;color:#0b3d91";
-    template.textContent = choice.template;
-    const history = document.createElement("div");
-    history.style.cssText = "margin-top:9px;font-size:12.5px;color:rgba(0,0,0,0.6)";
-    history.textContent = choice.sent.length
-      ? `Last sent: ${choice.sent.join(" · ")}`
-      : "Never sent to this recruit";
-    if (!choice.sent.length) history.style.fontStyle = "italic";
-    block.append(name, template, history);
-    if (choice.warning) {
-      const warn = document.createElement("div");
-      warn.style.cssText = "margin-top:9px;font-size:12.5px;font-weight:600;color:#8a5100";
-      warn.textContent = choice.warning;
-      block.append(warn);
-    }
-    surface.append(block);
+  // The whole point of the dialog: when this questionnaire last went out, so
+  // nobody bothers the same person twice. Brian: "here are the last times we've
+  // sent them a questionnaire, because we don't want to bug them that many
+  // times."
+  const history = document.createElement("div");
+  history.style.cssText =
+    "margin:0 24px 4px;border:1px solid rgba(0,0,0,0.16);border-radius:8px;padding:12px 14px";
+  const label = document.createElement("div");
+  label.style.cssText = "font-size:12px;font-weight:700;letter-spacing:.05em;color:rgba(0,0,0,0.55)";
+  label.textContent = "ALREADY SENT";
+  const value = document.createElement("div");
+  value.style.cssText = "margin-top:6px;font-size:14px;color:rgba(0,0,0,0.87)";
+  value.textContent = sent.length ? sent.join(" · ") : "Never sent to this recruit";
+  if (!sent.length) value.style.fontStyle = "italic";
+  history.append(label, value);
+  if (note) {
+    const warn = document.createElement("div");
+    warn.style.cssText = "margin-top:8px;font-size:12.5px;font-weight:600;color:#8a5100";
+    warn.textContent = note;
+    history.append(warn);
   }
+  surface.append(history);
 
   const actions = document.createElement("div");
-  actions.style.cssText = "display:flex;justify-content:flex-end;gap:8px;padding:8px 20px 18px";
+  actions.style.cssText = "display:flex;justify-content:flex-end;gap:8px;padding:14px 20px 18px";
   const contained = must(
     [...document.querySelectorAll("a, button")].find((b) =>
       b.className.includes("MuiButton-contained"),
@@ -1729,7 +1741,10 @@ const buildRecruitRecord = () => {
 
   // ---- The send record, embedded at the foot of each card -------------------
   sentDates(bandedCard("PERSON"), "Personal details questionnaire sent", []);
-  sentDates(questionnaireCardRef, "Recruitment questionnaire sent", ["4 May 2026", "reminder 6 May 2026"]);
+  sentDates(questionnaireCardRef, "Recruitment questionnaire sent", [
+    "4 May 2026",
+    "reminder 6 May 2026",
+  ]);
 
   relabelButton("back to roster", "BACK TO RECRUITMENT");
   window.history.replaceState(null, "", "/operate/recruitment/tobias-wrenfield");
@@ -1900,7 +1915,8 @@ historyCard.append(historyBody);
 // ---- One button, top right -----------------------------------------------
 // Not four links in card headers, and no Flip to joined: the flip is a status
 // change, which the status control makes and W14 interrupts.
-pageButton("SEND A QUESTIONNAIRE");
+pageButton("SEND PERSONAL QUESTIONNAIRE");
+pageButton("SEND RECRUITMENT QUESTIONNAIRE");
 
 // ---- The send record, embedded at the foot of each card -------------------
 sentDates(bandedCard("PERSON"), "Personal details questionnaire sent", []);

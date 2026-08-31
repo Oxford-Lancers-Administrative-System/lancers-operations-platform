@@ -148,7 +148,8 @@ historyCard.append(historyBody);
 // ---- One button, top right -----------------------------------------------
 // Not four links in card headers, and no Flip to joined: the flip is a status
 // change, which the status control makes and W14 interrupts.
-pageButton("SEND A QUESTIONNAIRE");
+pageButton("SEND PERSONAL QUESTIONNAIRE");
+pageButton("SEND RECRUITMENT QUESTIONNAIRE");
 
 // ---- The send record, embedded at the foot of each card -------------------
 sentDates(bandedCard("PERSON"), "Personal details questionnaire sent", []);
