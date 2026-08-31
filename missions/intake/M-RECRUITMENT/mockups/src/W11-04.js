@@ -1,24 +1,34 @@
-// W11-04 — Declining, and the reason the shipped page demands.
+// W11-04 — The NO page, as it ships, with the reason filled in for them.
 //
-// The step behind "I'm not attending", photographed rather than drawn. It asks
-// for a reason and will not save without one: `REASON_LABEL` is "Reason", the
-// field is `required`, `submitNotAttending` checks the string again, and the
-// database constrains it a third time.
+// Brian, 2026-08-31: "They either have 'accept' or nothing... they should be
+// fine if it's required, and no reason is ever given. It just should be a no,
+// and the 'no reason' field is just going to be put in for them... We never ask
+// them for a reason."
 //
-// For a player that is the domain's rule. For a RECRUIT it contradicts Brian
-// directly — "They don't need to give a reason. They do not give any reason." A
-// recruit is not a member and owes the club nothing, which is the whole
-// never-harsh position.
+// This is the same shipped saved page as W11-03, photographed with a declined
+// response recorded. The recruit was never shown the reason step: they tapped
+// "No" in WhatsApp and arrived here.
 //
-// So this screen exists to put the conflict in front of him rather than to
-// resolve it: either recruits skip this step, or the page learns who it is
-// talking to. Both change shipped behaviour and neither is drawn here.
-const reason = must(
-  document
-    .querySelector('input[name="reason"], textarea[name="reason"]')
-    ?.closest(".MuiFormControl-root, .MuiTextField-root"),
-  "the declining step has no reason field",
+// THE CONSTRAINT IS NOT WEAKENED. `rsvp_responses_no_requires_a_reason` still
+// holds — a non-acceptance without a reason is unsubmittable, checked by the
+// database. What changes is who supplies it: for a recruit the system writes
+// "No reason given" and never asks. Attendance is not mandatory for somebody who
+// is not a member, so there is nothing to explain and nothing to chase.
+//
+// Brian's own copy for this page — "We'll miss seeing you. If you want to
+// change, go back here" — is a later flow and is not drawn over the shipped
+// words here.
+const heading = must(
+  [...document.querySelectorAll("h1, h2, .MuiTypography-root")].find((n) =>
+    /your response is saved/i.test(n.textContent),
+  ),
+  "the saved page is not showing its heading",
 );
-mark(reason, 1);
+mark(heading, 1);
+
+const change = [...document.querySelectorAll("a, button")].find((b) =>
+  /change response/i.test(b.textContent),
+);
+if (change) mark(change, 2);
 
 await settle();

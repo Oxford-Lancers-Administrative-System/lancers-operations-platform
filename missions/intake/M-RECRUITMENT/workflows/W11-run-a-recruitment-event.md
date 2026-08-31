@@ -71,53 +71,54 @@ event flow, we shouldn't be adding new shit to it. The event page should be
 acting identically."_ The two-ladder rule belongs in `W10`, where it is
 configured.
 
-## What the recruit sees — the shipped page, not a drawing
+## What the recruit sees — the yes page or the no page, and nothing else
 
-Brian, 2026-08-31: _"Holy fuck! W11-04, did you just invent this shit? This
-exists in the app today... They should be using established conventions for how
-the onboarding goes in the event board. This should not be new stuff. Fucking
-look it up."_
+Brian, 2026-08-31, after two wrong attempts at this: _"They do see the page. They
+just see the yes page or the no page: yes, they're registered, or no, they're
+registered. It needs to go to the page like we have in the app. There's no event
+page for them. They don't click to go see the event. It's either yes or no, which
+is already in the app. It's built in the app already."_
 
-He was right. The drawn RSVP page is deleted and replaced with a **photograph of
-`/rsvp/[token]`**, which ships. It could not be reached before because
-`rsvp_access_tokens` is empty in the seed and the route requires a 43-character
-base64url token; one was minted into the local database for the shoot.
+So the journey is:
 
-The invented WhatsApp-invitation screen is deleted outright, for the same reason
-`W10-03` was: a template's body lives in Meta's tooling, not in this repository,
-so drawing its copy was inventing.
+1. **A WhatsApp message** carrying the invitation and the two answers.
+2. They tap one **in WhatsApp**.
+3. They land on **the shipped saved page** — `Your response is saved`, the answer
+   and the event on one line, and `Change response`.
 
-| Screen   | What it is                                                          |
-| -------- | ------------------------------------------------------------------- |
-| `W11-03` | `/rsvp/[token]` as it ships — "I'm attending" / "I'm not attending" |
-| `W11-04` | The declining step behind it                                        |
+**There is no event page for a recruit.** `/rsvp/[token]`'s event view — venue,
+response deadline, current answer — is the _player's_ screen. A recruit is not
+asked to review an event; they were asked one question and answered it in
+WhatsApp.
 
-The page's own words are `Your invitation`, `Venue`, `Response deadline` with
-`Late responses accepted until start`, and `Current answer` with
-`Only you can see this`.
+| Screen   | What it is                                            |
+| -------- | ----------------------------------------------------- |
+| `W11-03` | The yes page: `Your response is saved · Attending`    |
+| `W11-04` | The no page: `Your response is saved · Not attending` |
 
-### The conflict this exposed, and it is Brian's to settle
+Both are photographs of the running application. `rsvp_access_tokens` is empty in
+the seed and the route requires a 43-character base64url token, so one was minted
+into the local database and each response recorded in turn, purely so the shipped
+pages could be photographed.
 
-**Declining demands a reason.** `REASON_LABEL` is "Reason", the field is
-`required`, `submitNotAttending` checks the string again and the database
-constrains it a third time. `DECLINE_PROMPT` is _"Choose a reason before saving
-Not attending."_
+### A reason is never asked for, and the constraint still holds
 
-That is the domain's rule for a player. For a **recruit** it contradicts Brian
-directly — _"They don't need to give a reason. They do not give any reason."_ A
-recruit is not a member and owes the club nothing, which is the whole never-harsh
-position.
+`rsvp_responses_no_requires_a_reason` makes a non-acceptance without a reason
+unsubmittable — checked in the form, again on the server, and again by the
+database. That is the domain's rule and **it is not weakened**.
 
-Either recruits skip that step, or the page learns who it is talking to. Both
-change shipped behaviour, so **neither is drawn**; `W11-04` exists to put the
-conflict in front of him.
+What changes is **who supplies it**. For a recruit the system writes
+`No reason given` and the reason step never runs. Brian: _"they should be fine if
+it's required, and no reason is ever given... the 'no reason' field is just going
+to be put in for them... We never ask them for a reason."_
 
-### What a recruit sees afterwards
+Attendance is not mandatory for somebody who is not a member, so there is nothing
+to explain and nothing to chase. This is the never-harsh rule reaching the RSVP
+surface.
 
-Not drawn either. The shipped page has its own saved state (`SAVED_HEADING` is
-_"Your response is saved"_), and whether a recruit should see anything beyond it
-is the question Brian left open: _"they don't see an events page... or maybe they
-do see other events, but it should be yes or no."_ Unresolved.
+**Later, and not drawn:** Brian's copy for the declined page — _"We'll miss
+seeing you. If you want to change, go back here."_ The shipped words stand until
+that flow is designed.
 
 ## The two ladders are configured in W10
 

@@ -2118,6 +2118,6 @@ recruits.textContent = recruits.textContent.replace(/^RECRUITS/i, "ALL ACTIVE RE
 mark(players, 1);
 mark(recruits, 2);
 
-await settle()
+await settle();
 
 })()

@@ -501,28 +501,27 @@ const WORKFLOWS = [
       ),
       P(
         "W11-03",
-        "What the recruit sees — the shipped RSVP page",
-        `A photograph of <code>/rsvp/[token]</code>, which ships. It could not be reached before
-         because <code>rsvp_access_tokens</code> is empty in the seed and the route requires a
-         43-character token; one was minted locally for this shoot, so this is the running application
-         answering a real link.`,
+        "The YES page — already in the app",
+        `A photograph of the shipped saved state at <code>/rsvp/[token]</code> with an attending
+         response recorded. Brian, 2026-08-31: "They do see the page. They just see the yes page or
+         the no page... It's built in the app already."`,
         [
-          "<strong>Its own words:</strong> “I'm attending” and “I'm not attending”, under “Your invitation”, with “Current answer · Only you can see this” and “Late responses accepted until start”. Nothing here is drawn",
-          "<strong>1. Declining leads somewhere that contradicts the recruit rule</strong> — see W11-04",
+          "<strong>1. The page's own words</strong> — “Your response is saved”, the answer and the event on one line, and the note that it can be changed until the event starts",
+          "<strong>What differs for a recruit is one thing:</strong> they arrive here straight from the WhatsApp invitation. There is no event page for them — they were asked one question and answered it in WhatsApp",
         ],
         "oxfordlancers.example/rsvp/…",
       ),
       P(
         "W11-04",
-        "Declining demands a reason — and recruits must not be asked",
-        `The step behind “I'm not attending”, photographed. It will not save without a reason: the
-         field is <code>required</code>, the server checks the string again, and the database
-         constrains it a third time.`,
+        "The NO page — and the reason is never asked for",
+        `The same shipped page with a declined response. The recruit never saw a reason step: they
+         tapped No in WhatsApp and arrived here.`,
         [
-          "<strong>1. This directly contradicts Brian's rule.</strong> <em>“They don't need to give a reason. They do not give any reason.”</em> A recruit is not a member and owes the club nothing, which is the whole never-harsh position",
-          "<strong>Not resolved here.</strong> Either recruits skip this step, or the page learns who it is talking to. Both change shipped behaviour, so neither is drawn — this screen exists to put the conflict in front of him",
+          "<strong>1. The database constraint is not weakened.</strong> <code>rsvp_responses_no_requires_a_reason</code> still holds — a non-acceptance without a reason is unsubmittable. What changes is who supplies it: for a recruit the system writes “No reason given” and never asks",
+          "<strong>2. Changing the answer is the same one tap</strong>, until the event starts",
+          "<strong>Attendance is not mandatory for somebody who is not a member</strong>, so there is nothing to explain and nothing to chase. Brian: “We never ask them for a reason.”",
         ],
-        "oxfordlancers.example/rsvp/…?step=decline",
+        "oxfordlancers.example/rsvp/…",
       ),
     ],
   },

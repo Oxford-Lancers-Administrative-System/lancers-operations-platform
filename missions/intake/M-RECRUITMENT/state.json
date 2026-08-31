@@ -198,18 +198,28 @@
       "stale": false,
       "feedback": [
         {
-          "screen_id": "W11-02",
+          "screen_id": "W11-03",
           "date": "2026-08-31",
-          "text": "That callout at the top of W11-02 is bullshit - the event page should be acting identically. That is not what the event invite looks like. W11-04, did you just invent this shit? This exists in the app today. Fucking look it up. — FIXED: the callout is deleted and W11-02 adds nothing to the page; the invented WhatsApp invitation screen is deleted because a template's body lives in Meta's tooling; and the RSVP screens are now PHOTOGRAPHS of the shipped /rsvp/[token], reachable after minting a 43-character token into the local database. CONFLICT FOUND: the shipped decline step REQUIRES a reason, which contradicts Brian's rule that recruits give none. Not resolved - W11-04 exists to put it in front of him."
+          "text": "They do not see the full event page. They see a WhatsApp invite with yes or no, then the yes page or the no page - it's built in the app already. We never ask them for a reason; it just puts in 'no reason given'. — DONE: W11-03 and W11-04 are photographs of the shipped saved page with an attending and a declined response. There is no event page for a recruit. The database constraint requiring a reason is untouched; the system supplies 'No reason given' and the reason step never runs."
         }
       ]
     },
     {
       "id": "W12",
       "name": "Take attendance at a recruitment event",
-      "state": "spec_draft",
-      "stale": true,
-      "feedback": []
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "W12 is approved. I looked at it. It's simple. It's done. It's approved.",
+          "date": "2026-08-31"
+        },
+        "mock": {
+          "words": "W12 is approved. I looked at it. It's simple. It's done. It's approved.",
+          "date": "2026-08-31"
+        }
+      }
     },
     {
       "id": "W13",
@@ -1073,7 +1083,7 @@
       }
     ]
   },
-  "next_action": "W1-W8 and W10 approved; W3 and W9 folded. W11 is four screens and with Brian. A LOCAL RSVP TOKEN WAS MINTED into the mission database so /rsvp/[token] could be photographed; it is synthetic local data and can be deleted with 'delete from public.rsvp_access_tokens'. DECISION NEEDED: the shipped decline step requires a reason and Brian says recruits give none - either recruits skip that step or the page learns who it is talking to. Both change shipped behaviour. NEXT: W12, W13, W14 - all stale. W2-04 still only tentatively accepted. OWNER ACTION: four WhatsApp templates to Meta. DEFECT: countByCapacity omits recruits from the event approval summary. OPEN: whether a recruit sees anything beyond the one event; who mints next season's QR; no control for turning a cycle step off; 'said no to WhatsApp' vs 'declined'; W2 button placement; events violet vs blue; channel presence on the record; the Contactable cell.",
+  "next_action": "W1-W8, W10 and W12 approved; W3 and W9 folded. W11 is four screens and with Brian. NEXT: W13 (take a recruit off the board), W14 (flip a recruit to joined) - both stale. Then the packet. W2-04 still only tentatively accepted. LOCAL TEST DATA: an rsvp_access_tokens row and an rsvp_responses row were written to the mission database so /rsvp/[token] could be photographed. Synthetic and local; clear with 'delete from public.rsvp_responses where invitation_id=...' and 'delete from public.rsvp_access_tokens'. OWNER ACTION: four WhatsApp templates to Meta. DEFECT: countByCapacity omits recruits from the event approval summary. OPEN: who mints next season's QR; no control for turning a cycle step off; 'said no to WhatsApp' vs 'declined'; W2 button placement; events violet vs blue; channel presence on the record; the Contactable cell; and Brian's later copy for the declined page.",
   "subject_coverage": {
     "areas": [
       {
