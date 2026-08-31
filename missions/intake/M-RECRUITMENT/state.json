@@ -200,7 +200,7 @@
         {
           "screen_id": "W11-02",
           "date": "2026-08-31",
-          "text": "Capacity? Since when is there fucking capacity at events? I need a button for all active players and all active recruits. And there's a workflow missing - I need a recruit events chase under the recruitment heading, one WhatsApp maybe one follow-up, no escalations. And I need to see what the recruit sees: their invitation, yes or no, and what they see after. They do not give any reason. — DONE: W11-02 points at the two group buttons instead of the Capacity filter; W10 gains a Recruit event invitations row; W11-03/04/05 are the recruit-facing invitation, the yes/no page and what follows. OPEN: whether a recruit sees anything beyond the one event - W11-05 proposes the smaller answer and Brian left it open."
+          "text": "That callout at the top of W11-02 is bullshit - the event page should be acting identically. That is not what the event invite looks like. W11-04, did you just invent this shit? This exists in the app today. Fucking look it up. — FIXED: the callout is deleted and W11-02 adds nothing to the page; the invented WhatsApp invitation screen is deleted because a template's body lives in Meta's tooling; and the RSVP screens are now PHOTOGRAPHS of the shipped /rsvp/[token], reachable after minting a 43-character token into the local database. CONFLICT FOUND: the shipped decline step REQUIRES a reason, which contradicts Brian's rule that recruits give none. Not resolved - W11-04 exists to put it in front of him."
         }
       ]
     },
@@ -1073,7 +1073,7 @@
       }
     ]
   },
-  "next_action": "W1-W8 and W10 approved; W3 and W9 folded. W11 is now FIVE screens and with Brian: the Type, the audience by group buttons, and the three recruit-facing screens he asked for. W10 gained a Recruit event invitations row. NEXT: W12, W13, W14 - all stale. W2-04 still only TENTATIVELY accepted. OWNER ACTION: four WhatsApp templates to Meta. DEFECT: countByCapacity omits recruits from the event approval summary. OPEN: whether a recruit sees anything beyond the one event (W11-05 proposes the smaller answer); who mints next season's QR; no control for turning a cycle step off; 'said no to WhatsApp' vs 'declined'; W2 button placement; events violet vs blue; channel presence on the record; the Contactable cell.",
+  "next_action": "W1-W8 and W10 approved; W3 and W9 folded. W11 is four screens and with Brian. A LOCAL RSVP TOKEN WAS MINTED into the mission database so /rsvp/[token] could be photographed; it is synthetic local data and can be deleted with 'delete from public.rsvp_access_tokens'. DECISION NEEDED: the shipped decline step requires a reason and Brian says recruits give none - either recruits skip that step or the page learns who it is talking to. Both change shipped behaviour. NEXT: W12, W13, W14 - all stale. W2-04 still only tentatively accepted. OWNER ACTION: four WhatsApp templates to Meta. DEFECT: countByCapacity omits recruits from the event approval summary. OPEN: whether a recruit sees anything beyond the one event; who mints next season's QR; no control for turning a cycle step off; 'said no to WhatsApp' vs 'declined'; W2 button placement; events violet vs blue; channel presence on the record; the Contactable cell.",
   "subject_coverage": {
     "areas": [
       {

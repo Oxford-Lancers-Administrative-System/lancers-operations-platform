@@ -481,8 +481,7 @@ const WORKFLOWS = [
       P(
         "W11-01",
         "Where the separation begins — the event's Type",
-        `The first step, and now numbered as one. The shipped Type control decides which audience
-         groups the event may carry.`,
+        `The first step. The shipped Type control decides which audience groups the event may carry.`,
         [
           "<strong>D46: recruits exist on a Recruitment event and nowhere else.</strong> Setting the Type is what makes a recruits group exist, and it is already how the product works",
         ],
@@ -491,48 +490,39 @@ const WORKFLOWS = [
       P(
         "W11-02",
         "Inviting both audiences",
-        `Two buttons, not a filter. Brian, 2026-08-31: "Capacity? Since when is there fucking capacity
-         at events? No, what I need is a button to be able to do all active players, and I need all
-         active recruits, so I can invite both of them." Both buttons already exist on this page.`,
+        `The page acts identically to the event flow that ships. The invented "what each audience
+         receives" table is gone — that rule belongs in W10, where the two ladders are configured —
+         and the Capacity filter is left alone.`,
         [
-          "<strong>1. One event, two ladders.</strong> Players get the normal chase if it is mandatory. Recruits get an invitation and at most one further template, then nothing — no escalation, ever",
-          "<strong>2 and 3. The two group buttons</strong> that do the work. Individuals can then be picked out of the list",
+          "<strong>1 and 2. Two group buttons, both already there.</strong> Brian: <em>“what I need is a button to be able to do all active players, and I need all active recruits, so I can invite both of them.”</em> Add both groups, then pick individuals out of the list",
           "<strong>A real defect, surfaced here:</strong> <code>countByCapacity</code> omits recruits from the approval summary, so an operator approves a recruitment event without being told how many recruits it reaches",
         ],
         "oxfordlancers.example/operate/events/1d76b9f8?step=audience",
       ),
       P(
         "W11-03",
-        "What the recruit gets — the invitation",
-        `Not a page of this product: a WhatsApp template arriving on a phone. It is
-         <code>event_invitation</code>, the one template already approved by Meta, carrying a signed
-         link.`,
+        "What the recruit sees — the shipped RSVP page",
+        `A photograph of <code>/rsvp/[token]</code>, which ships. It could not be reached before
+         because <code>rsvp_access_tokens</code> is empty in the seed and the route requires a
+         43-character token; one was minted locally for this shoot, so this is the running application
+         answering a real link.`,
         [
-          "<strong>One invitation, then at most one more, then nothing ever.</strong> No escalation, and nothing reaches the President. That is the whole recruit ladder",
+          "<strong>Its own words:</strong> “I'm attending” and “I'm not attending”, under “Your invitation”, with “Current answer · Only you can see this” and “Late responses accepted until start”. Nothing here is drawn",
+          "<strong>1. Declining leads somewhere that contradicts the recruit rule</strong> — see W11-04",
         ],
-        "WhatsApp · Oxford Lancers",
+        "oxfordlancers.example/rsvp/…",
       ),
       P(
         "W11-04",
-        "What the recruit sees — yes or no",
-        `The shipped <code>/rsvp/[token]</code> already behaves exactly this way: Attending is one tap,
-         Not attending is a link, and nothing asks why. Its own source says there is deliberately no
-         navigation into <code>/operate</code>.`,
+        "Declining demands a reason — and recruits must not be asked",
+        `The step behind “I'm not attending”, photographed. It will not save without a reason: the
+         field is <code>required</code>, the server checks the string again, and the database
+         constrains it a third time.`,
         [
-          "<strong>No reason is asked and none is recorded.</strong> Brian: “They don't need to give a reason. They do not give any reason.”",
-          "<strong>Drawn, not photographed</strong>, because <code>rsvp_access_tokens</code> is empty in the seed so no link exists to follow. The behaviour described is running code",
+          "<strong>1. This directly contradicts Brian's rule.</strong> <em>“They don't need to give a reason. They do not give any reason.”</em> A recruit is not a member and owes the club nothing, which is the whole never-harsh position",
+          "<strong>Not resolved here.</strong> Either recruits skip this step, or the page learns who it is talking to. Both change shipped behaviour, so neither is drawn — this screen exists to put the conflict in front of him",
         ],
-        "oxfordlancers.example/r/7c41",
-      ),
-      P(
-        "W11-05",
-        "What the recruit sees afterwards",
-        `Deliberately almost nothing. The answer is recorded, the same link changes it, and the recruit
-         is not given a dashboard, an events list or an account.`,
-        [
-          "<strong>PROPOSED — the smaller answer.</strong> Brian left it open: “they don't see an events page... or maybe they do see other events, but it should be yes or no.” A recruit holds no membership, so a list of their events would be a list of one, and a page that accumulates has to be secured and reasoned about at the season boundary. If he wants the larger answer, the shipped <code>/me/[token]</code> player home is what it would be built on",
-        ],
-        "oxfordlancers.example/r/7c41",
+        "oxfordlancers.example/rsvp/…?step=decline",
       ),
     ],
   },

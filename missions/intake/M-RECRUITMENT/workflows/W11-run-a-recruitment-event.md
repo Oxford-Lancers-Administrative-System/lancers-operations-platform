@@ -62,41 +62,62 @@ No, what I need is a button to be able to do all active players, and I need all
 active recruits, so I can invite both of them."_
 
 Both buttons already exist on the shipped audience builder. The separation is a
-**group you add**, not a filter you set, and individuals can then be picked out
-of the list. The Capacity control is left alone.
+**group you add**, not a filter you set, and individuals are picked out of the
+list afterwards. The Capacity control is left alone.
 
-## What the recruit sees — three screens that were missing
+**Nothing is added to that page.** An earlier draft put a "what each audience
+receives" table at the top of it; Brian struck it — _"If it's not in the current
+event flow, we shouldn't be adding new shit to it. The event page should be
+acting identically."_ The two-ladder rule belongs in `W10`, where it is
+configured.
 
-Brian: _"I need to see workflows related to what they see, what their event is,
-what their invitation looks like after they go through WhatsApp, click yes or no,
-and what they see. That's really important."_
+## What the recruit sees — the shipped page, not a drawing
 
-| Screen   | What it is                                                           |
-| -------- | -------------------------------------------------------------------- |
-| `W11-03` | The WhatsApp invitation — `event_invitation`, carrying a signed link |
-| `W11-04` | The RSVP page: **yes or no, and no reason asked**                    |
-| `W11-05` | What they see afterwards                                             |
+Brian, 2026-08-31: _"Holy fuck! W11-04, did you just invent this shit? This
+exists in the app today... They should be using established conventions for how
+the onboarding goes in the event board. This should not be new stuff. Fucking
+look it up."_
 
-`W11-04` is the shipped `/rsvp/[token]`, which already behaves exactly this way:
-Attending is one tap, Not attending is a link, nothing asks why, and its own
-source records that there is deliberately no navigation into `/operate`. It is
-drawn rather than photographed only because `rsvp_access_tokens` is empty in the
-seed, so no link exists to follow.
+He was right. The drawn RSVP page is deleted and replaced with a **photograph of
+`/rsvp/[token]`**, which ships. It could not be reached before because
+`rsvp_access_tokens` is empty in the seed and the route requires a 43-character
+base64url token; one was minted into the local database for the shoot.
 
-**No reason is asked for and none is recorded.** Brian: _"They don't need to give
-a reason. They do not give any reason."_
+The invented WhatsApp-invitation screen is deleted outright, for the same reason
+`W10-03` was: a template's body lives in Meta's tooling, not in this repository,
+so drawing its copy was inventing.
 
-### Open — what else a recruit can see
+| Screen   | What it is                                                          |
+| -------- | ------------------------------------------------------------------- |
+| `W11-03` | `/rsvp/[token]` as it ships — "I'm attending" / "I'm not attending" |
+| `W11-04` | The declining step behind it                                        |
 
-Brian left this one open: _"they don't see an events page, and they don't see
-other things that they've been invited to. They just see that, or maybe they do
-see other events, but it should be yes or no."_
+The page's own words are `Your invitation`, `Venue`, `Response deadline` with
+`Late responses accepted until start`, and `Current answer` with
+`Only you can see this`.
 
-`W11-05` proposes the **smaller** answer: they see the one event and nothing
-else. A recruit holds no membership, so a list of their events is a list of one,
-and a page that accumulates has to be secured, kept current and reasoned about at
-the season boundary. The larger answer would be built on the shipped
-`/me/[token]` player home. **Unresolved, and his.**
+### The conflict this exposed, and it is Brian's to settle
+
+**Declining demands a reason.** `REASON_LABEL` is "Reason", the field is
+`required`, `submitNotAttending` checks the string again and the database
+constrains it a third time. `DECLINE_PROMPT` is _"Choose a reason before saving
+Not attending."_
+
+That is the domain's rule for a player. For a **recruit** it contradicts Brian
+directly — _"They don't need to give a reason. They do not give any reason."_ A
+recruit is not a member and owes the club nothing, which is the whole never-harsh
+position.
+
+Either recruits skip that step, or the page learns who it is talking to. Both
+change shipped behaviour, so **neither is drawn**; `W11-04` exists to put the
+conflict in front of him.
+
+### What a recruit sees afterwards
+
+Not drawn either. The shipped page has its own saved state (`SAVED_HEADING` is
+_"Your response is saved"_), and whether a recruit should see anything beyond it
+is the question Brian left open: _"they don't see an events page... or maybe they
+do see other events, but it should be yes or no."_ Unresolved.
 
 ## The two ladders are configured in W10
 
