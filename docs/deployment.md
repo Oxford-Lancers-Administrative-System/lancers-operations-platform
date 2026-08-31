@@ -327,8 +327,14 @@ configuration oversight and cannot be fixed by editing this workflow:
 `WHATSAPP_PHONE_NUMBER_ID` and `WHATSAPP_TEMPLATE_NAME` name the club's own
 WhatsApp Business Account and an approved message template, which is
 **LAN-101** and is Brian's. `DELIVERY_RECIPIENT_ALLOWLIST` is absent for a
-different reason: its real values are members' telephone numbers, so it belongs
-in Secret Manager beside the token rather than in this committed workflow.
+different reason: it is configuration rather than a credential, so it belongs
+in the `--set-env-vars` flag with the others — but its real values are members'
+telephone numbers, which must not be committed to this workflow. It therefore
+takes its value from a **repository variable**,
+`${{ vars.DELIVERY_RECIPIENT_ALLOWLIST }}`, set in the repository's settings
+and never in the diff. Not Secret Manager: an allowlist is a control that
+should be readable by anyone who can read this workflow, and filing it as a
+secret would misreport what it is.
 Until all three are present a deployed approval queues delivery jobs that fail
 with a sentence naming the missing settings, and the invitation stays
 retryable. Nothing is silently lost, and no hand-sent message stands in for it.
