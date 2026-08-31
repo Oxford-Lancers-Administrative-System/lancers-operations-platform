@@ -1765,6 +1765,127 @@ const removeCardAction = (card) => {
   return card;
 };
 
+// ---------------------------------------------------------------------------
+// The recruit's questionnaire, built from the application's OWN form controls.
+//
+// `/a/[token]` exists on main but nothing renders it: `rsvp_access_tokens` and
+// `person_access_tokens` are both empty in the seed, so there is no link to
+// follow and the page cannot be photographed. The screens are therefore drawn —
+// but the CONTROLS are not. They are cloned off a live page, so the field
+// height, label behaviour, border and type scale are the shipped ones.
+//
+// Which control goes with which question is not a choice either. The shipped
+// `QuestionField` (`src/app/a/[token]/question-field.tsx`) has exactly three
+// branches, and this mission's questions map straight onto them:
+//
+//   boolean -> a select of Yes / No          ("played before", "watched before")
+//   choice  -> a select of the question's own options
+//   text    -> a fill-in, maxLength 500      ("anything else")
+//
+// Brian, 2026-08-31: "If there are drop-downs, there should be drop-downs in the
+// right questions. If there is a fill-in form or whatever, they should do that."
+// ---------------------------------------------------------------------------
+let FORM_TEMPLATES = null;
+
+/** Capture real controls BEFORE the page is cleared to draw on. */
+const captureFormControls = () => {
+  const select = must(
+    document.querySelector(".MuiSelect-select")?.closest(".MuiFormControl-root"),
+    "this page renders no MUI select to clone",
+  );
+  const text = must(
+    [...document.querySelectorAll(".MuiTextField-root, .MuiFormControl-root")].find(
+      (f) => f.querySelector("input") && !f.querySelector(".MuiSelect-select"),
+    ),
+    "this page renders no MUI text field to clone",
+  );
+  FORM_TEMPLATES = { select: select.cloneNode(true), text: text.cloneNode(true) };
+  return FORM_TEMPLATES;
+};
+
+const questionField = ({ prompt, kind, options = [], value = "" }) => {
+  must(FORM_TEMPLATES, "call captureFormControls() before the page is cleared");
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "margin:0 0 20px";
+
+  const isSelect = kind === "boolean" || kind === "choice";
+  const field = (isSelect ? FORM_TEMPLATES.select : FORM_TEMPLATES.text).cloneNode(true);
+  field.style.width = "100%";
+
+  // A MUI field with a value FLOATS its label above the border and notches the
+  // outline for it. Stripping the shrink classes and then writing a value laid
+  // "Rosalind" straight on top of "Preferred name". So: shrink when there is a
+  // value, sit in the field when there is not.
+  const label = field.querySelector("label, .MuiInputLabel-root");
+  const legend = field.querySelector("legend");
+  if (label) label.textContent = prompt;
+  if (value) {
+    label?.classList.add("MuiInputLabel-shrink", "MuiFormLabel-filled");
+    if (label) {
+      // The class alone does not move a CLONED label: MUI's shrink transform is
+      // emotion state, not a plain rule, so the class landed and the label stayed
+      // put — writing "Rosalind" straight across "Preferred name". This is the
+      // outlined variant's own shrink transform, set explicitly.
+      label.style.transform = "translate(14px, -9px) scale(0.75)";
+      label.style.transformOrigin = "top left";
+      label.style.backgroundColor = "#fff";
+      label.style.padding = "0 5px";
+    }
+    if (legend) {
+      legend.textContent = prompt;
+      legend.style.maxWidth = "100%";
+    }
+  } else {
+    label?.classList.remove("MuiInputLabel-shrink", "MuiFormLabel-filled");
+    if (legend) {
+      legend.textContent = "";
+      legend.style.maxWidth = "0.01px";
+    }
+  }
+
+  if (isSelect) {
+    const shown = must(field.querySelector(".MuiSelect-select"), "cloned select shows nothing");
+    shown.replaceChildren(document.createTextNode(value || ""));
+    if (!value) shown.style.color = "rgba(0,0,0,0.38)";
+    // The options this question offers, listed under it so a reviewer can see
+    // what the dropdown holds without opening it.
+    const choices = document.createElement("div");
+    choices.style.cssText =
+      "margin-top:6px;font-size:12px;color:rgba(0,0,0,0.55);line-height:1.6";
+    choices.textContent =
+      (kind === "boolean" ? ["Yes", "No"] : options).join(" · ") + " · (no answer)";
+    wrap.append(field, choices);
+  } else {
+    const input = field.querySelector("input");
+    if (input) {
+      input.setAttribute("placeholder", "");
+      input.value = value;
+    }
+    wrap.append(field);
+  }
+  return wrap;
+};
+
+/** The heading a recruit sees, with their own name, near the top. */
+const recruitFormHead = (card, { name, title, blurb }) => {
+  const who = document.createElement("div");
+  who.style.cssText =
+    "font-size:12px;font-weight:700;letter-spacing:.07em;color:#0b3d91;margin-bottom:6px";
+  who.textContent = name.toUpperCase();
+  card.insertBefore(who, card.firstChild);
+  const h = card.querySelector("div:nth-child(2)");
+  if (h) h.textContent = title;
+  if (blurb) {
+    const p = document.createElement("p");
+    p.textContent = blurb;
+    p.style.cssText = "margin:0 0 20px;font-size:14px;color:rgba(0,0,0,0.65);line-height:1.6";
+    const sub = card.querySelector("p");
+    if (sub) sub.replaceWith(p);
+    else card.append(p);
+  }
+  return card;
+};
+
 // W9-02 — Choosing what to send. The first draft had an operator typing a
 // bespoke message; that is not a shape WhatsApp permits for a business-
 // initiated send. An operator picks an approved template and triggers it.

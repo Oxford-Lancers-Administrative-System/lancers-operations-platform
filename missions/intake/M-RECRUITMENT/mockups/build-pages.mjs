@@ -171,38 +171,38 @@ const WORKFLOWS = [
     screens: [
       P(
         "W4-01",
-        "The form",
-        `Six questions, every one optional, none of which gates anything.`,
+        "Questionnaire A — who you are",
+        `The recruit supplies or confirms their own personal details. Prefilled with what the door
+         captured, so the ask is a correction rather than an interrogation.`,
         [
-          "<strong>1. Every field optional.</strong> Missing information never blocks a capture and never blocks the flip",
-          "<strong>2. Position interest is explicitly not binding</strong> — it gives a coach something to talk to them about",
-          "<strong>Decide:</strong> the six fields themselves. This is the first enumeration and it is a proposal",
+          "<strong>1. Their own name at the top</strong> — Brian, 2026-08-31: <em>“They should have the player name near the top as well.”</em>",
+          "<strong>2. Every control is the application's own</strong>, cloned off a live page before it is cleared. <code>/a/[token]</code> exists on main but both token tables are empty in the seed, so nothing renders it and the screen must be drawn — the controls need not be",
+          "<strong>3. The fields are Mission 5's</strong>. This mission owns the asking; Mission 5 owns what the record does with an answer",
         ],
         "oxfordlancers.example/a/9f3c…",
-        "new",
       ),
       P(
         "W4-02",
-        "The link that no longer works",
-        `Expired, revoked and never-existed all show the same page.`,
+        "Questionnaire B — how you came to football",
+        `The recruit-stage field set, sent at a different time from the first. The wording is
+         deliberately plainer than the earlier draft's.`,
         [
-          "<strong>1. One page for all three cases</strong> — telling them apart would let somebody probe which tokens are real",
-          "<strong>2. It exposes nothing</strong>: not the club, not the person, not whether the link was ever valid",
-          "<strong>3. An operator can send a new one</strong>, and the old link stays dead",
+          "<strong>1. Less casual, and it asks the thing</strong> — Brian struck <em>“Have you played before?”</em> and <em>“Any position you fancy?”</em>: <em>“The questions are a little bit too casual. They should really ask these things about this.”</em>",
+          "<strong>2. The control matches the question</strong>, and not by choice: the shipped <code>QuestionField</code> has three branches, so <code>boolean</code> gives the two “have you ever” questions a Yes/No dropdown, <code>choice</code> gives position, gear and how-they-heard their own options, and <code>text</code> gives the open one a fill-in",
+          "<strong>3. Nothing gates.</strong> Every field optional; one polite reminder and then nothing",
         ],
-        "oxfordlancers.example/a/9f3c…",
-        "new",
+        "oxfordlancers.example/a/7b21…",
       ),
       P(
         "W4-03",
-        "How it gets sent",
-        `Automatically, one day after the welcome, as an approved template carrying her own signed link.`,
+        "The link that no longer works",
+        `One page for expired, revoked and never-existed. Moved here from W4-02 when the two
+         questionnaires took the first two screens.`,
         [
-          "<strong>1. It is a template, not a message somebody writes</strong>",
-          "<strong>2. <code>{{2}}</code> is her link</strong> — minted for her, tied to her person",
-          "<strong>3. One reminder, three days later, once.</strong> Then nothing until an operator chooses to ask again",
+          "<strong>Telling them apart would tell an attacker which tokens exist</strong> — the E1 404-uniformity precedent. It exposes nothing about the club, the person, or whether the link was ever valid",
+          "<strong>What used to be W4-03 is deleted.</strong> It was photographed on <code>/operate/admin/messaging</code>, which is why it wore the messaging-schedule sidebar, and its subject — how the ask gets sent — is W10's machinery, not this workflow's",
         ],
-        "oxfordlancers.example/operate/admin/recruitment",
+        "oxfordlancers.example/a/9f3c…",
       ),
     ],
   },

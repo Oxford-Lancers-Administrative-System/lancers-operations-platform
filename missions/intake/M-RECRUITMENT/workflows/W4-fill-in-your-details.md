@@ -4,7 +4,7 @@
   recruit-stage field set — on a form minted for them and linked to their person,
   asked politely and reminded once.
 - Primary actor: the recruit.
-- Trigger: the end of `W3`'s ladder, or an operator sending or resending the ask
+- Trigger: a step of `W10`'s ladder, or an operator sending or resending the ask
   from `W2` or `W9`.
 - Entry point: a WhatsApp message carrying a signed link.
 - Route/placement: `/a/[token]` — the shared signed-link → form substrate, built

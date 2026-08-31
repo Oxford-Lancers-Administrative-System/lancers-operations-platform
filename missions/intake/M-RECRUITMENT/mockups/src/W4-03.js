@@ -1,34 +1,31 @@
-// W4-03 — How the ask gets to her. Brian, 2026-08-31: "No explanation on how we
-// got here. Is this automated? Does this get sent out? I don't know because it
-// doesn't say anywhere."
+// W4-03 — The link that no longer works.
 //
-// It is automated, it is a template, and it carries her own signed link. The
-// panel lands above the page's first card now rather than three thousand pixels
-// below it, and the words that used to sit inside the frame are in the head.
-setHeading("Recruitment cycle", "Season 2026-27 · when each template fires");
-
-const anchor = cardTemplate();
-
-// 1. Step 4 of the cycle: the template that carries the form.
-const host = proposedRegion("Step 4 — the recruit-stage ask");
-host.append(
-  templateRow(
-    "recruit_details_ask",
-    "Hi {{1}} — when you have a minute, this tells us what to put on for you: {{2}}",
-    "Not yet submitted",
+// Moved here from W4-02 on 2026-08-31, when the two questionnaires took the
+// first two screens. The screen that used to be W4-03 — the messaging schedule,
+// showing how the ask gets sent — is DELETED: it was photographed on
+// /operate/admin/messaging, which is why Brian saw the messaging-schedule
+// sidebar on it ("This looks completely bonkers. This is not even close to what
+// it should look like"), and its subject is W10's machinery, not this workflow's.
+// He said as much: "I'm not even sure [it] is in this mission." One page for expired, revoked and
+// unknown, because telling them apart tells an attacker which tokens exist.
+const card = drawnSurface({
+  title: "This link is no longer valid",
+  subtitle: "It may have expired, or it may have been replaced by a newer one.",
+  chrome: "oxfordlancers.example/a/9f3c…",
+  width: 620,
+});
+card.append(
+  note(
+    "One page for expired, revoked, and never-existed. The uniform invalid page is the E1 404-uniformity precedent: distinguishing them would let somebody probe which tokens are real. It exposes nothing about the club, the person, or whether the link was ever valid.",
   ),
 );
-placeBefore(anchor, host);
-mark(host, 1);
-
-// 2. What fires it, what the link is, and what happens if she says nothing.
-const rows = proposedRegion("What this step does");
-rows.append(
-  makeRow("Fires", "One day after the welcome, automatically — nobody presses send"),
-  makeRow("{{2}} is", "Her own signed link — minted for her, linked to her person"),
-  makeRow("If she does not answer", "One reminder, three days later, once"),
-  makeRow("Then", "Nothing, until an operator chooses to ask again"),
-  makeRow("An operator can", "Send it now, or resend it, from her record"),
+const ops = drawnPanel("What an operator sees");
+ops.style.marginTop = "18px";
+ops.append(
+  makeRow("On her record", "Ask sent 8 May · link expired 15 May · not answered"),
+  makeRow("What they can do", "Send it again — a new link, and the old one stays dead"),
+  makeRow("What they cannot do", "Revive the old link"),
 );
-placeBefore(anchor, rows);
-mark(rows, 2);
+document.querySelector("div").append(ops);
+
+await settle();

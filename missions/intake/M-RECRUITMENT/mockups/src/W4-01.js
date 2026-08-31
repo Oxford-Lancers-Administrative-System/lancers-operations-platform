@@ -1,20 +1,59 @@
-// W4-01 — Fill in your details. Drawn: no signed-link token exists in the
-// seeded data, so no such page renders anywhere on main.
+// W4-01 — Questionnaire A: who you are.
+//
+// The first of the two questionnaires. Brian, 2026-08-31: "The W4 and W15 should
+// have personal details. They should be two separate questionnaires that get
+// sent out at different times... It's two questionnaires."
+//
+// `/a/[token]` exists on main but nothing renders it — both token tables are
+// empty in the seed — so this screen is drawn. The CONTROLS are not: they are
+// cloned off the live board before the page is cleared, so every field is the
+// application's own, and each question uses the control the shipped
+// `QuestionField` would give it.
+//
+// The recruit's own name sits at the top: Brian, "They should have the player
+// name near the top as well."
+captureFormControls();
+
 const card = drawnSurface({
-  title: "Tell us a bit about yourself",
-  subtitle: "Oxford Lancers · this link is just for you, Rosalind",
+  title: "Your details",
+  subtitle: "",
   chrome: "oxfordlancers.example/a/9f3c…",
+  width: 620,
 });
+
+recruitFormHead(card, {
+  name: "Rosalind Penhaligon",
+  title: "Your details",
+  blurb:
+    "The Oxford Lancers hold these so we can reach you about training and events. " +
+    "Correct anything we have wrong. Every question is optional.",
+});
+
+for (const question of [
+  { prompt: "Preferred name", kind: "text", value: "Rosalind" },
+  { prompt: "Mobile number", kind: "text", value: "07700 900318" },
+  { prompt: "Email address", kind: "text" },
+  {
+    prompt: "College",
+    kind: "choice",
+    value: "Dunsfold",
+    options: ["Beaumont", "Dunsfold", "Harewell", "Kestrelhall", "Marlbrook", "Rushbourne"],
+  },
+  {
+    prompt: "Year of matriculation",
+    kind: "choice",
+    value: "2026",
+    options: ["2023", "2024", "2025", "2026"],
+  },
+]) {
+  card.append(questionField(question));
+}
+
+card.append(primaryButton("SAVE MY DETAILS"));
 card.append(
-  field("Have you played before?", "Never · A bit · Yes, properly"),
-  field("Any position you fancy?", "Not sure yet", {
-    help: "Nothing binding — it just gives a coach something to talk to you about.",
-  }),
-  field("Do you have any gear?", "Nothing · Boots · Boots and a helmet"),
-  field("How did you hear about us?", "Freshers' Fair"),
-  field("Anything else we should know?", "Optional"),
-  primaryButton("SEND"),
   note(
-    "Every field is optional and nothing here decides anything. Missing information never blocks a capture and never blocks the flip — Task 09 D5 and invariant 4. The link acts as Rosalind and exposes nothing else about the club.",
+    "Answers land on the person record, which Mission 5 owns. This mission owns the asking: minting the link, sending it and receiving what comes back.",
   ),
 );
+
+await settle();

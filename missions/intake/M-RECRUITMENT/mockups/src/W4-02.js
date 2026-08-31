@@ -1,21 +1,74 @@
-// W4-02 — The link that no longer works. One page for expired, revoked and
-// unknown, because telling them apart tells an attacker which tokens exist.
+// W4-02 — Questionnaire B: how you came to football.
+//
+// The second questionnaire, sent at a different time from the first. Brian
+// settled its fields on 2026-08-31 and struck the casual wording of the earlier
+// draft: "The questions are a little bit too casual. They should really ask
+// these things about this."
+//
+// Each question uses the control the shipped `QuestionField` would give it —
+// the two "have you ever" questions are `boolean`, so they are Yes/No selects,
+// not free text.
+captureFormControls();
+
 const card = drawnSurface({
-  title: "This link is no longer valid",
-  subtitle: "It may have expired, or it may have been replaced by a newer one.",
-  chrome: "oxfordlancers.example/a/9f3c…",
+  title: "About your football experience",
+  subtitle: "",
+  chrome: "oxfordlancers.example/a/7b21…",
   width: 620,
 });
+
+recruitFormHead(card, {
+  name: "Rosalind Penhaligon",
+  title: "About your football experience",
+  blurb:
+    "So the coaches know where to start with you. There are no wrong answers and " +
+    "nothing here decides whether you can play. Every question is optional.",
+});
+
+for (const question of [
+  { prompt: "Have you played American football before?", kind: "boolean" },
+  { prompt: "Have you watched American football before?", kind: "boolean" },
+  {
+    prompt: "Which position interests you?",
+    kind: "choice",
+    options: [
+      "No preference",
+      "Quarterback",
+      "Running back",
+      "Wide receiver",
+      "Offensive line",
+      "Defensive line",
+      "Linebacker",
+      "Defensive back",
+      "Kicker",
+    ],
+  },
+  {
+    prompt: "What playing gear do you already own?",
+    kind: "choice",
+    options: ["None", "Boots only", "Boots and gloves", "Full pads", "Something else"],
+  },
+  {
+    prompt: "How did you hear about the Lancers?",
+    kind: "choice",
+    options: [
+      "Freshers' Fair",
+      "A friend or teammate",
+      "A poster or QR code",
+      "Social media",
+      "Somewhere else",
+    ],
+  },
+  { prompt: "Anything else you would like us to know?", kind: "text" },
+]) {
+  card.append(questionField(question));
+}
+
+card.append(primaryButton("SEND MY ANSWERS"));
 card.append(
   note(
-    "One page for expired, revoked, and never-existed. The uniform invalid page is the E1 404-uniformity precedent: distinguishing them would let somebody probe which tokens are real. It exposes nothing about the club, the person, or whether the link was ever valid.",
+    "Nothing here gates anything: missing answers never block a capture and never block the flip — Task 09 D5 and invariant 4. One polite reminder follows if it goes unanswered, and then nothing.",
   ),
 );
-const ops = drawnPanel("What an operator sees");
-ops.style.marginTop = "18px";
-ops.append(
-  makeRow("On her record", "Ask sent 8 May · link expired 15 May · not answered"),
-  makeRow("What they can do", "Send it again — a new link, and the old one stays dead"),
-  makeRow("What they cannot do", "Revive the old link"),
-);
-document.querySelector("div").append(ops);
+
+await settle();

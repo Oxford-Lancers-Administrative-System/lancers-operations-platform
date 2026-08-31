@@ -76,12 +76,12 @@
       "id": "W4",
       "name": "Fill in your details",
       "state": "spec_draft",
-      "stale": true,
+      "stale": false,
       "feedback": [
         {
           "screen_id": "W4-01",
           "date": "2026-08-31",
-          "text": "The questions are a little bit too casual. They should have the player name near the top as well. If there are drop-downs, there should be drop-downs in the right questions... it should also line up with the questions we ask before. Plus: W4 and W15 should have personal details. They should be two separate questionnaires that get sent out at different times. I don't want a workflow 15. — SPEC UPDATED: W4 now carries two questionnaires, A (who you are) and B (how you came to football), on one substrate. No W15 was added. Screens NOT yet rebuilt: wording, the recruit's name at the top, and real controls are still to do."
+          "text": "The questions are a little bit too casual. They should have the player name near the top as well. If there are drop-downs, there should be drop-downs in the right questions. W4-03: the starting screens are of the messaging scheduling and the sidebar is not correct. This is not even close to what it should look like. I'm not even sure [it] is in this mission. — REBUILT: W4-01 and W4-02 are the two questionnaires, the recruit's name at the top of each, plainer wording, and every control cloned from the live application and matched to the shipped QuestionField's three branches (boolean/choice/text). The old W4-03 is DELETED - its subject was how the ask gets sent, which is W10's - and the invalid-link screen moved into W4-03."
         }
       ]
     },
@@ -1009,7 +1009,7 @@
       }
     ]
   },
-  "next_action": "W1 and W2 are done and approved in Brian's words; W3 is removed and its slot is done. Next is W4 (two questionnaires: wording less casual, the recruit's name at the top, real controls - dropdowns where the answer is a fixed set - and its trigger corrected from W3's ladder to W10's), then W10 (the machinery: what is sent, on what trigger, in what order). W4-W14 are stale; go one at a time, and open the rendered PNG of every screen INCLUDING 375px before showing him. FOUR THINGS ARE OPEN AND MUST NOT BE TREATED AS SETTLED: (1) BUTTON PLACEMENT on W2 - Brian approved W2 explicitly reserving this, 'I'm going to want to update the button placement'; it is not settled and he will move it. (2) The events card is violet #4527a0 on the record and W1's approved event bands are blue #0b3d91; making them consistent changes approved work and needs his word. (3) Does WhatsApp channel presence render on a recruit's record at all? Inherited from W3's removal. (4) W3's five decisions now sit in W10 and W2 and he has not confirmed those homes.",
+  "next_action": "W4's screens are rebuilt and with Brian: W4-01 Questionnaire A (who you are), W4-02 Questionnaire B (how you came to football), W4-03 the invalid link. The old W4-03 - the messaging schedule showing how the ask is sent - is deleted; that subject is W10's. W4's trigger now names W10's ladder rather than removed W3's. Next after W4 is W10, the machinery. W5-W14 stale. STILL OPEN and not settled: W2 button placement (Brian reserved it when approving), events violet vs blue, whether channel presence renders on a recruit's record, and whether W3's five decisions belong in W10 and W2.",
   "subject_coverage": {
     "areas": [
       {
