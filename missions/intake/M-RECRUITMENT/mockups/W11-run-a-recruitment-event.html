@@ -1367,11 +1367,10 @@
           title: "Where the separation begins — the event's Type",
           disposition: "modified",
           drawn: false,
-          blurb: `The first step of the journey, and now numbered as one. The shipped form's Type control
-         decides which audience groups the event may carry; nothing here is added.`,
+          blurb: `The first step, and now numbered as one. The shipped Type control decides which audience
+         groups the event may carry.`,
           deltas: [
-            `<strong>D46: recruits exist on a Recruitment event and nowhere else.</strong> Setting the Type is what makes a Recruits audience exist, and it is already how the product works`,
-            `<strong>Renumbered on 2026-08-31.</strong> This screen was captured after the audience one and bolted on afterwards, so it took the next free number instead of its place in the sequence — Brian: “at the very least, the numbering is screwed up”`,
+            `<strong>D46: recruits exist on a Recruitment event and nowhere else.</strong> Setting the Type is what makes a recruits group exist, and it is already how the product works`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/operate/events/new",
@@ -1380,20 +1379,69 @@
         },
         {
           id: "W11-02",
-          title: "Choosing the audience, and what each one receives",
+          title: "Inviting both audiences",
           disposition: "new",
           drawn: false,
-          blurb: `The shipped audience builder, with the Capacity filter set to Recruits. The separation is a
-         control that already exists; what does not exist is the second ladder.`,
+          blurb: `Two buttons, not a filter. Brian, 2026-08-31: "Capacity? Since when is there fucking capacity
+         at events? No, what I need is a button to be able to do all active players, and I need all
+         active recruits, so I can invite both of them." Both buttons already exist on this page.`,
           deltas: [
-            `<strong>The shipped Capacity filter, set to Recruits.</strong> Running code today, not a proposal`,
-            `<strong>One event, two ladders.</strong> Players get the escalation; recruits get one invitation and at most one more template, then nothing. Neither is composed — every message is a Meta-approved template`,
+            `<strong>1. One event, two ladders.</strong> Players get the normal chase if it is mandatory. Recruits get an invitation and at most one further template, then nothing — no escalation, ever`,
+            `<strong>2 and 3. The two group buttons</strong> that do the work. Individuals can then be picked out of the list`,
             `<strong>A real defect, surfaced here:</strong> <code>countByCapacity</code> omits recruits from the approval summary, so an operator approves a recruitment event without being told how many recruits it reaches`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/operate/events/b1103589-92f5-4e4f-aae6-a5618c780de6?step=audience",
           shotRoute: "/operate/events/b1103589-92f5-4e4f-aae6-a5618c780de6?step=audience",
           proposedRoute: "/operate/events/1d76b9f8",
+        },
+        {
+          id: "W11-03",
+          title: "What the recruit gets — the invitation",
+          disposition: "new",
+          drawn: false,
+          blurb: `Not a page of this product: a WhatsApp template arriving on a phone. It is
+         <code>event_invitation</code>, the one template already approved by Meta, carrying a signed
+         link.`,
+          deltas: [
+            `<strong>One invitation, then at most one more, then nothing ever.</strong> No escalation, and nothing reaches the President. That is the whole recruit ladder`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/people/new",
+          shotRoute: "/operate/people/new",
+          proposedRoute: "WhatsApp · Oxford Lancers",
+        },
+        {
+          id: "W11-04",
+          title: "What the recruit sees — yes or no",
+          disposition: "new",
+          drawn: false,
+          blurb: `The shipped <code>/rsvp/[token]</code> already behaves exactly this way: Attending is one tap,
+         Not attending is a link, and nothing asks why. Its own source says there is deliberately no
+         navigation into <code>/operate</code>.`,
+          deltas: [
+            `<strong>No reason is asked and none is recorded.</strong> Brian: “They don't need to give a reason. They do not give any reason.”`,
+            `<strong>Drawn, not photographed</strong>, because <code>rsvp_access_tokens</code> is empty in the seed so no link exists to follow. The behaviour described is running code`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/people/new",
+          shotRoute: "/operate/people/new",
+          proposedRoute: "/r/7c41",
+        },
+        {
+          id: "W11-05",
+          title: "What the recruit sees afterwards",
+          disposition: "new",
+          drawn: false,
+          blurb: `Deliberately almost nothing. The answer is recorded, the same link changes it, and the recruit
+         is not given a dashboard, an events list or an account.`,
+          deltas: [
+            `<strong>PROPOSED — the smaller answer.</strong> Brian left it open: “they don't see an events page... or maybe they do see other events, but it should be yes or no.” A recruit holds no membership, so a list of their events would be a list of one, and a page that accumulates has to be secured and reasoned about at the season boundary. If he wants the larger answer, the shipped <code>/me/[token]</code> player home is what it would be built on`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/people/new",
+          shotRoute: "/operate/people/new",
+          proposedRoute: "/r/7c41",
         },
       ];
 

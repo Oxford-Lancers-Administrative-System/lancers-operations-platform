@@ -198,9 +198,9 @@
       "stale": false,
       "feedback": [
         {
-          "screen_id": "W11-01",
+          "screen_id": "W11-02",
           "date": "2026-08-31",
-          "text": "Do an analysis of W11 to confirm it's accurate. At the very least, the numbering is screwed up. — CONFIRMED AND FIXED: the Type screen is the first step of the journey and was numbered 02 because it was captured after the audience screen and added to the review page afterwards; the two are swapped so numbers follow the journey. Also fixed: the audience panel said 'one polite follow-up', which reintroduces composing under a templates-only rule, and its counts (18 players, 6 recruits, 4 coaches) contradicted the page's own group chips (32, 2, 3); and the Capacity filter read Recruits while the list below showed all forty people. STILL OPEN: countByCapacity omits recruits from the approval summary, so an operator approves a recruitment event without being told how many recruits it reaches. That is a defect in shipped code, not a mockup issue, and should land as a fix."
+          "text": "Capacity? Since when is there fucking capacity at events? I need a button for all active players and all active recruits. And there's a workflow missing - I need a recruit events chase under the recruitment heading, one WhatsApp maybe one follow-up, no escalations. And I need to see what the recruit sees: their invitation, yes or no, and what they see after. They do not give any reason. — DONE: W11-02 points at the two group buttons instead of the Capacity filter; W10 gains a Recruit event invitations row; W11-03/04/05 are the recruit-facing invitation, the yes/no page and what follows. OPEN: whether a recruit sees anything beyond the one event - W11-05 proposes the smaller answer and Brian left it open."
         }
       ]
     },
@@ -1073,7 +1073,7 @@
       }
     ]
   },
-  "next_action": "W1-W8 and W10 approved; W3 and W9 folded. W11 rebuilt and with Brian. NEXT: W12 (take attendance at a recruitment event), W13 (take a recruit off the board), W14 (flip a recruit to joined) - all stale. W2-04 is still only TENTATIVELY accepted and needs his real word. OWNER ACTION FOR CLOSEOUT: four WhatsApp templates must be submitted to Meta. DEFECT TO RAISE: countByCapacity omits recruits from the event approval summary. OPEN: who mints next season's QR; no shipped control for turning a cycle step off; 'said no to WhatsApp' vs 'declined'; W2 button placement; events violet vs blue; channel presence on the record; the Contactable cell option.",
+  "next_action": "W1-W8 and W10 approved; W3 and W9 folded. W11 is now FIVE screens and with Brian: the Type, the audience by group buttons, and the three recruit-facing screens he asked for. W10 gained a Recruit event invitations row. NEXT: W12, W13, W14 - all stale. W2-04 still only TENTATIVELY accepted. OWNER ACTION: four WhatsApp templates to Meta. DEFECT: countByCapacity omits recruits from the event approval summary. OPEN: whether a recruit sees anything beyond the one event (W11-05 proposes the smaller answer); who mints next season's QR; no control for turning a cycle step off; 'said no to WhatsApp' vs 'declined'; W2 button placement; events violet vs blue; channel presence on the record; the Contactable cell.",
   "subject_coverage": {
     "areas": [
       {

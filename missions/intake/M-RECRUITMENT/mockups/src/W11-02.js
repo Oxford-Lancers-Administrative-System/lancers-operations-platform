@@ -20,10 +20,13 @@ const selects = $$(
 );
 const capacity = selects.find((s) => /all|players|coaches|committee|recruits/i.test(s.textContent));
 if (capacity) {
-  // The seeded counts, not invented ones. The page's own group chips say
-  // ALL ACTIVE PLAYERS (32), ALL ACTIVE COACHES (3) and RECRUITS (2); a panel
-  // above them claiming 18, 4 and 6 is the screen contradicting the screen.
-  capacity.textContent = "Recruits (2)";
+  // NOT the Capacity filter. Brian, 2026-08-31: "Capacity? Since when is there
+  // fucking capacity at events? No, what I need is a button to be able to do all
+  // active players, and I need all active recruits, so I can invite both of
+  // them." Those buttons already exist on this page — ALL ACTIVE PLAYERS and the
+  // recruits group beside it — so the separation is a group you add, not a
+  // filter you set. The Capacity control is left alone.
+  capacity.textContent = "All";
   mark(capacity.closest(".MuiFormControl-root, .MuiTextField-root") ?? capacity, 2);
 }
 
@@ -73,5 +76,16 @@ for (const row of recruitRows) {
   row.remove();
 }
 if (kept === 0) throw new Error("Filtering to recruits removed every row.");
+
+// The two buttons that do the work, named the way Brian names them.
+const groups = $$("a, button").filter((b) =>
+  /^(EVERYONE ACTIVE|ALL ACTIVE|RECRUITS)/i.test(b.textContent.trim()),
+);
+must(groups, "the audience builder has no group buttons");
+const recruitsGroup = groups.find((b) => /^RECRUITS/i.test(b.textContent.trim()));
+if (recruitsGroup) recruitsGroup.textContent = "ALL ACTIVE RECRUITS (2)";
+const playersGroup = groups.find((b) => /ALL ACTIVE PLAYERS/i.test(b.textContent));
+if (playersGroup) mark(playersGroup, 2);
+if (recruitsGroup) mark(recruitsGroup, 3);
 
 await settle();

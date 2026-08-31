@@ -197,6 +197,23 @@ const STEPS = [
     on: true,
     save: "SAVE RECRUITMENT QUESTIONNAIRE",
   },
+  // The fourth step, and the one that was missing. Brian, 2026-08-31: "underneath
+  // the recruit heading, there's a recruit events heading where I have a chase
+  // specifically for them, and it's just literally one WhatsApp, maybe one
+  // follow-up, right? No escalations, anything else like that."
+  //
+  // A recruit event invitation is NOT the event-messaging chase below. That one
+  // escalates to the President; this one is an invitation and at most one more,
+  // then silence — the two ladders, expressed where they are configured.
+  {
+    name: "Recruit event invitations",
+    first: { label: "When approved", value: "0" },
+    firstUnit: "hours",
+    second: { label: "One follow-up after", value: "2" },
+    secondUnit: "days",
+    on: true,
+    save: "SAVE RECRUIT EVENTS",
+  },
 ];
 
 const built = STEPS.map(step);

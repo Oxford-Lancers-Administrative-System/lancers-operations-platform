@@ -2084,94 +2084,46 @@ const addBoardQrButton = () => {
   return qr;
 };
 
-// W11-02 — Choosing the audience, and what each one receives.
+// W11-05 — What the recruit sees after answering.
 //
-// Renumbered on 2026-08-31: this is the second step, after the event's Type.
+// The third of the three Brian asked for. It is deliberately almost nothing: an
+// answer is recorded, the club knows, and the recruit is not given a dashboard,
+// an events list, or an account.
 //
-// Brian, 2026-08-31: "none of the machinery to explain how we separate out
-// recruitment recruits from non-recruits."
+// The one question this screen settles is whether a recruit sees anything else.
+// Brian: "they don't see an events page, and they don't see other things that
+// they've been invited to. They just see that, or maybe they do see other
+// events, but it should be yes or no."
 //
-// The first draft answered that with an invented table asserting "6 recruits".
-// It should not have: the machinery already ships. `audience-builder.tsx`
-// offers a Capacity filter whose Recruits option appears on a Recruitment event
-// and nowhere else — D46, in the running code at the baseline. So this screen
-// points at the shipped control instead of drawing a replacement for it.
+// PROPOSED, and the smaller answer: they see this and nothing more. A recruit
+// holds no membership, so a list of "your events" would be a list of one; and a
+// page that accumulates is a page that has to be secured, kept current and
+// reasoned about at the season boundary. If Brian wants the larger answer, the
+// shipped `/me/[token]` player home is the surface it would be built on.
+captureFormControls();
 
-// The order below is the order the marks appear down the page.
-//
-// 2. The shipped Capacity filter, set to Recruits. This is the separation, and
-//    it exists today: D46 puts the Recruits option on a Recruitment event only.
-const selects = $$(
-  "[data-testid='audience-builder'] .MuiSelect-select, [data-testid='audience-builder'] [role='combobox']",
-);
-const capacity = selects.find((s) => /all|players|coaches|committee|recruits/i.test(s.textContent));
-if (capacity) {
-  // NOT the Capacity filter. Brian, 2026-08-31: "Capacity? Since when is there
-  // fucking capacity at events? No, what I need is a button to be able to do all
-  // active players, and I need all active recruits, so I can invite both of
-  // them." Those buttons already exist on this page — ALL ACTIVE PLAYERS and the
-  // recruits group beside it — so the separation is a group you add, not a
-  // filter you set. The Capacity control is left alone.
-  capacity.textContent = "All";
-  mark(capacity.closest(".MuiFormControl-root, .MuiTextField-root") ?? capacity, 2);
-}
+const card = drawnSurface({
+  title: "You're down for Taster 2",
+  subtitle: "",
+  chrome: "oxfordlancers.example/r/7c41",
+  width: 460,
+});
 
-// 3. The candidate list, filtered to the recruits — the shipped list, with the
-//    shipped row treatment.
-const candidates = $("[data-testid='candidate-list']");
-if (candidates) mark(candidates, 3);
+const body = document.createElement("div");
+body.style.cssText = "font-size:15px;line-height:1.7;color:rgba(0,0,0,0.8)";
+body.innerHTML =
+  "Sunday 10 May 2026, 2:00 PM<br>Iffley Road Astro<br><br>" +
+  "See you there. If something changes, this link still works — open it again and change your answer.";
+const sub = card.querySelector("p");
+if (sub) sub.replaceWith(body);
+else card.append(body);
 
-// 1. What each audience is chased with. This is the part that does not exist:
-//    one event carries two ladders, and today the player ladder reaches recruits.
-const anchor = $("[data-testid='audience-builder']") ?? cardTemplate();
-const ladders = proposedRegion("What each audience receives");
-ladders.append(
-  makeRow(
-    "32 players",
-    "Invitation now · reminder at 48h · escalation to the President 24h before",
+card.append(
+  note(
+    "Changing the answer is the same link and the same two options. Nothing else appears here: no other events, no history, no account. A recruit holds no membership, so there is nothing for such a page to hold.",
   ),
-  makeRow("2 recruits", "Invitation now · one further template at 48h · then nothing, ever"),
-  makeRow("3 coaches", "Invitation now · reminder at 48h"),
 );
-placeBefore(anchor, ladders);
-mark(ladders, 1);
 
-// 4. The approval summary, which omits recruits from its count today —
-//    `countByCapacity` filters them out, so an operator approves an event
-//    without being told how many recruits it reaches.
-const review = $("[data-testid='review-selection']");
-if (review) mark(review, 4);
-
-// The Capacity filter says "Recruits (2)" — so the list under it must BE the
-// recruits. Setting a shipped select's label without filtering left the chip
-// reading Recruits over all forty people, which is the screen asserting
-// something the screen disproves two inches lower.
-//
-// React owns the real filter and a scripted value set does not re-run it, so the
-// rows that the filter would remove are removed here.
-const recruitRows = $$('[data-testid="audience-candidate"], li, tr').filter((n) =>
-  /Player · |Coach · |Committee · |Recruit · /.test(n.innerText ?? ""),
-);
-must(recruitRows, "the audience builder rendered no candidate rows");
-let kept = 0;
-for (const row of recruitRows) {
-  if (/Recruit · /.test(row.innerText)) {
-    kept += 1;
-    continue;
-  }
-  row.remove();
-}
-if (kept === 0) throw new Error("Filtering to recruits removed every row.");
-
-// The two buttons that do the work, named the way Brian names them.
-const groups = $$("a, button").filter((b) => /^(EVERYONE ACTIVE|ALL ACTIVE|RECRUITS)/i.test(b.textContent.trim()));
-must(groups, "the audience builder has no group buttons");
-const recruitsGroup = groups.find((b) => /^RECRUITS/i.test(b.textContent.trim()));
-if (recruitsGroup) recruitsGroup.textContent = "ALL ACTIVE RECRUITS (2)";
-const playersGroup = groups.find((b) => /ALL ACTIVE PLAYERS/i.test(b.textContent));
-if (playersGroup) mark(playersGroup, 2);
-if (recruitsGroup) mark(recruitsGroup, 3);
-
-await settle();
+await settle()
 
 })()
