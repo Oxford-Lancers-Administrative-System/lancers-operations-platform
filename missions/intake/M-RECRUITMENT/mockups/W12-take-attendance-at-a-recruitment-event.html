@@ -1228,6 +1228,45 @@
         border-radius: 4px;
         padding: 2px 8px;
       }
+    
+      /* Capped frames — LAN intake feedback, 2026-08-31. A full-page shot of a
+         long record ran to several thousand pixels, so a page of them could not
+         be scanned. The shot is unchanged; the box it sits in is scrollable. */
+      .shotbox {
+        max-height: 520px;
+        overflow: auto;
+        overscroll-behavior: contain;
+        position: relative;
+      }
+      .frame.phone .shotbox { max-height: 620px; }
+      .shotbox img { display: block; }
+      .scrollnote {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(0, 0, 0, 0.4);
+        padding: 4px 10px 0;
+      }
+      .placard {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        min-height: 220px;
+        padding: 32px 24px;
+        background: repeating-linear-gradient(
+          45deg,
+          #f7f7f5,
+          #f7f7f5 10px,
+          #f2f2ef 10px,
+          #f2f2ef 20px
+        );
+        border-radius: 6px;
+      }
+      .placard strong { font-size: 14px; color: rgba(0, 0, 0, 0.68); }
+      .placard span { font-size: 12.5px; color: rgba(0, 0, 0, 0.5); margin-top: 6px; max-width: 42ch; line-height: 1.55; }
     </style>
   </head>
   <body>
@@ -1276,6 +1315,7 @@
           id: "W12-01",
           title: "The sheet on the day",
           disposition: "modified",
+          drawn: false,
           blurb: `Recruits at the top, everyone else below, and what a recruit's absence actually means.`,
           deltas: [
             `<strong>1. Recruits at the top</strong> — Task 09 D11, optimised for scanning who showed up`,
@@ -1306,12 +1346,24 @@
             <span class="url">${screen.url}</span>
             <span class="frame-badge">${screen.id} · ${kind === "desktop" ? "DESKTOP 1280" : "375"}</span>
           </div>
-          <div class="shotbox"><img src="${file}" alt="${screen.id} ${side} ${kind}" loading="lazy" /></div>
+          <div class="scrollnote">scroll inside to see the rest</div><div class="shotbox"><img src="${file}" alt="${screen.id} ${side} ${kind}" loading="lazy" /></div>
         </div>`;
       };
 
       const sideBlock = (screen, which) => {
         const label = which === "current" ? "Current — on main today" : "Proposed — this mission";
+        if (screen.drawn && which === "current") {
+          return `
+          <div class="side current">
+            <span class="side-label">New surface, nothing to compare</span>
+            <div class="placard">
+              <strong>This surface does not exist on <code>main</code></strong>
+              <span>There is nothing to photograph, so both sides are drawn. The proposal below is a
+              drawing, not a picture of running code — and its acceptance grounding is
+              <code>code-only</code>.</span>
+            </div>
+          </div>`;
+        }
         return `
           <div class="side ${which}">
             <span class="side-label">${label}</span>

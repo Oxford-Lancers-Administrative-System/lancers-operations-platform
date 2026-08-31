@@ -530,6 +530,7 @@ ${wf.legend.map((l) => `          <span>${l}</span>`).join("\n")}
           id: ${JSON.stringify(s.id)},
           title: ${JSON.stringify(s.title)},
           disposition: ${JSON.stringify(s.disposition)},
+          drawn: ${s.disposition === "new"},
           blurb: \`${esc(s.blurb)}\`,
           deltas: [
 ${s.deltas.map((d) => `            \`${esc(d)}\``).join(",\n")},
@@ -541,6 +542,86 @@ ${s.deltas.map((d) => `            \`${esc(d)}\``).join(",\n")},
       .join(",\n") +
     ",\n      ];";
   out = out.slice(0, sStart) + screens + out.slice(sEnd);
+  // Cap every frame so a review page scrolls in one screen rather than for
+  // metres, and let the reviewer scroll inside a shot to see the rest.
+  out = out.replace(
+    "</style>",
+    `
+      /* Capped frames — LAN intake feedback, 2026-08-31. A full-page shot of a
+         long record ran to several thousand pixels, so a page of them could not
+         be scanned. The shot is unchanged; the box it sits in is scrollable. */
+      .shotbox {
+        max-height: 520px;
+        overflow: auto;
+        overscroll-behavior: contain;
+        position: relative;
+      }
+      .frame.phone .shotbox { max-height: 620px; }
+      .shotbox img { display: block; }
+      .scrollnote {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(0, 0, 0, 0.4);
+        padding: 4px 10px 0;
+      }
+      .placard {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        min-height: 220px;
+        padding: 32px 24px;
+        background: repeating-linear-gradient(
+          45deg,
+          #f7f7f5,
+          #f7f7f5 10px,
+          #f2f2ef 10px,
+          #f2f2ef 20px
+        );
+        border-radius: 6px;
+      }
+      .placard strong { font-size: 14px; color: rgba(0, 0, 0, 0.68); }
+      .placard span { font-size: 12.5px; color: rgba(0, 0, 0, 0.5); margin-top: 6px; max-width: 42ch; line-height: 1.55; }
+    </style>`,
+  );
+
+  // A drawn screen has no current side. Photographing one against an unrelated
+  // route produced a picture of the dashboard labelled "Current — on main
+  // today", which is worse than showing nothing. Show the placard the standard
+  // asks for instead.
+  out = out.replace(
+    /      const sideBlock = \(screen, which\) => \{[\s\S]*?\n      \};/,
+    `      const sideBlock = (screen, which) => {
+        const label = which === "current" ? "Current — on main today" : "Proposed — this mission";
+        if (screen.drawn && which === "current") {
+          return \`
+          <div class="side current">
+            <span class="side-label">New surface, nothing to compare</span>
+            <div class="placard">
+              <strong>This surface does not exist on <code>main</code></strong>
+              <span>There is nothing to photograph, so both sides are drawn. The proposal below is a
+              drawing, not a picture of running code — and its acceptance grounding is
+              <code>code-only</code>.</span>
+            </div>
+          </div>\`;
+        }
+        return \`
+          <div class="side \${which}">
+            <span class="side-label">\${label}</span>
+            <div class="pair">\${shot(screen, which, "desktop")}\${shot(screen, which, "phone")}</div>
+          </div>\`;
+      };`,
+  );
+
+  // Tell the reviewer the frames scroll.
+  out = out.replace(
+    '<div class="shotbox">',
+    '<div class="scrollnote">scroll inside to see the rest</div><div class="shotbox">',
+  );
+
   out = out.replace(
     'const CLOCK = "Now: Monday, 26 October 2026, 09:15";',
     'const CLOCK = "Baseline: main@e669331 · seeded synthetic data";',

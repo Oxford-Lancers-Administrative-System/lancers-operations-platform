@@ -304,7 +304,7 @@
     },
     {
       "id": "W14-01",
-      "route": "/dashboard",
+      "route": "(drawn — no route on main)",
       "headSha": "796d5c2c10d67c85b3cb740024e34b6447a2c91e",
       "slot": "mission-m-recruitment-1",
       "proposal": {
@@ -314,28 +314,12 @@
       },
       "captures": [
         {
-          "side": "current",
-          "viewport": "desktop",
-          "requestedWidth": 1280,
-          "measuredWidth": 1280,
-          "measuredHeight": 900,
-          "file": "shots/W14-01-current-desktop.png"
-        },
-        {
           "side": "proposed",
           "viewport": "desktop",
           "requestedWidth": 1280,
           "measuredWidth": 1280,
           "measuredHeight": 900,
           "file": "shots/W14-01-proposed-desktop.png"
-        },
-        {
-          "side": "current",
-          "viewport": "phone375",
-          "requestedWidth": 375,
-          "measuredWidth": 375,
-          "measuredHeight": 812,
-          "file": "shots/W14-01-current-phone375.png"
         },
         {
           "side": "proposed",
@@ -534,7 +518,7 @@
     },
     {
       "id": "W3-02",
-      "route": "/dashboard",
+      "route": "(drawn — no route on main)",
       "headSha": "796d5c2c10d67c85b3cb740024e34b6447a2c91e",
       "slot": "mission-m-recruitment-1",
       "proposal": {
@@ -544,28 +528,12 @@
       },
       "captures": [
         {
-          "side": "current",
-          "viewport": "desktop",
-          "requestedWidth": 1280,
-          "measuredWidth": 1280,
-          "measuredHeight": 900,
-          "file": "shots/W3-02-current-desktop.png"
-        },
-        {
           "side": "proposed",
           "viewport": "desktop",
           "requestedWidth": 1280,
           "measuredWidth": 1280,
           "measuredHeight": 900,
           "file": "shots/W3-02-proposed-desktop.png"
-        },
-        {
-          "side": "current",
-          "viewport": "phone375",
-          "requestedWidth": 375,
-          "measuredWidth": 375,
-          "measuredHeight": 812,
-          "file": "shots/W3-02-current-phone375.png"
         },
         {
           "side": "proposed",
@@ -580,7 +548,7 @@
     },
     {
       "id": "W4-01",
-      "route": "/dashboard",
+      "route": "(drawn — no route on main)",
       "headSha": "796d5c2c10d67c85b3cb740024e34b6447a2c91e",
       "slot": "mission-m-recruitment-1",
       "proposal": {
@@ -590,28 +558,12 @@
       },
       "captures": [
         {
-          "side": "current",
-          "viewport": "desktop",
-          "requestedWidth": 1280,
-          "measuredWidth": 1280,
-          "measuredHeight": 900,
-          "file": "shots/W4-01-current-desktop.png"
-        },
-        {
           "side": "proposed",
           "viewport": "desktop",
           "requestedWidth": 1280,
           "measuredWidth": 1280,
           "measuredHeight": 900,
           "file": "shots/W4-01-proposed-desktop.png"
-        },
-        {
-          "side": "current",
-          "viewport": "phone375",
-          "requestedWidth": 375,
-          "measuredWidth": 375,
-          "measuredHeight": 812,
-          "file": "shots/W4-01-current-phone375.png"
         },
         {
           "side": "proposed",
@@ -718,7 +670,7 @@
     },
     {
       "id": "W7-01",
-      "route": "/dashboard",
+      "route": "(drawn — no route on main)",
       "headSha": "796d5c2c10d67c85b3cb740024e34b6447a2c91e",
       "slot": "mission-m-recruitment-1",
       "proposal": {
@@ -728,28 +680,12 @@
       },
       "captures": [
         {
-          "side": "current",
-          "viewport": "desktop",
-          "requestedWidth": 1280,
-          "measuredWidth": 1280,
-          "measuredHeight": 900,
-          "file": "shots/W7-01-current-desktop.png"
-        },
-        {
           "side": "proposed",
           "viewport": "desktop",
           "requestedWidth": 1280,
           "measuredWidth": 1280,
           "measuredHeight": 900,
           "file": "shots/W7-01-proposed-desktop.png"
-        },
-        {
-          "side": "current",
-          "viewport": "phone375",
-          "requestedWidth": 375,
-          "measuredWidth": 375,
-          "measuredHeight": 812,
-          "file": "shots/W7-01-current-phone375.png"
         },
         {
           "side": "proposed",
@@ -856,7 +792,7 @@
     },
     {
       "id": "W9-02",
-      "route": "/dashboard",
+      "route": "(drawn — no route on main)",
       "headSha": "796d5c2c10d67c85b3cb740024e34b6447a2c91e",
       "slot": "mission-m-recruitment-1",
       "proposal": {
@@ -866,28 +802,12 @@
       },
       "captures": [
         {
-          "side": "current",
-          "viewport": "desktop",
-          "requestedWidth": 1280,
-          "measuredWidth": 1280,
-          "measuredHeight": 900,
-          "file": "shots/W9-02-current-desktop.png"
-        },
-        {
           "side": "proposed",
           "viewport": "desktop",
           "requestedWidth": 1280,
           "measuredWidth": 1280,
           "measuredHeight": 900,
           "file": "shots/W9-02-proposed-desktop.png"
-        },
-        {
-          "side": "current",
-          "viewport": "phone375",
-          "requestedWidth": 375,
-          "measuredWidth": 375,
-          "measuredHeight": 812,
-          "file": "shots/W9-02-current-phone375.png"
         },
         {
           "side": "proposed",
