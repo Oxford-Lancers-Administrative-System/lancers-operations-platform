@@ -25,9 +25,11 @@
   - The signed-link → form substrate is built here with the recruit-stage field
     set and **extended** by Mission 7 (onboarding field set) and Mission 8
     (consent/correction); at most one open request per person, ever.
-  - The recruit contact rule (one message, ever) **constrains** Mission 4's
-    shipped chase machinery; this mission ships the capacity suppression and the
-    `countByCapacity` recruit-count fix.
+  - The recruit contact rule — **never harsh**, owner amendment 2026-08-31 —
+    **constrains** Mission 4's shipped chase machinery; this mission ships the
+    capacity suppression that keeps the player escalation ladder off a recruit,
+    the recruit-appropriate nudge that replaces it, and the `countByCapacity`
+    recruit-count fix.
   - Recruits render on Mission 5's People surface as prospect-persons; the
     recruits list, funnel and notes are this mission's.
   - Per-door opt-in **evidence** is captured here; consent wording, lawful basis
@@ -137,7 +139,7 @@ approved beyond the row.
     may edit, who may flip, and what a coach or ordinary operator sees of the
     pipeline at all (D9's operator-only visibility rule).
 
-### C. Talking to a recruit — never chasing one
+### C. Talking to a recruit — never being harsh with one
 
 **Owner amendment, 2026-08-28.** Brian: _"No, no one message ever. That's not the
 rule. What we should do is that we're going to invite them to an event, and
@@ -151,9 +153,28 @@ recruit may receive the welcome, the recruit-stage ask, one invitation per event
 and any message a human chooses to send them. A recruit never receives a
 reminder, an escalation, or a collection cadence.
 
-11. `[row]` **The welcome and community-group invite** at capture (D3), and the
-    per-event invitation — **one invitation per event, no reminder rung, no
-    escalation, ever**. This is the operative form of the never-chased rule.
+**Owner amendment, 2026-08-31 — the rule is never harsh, not never chased.**
+Brian: _"The rule for recruits is never 'chased.' It's getting the wrong signal…
+We chase players; recruits sit in some other place. Let me put it this way: it
+should never be harsh. That's the better rule… We should send polite reminders,
+nudges, things like that. The app should be very open to allowing the person…
+to send polite messages, follow-ups, things like that, and the messages should be
+good. It should be easy… these are sales. This is sales prospecting. You don't
+tell a client, you don't tell a potential person who's going to give you money
+that they need to show up at a particular place and time. No, we need them to
+like our team."_ This supersedes the 2026-08-28 amendment above wherever they
+disagree. A recruit **may** be reminded, nudged and followed up with, politely
+and as often as courtship warrants; what a recruit never receives is the player
+escalation ladder, a collection cadence, or a message that tells them they are
+required to be somewhere. Sending a good follow-up easily is a capability this
+mission owns, not something that happens outside the system.
+
+11. `[row]` **The welcome and community-group invite** at capture (D3), the
+    per-event invitation, and the **polite reminders, nudges and operator
+    follow-ups** the 2026-08-31 amendment allows. The operative form of the
+    never-harsh rule is that the player escalation ladder never reaches a
+    recruit and no recruit message carries obligation — not that the count of
+    messages is capped.
 12. `[row]` Per-door WhatsApp **opt-in evidence** recorded at capture, and the
     rule that the welcome never fires from a door without it (Task 09 §9.1).
 13. `[subject]` **Administration of the recruit messages**: their templates and
@@ -161,14 +182,26 @@ reminder, an escalation, or a collection cadence.
     when it changes, what an operator sees when one fails to deliver, and what
     happens when delivery is down at the moment of capture (Task 09 §9.1's open
     welcome-flow mechanics, inherited from the walk-ups brief).
+    13a. `[owner]` **The operator's follow-up surface** — added by the 2026-08-31
+    amendment, which takes the inventory to **44 items**. Composing and sending a
+    polite message, reminder or nudge to a recruit from inside the application,
+    quickly and with good default wording, from wherever the operator already is:
+    the board, the recruit's own page, or an event. Brian: _"It should be easy,
+    right?… the messages should be good."_ What it looks like is designed at
+    Stage 3; that it exists is settled.
 14. `[row]` The correction to Mission 4's shipped ladder: **capacity suppression**
-    so no recruit invitation is ever given a reminder rung, and the
-    `countByCapacity` recruit-count fix (owner decision 2026-08-26).
+    so the player reminder-and-escalation rung never reaches a recruit
+    invitation, and the `countByCapacity` recruit-count fix (owner decision
+    2026-08-26). The 2026-08-31 amendment narrows this to the _player_ ladder: a
+    recruit-appropriate polite reminder is permitted and is this mission's to
+    design, so the suppression must not be written as "recruits get no follow-up
+    message".
 15. `[subject]` The **whole-system sweep** that rule implies: every place a
-    recruit could be chased, escalated, counted into a chase, or swept into a
-    collection cadence — each one either suppressed or evidenced as already
-    unreachable. Never chased is a system property, not a feature. Ordinary
-    invitations and human-sent messages are explicitly not chases.
+    recruit could meet the player escalation ladder, be counted into a chase, or
+    be swept into a collection cadence — each one either suppressed or evidenced
+    as already unreachable. Never harsh is a system property, not a feature.
+    Invitations, polite reminders, nudges and operator follow-ups are explicitly
+    not harshness; the sweep looks for obligation and escalation, not for volume.
 
 ### D. The recruit-stage ask
 

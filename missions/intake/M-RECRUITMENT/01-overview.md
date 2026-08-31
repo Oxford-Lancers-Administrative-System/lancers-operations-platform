@@ -110,16 +110,24 @@ bullet list — Brian's direction of 2026-08-28, read under portfolio rule 1. Th
   1. the **welcome** — "Welcome to the Lancers";
   2. the **community-group invite** to the big group, and the acceptance of it;
   3. the **recruit-stage ask** — the signed link asking about them;
-  4. the **event invitation** — **one touch per event, ever**. A player invited
-     to an event gets the normal reminder-and-escalation sequence; a recruit
-     invited to the same event gets one invitation and nothing else. The
-     machinery has to branch on capacity, and the board shows that they were
-     invited.
-     Human touches — the President messaging a recruit directly — happen outside
-     the system and are not tracked by it. Recruitment owns the templates, the
-     triggers, the timing, and who may change any of it.
-- **Never chased** — as a property of the whole system, swept for and evidenced,
-  including the two Mission 4 fixes.
+  4. the **event invitation**, and the polite follow-ups around it. A player
+     invited to an event gets the reminder-and-escalation sequence, because a
+     player owes the club an answer. A recruit is courted instead. Brian,
+     2026-08-31: _"We chase players; recruits sit in some other place… it should
+     never be harsh… We should send polite reminders, nudges, things like
+     that."_ The machinery still branches on capacity, and the board still shows
+     that they were invited and what came back.
+     **Operator-sent messages are first-class here**, not something that happens
+     outside the system. Brian, 2026-08-31: _"The app should be very open to
+     allowing the person — the first interface we're going to be building for
+     this, for the owners — to send polite messages, follow-ups, things like
+     that, and the messages should be good. It should be easy."_ Recruitment
+     owns the templates, the triggers, the timing, who may change any of it, and
+     the operator surface that makes a good follow-up quick to send.
+- **Never harsh** — as a property of the whole system, swept for and evidenced,
+  including the two Mission 4 fixes. The sweep looks for obligation language and
+  player-grade escalation reaching a recruit. It does not look for the existence
+  of a second message, because a second polite message is now expected.
 - **Recruitment events** — scheduling one, inviting the Recruits audience,
   approving it knowing what it sends, the recruits-on-top attendance sheet, and
   what a recruit sees of an event.
@@ -258,8 +266,11 @@ lapsed, declined`. Three changes: `converted` becomes `joined`, `lapsed`
 
 ### Invariants the Mission Lead may not reinterpret
 
-1. A recruit is never chased: no reminder rung, no escalation, no collection
-   cadence, on any surface, for any recruit-capacity invitation.
+1. A recruit is never treated harshly: no player-grade escalation rung, no
+   collection cadence, and no message telling a recruit they are required to be
+   at a particular place at a particular time. Polite reminders, nudges and
+   operator follow-ups are expected, and making one easy and good to send is
+   work this mission owns.
 2. Dedup runs before create, at every door, and never at the flip.
 3. The flip is the four roles only, is one audited action, and never produces an
    active member.
@@ -309,8 +320,11 @@ Recorded here so none is lost, and none blocks this stage:
 1. **The recruit-stage ask's timing** — the record says it rides the welcome or
    the capture door (amendment 3, 2026-08-26); Brian described it a day later as
    its own message. Recommendation: a day later, as its own message.
-2. **The two Notion wording corrections** in `notion-corrections.md`, aligning
-   the portfolio row and Task 09 amendment 2 with the never-chased rule.
+2. **The two Notion wording corrections** in `notion-corrections.md`. They were
+   drafted to align the portfolio row and Task 09 amendment 2 with the
+   never-chased rule, and the 2026-08-31 amendment makes that drafted text
+   **stale**. They need redrafting against the never-harsh rule before Brian is
+   asked to approve any Notion edit.
 3. ~~Whether recruitment needs its own capability.~~ **Settled 2026-08-28:**
    _"It should just be the core four that you operate this with right now. If we
    bring coaches or someone else in later, that's later."_ No new capability;
@@ -319,13 +333,13 @@ Recorded here so none is lost, and none blocks this stage:
    fact whose mechanism is Mission 11's.
 5. **How flexible the recruitment cycle is** — what an operator may change about
    timing, content and whether a step runs at all.
-6. **Whether a human touch is recorded at all.** Brian's 2026-08-28 note says
-   human touches are not tracked here; his earlier note asked the board to show
-   "whether or not they've been contacted". The system cannot observe a
-   President's own WhatsApp message, so the reachable options are: the board
-   shows only system-sent contact, or an operator records the touch by hand — a
-   note, or a one-tap "I spoke to them". Recommendation: the latter, because the
-   contacted question is worth answering and a note already exists to carry it.
+6. ~~Whether a human touch is recorded at all.~~ **Largely settled 2026-08-31**
+   by the never-harsh amendment: the operator's follow-up is sent **from the
+   app**, so the system observes it as a matter of course and the board can show
+   what was said and when. The residue is narrow and stays open — whether an
+   operator can also log a touch that happened elsewhere, such as the President's
+   own WhatsApp message, which the platform still cannot observe. Recommendation:
+   yes, as a note, because it costs nothing once the note exists.
 7. **How a recruit leaves the board** when they are not going to onboarding.
 8. **How the WhatsApp community-join door actually works**, given the platform
    most likely cannot observe a group join at all.
@@ -338,12 +352,17 @@ Recorded here so none is lost, and none blocks this stage:
     within a rebuilt seven-value ladder — `lapsed` becomes `disengaged`,
     `converted` becomes `joined`, and "did not show up" is deliberately not a
     status. Recorded under State vocabulary.
-11. **How the flip is actually performed.** Brian: _"when they flip to
-    onboarding, it should be a process… there should be a button that goes in
-    where they have to flip them in. I don't have a decision for that yet."_
-    Deliberately deferred to its own workflow at **Stage 3**, late in the order,
-    because it is the hand-off out of the mission and its shape depends on what
-    the board and the recruit's page become.
+11. **How the flip is actually performed.** Its **shape is now settled**, Brian
+    2026-08-31: _"When it flips to 'Join,' there should be a pop-up that comes
+    up… 'Join' means these people are being officially added to some season…
+    something should happen on the roster page so we can see that they're now
+    joined, they joined this season, and they're moved on to Onboard and they're
+    now in the next steps."_ So: the status change to `joined` interrupts with a
+    confirmation rather than committing silently; `joined` **means** a season
+    membership exists; the roster reflects it; and onboarding opens. The exact
+    wording, what the pop-up asks, what it writes, and what the roster shows are
+    **designed at Stage 3** in the flip's own workflow, late in the order, on his
+    instruction.
 12. **Where deletion stops being recruitment's.** Removing a _person_ is erasure
     and belongs to Mission 8 by the 2026-08-25 owner decision. Removing a
     _prospect from the board_ is recruitment's. The line between "this recruit
@@ -352,8 +371,59 @@ Recorded here so none is lost, and none blocks this stage:
     authority.
 13. **The unique sign-up link** for recording a walk-up outside the attendance
     screen — what it is, who holds it, and whether it is a door of its own.
+14. **What the QR code actually does.** Brian, 2026-08-31: _"I don't know what
+    the QR code should do yet. We'll deal with that in the workflow."_ The
+    2026-08-28 constraint stands — it points at **our own page on our own
+    domain** — but what that page asks, shows and writes is open and is designed
+    at **Stage 3** in the QR door's own workflow.
 
 ## Brian approval
 
 - Exact words: "Close stage one."
 - Date: 2026-08-28
+
+## Owner amendments after approval
+
+The overview was approved on 2026-08-28. Amendments below carry Brian's own
+words, are applied in place above, and do not reopen anything he has not named.
+
+### 2026-08-31 — the never-harsh rule replaces the never-chased rule
+
+Brian, in full: _"The rule for recruits is never 'chased.' It's getting the wrong
+signal. Look, it's taking the wrong rule. We chase players; recruits sit in some
+other place. Let me put it this way: it should never be harsh. That's the better
+rule. We should never have a harsh recruit. We should send polite reminders,
+nudges, things like that. The app should be very open to allowing the person (the
+first interface we're going to be building for this, for the owners, whoever) to
+send polite messages, follow-ups, things like that, and the messages should be
+good. It should be easy, right? As we follow up with people, again, these are
+sales. This is sales prospecting. You don't tell a client, you don't tell a
+potential person who's going to give you money that they need to show up at a
+particular place and time. No, we need them to like our team."_
+
+What it changes:
+
+- **Invariant 1** is rewritten. The prohibition is on harshness — player-grade
+  escalation, collection cadence, and obligation language — not on contacting a
+  recruit more than once.
+- **The message inventory** is no longer capped at one touch per event, and
+  operator-sent follow-ups move from outside the system to first-class inside it.
+  The mission owns an operator surface for composing and sending them well.
+- **The "never chased" system property** becomes "never harsh", and its sweep
+  changes accordingly: it hunts obligation language and escalation reaching a
+  recruit, not the existence of a second message.
+- **Open decision 2** is stale — the drafted Notion corrections argue the old
+  rule and must be redrafted before Brian approves any Notion edit.
+- **Open decision 6** is largely settled, since follow-ups now leave from the app.
+- The framing is Brian's: recruitment is **sales prospecting**, and the standard
+  for a message is that a prospective member likes the team more for having read
+  it.
+
+### 2026-08-31 — confirmations that changed nothing
+
+- **The core four roles** stand.
+- **Every walk-up is a recruit**, handled onward in the pipeline.
+- **The board** is recruitment's own board, modelled on the Roster board — which
+  is what the In scope section already said.
+- **`identified` → `engaged` → `committed` → `joined`** confirmed as the spine of
+  the ladder.
