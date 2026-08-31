@@ -1802,7 +1802,16 @@ const captureFormControls = () => {
     ),
     "this page renders no MUI text field to clone",
   );
-  FORM_TEMPLATES = { select: select ? select.cloneNode(true) : null, text: text.cloneNode(true) };
+  // The page's own contained button, captured too: a drawn surface clears the
+  // page, so anything to be reused must be taken before that happens.
+  const button = [...document.querySelectorAll("a, button")].find((b) =>
+    b.className.includes("MuiButton-contained"),
+  );
+  FORM_TEMPLATES = {
+    select: select ? select.cloneNode(true) : null,
+    text: text.cloneNode(true),
+    button: button ? button.cloneNode(true) : null,
+  };
   return FORM_TEMPLATES;
 };
 
@@ -1886,4 +1895,14 @@ const recruitFormHead = (card, { name, title, blurb }) => {
     else card.append(p);
   }
   return card;
+};
+
+/** The captured contained button, relabelled. Falls back to the drawn one. */
+const formButton = (text) => {
+  if (!FORM_TEMPLATES?.button) return primaryButton(text);
+  const button = FORM_TEMPLATES.button.cloneNode(true);
+  button.textContent = text;
+  button.removeAttribute("href");
+  button.style.marginTop = "8px";
+  return button;
 };

@@ -309,28 +309,26 @@ const WORKFLOWS = [
     screens: [
       P(
         "W7-01",
-        "The page behind the QR",
-        `Four fields on the club's own domain, and what happens when the club already has them.`,
+        "Sign yourself in, at the QR code",
+        `A stand at a Freshers' Fair, not a registration. One name and one way to reach them is the
+         whole ask; everything else comes later on a link sent to that number.`,
         [
-          "<strong>1. The club's own page on the club's own domain</strong> — Brian, 2026-08-28. They are signing in to the club's application, not a form somewhere else",
-          "<strong>2. The same capture standard as every other door</strong>: name and mobile, email optional",
-          "<strong>3. If we already have them, they are told</strong> — Brian, 2026-08-31. Nothing is created and nothing is sent",
-          "<strong>Decide:</strong> the duplicate telling confirms only what the submitter typed. A public page that volunteers who else the club holds is a membership oracle",
+          "<strong>1. It refuses nobody.</strong> Brian, 2026-08-31: <em>“The duplicate should be very simple. It should be based on email or phone number or whatever, and we should just take their contact information regardless.”</em> Nothing blocks and nothing is rejected — reconciliation happens afterwards, the same way the walk-up door works",
+          "<strong>No public self-entry page exists on main</strong>, so the surface is drawn. The controls are not: they are cloned from the shipped add-a-person form, which carries exactly these four fields",
         ],
         "oxfordlancers.example/join",
-        "new",
       ),
       P(
         "W7-02",
-        "Already on the list, and a retired code",
-        `The common case at a second event, and what happens when a poster outlives its QR.`,
+        "Signed in, and on to WhatsApp",
+        `The step the earlier draft was missing. Brian: "It should take them to WhatsApp then. After
+         they do the information, you'll get the sign-in, and then they go to WhatsApp, right? That's
+         part of W7."`,
         [
-          "<strong>1. “You are already on our list.”</strong> Nothing created, nothing sent, and it must not read as an error",
-          "<strong>2. It confirms only what the submitter typed.</strong> A public page that answers “do you have X?” is a membership oracle",
-          "<strong>3. A retired code shows the same invalid page</strong>, and operators see how many submissions it has taken since",
+          "<strong>1. Pressing the button is the opt-in.</strong> It is the recruit's own act, which is exactly why this door carries a natural opt-in and the operator-add door in W6 has to ask for one",
+          "<strong>The already-known case is no longer a dead end.</strong> An earlier draft gave it its own “you are already on our list” screen; somebody signing in a second time is the common case at a second event, so they see this same page and the same way into the group",
         ],
         "oxfordlancers.example/join",
-        "new",
       ),
     ],
   },

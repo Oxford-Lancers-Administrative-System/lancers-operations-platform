@@ -1795,14 +1795,24 @@ const captureFormControls = () => {
   // there is none, a choice question renders as the text field the page does
   // have, with its options listed beneath — which is what the shipped person
   // form already does for College and Matriculation year, both plain text.
-  const select = document.querySelector(".MuiSelect-select")?.closest(".MuiFormControl-root") ?? null;
+  const select =
+    document.querySelector(".MuiSelect-select")?.closest(".MuiFormControl-root") ?? null;
   const text = must(
     [...document.querySelectorAll(".MuiTextField-root, .MuiFormControl-root")].find(
       (f) => f.querySelector("input") && !f.querySelector(".MuiSelect-select"),
     ),
     "this page renders no MUI text field to clone",
   );
-  FORM_TEMPLATES = { select: select ? select.cloneNode(true) : null, text: text.cloneNode(true) };
+  // The page's own contained button, captured too: a drawn surface clears the
+  // page, so anything to be reused must be taken before that happens.
+  const button = [...document.querySelectorAll("a, button")].find((b) =>
+    b.className.includes("MuiButton-contained"),
+  );
+  FORM_TEMPLATES = {
+    select: select ? select.cloneNode(true) : null,
+    text: text.cloneNode(true),
+    button: button ? button.cloneNode(true) : null,
+  };
   return FORM_TEMPLATES;
 };
 
@@ -1888,35 +1898,60 @@ const recruitFormHead = (card, { name, title, blurb }) => {
   return card;
 };
 
-// W7-01 — Sign yourself in. Drawn: there is no public self-entry page on main.
+/** The captured contained button, relabelled. Falls back to the drawn one. */
+const formButton = (text) => {
+  if (!FORM_TEMPLATES?.button) return primaryButton(text);
+  const button = FORM_TEMPLATES.button.cloneNode(true);
+  button.textContent = text;
+  button.removeAttribute("href");
+  button.style.marginTop = "8px";
+  return button;
+};
+
+// W7-01 — Sign yourself in, at the QR code.
+//
+// There is no public self-entry page on main, so the surface is drawn — but the
+// controls are cloned from the shipped add-a-person form, which carries exactly
+// these four fields, so the field height, border, label behaviour and type scale
+// are the application's own.
+//
+// Brian, 2026-08-31: "The duplicate should be very simple. It should be based on
+// email or phone number or whatever, and we should just take their contact
+// information regardless." So this form refuses nobody and blocks on nothing: it
+// takes what they give and reconciles later, exactly as the walk-up door does.
+captureFormControls();
+
 const card = drawnSurface({
   title: "Join the Oxford Lancers",
-  subtitle: "Leave your name and number and we will be in touch about the next session.",
+  subtitle: "",
   chrome: "oxfordlancers.example/join",
+  width: 560,
 });
+
+const lead = document.createElement("p");
+lead.textContent =
+  "Leave your name and a way to reach you. We will send you a WhatsApp message about the next session.";
+lead.style.cssText = "margin:0 0 20px;font-size:14px;color:rgba(0,0,0,0.65);line-height:1.6";
+const sub = card.querySelector("p");
+if (sub) sub.replaceWith(lead);
+else card.append(lead);
+
+for (const question of [
+  { prompt: "First name", kind: "text" },
+  { prompt: "Last name", kind: "text" },
+  { prompt: "Mobile number", kind: "text" },
+  { prompt: "Email address", kind: "text" },
+]) {
+  card.append(questionField(question));
+}
+
+card.append(formButton("SIGN ME UP"));
 card.append(
-  field("First name", "", { required: true }),
-  field("Last name", "", { required: true }),
-  field("Mobile", "", {
-    required: true,
-    help: "So we can send you the group invite and let you know about sessions.",
-  }),
-  field("Email", "Optional"),
-  primaryButton("COUNT ME IN"),
   note(
-    "The QR points at the club's own page on the club's own domain — Brian, 2026-08-28. Submitting lands them in the community group, which is the whole of his 2026-08-31 flow: scan, form, submit, group invite.",
+    "One name and one way to reach them is the whole ask. Everything else the club wants comes later, on a link sent to this number — this is a stand at a Freshers' Fair, not a registration.",
   ),
 );
-const already = drawnPanel("If we already have them");
-already.style.marginTop = "18px";
-already.append(
-  makeRow("What they see", "“You are already on our list, Rosalind — we will be in touch.”"),
-  makeRow("What is created", "Nothing"),
-  makeRow("What is sent", "Nothing"),
-  note(
-    "Brian, 2026-08-31: they should see if they are already in the list. The page confirms only what the submitter themselves typed — a public page that volunteers who else the club holds would be a membership oracle.",
-  ),
-);
-document.querySelector("div").append(already);
+
+await settle()
 
 })()

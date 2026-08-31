@@ -1795,14 +1795,24 @@ const captureFormControls = () => {
   // there is none, a choice question renders as the text field the page does
   // have, with its options listed beneath — which is what the shipped person
   // form already does for College and Matriculation year, both plain text.
-  const select = document.querySelector(".MuiSelect-select")?.closest(".MuiFormControl-root") ?? null;
+  const select =
+    document.querySelector(".MuiSelect-select")?.closest(".MuiFormControl-root") ?? null;
   const text = must(
     [...document.querySelectorAll(".MuiTextField-root, .MuiFormControl-root")].find(
       (f) => f.querySelector("input") && !f.querySelector(".MuiSelect-select"),
     ),
     "this page renders no MUI text field to clone",
   );
-  FORM_TEMPLATES = { select: select ? select.cloneNode(true) : null, text: text.cloneNode(true) };
+  // The page's own contained button, captured too: a drawn surface clears the
+  // page, so anything to be reused must be taken before that happens.
+  const button = [...document.querySelectorAll("a, button")].find((b) =>
+    b.className.includes("MuiButton-contained"),
+  );
+  FORM_TEMPLATES = {
+    select: select ? select.cloneNode(true) : null,
+    text: text.cloneNode(true),
+    button: button ? button.cloneNode(true) : null,
+  };
   return FORM_TEMPLATES;
 };
 
@@ -1888,6 +1898,16 @@ const recruitFormHead = (card, { name, title, blurb }) => {
   return card;
 };
 
+/** The captured contained button, relabelled. Falls back to the drawn one. */
+const formButton = (text) => {
+  if (!FORM_TEMPLATES?.button) return primaryButton(text);
+  const button = FORM_TEMPLATES.button.cloneNode(true);
+  button.textContent = text;
+  button.removeAttribute("href");
+  button.style.marginTop = "8px";
+  return button;
+};
+
 // W6-01 — Adding a recruit by hand.
 //
 // The shipped add-a-person form at /operate/people/new, which already carries
@@ -1964,6 +1984,6 @@ const anchor = must(
 anchor.after(extra);
 mark(extra, 1);
 
-await settle()
+await settle();
 
 })()

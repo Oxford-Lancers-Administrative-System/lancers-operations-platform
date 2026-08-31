@@ -1,32 +1,42 @@
-// W7-02 — Two states of the public page: we already have you, and this code is
-// no longer live.
+// W7-02 — Signed in, and on to WhatsApp.
+//
+// The step the earlier draft was missing. Brian, 2026-08-31: "Is it that once
+// they sign up, they get a link to go to our WhatsApp when they approve and they
+// send this in?... It should take them to WhatsApp then. After they do the
+// information, you'll get the sign-in, and then they go to WhatsApp, right?
+// That's part of W7."
+//
+// This is also why W7 is the door with a natural opt-in and W6 is not: the
+// recruit presses the button themselves, so joining the group IS the consent,
+// and nothing has to be asked about how the club came by the number.
+//
+// The already-known case is NOT a separate dead end any more. Brian: "we should
+// just take their contact information regardless." Somebody who signs in a
+// second time is the common case at a second event; they see the same page and
+// the same way into the group, and nothing reads as an error.
+captureFormControls();
+
 const card = drawnSurface({
-  title: "You are already on our list",
-  subtitle: "Good to see you again, Rosalind — we will be in touch about the next session.",
+  title: "You're in, Rosalind",
+  subtitle: "",
   chrome: "oxfordlancers.example/join",
+  width: 560,
 });
+
+const lead = document.createElement("p");
+lead.textContent =
+  "Last thing — join the WhatsApp group. That is where the club says when and where the next session is.";
+lead.style.cssText = "margin:0 0 20px;font-size:14px;color:rgba(0,0,0,0.72);line-height:1.6";
+const sub = card.querySelector("p");
+if (sub) sub.replaceWith(lead);
+else card.append(lead);
+
+card.append(formButton("JOIN THE WHATSAPP GROUP"));
+
 card.append(
   note(
-    "Brian, 2026-08-31: they should see if they are already in the list. Nothing is created and nothing is sent. This is the common case at a second event and must not read as an error.",
+    "Pressing this is the opt-in. It is the recruit's own act, which is why this door carries a natural one and the operator-add door in W6 has to ask for it. Somebody signing in a second time sees this same page: their details are taken again and reconciled later, and nothing reads as an error.",
   ),
 );
-const safety = drawnPanel("What it does not do");
-safety.style.marginTop = "18px";
-safety.append(
-  makeRow("It confirms", "Only what the submitter themselves just typed"),
-  makeRow("It never says", "Whether anybody else is on the list"),
-  makeRow("Why", "A public page that answers “do you have X?” is a membership oracle"),
-);
-const revoked = drawnPanel("And when the code has been retired");
-revoked.style.marginTop = "18px";
-revoked.append(
-  makeRow("They see", "“This link is no longer valid.”"),
-  makeRow("Operators see", "Old handout, Hilary 2025-26 · revoked 14 Apr · 0 submissions since"),
-);
-revoked.append(
-  note(
-    "Posters stay up for months after a code is retired. Revoking is safe, and the count says how much a code still in the wild is doing.",
-  ),
-);
-const wrap = document.querySelector("div");
-wrap.append(safety, revoked);
+
+await settle();

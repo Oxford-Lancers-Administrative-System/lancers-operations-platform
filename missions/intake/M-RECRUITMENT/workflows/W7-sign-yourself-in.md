@@ -41,6 +41,42 @@ to compare`.
 - Reason for any departure from the implemented application: nothing to depart
   from.
 
+## The flow ends at WhatsApp
+
+Brian, 2026-08-31: _"Is it that once they sign up, they get a link to go to our
+WhatsApp when they approve and they send this in?... It should take them to
+WhatsApp then. After they do the information, you'll get the sign-in, and then
+they go to WhatsApp, right? That's part of W7."_
+
+Yes, and it is the whole point of this door:
+
+1. They scan the QR and land on the club's own page.
+2. They leave a name and a way to reach them.
+3. They are taken to the WhatsApp group, and **pressing that button is the
+   opt-in.**
+
+Step 3 is why `W7` carries a **natural opt-in** and `W6` does not. Here the
+recruit acts for themselves, so joining the group is the consent; there, an
+operator types somebody in, and Task 09 §9.1 makes that door ask how the club
+came by the number.
+
+## The duplicate check, and what it does not do
+
+Brian: _"The duplicate should be very simple. It should be based on email or
+phone number or whatever, and we should just take their contact information
+regardless. I think the duplicate check is fine. We'll figure out how to handle
+that in production."_
+
+So this door **refuses nobody and blocks on nothing.** It takes what it is given
+and reconciles afterwards — the same posture as the walk-up door in `W5`, and the
+opposite of the operator-add door in `W6`, which runs the club's full check
+because an operator is sitting at a desk rather than standing at a stand.
+
+The earlier draft's separate _"you are already on our list"_ screen is gone.
+Signing in a second time is the common case at a second event, so that person
+sees the same page and the same way into the group, and nothing reads as an
+error.
+
 ## Required actions
 
 1. Scan and land on the club's own page, on the club's own domain, which looks
