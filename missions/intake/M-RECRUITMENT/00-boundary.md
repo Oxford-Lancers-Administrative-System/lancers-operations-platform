@@ -182,13 +182,6 @@ mission owns, not something that happens outside the system.
     when it changes, what an operator sees when one fails to deliver, and what
     happens when delivery is down at the moment of capture (Task 09 §9.1's open
     welcome-flow mechanics, inherited from the walk-ups brief).
-    13a. `[owner]` **The operator's follow-up surface** — added by the 2026-08-31
-    amendment, which takes the inventory to **44 items**. Composing and sending a
-    polite message, reminder or nudge to a recruit from inside the application,
-    quickly and with good default wording, from wherever the operator already is:
-    the board, the recruit's own page, or an event. Brian: _"It should be easy,
-    right?… the messages should be good."_ What it looks like is designed at
-    Stage 3; that it exists is settled.
 14. `[row]` The correction to Mission 4's shipped ladder: **capacity suppression**
     so the player reminder-and-escalation rung never reaches a recruit
     invitation, and the `countByCapacity` recruit-count fix (owner decision
@@ -368,6 +361,18 @@ mission owns, not something that happens outside the system.
     push and a mid-season push are the same machine configured differently.
     Mission 4 owns the transport and the scheduler; recruitment owns what it
     sends, when, and who may change it.
+
+### J. Added by the owner's 2026-08-31 amendment
+
+44. `[owner]` **The operator's follow-up surface.** Composing and sending a
+    polite message, reminder or nudge to a recruit from inside the application,
+    quickly and with good default wording, from wherever the operator already
+    is: the board, the recruit's own page, or an event. Brian: _"The app should
+    be very open to allowing the person… to send polite messages, follow-ups,
+    things like that, and the messages should be good. It should be easy,
+    right?"_ What it looks like is designed at Stage 3; that it exists is
+    settled. This is the item the never-harsh rule adds, and it takes the
+    inventory from 43 items to **44**.
 
 ## Out of scope
 

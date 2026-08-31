@@ -1,6 +1,6 @@
 {
   "mission_id": "M-RECRUITMENT",
-  "ledger_version": 2,
+  "ledger_version": 3,
   "stage": "inventory",
   "baseline": {
     "branch": "main",
@@ -16,18 +16,1244 @@
       "date": "2026-08-28"
     }
   },
-  "workflows": [],
+  "workflows": [
+    {
+      "id": "W1",
+      "name": "The recruit board",
+      "state": "not_started",
+      "stale": false,
+      "feedback": []
+    },
+    {
+      "id": "W2",
+      "name": "One recruit's record",
+      "state": "not_started",
+      "stale": false,
+      "feedback": []
+    },
+    {
+      "id": "W3",
+      "name": "Capture a walk-up as a recruit",
+      "state": "not_started",
+      "stale": false,
+      "feedback": []
+    },
+    {
+      "id": "W4",
+      "name": "Add a recruit by hand",
+      "state": "not_started",
+      "stale": false,
+      "feedback": []
+    },
+    {
+      "id": "W5",
+      "name": "Sign yourself in",
+      "state": "not_started",
+      "stale": false,
+      "feedback": []
+    },
+    {
+      "id": "W6",
+      "name": "Resolve a possible duplicate",
+      "state": "not_started",
+      "stale": false,
+      "feedback": []
+    },
+    {
+      "id": "W7",
+      "name": "Answer the recruit-stage ask",
+      "state": "not_started",
+      "stale": false,
+      "feedback": []
+    },
+    {
+      "id": "W8",
+      "name": "Follow up with a recruit",
+      "state": "not_started",
+      "stale": false,
+      "feedback": []
+    },
+    {
+      "id": "W9",
+      "name": "Administer recruitment's messages and its QR",
+      "state": "not_started",
+      "stale": false,
+      "feedback": []
+    },
+    {
+      "id": "W10",
+      "name": "Run a recruitment event",
+      "state": "not_started",
+      "stale": false,
+      "feedback": []
+    },
+    {
+      "id": "W11",
+      "name": "Take attendance at a recruitment event",
+      "state": "not_started",
+      "stale": false,
+      "feedback": []
+    },
+    {
+      "id": "W12",
+      "name": "Take a recruit off the board",
+      "state": "not_started",
+      "stale": false,
+      "feedback": []
+    },
+    {
+      "id": "W13",
+      "name": "Flip a recruit to joined",
+      "state": "not_started",
+      "stale": false,
+      "feedback": []
+    }
+  ],
   "mockup_hub": "generated",
   "decision_coverage": {
     "sources": [
       {
         "id": "SRC-task-09-brief",
         "ref": "https://app.notion.com/p/3bd488886d578196a9a4cd9b25d59d1b",
-        "version": "owner-approved-2026-08-15; amended-2026-08-25/26; fetched-2026-08-26T13:33Z",
-        "decision_ids": []
+        "version": "owner-approved 2026-08-15; owner amendments 2026-08-25/26; refetched 2026-08-31",
+        "decision_ids": [
+          "D1",
+          "D2",
+          "D3",
+          "D4",
+          "D5",
+          "D6",
+          "D7",
+          "D8",
+          "D9",
+          "D10",
+          "D11",
+          "D12",
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "G1",
+          "G2",
+          "G3",
+          "G4",
+          "G5"
+        ]
+      },
+      {
+        "id": "SRC-task-04-brief",
+        "ref": "https://app.notion.com/p/3bc488886d5781aca18af031c939bf5c",
+        "version": "owner-approved 2026-08-14; owner amendment 2026-08-18; refetched 2026-08-31",
+        "decision_ids": ["D-1", "D-2", "D-3", "D-4", "D-5", "D-6", "D-7", "D-8-prime", "Q1"]
+      },
+      {
+        "id": "SRC-portfolio-row-6",
+        "ref": "https://app.notion.com/p/3bb488886d578126a88cdd747f590a01",
+        "version": "Portfolio v2 approved 2026-08-26; refetched 2026-08-31, page last verified 2026-08-28 17:06 EDT; row text unchanged since 2026-08-28",
+        "decision_ids": [
+          "PR-doors",
+          "PR-board",
+          "PR-funnel",
+          "PR-notify",
+          "PR-optin",
+          "PR-events",
+          "PR-flip",
+          "PR-substrate",
+          "PR-defect"
+        ]
+      },
+      {
+        "id": "SRC-authority",
+        "ref": "https://app.notion.com/p/3bf488886d57818aa53ec09f4fc5f757",
+        "version": "published 2026-08-17; owner decisions 2026-08-18; owner amendment 2026-08-26; refetched 2026-08-31",
+        "decision_ids": [
+          "R2",
+          "Scope4",
+          "OD-3",
+          "G-optin",
+          "G-lan101",
+          "G-lan86",
+          "X-import",
+          "X-lan111",
+          "X-replybuttons",
+          "OWN-msgflag",
+          "AM-presence",
+          "AM-fieldset"
+        ]
+      },
+      {
+        "id": "SRC-task-08-brief",
+        "ref": "https://app.notion.com/p/3bd488886d57812e9534cb00102abef8",
+        "version": "owner-approved 2026-08-15; owner amendments 2026-08-26 and 2026-08-27; refetched 2026-08-31",
+        "decision_ids": [
+          "T08-row8",
+          "T08-recruitfields",
+          "T08-season-consent",
+          "T08-recruit-facts-leave",
+          "T08-lastname"
+        ]
+      },
+      {
+        "id": "SRC-packet-m5",
+        "ref": "missions/packets/M-PEOPLE-AND-ROSTER/packet.json",
+        "version": "packet_version 1, approved, merged PR #96",
+        "decision_ids": ["M5-nogoal-recruitment", "M5-nogoal-messaging", "M5-status-readonly"]
+      },
+      {
+        "id": "SRC-main",
+        "ref": "main@e669331d96fb949a3c29d7475842a6414cfe9e57",
+        "version": "observed 2026-08-31",
+        "decision_ids": [
+          "MAIN-prospect-enum",
+          "MAIN-recruits-audience",
+          "MAIN-ladder-capacity-blind",
+          "MAIN-countbycapacity",
+          "MAIN-walkup-dedup",
+          "MAIN-no-inbound",
+          "MAIN-delivery-outcome"
+        ]
+      },
+      {
+        "id": "SRC-owner-2026-08-28",
+        "ref": "missions/intake/M-RECRUITMENT/00-boundary.md and 01-overview.md",
+        "version": "Brian Schuster, 2026-08-28, recorded in the Stage 0 and Stage 1 ledger files",
+        "decision_ids": [
+          "OB-roles",
+          "OB-walkups",
+          "OB-ladder",
+          "OB-board",
+          "OB-qr-domain",
+          "OB-offramps"
+        ]
+      },
+      {
+        "id": "SRC-owner-2026-08-31",
+        "ref": "missions/intake/M-RECRUITMENT/01-overview.md, Owner amendments after approval",
+        "version": "Brian Schuster, 2026-08-31",
+        "decision_ids": ["NEVER-HARSH", "LADDER-SPINE", "JOINED-POPUP", "BOARD-OWN", "QR-OPEN"]
       }
     ],
-    "decisions": []
+    "decisions": [
+      {
+        "id": "D1",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "Intake at scale is how existing players arrive, not how a recruit is found.",
+        "evidence": "Task 09 owner amendment 1 (2026-08-25/26) moves the LAN-85 composition to Mission 7 via CSV import; 00-boundary Out of scope repeats it."
+      },
+      {
+        "id": "D2",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "The four doors and the name-plus-mobile standard are one rule applied at each door; W3 is the first door in the order and the only one implemented on main, so the standard is settled there and reused.",
+        "also_referenced_by": ["W4", "W5", "W6"]
+      },
+      {
+        "id": "D3",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "The welcome and community-group invite fire on save at a door, so the rule is drawn where it fires; W9 administers the template it sends.",
+        "also_referenced_by": ["W4", "W5", "W9"]
+      },
+      {
+        "id": "D4",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "The long-running pipeline with a visible recruits list is the board itself.",
+        "also_referenced_by": ["W2"]
+      },
+      {
+        "id": "D5",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "workflow",
+        "workflow": "W13",
+        "reason": "The single human gate is the flip."
+      },
+      {
+        "id": "D6",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "workflow",
+        "workflow": "W13",
+        "reason": "Reversal is the flip run backwards and is specified with it; W12 covers leaving the board before a flip ever happens.",
+        "also_referenced_by": ["W12"]
+      },
+      {
+        "id": "D7",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "Dedup-before-create at every door and never at the flip is realised as the operator-review queue. Mission 5 shipped the duplicate-check machinery; this mission owns applying it at recruitment's doors.",
+        "also_referenced_by": ["W3", "W4", "W5", "W13"]
+      },
+      {
+        "id": "D8",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "workflow",
+        "workflow": "W11",
+        "reason": "Turnout as the sum of attendance records is a property of the recruitment-event sheet, and Register F4's aggregate concept is already superseded."
+      },
+      {
+        "id": "D9",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "The President's day-to-day ownership and the operator-only visibility of prospect records are both expressed by who may open the board and what it shows. The retention half of D9 is carried separately as this source's G4.",
+        "also_referenced_by": ["W2"]
+      },
+      {
+        "id": "D10",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "The non-responding seeded returner is a carry-forward concern, and carry-forward moved to Mission 7.",
+        "evidence": "Task 09 amendment 1 (2026-08-25/26); portfolio row 7 carries CSV import and carry-forward."
+      },
+      {
+        "id": "D11",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "workflow",
+        "workflow": "W10",
+        "reason": "Recruitment-only events with the derived Recruits audience are the event workflow; the recruits-on-top sheet is its attendance half.",
+        "also_referenced_by": ["W11"]
+      },
+      {
+        "id": "D12",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "delegated_to_mission_lead",
+        "reason": "Build sequencing is exactly what a Mission Lead decides from an approved packet; intake writes no DAG.",
+        "evidence": "D12's own text: 'Build sequencing deliberately open... Recorded as a required follow-up, not decided here.'"
+      },
+      {
+        "id": "A1",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "Amendment 1 is the mission-home ruling that sends LAN-85 to Mission 7 and keeps the funnel here.",
+        "evidence": "Task 09 owner amendment 1, 2026-08-25/26, recorded with Portfolio v2."
+      },
+      {
+        "id": "A2",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "superseded",
+        "superseded_by": "SRC-owner-2026-08-31:NEVER-HARSH",
+        "reason": "Amendment 2's 'exactly one message, ever, no reminder ladder' is replaced by the never-harsh rule. A recruit may now be reminded, nudged and followed up with; what never reaches them is the player escalation ladder, a collection cadence, or obligation language.",
+        "approval": {
+          "words": "The rule for recruits is never 'chased.' It's getting the wrong signal... We chase players; recruits sit in some other place. Let me put it this way: it should never be harsh. That's the better rule. We should never have a harsh recruit. We should send polite reminders, nudges, things like that.",
+          "date": "2026-08-31"
+        }
+      },
+      {
+        "id": "A3",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "workflow",
+        "workflow": "W7",
+        "reason": "The recruit signed-link ask, the substrate built once here, and the recruit-stage field set are all W7. Amendment 3's closing clause that the ask is 'never followed up' falls with A2; the ask's timing is an open owner decision inside W7.",
+        "also_referenced_by": ["W9"]
+      },
+      {
+        "id": "A4",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "The recorded walk-up dedup drift is a fact about the walk-up door and is reconciled where that door is specified.",
+        "also_referenced_by": ["W6"]
+      },
+      {
+        "id": "G1",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "shared_cross_mission",
+        "shared_owners": ["M-RECRUITMENT", "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"],
+        "reason": "This mission records per-door opt-in evidence at capture and refuses to fire the welcome from a door without it; Mission 8 owns the wording and the lawful basis.",
+        "evidence": "Task 09 section 9.1 names Clint and Task 07 as owner; portfolio row 6 gates on 'per-door opt-in evidence wording (Clint via Mission 8)'."
+      },
+      {
+        "id": "G2",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "workflow",
+        "workflow": "W10",
+        "reason": "The Recruits audience gap is closed on main already - audience-selection.ts ships the recruits group under D46 - so W10 retains it rather than building it."
+      },
+      {
+        "id": "G3",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "workflow",
+        "workflow": "W11",
+        "reason": "The recruitment-event attendance surface gap is exactly W11's subject."
+      },
+      {
+        "id": "G4",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "other_mission",
+        "other_mission": "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
+        "reason": "Prospect data retention for disengaged and declined records is a retention rule, and retention policy with its execution machinery is Mission 8's.",
+        "evidence": "Task 09 section 9.1 routes it to Clint and Task 07; Authority Manifest section 6 keeps consent and retention wording with Clint."
+      },
+      {
+        "id": "G5",
+        "source_id": "SRC-task-09-brief",
+        "disposition": "workflow",
+        "workflow": "W9",
+        "reason": "Group-link rotation, what recorded engagement is, retry and no-response behaviour, and delivery-down-at-capture are the administration of recruitment's messages."
+      },
+      {
+        "id": "D-1",
+        "source_id": "SRC-task-04-brief",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "Name plus mobile required with email optional is the walk-up capture contract, and it is implemented at main@e669331 in attendance.ts."
+      },
+      {
+        "id": "D-2",
+        "source_id": "SRC-task-04-brief",
+        "disposition": "superseded",
+        "superseded_by": "SRC-task-09-brief:D3",
+        "reason": "The walk-up-only welcome flow is extended to every recruitment door by Task 09 D3, which names D-2 as the decision it extends.",
+        "approval": {
+          "words": "OWNER-APPROVED - Brian Schuster (Task 09 brief, decision D3)",
+          "date": "2026-08-15"
+        }
+      },
+      {
+        "id": "D-3",
+        "source_id": "SRC-task-04-brief",
+        "disposition": "superseded",
+        "superseded_by": "SRC-task-09-brief:D3",
+        "reason": "'Walk-ups only for now' is the clause Task 09 D3 explicitly overrides.",
+        "approval": {
+          "words": "OWNER-APPROVED - Brian Schuster (Task 09 brief, decision D3)",
+          "date": "2026-08-15"
+        }
+      },
+      {
+        "id": "D-4",
+        "source_id": "SRC-task-04-brief",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "The read-back step and the roster-match-before-send guard are capture-form behaviour. Neither is implemented at main@e669331, so W3 carries them as work."
+      },
+      {
+        "id": "D-5",
+        "source_id": "SRC-task-04-brief",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "The walk-up feeds recruitment's pre-roster person space, which is what makes every walk-up a recruit.",
+        "also_referenced_by": ["W2"]
+      },
+      {
+        "id": "D-6",
+        "source_id": "SRC-task-04-brief",
+        "disposition": "workflow",
+        "workflow": "W9",
+        "reason": "The deliberately open Linear home for the welcome flow is the Task 04 residual slice that portfolio row 6 assigns to this mission; it lands with the messaging machinery."
+      },
+      {
+        "id": "D-7",
+        "source_id": "SRC-task-04-brief",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "The accepted in-flight LAN-110 form and its deferred correction are outstanding walk-up-form work; the correction sweep's item 1 is still unbuilt at main@e669331."
+      },
+      {
+        "id": "D-8-prime",
+        "source_id": "SRC-task-04-brief",
+        "disposition": "excluded",
+        "reason": "The canonical-record declaration settles which page governs walk-up behaviour and creates no product behaviour of its own.",
+        "evidence": "Task 04 D-8': 'this brief is the controlling record for walk-up behavior; dated supersession pointers placed'. Nothing to build."
+      },
+      {
+        "id": "Q1",
+        "source_id": "SRC-task-04-brief",
+        "disposition": "workflow",
+        "workflow": "W9",
+        "reason": "Task 04 section 5's open flow-design questions - message content, what engagement is, group-link mechanics, retry behaviour, delivery-down states - are the same set as Task 09 G5 and settle together."
+      },
+      {
+        "id": "PR-doors",
+        "source_id": "SRC-portfolio-row-6",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "The row's four entry doors with dedup-before-create and the operator-review queue.",
+        "also_referenced_by": ["W4", "W5", "W6"]
+      },
+      {
+        "id": "PR-board",
+        "source_id": "SRC-portfolio-row-6",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "The row's 'recruits list beside the roster', which the owner's 2026-08-28 and 2026-08-31 notes sharpen into recruitment's own board modelled on the roster board."
+      },
+      {
+        "id": "PR-funnel",
+        "source_id": "SRC-portfolio-row-6",
+        "disposition": "superseded",
+        "superseded_by": "SRC-owner-2026-08-31:LADDER-SPINE",
+        "reason": "The row's 'identified to engaged to committed/converted with lapsed/declined exits' is replaced by the seven-value flat field: converted becomes joined, lapsed becomes disengaged, void is added, and 'did not show up' is deliberately not a value.",
+        "approval": {
+          "words": "Cool. Identify, engage, committed. When it flips to 'Join,' there should be a pop-up that comes up... 'Join' means these people are being officially added to some season, right?",
+          "date": "2026-08-31"
+        }
+      },
+      {
+        "id": "PR-notify",
+        "source_id": "SRC-portfolio-row-6",
+        "disposition": "superseded",
+        "superseded_by": "SRC-owner-2026-08-31:NEVER-HARSH",
+        "reason": "The row's parenthetical 'a recruit gets exactly one message, ever' is the wording the never-harsh rule replaces; notion-corrections.md carries the redrafted row text.",
+        "approval": {
+          "words": "The rule for recruits is never 'chased.' It's getting the wrong signal... We chase players; recruits sit in some other place. Let me put it this way: it should never be harsh. That's the better rule. We should never have a harsh recruit. We should send polite reminders, nudges, things like that.",
+          "date": "2026-08-31"
+        }
+      },
+      {
+        "id": "PR-optin",
+        "source_id": "SRC-portfolio-row-6",
+        "disposition": "shared_cross_mission",
+        "shared_owners": ["M-RECRUITMENT", "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"],
+        "reason": "Recruit-door WhatsApp opt-in evidence: recorded here at each door, worded and given its lawful basis by Mission 8.",
+        "evidence": "Portfolio row 6's gate column: 'Per-door opt-in evidence wording (Clint via Mission 8)'."
+      },
+      {
+        "id": "PR-events",
+        "source_id": "SRC-portfolio-row-6",
+        "disposition": "workflow",
+        "workflow": "W10",
+        "reason": "Recruitment events with the derived Recruits audience and person-scoped invitations.",
+        "also_referenced_by": ["W11"]
+      },
+      {
+        "id": "PR-flip",
+        "source_id": "SRC-portfolio-row-6",
+        "disposition": "workflow",
+        "workflow": "W13",
+        "reason": "The flip by President, Vice President, Secretary or GM."
+      },
+      {
+        "id": "PR-substrate",
+        "source_id": "SRC-portfolio-row-6",
+        "disposition": "workflow",
+        "workflow": "W7",
+        "reason": "The shared signed-link to form substrate built here with the recruit-stage field set, extended by Missions 7 and 8."
+      },
+      {
+        "id": "PR-defect",
+        "source_id": "SRC-portfolio-row-6",
+        "disposition": "workflow",
+        "workflow": "W10",
+        "reason": "The absorbed defect: reminder creation schedules a rung for every invitation with no capacity filter, and countByCapacity omits recruits. Verified at main@e669331 in messaging-scheduler.ts and event-approval.ts. Under the never-harsh rule the fix narrows the player ladder rather than silencing recruits.",
+        "also_referenced_by": ["W11", "W8"]
+      },
+      {
+        "id": "R2",
+        "source_id": "SRC-authority",
+        "disposition": "shared_cross_mission",
+        "shared_owners": [
+          "M-PEOPLE-AND-ROSTER",
+          "M-RECRUITMENT",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
+        ],
+        "reason": "R2 spans recruitment intake and returner verification; this mission owns the recruitment side, Mission 5 the person and roster substrate, Mission 7 the returner and completion side.",
+        "evidence": "Authority Manifest section 1 R2 maps to Scope 4 with Tasks 09 and 08; the 2026-08-26 owner amendment records the Scope 4 split across Missions 5, 6 and 7."
+      },
+      {
+        "id": "Scope4",
+        "source_id": "SRC-authority",
+        "disposition": "shared_cross_mission",
+        "shared_owners": [
+          "M-PEOPLE-AND-ROSTER",
+          "M-RECRUITMENT",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
+        ],
+        "reason": "Scope 4 is People, Roster and Recruitment Intake; the 2026-08-26 amendment splits it three ways and puts channel presence and the recruit-stage field set here.",
+        "evidence": "Authority Manifest 2026-08-26 owner amendment: 'channel presence and the recruit-stage field set sit with Mission 6, while the season bootstrap, the import, the collection request... sit with Mission 7'."
+      },
+      {
+        "id": "OD-3",
+        "source_id": "SRC-authority",
+        "disposition": "other_mission",
+        "other_mission": "M-PEOPLE-AND-ROSTER",
+        "reason": "The offboarding state model and its rebuilt membership vocabulary are the membership ladder, not the recruit ladder; Mission 5 shipped the new type at migration 20260828120000.",
+        "evidence": "Authority Manifest 2026-08-26 owner amendment supersedes OD-3 and records the rebuild against the M-PEOPLE-AND-ROSTER intake."
+      },
+      {
+        "id": "G-optin",
+        "source_id": "SRC-authority",
+        "disposition": "other_mission",
+        "other_mission": "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
+        "reason": "Consent, privacy-notice and Code-of-Conduct wording is Clint's gate and Mission 8's scope; this mission records evidence, never wording.",
+        "evidence": "Authority Manifest section 6 gate table: 'Consent / privacy-notice / Code-of-Conduct / photo-release wording - Clint - Scope 6'."
+      },
+      {
+        "id": "G-lan101",
+        "source_id": "SRC-authority",
+        "disposition": "excluded",
+        "reason": "WhatsApp production readiness is an external operational gate on real sends, not product definition, and it blocks no build in this mission.",
+        "evidence": "Authority Manifest section 6: LAN-101 owned by Stewart and Brian; 01-overview records LAN-86 and LAN-101 as gates outside this mission."
+      },
+      {
+        "id": "G-lan86",
+        "source_id": "SRC-authority",
+        "disposition": "excluded",
+        "reason": "The real-data cutover gate keeps real recruits unreachable and is owned outside this mission.",
+        "evidence": "Authority Manifest section 6: LAN-86, Brian and Clint; Task 09 amendment 2 relies on it - 'LAN-86 keeps real recruits unreachable meanwhile'."
+      },
+      {
+        "id": "X-import",
+        "source_id": "SRC-authority",
+        "disposition": "excluded",
+        "reason": "Bulk spreadsheet import is an explicit Release One exclusion and, where it survives at all, it is Mission 7's CSV import.",
+        "evidence": "Authority Manifest section 8 deferral list: 'bulk spreadsheet import (S5, A8)'."
+      },
+      {
+        "id": "X-lan111",
+        "source_id": "SRC-authority",
+        "disposition": "excluded",
+        "reason": "Walk-up reconciliation tooling is an explicit Release One exclusion and the issue is closed as superseded by the mission architecture.",
+        "evidence": "Authority Manifest section 8: 'walk-up reconciliation tooling (LAN-111)'; portfolio status page records LAN-111 closed 2026-08-28."
+      },
+      {
+        "id": "X-replybuttons",
+        "source_id": "SRC-authority",
+        "disposition": "excluded",
+        "reason": "In-chat interactive reply buttons are excluded and revisited only after Stuart's review, so no recruit signal may depend on them.",
+        "evidence": "Authority Manifest section 8: 'in-chat interactive reply buttons (Task 02 D9, revisit after Stuart's review)'."
+      },
+      {
+        "id": "OWN-msgflag",
+        "source_id": "SRC-authority",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "The 2026-08-18 operator message-and-flag direction is aimed at the roster and member surface and is routed to Mission 7. W8 is the narrower recruit-only follow-up surface the 2026-08-31 amendment creates here. The seam is flagged for Brian in 02-workflows.md and is his to confirm.",
+        "evidence": "Authority Manifest section 5: 'candidate home: extends Task 11's operator nudge M3 + per-player activity log'; portfolio row 7: 'Candidate home for the message-and-flag direction (still awaiting definition)'."
+      },
+      {
+        "id": "AM-presence",
+        "source_id": "SRC-authority",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Channel presence - is this person on WhatsApp and in this season's group - is built here and renders on the recruit's own record.",
+        "also_referenced_by": ["W1"]
+      },
+      {
+        "id": "AM-fieldset",
+        "source_id": "SRC-authority",
+        "disposition": "workflow",
+        "workflow": "W7",
+        "reason": "The recruit-stage field set sits with this mission by the 2026-08-26 amendment and is enumerated at this intake."
+      },
+      {
+        "id": "T08-row8",
+        "source_id": "SRC-task-08-brief",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Row 8 channel presence is seasonal, named On WhatsApp, and built in Mission 6 because Task 09 D3 fires the community-group invite at every door. Anchored to person and season, so a recruit is covered without a membership.",
+        "also_referenced_by": ["W1"]
+      },
+      {
+        "id": "T08-recruitfields",
+        "source_id": "SRC-task-08-brief",
+        "disposition": "workflow",
+        "workflow": "W7",
+        "reason": "Football background, experience and gear ownership were deliberately not carried into Task 08's inventory and routed to Task 09; they are the seed of the recruit-stage field set."
+      },
+      {
+        "id": "T08-season-consent",
+        "source_id": "SRC-task-08-brief",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "The season-association consent-first entry flow is implemented by Mission 7's capture mechanics under Mission 8's policy layer; this mission supplies the recruit-door opt-in evidence it consumes.",
+        "evidence": "Task 08 owner note 2026-08-26: 'The section 2 season-association consent-first entry flow is implemented by Mission 7 - Onboarding (capture mechanics) under Mission 8's policy layer; the recruit-door opt-in evidence is Mission 6's'."
+      },
+      {
+        "id": "T08-recruit-facts-leave",
+        "source_id": "SRC-task-08-brief",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Source, first contact, committed date and the conversion link do not render on the person record; they render here, on this mission's surface. Brian, 2026-08-27: 'There's nothing on here related to recruits... It's a person record.'",
+        "also_referenced_by": ["W1"]
+      },
+      {
+        "id": "T08-lastname",
+        "source_id": "SRC-task-08-brief",
+        "disposition": "other_mission",
+        "other_mission": "M-PEOPLE-AND-ROSTER",
+        "reason": "Last name is required at every rung of the missing-data queue including for a recruit, but the queue and its required set are Mission 5's; this mission inherits the flag rather than defining it.",
+        "evidence": "Task 08 owner amendment 2026-08-27: 'Last name is required at every rung of the missing-data queue's required set, including for a recruit'; M5 packet non-goal keeps the chase with Mission 7 and the queue definition with Mission 5."
+      },
+      {
+        "id": "M5-nogoal-recruitment",
+        "source_id": "SRC-packet-m5",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Mission 5's first non-goal hands the whole recruit process here and forbids it from rendering on a person record, which is precisely why recruitment needs a board of its own.",
+        "also_referenced_by": ["W2"]
+      },
+      {
+        "id": "M5-nogoal-messaging",
+        "source_id": "SRC-packet-m5",
+        "disposition": "workflow",
+        "workflow": "W8",
+        "reason": "Mission 5 composes, schedules and sends nothing, so the operator's follow-up surface has no earlier owner and lands here under the 2026-08-31 amendment."
+      },
+      {
+        "id": "M5-status-readonly",
+        "source_id": "SRC-packet-m5",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "The person record shows the Recruit rung read-only with no control that moves them; the control that moves them is this mission's, on this mission's surfaces.",
+        "also_referenced_by": ["W1", "W13"]
+      },
+      {
+        "id": "MAIN-prospect-enum",
+        "source_id": "SRC-main",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "prospect_status ships six values - identified, engaged, committed, converted, lapsed, declined. The approved seven-value ladder renames two, adds void and is a frozen-model change: a new type plus a data migration, with the Recruits audience derivation and two check constraints in the blast radius.",
+        "also_referenced_by": ["W2", "W12", "W13"]
+      },
+      {
+        "id": "MAIN-recruits-audience",
+        "source_id": "SRC-main",
+        "disposition": "workflow",
+        "workflow": "W10",
+        "reason": "The recruits audience group is shipped in audience-selection.ts under D46 and is restricted to recruitment events; W10 retains it."
+      },
+      {
+        "id": "MAIN-ladder-capacity-blind",
+        "source_id": "SRC-main",
+        "disposition": "workflow",
+        "workflow": "W10",
+        "reason": "scheduleEventLadder inserts a reminder job for every invitation on the event with no capacity filter, so a recruit invited today receives the player escalation ladder.",
+        "also_referenced_by": ["W11", "W8"]
+      },
+      {
+        "id": "MAIN-countbycapacity",
+        "source_id": "SRC-main",
+        "disposition": "workflow",
+        "workflow": "W10",
+        "reason": "countByCapacity in event-approval.ts omits recruits from the approval audit counts, so an operator approving a recruitment event is not told how many recruits it reaches."
+      },
+      {
+        "id": "MAIN-walkup-dedup",
+        "source_id": "SRC-main",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "The shipped walk-up path mints a person with no interactive duplicate check, wider than Task 09's coach-only LAN-110 exception. Recorded as drift by Task 09 amendment 4 and reconciled here.",
+        "also_referenced_by": ["W6"]
+      },
+      {
+        "id": "MAIN-no-inbound",
+        "source_id": "SRC-main",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "No inbound message is captured anywhere - the webhook parses only statuses[] - and rsvp_source 'channel_reply' is an enum value no code path writes. A reply is therefore not an available signal without new work.",
+        "also_referenced_by": ["W2"]
+      },
+      {
+        "id": "MAIN-delivery-outcome",
+        "source_id": "SRC-main",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "read and sent arrive and are stored verbatim in delivery_callbacks but map to nothing, because widening delivery_outcome is a frozen-model change. Using them as signals is a model decision, not an integration.",
+        "also_referenced_by": ["W2"]
+      },
+      {
+        "id": "OB-roles",
+        "source_id": "SRC-owner-2026-08-28",
+        "disposition": "workflow",
+        "workflow": "W13",
+        "reason": "The core four only, no new capability minted. Sharpest at the flip, and it governs every operator surface in the mission.",
+        "also_referenced_by": ["W1"]
+      },
+      {
+        "id": "OB-walkups",
+        "source_id": "SRC-owner-2026-08-28",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "Every walk-up is a recruit, and walk-up capture stays on every event type for anyone taking attendance."
+      },
+      {
+        "id": "OB-ladder",
+        "source_id": "SRC-owner-2026-08-28",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "One flat recruitment status of seven values, with on-the-board as a display rule over that one field.",
+        "also_referenced_by": ["W12", "W13"]
+      },
+      {
+        "id": "OB-board",
+        "source_id": "SRC-owner-2026-08-28",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Copy the Roster board where copying works; person details then recruitment details; one line per recruit; event columns appended at the right end."
+      },
+      {
+        "id": "OB-qr-domain",
+        "source_id": "SRC-owner-2026-08-28",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "The QR points at our own page on our own domain - they are signing in to the club's application, not a form somewhere else."
+      },
+      {
+        "id": "OB-offramps",
+        "source_id": "SRC-owner-2026-08-28",
+        "disposition": "workflow",
+        "workflow": "W12",
+        "reason": "Brian: 'Recruits can get in 3 or 4 ways, but they can get off in several ways.' The exits are load-bearing because every walk-up enters the funnel."
+      },
+      {
+        "id": "NEVER-HARSH",
+        "source_id": "SRC-owner-2026-08-31",
+        "disposition": "workflow",
+        "workflow": "W8",
+        "reason": "Never harsh replaces never chased. Its home surface is the operator's follow-up workflow; it constrains the event workflows and is swept for across the whole system as an invariant.",
+        "also_referenced_by": ["W9", "W10", "W11"]
+      },
+      {
+        "id": "LADDER-SPINE",
+        "source_id": "SRC-owner-2026-08-31",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "identified, engaged, committed, then joined confirmed as the spine of the ladder.",
+        "also_referenced_by": ["W13"]
+      },
+      {
+        "id": "JOINED-POPUP",
+        "source_id": "SRC-owner-2026-08-31",
+        "disposition": "workflow",
+        "workflow": "W13",
+        "reason": "The flip to joined interrupts with a confirmation, joined means a season membership exists, the roster shows they joined this season, and onboarding opens."
+      },
+      {
+        "id": "BOARD-OWN",
+        "source_id": "SRC-owner-2026-08-31",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Recruitment's own board for recruits only, modelled after the roster board."
+      },
+      {
+        "id": "QR-OPEN",
+        "source_id": "SRC-owner-2026-08-31",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "What the QR page does is explicitly undecided and is designed inside its workflow; the own-domain constraint from 2026-08-28 stands."
+      }
+    ]
   },
-  "next_action": "Inventory every controlling decision, run the observability research, and freeze the workflow inventory in 02-workflows.md"
+  "next_action": "Freeze the numbered workflow inventory in 02-workflows.md with Brian's exact words, then open Stage 3 at W1.",
+  "subject_coverage": {
+    "areas": [
+      {
+        "id": "S1",
+        "name": "The four entry doors",
+        "belongs": "Task 09 §1.1 names them and portfolio row 6 commissions them; a recruit cannot exist without a way in.",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "implementation": "modified",
+        "reason": "The doors share one capture standard, settled at W3 and reused at W4, W5 and W6. Only the walk-up door exists today.",
+        "baseline": "walk-up capture in src/lib/services/attendance.ts at main@e669331"
+      },
+      {
+        "id": "S2",
+        "name": "Dedup-before-create at every door, with the operator-review queue",
+        "belongs": "Task 09 D7 locks it and R2 repeats it; without it a door manufactures duplicate humans.",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "implementation": "modified",
+        "reason": "The queue is this mission's surface; the duplicate-check machinery is Mission 5's and is reused.",
+        "baseline": "person duplicate check and merge shipped by M-PEOPLE-AND-ROSTER at main@e669331"
+      },
+      {
+        "id": "S3",
+        "name": "Administration of the capture doors themselves",
+        "belongs": "A door nobody can mint, revoke or scope is not operable; club operation needs it.",
+        "disposition": "workflow",
+        "workflow": "W9",
+        "implementation": "new",
+        "reason": "Minting and revoking a QR and scoping who may capture where is administration, drawn with recruitment's other machinery."
+      },
+      {
+        "id": "S4",
+        "name": "The walk-up door's recruitment behaviour on main",
+        "belongs": "It is the one recruitment door already running, and its drift was recorded for reconciliation here.",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "implementation": "modified",
+        "reason": "Task 09 amendment 4 records the drift; W3 reconciles the shipped behaviour with the approved rule.",
+        "baseline": "src/lib/services/attendance.ts mintWalkUpProspect at main@e669331"
+      },
+      {
+        "id": "S5",
+        "name": "The recruits list beside the roster",
+        "belongs": "Portfolio row 6 commissions it as the visible, operator-only pipeline.",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "implementation": "new",
+        "reason": "Superseded in shape by the owner's own board decision, but this is the row commitment it satisfies."
+      },
+      {
+        "id": "S6",
+        "name": "What the board has to do as a working tool",
+        "belongs": "A list nobody can find, filter or act from is not how the club works the pipeline.",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "implementation": "new",
+        "reason": "Find, filter, act from the row - specified with the board."
+      },
+      {
+        "id": "S7",
+        "name": "The funnel stages and their exits",
+        "belongs": "Task 09 D4 and the portfolio row commission the funnel; it is the spine of the subject.",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "implementation": "modified",
+        "reason": "Rebuilt to the approved seven-value flat field; a frozen-model change.",
+        "baseline": "public.prospect_status six-value enum at main@e669331"
+      },
+      {
+        "id": "S8",
+        "name": "How engaged is actually derived",
+        "belongs": "Task 09 leaves 'any recorded interaction' undefined, and the board cannot show a stage nobody can compute.",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "implementation": "new",
+        "reason": "Settled against the observability research: only signals the platform honestly observes may move or display a stage, and nothing advances automatically."
+      },
+      {
+        "id": "S9",
+        "name": "How disengaged is reached",
+        "belongs": "Task 09 has an operator mark it; the owner's off-ramp framing makes leaving the board load-bearing.",
+        "disposition": "workflow",
+        "workflow": "W12",
+        "implementation": "new",
+        "reason": "Drawn with the other exits rather than as a rule in isolation."
+      },
+      {
+        "id": "S10",
+        "name": "Recruitment ownership and authority in the product",
+        "belongs": "Task 09 D9 names the President as day-to-day owner and restricts prospect visibility to operators.",
+        "disposition": "invariant",
+        "invariant": "Recruitment is the core four roles only - President, Vice President, Secretary, General Manager - no new capability is minted, and prospect records including notes are operator-visible only.",
+        "reason": "An authority rule that binds every workflow rather than being any one actor's journey."
+      },
+      {
+        "id": "S11",
+        "name": "The welcome, the community-group invite, the event invitation and the polite follow-ups",
+        "belongs": "Task 09 D3 and the 2026-08-31 amendment; the message inventory is the mission's voice.",
+        "disposition": "workflow",
+        "workflow": "W9",
+        "implementation": "new",
+        "reason": "The inventory and its administration are W9; each message is drawn where it fires - the doors, the event, the follow-up surface."
+      },
+      {
+        "id": "S12",
+        "name": "Per-door WhatsApp opt-in evidence",
+        "belongs": "Task 09 §9.1 makes it a pre-production gate and portfolio row 6 names it.",
+        "disposition": "shared_cross_mission",
+        "shared_owners": ["M-RECRUITMENT", "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"],
+        "workflow": "W3",
+        "current_side": "This mission records the opt-in evidence at each door and refuses to fire the welcome from a door without it.",
+        "seam": "Mission 8 owns the consent wording, the lawful basis and the retention rule; this mission owns the evidence captured at the door.",
+        "evidence": "Task 09 §9.1 routes wording to Clint via Task 07; portfolio row 6 gates on 'per-door opt-in evidence wording (Clint via Mission 8)'.",
+        "reason": "Neither side is complete alone: evidence without wording cannot lawfully send, wording without evidence has nothing to attach to."
+      },
+      {
+        "id": "S13",
+        "name": "Administration of the recruit messages",
+        "belongs": "Task 09 §9.1's open welcome-flow mechanics, inherited from the walk-ups brief, have no other home.",
+        "disposition": "workflow",
+        "workflow": "W9",
+        "implementation": "new",
+        "reason": "Templates, content, the group link and its rotation, delivery failure, and delivery-down-at-capture."
+      },
+      {
+        "id": "S14",
+        "name": "The correction to Mission 4's shipped ladder",
+        "belongs": "Owner decision 2026-08-26 fixes it at this mission; the defect is real at the baseline.",
+        "disposition": "workflow",
+        "workflow": "W10",
+        "implementation": "modified",
+        "reason": "Narrowed by the 2026-08-31 amendment to the player ladder only; the recruit-appropriate reminder is W8's to design.",
+        "baseline": "scheduleEventLadder in src/lib/services/messaging-scheduler.ts and countByCapacity in src/lib/services/event-approval.ts at main@e669331"
+      },
+      {
+        "id": "S15",
+        "name": "The whole-system never-harsh sweep",
+        "belongs": "A rule that holds only on the surfaces we remembered is not a rule.",
+        "disposition": "invariant",
+        "invariant": "No recruit meets the player escalation ladder, a collection cadence, or a message telling them they are required to be somewhere. Every place one could is suppressed or evidenced as already unreachable.",
+        "reason": "A system property swept for and evidenced once, not an actor's journey."
+      },
+      {
+        "id": "S16",
+        "name": "The signed-link to form substrate with the recruit-stage field set",
+        "belongs": "Portfolio row 6 commissions it here and Missions 7 and 8 extend it.",
+        "disposition": "workflow",
+        "workflow": "W7",
+        "implementation": "new",
+        "reason": "Built once here; the field set is enumerated at this intake and approved with W7."
+      },
+      {
+        "id": "S17",
+        "name": "What the recruit sees and can do on that link",
+        "belongs": "A substrate nobody has drawn the recruit's side of is not designed.",
+        "disposition": "workflow",
+        "workflow": "W7",
+        "implementation": "new",
+        "reason": "The form, the states, the uniform invalid page, the already-answered page."
+      },
+      {
+        "id": "S18",
+        "name": "The substrate's shape as a substrate",
+        "belongs": "Missions 7 and 8 extend it; one-open-request-per-person-ever is a cross-mission rule.",
+        "disposition": "workflow",
+        "workflow": "W7",
+        "implementation": "new",
+        "reason": "At most one open request per person, ever, which only holds if the substrate enforces it rather than each caller."
+      },
+      {
+        "id": "S19",
+        "name": "Recruitment events with the Recruits audience and person-scoped invitations",
+        "belongs": "Task 09 D11 is new owner-approved Release One scope.",
+        "disposition": "workflow",
+        "workflow": "W10",
+        "implementation": "modified",
+        "reason": "The audience group is shipped; the invitation and approval path around it is not.",
+        "baseline": "recruits group in src/lib/services/audience-selection.ts at main@e669331"
+      },
+      {
+        "id": "S20",
+        "name": "Scheduling and running a recruitment event end to end",
+        "belongs": "An audience nobody can schedule an event for is unusable.",
+        "disposition": "workflow",
+        "workflow": "W10",
+        "implementation": "modified",
+        "reason": "Mission 2's event machinery is used verbatim; this is recruitment's use of it.",
+        "baseline": "/operate/events/new and event approval at main@e669331"
+      },
+      {
+        "id": "S21",
+        "name": "The recruitment side of the calendar and its access tiers",
+        "belongs": "Recruits are not members, so what a non-member may see of the calendar is a recruitment question.",
+        "disposition": "workflow",
+        "workflow": "W10",
+        "implementation": "modified",
+        "reason": "Specified with the event workflow rather than as a calendar redesign.",
+        "baseline": "/calendar and its tiers at main@e669331"
+      },
+      {
+        "id": "S22",
+        "name": "What a recruit sees of an event",
+        "belongs": "The recruit is an actor here and nobody has drawn their side.",
+        "disposition": "workflow",
+        "workflow": "W10",
+        "implementation": "new",
+        "reason": "Drawn as the recruit-facing side of W10. If Brian wants it as the recruit's own journey it becomes a fourteenth workflow; flagged in 02-workflows.md."
+      },
+      {
+        "id": "S23",
+        "name": "The flip",
+        "belongs": "Task 09 D5 and portfolio row 6; it is the hand-off out of the mission.",
+        "disposition": "workflow",
+        "workflow": "W13",
+        "implementation": "new",
+        "reason": "Shape settled 2026-08-31: a confirmation interrupts, a season membership exists, the roster shows it, onboarding opens."
+      },
+      {
+        "id": "S24",
+        "name": "Where the flip is performed from",
+        "belongs": "It normally happens in a Monday conversation, so the surface it is performed from is a real design question.",
+        "disposition": "workflow",
+        "workflow": "W13",
+        "implementation": "new",
+        "reason": "Settled with the flip, late in the order, on Brian's instruction."
+      },
+      {
+        "id": "S25",
+        "name": "The declined and disengaged ends of the subject",
+        "belongs": "Every walk-up enters the funnel, so the exits carry the volume.",
+        "disposition": "workflow",
+        "workflow": "W12",
+        "implementation": "new",
+        "reason": "What the record says, what the board shows, and what stops being sent."
+      },
+      {
+        "id": "S26",
+        "name": "The recruit at a season boundary",
+        "belongs": "recruitment_prospects is season-scoped, so an unconverted recruit has a fate at rollover.",
+        "disposition": "invariant",
+        "invariant": "An unconverted recruit is never silently carried, deleted or converted at a season boundary; recruitment states what must be true of the record and performs no rollover.",
+        "reason": "The recruitment-lifecycle fact is this mission's; the machinery that performs a season rollover belongs to a season-lifecycle mission that has no packet or id yet, so naming one would invent a durable reference."
+      },
+      {
+        "id": "S27",
+        "name": "Leadership visibility of the pipeline",
+        "belongs": "Task 09 has the list brought to Monday; the club reads recruitment as data.",
+        "disposition": "shared_cross_mission",
+        "shared_owners": ["M-RECRUITMENT", "M-LEADERSHIP-REPORTING-AND-EXPORTS"],
+        "workflow": "W1",
+        "current_side": "The board is the pipeline's own surface and is where leadership reads it during the week.",
+        "seam": "The Monday report and the export machinery are Mission 10's; this mission supplies the recruitment content it renders and builds no report.",
+        "evidence": "01-overview Out of scope: 'The Monday report and the export machinery are Mission 10's'; Authority Manifest Scope 8.",
+        "reason": "The pipeline must be readable now without waiting for a report mission, and the report must not be rebuilt here."
+      },
+      {
+        "id": "S28",
+        "name": "How a prospect-person renders on Mission 5's People surface",
+        "belongs": "Mission 5 shipped the person record and the Recruit rung; the seam is live at the baseline.",
+        "disposition": "shared_cross_mission",
+        "shared_owners": ["M-RECRUITMENT", "M-PEOPLE-AND-ROSTER"],
+        "workflow": "W2",
+        "current_side": "Every recruitment fact and every control that moves a recruit lives on this mission's surfaces.",
+        "seam": "Mission 5's person record shows the Recruit rung read-only and carries no recruitment fact, by its own 2026-08-27 amendment.",
+        "evidence": "Task 08 amendment 2026-08-27 item 4 and the M-PEOPLE-AND-ROSTER packet non-goal 'No recruitment doors, funnel stages or recruit-stage fields'.",
+        "reason": "Both surfaces show the same human, and the rule about which facts go where is only meaningful held jointly."
+      },
+      {
+        "id": "S29",
+        "name": "Audit and history for recruitment",
+        "belongs": "Every stage change, flip and correction is an attributable act on personal data.",
+        "disposition": "invariant",
+        "invariant": "Every recruitment state change, flip, correction and message is attributable and audited, and nothing about a recruit is destroyed to make the board tidy.",
+        "reason": "A property of every workflow rather than one actor's journey."
+      },
+      {
+        "id": "S30",
+        "name": "Proactive sourcing as a first-class path",
+        "belongs": "Brian's note: the club finds people and reaches out, which the four-door framing under-serves.",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "implementation": "new",
+        "reason": "The manual-add door is where sourcing lands, drawn as a real journey rather than a fallback."
+      },
+      {
+        "id": "S31",
+        "name": "The WhatsApp group connection as a tracked outcome",
+        "belongs": "Brian named it; Task 08 row 8 puts channel presence here.",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "implementation": "new",
+        "reason": "Recorded as presence on the recruit's record. The observability research shows group membership is not observable through the Cloud API, so it is operator-recorded, never watched."
+      },
+      {
+        "id": "S32",
+        "name": "Signals",
+        "belongs": "Brian: 'We want to get as many signals as we can on the recruit.'",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "implementation": "new",
+        "reason": "The set is enumerated from the 2026-08-28 research and approved as the board's columns, so Brian approves actual columns rather than an abstraction."
+      },
+      {
+        "id": "S33",
+        "name": "The recruitment board as its own board",
+        "belongs": "Brian's 2026-08-28 and 2026-08-31 words; a list beside the roster is not what he asked for.",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "implementation": "new",
+        "reason": "Recruitment's own board for recruits only, modelled after the roster board."
+      },
+      {
+        "id": "S34",
+        "name": "Notes people take",
+        "belongs": "Brian made notes first-class; Task 09 keeps commitment signals as prose, never scored.",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "implementation": "new",
+        "reason": "Notes live on the recruit's record and surface on the board; never scored, never ranked."
+      },
+      {
+        "id": "S35",
+        "name": "Layering onto Mission 5's surfaces as its own section",
+        "belongs": "Mission 5's surfaces shipped at the baseline and this mission layers onto them.",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "implementation": "modified",
+        "reason": "The board is built like the roster board and copies it where copying works.",
+        "baseline": "/operate/roster twenty-column board at main@e669331"
+      },
+      {
+        "id": "S36",
+        "name": "The board's shape is the attendance table, for recruits",
+        "belongs": "Brian's own analogy for how the board reads: one line per recruit, columns appended per event.",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "implementation": "new",
+        "reason": "Event columns append at the right end, headed by a compact handle, showing invited, answered and attended."
+      },
+      {
+        "id": "S37",
+        "name": "Recruitment-event attendance as a first-class signal",
+        "belongs": "Turnout is what a recruitment event is for, and Task 09 D8 makes attendance the count.",
+        "disposition": "workflow",
+        "workflow": "W11",
+        "implementation": "new",
+        "reason": "Recruits on top, everyone else below, walk-ups captured into the flow."
+      },
+      {
+        "id": "S38",
+        "name": "The signal research sprint",
+        "belongs": "Brian commissioned it at Stage 1 to settle what the platform can honestly observe.",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "implementation": "new",
+        "reason": "Run and recorded at evidence/2026-08-28-signal-observability.md; its output is the signal set approved with W1's columns."
+      },
+      {
+        "id": "S39",
+        "name": "Conservative observability default",
+        "belongs": "Brian's rule for the gap between what we wish we saw and what we can see.",
+        "disposition": "invariant",
+        "invariant": "Where a signal is not established as readable, the mission assumes it is not, and no stage, display or decision depends on it.",
+        "reason": "A standing rule over every signal rather than a journey; it is what made the WhatsApp community-join door collapse."
+      },
+      {
+        "id": "S40",
+        "name": "Operator-initiated outreach is permitted and recorded",
+        "belongs": "Brian's 2026-08-28 note, sharpened by the 2026-08-31 amendment into a first-class surface.",
+        "disposition": "workflow",
+        "workflow": "W8",
+        "implementation": "new",
+        "reason": "Outreach leaves the app, so it is recorded as a matter of course rather than logged by hand."
+      },
+      {
+        "id": "S41",
+        "name": "A delayed recruit-stage ask",
+        "belongs": "Brian described it roughly a day after capture rather than riding the welcome.",
+        "disposition": "workflow",
+        "workflow": "W7",
+        "implementation": "new",
+        "reason": "The timing is the one open owner decision inside W7; the recommendation is a day later as its own message."
+      },
+      {
+        "id": "S42",
+        "name": "Loosey-goosey as a design constraint",
+        "belongs": "Brian's framing: recruitment is not a rigid process and the product must not force one.",
+        "disposition": "invariant",
+        "invariant": "Nothing about a recruit is scored, ranked, or advanced automatically by a computed value, and no step is mandatory in an order the club has to obey.",
+        "reason": "A constraint on how every workflow is designed rather than a journey of its own."
+      },
+      {
+        "id": "S43",
+        "name": "Where the messaging machinery lives and how the cycle is administered",
+        "belongs": "Brian: 'how that message gets sent out, where that machinery lives... I'm not sure where.'",
+        "disposition": "workflow",
+        "workflow": "W9",
+        "implementation": "new",
+        "reason": "Mission 4 owns transport and scheduler; recruitment owns what it sends, when, and who may change it."
+      },
+      {
+        "id": "S44",
+        "name": "The operator's follow-up surface",
+        "belongs": "Added by the never-harsh amendment; Mission 5 sends nothing and Mission 7's message-and-flag direction is aimed at members.",
+        "disposition": "workflow",
+        "workflow": "W8",
+        "implementation": "new",
+        "reason": "Composing and sending a polite message from wherever the operator already is, quickly and with good default wording."
+      }
+    ]
+  }
 }
