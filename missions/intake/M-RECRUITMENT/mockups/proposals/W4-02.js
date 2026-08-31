@@ -1531,7 +1531,8 @@ const openDialog = ({ title, question, sent, note }) => {
   history.style.cssText =
     "margin:0 24px 4px;border:1px solid rgba(0,0,0,0.16);border-radius:8px;padding:12px 14px";
   const label = document.createElement("div");
-  label.style.cssText = "font-size:12px;font-weight:700;letter-spacing:.05em;color:rgba(0,0,0,0.55)";
+  label.style.cssText =
+    "font-size:12px;font-weight:700;letter-spacing:.05em;color:rgba(0,0,0,0.55)";
   label.textContent = "ALREADY SENT";
   const value = document.createElement("div");
   value.style.cssText = "margin-top:6px;font-size:14px;color:rgba(0,0,0,0.87)";
@@ -1850,8 +1851,7 @@ const questionField = ({ prompt, kind, options = [], value = "" }) => {
     // The options this question offers, listed under it so a reviewer can see
     // what the dropdown holds without opening it.
     const choices = document.createElement("div");
-    choices.style.cssText =
-      "margin-top:6px;font-size:12px;color:rgba(0,0,0,0.55);line-height:1.6";
+    choices.style.cssText = "margin-top:6px;font-size:12px;color:rgba(0,0,0,0.55);line-height:1.6";
     choices.textContent =
       (kind === "boolean" ? ["Yes", "No"] : options).join(" · ") + " · (no answer)";
     wrap.append(field, choices);
@@ -1959,6 +1959,6 @@ card.append(
   ),
 );
 
-await settle()
+await settle();
 
 })()

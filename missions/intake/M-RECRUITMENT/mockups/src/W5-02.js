@@ -1,10 +1,14 @@
-// W5-02 — The real form at ?add=walk-up, with the read-back step Task 04 D-4
-// requires and main does not implement. The four fields are the shipped ones.
+// W5-02 — The shipped walk-up form, filled in.
+//
+// The four fields are the application's own and the form is the application's
+// own. Nothing is added to it: the read-back step an earlier draft proposed
+// here is gone, and so are the duplicate-check and no-mobile screens that stood
+// beside it — W8 owns duplicates, and an edge case is not a step in this flow.
+//
+// Brian, 2026-08-31: "There are basically needless extensions on this and
+// narration, particularly on W5-02. It should just be the normal workflow."
 fill("givenName", "Marguerite");
 fill("familyName", "Ashdown");
 fill("phone", "07700 900461");
-const box = proposedBlock("amber");
-blockTitle(box, "Read the number back before you save");
-blockText(box, "“I have oh-seven-seven-double-oh, nine-oh-oh, four-six-one — is that right?”");
-box.append(checkboxRow("They confirmed it", false));
-afterField("phone", box) ?? document.querySelector("form")?.append(box);
+
+await settle();

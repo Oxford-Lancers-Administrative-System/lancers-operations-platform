@@ -1531,7 +1531,8 @@ const openDialog = ({ title, question, sent, note }) => {
   history.style.cssText =
     "margin:0 24px 4px;border:1px solid rgba(0,0,0,0.16);border-radius:8px;padding:12px 14px";
   const label = document.createElement("div");
-  label.style.cssText = "font-size:12px;font-weight:700;letter-spacing:.05em;color:rgba(0,0,0,0.55)";
+  label.style.cssText =
+    "font-size:12px;font-weight:700;letter-spacing:.05em;color:rgba(0,0,0,0.55)";
   label.textContent = "ALREADY SENT";
   const value = document.createElement("div");
   value.style.cssText = "margin-top:6px;font-size:14px;color:rgba(0,0,0,0.87)";
@@ -1850,8 +1851,7 @@ const questionField = ({ prompt, kind, options = [], value = "" }) => {
     // The options this question offers, listed under it so a reviewer can see
     // what the dropdown holds without opening it.
     const choices = document.createElement("div");
-    choices.style.cssText =
-      "margin-top:6px;font-size:12px;color:rgba(0,0,0,0.55);line-height:1.6";
+    choices.style.cssText = "margin-top:6px;font-size:12px;color:rgba(0,0,0,0.55);line-height:1.6";
     choices.textContent =
       (kind === "boolean" ? ["Yes", "No"] : options).join(" · ") + " · (no answer)";
     wrap.append(field, choices);
@@ -1886,15 +1886,22 @@ const recruitFormHead = (card, { name, title, blurb }) => {
   return card;
 };
 
-// W5-01 — The sheet, and the way in. The control exists; what it does not say is
-// that using it creates a recruit and sends that person a message.
-const entry = $$("a, button").find((b) => /add walk-up/i.test(b.textContent));
-if (entry) {
-  entry.textContent = "ADD A WALK-ON";
-  const hint = document.createElement("div");
-  hint.textContent = "Adds them to recruitment and sends the club's welcome";
-  hint.style.cssText = "font-size:12px;color:rgba(0,0,0,0.55);margin-top:6px";
-  entry.parentElement?.insertBefore(hint, entry.nextSibling);
-}
+// W5-01 — The attendance sheet, and the way in.
+//
+// Unchanged from what ships. Brian, 2026-08-31: "This flow should be identical
+// to the way the roster works right now." So the control is the shipped
+// ADD WALK-UP, not a relabelled one — an earlier draft renamed it ADD A WALK-ON
+// and that was an invention.
+//
+// The only thing this screen says is where the flow starts.
+mark(
+  must(
+    $$("a, button").find((b) => /add walk-up/i.test(b.textContent)),
+    "the attendance sheet has no ADD WALK-UP control",
+  ),
+  1,
+);
+
+await settle()
 
 })()

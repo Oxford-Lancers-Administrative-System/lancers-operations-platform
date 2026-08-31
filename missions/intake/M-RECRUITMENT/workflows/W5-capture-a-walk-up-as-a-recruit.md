@@ -68,6 +68,53 @@ mission and nothing else moves:
 This is a change to shipped copy, so it is the Mission Lead's to make under an
 approved decision rather than intake's to make here.
 
+## The flow, and only the flow
+
+Brian, 2026-08-31, cutting this workflow back:
+
+> "This flow should be identical to the way the roster works right now... There
+> are basically needless extensions on this and narration, particularly on
+> `W5-02`. It should just be the normal workflow: 1. If somebody gets added, they
+> get added into the thing. 2. They get the WhatsApp approval. 3. They get the
+> first questionnaire to ask a few more details about them. That's it."
+
+Three screens, matching those three steps:
+
+| Screen  | What it is                                                                    |
+| ------- | ----------------------------------------------------------------------------- |
+| `W5-01` | The shipped attendance sheet and its own `ADD WALK-UP` control.               |
+| `W5-02` | The shipped walk-up form, filled in. Nothing added to it.                     |
+| `W5-03` | Saved — she is in the sheet's **Walk-ups** section, and a short line says so. |
+
+Steps 2 and 3 are **not screens of this workflow**. The WhatsApp exchange happens
+inside WhatsApp, which this product does not render, and the questionnaire is
+`W4`'s. `W10` fires both.
+
+### What was cut
+
+- **A proposed read-back step on `W5-02`** — an addition to a shipped form, and
+  the thing Brian named directly.
+- **A duplicate-check screen** — `W8` owns duplicates.
+- **A "refused: no mobile" screen** — an edge case is not a step in a flow.
+- **A relabelled control** — an earlier draft renamed `ADD WALK-UP` to
+  `ADD A WALK-ON`. The flow is identical to what ships, so the control is too.
+
+### The walk-ups section is shipped, and it is the confirmation
+
+Brian: _"I should see the walk-ons, and they should have their own section that's
+there."_ They do — `attendance-groups.tsx` renders a **Walk-ups** group, open by
+default and drawn only when it holds somebody. Its own comment gives the reason
+it opens: closing it would close _"the only confirmation that the walk-up was
+recorded"_. The seeded event has none, so `W5-03` puts Marguerite in it by
+cloning the sheet's own group and row markup.
+
+Because that section says what happened, the shipped green line above it —
+_"Walk-on recorded. They are in recruitment as somebody to follow up, and were
+not put on the roster."_ — shrinks to **"Walk-up added"**. Brian: _"I don't like
+the extra text. I think a smaller text box that says 'Walkup added' is perfectly
+fine, as long as it disappears if multiple walkups get added."_ It is about the
+last add rather than a running tally; the section below carries the record.
+
 ## Required actions
 
 1. Add a walk-up from the attendance sheet without leaving it.

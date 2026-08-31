@@ -1,10 +1,17 @@
-// W5-01 — The sheet, and the way in. The control exists; what it does not say is
-// that using it creates a recruit and sends that person a message.
-const entry = $$("a, button").find((b) => /add walk-up/i.test(b.textContent));
-if (entry) {
-  entry.textContent = "ADD A WALK-ON";
-  const hint = document.createElement("div");
-  hint.textContent = "Adds them to recruitment and sends the club's welcome";
-  hint.style.cssText = "font-size:12px;color:rgba(0,0,0,0.55);margin-top:6px";
-  entry.parentElement?.insertBefore(hint, entry.nextSibling);
-}
+// W5-01 — The attendance sheet, and the way in.
+//
+// Unchanged from what ships. Brian, 2026-08-31: "This flow should be identical
+// to the way the roster works right now." So the control is the shipped
+// ADD WALK-UP, not a relabelled one — an earlier draft renamed it ADD A WALK-ON
+// and that was an invention.
+//
+// The only thing this screen says is where the flow starts.
+mark(
+  must(
+    $$("a, button").find((b) => /add walk-up/i.test(b.textContent)),
+    "the attendance sheet has no ADD WALK-UP control",
+  ),
+  1,
+);
+
+await settle();

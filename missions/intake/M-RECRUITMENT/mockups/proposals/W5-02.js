@@ -1531,7 +1531,8 @@ const openDialog = ({ title, question, sent, note }) => {
   history.style.cssText =
     "margin:0 24px 4px;border:1px solid rgba(0,0,0,0.16);border-radius:8px;padding:12px 14px";
   const label = document.createElement("div");
-  label.style.cssText = "font-size:12px;font-weight:700;letter-spacing:.05em;color:rgba(0,0,0,0.55)";
+  label.style.cssText =
+    "font-size:12px;font-weight:700;letter-spacing:.05em;color:rgba(0,0,0,0.55)";
   label.textContent = "ALREADY SENT";
   const value = document.createElement("div");
   value.style.cssText = "margin-top:6px;font-size:14px;color:rgba(0,0,0,0.87)";
@@ -1850,8 +1851,7 @@ const questionField = ({ prompt, kind, options = [], value = "" }) => {
     // The options this question offers, listed under it so a reviewer can see
     // what the dropdown holds without opening it.
     const choices = document.createElement("div");
-    choices.style.cssText =
-      "margin-top:6px;font-size:12px;color:rgba(0,0,0,0.55);line-height:1.6";
+    choices.style.cssText = "margin-top:6px;font-size:12px;color:rgba(0,0,0,0.55);line-height:1.6";
     choices.textContent =
       (kind === "boolean" ? ["Yes", "No"] : options).join(" · ") + " · (no answer)";
     wrap.append(field, choices);
@@ -1886,15 +1886,19 @@ const recruitFormHead = (card, { name, title, blurb }) => {
   return card;
 };
 
-// W5-02 — The real form at ?add=walk-up, with the read-back step Task 04 D-4
-// requires and main does not implement. The four fields are the shipped ones.
+// W5-02 — The shipped walk-up form, filled in.
+//
+// The four fields are the application's own and the form is the application's
+// own. Nothing is added to it: the read-back step an earlier draft proposed
+// here is gone, and so are the duplicate-check and no-mobile screens that stood
+// beside it — W8 owns duplicates, and an edge case is not a step in this flow.
+//
+// Brian, 2026-08-31: "There are basically needless extensions on this and
+// narration, particularly on W5-02. It should just be the normal workflow."
 fill("givenName", "Marguerite");
 fill("familyName", "Ashdown");
 fill("phone", "07700 900461");
-const box = proposedBlock("amber");
-blockTitle(box, "Read the number back before you save");
-blockText(box, "“I have oh-seven-seven-double-oh, nine-oh-oh, four-six-one — is that right?”");
-box.append(checkboxRow("They confirmed it", false));
-afterField("phone", box) ?? document.querySelector("form")?.append(box);
+
+await settle()
 
 })()
