@@ -15,6 +15,55 @@
   flexibility. I'm not sure where."_
 - User-visible result: the change takes effect, and who made it is recorded.
 
+## This is the machinery workflow — Brian, 2026-08-31
+
+> "We still need a workflow to say how the machinery works, because the machinery
+> needs to be here to say that there's going to be a flow to how the items get out
+> there." … "When somebody gets recruited on board, we need to be able to tell
+> when those things get sent out to them."
+
+`W10` is that workflow. No new one was added: Brian declined a fifteenth
+(_"I don't want a workflow 15"_), and this one already owned "what recruitment
+says, when it says it, and whether a step runs at all". When `W3` was removed on
+the same day, its three ladder decisions — `D3`, `SIGNON-OWNED` and
+`SIGNON-LADDER` — moved here, which makes the ownership explicit rather than
+implied.
+
+So `W10` must define **the sequence itself**, not merely the screens that edit
+it:
+
+1. **What is sent** — the WhatsApp welcome, the community-group invite,
+   Questionnaire A (who you are), Questionnaire B (how you came to football),
+   event invitations, and the single permitted reminder for each.
+2. **On what trigger** — capture at a door (`W5`, `W6`, `W7`), an operator's
+   hand (`W2`, `W9`), a scheduled offset, or an event's own timetable.
+3. **In what order, and how far apart.** Brian is settling when the two
+   questionnaires go out and whether they are ever combined; the machinery must
+   express whichever answer he gives rather than hard-coding one.
+4. **Whether a step runs at all**, per cycle — a Freshers' push and a mid-season
+   push are the same machine configured differently.
+
+### Doing the WhatsApp onboarding lives here
+
+Brian: _"Actually doing the WhatsApp onboarding is in there."_ The recruit-facing
+half happens inside WhatsApp, which this product does not render, and that is why
+`W3` looked empty and was removed. The parts this product does own are all here
+or already homed:
+
+- **The ladder and its triggers** — this workflow.
+- **Whether they accepted and are in the group** — the recruit's record (`W2`).
+- **The QR door's own form**, which ends in the group — `W7`.
+- **The send actions an operator can take by hand** — `W2` and `W9`.
+
+`W5` and `W6` end by firing this ladder. Their inventory lines say so.
+
+### What an operator must be able to tell about one recruit
+
+This is the half Brian asked for last and it is a requirement on `W2` as much as
+on this workflow: for a given recruit, an operator must be able to see **what has
+already been sent, when, and what is due to go out next**. `W2` renders it; this
+workflow defines what "due next" means. Neither is drawn yet.
+
 ## The boundary this workflow exists to find
 
 Brian, 2026-08-31: _"W9 is important. I'm most confused about this one. I think we

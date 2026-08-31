@@ -39,13 +39,43 @@
 - Reason for any departure from the implemented application: nothing to depart
   from. This is the substrate's first instance.
 
-## The field set
+## Two questionnaires, not one
 
-Never enumerated by anyone. Task 08 §4 records that football background,
-experience and gear ownership were deliberately not carried into the person
-inventory and were routed to Task 09; Mission 5's approved packet records the set
-as an open unknown. Enumerated here for the first time, and every field is
-optional:
+Brian, 2026-08-31: _"The W4 and W15 should have personal details. They should be
+two separate questionnaires that get sent out at different times… It's two
+questionnaires."_ He declined a separate workflow for the second one — _"I don't
+want a workflow 15"_ — so both live here, on one substrate.
+
+They are **two distinct sends**, minted separately, answerable separately, and
+each with its own state on the recruit's record. **When each goes out, and
+whether they are ever combined, is Brian's to settle** — _"we'll figure out when
+they get put together. I'm doing that."_ The order below is not a decision.
+
+### Questionnaire A — Who you are
+
+The recruit supplies or confirms their own personal details. Enumerated with
+Mission 5, because these are its fields.
+
+| Field          | Why the club wants it                                    |
+| -------------- | -------------------------------------------------------- |
+| Preferred name | What to call them, where it differs from their full name |
+| Mobile         | Confirm or correct what the door captured                |
+| Email          | Often not captured at a stand at all                     |
+| College        | Confirm or supply                                        |
+| Year           | Confirm or supply                                        |
+
+**The seam, stated rather than assumed:** the _fields_ belong to Mission 5's
+person record, which this mission does not own and does not correct. This
+mission owns **the asking** — minting the link, sending it, and receiving the
+answers. What the person record does with an answer is Mission 5's, and the
+exact field list above is proposed until Mission 5 confirms it.
+
+### Questionnaire B — How you came to football
+
+The recruit-stage field set. Never enumerated by anyone before this intake:
+Task 08 §4 records that football background, experience and gear ownership were
+deliberately not carried into the person inventory and were routed to Task 09,
+and Mission 5's approved packet records the set as an open unknown.
 
 | Field                             | Why the club wants it                                                |
 | --------------------------------- | -------------------------------------------------------------------- |
@@ -56,20 +86,16 @@ optional:
 | How they heard of us              | The only recruitment-effectiveness question worth asking             |
 | Anything else                     | Free text, because a recruit will tell you something you did not ask |
 
-Amended by Brian on 2026-08-31, on being shown the earlier six:
+Amended by Brian on 2026-08-31, on being shown an earlier six:
 
-- **Year and college is gone.** _"Whether they're in college is something we
-  already asked."_ It is on the person record; the form does not re-ask it and no
-  longer shows it for correction.
+- **Year and college is gone from this one.** _"Whether they're in college is
+  something we already asked."_ It belongs to Questionnaire A.
 - **"Played before" became two questions, both yes/no.** _"Have they ever played
   American football before? Have they ever watched American football? Those
-  should be yes-or-no questions."_ Position interest, gear owned and how they
-  heard of us were each confirmed in the same pass.
-- **`Anything else` is retained but not confirmed.** Brian's "anything else?" was
-  the prompt that produced the two new questions rather than a ruling on the
-  free-text box. It stays proposed until he says otherwise.
+  should be yes-or-no questions."_
+- **`Anything else` is retained but not confirmed.**
 
-Nothing here gates anything. Missing information never blocks a capture and never
+Every field in both questionnaires is optional. Nothing here gates anything. Missing information never blocks a capture and never
 blocks the flip — Task 09 D5, and invariant 4.
 
 ## Required actions

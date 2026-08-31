@@ -88,7 +88,13 @@
       "name": "Fill in your details",
       "state": "spec_draft",
       "stale": true,
-      "feedback": []
+      "feedback": [
+        {
+          "screen_id": "W4-01",
+          "date": "2026-08-31",
+          "text": "The questions are a little bit too casual. They should have the player name near the top as well. If there are drop-downs, there should be drop-downs in the right questions... it should also line up with the questions we ask before. Plus: W4 and W15 should have personal details. They should be two separate questionnaires that get sent out at different times. I don't want a workflow 15. — SPEC UPDATED: W4 now carries two questionnaires, A (who you are) and B (how you came to football), on one substrate. No W15 was added. Screens NOT yet rebuilt: wording, the recruit's name at the top, and real controls are still to do."
+        }
+      ]
     },
     {
       "id": "W5",
@@ -130,7 +136,13 @@
       "name": "Administer recruitment's messages, cycles and QR",
       "state": "spec_draft",
       "stale": true,
-      "feedback": []
+      "feedback": [
+        {
+          "screen_id": "W10-01",
+          "date": "2026-08-31",
+          "text": "We still need a workflow to say how the machinery works... when somebody gets recruited on board, we need to be able to tell when those things get sent out to them. Actually doing the WhatsApp onboarding is in there. — SPEC UPDATED: W10 is named as the machinery workflow and must define what is sent, on what trigger, in what order and whether a step runs at all, including the WhatsApp onboarding it inherited from W3. Screens NOT rebuilt."
+        }
+      ]
     },
     {
       "id": "W11",
@@ -1008,7 +1020,7 @@
       }
     ]
   },
-  "next_action": "W2 is rebuilt: two screens, W2-01 empty and W2-02 with content and an edit in progress. Both are with Brian. Open for him: (1) the events card is violet here, the shipped ATTENDANCE colour, while W1's approved event bands are blue - making them consistent means changing approved W1; (2) does channel presence render on a recruit's record at all, inherited from W3's removal; (3) confirm W3's five decisions landing in W10 and W2. Flip W3 to done once W2 is done.",
+  "next_action": "Structure settled with Brian 2026-08-31: W4 holds TWO questionnaires (personal details, and how you came to football) sent at different times - no W15, he declined one. W10 is the machinery workflow and owns the ladder, its triggers and the WhatsApp onboarding inherited from W3. W2 must show, per recruit, what has been sent and what is due next, and must afford its six required actions - it currently affords one. Build order: finish W2's actions, then W4's two questionnaires, then W10. W1 done; W2 awaiting these additions; W3 removed; W4-W14 stale.",
   "subject_coverage": {
     "areas": [
       {
