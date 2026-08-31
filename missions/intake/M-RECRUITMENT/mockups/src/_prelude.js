@@ -1177,13 +1177,42 @@ const setRecruitmentEvents = (events, title = "Recruitment events") => {
   //
   // So walk UP from the table to the card, clearing siblings at every level.
   // Whatever the intermediate nesting is, only the table's own branch survives.
+  // The card renders TWICE: `attendance-desktop` holds the table and
+  // `attendance-phone` holds a list of `attendance-card`s, and they are
+  // siblings. Sweeping siblings from the table upward deleted the phone list,
+  // so at 375px this card was an empty coloured bar. Hold it aside and rebuild
+  // it from the same events, exactly as the board does.
+  const phoneList = document.querySelector('[data-testid="attendance-phone"]');
+  const phoneTemplate = phoneList
+    ?.querySelector('[data-testid="attendance-card"]')
+    ?.cloneNode(true);
+
   let node = table;
   while (node.parentElement && node.parentElement !== card) {
     const parent = node.parentElement;
     for (const sibling of [...parent.children]) {
-      if (sibling !== node) sibling.remove();
+      if (sibling !== node && sibling !== phoneList) sibling.remove();
     }
     node = parent;
+  }
+  if (phoneList && phoneTemplate) {
+    phoneList.replaceChildren(
+      ...events.map((event) => {
+        const item = phoneTemplate.cloneNode(true);
+        const lines = [...item.querySelectorAll(".MuiTypography-root")];
+        const values = [
+          event.name,
+          `${event.date} · ${event.status}`,
+          `RSVP ${event.rsvp}`,
+          `Attendance ${event.attendance}`,
+        ];
+        lines.forEach((line, i) => {
+          if (i < values.length) line.replaceChildren(document.createTextNode(values[i]));
+          else line.remove();
+        });
+        return item;
+      }),
+    );
   }
   for (const child of [...card.children]) {
     if (!child.contains(table) && child !== headBar) child.remove();
@@ -1394,12 +1423,21 @@ const pageButton = (text) => {
   button.textContent = text;
   button.removeAttribute("href");
 
+  // Wrap the heading block and the button in a row of their OWN, rather than
+  // turning the heading's container into a flex row: that container holds the
+  // name and the line under it, so flexing it put them side by side and pushed
+  // the button off the right edge at 375px. It wraps, so on a phone the button
+  // drops to its own line at full width.
   const h1 = must($("h1"), "the record has no heading to sit beside");
-  const row = must(h1.parentElement, "the heading has no row");
-  row.style.display = "flex";
-  row.style.justifyContent = "space-between";
-  row.style.alignItems = "flex-start";
-  row.style.gap = "16px";
+  const head = must(h1.parentElement, "the heading has no block");
+  const row = document.createElement("div");
+  row.style.cssText =
+    "display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px";
+  head.parentElement.insertBefore(row, head);
+  row.append(head);
+  head.style.flex = "1 1 240px";
+  head.style.minWidth = "0";
+  button.style.flex = "0 0 auto";
   row.append(button);
   return button;
 };
@@ -1541,9 +1579,9 @@ const buildRecruitRecord = () => {
     [{ chip: "engaged" }, "Recruitment status"],
     ["3 May 2026", "First contact"],
     ["2", "Events attended"],
-    ["Answered", "Questionnaire"],
   ]);
 
+  removeCardAction(bandedCard("PERSON"));
   setPersonRows([
     recordRow("Name", "Tobias Wrenfield"),
     recordRow("Aliases", "Toby"),
@@ -1593,7 +1631,7 @@ const buildRecruitRecord = () => {
   // ---- THE RECRUIT-STAGE ASK, answered --------------------------------------
   const questionnaireCardRef = rebuildCard(
     bandedCard("SEASON"),
-    "Questionnaire",
+    "Recruitment questionnaire",
     [
       recordRow("Questionnaire sent", "4 May 2026 · reminder 6 May 2026"),
       recordRow("Answered", "7 May 2026"),
@@ -1691,9 +1729,27 @@ const buildRecruitRecord = () => {
   // ---- One button, top right -----------------------------------------------
 
   // ---- The send record, embedded at the foot of each card -------------------
-  sentDates(bandedCard("PERSON"), "Questionnaire sent", []);
-  sentDates(questionnaireCardRef, "Questionnaire sent", ["4 May 2026", "reminder 6 May 2026"]);
+  sentDates(bandedCard("PERSON"), "Personal details questionnaire sent", []);
+  sentDates(questionnaireCardRef, "Recruitment questionnaire sent", [
+    "4 May 2026",
+    "reminder 6 May 2026",
+  ]);
 
   relabelButton("back to roster", "BACK TO RECRUITMENT");
   window.history.replaceState(null, "", "/operate/recruitment/tobias-wrenfield");
+};
+
+/**
+ * Strip a banded card's header action.
+ *
+ * Brian, 2026-08-31: "Open the personal record, as the arrow should not be on
+ * this one for W2." The shipped player record carries it; the recruit's page
+ * does not.
+ */
+const removeCardAction = (card) => {
+  const bar = must(card.querySelector("h2")?.parentElement, "the card has no header bar");
+  for (const node of [...bar.children]) {
+    if (node.tagName === "A" || node.tagName === "BUTTON") node.remove();
+  }
+  return card;
 };

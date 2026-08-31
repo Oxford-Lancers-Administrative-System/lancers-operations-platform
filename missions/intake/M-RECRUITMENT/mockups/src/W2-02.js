@@ -7,6 +7,6 @@
 // The record itself is built in the prelude and shared with W2-03, so the page
 // behind the dialog is the same page.
 buildRecruitRecord();
-pageButton("SEND QUESTIONNAIRE");
+pageButton("SEND A QUESTIONNAIRE");
 
 await settle();

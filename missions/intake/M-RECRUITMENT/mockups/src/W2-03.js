@@ -14,7 +14,7 @@
 // The whole record, the same one W2-02 shows, so the dialog opens over the page
 // it belongs to rather than over the shipped player record.
 buildRecruitRecord();
-pageButton("SEND QUESTIONNAIRE");
+pageButton("SEND A QUESTIONNAIRE");
 
 // The dialog the button opens. Two templates, because there are two
 // questionnaires; each shows when it last went out, which is the whole point.

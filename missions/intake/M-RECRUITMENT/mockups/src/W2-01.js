@@ -23,12 +23,12 @@ replaceSummaryStrip([
   [{ chip: "identified" }, "Recruitment status"],
   ["28 Apr 2026", "First contact"],
   ["1", "Events attended"],
-  ["Not sent", "Questionnaire"],
 ]);
 
 // ---- PERSON — kept as the shipped card, read-only, routing out -------------
 // Mission 5 owns these and owns correcting them. The card already carries its
 // "Open the person record →" action, so nothing here needs inventing.
+removeCardAction(bandedCard("PERSON"));
 setPersonRows([
   recordRow("Name", "Rosalind Penhaligon"),
   recordRow("Aliases", "Not recorded", { muted: true }),
@@ -61,7 +61,7 @@ const recruitmentCardRef = rebuildCard(
 // says so plainly and offers the send; W2-02 is the same card answered.
 const questionnaireCardRef = rebuildCard(
   bandedCard("SEASON"),
-  "Questionnaire",
+  "Recruitment questionnaire",
   [
     recordRow("Questionnaire sent", "Not sent", { muted: true }),
     recordRow("Answered", "Not answered", { muted: true }),
@@ -148,11 +148,11 @@ historyCard.append(historyBody);
 // ---- One button, top right -----------------------------------------------
 // Not four links in card headers, and no Flip to joined: the flip is a status
 // change, which the status control makes and W14 interrupts.
-pageButton("SEND QUESTIONNAIRE");
+pageButton("SEND A QUESTIONNAIRE");
 
 // ---- The send record, embedded at the foot of each card -------------------
-sentDates(bandedCard("PERSON"), "Questionnaire sent", []);
-sentDates(questionnaireCardRef, "Questionnaire sent", []);
+sentDates(bandedCard("PERSON"), "Personal details questionnaire sent", []);
+sentDates(questionnaireCardRef, "Recruitment questionnaire sent", []);
 
 relabelButton("back to roster", "BACK TO RECRUITMENT");
 
