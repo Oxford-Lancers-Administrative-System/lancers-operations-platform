@@ -222,55 +222,33 @@ const WORKFLOWS = [
       P(
         "W5-01",
         "The sheet, and the way in",
-        `The control exists and works. What it does not say is that using it sends that person a message.`,
+        `The shipped attendance sheet and its own ADD WALK-UP control. Nothing is changed: Brian,
+         2026-08-31, "This flow should be identical to the way the roster works right now."`,
         [
-          "<strong>1. The entry point is unchanged</strong> — this is the shipped attendance sheet",
-          "<strong>2. One line added</strong>: adds them to recruitment <em>and sends the club's welcome</em>",
-          "<strong>Vocabulary, unresolved:</strong> the button says <em>Add walk-up</em>, the next page says <em>Add a walk-on</em>, the row chip says <em>Walk-on</em>, and the briefs say <em>walk-up</em>. One word should win and it is yours",
+          "<strong>1. The control is the shipped one.</strong> An earlier draft relabelled it ADD A WALK-ON; the flow is identical to what ships, so the control is too",
         ],
         "oxfordlancers.example/operate/events/1d76b9f8/attendance",
       ),
       P(
         "W5-02",
-        "The form, with the read-back",
-        `The shipped form at <code>?add=walk-up</code>, filled in. The four fields and the warning above them are exactly what main renders.`,
-        [
-          "<strong>1. The read-back step</strong> — Task 04 D-4 requires it and main does not implement it. Saving sends a real message to this number, so it is confirmed out loud first",
-          "<strong>2. Everything else on this screen is shipped</strong>, including the alert that already says they are added to recruitment",
-          "<strong>Correction:</strong> my specification claimed nothing told the operator this creates a recruit. That was wrong — the alert says it. Struck",
-        ],
+        "The walk-up form, filled in",
+        `The shipped form and its four shipped fields, with nothing added to it. The read-back step an
+         earlier draft proposed here is gone, along with the duplicate-check and no-mobile screens
+         that stood beside it — Brian: "there are basically needless extensions on this and
+         narration, particularly on W5-02."`,
+        [],
         "oxfordlancers.example/operate/events/1d76b9f8/attendance?add=walk-up",
       ),
       P(
         "W5-03",
-        "A possible duplicate, before anything is written",
-        `main mints a person here with no interactive check at all — the drift Task 09 amendment 4 recorded and sent to this mission.`,
+        "Saved — she is in the Walk-ups section",
+        `The third step, and the whole of it. Walk-ons have their own section already:
+         attendance-groups.tsx renders a Walk-ups group, open by default and drawn only when it holds
+         somebody. The seeded event has none, so this screen puts her in it using the sheet's own
+         group and row markup.`,
         [
-          "<strong>1. It offers, it does not block.</strong> At a touchline, blocking loses the person",
-          "<strong>2. Nothing is written until the operator chooses</strong>",
-          "<strong>3. Wider than the coach-only exception</strong> Task 09 §3 allows, which is why it is reconciled here",
-        ],
-        "oxfordlancers.example/operate/events/1d76b9f8/attendance?add=walk-up",
-      ),
-      P(
-        "W5-04",
-        "Refused: no mobile",
-        `Your knowingly-accepted limitation, on the form where it actually bites.`,
-        [
-          "<strong>1. Nothing is saved</strong> — no person, no recruit, no attendance row",
-          "<strong>2. It says why and what to do</strong> rather than leaving a dead button",
-          "<strong>3. Task 04 D-1, knowingly:</strong> <em>“a walk-up we can't reach isn't in the pipeline.”</em> Not to be softened without a new decision",
-        ],
-        "oxfordlancers.example/operate/events/1d76b9f8/attendance?add=walk-up",
-      ),
-      P(
-        "W5-05",
-        "Saved",
-        `The shipped success state at <code>?added=walk-up</code>, plus where she actually went.`,
-        [
-          "<strong>1. The green confirmation is shipped</strong> and already says they are in recruitment",
-          "<strong>2. “In recruitment” is not a place you can click to.</strong> The addition is the link to her recruit record",
-          "<strong>3. And what was sent</strong> — the welcome and the community-group invite",
+          "<strong>1. The Walk-ups section is the confirmation.</strong> The shipped component's own comment says closing it would close <em>“the only confirmation that the walk-up was recorded”</em>. The count in the strip reads 1 with her in it",
+          "<strong>2. The long green line shrinks to “Walk-up added”.</strong> It ships as <em>“Walk-on recorded. They are in recruitment as somebody to follow up, and were not put on the roster.”</em> — Brian: <em>“I don't like the extra text… a smaller text box that says 'Walkup added' is perfectly fine, as long as it disappears if multiple walkups get added.”</em> It is about the last add, not a tally; the section below carries the record",
         ],
         "oxfordlancers.example/operate/events/1d76b9f8/attendance?added=walk-up",
       ),
