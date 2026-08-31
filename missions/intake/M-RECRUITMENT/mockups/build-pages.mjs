@@ -680,6 +680,7 @@ const WORKFLOWS = [
       "<strong>A QR recruit skips the welcome</strong> — they joined the group themselves at the stand, so it has nothing to tell them",
     ],
     screens: [],
+  },
 ];
 
 // Every frame's URL bar, and every screen's disposition, are derived from
