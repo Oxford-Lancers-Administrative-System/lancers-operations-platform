@@ -1998,51 +1998,112 @@ const disableButton = (button) => {
   return button;
 };
 
+/**
+ * Clear a page's body, keeping its shell and its heading block.
+ *
+ * W10's three screens each PREPENDED their content to /operate/admin/messaging,
+ * so every one of them sat on top of ~2,800px of Mission 4's per-event-type
+ * cadence forms — Practice, Strength and conditioning, Chalk, Game, Social,
+ * Meeting. Brian, twice: "you just screenshotted it", and then "it's using the
+ * wrong pages. I don't even know what it's doing here."
+ *
+ * Recruitment's cycle does not sit above the event cadences; on its own page it
+ * replaces them. So the body goes, the shell and heading stay, and what is left
+ * is the screen's actual subject.
+ */
+const clearPageBody = () => {
+  // The heading sits in a <header>, and the page body is that header's SIBLINGS.
+  // Walking two parents up from the h1 lands inside the header, whose only child
+  // is the heading block, so the first version removed nothing and threw.
+  const h1 = must($("h1"), "the page has no heading");
+  const headBlock = must(
+    h1.closest("header") ?? h1.parentElement?.parentElement,
+    "the heading has no block",
+  );
+  const host = must(headBlock.parentElement, "the heading block has no page container");
+  let removed = 0;
+  for (const child of [...host.children]) {
+    if (child === headBlock || child.contains(h1)) continue;
+    child.remove();
+    removed += 1;
+  }
+  if (removed === 0) throw new Error("clearPageBody removed nothing; the page shape is not what it assumes.");
+  return host;
+};
+
+/**
+ * The line under the page heading, set directly.
+ *
+ * `setHeading`'s subtitle match looks for the roster and people wording, so on
+ * the messaging schedule it left "7 event types" sitting under a heading that
+ * now said "Recruitment cycle".
+ */
+const pageSubtitle = (text) => {
+  const h1 = must($("h1"), "the page has no heading");
+  const block = h1.closest("header") ?? h1.parentElement?.parentElement;
+  const p = must(
+    block?.querySelector("p") ?? h1.parentElement?.parentElement?.querySelector("p"),
+    "the heading block has no subtitle line",
+  );
+  p.textContent = text;
+  return p;
+};
+
 // W10-03 — The templates behind the cycle. Moved here from W3 when Brian folded
-// that workflow into the doors and W10 on 2026-08-31.
+// that workflow on 2026-08-31, and rebuilt with the rest of W10.
 //
-// Every business-initiated WhatsApp message is a Meta-approved template; free
-// text is not a production shape (src/lib/delivery/config.ts). Only
-// event_invitation exists today. The lead time on the other four is a real gate.
-setHeading("Recruitment messages", "Season 2026-27 · approved WhatsApp templates");
+// Every business-initiated WhatsApp message is a Meta-approved template —
+// `src/lib/delivery/config.ts:168`, "template is the only production shape".
+// Only `event_invitation` exists today, so the lead time on the rest is a real
+// gate on this mission, not a detail. It is stated here rather than buried in a
+// decision log.
+selectRecruitmentNav();
+setHeading("Recruitment messages");
+pageSubtitle("Season 2026-27 · the approved WhatsApp templates, and what each one says");
+const host = clearPageBody();
 
-const anchor = cardTemplate();
+const panel = (title) => {
+  const box = proposedRegion(title);
+  box.style.marginBottom = "18px";
+  host.append(box);
+  return box;
+};
 
-// 1. The four templates recruitment needs, and the one that already exists.
-const host = proposedRegion("The recruitment templates");
-host.append(
+const list = panel("The templates this cycle needs");
+list.append(
   templateRow(
     "recruit_welcome",
-    "Hi {{1}} — welcome to the Oxford Lancers. Great to meet you at {{2}}. Here is our community group: {{3}}",
-    "Not yet submitted",
-  ),
-  templateRow(
-    "recruit_interest_ask",
-    "Hi {{1}} — are you interested in coming along to a session? Reply YES or NO. No commitment either way.",
-    "Not yet submitted",
+    "Hi {{1}}, this is Oxford Lancers. Great to meet you today. Join our group here so you hear about the next session: {{2}}",
+    "Not submitted",
   ),
   templateRow(
     "recruit_details_ask",
-    "Hi {{1}} — when you have a minute, this tells us what to put on for you: {{2}}",
-    "Not yet submitted",
+    "Hi {{1}}, so we can reach you properly — two minutes to check your details: {{2}}",
+    "Not submitted",
   ),
   templateRow(
-    "recruit_gentle_reminder",
-    "Hi {{1}} — no rush at all, just checking you saw this. Reply whenever suits.",
-    "Not yet submitted",
+    "recruit_details_reminder",
+    "Hi {{1}}, still got a couple of minutes? {{2}} No rush, and we will not ask again.",
+    "Not submitted",
   ),
   templateRow(
-    "event_invitation",
-    "Hi {{1}} — {{2}} is on {{3}} at {{4}}. Let us know if you can make it.",
-    "Approved · in use",
+    "recruit_interest_ask",
+    "Hi {{1}}, a few questions about how you came to football so the coaches know where to start: {{2}}",
+    "Not submitted",
   ),
+  templateRow("event_invitation", "The one the club already sends for any event.", "Approved"),
 );
-placeBefore(anchor, host);
-mark(host, 1);
+mark(list, 1);
 
-// 2. The one template already approved, beside four that are not. The distance
-//    between those two states is the whole schedule risk in this mission.
-const approved = [...host.children].find((c) => /Approved · in use/.test(c.textContent));
-if (approved) mark(approved, 2);
+const gate = panel("Why this is a gate and not a detail");
+gate.append(
+  makeRow("Approved today", "One: event_invitation"),
+  makeRow("Needed by this cycle", "Four more, none submitted"),
+  makeRow("Meta review", "Days to weeks, and outside the club's control"),
+  makeRow("Until they clear", "the cycle can be built and cannot run"),
+);
+mark(gate, 2);
+
+await settle()
 
 })()

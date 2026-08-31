@@ -178,12 +178,12 @@
       "id": "W10",
       "name": "Administer recruitment's messages, cycles and QR",
       "state": "spec_draft",
-      "stale": true,
+      "stale": false,
       "feedback": [
         {
           "screen_id": "W10-01",
           "date": "2026-08-31",
-          "text": "We still need a workflow to say how the machinery works... when somebody gets recruited on board, we need to be able to tell when those things get sent out to them. Actually doing the WhatsApp onboarding is in there. — SPEC UPDATED: W10 is named as the machinery workflow and must define what is sent, on what trigger, in what order and whether a step runs at all, including the WhatsApp onboarding it inherited from W3. Screens NOT rebuilt."
+          "text": "W10 is just not correct. It's using the wrong pages. I don't even know what it's doing here. — REBUILT: all three screens were PREPENDING content to /operate/admin/messaging, so each sat above ~2,800px of Mission 4's per-event-type cadence forms. They now REPLACE that page's body, read as recruitment, and the proposed route is /operate/admin/recruitment. W10-01 also now answers the WhatsApp flow per door and carries the two questionnaires Brian settled after it was first drawn; W10-02 is the QR codes; W10-03 the templates and the Meta gate."
         }
       ]
     },
@@ -1063,7 +1063,7 @@
       }
     ]
   },
-  "next_action": "W1-W8 approved; W3 and W9 folded. W2-04 (the never-harsh refusal) is TENTATIVELY accepted only - Brian, 2026-08-31: 'tentatively accepted this, but I want to figure out the WhatsApp flow before'. Do not treat it as approved, and revisit it once W10 settles the WhatsApp flow. NOW ON W10 - the machinery. It must define what is sent, on what trigger, in what order and whether a step runs at all, and it owns the WhatsApp onboarding inherited from W3 (D3, SIGNON-OWNED, SIGNON-LADDER) and NEVER-HARSH inherited from W9. W10-W14 stale. OPEN: the WhatsApp flow itself; whether 'said no to WhatsApp' is a separate fact from 'declined'; W2 button placement; W2-04's real approval; events violet vs blue; channel presence on the record; the Contactable cell option.",
+  "next_action": "W1-W8 approved; W3 and W9 folded; W2-04 tentatively accepted pending the WhatsApp flow. W10 IS REBUILT AND WITH BRIAN, and it answers that WhatsApp question - so revisit W2-04 once he has seen it. NEXT after W10: W11-W14, all stale. OPEN: whether 'said no to WhatsApp' is a separate fact from 'declined'; W2 button placement; W2-04's real approval; events violet vs blue; channel presence on the record; the Contactable cell option.",
   "subject_coverage": {
     "areas": [
       {

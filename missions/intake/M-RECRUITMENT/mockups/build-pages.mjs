@@ -439,35 +439,38 @@ const WORKFLOWS = [
       P(
         "W10-01",
         "The recruitment cycle",
-        `The shipped messaging schedule is the shell and the language. Recruitment's cycle is a
-         sibling object in that language, not a new column on it.`,
+        `What the club sends, on what trigger, in what order, and whether each step runs at all. The
+         proposed route is /operate/admin/recruitment; the photograph is of the messaging schedule,
+         whose BODY is replaced rather than decorated — recruitment's cycle does not sit above Mission
+         4's event cadences, it is a different page.`,
         [
-          "<strong>The cycle as an ordered sequence</strong> of five named steps, each editable and each able to be turned off entirely — boundary item 43",
-          "<strong>The community-group link, and when it last changed.</strong> A rotated link nobody notices is the most likely silent failure in this mission: recruits receive an invitation to a dead group and nothing reports it",
-          "<strong>A step that is off, stated plainly on the cycle.</strong> Otherwise a recruit going quiet reads as disinterest when the club simply stopped asking",
+          "<strong>1. The WhatsApp flow differs by door, and that is the answer to how somebody gets into the group.</strong> A QR recruit joined it themselves at the stand, so the welcome is not for them. A walk-up and an operator-add have a number and no group membership, so for those two the welcome IS the way in, carrying the link",
+          "<strong>2. Two questionnaires, sent at different times</strong>, each with one reminder — the shape Brian settled after this screen was first drawn",
+          "<strong>3. What it never does.</strong> Nothing fires at a recruit who declined; there is never a second reminder; event invitations are the event's own; and free text is impossible",
+          "<strong>4. The community-group link</strong> lives in one place. A rotated link behind a live QR code is the most likely silent failure in the mission",
         ],
         "oxfordlancers.example/operate/admin/recruitment",
       ),
       P(
         "W10-02",
-        "QR codes — minting, counting, revoking",
-        `Its own screen, because printing a code on a poster and later turning it off is its own job
-         with its own consequences. This is what was missing.`,
+        "The QR codes",
+        `Minting and revoking a code that is printed on a poster is its own job with its own
+         consequences.`,
         [
-          "<strong>What is live, where it points, and how many people came through it.</strong> The submission count is what makes revoking a code a decision rather than a shrug",
-          "<strong>Minting one asks for a name and nothing else.</strong> Every code lands on the same page and carries the same group link; the name is how an operator later knows which poster took which submissions",
-          "<strong>A revoked code, and what it took before it was turned off.</strong> Posters stay up after revocation, so the scan lands on the uniform invalid page — never a message that reads as though the club has gone away",
+          "<strong>1. Each code says where it is printed</strong>, because revoking one kills a physical poster and nothing on screen would otherwise say so",
+          "<strong>2. Every code points at the club's own /join page</strong>, never at WhatsApp directly — which is what lets the group link change without reprinting anything",
         ],
         "oxfordlancers.example/operate/admin/recruitment",
       ),
       P(
         "W10-03",
         "The templates behind the cycle",
-        `Moved here from W3 when Brian folded that workflow on 2026-08-31. Every business-initiated
-         WhatsApp message is a Meta-approved template — free text is not a production shape.`,
+        `Moved here from W3 when that workflow was folded. Every business-initiated WhatsApp message is
+         a Meta-approved template — <code>config.ts:168</code>, “template is the only production
+         shape”.`,
         [
-          "<strong>Four new templates the club does not have yet</strong>, beside the one it does. Each needs Meta approval with real lead time before anything can send: that is a schedule gate, not a formality",
-          "<strong>Only <code>event_invitation</code> is approved today.</strong> The distance between those two states is the whole delivery risk in this mission",
+          "<strong>1. Four of the five do not exist yet.</strong> Only <code>event_invitation</code> is approved today",
+          "<strong>2. That is a gate, not a detail.</strong> Meta review takes days to weeks and is outside the club's control, so the cycle can be built and cannot run until they clear. Stated on the screen rather than buried in a decision log",
         ],
         "oxfordlancers.example/operate/admin/recruitment",
       ),

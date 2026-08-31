@@ -1998,60 +1998,123 @@ const disableButton = (button) => {
   return button;
 };
 
-// W10-02 — QR administration. Brian, 2026-08-31: "There's literally nothing here
-// about the QR code. You just screenshotted it."
+/**
+ * Clear a page's body, keeping its shell and its heading block.
+ *
+ * W10's three screens each PREPENDED their content to /operate/admin/messaging,
+ * so every one of them sat on top of ~2,800px of Mission 4's per-event-type
+ * cadence forms — Practice, Strength and conditioning, Chalk, Game, Social,
+ * Meeting. Brian, twice: "you just screenshotted it", and then "it's using the
+ * wrong pages. I don't even know what it's doing here."
+ *
+ * Recruitment's cycle does not sit above the event cadences; on its own page it
+ * replaces them. So the body goes, the shell and heading stay, and what is left
+ * is the screen's actual subject.
+ */
+const clearPageBody = () => {
+  // The heading sits in a <header>, and the page body is that header's SIBLINGS.
+  // Walking two parents up from the h1 lands inside the header, whose only child
+  // is the heading block, so the first version removed nothing and threw.
+  const h1 = must($("h1"), "the page has no heading");
+  const headBlock = must(
+    h1.closest("header") ?? h1.parentElement?.parentElement,
+    "the heading has no block",
+  );
+  const host = must(headBlock.parentElement, "the heading block has no page container");
+  let removed = 0;
+  for (const child of [...host.children]) {
+    if (child === headBlock || child.contains(h1)) continue;
+    child.remove();
+    removed += 1;
+  }
+  if (removed === 0) throw new Error("clearPageBody removed nothing; the page shape is not what it assumes.");
+  return host;
+};
+
+/**
+ * The line under the page heading, set directly.
+ *
+ * `setHeading`'s subtitle match looks for the roster and people wording, so on
+ * the messaging schedule it left "7 event types" sitting under a heading that
+ * now said "Recruitment cycle".
+ */
+const pageSubtitle = (text) => {
+  const h1 = must($("h1"), "the page has no heading");
+  const block = h1.closest("header") ?? h1.parentElement?.parentElement;
+  const p = must(
+    block?.querySelector("p") ?? h1.parentElement?.parentElement?.querySelector("p"),
+    "the heading block has no subtitle line",
+  );
+  p.textContent = text;
+  return p;
+};
+
+// W10-02 — The QR codes.
 //
-// It was in W10-01, appended below three thousand pixels of messaging schedule.
-// It is its own screen now, because minting and revoking a code that is printed
-// on a poster is its own job with its own consequences.
-setHeading(
-  "Recruitment QR codes",
-  "Season 2026-27 · what is live, what it points at, what it took",
+// Rebuilt with W10-01 on 2026-08-31. It was prepended to the messaging schedule
+// and sat below three thousand pixels of event cadences; the body is now
+// replaced, so the screen is about the thing it names.
+//
+// Minting and revoking a code that is PRINTED ON A POSTER is its own job with
+// its own consequences: a revoked code is a dead poster, and a rotated group
+// link behind a live code is the most likely silent failure in the mission.
+selectRecruitmentNav();
+setHeading("Recruitment QR codes");
+pageSubtitle("Season 2026-27 · where each code is printed, and where it points");
+const host = clearPageBody();
+
+const panel = (title) => {
+  const box = proposedRegion(title);
+  box.style.marginBottom = "18px";
+  host.append(box);
+  return box;
+};
+
+const codes = panel("Live codes");
+const codeRow = (name, where, scans, state) => {
+  const row = document.createElement("div");
+  row.style.cssText =
+    "display:flex;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(0,0,0,0.08)";
+  const n = document.createElement("div");
+  n.style.cssText = "flex:0 0 230px";
+  const code = document.createElement("code");
+  code.textContent = name;
+  code.style.cssText = "font-size:12.5px;font-weight:700;color:#0b3d91";
+  const w = document.createElement("div");
+  w.textContent = where;
+  w.style.cssText = "font-size:12.5px;color:rgba(0,0,0,0.6);margin-top:3px";
+  n.append(code, w);
+  const s = document.createElement("div");
+  s.textContent = scans;
+  s.style.cssText = "flex:0 0 130px;font-size:13.5px;color:rgba(0,0,0,0.8)";
+  const badge = document.createElement("span");
+  const live = state === "Live";
+  badge.textContent = state;
+  badge.style.cssText =
+    `font-size:11px;font-weight:700;letter-spacing:.05em;padding:3px 10px;border-radius:11px;` +
+    (live ? "color:#1b5e20;background:#e8f5e9;border:1px solid #a5d6a7" : "color:rgba(0,0,0,0.55);background:#eee;border:1px solid #ddd");
+  const b = document.createElement("div");
+  b.style.cssText = "flex:1;text-align:right";
+  b.append(badge);
+  row.append(n, s, b);
+  return row;
+};
+codes.append(
+  codeRow("qr_freshers_fair_2026", "The stand banner and 200 flyers", "48 sign-ins", "Live"),
+  codeRow("qr_taster_2026", "Pitchside board at both tasters", "11 sign-ins", "Live"),
+  codeRow("qr_freshers_fair_2025", "Last year's banner", "0 sign-ins this season", "Revoked"),
 );
+mark(codes, 1);
 
-const anchor = cardTemplate();
-
-// 1. The live codes: what each is called, where it points, when it was minted,
-//    and how many people came through it. The count is what makes revoking one
-//    a decision rather than a shrug.
-const live = proposedRegion("Live codes");
-live.append(
-  makeRow(
-    "Freshers' Fair stand",
-    "→ /join?c=ff26 · minted 22 Apr by Caspian Hallowfield · 41 submissions",
-  ),
-  makeRow(
-    "Taster poster, Michaelmas",
-    "→ /join?c=tm26 · minted 2 May by Caspian Hallowfield · 7 submissions",
-  ),
+const consequences = panel("What minting and revoking mean");
+consequences.append(
+  makeRow("Every code points at", "the club's own /join page, never at WhatsApp directly"),
+  makeRow("Revoking a code", "kills the poster it is printed on. Nothing else changes."),
+  makeRow("A revoked code scanned", "the uniform invalid page — it never says why"),
+  makeRow("The group link", "lives in one place and is changed there, not on each code"),
 );
-placeBefore(anchor, live);
-mark(live, 1);
+mark(consequences, 2);
 
-// 2. Minting one. A name, and nothing else to decide — every code points at the
-//    same page and carries the same group link; the name is how an operator
-//    later knows which poster took which submissions.
-const mint = proposedRegion("Mint a code");
-mint.append(field("Name this code", "Hilary handout, 2026-27"));
-mint.append(primaryButton("Mint"));
-placeBefore(anchor, mint);
-mark(mint, 2);
-
-// 3. A revoked code, and what it took before it was turned off. Posters stay up
-//    after a code is revoked, so the scan has to land somewhere honest: the
-//    uniform invalid page, never a message that says the club has gone away.
-const revoked = proposedRegion("Revoked");
-revoked.append(
-  makeRow(
-    "Old handout, Hilary 2025-26",
-    "Revoked 14 Apr by Caspian Hallowfield · 23 submissions before, 0 since",
-  ),
-  makeRow(
-    "A scan after revocation",
-    "The uniform invalid page — no information leakage, per Task 09 §2.1",
-  ),
-);
-placeBefore(anchor, revoked);
-mark(revoked, 3);
+await settle()
 
 })()

@@ -1998,6 +1998,57 @@ const disableButton = (button) => {
   return button;
 };
 
+/**
+ * Clear a page's body, keeping its shell and its heading block.
+ *
+ * W10's three screens each PREPENDED their content to /operate/admin/messaging,
+ * so every one of them sat on top of ~2,800px of Mission 4's per-event-type
+ * cadence forms — Practice, Strength and conditioning, Chalk, Game, Social,
+ * Meeting. Brian, twice: "you just screenshotted it", and then "it's using the
+ * wrong pages. I don't even know what it's doing here."
+ *
+ * Recruitment's cycle does not sit above the event cadences; on its own page it
+ * replaces them. So the body goes, the shell and heading stay, and what is left
+ * is the screen's actual subject.
+ */
+const clearPageBody = () => {
+  // The heading sits in a <header>, and the page body is that header's SIBLINGS.
+  // Walking two parents up from the h1 lands inside the header, whose only child
+  // is the heading block, so the first version removed nothing and threw.
+  const h1 = must($("h1"), "the page has no heading");
+  const headBlock = must(
+    h1.closest("header") ?? h1.parentElement?.parentElement,
+    "the heading has no block",
+  );
+  const host = must(headBlock.parentElement, "the heading block has no page container");
+  let removed = 0;
+  for (const child of [...host.children]) {
+    if (child === headBlock || child.contains(h1)) continue;
+    child.remove();
+    removed += 1;
+  }
+  if (removed === 0) throw new Error("clearPageBody removed nothing; the page shape is not what it assumes.");
+  return host;
+};
+
+/**
+ * The line under the page heading, set directly.
+ *
+ * `setHeading`'s subtitle match looks for the roster and people wording, so on
+ * the messaging schedule it left "7 event types" sitting under a heading that
+ * now said "Recruitment cycle".
+ */
+const pageSubtitle = (text) => {
+  const h1 = must($("h1"), "the page has no heading");
+  const block = h1.closest("header") ?? h1.parentElement?.parentElement;
+  const p = must(
+    block?.querySelector("p") ?? h1.parentElement?.parentElement?.querySelector("p"),
+    "the heading block has no subtitle line",
+  );
+  p.textContent = text;
+  return p;
+};
+
 // W12-01 — Recruits as a category at the top of the sheet.
 //
 // Brian, 2026-08-31: "I don't know why we're reinventing fucking UI. That's

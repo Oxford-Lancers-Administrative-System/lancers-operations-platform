@@ -43,19 +43,46 @@ it:
 4. **Whether a step runs at all**, per cycle — a Freshers' push and a mid-season
    push are the same machine configured differently.
 
-### Doing the WhatsApp onboarding lives here
+### The WhatsApp flow, settled
 
-Brian: _"Actually doing the WhatsApp onboarding is in there."_ The recruit-facing
-half happens inside WhatsApp, which this product does not render, and that is why
-`W3` looked empty and was removed. The parts this product does own are all here
-or already homed:
+Brian asked for this before finalising `W2-04`. It differs by door, and once
+that is said the rest falls out:
 
-- **The ladder and its triggers** — this workflow.
-- **Whether they accepted and are in the group** — the recruit's record (`W2`).
-- **The QR door's own form**, which ends in the group — `W7`.
-- **The send actions an operator can take by hand** — `W2` and `W9`.
+| Door                | Opt-in                          | First message                              |
+| ------------------- | ------------------------------- | ------------------------------------------ |
+| `W7` · QR sign-in   | They joined at the stand        | **None.** They are already in the group    |
+| `W5` · Walk-up      | None captured                   | `recruit_welcome`, carrying the group link |
+| `W6` · Operator add | How the club came by the number | `recruit_welcome`, carrying the group link |
 
-`W5` and `W6` end by firing this ladder. Their inventory lines say so.
+The recruit-facing half happens inside WhatsApp, which this product does not
+render — which is why `W3` looked empty and was removed. What this product owns
+is the list above, the cycle below, and the group link itself.
+
+### The cycle
+
+| #   | Template                    | Fires                                      | Runs |
+| --- | --------------------------- | ------------------------------------------ | ---- |
+| 1   | `recruit_welcome`           | On capture — walk-up and operator-add only | on   |
+| 2   | `recruit_details_ask`       | 1 day after capture (Questionnaire A)      | on   |
+| 3   | `recruit_details_reminder`  | 3 days later, once only                    | on   |
+| 4   | `recruit_interest_ask`      | 3 days after capture (Questionnaire B)     | on   |
+| 5   | `recruit_interest_reminder` | 3 days later, once only                    | off  |
+
+### What the cycle never does
+
+- **Nothing fires at a recruit who declined.** Ever. This is `NEVER-HARSH`,
+  inherited from `W9` when it folded, and its refusal is rendered on `W2-04`.
+- **There is never a second reminder.** One per ask, then silence.
+- **Event invitations are not here.** An event sends its own, on its own terms
+  (`W11`).
+- **Free text is impossible.** Every message is a Meta-approved template.
+
+### The template gate
+
+Only `event_invitation` is approved today. The other four do not exist, Meta
+review takes days to weeks, and it is outside the club's control. **The cycle can
+be built and cannot run until they clear.** `W10-03` states that on the screen
+rather than leaving it in a decision log.
 
 ### What an operator must be able to tell about one recruit
 
