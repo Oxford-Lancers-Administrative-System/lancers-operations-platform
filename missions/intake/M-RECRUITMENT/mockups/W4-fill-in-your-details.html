@@ -1274,10 +1274,11 @@
       <header class="page-head">
         <h1>W4 · Fill in your details</h1>
         <p>
-          The recruit-stage ask: a form minted for one recruit and linked to their person, asked
-      politely and reminded once.
-          <strong>Nothing like this exists on <code>main</code></strong>, so every screen is
-           <strong>drawn</strong> and labelled <em>New surface, nothing to compare</em>.
+          The recruit-stage ask: a form minted for one recruit and linked to their person, sent by
+      the cycle rather than by a person.
+          <strong>Mixed grounding.</strong> Screens on a surface that exists are photographed on both
+           sides; screens with no analogue are drawn and labelled <em>New surface, nothing to
+           compare</em>.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1289,10 +1290,11 @@
             >Proposed — this mission</span
           >. Nothing on this page is approved.
         </p>
-        <span class="grounding">Grounding: code-only · drawn on both sides · measured 1280 and 375</span>
+        <span class="grounding">Grounding: mixed · photographs where a surface exists, drawn where none does</span>
         <div class="legend">
-          <span><strong>Drawn on both sides.</strong> <code>person_access_tokens</code>, <code>rsvp_access_tokens</code> and <code>club_link_tokens</code> are all empty in the seeded data, so no signed-link page renders anything but the uniform invalid state</span>
-          <span>The field set is <strong>enumerated here for the first time anywhere</strong>. Task 08 routed these fields to Task 09 and never listed them; Mission 5's packet records the set as an open unknown</span>
+          <span><strong>The field set is enumerated here for the first time anywhere.</strong> Task 08 routed these fields to Task 09 and never listed them; Mission 5's packet records the set as an open unknown</span>
+          <span><strong>W4-01 and W4-02 are drawn</strong> — every signed-link token table is empty in the seeded data, so no such page renders anything but the uniform invalid state</span>
+          <span><strong>W4-03 answers Brian's question</strong> about how it gets sent: automatically, as an approved template carrying her own link</span>
         </div>
       </header>
       <div id="screens"></div>
@@ -1317,9 +1319,8 @@
           drawn: true,
           blurb: `Six questions, every one optional, none of which gates anything.`,
           deltas: [
-            `<strong>1. Every field optional.</strong> Missing information never blocks a capture and never blocks the flip — Task 09 D5, invariant 4`,
+            `<strong>1. Every field optional.</strong> Missing information never blocks a capture and never blocks the flip`,
             `<strong>2. Position interest is explicitly not binding</strong> — it gives a coach something to talk to them about`,
-            `<strong>3. How they heard about us</strong> is the only recruitment-effectiveness question worth asking`,
             `<strong>Decide:</strong> the six fields themselves. This is the first enumeration and it is a proposal`,
           ],
           clockTag: CLOCK,
@@ -1330,14 +1331,28 @@
           title: "The link that no longer works",
           disposition: "new",
           drawn: true,
-          blurb: `Expired, revoked and never-existed all show the same page — and what an operator can do about it.`,
+          blurb: `Expired, revoked and never-existed all show the same page.`,
           deltas: [
-            `<strong>1. One page for all three cases.</strong> Telling them apart would let somebody probe which tokens are real — the E1 404-uniformity precedent`,
+            `<strong>1. One page for all three cases</strong> — telling them apart would let somebody probe which tokens are real`,
             `<strong>2. It exposes nothing</strong>: not the club, not the person, not whether the link was ever valid`,
             `<strong>3. An operator can send a new one</strong>, and the old link stays dead`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/a/9f3c…",
+        },
+        {
+          id: "W4-03",
+          title: "How it gets sent",
+          disposition: "modified",
+          drawn: false,
+          blurb: `Automatically, one day after the welcome, as an approved template carrying her own signed link.`,
+          deltas: [
+            `<strong>1. It is a template, not a message somebody writes</strong>`,
+            `<strong>2. <code>{{2}}</code> is her link</strong> — minted for her, tied to her person`,
+            `<strong>3. One reminder, three days later, once.</strong> Then nothing until an operator chooses to ask again`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/admin/recruitment",
         },
       ];
 

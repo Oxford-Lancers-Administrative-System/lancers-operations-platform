@@ -1,20 +1,14 @@
-// W6-01 — Add a recruit by hand, proposed. The shipped add-a-person form and
-// its duplicate check are reused wholesale; one card is added, because this is
-// the one door with no natural opt-in.
+// W6-01 — Adding a recruit by hand, in the shipped add-a-person form. One
+// addition: this is the only door carrying no natural opt-in.
 setHeading("Add a recruit");
-appendCard(
-  "How we came by this number",
-  [
-    makeRow("Where from", "Met at the Freshers' Fair; gave me her number for this"),
-    makeRow("They expect to hear from us", "Yes — confirmed at the time"),
-  ],
-  "Task 09 §9.1: operator manual add is the one door carrying no natural opt-in. Meta requires documented opt-in before a first business message and GDPR requires a lawful basis, so the welcome does not fire from this door without this.",
+fill("givenName", "Marguerite");
+fill("familyName", "Ashdown");
+fill("phone", "07700 900461");
+const box = proposedBlock("amber");
+blockTitle(box, "How did the club come by this number?");
+blockText(
+  box,
+  "Met her at the Freshers' Fair; she gave me her number so we could tell her about sessions.",
 );
-appendCard(
-  "Recruitment",
-  [
-    makeRow("Source", "Operator · sourced"),
-    makeRow("First note", "Recommended by Tobias. Played flag at school."),
-  ],
-  "Optional, and recorded while it is fresh.",
-);
+box.append(checkboxRow("She knows the club will message her", true));
+afterField("phone", box) ?? document.querySelector("form")?.append(box);

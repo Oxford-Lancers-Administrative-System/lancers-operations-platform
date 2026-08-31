@@ -1,31 +1,45 @@
-// W9-02 — The follow-up composer. Drawn: no composer exists anywhere in the
-// application. Mission 5 composes, schedules and sends nothing, and Mission 4
-// sends only from its ladder.
+// W9-02 — Choosing what to send. The first draft had an operator typing a
+// bespoke message; that is not a shape WhatsApp permits for a business-
+// initiated send. An operator picks an approved template and triggers it.
 const card = drawnSurface({
-  title: "Say something to Rosalind Penhaligon",
-  subtitle: "WhatsApp · approved 28 April · last heard from her: never",
-  chrome: "Opened from her row on the recruit board",
+  title: "Send Rosalind something",
+  subtitle: "She has not answered since 29 April. Nothing here is typed — you pick what goes.",
+  chrome: "Opened from her record",
+  width: 680,
 });
-const outstanding = drawnPanel("What she has not done");
-outstanding.append(
-  makeRow("Recruit-stage ask", "Never sent"),
-  makeRow("Freshers' Fair, 30 Apr", "Invited · no answer · did not attend"),
-);
-card.append(outstanding);
-const pick = drawnPanel("Start from one of these");
-pick.append(
-  makeRow("Ask for their details", "“Hi Rosalind — lovely to meet you at the Fair…”"),
-  makeRow("Invite them along", "“Hi Rosalind — we have a taster on Thursday at 6…”"),
-  makeRow("Just say hello", "“Hi Rosalind — how are you finding things?…”"),
-);
-card.append(pick);
-card.append(
-  field(
-    "Your message",
-    "“Hi Rosalind — lovely to meet you at the Fair. When you have a minute, could you fill this in? It helps us know what to put on for you.”",
+const list = drawnPanel(null);
+list.style.cssText += ";border:none;box-shadow:none;padding:0";
+list.append(
+  templateRow(
+    "recruit_details_ask",
+    "Hi Rosalind — when you have a minute, this tells us what to put on for you: [her link]",
+    "Recommended · she has not been asked",
   ),
-  primaryButton("SEND"),
+  templateRow(
+    "recruit_interest_ask",
+    "Hi Rosalind — are you interested in coming along to a session? Reply YES or NO.",
+    "Already sent 28 Apr",
+  ),
+  templateRow(
+    "event_invitation",
+    "Hi Rosalind — Taster 2 is on Thursday 7 May at 18:00. Let us know if you can make it.",
+    "Approved · in use",
+  ),
+);
+card.append(list);
+const send = document.createElement("div");
+send.style.cssText = "display:flex;gap:12px;align-items:center;margin-top:6px";
+const b = document.createElement("div");
+b.textContent = "SEND recruit_details_ask";
+b.style.cssText =
+  "background:#00695c;color:#fff;font-size:13px;font-weight:700;padding:11px 20px;border-radius:6px";
+const c = document.createElement("div");
+c.textContent = "CANCEL";
+c.style.cssText = "font-size:13px;font-weight:700;color:rgba(0,0,0,0.6);padding:11px 14px";
+send.append(b, c);
+card.append(
+  send,
   note(
-    "One recruit, one message, sent by a person, now. This surface never grows a cadence, a rung or a bulk send — invariant 1. Brian, 2026-08-31: the messages should be good, and it should be easy.",
+    "No free-text box, because there cannot be one: every business-initiated WhatsApp message must be a Meta-approved template — src/lib/delivery/config.ts, “template is the only production shape”. The polite thing is the fast thing because the polite thing is the only thing.",
   ),
 );

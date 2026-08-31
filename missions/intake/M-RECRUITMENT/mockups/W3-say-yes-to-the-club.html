@@ -1275,10 +1275,10 @@
         <h1>W3 · Say yes to the club</h1>
         <p>
           The smallest journey in the mission and the most load-bearing outside it: Missions 7 and 8
-      inherit whatever shape it takes, and every door in this mission ends by firing it.
-          <strong>Mixed grounding.</strong> Screens on a surface that exists are photographed on both
-           sides; screens with no analogue are drawn and labelled <em>New surface, nothing to
-           compare</em>.
+      inherit whatever shape it takes, and every door ends by firing it.
+          <strong>The surfaces here exist on <code>main</code></strong>, so every screen is a
+           <strong>photograph on both sides</strong> — the same running page at <code>e669331</code>,
+           differing only by the proposal evaluated into it.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1290,10 +1290,11 @@
             >Proposed — this mission</span
           >. Nothing on this page is approved.
         </p>
-        <span class="grounding">Grounding: mixed · photographs where a surface exists, drawn where none does</span>
+        <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
-          <span>Brian's own sequence, 2026-08-31: <em>“First notification goes out today to invite them in. If they sign in, they get asked. If they accept, they get asked to fill out some details immediately. They get a polite reminder…”</em></span>
-          <span><strong>W3-02 is drawn</strong> — these are WhatsApp messages, and no inbound conversation is captured anywhere on main; the webhook parses only <code>statuses[]</code></span>
+          <span><strong>Rebuilt from nothing, 2026-08-31.</strong> Brian: <em>“The WhatsApp flow is not correct. That's not what a WhatsApp page looks like… This is completely invented.”</em> The first draft drew a two-way chat thread on the events delivery page. Both were wrong: wrong surface, and a conversation that does not exist</span>
+          <span><strong>Every business-initiated WhatsApp message is a Meta-approved template.</strong> <code>src/lib/delivery/config.ts</code>: <em>“template is the only production shape.”</em> Free text exists on the loopback test path alone, and only <code>event_invitation</code> is approved today</span>
+          <span><strong>So this workflow is templates and delivery receipts</strong>, not messages somebody writes. Four new templates, each needing Meta approval with real lead time before anything sends</span>
         </div>
       </header>
       <div id="screens"></div>
@@ -1313,34 +1314,45 @@
       const SCREENS = [
         {
           id: "W3-01",
-          title: "Where each recruit is in the flow",
+          title: "The templates the club sends",
           disposition: "modified",
           drawn: false,
-          blurb: `The operator's view, built on Mission 4's delivery screen — the nearest thing the product
-         already has to “what did we send and what came back”.`,
+          blurb: `What each approved template actually says, and which have been submitted.`,
           deltas: [
-            `<strong>1. The five-step ladder</strong> is visible per recruit rather than inferred from delivery rows`,
-            `<strong>2. What the club can honestly see</strong> is stated next to what it sends — the join is recorded, never watched for`,
-            `<strong>3. Opt-in evidence is per door.</strong> Operator add is the one door with no natural opt-in, and the welcome does not fire without it`,
+            `<strong>1. Four new templates</strong>, plus the one already in use`,
+            `<strong>2. Each needs Meta approval</strong> before it can send — that lead time is a real gate, not a formality`,
+            `<strong>3. Nobody types to a recruit.</strong> The club's voice is the template, not whoever is holding the phone`,
           ],
           clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/events/1d76b9f8/delivery",
+          url: "oxfordlancers.example/operate/admin/recruitment",
         },
         {
           id: "W3-02",
-          title: "What the recruit actually receives",
-          disposition: "new",
-          drawn: true,
-          blurb: `Four messages, then silence until a person chooses to say something. This is the only place
-         the never-harsh rule is actually visible.`,
+          title: "Where one recruit is in the ladder",
+          disposition: "modified",
+          drawn: false,
+          blurb: `Her own record: which templates have gone, what came back, and what the club can honestly see.`,
           deltas: [
-            `<strong>1. Welcome and group invite</strong> on capture, from every door — Task 09 D3`,
-            `<strong>2. The standard ask</strong> immediately after they accept. <strong>Decide:</strong> what it asks is open — the recommendation is one question`,
-            `<strong>3. One polite reminder</strong>, the next day, only if nothing came back. This is the message the old never-chased rule forbade`,
-            `<strong>4. Then the W4 form</strong>, and then nothing`,
+            `<strong>1. Five steps, with delivery state per step</strong>`,
+            `<strong>2. <code>read</code> is stored today and mapped to nothing</strong> — widening <code>delivery_outcome</code> is a frozen-model change`,
+            `<strong>3. Being in the community group is not observable.</strong> The Cloud API does not expose group membership, so she tells us or we do not know`,
           ],
           clockTag: CLOCK,
-          url: "WhatsApp · Oxford Lancers",
+          url: "oxfordlancers.example/operate/recruits/0b938ce0",
+        },
+        {
+          id: "W3-03",
+          title: "The welcome that did not fire",
+          disposition: "modified",
+          drawn: false,
+          blurb: `No opt-in evidence was recorded for the operator-add door, so the club says nothing to her.`,
+          deltas: [
+            `<strong>1. She exists on the board; the message waits</strong>`,
+            `<strong>2. It says what would release it</strong>`,
+            `<strong>3. This is the lawful-basis rule</strong> — Meta requires documented opt-in before a first business message, and GDPR requires a basis`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/recruits/f31a02c8",
         },
       ];
 

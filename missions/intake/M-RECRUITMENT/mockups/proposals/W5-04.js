@@ -379,6 +379,176 @@
     return row;
   };
 
+  // ---------------------------------------------------------------------------
+  // Record-page helpers. The player record at /operate/roster/[membershipId] is
+  // built from banded cards whose rows carry data-testid="record-row" and a
+  // data-label. Cloning those rows is how a proposed card comes out identical to
+  // a shipped one instead of merely similar.
+  // ---------------------------------------------------------------------------
+
+  const recordCards = () =>
+    $$(".MuiPaper-root").filter((c) => c.offsetHeight > 60 && c.innerText.trim());
+
+  const recordCard = (label) =>
+    recordCards().find((c) =>
+      c.innerText.split("\n")[0].trim().toUpperCase().startsWith(label.toUpperCase()),
+    );
+
+  const rowTpl = () => $('[data-testid="record-row"]');
+
+  const recordRow = (label, value, opts = {}) => {
+    const tpl = rowTpl();
+    if (!tpl) return makeRow(label, value, opts);
+    const row = tpl.cloneNode(true);
+    row.setAttribute("data-label", label);
+    const boxes = [...row.children];
+    const l = boxes[0]?.querySelector("p") ?? boxes[0];
+    if (l) l.textContent = label;
+    const vBox = boxes[1];
+    if (vBox) {
+      const v = vBox.querySelector("p") ?? vBox;
+      if (opts.chip) {
+        const src = $(".MuiChip-root");
+        v.replaceChildren();
+        if (src) {
+          const c = src.cloneNode(true);
+          asRung(c, opts.chip);
+          v.append(c);
+        } else v.textContent = opts.chip;
+      } else {
+        // Drop any nested extra markup and leave one line of text.
+        v.replaceChildren(document.createTextNode(value));
+        if (opts.muted) {
+          v.style.color = "rgba(0,0,0,0.38)";
+          v.style.fontStyle = "italic";
+        }
+      }
+    }
+    return row;
+  };
+
+  // Retitle a banded card, recolour its header, and replace everything in it.
+  // Anything that is not a row - an onboarding alert, a filter strip - belongs to
+  // the card being replaced and goes with it.
+  const rebuildCard = (card, title, rows, opts = {}) => {
+    if (!card) return null;
+    const head = card.querySelector(".MuiTypography-overline") ?? card.firstElementChild;
+    if (head) {
+      const walker = document.createTreeWalker(head, NodeFilter.SHOW_TEXT);
+      const first = walker.nextNode();
+      if (first) first.nodeValue = title;
+      else head.textContent = title;
+      if (opts.colour) {
+        const bar = head.closest("div");
+        if (bar) bar.style.backgroundColor = opts.colour;
+      }
+    }
+    const existing = [...card.querySelectorAll('[data-testid="record-row"]')];
+    const host = existing[0]?.parentElement;
+    if (host) {
+      for (const child of [...host.children]) child.remove();
+      for (const r of rows) host.append(r);
+    }
+    // Strip anything left over from the card this one replaces.
+    for (const alert of card.querySelectorAll(".MuiAlert-root, .MuiChip-root")) {
+      if (!rows.some((r) => r.contains(alert))) alert.remove();
+    }
+    if (opts.proposed) {
+      const flag = document.createElement("div");
+      flag.textContent = "PROPOSED — this mission";
+      flag.style.cssText =
+        "font-size:10px;font-weight:700;letter-spacing:.09em;color:#00695c;padding:10px 16px 0";
+      const bar = head?.closest("div");
+      if (bar && bar.nextSibling) card.insertBefore(flag, bar.nextSibling);
+      else card.insertBefore(flag, card.firstChild);
+    }
+    return card;
+  };
+
+  // The strip under the heading describes a membership. A recruit has none.
+  const replaceSummaryStrip = (items) => {
+    const h1 = $("h1");
+    const sub = h1?.parentElement?.parentElement;
+    if (!sub) return;
+    const strip = [...sub.children].find(
+      (c) => c !== h1?.parentElement && c.innerText && c.innerText.split("\n").length >= 4,
+    );
+    if (!strip) return;
+    strip.replaceChildren();
+    strip.style.cssText = "display:flex;gap:38px;flex-wrap:wrap;margin:10px 0 18px";
+    for (const [value, label] of items) {
+      const cell = document.createElement("div");
+      const v = document.createElement("div");
+      v.style.cssText = "font-size:19px;font-weight:700;line-height:1.2";
+      if (value.chip) {
+        const src = $(".MuiChip-root");
+        if (src) {
+          const c = src.cloneNode(true);
+          asRung(c, value.chip);
+          v.append(c);
+        } else v.textContent = value.chip;
+      } else v.textContent = value;
+      const l = document.createElement("div");
+      l.textContent = label;
+      l.style.cssText = "font-size:12px;color:rgba(0,0,0,0.55);margin-top:3px";
+      cell.append(v, l);
+      strip.append(cell);
+    }
+  };
+
+  // Overwrite the PERSON card's rows so the page is about the recruit it names.
+  const setPersonRows = (rows) => {
+    const card = recordCard("PERSON");
+    if (!card) return;
+    const existing = [...card.querySelectorAll('[data-testid="record-row"]')];
+    const host = existing[0]?.parentElement;
+    if (!host) return;
+    for (const r of existing) r.remove();
+    for (const r of rows) host.append(r);
+  };
+
+  const removeCard = (label) => recordCard(label)?.remove();
+
+  // The line under the heading describes a membership. Replace it wholesale.
+  const setSubtitle = (text) => {
+    const h1 = $("h1");
+    const holder = h1?.parentElement?.parentElement ?? document.body;
+    for (const p of holder.querySelectorAll("p, .MuiTypography-body2")) {
+      if (
+        /membership|Returning|Active|Season 20/i.test(p.textContent) &&
+        p.textContent.length < 90
+      ) {
+        p.textContent = text;
+        return p;
+      }
+    }
+    return null;
+  };
+
+  // One row of a template listing: what it is called, what it says, and whether
+  // Meta has approved it. Every business-initiated WhatsApp message is one of
+  // these; free text is not a production shape.
+  const templateRow = (name, body, state) => {
+    const row = document.createElement("div");
+    row.style.cssText =
+      "border:1px solid rgba(0,0,0,0.12);border-radius:8px;padding:14px 16px;margin-bottom:12px;background:#fff";
+    const top = document.createElement("div");
+    top.style.cssText = "display:flex;justify-content:space-between;gap:16px;align-items:baseline";
+    const n = document.createElement("code");
+    n.textContent = name;
+    n.style.cssText = "font-size:12.5px;font-weight:700;color:#0b3d91";
+    const st = document.createElement("span");
+    st.textContent = state;
+    const approved = /approved/i.test(state);
+    st.style.cssText = `font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:${approved ? "#1b5e20" : "#b26a00"};background:${approved ? "#e8f5e9" : "#fdf6ec"};border-radius:4px;padding:3px 8px;white-space:nowrap`;
+    top.append(n, st);
+    const b = document.createElement("div");
+    b.textContent = body;
+    b.style.cssText = "font-size:13.5px;line-height:1.55;margin-top:9px;color:rgba(0,0,0,0.82)";
+    row.append(top, b);
+    return row;
+  };
+
   // W5-04 — Refused: no mobile. The knowingly-accepted limitation, on the form
   // where it actually bites, rather than in a decision log.
   fill("givenName", "Peregrine");

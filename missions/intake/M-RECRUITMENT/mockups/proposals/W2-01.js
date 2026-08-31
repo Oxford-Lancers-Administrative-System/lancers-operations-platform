@@ -379,52 +379,241 @@
     return row;
   };
 
-  // W2-01 — One recruit's record, proposed.
-  //
-  // Built on the shipped person record for the really seeded recruit Rosalind
-  // Penhaligon. The person cards stay exactly as they are and become read-only
-  // context; the recruitment cards this mission owns are appended, because Task
-  // 08's 2026-08-27 amendment forbids them on the person record itself.
+  // ---------------------------------------------------------------------------
+  // Record-page helpers. The player record at /operate/roster/[membershipId] is
+  // built from banded cards whose rows carry data-testid="record-row" and a
+  // data-label. Cloning those rows is how a proposed card comes out identical to
+  // a shipped one instead of merely similar.
+  // ---------------------------------------------------------------------------
+
+  const recordCards = () =>
+    $$(".MuiPaper-root").filter((c) => c.offsetHeight > 60 && c.innerText.trim());
+
+  const recordCard = (label) =>
+    recordCards().find((c) =>
+      c.innerText.split("\n")[0].trim().toUpperCase().startsWith(label.toUpperCase()),
+    );
+
+  const rowTpl = () => $('[data-testid="record-row"]');
+
+  const recordRow = (label, value, opts = {}) => {
+    const tpl = rowTpl();
+    if (!tpl) return makeRow(label, value, opts);
+    const row = tpl.cloneNode(true);
+    row.setAttribute("data-label", label);
+    const boxes = [...row.children];
+    const l = boxes[0]?.querySelector("p") ?? boxes[0];
+    if (l) l.textContent = label;
+    const vBox = boxes[1];
+    if (vBox) {
+      const v = vBox.querySelector("p") ?? vBox;
+      if (opts.chip) {
+        const src = $(".MuiChip-root");
+        v.replaceChildren();
+        if (src) {
+          const c = src.cloneNode(true);
+          asRung(c, opts.chip);
+          v.append(c);
+        } else v.textContent = opts.chip;
+      } else {
+        // Drop any nested extra markup and leave one line of text.
+        v.replaceChildren(document.createTextNode(value));
+        if (opts.muted) {
+          v.style.color = "rgba(0,0,0,0.38)";
+          v.style.fontStyle = "italic";
+        }
+      }
+    }
+    return row;
+  };
+
+  // Retitle a banded card, recolour its header, and replace everything in it.
+  // Anything that is not a row - an onboarding alert, a filter strip - belongs to
+  // the card being replaced and goes with it.
+  const rebuildCard = (card, title, rows, opts = {}) => {
+    if (!card) return null;
+    const head = card.querySelector(".MuiTypography-overline") ?? card.firstElementChild;
+    if (head) {
+      const walker = document.createTreeWalker(head, NodeFilter.SHOW_TEXT);
+      const first = walker.nextNode();
+      if (first) first.nodeValue = title;
+      else head.textContent = title;
+      if (opts.colour) {
+        const bar = head.closest("div");
+        if (bar) bar.style.backgroundColor = opts.colour;
+      }
+    }
+    const existing = [...card.querySelectorAll('[data-testid="record-row"]')];
+    const host = existing[0]?.parentElement;
+    if (host) {
+      for (const child of [...host.children]) child.remove();
+      for (const r of rows) host.append(r);
+    }
+    // Strip anything left over from the card this one replaces.
+    for (const alert of card.querySelectorAll(".MuiAlert-root, .MuiChip-root")) {
+      if (!rows.some((r) => r.contains(alert))) alert.remove();
+    }
+    if (opts.proposed) {
+      const flag = document.createElement("div");
+      flag.textContent = "PROPOSED — this mission";
+      flag.style.cssText =
+        "font-size:10px;font-weight:700;letter-spacing:.09em;color:#00695c;padding:10px 16px 0";
+      const bar = head?.closest("div");
+      if (bar && bar.nextSibling) card.insertBefore(flag, bar.nextSibling);
+      else card.insertBefore(flag, card.firstChild);
+    }
+    return card;
+  };
+
+  // The strip under the heading describes a membership. A recruit has none.
+  const replaceSummaryStrip = (items) => {
+    const h1 = $("h1");
+    const sub = h1?.parentElement?.parentElement;
+    if (!sub) return;
+    const strip = [...sub.children].find(
+      (c) => c !== h1?.parentElement && c.innerText && c.innerText.split("\n").length >= 4,
+    );
+    if (!strip) return;
+    strip.replaceChildren();
+    strip.style.cssText = "display:flex;gap:38px;flex-wrap:wrap;margin:10px 0 18px";
+    for (const [value, label] of items) {
+      const cell = document.createElement("div");
+      const v = document.createElement("div");
+      v.style.cssText = "font-size:19px;font-weight:700;line-height:1.2";
+      if (value.chip) {
+        const src = $(".MuiChip-root");
+        if (src) {
+          const c = src.cloneNode(true);
+          asRung(c, value.chip);
+          v.append(c);
+        } else v.textContent = value.chip;
+      } else v.textContent = value;
+      const l = document.createElement("div");
+      l.textContent = label;
+      l.style.cssText = "font-size:12px;color:rgba(0,0,0,0.55);margin-top:3px";
+      cell.append(v, l);
+      strip.append(cell);
+    }
+  };
+
+  // Overwrite the PERSON card's rows so the page is about the recruit it names.
+  const setPersonRows = (rows) => {
+    const card = recordCard("PERSON");
+    if (!card) return;
+    const existing = [...card.querySelectorAll('[data-testid="record-row"]')];
+    const host = existing[0]?.parentElement;
+    if (!host) return;
+    for (const r of existing) r.remove();
+    for (const r of rows) host.append(r);
+  };
+
+  const removeCard = (label) => recordCard(label)?.remove();
+
+  // The line under the heading describes a membership. Replace it wholesale.
+  const setSubtitle = (text) => {
+    const h1 = $("h1");
+    const holder = h1?.parentElement?.parentElement ?? document.body;
+    for (const p of holder.querySelectorAll("p, .MuiTypography-body2")) {
+      if (
+        /membership|Returning|Active|Season 20/i.test(p.textContent) &&
+        p.textContent.length < 90
+      ) {
+        p.textContent = text;
+        return p;
+      }
+    }
+    return null;
+  };
+
+  // One row of a template listing: what it is called, what it says, and whether
+  // Meta has approved it. Every business-initiated WhatsApp message is one of
+  // these; free text is not a production shape.
+  const templateRow = (name, body, state) => {
+    const row = document.createElement("div");
+    row.style.cssText =
+      "border:1px solid rgba(0,0,0,0.12);border-radius:8px;padding:14px 16px;margin-bottom:12px;background:#fff";
+    const top = document.createElement("div");
+    top.style.cssText = "display:flex;justify-content:space-between;gap:16px;align-items:baseline";
+    const n = document.createElement("code");
+    n.textContent = name;
+    n.style.cssText = "font-size:12.5px;font-weight:700;color:#0b3d91";
+    const st = document.createElement("span");
+    st.textContent = state;
+    const approved = /approved/i.test(state);
+    st.style.cssText = `font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:${approved ? "#1b5e20" : "#b26a00"};background:${approved ? "#e8f5e9" : "#fdf6ec"};border-radius:4px;padding:3px 8px;white-space:nowrap`;
+    top.append(n, st);
+    const b = document.createElement("div");
+    b.textContent = body;
+    b.style.cssText = "font-size:13.5px;line-height:1.55;margin-top:9px;color:rgba(0,0,0,0.82)";
+    row.append(top, b);
+    return row;
+  };
+
+  // W2-01 — One recruit's record. Built on the player record's own banded shell
+  // at /operate/roster/[membershipId], because that is the page this should be
+  // structured like — not the person record, which is where the first draft
+  // wrongly started. Reached by clicking a row on the recruit board.
   setHeading("Rosalind Penhaligon");
+  setSubtitle("Recruit · 2026-27 · opened from the recruit board");
+  replaceSummaryStrip([
+    [{ chip: "identified" }, "Recruitment status"],
+    ["4 days", "Since first contact"],
+    ["1", "Events invited to"],
+    ["0", "Events attended"],
+    ["Not sent", "Recruit-stage ask"],
+  ]);
+  setPersonRows([
+    recordRow("Name", "Rosalind Penhaligon"),
+    recordRow("Aliases", "Not recorded", { muted: true }),
+    recordRow("Mobile phone", "07700 900318"),
+    recordRow("Personal email", "Not recorded", { muted: true }),
+    recordRow("College", "Dunsfold"),
+    recordRow("Matriculation year", "2026"),
+    recordRow("Expected graduation", "2029"),
+    recordRow("Degree field", "Human Sciences"),
+  ]);
 
-  // The shipped page renders the Recruit chip twice. That is a defect this
-  // mission found, and the recruit's own page does not reproduce it.
-  dedupeHeaderChip("Recruit");
-
-  appendCard(
-    "Where they are in recruitment",
+  // PERSON stays exactly as it is: the same rows, read-only, routing out.
+  // ONBOARDING has nothing to describe for somebody who holds no membership.
+  rebuildCard(
+    recordCard("ONBOARDING"),
+    "RECRUITMENT",
     [
-      makeRow("Status", "", { chip: "identified" }),
-      makeRow("Came in through", "QR · Freshers' Fair stand"),
-      makeRow("First contact", "28 April 2026"),
-      makeRow("Committed on", "Not yet", { muted: true }),
+      recordRow("Status", "", { chip: "identified" }),
+      recordRow("Came in through", "QR · Freshers' Fair stand"),
+      recordRow("First contact", "28 April 2026"),
+      recordRow("Committed on", "Not yet", { muted: true }),
+      recordRow("On WhatsApp · 2026-27", "Not yet", { muted: true }),
     ],
-    "Edited here. Changing this to joined is intercepted by W14 and never written from a cell.",
+    { proposed: true, colour: "#00695c" },
   );
 
-  appendCard(
-    "What we have seen",
+  rebuildCard(
+    recordCard("SEASON"),
+    "EVENTS · 2026-27",
     [
-      makeRow("Welcome delivered", "28 Apr, 16:42"),
-      makeRow("Joined the community group", "Not recorded", { muted: true }),
-      makeRow("Recruit-stage ask", "Not sent", { muted: true }),
-      makeRow("Freshers' Fair · 30 Apr", "Invited · no answer · did not attend"),
+      recordRow("Freshers' Fair · 30 Apr", "Invited · no answer · did not attend"),
+      recordRow("Taster 1 · 30 Apr", "Not invited", { muted: true }),
+      recordRow("Taster 2 · 7 May", "Not invited", { muted: true }),
     ],
-    "Dated facts with a source. Never scored, never ranked, and nothing here moves a stage on its own.",
+    { proposed: true },
   );
 
-  appendCard(
-    "What we have said",
+  rebuildCard(
+    recordCard("ATTENDANCE"),
+    "WHAT WE HAVE SAID",
     [
-      makeRow("Welcome + group invite", "28 Apr · delivered"),
-      makeRow("Event invitation", "29 Apr · delivered · no reply"),
+      recordRow("Welcome + group invite", "28 Apr · delivered"),
+      recordRow("Event invitation", "29 Apr · delivered · no reply"),
+      recordRow("Recruit-stage ask", "Not sent", { muted: true }),
     ],
-    "Every message the club sent, including anything an operator sends from W9.",
+    { proposed: true },
   );
 
-  appendCard(
-    "Notes",
-    [makeRow("Caspian Hallowfield · 28 Apr", "Came to the stand with a friend from Dunsfold.")],
-    "Prose, with an author and a date. Notes are operator-visible only.",
+  rebuildCard(
+    recordCard("THEIR OTHER SEASONS"),
+    "NOTES",
+    [recordRow("Caspian Hallowfield · 28 Apr", "Came to the stand with a friend from Dunsfold.")],
+    { proposed: true },
   );
 })();

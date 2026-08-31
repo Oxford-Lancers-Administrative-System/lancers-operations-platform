@@ -1,48 +1,67 @@
-// W2-01 — One recruit's record, proposed.
-//
-// Built on the shipped person record for the really seeded recruit Rosalind
-// Penhaligon. The person cards stay exactly as they are and become read-only
-// context; the recruitment cards this mission owns are appended, because Task
-// 08's 2026-08-27 amendment forbids them on the person record itself.
+// W2-01 — One recruit's record. Built on the player record's own banded shell
+// at /operate/roster/[membershipId], because that is the page this should be
+// structured like — not the person record, which is where the first draft
+// wrongly started. Reached by clicking a row on the recruit board.
 setHeading("Rosalind Penhaligon");
+setSubtitle("Recruit · 2026-27 · opened from the recruit board");
+replaceSummaryStrip([
+  [{ chip: "identified" }, "Recruitment status"],
+  ["4 days", "Since first contact"],
+  ["1", "Events invited to"],
+  ["0", "Events attended"],
+  ["Not sent", "Recruit-stage ask"],
+]);
+setPersonRows([
+  recordRow("Name", "Rosalind Penhaligon"),
+  recordRow("Aliases", "Not recorded", { muted: true }),
+  recordRow("Mobile phone", "07700 900318"),
+  recordRow("Personal email", "Not recorded", { muted: true }),
+  recordRow("College", "Dunsfold"),
+  recordRow("Matriculation year", "2026"),
+  recordRow("Expected graduation", "2029"),
+  recordRow("Degree field", "Human Sciences"),
+]);
 
-// The shipped page renders the Recruit chip twice. That is a defect this
-// mission found, and the recruit's own page does not reproduce it.
-dedupeHeaderChip("Recruit");
-
-appendCard(
-  "Where they are in recruitment",
+// PERSON stays exactly as it is: the same rows, read-only, routing out.
+// ONBOARDING has nothing to describe for somebody who holds no membership.
+rebuildCard(
+  recordCard("ONBOARDING"),
+  "RECRUITMENT",
   [
-    makeRow("Status", "", { chip: "identified" }),
-    makeRow("Came in through", "QR · Freshers' Fair stand"),
-    makeRow("First contact", "28 April 2026"),
-    makeRow("Committed on", "Not yet", { muted: true }),
+    recordRow("Status", "", { chip: "identified" }),
+    recordRow("Came in through", "QR · Freshers' Fair stand"),
+    recordRow("First contact", "28 April 2026"),
+    recordRow("Committed on", "Not yet", { muted: true }),
+    recordRow("On WhatsApp · 2026-27", "Not yet", { muted: true }),
   ],
-  "Edited here. Changing this to joined is intercepted by W14 and never written from a cell.",
+  { proposed: true, colour: "#00695c" },
 );
 
-appendCard(
-  "What we have seen",
+rebuildCard(
+  recordCard("SEASON"),
+  "EVENTS · 2026-27",
   [
-    makeRow("Welcome delivered", "28 Apr, 16:42"),
-    makeRow("Joined the community group", "Not recorded", { muted: true }),
-    makeRow("Recruit-stage ask", "Not sent", { muted: true }),
-    makeRow("Freshers' Fair · 30 Apr", "Invited · no answer · did not attend"),
+    recordRow("Freshers' Fair · 30 Apr", "Invited · no answer · did not attend"),
+    recordRow("Taster 1 · 30 Apr", "Not invited", { muted: true }),
+    recordRow("Taster 2 · 7 May", "Not invited", { muted: true }),
   ],
-  "Dated facts with a source. Never scored, never ranked, and nothing here moves a stage on its own.",
+  { proposed: true },
 );
 
-appendCard(
-  "What we have said",
+rebuildCard(
+  recordCard("ATTENDANCE"),
+  "WHAT WE HAVE SAID",
   [
-    makeRow("Welcome + group invite", "28 Apr · delivered"),
-    makeRow("Event invitation", "29 Apr · delivered · no reply"),
+    recordRow("Welcome + group invite", "28 Apr · delivered"),
+    recordRow("Event invitation", "29 Apr · delivered · no reply"),
+    recordRow("Recruit-stage ask", "Not sent", { muted: true }),
   ],
-  "Every message the club sent, including anything an operator sends from W9.",
+  { proposed: true },
 );
 
-appendCard(
-  "Notes",
-  [makeRow("Caspian Hallowfield · 28 Apr", "Came to the stand with a friend from Dunsfold.")],
-  "Prose, with an author and a date. Notes are operator-visible only.",
+rebuildCard(
+  recordCard("THEIR OTHER SEASONS"),
+  "NOTES",
+  [recordRow("Caspian Hallowfield · 28 Apr", "Came to the stand with a friend from Dunsfold.")],
+  { proposed: true },
 );

@@ -86,9 +86,10 @@ const WORKFLOWS = [
       Mission 5's and routes out; the recruitment half is this mission's and is editable here.`,
     grounding: "photograph",
     legend: [
-      "Task 08's 2026-08-27 amendment forbids recruitment facts on the person record — <em>“There's nothing on here related to recruits… It's a person record.”</em> So this is a separate surface that reuses that page's shell",
-      "Both recruits shown are <strong>really seeded</strong> and render their real facts",
-      "The shipped page renders the <strong>Recruit chip twice</strong>. That is a defect this mission found; this page does not reproduce it",
+      "<strong>Rebuilt 2026-08-31.</strong> Brian: <em>“You use the people workflow as the basis of it. It does not come from the people workflow… It needs to be a new page that's like the roster page, but it's just for the recruit.”</em> The first draft bolted cards onto the person record, which was the wrong entryway entirely",
+      "<strong>Built on the player record's shell</strong> at <code>/operate/roster/[membershipId]</code> — the same banded cards, the same row markup, cloned rather than imitated. Reached by clicking a row on the recruit board",
+      "<strong>The bands change because a recruit holds no membership:</strong> Person stays as it is, Onboarding becomes Recruitment, Season becomes Events, and the membership summary strip becomes a recruitment one",
+      "<strong>What goes on it is not settled.</strong> Brian: <em>“I don't know what items go on this yet.”</em> This is the structure and the entry point; the contents are a proposal",
     ],
     screens: [
       P(
@@ -123,38 +124,46 @@ const WORKFLOWS = [
     slug: "say-yes-to-the-club",
     name: "Say yes to the club",
     lede: `The smallest journey in the mission and the most load-bearing outside it: Missions 7 and 8
-      inherit whatever shape it takes, and every door in this mission ends by firing it.`,
-    grounding: "mixed",
+      inherit whatever shape it takes, and every door ends by firing it.`,
+    grounding: "photograph",
     legend: [
-      "Brian's own sequence, 2026-08-31: <em>“First notification goes out today to invite them in. If they sign in, they get asked. If they accept, they get asked to fill out some details immediately. They get a polite reminder…”</em>",
-      "<strong>W3-02 is drawn</strong> — these are WhatsApp messages, and no inbound conversation is captured anywhere on main; the webhook parses only <code>statuses[]</code>",
+      "<strong>Rebuilt from nothing, 2026-08-31.</strong> Brian: <em>“The WhatsApp flow is not correct. That's not what a WhatsApp page looks like… This is completely invented.”</em> The first draft drew a two-way chat thread on the events delivery page. Both were wrong: wrong surface, and a conversation that does not exist",
+      "<strong>Every business-initiated WhatsApp message is a Meta-approved template.</strong> <code>src/lib/delivery/config.ts</code>: <em>“template is the only production shape.”</em> Free text exists on the loopback test path alone, and only <code>event_invitation</code> is approved today",
+      "<strong>So this workflow is templates and delivery receipts</strong>, not messages somebody writes. Four new templates, each needing Meta approval with real lead time before anything sends",
     ],
     screens: [
       P(
         "W3-01",
-        "Where each recruit is in the flow",
-        `The operator's view, built on Mission 4's delivery screen — the nearest thing the product
-         already has to “what did we send and what came back”.`,
+        "The templates the club sends",
+        `What each approved template actually says, and which have been submitted.`,
         [
-          "<strong>1. The five-step ladder</strong> is visible per recruit rather than inferred from delivery rows",
-          "<strong>2. What the club can honestly see</strong> is stated next to what it sends — the join is recorded, never watched for",
-          "<strong>3. Opt-in evidence is per door.</strong> Operator add is the one door with no natural opt-in, and the welcome does not fire without it",
+          "<strong>1. Four new templates</strong>, plus the one already in use",
+          "<strong>2. Each needs Meta approval</strong> before it can send — that lead time is a real gate, not a formality",
+          "<strong>3. Nobody types to a recruit.</strong> The club's voice is the template, not whoever is holding the phone",
         ],
-        "oxfordlancers.example/operate/events/1d76b9f8/delivery",
+        "oxfordlancers.example/operate/admin/recruitment",
       ),
       P(
         "W3-02",
-        "What the recruit actually receives",
-        `Four messages, then silence until a person chooses to say something. This is the only place
-         the never-harsh rule is actually visible.`,
+        "Where one recruit is in the ladder",
+        `Her own record: which templates have gone, what came back, and what the club can honestly see.`,
         [
-          "<strong>1. Welcome and group invite</strong> on capture, from every door — Task 09 D3",
-          "<strong>2. The standard ask</strong> immediately after they accept. <strong>Decide:</strong> what it asks is open — the recommendation is one question",
-          "<strong>3. One polite reminder</strong>, the next day, only if nothing came back. This is the message the old never-chased rule forbade",
-          "<strong>4. Then the W4 form</strong>, and then nothing",
+          "<strong>1. Five steps, with delivery state per step</strong>",
+          "<strong>2. <code>read</code> is stored today and mapped to nothing</strong> — widening <code>delivery_outcome</code> is a frozen-model change",
+          "<strong>3. Being in the community group is not observable.</strong> The Cloud API does not expose group membership, so she tells us or we do not know",
         ],
-        "WhatsApp · Oxford Lancers",
-        "new",
+        "oxfordlancers.example/operate/recruits/0b938ce0",
+      ),
+      P(
+        "W3-03",
+        "The welcome that did not fire",
+        `No opt-in evidence was recorded for the operator-add door, so the club says nothing to her.`,
+        [
+          "<strong>1. She exists on the board; the message waits</strong>",
+          "<strong>2. It says what would release it</strong>",
+          "<strong>3. This is the lawful-basis rule</strong> — Meta requires documented opt-in before a first business message, and GDPR requires a basis",
+        ],
+        "oxfordlancers.example/operate/recruits/f31a02c8",
       ),
     ],
   },
@@ -162,12 +171,13 @@ const WORKFLOWS = [
     id: "W4",
     slug: "fill-in-your-details",
     name: "Fill in your details",
-    lede: `The recruit-stage ask: a form minted for one recruit and linked to their person, asked
-      politely and reminded once.`,
-    grounding: "code-only",
+    lede: `The recruit-stage ask: a form minted for one recruit and linked to their person, sent by
+      the cycle rather than by a person.`,
+    grounding: "mixed",
     legend: [
-      "<strong>Drawn on both sides.</strong> <code>person_access_tokens</code>, <code>rsvp_access_tokens</code> and <code>club_link_tokens</code> are all empty in the seeded data, so no signed-link page renders anything but the uniform invalid state",
-      "The field set is <strong>enumerated here for the first time anywhere</strong>. Task 08 routed these fields to Task 09 and never listed them; Mission 5's packet records the set as an open unknown",
+      "<strong>The field set is enumerated here for the first time anywhere.</strong> Task 08 routed these fields to Task 09 and never listed them; Mission 5's packet records the set as an open unknown",
+      "<strong>W4-01 and W4-02 are drawn</strong> — every signed-link token table is empty in the seeded data, so no such page renders anything but the uniform invalid state",
+      "<strong>W4-03 answers Brian's question</strong> about how it gets sent: automatically, as an approved template carrying her own link",
     ],
     screens: [
       P(
@@ -175,9 +185,8 @@ const WORKFLOWS = [
         "The form",
         `Six questions, every one optional, none of which gates anything.`,
         [
-          "<strong>1. Every field optional.</strong> Missing information never blocks a capture and never blocks the flip — Task 09 D5, invariant 4",
+          "<strong>1. Every field optional.</strong> Missing information never blocks a capture and never blocks the flip",
           "<strong>2. Position interest is explicitly not binding</strong> — it gives a coach something to talk to them about",
-          "<strong>3. How they heard about us</strong> is the only recruitment-effectiveness question worth asking",
           "<strong>Decide:</strong> the six fields themselves. This is the first enumeration and it is a proposal",
         ],
         "oxfordlancers.example/a/9f3c…",
@@ -186,14 +195,25 @@ const WORKFLOWS = [
       P(
         "W4-02",
         "The link that no longer works",
-        `Expired, revoked and never-existed all show the same page — and what an operator can do about it.`,
+        `Expired, revoked and never-existed all show the same page.`,
         [
-          "<strong>1. One page for all three cases.</strong> Telling them apart would let somebody probe which tokens are real — the E1 404-uniformity precedent",
+          "<strong>1. One page for all three cases</strong> — telling them apart would let somebody probe which tokens are real",
           "<strong>2. It exposes nothing</strong>: not the club, not the person, not whether the link was ever valid",
           "<strong>3. An operator can send a new one</strong>, and the old link stays dead",
         ],
         "oxfordlancers.example/a/9f3c…",
         "new",
+      ),
+      P(
+        "W4-03",
+        "How it gets sent",
+        `Automatically, one day after the welcome, as an approved template carrying her own signed link.`,
+        [
+          "<strong>1. It is a template, not a message somebody writes</strong>",
+          "<strong>2. <code>{{2}}</code> is her link</strong> — minted for her, tied to her person",
+          "<strong>3. One reminder, three days later, once.</strong> Then nothing until an operator chooses to ask again",
+        ],
+        "oxfordlancers.example/operate/admin/recruitment",
       ),
     ],
   },

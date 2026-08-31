@@ -1,35 +1,33 @@
-// W11-01 — Run a recruitment event, proposed. The change is the approval
-// summary: today it states one audience number and omits recruits from it.
-appendCard(
-  "Before you approve — who this reaches",
-  [
-    makeRow("Players", "18 · normal reminder-and-escalation ladder"),
-    makeRow("Recruits", "6 · one invitation, and at most one polite follow-up"),
-    makeRow("Coaches", "4 · normal ladder"),
-  ],
-  "Two ladders, not one suppressed ladder. Brian, 2026-08-31: recruits get a recruit chase, and it needs to be a totally separate thing.",
+// W11-01 — Before you approve: what this event sends, to whom, on which ladder.
+// Today the approval summary states one number and omits recruits from it.
+const box = proposedBlock("teal");
+blockTitle(box, "Before you approve — who this reaches, and what they get");
+const table = document.createElement("div");
+table.style.cssText =
+  "display:grid;grid-template-columns:auto 1fr;gap:8px 18px;margin-top:10px;font-size:13.5px";
+const line = (who, what) => {
+  const a = document.createElement("div");
+  a.textContent = who;
+  a.style.cssText = "font-weight:700;white-space:nowrap";
+  const b = document.createElement("div");
+  b.textContent = what;
+  table.append(a, b);
+};
+line("18 players", "Invitation now · reminder at 48h · escalation to the President 24h before");
+line("6 recruits", "Invitation now · one polite follow-up at 48h · then nothing, ever");
+line("4 coaches", "Invitation now · reminder at 48h");
+box.append(table);
+blockText(box, "Two ladders on one event. Each audience is chased on its own terms.");
+const anchor = cardTemplate();
+anchor?.parentElement?.insertBefore(box, anchor);
+
+const defect = proposedBlock("amber");
+blockTitle(defect, "What this fixes, verified in the running code");
+blockText(
+  defect,
+  "scheduleEventLadder inserts a reminder for every invitation on the event, filtered only by " +
+    "event_id — so a recruit invited today receives the player escalation ladder. And " +
+    "countByCapacity omits recruits from these counts, so an operator approves without being " +
+    "told how many recruits it reaches.",
 );
-appendCard(
-  "What each audience will actually receive",
-  [
-    makeRow(
-      "A player",
-      "Invitation now · reminder at 48h · escalation to the President at 24h before",
-    ),
-    makeRow("A recruit", "Invitation now · one polite follow-up at 48h · then nothing, ever"),
-    makeRow("A recruit who says no", "Nothing further. No reason is asked of them."),
-  ],
-  "R5's reason-on-no is a member obligation. Demanding one of a recruit is harsh, and this is where that shows up.",
-);
-appendCard(
-  "The defect this fixes",
-  [
-    makeRow(
-      "Today, at main@e669331",
-      "scheduleEventLadder inserts a reminder for every invitation, filtered only by event_id",
-    ),
-    makeRow("So a recruit today", "Receives the full player escalation ladder"),
-    makeRow("And countByCapacity", "Omits recruits from these counts entirely"),
-  ],
-  "Both verified in the running code. The owner decision of 2026-08-26 fixes them at this mission, and the never-harsh amendment changes the fix from suppression into a second ladder.",
-);
+anchor?.parentElement?.insertBefore(defect, anchor);

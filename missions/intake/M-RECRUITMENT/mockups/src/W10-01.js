@@ -1,47 +1,54 @@
-// W10-01 — Administer recruitment's machinery, proposed. The shipped messaging
-// schedule is the shell and the language; recruitment's cycle is a sibling
-// object in that language, not a new column on it.
+// W10-01 — The recruitment cycle, in the shipped messaging-schedule's own
+// language. Mission 4 owns the scheduler; recruitment declares the cycle.
 setHeading(
   "Recruitment cycle",
-  "Season 2026-27 · what recruitment sends, in what order, and who may change it",
+  "Season 2026-27 · what fires, in what order, and who may change it",
 );
-appendCard(
-  "The boundary",
-  [
-    makeRow("Mission 4 owns", "The scheduler, the transport, delivery states and retry"),
-    makeRow(
-      "Recruitment owns",
-      "What is sent, on what trigger, in what order, and whether a step runs at all",
-    ),
-    makeRow("The line", "Recruitment declares a cycle. It never schedules."),
-  ],
-  "This is the boundary Brian asked to be found by walking the workflow rather than guessed in the abstract. Proposed, not settled.",
+const host = drawnPanel(null);
+host.style.cssText += ";border:none;box-shadow:none;padding:0";
+const step = (n, name, when, on) => {
+  const row = document.createElement("div");
+  row.style.cssText =
+    "display:flex;align-items:center;gap:16px;border:1px solid rgba(0,0,0,0.12);border-radius:8px;padding:13px 16px;margin-bottom:10px;background:#fff";
+  const num = document.createElement("div");
+  num.textContent = String(n);
+  num.style.cssText =
+    "flex:0 0 26px;height:26px;border-radius:50%;background:#00695c;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700";
+  const body = document.createElement("div");
+  body.style.cssText = "flex:1";
+  const t = document.createElement("code");
+  t.textContent = name;
+  t.style.cssText = "font-size:12.5px;font-weight:700;color:#0b3d91";
+  const w = document.createElement("div");
+  w.textContent = when;
+  w.style.cssText = "font-size:13px;color:rgba(0,0,0,0.7);margin-top:3px";
+  body.append(t, w);
+  const toggle = document.createElement("div");
+  toggle.textContent = on ? "ON" : "OFF";
+  toggle.style.cssText = `flex:0 0 auto;font-size:11px;font-weight:700;letter-spacing:.06em;padding:4px 11px;border-radius:12px;color:${on ? "#1b5e20" : "rgba(0,0,0,0.5)"};background:${on ? "#e8f5e9" : "#eee"}`;
+  row.append(num, body, toggle);
+  return row;
+};
+host.append(
+  step(1, "recruit_welcome", "On capture, from every door", true),
+  step(2, "recruit_interest_ask", "Immediately after they accept", true),
+  step(3, "recruit_gentle_reminder", "1 day later, only if nothing came back", true),
+  step(4, "recruit_details_ask", "1 day after the welcome", true),
+  step(5, "recruit_details_reminder", "3 days later, once only", true),
 );
-appendCard(
-  "The cycle",
-  [
-    makeRow("1 · Welcome + group invite", "On capture, every door · ON"),
-    makeRow("2 · Standard recruit ask", "Immediately after they accept · ON"),
-    makeRow("3 · Polite reminder", "1 day later, if nothing came back · ON"),
-    makeRow("4 · Recruit-stage form", "1 day after the welcome · ON"),
-    makeRow("5 · Form reminder", "3 days later, once only · ON"),
-  ],
-  "Each step's content is editable, and any step can be turned off entirely — boundary item 43. A step that is off is stated on the recruit's record, so a quiet recruit is never mistaken for a disinterested one.",
+const grp = proposedBlock("amber");
+blockTitle(grp, "The community-group link");
+blockText(
+  grp,
+  "chat.whatsapp.com/… · last changed 14 April by Caspian Hallowfield · carried by step 1 and every QR page",
 );
-appendCard(
-  "The community-group link",
-  [
-    makeRow("Current link", "chat.whatsapp.com/… · last changed 14 Apr by Caspian Hallowfield"),
-    makeRow("Carried by", "Step 1, and every QR page"),
-  ],
-  "The most likely silent failure in the mission: the link rotates, recruits are invited to a dead group, and nobody finds out. When it was last changed is on the screen for that reason.",
+host.append(grp);
+const qr = drawnPanel("QR codes");
+qr.append(
+  makeRow("Freshers' Fair stand", "Live · 41 submissions · minted 22 Apr"),
+  makeRow("Taster poster, Michaelmas", "Live · 7 submissions · minted 2 May"),
+  makeRow("Old handout, Hilary 2025-26", "Revoked 14 Apr · 0 since"),
 );
-appendCard(
-  "QR codes",
-  [
-    makeRow("Freshers' Fair stand", "Live · 41 submissions · minted 22 Apr"),
-    makeRow("Taster poster, Michaelmas", "Live · 7 submissions · minted 2 May"),
-    makeRow("Old handout, Hilary 2025-26", "Revoked 14 Apr · 0 since"),
-  ],
-  "Minted, named, and revocable. A revoked code shows the uniform invalid page, and the count says how much a poster still in the wild is actually doing.",
-);
+host.append(qr);
+const anchor = cardTemplate();
+(anchor?.parentElement ?? document.body).append(host);
