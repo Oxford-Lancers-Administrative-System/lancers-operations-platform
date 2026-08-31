@@ -126,7 +126,7 @@
     {
       "id": "W7",
       "name": "Sign yourself in",
-      "state": "done",
+      "state": "mock_approved",
       "stale": false,
       "feedback": [
         {
