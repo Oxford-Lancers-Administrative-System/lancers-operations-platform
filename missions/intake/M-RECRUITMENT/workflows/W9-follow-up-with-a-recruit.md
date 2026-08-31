@@ -1,146 +1,41 @@
-# W9 — Follow up with a recruit
+# W9 — folded
 
-- Purpose/intended outcome: an operator says something polite to a recruit —
-  usually a nudge about something they have not filled in — quickly, from wherever
-  they already are, and the message is good without the operator having to write it
-  well.
-- Primary actor: an operator holding the core four authority.
-- Trigger: the operator notices somebody has gone quiet, has not answered the ask,
-  or is worth a personal word before an event.
-- Entry point: an action on the recruit — her row on the board (`W1`) or her own
-  record (`W2`) — and from an event's audience (`W11`). **Never a queue.** The
-  operator is looking at a person when they decide to say something, so the button
-  is on the person.
-- Route/placement: a composer opened in place, not a separate page.
-- Controlling source: the never-harsh amendment of 2026-08-31; Brian's ruling the
-  same day that this surface is Mission 6's and Mission 7 inherits from it; his
-  description of its normal job — _"somebody can go and say, 'Hey, go and ask them
-  anything that they haven't filled out with this thing.'"_
-- User-visible result: a message leaves the club, is visible against that recruit
-  for ever, and nothing about it is a chase.
+**Folded on 2026-08-31 on Brian's instruction.** There is no workflow here.
 
-## Why this workflow exists at all
+> "W9 feels like it's already been done in part, and I don't know what exactly
+> it's trying to get at." … "Fold it."
 
-Until 2026-08-31 the rule was that recruits are never chased and human touches
-happen outside the system. Brian replaced it: _"it should never be harsh. That's
-the better rule… We should send polite reminders, nudges, things like that. The
-app should be very open to allowing the person… to send polite messages,
-follow-ups, things like that, and the messages should be good. It should be easy,
-right?… these are sales. This is sales prospecting."_ That turns an explicitly
-excluded capability into a named one, and it is the item the amendment added to
-the boundary.
+He was right, and the duplication was this intake's own doing: `W2`'s send dialog
+was built _after_ `W9` was drafted and does what `W9` described.
 
-## Current `main` grounding
+## Where its four screens went
 
-- Locally rendered route or nearest implemented analogue: **the recruit's own
-  record**, photographed as `W9-01` and `W9-03` on the player record shell
-  `/operate/roster/[membershipId]` — the shell Brian accepted for `W2` on
-  2026-08-31, corrected here to say what was actually photographed.
-  There is **no composer anywhere in the application**: Mission 5's packet is
-  explicit that it composes, schedules and sends nothing, and Mission 4 sends only
-  from its ladder, so `W9-02` and `W9-04` are drawn.
+| What it was                    | Now                                                        |
+| ------------------------------ | ---------------------------------------------------------- |
+| Where you hit the button       | `W2` — the two send buttons on the recruit's record        |
+| Choosing what to send          | `W2-03` — the send dialog, with the dates it last went out |
+| Sent, and where it lands       | `W2` — the send line on the card, and the audit entry      |
+| Refused, because they declined | `W2-04` — a state of that same dialog                      |
 
-  **Corrected 2026-08-31.** The first draft grounded this workflow on Mission 4's
-  Follow-ups queue at `/operate/admin/follow-ups` and showed only that queue.
-  Brian: _"when I saw the flow to actually go and do them, you just showed me the
-  follow-up queue and no output… That's not even the right place."_ He is right
-  twice over. The queue is Mission 4's chase surface for members who owe the club
-  an answer, which is the opposite of what a recruit is; and a queue is not a
-  journey. The entry point is **the recruit** — her row on the board, or her own
-  record — and the workflow now runs end to end: where the button is, what the
-  composer looks like, what happens when it sends, and where the message lands.
+Brian had already narrowed it himself: when a general `Send a follow-up` button
+was proposed he struck it and asked for one button per questionnaire, which
+collapsed "follow up" into "send a questionnaire" on the record.
 
-- Reused component, language, interaction, and permission patterns: Mission 4's
-  transport and template machinery, verbatim. The queue's own language for who is
-  outstanding and why.
-- Desktop and 375px evidence: `W9-01` photographed both sides; `W9-02`, the
-  composer itself, drawn, because nothing like it exists.
-- Reason for any departure from the implemented application: the composer is new
-  by necessity. Its restraint is the design: it must make a good message quick to
-  send and make a harsh one hard to send.
+## The number is kept
 
-## Required actions
+`W9` stays in the inventory as an empty slot and is never reused, exactly as `W3`
+does. Nothing should be built here.
 
-1. Open the composer from a row, a record, or an event, without losing place.
-2. See what this recruit has not done — the outstanding ask, the unanswered
-   invitation — so the operator is not composing blind.
-3. Pick a starting point: a short set of good default messages, one per common
-   situation, written in club voice.
-4. Edit it, because a real person is sending it.
-5. Send, and see it land on the recruit's record.
+## Where its three decisions went
 
-## State transitions
-
-Sending is an interaction by the club, not by the recruit, so it moves nothing.
-A reply would move `identified → engaged`, but no inbound message is captured
-anywhere at the baseline — the webhook parses only `statuses[]` — so a reply is
-not observable and the operator records it by hand.
-
-## Handoffs
-
-- From `W1`, `W2` and `W11`.
-- To `W2`, where the message is recorded.
-- To Mission 4 for dispatch and delivery state.
-- To Mission 7, which inherits this surface for members.
-
-## Dependencies and mission boundaries
-
-- **Mission 4 / transport:** this mission's side is the composer, the defaults and
-  the rule; Mission 4's side is dispatch, retry and delivery state. Independently
-  walkable.
-- **Mission 7 / the message-and-flag direction:** the Authority Manifest named
-  Mission 7 as the candidate home for an operator message-and-flag capability and
-  never promoted it into a brief. Brian settled it on 2026-08-31: this surface is
-  Mission 6's, and Mission 7 inherits. Independently walkable.
-- **Mission 8 / consent:** a recruit who has not approved communication, or has
-  declined, cannot be messaged at all. Non-blocking; the check is Mission 8's
-  policy and this surface enforces it.
-
-## Exceptions and recovery
-
-- **The recruit has not approved communication.** The composer refuses and says
-  why, rather than sending and failing.
-- **The recruit declined.** Refused outright. A recorded refusal never coexists
-  with continued messaging.
-- **No usable number.** Refused, with the missing fact named.
-- **Delivery fails.** Visible on the record, resendable, never silent.
-- **The operator writes something harsh.** Not preventable by software, and this
-  specification does not pretend otherwise. What the design does is make the
-  polite thing the fast thing.
-
-## Safety, privacy, consent, and authority boundaries
-
-- Four-role only.
-- Every message sent is attributable to the operator who sent it and is retained
-  against the recruit — this is the audit that makes an operator-sent message
-  safe to allow at all.
-- The never-harsh invariant binds here more than anywhere: no message may tell a
-  recruit they are required to be somewhere, and this surface must never grow a
-  cadence, a rung, or a bulk send.
-
-## Acceptance evidence
-
-Four screens, because a send is a journey and not a screen: `W9-01` where the
-button is, `W9-02` the composer, `W9-03` what happens when it sends and where the
-message lands, `W9-04` the refusal.
-
-- `W9-01` and `W9-03` `grounding: photograph` — the recruit's record, both sides,
-  measured.
-- `W9-02` and `W9-04` `grounding: code-only`, drawn, because no composer and no
-  such refusal exist anywhere in the application.
-
-## Core decisions
-
-| Decision                                                 | Classification                | Governing evidence or recommended default                                                         | Status  |
-| -------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------- | ------- |
-| The recruit follow-up surface is this mission's          | `locked`                      | Brian, 2026-08-31                                                                                 | Settled |
-| Its normal job is asking for what has not been filled in | `locked`                      | Brian, 2026-08-31                                                                                 | Settled |
-| It never becomes a cadence, a rung or a bulk send        | `locked`                      | Invariant 1, the never-harsh rule                                                                 | Settled |
-| Good default messages, editable before sending           | `proposed for owner approval` | Brian: "the messages should be good. It should be easy." A blank box is neither                   | Open    |
-| One recruit at a time, no multi-select                   | `proposed for owner approval` | The moment it sends to many, it is a campaign and the rule is gone. Recommendation: one at a time | Open    |
-| The composer opens in place rather than as a page        | `delegated to Mission Lead`   | Changes no intent                                                                                 | Settled |
+| Decision              | Now   | Why                                                                                                                                                                                         |
+| --------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEVER-HARSH`         | `W10` | It constrains what the club **sends** — the ladder, the reminders, the invitations — so it belongs with the machinery that decides what fires and when. Its refusal is rendered on `W2-04`. |
+| `FOLLOWUP-IS-M6`      | `W2`  | The follow-up surface is the send action on the recruit's own record.                                                                                                                       |
+| `M5-nogoal-messaging` | `W2`  | Mission 5 composes, schedules and sends nothing, so that surface has no earlier owner.                                                                                                      |
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- Exact words: _"W9 feels like it's already been done in part, and I don't know
+  what exactly it's trying to get at."_ … _"Fold it."_
+- Date: 2026-08-31

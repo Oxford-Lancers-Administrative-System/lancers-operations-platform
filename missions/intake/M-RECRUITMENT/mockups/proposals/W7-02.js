@@ -623,12 +623,17 @@ const rebuildCard = (card, title, rows, opts = {}) => {
 const replaceSummaryStrip = (items) => {
   const h1 = must($("h1"), "replaceSummaryStrip found no <h1>");
   const sub = must(h1.parentElement?.parentElement, "replaceSummaryStrip found no heading block");
+  // Idempotent: a screen that builds the record and then restates the strip -
+  // W2-04 does, for a different recruit - must find the strip THIS function
+  // already built, not go looking for the membership one it has replaced.
   const strip = must(
-    [...sub.children].find(
-      (c) => c !== h1.parentElement && c.innerText && c.innerText.split("\n").length >= 4,
-    ),
-    "replaceSummaryStrip found no membership summary strip",
+    document.querySelector('[data-intake-strip="1"]') ??
+      [...sub.children].find(
+        (c) => c !== h1.parentElement && c.innerText && c.innerText.split("\n").length >= 4,
+      ),
+    "replaceSummaryStrip found no summary strip",
   );
+  strip.dataset.intakeStrip = "1";
   strip.replaceChildren();
   strip.style.cssText = "display:flex;gap:38px;flex-wrap:wrap;margin:10px 0 18px";
   for (const [value, label] of items) {
@@ -1149,7 +1154,16 @@ const bandedCard = (label) => {
  * both describe a season's obligations, and a recruit holds none.
  */
 const setRecruitmentEvents = (events, title = "Recruitment events") => {
-  const card = bandedCard("ATTENDANCE");
+  // Idempotent, like replaceSummaryStrip: a screen that builds the record and
+  // then restates the events for a different recruit - W2-04 does - must find
+  // the card this function already retitled, not the ATTENDANCE it has replaced.
+  const cards = [...document.querySelectorAll(".MuiPaper-root")].filter(
+    (c) => c.offsetHeight > 60 && c.innerText.trim(),
+  );
+  const already = cards.find((c) =>
+    c.innerText.split("\n")[0].trim().toUpperCase().startsWith(title.toUpperCase()),
+  );
+  const card = already ?? bandedCard("ATTENDANCE");
   const table = must(card.querySelector("table"), "the ATTENDANCE card has no table");
   const heads = [...table.querySelectorAll("thead th")];
   const bodyRows = [...table.querySelectorAll("tbody tr")];
@@ -1469,7 +1483,12 @@ const pageButton = (text) => {
  * is knowing when the club last bothered this person.
  */
 const sentDates = (card, label, dates) => {
+  // Idempotent: rebuilding a card for a different recruit must REPLACE the strip
+  // this function already appended, not leave it. W2-04 showed Ambrose's
+  // questionnaire as "Not sent" with Tobias's send dates still underneath it.
+  card.querySelector('[data-intake-sent="1"]')?.remove();
   const strip = document.createElement("div");
+  strip.dataset.intakeSent = "1";
   strip.style.cssText =
     "padding:10px 16px 12px;border-top:1px solid rgba(0,0,0,0.10);" +
     "font-size:12.5px;color:rgba(0,0,0,0.55)";
@@ -1951,8 +1970,7 @@ const found = document.createElement("div");
 found.style.cssText =
   "border:1px solid rgba(0,0,0,0.16);border-radius:8px;padding:14px 16px;margin-bottom:20px;background:#fafafa";
 const label = document.createElement("div");
-label.style.cssText =
-  "font-size:11.5px;font-weight:700;letter-spacing:.06em;color:rgba(0,0,0,0.5)";
+label.style.cssText = "font-size:11.5px;font-weight:700;letter-spacing:.06em;color:rgba(0,0,0,0.5)";
 label.textContent = "WE FOUND";
 const who = document.createElement("div");
 who.style.cssText = "margin-top:5px;font-size:15px;font-weight:700";
@@ -1968,7 +1986,8 @@ choices.style.cssText = "display:flex;flex-wrap:wrap;gap:10px";
 const yes = formButton("YES, THAT'S ME");
 const no = formButton("NO, I'M NEW");
 no.className = no.className.replace("MuiButton-contained", "MuiButton-outlined");
-no.style.cssText += ";background:transparent;color:#0b3d91;box-shadow:none;border:1px solid rgba(11,61,145,0.5)";
+no.style.cssText +=
+  ";background:transparent;color:#0b3d91;box-shadow:none;border:1px solid rgba(11,61,145,0.5)";
 choices.append(yes, no);
 card.append(choices);
 
@@ -1978,6 +1997,6 @@ card.append(
   ),
 );
 
-await settle()
+await settle();
 
 })()

@@ -1405,6 +1405,39 @@
           shotRoute: "/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
           proposedRoute: "/operate/recruitment/tobias-wrenfield",
         },
+        {
+          id: "W2-03",
+          title: "Sending a questionnaire",
+          disposition: "new",
+          drawn: false,
+          blurb: `The dialog a send button opens. It asks nothing about which questionnaire — the button
+         already chose — and shows when that one last went out, because the point is not bothering
+         somebody twice.`,
+          deltas: [
+            `<strong>1. Every message is a Meta-approved template</strong> — <code>config.ts:168</code>, <em>“template is the only production shape”</em> — so this chooses one and fires it. There is no composer anywhere in the mission`,
+            `<strong>2. Pressing SEND is the handoff to W4</strong>, which owns the template, the signed link and the form the recruit opens`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
+          shotRoute: "/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
+          proposedRoute: "/operate/recruitment/tobias-wrenfield",
+        },
+        {
+          id: "W2-04",
+          title: "The send that will not fire",
+          disposition: "new",
+          drawn: false,
+          blurb: `Kept from W9 when that workflow was folded on 2026-08-31. NEVER HARSH is a guarantee, so the
+         product enforces it rather than leaving it to whoever is holding the phone.`,
+          deltas: [
+            `<strong>1. The button stays.</strong> Hiding it would leave an operator wondering whether they had missed something; the dialog says why it will not fire and what would have to change first`,
+            `<strong>2. There is no “send anyway”.</strong> Under templates-only there is nothing to compose and nothing to override — the only way to message him again is for his status to stop being <code>declined</code>`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
+          shotRoute: "/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
+          proposedRoute: "/operate/recruitment/ambrose-kittiwake",
+        },
       ];
 
       /* ------------------------------ frames ----------------------------- */

@@ -221,6 +221,23 @@ except `joined` is a direct audited change; `joined` is intercepted by `W14`.
 | Notes carry an author and a timestamp                        | `proposed for owner approval` | Brian made notes first-class; an unattributed note is not evidence | Open    |
 | The page survives the flip and stays readable                | `proposed for owner approval` | Recruitment history is not deleted because somebody joined         | Open    |
 
+## Added after approval — `W2-04`, and it needs Brian's word
+
+`W9` was folded on 2026-08-31 and its one surviving screen came here: the product
+**refusing** to message a recruit who has declined.
+
+`NEVER HARSH` is a guarantee, so it is enforced rather than left to whoever is
+holding the phone. The button stays — hiding it would leave an operator wondering
+whether they had missed something — and the dialog says why it will not fire and
+what would have to change first. There is no _send anyway_: under templates-only
+there is nothing to compose and nothing to override, so the only way to message
+him again is for his status to stop being `declined`.
+
+**This screen arrived after the approval recorded below.** It is noted here rather
+than by reopening the workflow, because the ledger's ordering rule makes
+reopening an earlier workflow invalidate every later approval — `W4` through `W8`
+would all have fallen over. Brian has not yet seen `W2-04`.
+
 ## Brian approval
 
 - Exact words: _"Okay, no, fine. Leave a note here that I'm going to want to

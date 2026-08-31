@@ -124,6 +124,29 @@ const WORKFLOWS = [
         ],
         "oxfordlancers.example/operate/recruitment/tobias-wrenfield",
       ),
+      P(
+        "W2-03",
+        "Sending a questionnaire",
+        `The dialog a send button opens. It asks nothing about which questionnaire — the button
+         already chose — and shows when that one last went out, because the point is not bothering
+         somebody twice.`,
+        [
+          "<strong>1. Every message is a Meta-approved template</strong> — <code>config.ts:168</code>, <em>“template is the only production shape”</em> — so this chooses one and fires it. There is no composer anywhere in the mission",
+          "<strong>2. Pressing SEND is the handoff to W4</strong>, which owns the template, the signed link and the form the recruit opens",
+        ],
+        "oxfordlancers.example/operate/recruitment/tobias-wrenfield",
+      ),
+      P(
+        "W2-04",
+        "The send that will not fire",
+        `Kept from W9 when that workflow was folded on 2026-08-31. NEVER HARSH is a guarantee, so the
+         product enforces it rather than leaving it to whoever is holding the phone.`,
+        [
+          "<strong>1. The button stays.</strong> Hiding it would leave an operator wondering whether they had missed something; the dialog says why it will not fire and what would have to change first",
+          "<strong>2. There is no “send anyway”.</strong> Under templates-only there is nothing to compose and nothing to override — the only way to message him again is for his status to stop being <code>declined</code>",
+        ],
+        "oxfordlancers.example/operate/recruitment/ambrose-kittiwake",
+      ),
     ],
   },
   {
@@ -372,63 +395,33 @@ const WORKFLOWS = [
   {
     id: "W9",
     slug: "follow-up-with-a-recruit",
-    name: "Follow up with a recruit",
-    lede: `An operator says something polite to a recruit, quickly, from wherever they already are —
-      and the message is good without the operator having to write it well.`,
-    grounding: "mixed",
+    name: "Folded — no workflow here",
+    lede: `Folded on 2026-08-31. Three of its four screens had already been built into W2, and the
+      fourth — the refusal — is now a state of W2's send dialog.`,
+    grounding: "photograph",
+    noScreens: `<strong>W9 was folded on 2026-08-31.</strong> Brian: <em>“W9 feels like it's already been
+      done in part, and I don't know what exactly it's trying to get at.”</em> He was right, and the
+      duplication was this intake's own doing: W2's send dialog was built after W9 was drafted and does
+      what W9 described.
+      <ul>
+        <li><strong>Where you hit the button</strong> — <a href="W2-one-recruits-record.html">W2</a>, the two send buttons on the record</li>
+        <li><strong>Choosing what to send</strong> — <a href="W2-one-recruits-record.html">W2</a>, screen <code>W2-03</code>, with the dates it last went out</li>
+        <li><strong>Sent, and where it lands</strong> — <a href="W2-one-recruits-record.html">W2</a>, the send line on the card and the entry in the audit</li>
+        <li><strong>Refused, because they declined</strong> — <a href="W2-one-recruits-record.html">W2</a>, screen <code>W2-04</code></li>
+      </ul>
+      <p>Brian had already narrowed it himself: when a general <em>Send a follow-up</em> button was
+      proposed he struck it and asked for one button per questionnaire, which collapsed “follow up”
+      into “send a questionnaire” on the record.</p>
+      <p>Its three decisions found new owners and none was dropped — <code>NEVER-HARSH</code> to
+      <a href="W10-administer-recruitments-machinery.html">W10</a>, because it constrains what the club
+      sends at all, and <code>FOLLOWUP-IS-M6</code> and <code>M5-nogoal-messaging</code> to
+      <a href="W2-one-recruits-record.html">W2</a>. The number is kept and never reused.</p>`,
     legend: [
       "<strong>Corrected 2026-08-31.</strong> The first draft grounded this on Mission 4's Follow-ups queue and showed only the queue. Brian: <em>“you just showed me the follow-up queue and no output… That's not even the right place.”</em> The queue is Mission 4's chase surface for members who owe the club an answer — the opposite of a recruit — and a queue is not a journey",
       "<strong>The entry point is the recruit</strong>, not a queue. An operator is looking at a person when they decide to say something, so the button is on the person",
       "<strong>Four screens, because a send is a journey:</strong> where the button is, the composer, what happens when it sends, and the refusal",
     ],
-    screens: [
-      P(
-        "W9-01",
-        "Where you hit the button",
-        `Her own record, with the action beside the ones that already exist. Her row on the board carries the same action.`,
-        [
-          "<strong>1. The button is on her</strong>, next to <em>Correct this record</em>",
-          "<strong>2. What makes an operator want it</strong> is on the same screen: nothing said since 29 April",
-          "<strong>3. Not a queue.</strong> Mission 4's Follow-ups queue chases members who owe an answer; a recruit owes nothing",
-        ],
-        "oxfordlancers.example/operate/recruits/0b938ce0",
-      ),
-      P(
-        "W9-02",
-        "The composer",
-        `One recruit, one message, sent by a person, now.`,
-        [
-          "<strong>1. The operator is not composing blind</strong> — what she has not done is on the screen",
-          "<strong>2. Three good starting points</strong>, in club voice, editable before sending. <strong>Decide:</strong> a blank box is neither good nor easy",
-          "<strong>3. What it will never grow into</strong>: no cadence, no rung, no bulk send",
-        ],
-        "Opened from her row on the recruit board",
-        "new",
-      ),
-      P(
-        "W9-03",
-        "Sent, and where it lands",
-        `The output — the thing the first draft was missing entirely.`,
-        [
-          "<strong>1. Confirmed on the screen she is already on</strong>",
-          "<strong>2. It lands on her record</strong>, attributed to the operator who sent it. That attribution is what makes an operator-composed message safe to allow",
-          "<strong>3. It moves nothing on the ladder.</strong> Sending is the club talking, not the recruit answering",
-        ],
-        "oxfordlancers.example/operate/recruits/0b938ce0",
-      ),
-      P(
-        "W9-04",
-        "Refused: he declined",
-        `The never-harsh rule is a guarantee, so it has to be visible somewhere. This is where.`,
-        [
-          "<strong>1. A recorded refusal never coexists with continued messaging</strong>",
-          "<strong>2. It refuses and says why</strong>, rather than sending and failing",
-          "<strong>3. Only he can change it.</strong> If he gets back in touch, an operator moves him back",
-        ],
-        "Opened from his row on the recruit board",
-        "new",
-      ),
-    ],
+    screens: [],
   },
   {
     id: "W10",

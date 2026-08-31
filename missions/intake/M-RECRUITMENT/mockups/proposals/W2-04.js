@@ -623,12 +623,17 @@ const rebuildCard = (card, title, rows, opts = {}) => {
 const replaceSummaryStrip = (items) => {
   const h1 = must($("h1"), "replaceSummaryStrip found no <h1>");
   const sub = must(h1.parentElement?.parentElement, "replaceSummaryStrip found no heading block");
+  // Idempotent: a screen that builds the record and then restates the strip -
+  // W2-04 does, for a different recruit - must find the strip THIS function
+  // already built, not go looking for the membership one it has replaced.
   const strip = must(
-    [...sub.children].find(
-      (c) => c !== h1.parentElement && c.innerText && c.innerText.split("\n").length >= 4,
-    ),
-    "replaceSummaryStrip found no membership summary strip",
+    document.querySelector('[data-intake-strip="1"]') ??
+      [...sub.children].find(
+        (c) => c !== h1.parentElement && c.innerText && c.innerText.split("\n").length >= 4,
+      ),
+    "replaceSummaryStrip found no summary strip",
   );
+  strip.dataset.intakeStrip = "1";
   strip.replaceChildren();
   strip.style.cssText = "display:flex;gap:38px;flex-wrap:wrap;margin:10px 0 18px";
   for (const [value, label] of items) {
@@ -1149,7 +1154,16 @@ const bandedCard = (label) => {
  * both describe a season's obligations, and a recruit holds none.
  */
 const setRecruitmentEvents = (events, title = "Recruitment events") => {
-  const card = bandedCard("ATTENDANCE");
+  // Idempotent, like replaceSummaryStrip: a screen that builds the record and
+  // then restates the events for a different recruit - W2-04 does - must find
+  // the card this function already retitled, not the ATTENDANCE it has replaced.
+  const cards = [...document.querySelectorAll(".MuiPaper-root")].filter(
+    (c) => c.offsetHeight > 60 && c.innerText.trim(),
+  );
+  const already = cards.find((c) =>
+    c.innerText.split("\n")[0].trim().toUpperCase().startsWith(title.toUpperCase()),
+  );
+  const card = already ?? bandedCard("ATTENDANCE");
   const table = must(card.querySelector("table"), "the ATTENDANCE card has no table");
   const heads = [...table.querySelectorAll("thead th")];
   const bodyRows = [...table.querySelectorAll("tbody tr")];
@@ -1469,7 +1483,12 @@ const pageButton = (text) => {
  * is knowing when the club last bothered this person.
  */
 const sentDates = (card, label, dates) => {
+  // Idempotent: rebuilding a card for a different recruit must REPLACE the strip
+  // this function already appended, not leave it. W2-04 showed Ambrose's
+  // questionnaire as "Not sent" with Tobias's send dates still underneath it.
+  card.querySelector('[data-intake-sent="1"]')?.remove();
   const strip = document.createElement("div");
+  strip.dataset.intakeSent = "1";
   strip.style.cssText =
     "padding:10px 16px 12px;border-top:1px solid rgba(0,0,0,0.10);" +
     "font-size:12.5px;color:rgba(0,0,0,0.55)";
@@ -1908,44 +1927,129 @@ const formButton = (text) => {
   return button;
 };
 
-// W9-03 — Sent, and where it lands. The output the first draft was missing.
-setHeading("Rosalind Penhaligon");
-setSubtitle("Recruit · 2026-27 · opened from the recruit board");
-setPersonRows([
-  recordRow("Name", "Rosalind Penhaligon"),
-  recordRow("Mobile phone", "07700 900318"),
-  recordRow("College", "Dunsfold"),
-]);
+// W2-04 — The send that will not fire.
+//
+// The one screen worth keeping out of W9 when it was folded on 2026-08-31.
+// Everything else W9 held had already been built into W2: the buttons, the
+// dialog, and the record of what was sent.
+//
+// NEVER HARSH is a guarantee, so the product enforces it rather than leaving it
+// to whoever is holding the phone. Ambrose Kittiwake declined; the club does not
+// message him again. The button is still there — hiding it would leave an
+// operator wondering whether they had missed something — and the dialog says
+// plainly why it will not fire, and what would have to change first.
+//
+// This is also the shape the refusal has to take under templates-only: there is
+// nothing to compose, so there is no "send anyway" to offer. The only way to
+// message him again is for his status to stop being `declined`.
+buildRecruitRecord();
+pageButton("SEND PERSONAL QUESTIONNAIRE");
+pageButton("SEND RECRUITMENT QUESTIONNAIRE");
+
+// The record has to BE Ambrose's, not Tobias's with a new heading. The first
+// attempt renamed the page and left the body alone, so a declined recruit
+// carried somebody else's answered questionnaire, notes and history — the same
+// failure this mission has hit repeatedly, and the reason every screen gets
+// looked at before it is shown.
+setHeading("Ambrose Kittiwake");
+setSubtitle("Recruitment · 2026-27 · opened from the recruit board");
 replaceSummaryStrip([
-  [{ chip: "identified" }, "Recruitment status"],
-  ["Today", "Since we last said anything"],
-  ["Sent today", "Recruit-stage ask"],
+  [{ chip: "declined" }, "Recruitment status"],
+  ["3 May 2026", "First contact"],
+  ["1", "Events attended"],
 ]);
-const banner = proposedBlock("green");
-blockTitle(banner, "recruit_details_ask sent to Rosalind");
-blockText(banner, "Queued now · you will see delivery below when the provider confirms it");
-const first = cardTemplate();
-first?.parentElement?.insertBefore(banner, first);
+
+setPersonRows([
+  recordRow("Name", "Ambrose Kittiwake"),
+  recordRow("Aliases", "Not recorded", { muted: true }),
+  recordRow("Mobile phone", "07700 900884"),
+  recordRow("Personal email", "Not recorded", { muted: true }),
+  recordRow("College", "Not recorded", { muted: true }),
+  recordRow("Matriculation year", "Not recorded", { muted: true }),
+]);
+
 rebuildCard(
-  recordCard("ONBOARDING"),
-  "WHAT WE HAVE SAID",
+  bandedCard("RECRUITMENT"),
+  "Recruitment",
   [
-    recordRow("recruit_welcome", "28 Apr · delivered · read"),
-    recordRow("recruit_interest_ask", "28 Apr · delivered · no reply"),
-    recordRow("recruit_gentle_reminder", "29 Apr · delivered · no reply"),
-    recordRow("recruit_details_ask", "Today 14:06 · sent by Caspian Hallowfield · queued"),
+    recordRow("Status", null, { chip: "declined" }),
+    recordRow("Came in through", "Walk-up · Taster 1"),
+    recordRow("First contact", "3 May 2026"),
+    recordRow("Declined on", "2 May 2026"),
   ],
-  { proposed: true, colour: "#00695c" },
+  { colour: RECORD_BANDS.recruitment },
 );
+
 rebuildCard(
-  recordCard("SEASON"),
-  "WHAT THIS DID NOT DO",
+  bandedCard("RECRUITMENT QUESTIONNAIRE"),
+  "Recruitment questionnaire",
   [
-    recordRow("Her status", "Unchanged — still identified"),
-    recordRow("Why", "Sending is the club talking, not her answering"),
-    recordRow("What would move it", "Her reply, or her turning up"),
+    recordRow("Questionnaire sent", "Not sent", { muted: true }),
+    recordRow("Answered", "Not answered", { muted: true }),
   ],
-  { proposed: true },
+  { colour: RECORD_BANDS.ask },
 );
+
+// His own send record, replacing the one the shared builder left behind.
+sentDates(bandedCard("RECRUITMENT QUESTIONNAIRE"), "Recruitment questionnaire sent", []);
+
+setRecruitmentEvents([
+  { name: "Freshers' Fair", date: "30 Apr 2026", rsvp: "No", attendance: "Absent", status: "Occurred" },
+  { name: "Taster 1", date: "3 May 2026", rsvp: NOT_RECORDED, attendance: "Present", status: "Occurred" },
+  { name: "Taster 2", date: "10 May 2026", rsvp: NOT_RECORDED, attendance: NOT_RECORDED, status: "Upcoming" },
+]);
+
+const notesCard = bandedCard("NOTES");
+for (const child of [...notesCard.children].slice(1)) child.remove();
+const notesBody = document.createElement("div");
+notesBody.style.cssText = "padding:14px 16px";
+const note1 = document.createElement("div");
+note1.style.cssText = "font-size:14px;line-height:1.6;color:rgba(0,0,0,0.87)";
+note1.textContent = "Said rugby clashes. Happy to be asked again next year.";
+const by1 = document.createElement("div");
+by1.style.cssText = "margin-top:4px;font-size:12px;color:rgba(0,0,0,0.55)";
+by1.textContent = "Caspian Hallowfield · 2 May 2026";
+notesBody.append(note1, by1);
+notesCard.append(notesBody);
+
+const historyCard = bandedCard("STATUS HISTORY");
+for (const child of [...historyCard.children].slice(1)) child.remove();
+const historyBody = document.createElement("div");
+historyBody.style.cssText = "padding:14px 16px";
+for (const [what, when] of [
+  ["identified → declined · said rugby clashes", "2 May 2026, 20:11 · Caspian Hallowfield"],
+  ["Welcome sent · WhatsApp template", "3 May 2026, 18:07 · delivered"],
+  ["Added as identified · walk-up at Taster 1", "3 May 2026, 18:05 · Caspian Hallowfield"],
+]) {
+  const line = document.createElement("div");
+  line.style.cssText = "font-size:14px;color:rgba(0,0,0,0.87);margin-top:10px";
+  line.textContent = what;
+  const meta = document.createElement("div");
+  meta.style.cssText = "margin-top:3px;font-size:12px;color:rgba(0,0,0,0.55)";
+  meta.textContent = when;
+  historyBody.append(line, meta);
+}
+historyCard.append(historyBody);
+
+// The status control shows the rung he is actually on.
+const statusShown = document.querySelector('.MuiSelect-select');
+if (statusShown) statusShown.replaceChildren(document.createTextNode("declined"));
+
+const scrim = openDialog({
+  title: "Ambrose has asked not to be contacted",
+  question:
+    "He declined on 2 May 2026. The club does not message a recruit who has declined, so this will not send.",
+  sent: ["Welcome, 3 May 2026"],
+  note: "Change his status if that is wrong. Nothing else here will send to him.",
+});
+
+// The send is not offered, because there is nothing to compose and nothing to
+// override. Only CANCEL remains.
+// openDialog returns the scrim; querying for it by inline style failed because
+// cssText normalises the spacing.
+const send = [...scrim.querySelectorAll("a, button")].find((b) => /^SEND$/i.test(b.textContent.trim()));
+if (send) send.remove();
+
+await settle()
 
 })()

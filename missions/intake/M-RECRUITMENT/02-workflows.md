@@ -50,9 +50,11 @@ mission and its shape depends on what everything before it became.
 8. `W8` — **Resolve a possible duplicate**: an operator opens the review queue →
    the parked capture is either the existing person or a new one, and nothing was
    silently created, merged, or messaged.
-9. `W9` — **Follow up with a recruit**: an operator decides to reach out, usually
-   about something the recruit has not filled in → a polite, good message leaves
-   the app and is visible against that recruit.
+9. `W9` — **FOLDED, 2026-08-31.** Not a workflow. Brian: _"W9 feels like it's
+   already been done in part... Fold it."_ Three of its four screens had already
+   been built into `W2`, and the fourth — the refusal — became `W2-04`. Its three
+   decisions moved to `W10` and `W2`. The number is kept and never reused.
+
 10. `W10` — **Administer recruitment's messages, cycles and QR**: an operator
     changes a template, the group link, the timing, whether a step runs at all, or
     mints and revokes a QR → the change takes effect and who made it is recorded.
