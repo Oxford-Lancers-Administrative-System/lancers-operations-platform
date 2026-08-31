@@ -3,9 +3,13 @@
     {
       "id": "W1-01",
       "route": "/operate/roster",
-      "headSha": "914c1fa78e421beda74474cf1ffd2fc862c28ac3",
+      "headSha": "e9da5c0fc622f342eb9e8585e890e16c62d69ac4",
       "slot": "mission-m-recruitment-1",
-      "proposal": null,
+      "proposal": {
+        "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W1-01.js",
+        "sha256": "c33e94cfe4aa2b79a50595705b37022b6d43e56752bd0ce1619355477f34f4bf",
+        "bytes": 12071
+      },
       "captures": [
         {
           "side": "current",
@@ -16,22 +20,42 @@
           "file": "shots/W1-01-current-desktop.png"
         },
         {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W1-01-proposed-desktop.png"
+        },
+        {
           "side": "current",
           "viewport": "phone375",
           "requestedWidth": 375,
           "measuredWidth": 375,
           "measuredHeight": 812,
           "file": "shots/W1-01-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W1-01-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-31T14:02:20.711Z"
+      "at": "2026-08-31T14:15:11.873Z"
     },
     {
       "id": "W1-02",
-      "route": "/operate/people",
-      "headSha": "914c1fa78e421beda74474cf1ffd2fc862c28ac3",
+      "route": "/operate/roster",
+      "headSha": "e9da5c0fc622f342eb9e8585e890e16c62d69ac4",
       "slot": "mission-m-recruitment-1",
-      "proposal": null,
+      "proposal": {
+        "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W1-02.js",
+        "sha256": "3c4e00fb2890e589b7339b1101966fb0c0db0904b578a4438d9803dd52017a83",
+        "bytes": 12333
+      },
       "captures": [
         {
           "side": "current",
@@ -42,15 +66,31 @@
           "file": "shots/W1-02-current-desktop.png"
         },
         {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W1-02-proposed-desktop.png"
+        },
+        {
           "side": "current",
           "viewport": "phone375",
           "requestedWidth": 375,
           "measuredWidth": 375,
           "measuredHeight": 812,
           "file": "shots/W1-02-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W1-02-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-31T14:03:45.653Z"
+      "at": "2026-08-31T14:15:16.021Z"
     },
     {
       "id": "W10-01",
