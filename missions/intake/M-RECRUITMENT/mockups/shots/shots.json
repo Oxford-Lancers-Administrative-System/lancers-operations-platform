@@ -661,12 +661,12 @@
     {
       "id": "W2-01",
       "route": "/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
-      "headSha": "0b25eb34fdb094a47689800c36e183490f347fcf",
+      "headSha": "b275a1e7fd0f107dcf28934425d66cdb216a5997",
       "slot": "mission-m-recruitment-1",
       "proposal": {
         "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W2-01.js",
-        "sha256": "4a8d0f7995487433aa0f9270181428f794d4291962938299121b43d1ba7a6137",
-        "bytes": 64192
+        "sha256": "17a51e029054f8486cd5eae4a36321ad2c074f8961ee2f44aafda0970a61e338",
+        "bytes": 77298
       },
       "captures": [
         {
@@ -702,17 +702,17 @@
           "file": "shots/W2-01-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-31T19:16:31.411Z"
+      "at": "2026-08-31T19:28:41.118Z"
     },
     {
       "id": "W2-02",
       "route": "/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
-      "headSha": "0b25eb34fdb094a47689800c36e183490f347fcf",
+      "headSha": "b275a1e7fd0f107dcf28934425d66cdb216a5997",
       "slot": "mission-m-recruitment-1",
       "proposal": {
         "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W2-02.js",
-        "sha256": "9fac35d428f63e25d8be3d2faf7caab4e3ae107ec008c5e09338524235ab2e6b",
-        "bytes": 64287
+        "sha256": "f5e9eda885ff5034d7d5729aeeaa6557cbe572c631998824280037cd6abf73c1",
+        "bytes": 70853
       },
       "captures": [
         {
@@ -748,7 +748,53 @@
           "file": "shots/W2-02-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-31T19:17:07.833Z"
+      "at": "2026-08-31T19:28:45.940Z"
+    },
+    {
+      "id": "W2-03",
+      "route": "/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
+      "headSha": "b275a1e7fd0f107dcf28934425d66cdb216a5997",
+      "slot": "mission-m-recruitment-1",
+      "proposal": {
+        "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W2-03.js",
+        "sha256": "df91a4f052adbcd2d917222475615f79e2914ff201e7f7ba127113fb540824ea",
+        "bytes": 71936
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W2-03-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W2-03-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W2-03-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W2-03-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-08-31T19:28:50.651Z"
     },
     {
       "id": "W4-01",

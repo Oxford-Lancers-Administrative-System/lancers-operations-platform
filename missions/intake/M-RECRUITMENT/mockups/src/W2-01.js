@@ -131,6 +131,7 @@ for (const child of [...historyCard.children].slice(1)) child.remove();
 const historyBody = document.createElement("div");
 historyBody.style.cssText = "padding:14px 16px";
 for (const [what, when] of [
+  ["Welcome sent · WhatsApp template", "28 Apr 2026, 14:14 · delivered"],
   ["Added as identified · QR scan at the Freshers' Fair stand", "28 Apr 2026, 14:12"],
 ]) {
   const line = document.createElement("div");
@@ -144,19 +145,14 @@ for (const [what, when] of [
 historyCard.append(historyBody);
 
 // The way back is to recruitment, not to the roster.
-// ---- The actions W2 requires, on the cards they belong to -----------------
-// Six required actions; the first build of this screen afforded one.
-cardAction(bandedCard("PERSON"), "Ask them for their details →");
-cardAction(questionnaireCardRef, "Send the questionnaire →");
-cardAction(recruitmentCardRef, "Flip to joined →");
+// ---- One button, top right -----------------------------------------------
+// Not four links in card headers, and no Flip to joined: the flip is a status
+// change, which the status control makes and W14 interrupts.
+pageButton("SEND QUESTIONNAIRE");
 
-// ---- What we have sent, and what is due next ------------------------------
-const sentCardRef = addSentCard(
-  [["Welcome · WhatsApp", "28 Apr 2026, 14:14 · delivered"]],
-  ["Questionnaire — who you are", "not scheduled · send it by hand"],
-  eventsCardRef,
-);
-cardAction(sentCardRef, "Follow up →");
+// ---- The send record, embedded at the foot of each card -------------------
+sentDates(bandedCard("PERSON"), "Questionnaire sent", []);
+sentDates(questionnaireCardRef, "Questionnaire sent", []);
 
 relabelButton("back to roster", "BACK TO RECRUITMENT");
 

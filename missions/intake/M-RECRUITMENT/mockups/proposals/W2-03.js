@@ -1698,28 +1698,44 @@ const buildRecruitRecord = () => {
   window.history.replaceState(null, "", "/operate/recruitment/tobias-wrenfield");
 };
 
-// W5-03 — A possible duplicate, before anything is written. main mints a person
-// here with no interactive check at all — Task 09 amendment 4's recorded drift.
-fill("givenName", "Marguerite");
-fill("familyName", "Ashdown");
-fill("phone", "07700 900461");
-const box = proposedBlock("amber");
-blockTitle(box, "We may already have her");
-blockText(box, "Marguerite Ashdown · Kestrelhall · mobile ending 461 · recruit since 22 April");
-const choices = document.createElement("div");
-choices.style.cssText = "display:flex;gap:10px;margin-top:12px;flex-wrap:wrap";
-for (const [t, primary] of [
-  ["THIS IS HER", true],
-  ["SOMEBODY NEW", false],
-]) {
-  const b = document.createElement("span");
-  b.textContent = t;
-  b.style.cssText = primary
-    ? "background:#b26a00;color:#fff;font-size:13px;font-weight:700;padding:9px 16px;border-radius:6px"
-    : "border:1px solid rgba(0,0,0,0.3);font-size:13px;font-weight:700;padding:9px 16px;border-radius:6px;color:rgba(0,0,0,0.7)";
-  choices.append(b);
-}
-box.append(choices);
-afterField("phone", box) ?? document.querySelector("form")?.append(box);
+// W2-03 — Sending a questionnaire, from the recruit's record.
+//
+// Brian, 2026-08-31: "It's a button. I press it, a pop-up comes up, and it says,
+// 'Send questionnaire. Do you want to send the questionnaire?' Then here are the
+// last times we've sent them a questionnaire, because we don't want to fucking
+// bug them that many times."
+//
+// Every message the club sends is a Meta-approved template —
+// `src/lib/delivery/config.ts:168`, "`template` is the only production shape" —
+// so this chooses a template and fires it. There is nothing to type and there is
+// no composer anywhere in this mission.
+//
+// Tobias's record underneath, so the dialog is seen over the page it opens from.
+// The whole record, the same one W2-02 shows, so the dialog opens over the page
+// it belongs to rather than over the shipped player record.
+buildRecruitRecord();
+pageButton("SEND QUESTIONNAIRE");
+
+// The dialog the button opens. Two templates, because there are two
+// questionnaires; each shows when it last went out, which is the whole point.
+openDialog({
+  title: "Send a questionnaire",
+  question: "Which questionnaire do you want to send to Tobias Wrenfield?",
+  choices: [
+    {
+      name: "Who you are",
+      template: "recruit_personal_details",
+      sent: [],
+    },
+    {
+      name: "How you came to football",
+      template: "recruit_questionnaire",
+      sent: ["4 May 2026", "reminder 6 May 2026"],
+      warning: "Answered on 7 May. Sending again will ask them the same questions.",
+    },
+  ],
+});
+
+await settle()
 
 })()

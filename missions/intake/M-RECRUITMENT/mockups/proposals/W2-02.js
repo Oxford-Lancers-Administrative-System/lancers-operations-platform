@@ -1373,193 +1373,342 @@ const addSentCard = (sent, dueNext, after) => {
   return card;
 };
 
-// W2-02 — The same record, with something on it.
+// ---------------------------------------------------------------------------
+// One button, top right, and the dialog it opens — Brian, 2026-08-31.
 //
-// W2-01 shows the page at its emptiest, which is the honest top-of-funnel case
-// but means the recruit-stage ask is only ever seen as seven rows of "Not
-// answered" and the editing Brian asked for is asserted and never shown.
+// The previous build put four text links in card headers. He struck all of
+// them: "The UI elements for asking this are not very good. They're hidden…
+// Everything we've changed on the person, you've done too much." And the flip is
+// not a button here at all: "It is something that happens on a status change,
+// not a button."
 //
-// Brian, 2026-08-31: "I should be able to make edits and updates as it makes
-// sense for that particular user. I should see when they fill out information. I
-// should be able to fill in my own information where it makes sense for me to be
-// able to do that, and that's that."
-//
-// So this is one screen doing both jobs, and it replaced two that did neither:
-// the old W2-02 was the same page for a different recruit, and the old W2-03 was
-// a narrated sign-on ladder. Both are deleted.
-//
-// Tobias Wrenfield is the second of the two recruits actually seeded at
-// main@e669331.
-selectRecruitmentNav();
+// So: one contained button in the top right, cloned from the application's own.
+// ---------------------------------------------------------------------------
+const pageButton = (text) => {
+  const shipped = must(
+    [...document.querySelectorAll("a, button")].find((b) =>
+      b.className.includes("MuiButton-contained"),
+    ),
+    "the page renders no contained button to clone",
+  );
+  const button = shipped.cloneNode(true);
+  button.textContent = text;
+  button.removeAttribute("href");
 
-setHeading("Tobias Wrenfield");
-setSubtitle("Recruitment · 2026-27 · opened from the recruit board");
+  const h1 = must($("h1"), "the record has no heading to sit beside");
+  const row = must(h1.parentElement, "the heading has no row");
+  row.style.display = "flex";
+  row.style.justifyContent = "space-between";
+  row.style.alignItems = "flex-start";
+  row.style.gap = "16px";
+  row.append(button);
+  return button;
+};
 
-replaceSummaryStrip([
-  [{ chip: "engaged" }, "Recruitment status"],
-  ["3 May 2026", "First contact"],
-  ["2", "Events attended"],
-  ["Answered", "Questionnaire"],
-]);
+/**
+ * The embedded send list at the foot of a card.
+ *
+ * Brian: "At the bottom of the personal details thing, we should have some sort
+ * of list that says 'Questionnaire sent', and it should be embedded. It should
+ * just be a list of what dates they were sent on. That should be for the bottom
+ * for the recruitment questionnaire as well as the personal records."
+ *
+ * It is deliberately small and quiet: it is a record, not a control. The point
+ * is knowing when the club last bothered this person.
+ */
+const sentDates = (card, label, dates) => {
+  const strip = document.createElement("div");
+  strip.style.cssText =
+    "padding:10px 16px 12px;border-top:1px solid rgba(0,0,0,0.10);" +
+    "font-size:12.5px;color:rgba(0,0,0,0.55)";
+  const name = document.createElement("span");
+  name.textContent = `${label}: `;
+  name.style.fontWeight = "600";
+  strip.append(name);
+  const value = document.createElement("span");
+  value.textContent = dates.length ? dates.join(" · ") : "not sent";
+  if (!dates.length) value.style.fontStyle = "italic";
+  strip.append(value);
+  card.append(strip);
+  return strip;
+};
 
-setPersonRows([
-  recordRow("Name", "Tobias Wrenfield"),
-  recordRow("Aliases", "Toby"),
-  recordRow("Mobile phone", "07700 900412"),
-  recordRow("Personal email", "t.wrenfield@example.ac.uk"),
-  recordRow("College", "Marlbrook"),
-  recordRow("Matriculation year", "2025"),
-  recordRow("Expected graduation", "2028"),
-  recordRow("Degree field", "Engineering Science"),
-]);
+/**
+ * The dialog the button opens.
+ *
+ * The application ships four MUI dialogs — the calendar subscribe, the template
+ * editor, delete-draft and record-answer — so a popup is a shipped pattern, but
+ * none of them is reachable from this route, so there is nothing to open and
+ * photograph. The surface and the buttons are therefore CLONED from this page's
+ * own Paper and Button; only the overlay is assembled.
+ *
+ * Every message the club sends is a Meta-approved template
+ * (`src/lib/delivery/config.ts:168` — "`template` is the only production
+ * shape"), so this dialog chooses a template and fires it. There is no composer
+ * and there is nothing to type.
+ */
+const openDialog = ({ title, question, choices }) => {
+  const paperTpl = must(
+    document.querySelector(".MuiPaper-root"),
+    "the page has no Paper to build the dialog surface from",
+  );
+  const scrim = document.createElement("div");
+  scrim.style.cssText =
+    "position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1300;" +
+    "display:flex;align-items:flex-start;justify-content:center;padding-top:96px";
 
-// ---- RECRUITMENT, with one field open for editing -------------------------
-const recruitmentCardRef = rebuildCard(
-  bandedCard("ONBOARDING"),
-  "Recruitment",
-  [
-    recordRow("Status", null, { chip: "engaged" }),
-    recordRow("Came in through", "Walk-up · Taster 1"),
-    recordRow("First contact", "3 May 2026"),
-    recordRow("Committed on", "Not recorded", { muted: true }),
-  ],
-  { colour: RECORD_BANDS.recruitment },
-);
+  const surface = paperTpl.cloneNode(false);
+  surface.style.cssText =
+    "width:520px;max-width:92vw;background:#fff;border-radius:8px;" +
+    "box-shadow:0 11px 15px -7px rgba(0,0,0,.2),0 24px 38px 3px rgba(0,0,0,.14);overflow:hidden";
 
-// The editing state, using the application's OWN status control rather than a
-// drawing of one. Brian struck the first attempt: "That is not the UI we use
-// anywhere else… We should use the statuses from elsewhere."
-const recruitmentCard = bandedCard("RECRUITMENT");
-const statusRow = must(
-  [...recruitmentCard.querySelectorAll('[data-testid="record-row"]')].find((r) =>
-    /^Status/.test(r.innerText.trim()),
-  ),
-  "the RECRUITMENT card has no Status row to open for editing",
-);
-const valueBox = must(statusRow.children[1], "the Status row has no value cell");
-valueBox.replaceChildren(
-  cloneStatusControl("engaged", [
-    "identified",
-    "engaged",
-    "committed",
-    "declined",
-    "disengaged",
-    "void",
-  ]),
-);
+  const head = document.createElement("div");
+  head.style.cssText = "padding:20px 24px 4px;font-size:20px;font-weight:700";
+  head.textContent = title;
 
-// ---- THE RECRUIT-STAGE ASK, answered --------------------------------------
-const questionnaireCardRef = rebuildCard(
-  bandedCard("SEASON"),
-  "Questionnaire",
-  [
-    recordRow("Questionnaire sent", "4 May 2026 · reminder 6 May 2026"),
-    recordRow("Answered", "7 May 2026"),
-    recordRow("Played American football before?", "No"),
-    recordRow("Watched American football before?", "Yes"),
-    recordRow("Position interest", "Wide receiver, or wherever you need"),
-    recordRow("Gear owned", "None"),
-    recordRow("How they heard of us", "A friend on my staircase plays"),
-    recordRow("Anything else", "Played rugby at school. Asked about kit costs."),
-  ],
-  { colour: RECORD_BANDS.ask },
-);
-
-// ---- RECRUITMENT EVENTS, with content -------------------------------------
-const eventsCardRef = setRecruitmentEvents([
-  {
-    name: "Freshers' Fair",
-    date: "30 Apr 2026",
-    rsvp: "Yes",
-    attendance: "Present",
-    status: "Occurred",
-  },
-  {
-    name: "Taster 1",
-    date: "3 May 2026",
-    rsvp: NOT_RECORDED,
-    attendance: "Present",
-    status: "Occurred",
-  },
-  {
-    name: "Taster 2",
-    date: "10 May 2026",
-    rsvp: "Yes",
-    attendance: NOT_RECORDED,
-    status: "Upcoming",
-  },
-]);
-
-// ---- NOTES ----------------------------------------------------------------
-recolourCard("THEIR OTHER SEASONS", "Notes", RECORD_BANDS.person);
-const notesCard = bandedCard("NOTES");
-for (const child of [...notesCard.children].slice(1)) child.remove();
-const notesBody = document.createElement("div");
-notesBody.style.cssText = "padding:14px 16px";
-for (const [text, by] of [
-  [
-    "Played at school. Asked about kit — told him the club has spares.",
-    "Caspian Hallowfield · 3 May 2026",
-  ],
-  ["Turned up to Taster 1 without an RSVP. Keen.", "Caspian Hallowfield · 3 May 2026"],
-]) {
   const body = document.createElement("div");
-  body.style.cssText = "font-size:14px;line-height:1.6;color:rgba(0,0,0,0.87);margin-top:10px";
-  body.textContent = text;
-  const meta = document.createElement("div");
-  meta.style.cssText = "margin-top:4px;font-size:12px;color:rgba(0,0,0,0.55)";
-  meta.textContent = by;
-  notesBody.append(body, meta);
-}
-const addNote = document.createElement("div");
-addNote.style.cssText =
-  "margin-top:14px;border:1px dashed rgba(0,0,0,0.28);border-radius:6px;padding:11px 13px;" +
-  "font-size:14px;color:rgba(0,0,0,0.38)";
-addNote.textContent = "Add a note…";
-notesBody.append(addNote);
-notesCard.append(notesBody);
+  body.style.cssText = "padding:4px 24px 8px;font-size:14.5px;color:rgba(0,0,0,0.7)";
+  body.textContent = question;
 
-// ---- STATUS HISTORY -------------------------------------------------------
-recolourCard("STATUS HISTORY", "Status history", RECORD_BANDS.person);
-const historyCard = bandedCard("STATUS HISTORY");
-for (const child of [...historyCard.children].slice(1)) child.remove();
-const historyBody = document.createElement("div");
-historyBody.style.cssText = "padding:14px 16px";
-for (const [what, when] of [
-  ["identified → engaged · answered the questionnaire", "7 May 2026, 19:40 · Caspian Hallowfield"],
-  ["Added as identified · walk-up at Taster 1", "3 May 2026, 18:05 · Caspian Hallowfield"],
-]) {
-  const line = document.createElement("div");
-  line.style.cssText = "font-size:14px;color:rgba(0,0,0,0.87);margin-top:10px";
-  line.textContent = what;
-  const meta = document.createElement("div");
-  meta.style.cssText = "margin-top:3px;font-size:12px;color:rgba(0,0,0,0.55)";
-  meta.textContent = when;
-  historyBody.append(line, meta);
-}
-historyCard.append(historyBody);
+  surface.append(head, body);
 
-// ---- The actions W2 requires, on the cards they belong to -----------------
-cardAction(bandedCard("PERSON"), "Ask them for their details →");
-cardAction(questionnaireCardRef, "Send a reminder →");
-cardAction(recruitmentCardRef, "Flip to joined →");
+  for (const choice of choices) {
+    const block = document.createElement("div");
+    block.style.cssText =
+      "margin:12px 24px;border:1px solid rgba(0,0,0,0.16);border-radius:8px;padding:14px 16px";
+    const name = document.createElement("div");
+    name.style.cssText = "font-size:14.5px;font-weight:700";
+    name.textContent = choice.name;
+    const template = document.createElement("code");
+    template.style.cssText = "display:block;margin-top:4px;font-size:12px;color:#0b3d91";
+    template.textContent = choice.template;
+    const history = document.createElement("div");
+    history.style.cssText = "margin-top:9px;font-size:12.5px;color:rgba(0,0,0,0.6)";
+    history.textContent = choice.sent.length
+      ? `Last sent: ${choice.sent.join(" · ")}`
+      : "Never sent to this recruit";
+    if (!choice.sent.length) history.style.fontStyle = "italic";
+    block.append(name, template, history);
+    if (choice.warning) {
+      const warn = document.createElement("div");
+      warn.style.cssText =
+        "margin-top:9px;font-size:12.5px;font-weight:600;color:#8a5100";
+      warn.textContent = choice.warning;
+      block.append(warn);
+    }
+    surface.append(block);
+  }
 
-// ---- What we have sent, and what is due next ------------------------------
-const sentCardRef = addSentCard(
-  [
-    ["Welcome · WhatsApp", "3 May 2026, 18:07 · delivered"],
-    ["Questionnaire — how you came to football", "4 May 2026, 09:00 · delivered"],
-    ["Reminder — how you came to football", "6 May 2026, 09:00 · delivered"],
-    ["Invitation · Taster 2", "8 May 2026, 09:00 · delivered"],
-  ],
-  ["Questionnaire — who you are", "not sent · send it by hand"],
-  eventsCardRef,
-);
-cardAction(sentCardRef, "Follow up →");
+  const actions = document.createElement("div");
+  actions.style.cssText =
+    "display:flex;justify-content:flex-end;gap:8px;padding:8px 20px 18px";
+  const contained = must(
+    [...document.querySelectorAll("a, button")].find((b) =>
+      b.className.includes("MuiButton-contained"),
+    ),
+    "no contained button to clone for the dialog",
+  );
+  const cancel = contained.cloneNode(true);
+  cancel.className = cancel.className.replace("MuiButton-contained", "MuiButton-text");
+  cancel.style.cssText = "background:transparent;color:#0b3d91;box-shadow:none";
+  cancel.textContent = "CANCEL";
+  cancel.removeAttribute("href");
+  const send = contained.cloneNode(true);
+  send.textContent = "SEND";
+  send.removeAttribute("href");
+  actions.append(cancel, send);
+  surface.append(actions);
 
-relabelButton("back to roster", "BACK TO RECRUITMENT");
-window.history.replaceState(null, "", "/operate/recruitment/tobias-wrenfield");
+  scrim.append(surface);
+  document.body.append(scrim);
+  return scrim;
+};
 
-await settle();
+// ---------------------------------------------------------------------------
+// Tobias Wrenfield's record, built once so W2-02 and W2-03 cannot drift apart.
+//
+// W2-03's first build rebuilt only PERSON and RECRUITMENT and left the rest of
+// the shipped player record underneath the dialog: a Season card of membership
+// rows, fifty-three attendance rows, and membership status history a recruit
+// cannot have. That is the same failure this mission has hit repeatedly - a
+// proposal changing the content it is thinking about and leaving the page it is
+// standing on alone.
+// ---------------------------------------------------------------------------
+const buildRecruitRecord = () => {
+  selectRecruitmentNav();
+
+  setHeading("Tobias Wrenfield");
+  setSubtitle("Recruitment · 2026-27 · opened from the recruit board");
+
+  replaceSummaryStrip([
+    [{ chip: "engaged" }, "Recruitment status"],
+    ["3 May 2026", "First contact"],
+    ["2", "Events attended"],
+    ["Answered", "Questionnaire"],
+  ]);
+
+  setPersonRows([
+    recordRow("Name", "Tobias Wrenfield"),
+    recordRow("Aliases", "Toby"),
+    recordRow("Mobile phone", "07700 900412"),
+    recordRow("Personal email", "t.wrenfield@example.ac.uk"),
+    recordRow("College", "Marlbrook"),
+    recordRow("Matriculation year", "2025"),
+    recordRow("Expected graduation", "2028"),
+    recordRow("Degree field", "Engineering Science"),
+  ]);
+
+  // ---- RECRUITMENT, with one field open for editing -------------------------
+  const recruitmentCardRef = rebuildCard(
+    bandedCard("ONBOARDING"),
+    "Recruitment",
+    [
+      recordRow("Status", null, { chip: "engaged" }),
+      recordRow("Came in through", "Walk-up · Taster 1"),
+      recordRow("First contact", "3 May 2026"),
+      recordRow("Committed on", "Not recorded", { muted: true }),
+    ],
+    { colour: RECORD_BANDS.recruitment },
+  );
+
+  // The editing state, using the application's OWN status control rather than a
+  // drawing of one. Brian struck the first attempt: "That is not the UI we use
+  // anywhere else… We should use the statuses from elsewhere."
+  const recruitmentCard = bandedCard("RECRUITMENT");
+  const statusRow = must(
+    [...recruitmentCard.querySelectorAll('[data-testid="record-row"]')].find((r) =>
+      /^Status/.test(r.innerText.trim()),
+    ),
+    "the RECRUITMENT card has no Status row to open for editing",
+  );
+  const valueBox = must(statusRow.children[1], "the Status row has no value cell");
+  valueBox.replaceChildren(
+    cloneStatusControl("engaged", [
+      "identified",
+      "engaged",
+      "committed",
+      "declined",
+      "disengaged",
+      "void",
+    ]),
+  );
+
+  // ---- THE RECRUIT-STAGE ASK, answered --------------------------------------
+  const questionnaireCardRef = rebuildCard(
+    bandedCard("SEASON"),
+    "Questionnaire",
+    [
+      recordRow("Questionnaire sent", "4 May 2026 · reminder 6 May 2026"),
+      recordRow("Answered", "7 May 2026"),
+      recordRow("Played American football before?", "No"),
+      recordRow("Watched American football before?", "Yes"),
+      recordRow("Position interest", "Wide receiver, or wherever you need"),
+      recordRow("Gear owned", "None"),
+      recordRow("How they heard of us", "A friend on my staircase plays"),
+      recordRow("Anything else", "Played rugby at school. Asked about kit costs."),
+    ],
+    { colour: RECORD_BANDS.ask },
+  );
+
+  // ---- RECRUITMENT EVENTS, with content -------------------------------------
+  const eventsCardRef = setRecruitmentEvents([
+    {
+      name: "Freshers' Fair",
+      date: "30 Apr 2026",
+      rsvp: "Yes",
+      attendance: "Present",
+      status: "Occurred",
+    },
+    {
+      name: "Taster 1",
+      date: "3 May 2026",
+      rsvp: NOT_RECORDED,
+      attendance: "Present",
+      status: "Occurred",
+    },
+    {
+      name: "Taster 2",
+      date: "10 May 2026",
+      rsvp: "Yes",
+      attendance: NOT_RECORDED,
+      status: "Upcoming",
+    },
+  ]);
+
+  // ---- NOTES ----------------------------------------------------------------
+  recolourCard("THEIR OTHER SEASONS", "Notes", RECORD_BANDS.person);
+  const notesCard = bandedCard("NOTES");
+  for (const child of [...notesCard.children].slice(1)) child.remove();
+  const notesBody = document.createElement("div");
+  notesBody.style.cssText = "padding:14px 16px";
+  for (const [text, by] of [
+    [
+      "Played at school. Asked about kit — told him the club has spares.",
+      "Caspian Hallowfield · 3 May 2026",
+    ],
+    ["Turned up to Taster 1 without an RSVP. Keen.", "Caspian Hallowfield · 3 May 2026"],
+  ]) {
+    const body = document.createElement("div");
+    body.style.cssText = "font-size:14px;line-height:1.6;color:rgba(0,0,0,0.87);margin-top:10px";
+    body.textContent = text;
+    const meta = document.createElement("div");
+    meta.style.cssText = "margin-top:4px;font-size:12px;color:rgba(0,0,0,0.55)";
+    meta.textContent = by;
+    notesBody.append(body, meta);
+  }
+  const addNote = document.createElement("div");
+  addNote.style.cssText =
+    "margin-top:14px;border:1px dashed rgba(0,0,0,0.28);border-radius:6px;padding:11px 13px;" +
+    "font-size:14px;color:rgba(0,0,0,0.38)";
+  addNote.textContent = "Add a note…";
+  notesBody.append(addNote);
+  notesCard.append(notesBody);
+
+  // ---- STATUS HISTORY -------------------------------------------------------
+  recolourCard("STATUS HISTORY", "Status history", RECORD_BANDS.person);
+  const historyCard = bandedCard("STATUS HISTORY");
+  for (const child of [...historyCard.children].slice(1)) child.remove();
+  const historyBody = document.createElement("div");
+  historyBody.style.cssText = "padding:14px 16px";
+  for (const [what, when] of [
+    ["identified → engaged · answered the questionnaire", "7 May 2026, 19:40 · Caspian Hallowfield"],
+    ["Invitation sent · Taster 2", "8 May 2026, 09:00 · delivered"],
+    ["Questionnaire reminder sent · how you came to football", "6 May 2026, 09:00 · delivered"],
+    ["Questionnaire sent · how you came to football", "4 May 2026, 09:00 · delivered"],
+    ["Welcome sent · WhatsApp template", "3 May 2026, 18:07 · delivered"],
+    ["Added as identified · walk-up at Taster 1", "3 May 2026, 18:05 · Caspian Hallowfield"],
+  ]) {
+    const line = document.createElement("div");
+    line.style.cssText = "font-size:14px;color:rgba(0,0,0,0.87);margin-top:10px";
+    line.textContent = what;
+    const meta = document.createElement("div");
+    meta.style.cssText = "margin-top:3px;font-size:12px;color:rgba(0,0,0,0.55)";
+    meta.textContent = when;
+    historyBody.append(line, meta);
+  }
+  historyCard.append(historyBody);
+
+  // ---- One button, top right -----------------------------------------------
+
+  // ---- The send record, embedded at the foot of each card -------------------
+  sentDates(bandedCard("PERSON"), "Questionnaire sent", []);
+  sentDates(questionnaireCardRef, "Questionnaire sent", ["4 May 2026", "reminder 6 May 2026"]);
+
+  relabelButton("back to roster", "BACK TO RECRUITMENT");
+  window.history.replaceState(null, "", "/operate/recruitment/tobias-wrenfield");
+};
+
+// W2-02 — The same page with something on it.
+//
+// Tobias Wrenfield, engaged: the questionnaire answered in his own words, two
+// events attended with one walk-up that never had an RSVP, notes already
+// written, and the status field open for editing.
+//
+// The record itself is built in the prelude and shared with W2-03, so the page
+// behind the dialog is the same page.
+buildRecruitRecord();
+pageButton("SEND QUESTIONNAIRE");
+
+await settle()
 
 })()
