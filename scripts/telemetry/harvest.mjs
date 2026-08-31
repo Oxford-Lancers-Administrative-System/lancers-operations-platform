@@ -48,7 +48,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
  * Bump when the extractor changes shape. A changed version invalidates every
  * manifest entry, so the next run re-derives everything with the new logic.
  */
-const EXTRACTOR_VERSION = 3;
+const EXTRACTOR_VERSION = 4;
 
 /** The only remote this script will ever push to. */
 const EXPECTED_REMOTE = /[:/]Bschuster3434\/agent-telemetry(\.git)?$/;
@@ -144,24 +144,26 @@ function addUsage(into, usage) {
  * Lifts the authoritative per-model rollup out of a `cost-state` record.
  *
  * This is kept alongside the totals derived from the individual messages
- * because on some sessions the two do not agree, and the residual difference
- * is not explained.
+ * because the two still do not agree everywhere.
  *
- * Most sessions reconcile: where nothing was delegated, derived output lands
- * within 0-2% of the rollup, the remainder being messages written after the
- * rollup was last flushed. Sessions that spawned subagents are further out
- * (roughly 5x), and at least one session with no subagents and no Task call at
- * all is out by 9x, so delegation alone does not account for it.
+ * Most of the original gap was this extractor's own fault, keeping the first
+ * record of each request and so taking `output_tokens` before the response had
+ * finished streaming. Correcting that closed delegating sessions from 4.8-6.8x
+ * down to 1.6-2.6x and left undelegated ones at 1.00-1.02.
  *
- * Ruled out as causes: double counting (first, last and max per request id are
- * identical, so the repeated blocks really are repeats); a multi-iteration
- * `usage.iterations` array (every record carries exactly one); and a truncated
- * transcript (first and last timestamps span the rollup's full duration).
+ * Two known contributors remain, both about work the transcripts do not hold:
  *
- * Until it is explained, neither number is presented as the answer. The
- * derived totals are complete over what the transcripts actually contain; the
- * recorded totals are what Claude Code itself billed. Analysis should say
- * which one it used.
+ *   - `message.model` records the base name while billing uses the context
+ *     variant, so a session whose records all say `claude-opus-5` is billed
+ *     under `claude-opus-5[1m]`. Per-model comparisons must expect this.
+ *   - Agents dispatched through the `Agent` tool do not always leave a
+ *     `subagents/` directory. One 27-hour session with seventeen such calls
+ *     has none, and its rollup attributes 2.2M output tokens to Sonnet while
+ *     its transcript contains no Sonnet record at all.
+ *
+ * So the derived totals are complete over what the transcripts contain, and
+ * the recorded totals are what Claude Code billed. Analysis should say which
+ * it used, and treat derived per-session totals as a floor.
  */
 function recordedUsage(costState) {
   if (!costState?.modelUsage) return null;
@@ -211,9 +213,15 @@ function modeOf(counter) {
  *
  * Two subtleties this handles that a naive reader gets wrong:
  *
- *   - Consecutive assistant records share a `requestId` and repeat an
- *     identical `usage` block. Summing per record double-counts tokens, so
- *     requests are deduplicated by request id and only the first is kept.
+ *   - Several assistant records share one `requestId`. Summing them counts a
+ *     request many times over, so they are collapsed to one row. Which record
+ *     wins matters: the constant fields (input, cache read, cache creation)
+ *     repeat unchanged, but `output_tokens` grows across the records as the
+ *     response streams. Keeping the first record therefore undercounts output
+ *     badly — measured at 7,357 against a true 53,078 on one reviewer run, a
+ *     7.2x shortfall. The highest value per field is kept instead, which
+ *     leaves the constant fields alone and takes the growing one at its final
+ *     value.
  *   - Older transcripts inline subagent traffic as `isSidechain` records in
  *     the parent file, while newer ones write a separate `subagents/` file.
  *     In a session transcript that traffic is tallied separately and kept out
@@ -227,7 +235,7 @@ function modeOf(counter) {
  */
 async function extractTranscript(path, { subjectKind, subjectId }) {
   const splitSidechain = subjectKind === "session";
-  const seenRequests = new Set();
+  const seenRequests = new Map();
   const requests = [];
 
   const own = emptyUsage();
@@ -301,14 +309,37 @@ async function extractTranscript(path, { subjectKind, subjectId }) {
           }
         }
 
-        const requestId = record.requestId || record.uuid;
-        if (requestId && seenRequests.has(requestId)) break;
-        if (requestId) seenRequests.add(requestId);
-
         const usage = record.message?.usage;
-        addUsage(splitSidechain && record.isSidechain ? sidechain : own, usage);
+        const requestId = record.requestId || record.uuid;
+        const existing = requestId ? seenRequests.get(requestId) : undefined;
 
-        requests.push({
+        if (existing) {
+          existing.input_tokens = Math.max(existing.input_tokens, usage?.input_tokens ?? 0);
+          existing.output_tokens = Math.max(existing.output_tokens, usage?.output_tokens ?? 0);
+          existing.cache_read_input_tokens = Math.max(
+            existing.cache_read_input_tokens,
+            usage?.cache_read_input_tokens ?? 0,
+          );
+          existing.cache_creation_input_tokens = Math.max(
+            existing.cache_creation_input_tokens,
+            usage?.cache_creation_input_tokens ?? 0,
+          );
+          existing.thinking_tokens = Math.max(
+            existing.thinking_tokens,
+            usage?.output_tokens_details?.thinking_tokens ?? 0,
+          );
+          existing.web_search_requests = Math.max(
+            existing.web_search_requests,
+            usage?.server_tool_use?.web_search_requests ?? 0,
+          );
+          existing.web_fetch_requests = Math.max(
+            existing.web_fetch_requests,
+            usage?.server_tool_use?.web_fetch_requests ?? 0,
+          );
+          break;
+        }
+
+        const row = {
           subject_kind: subjectKind,
           subject_id: subjectId,
           request_id: record.requestId ?? null,
@@ -324,7 +355,11 @@ async function extractTranscript(path, { subjectKind, subjectId }) {
           cache_read_input_tokens: usage?.cache_read_input_tokens ?? 0,
           cache_creation_input_tokens: usage?.cache_creation_input_tokens ?? 0,
           thinking_tokens: usage?.output_tokens_details?.thinking_tokens ?? 0,
-        });
+          web_search_requests: usage?.server_tool_use?.web_search_requests ?? 0,
+          web_fetch_requests: usage?.server_tool_use?.web_fetch_requests ?? 0,
+        };
+        if (requestId) seenRequests.set(requestId, row);
+        requests.push(row);
         break;
       }
 
@@ -368,6 +403,20 @@ async function extractTranscript(path, { subjectKind, subjectId }) {
       default:
         break;
     }
+  }
+
+  // Totals come from the collapsed rows rather than being accumulated as
+  // records stream past: a request's final output count is only known once
+  // every record carrying its id has been seen.
+  for (const row of requests) {
+    const into = splitSidechain && row.is_sidechain ? sidechain : own;
+    into.input_tokens += row.input_tokens;
+    into.output_tokens += row.output_tokens;
+    into.cache_read_input_tokens += row.cache_read_input_tokens;
+    into.cache_creation_input_tokens += row.cache_creation_input_tokens;
+    into.thinking_tokens += row.thinking_tokens;
+    into.web_search_requests += row.web_search_requests;
+    into.web_fetch_requests += row.web_fetch_requests;
   }
 
   return {

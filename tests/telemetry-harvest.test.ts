@@ -88,6 +88,31 @@ describe("request deduplication", () => {
     // Every record is still counted for volume, only usage is deduplicated.
     expect(summary.assistant_records).toBe(4);
   });
+
+  it("takes the final output count when records for one request grow", async () => {
+    const dir = scratch();
+    // output_tokens grows across the records of one request as the response
+    // streams, while the input and cache fields repeat unchanged. Keeping the
+    // first record here would report 5 instead of 900 — the shape of the 7.2x
+    // undercount this replaces.
+    const file = writeTranscript(dir, "s1.jsonl", [
+      assistant("req_a", { ...USAGE, output_tokens: 5 }),
+      assistant("req_a", { ...USAGE, output_tokens: 240 }),
+      assistant("req_a", { ...USAGE, output_tokens: 900 }),
+    ]);
+
+    const { summary, requests } = await extractTranscript(file, {
+      subjectKind: "session",
+      subjectId: "s1",
+    });
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].output_tokens).toBe(900);
+    expect(summary.usage.output_tokens).toBe(900);
+    // The constant fields must not be multiplied by the collapse.
+    expect(summary.usage.cache_read_input_tokens).toBe(1000);
+    expect(summary.usage.input_tokens).toBe(10);
+  });
 });
 
 describe("sidechain attribution", () => {
