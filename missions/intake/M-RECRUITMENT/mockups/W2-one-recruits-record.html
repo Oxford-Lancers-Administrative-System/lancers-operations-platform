@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>W1 · The recruit board</title>
+    <title>W2 · One recruit's record</title>
     <style>
       /* ------------------------------------------------------------------ *
        * Token provenance. Everything visual here is taken from the running
@@ -1233,11 +1233,10 @@
   <body>
     <div class="page">
       <header class="page-head">
-        <h1>W1 · The recruit board</h1>
+        <h1>W2 · One recruit's record</h1>
         <p>
-          Recruitment's own board: one line per recruit for the open season, in the club's existing
-      board language. Its columns decide which recruit facts and which signals exist, and every
-      other workflow puts something on it or takes something off it.
+          Everything the club knows about one recruit on one working page. The person half is
+      Mission 5's and routes out; the recruitment half is this mission's and is editable here.
           <strong>The surfaces here exist on <code>main</code></strong>, so every screen is a
            <strong>photograph on both sides</strong> — the same running page at <code>e669331</code>,
            differing only by the proposal evaluated into it.
@@ -1254,9 +1253,9 @@
         </p>
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
-          <span>Three bands, where the roster has three — but a recruit holds no membership, so <strong>Onboarding and Season describe nothing</strong> and are replaced</span>
-          <span>Rows are <strong>synthetic</strong>. Rosalind Penhaligon and Tobias Wrenfield are really seeded and render with their real facts; four more are invented so a board can be judged as a board</span>
-          <span><strong>Two artifacts of the mockup, not the design:</strong> the pinned column overlays the Notes text when scrolled, and the old Roster nav item still paints as selected because React re-renders that subtree</span>
+          <span>Task 08's 2026-08-27 amendment forbids recruitment facts on the person record — <em>“There's nothing on here related to recruits… It's a person record.”</em> So this is a separate surface that reuses that page's shell</span>
+          <span>Both recruits shown are <strong>really seeded</strong> and render their real facts</span>
+          <span>The shipped page renders the <strong>Recruit chip twice</strong>. That is a defect this mission found; this page does not reproduce it</span>
         </div>
       </header>
       <div id="screens"></div>
@@ -1275,35 +1274,33 @@
 
       const SCREENS = [
         {
-          id: "W1-01",
-          title: "The board, at the left end",
+          id: "W2-01",
+          title: "A recruit at the top of the funnel",
           disposition: "modified",
-          blurb: `What an operator opens. The pinned recruit, the person facts they already know how to read,
-         and the first of the recruitment facts this mission owns.`,
+          blurb: `Rosalind Penhaligon, identified, captured at the Freshers' Fair stand four days ago. Almost
+         nothing is recorded about her, which is the normal case and not an exception.`,
           deltas: [
-            `<strong>1. Person band, unchanged.</strong> Same slate, same read-only treatment, same routing out to the person record`,
-            `<strong>2. Recruitment band, new, teal.</strong> A new colour because these are a new kind of fact. <strong>Decide:</strong> the colour is yours`,
-            `<strong>3. Status is the seven-value ladder</strong>, coloured per rung, edited in the cell. <code>joined</code> is the one value a cell never writes — W14 intercepts it`,
-            `<strong>4. <code>On WhatsApp</code> already exists</strong> on the person record at the baseline and is empty on both seeded recruits — so channel presence needs no new storage`,
-            `<strong>5. The filters changed.</strong> Availability and Missing onboarding data describe memberships a recruit does not hold`,
+            `<strong>1. The person cards are untouched</strong> and become read-only context`,
+            `<strong>2. Four recruitment cards are added</strong>: where they are, what we have seen, what we have said, and notes`,
+            `<strong>3. Signals are dated facts with a source</strong> — never scored, never ranked, and nothing moves a stage on its own`,
+            `<strong>4. Notes carry an author and a date.</strong> <strong>Decide:</strong> an unattributed note is not evidence`,
           ],
           clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/recruits",
+          url: "oxfordlancers.example/operate/recruits/0b938ce0",
         },
         {
-          id: "W1-02",
-          title: "Scrolled to the recruitment and event columns",
+          id: "W2-02",
+          title: "A recruit further along",
           disposition: "modified",
-          blurb: `The same board after the sideways scroll. This is where every fact this mission owns lives,
-         and it is the whole point of appending one column per recruitment event.`,
+          blurb: `Tobias Wrenfield, engaged: in the group, ask answered, two events attended. What a full
+         signal set looks like once the sign-on flow and a couple of events have run.`,
           deltas: [
-            `<strong>1. Event columns append at the right end</strong>, oldest first, so the term reads left to right`,
-            `<strong>2. Each event cell is three glyphs</strong>: invited, answered, attended`,
-            `<strong>3. A recruit never invited</strong> shows dashed outlines, so absence is visible rather than ambiguous`,
-            `<strong>Decide:</strong> three glyphs in one cell is dense. The alternative triples the width`,
+            `<strong>1. What they told us</strong> is the recruit-stage field set from W4, attributed to them`,
+            `<strong>2. The group join is recorded, never watched for</strong> — the 2026-08-28 research found group membership is not exposed by the Cloud API at all`,
+            `<strong>3. Every event shows invited, answered and attended</strong>, the same three facts the board's columns carry`,
           ],
           clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/recruits",
+          url: "oxfordlancers.example/operate/recruits/192fd288",
         },
       ];
 

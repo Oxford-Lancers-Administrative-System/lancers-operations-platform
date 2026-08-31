@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>W1 · The recruit board</title>
+    <title>W6 · Add a recruit by hand</title>
     <style>
       /* ------------------------------------------------------------------ *
        * Token provenance. Everything visual here is taken from the running
@@ -1233,11 +1233,10 @@
   <body>
     <div class="page">
       <header class="page-head">
-        <h1>W1 · The recruit board</h1>
+        <h1>W6 · Add a recruit by hand</h1>
         <p>
-          Recruitment's own board: one line per recruit for the open season, in the club's existing
-      board language. Its columns decide which recruit facts and which signals exist, and every
-      other workflow puts something on it or takes something off it.
+          The club finds somebody it wants and puts them in deliberately — proactive sourcing as a
+      first-class path rather than a fallback.
           <strong>The surfaces here exist on <code>main</code></strong>, so every screen is a
            <strong>photograph on both sides</strong> — the same running page at <code>e669331</code>,
            differing only by the proposal evaluated into it.
@@ -1254,9 +1253,8 @@
         </p>
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
-          <span>Three bands, where the roster has three — but a recruit holds no membership, so <strong>Onboarding and Season describe nothing</strong> and are replaced</span>
-          <span>Rows are <strong>synthetic</strong>. Rosalind Penhaligon and Tobias Wrenfield are really seeded and render with their real facts; four more are invented so a board can be judged as a board</span>
-          <span><strong>Two artifacts of the mockup, not the design:</strong> the pinned column overlays the Notes text when scrolled, and the old Roster nav item still paints as selected because React re-renders that subtree</span>
+          <span>The shipped add-a-person form and its duplicate check are reused wholesale. One card is added</span>
+          <span>This is the <strong>one door carrying no natural opt-in</strong> — Task 09 §9.1. A number sourced in conversation was not given by its owner for this purpose</span>
         </div>
       </header>
       <div id="screens"></div>
@@ -1275,35 +1273,18 @@
 
       const SCREENS = [
         {
-          id: "W1-01",
-          title: "The board, at the left end",
+          id: "W6-01",
+          title: "Adding somebody the club went looking for",
           disposition: "modified",
-          blurb: `What an operator opens. The pinned recruit, the person facts they already know how to read,
-         and the first of the recruitment facts this mission owns.`,
+          blurb: `Everything about the shipped form stays. The addition is the evidence that makes the welcome
+         lawful to send from this door.`,
           deltas: [
-            `<strong>1. Person band, unchanged.</strong> Same slate, same read-only treatment, same routing out to the person record`,
-            `<strong>2. Recruitment band, new, teal.</strong> A new colour because these are a new kind of fact. <strong>Decide:</strong> the colour is yours`,
-            `<strong>3. Status is the seven-value ladder</strong>, coloured per rung, edited in the cell. <code>joined</code> is the one value a cell never writes — W14 intercepts it`,
-            `<strong>4. <code>On WhatsApp</code> already exists</strong> on the person record at the baseline and is empty on both seeded recruits — so channel presence needs no new storage`,
-            `<strong>5. The filters changed.</strong> Availability and Missing onboarding data describe memberships a recruit does not hold`,
+            `<strong>1. How we came by this number</strong>, recorded as a sentence plus a confirmation. <strong>Decide:</strong> free text alone is unauditable, a tick alone records nothing — the recommendation is both`,
+            `<strong>2. Without it the welcome does not fire</strong>, and the record says why`,
+            `<strong>3. Source and a first note</strong> while they are fresh`,
           ],
           clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/recruits",
-        },
-        {
-          id: "W1-02",
-          title: "Scrolled to the recruitment and event columns",
-          disposition: "modified",
-          blurb: `The same board after the sideways scroll. This is where every fact this mission owns lives,
-         and it is the whole point of appending one column per recruitment event.`,
-          deltas: [
-            `<strong>1. Event columns append at the right end</strong>, oldest first, so the term reads left to right`,
-            `<strong>2. Each event cell is three glyphs</strong>: invited, answered, attended`,
-            `<strong>3. A recruit never invited</strong> shows dashed outlines, so absence is visible rather than ambiguous`,
-            `<strong>Decide:</strong> three glyphs in one cell is dense. The alternative triples the width`,
-          ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/recruits",
+          url: "oxfordlancers.example/operate/recruits/new",
         },
       ];
 

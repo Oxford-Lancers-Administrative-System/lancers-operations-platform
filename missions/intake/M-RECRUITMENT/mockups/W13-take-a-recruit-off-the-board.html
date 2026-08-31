@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>W1 · The recruit board</title>
+    <title>W13 · Take a recruit off the board</title>
     <style>
       /* ------------------------------------------------------------------ *
        * Token provenance. Everything visual here is taken from the running
@@ -1233,11 +1233,10 @@
   <body>
     <div class="page">
       <header class="page-head">
-        <h1>W1 · The recruit board</h1>
+        <h1>W13 · Take a recruit off the board</h1>
         <p>
-          Recruitment's own board: one line per recruit for the open season, in the club's existing
-      board language. Its columns decide which recruit facts and which signals exist, and every
-      other workflow puts something on it or takes something off it.
+          A recruit who is not going to onboarding leaves the board without leaving the record, and
+      nothing further is sent to them.
           <strong>The surfaces here exist on <code>main</code></strong>, so every screen is a
            <strong>photograph on both sides</strong> — the same running page at <code>e669331</code>,
            differing only by the proposal evaluated into it.
@@ -1254,9 +1253,8 @@
         </p>
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
-          <span>Three bands, where the roster has three — but a recruit holds no membership, so <strong>Onboarding and Season describe nothing</strong> and are replaced</span>
-          <span>Rows are <strong>synthetic</strong>. Rosalind Penhaligon and Tobias Wrenfield are really seeded and render with their real facts; four more are invented so a board can be judged as a board</span>
-          <span><strong>Two artifacts of the mockup, not the design:</strong> the pinned column overlays the Notes text when scrolled, and the old Roster nav item still paints as selected because React re-renders that subtree</span>
+          <span>Brian, 2026-08-31: <em>“that's a status change, right? A moves statuses, and then the board resorts, more or less.”</em> There is deliberately no separate removal mechanism, no archive and no delete</span>
+          <span>Every walk-up is a recruit and every QR scan is a recruit — which is what makes the exits load-bearing. Without them the board fills with everybody who ever stood near the stand</span>
         </div>
       </header>
       <div id="screens"></div>
@@ -1275,32 +1273,16 @@
 
       const SCREENS = [
         {
-          id: "W1-01",
-          title: "The board, at the left end",
+          id: "W13-01",
+          title: "The board after an exit",
           disposition: "modified",
-          blurb: `What an operator opens. The pinned recruit, the person facts they already know how to read,
-         and the first of the recruitment facts this mission owns.`,
+          blurb: `Clementine Varrow moves to declined. She leaves the top of the board, the board resorts, and
+         her record is untouched.`,
           deltas: [
-            `<strong>1. Person band, unchanged.</strong> Same slate, same read-only treatment, same routing out to the person record`,
-            `<strong>2. Recruitment band, new, teal.</strong> A new colour because these are a new kind of fact. <strong>Decide:</strong> the colour is yours`,
-            `<strong>3. Status is the seven-value ladder</strong>, coloured per rung, edited in the cell. <code>joined</code> is the one value a cell never writes — W14 intercepts it`,
-            `<strong>4. <code>On WhatsApp</code> already exists</strong> on the person record at the baseline and is empty on both seeded recruits — so channel presence needs no new storage`,
-            `<strong>5. The filters changed.</strong> Availability and Missing onboarding data describe memberships a recruit does not hold`,
-          ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/recruits",
-        },
-        {
-          id: "W1-02",
-          title: "Scrolled to the recruitment and event columns",
-          disposition: "modified",
-          blurb: `The same board after the sideways scroll. This is where every fact this mission owns lives,
-         and it is the whole point of appending one column per recruitment event.`,
-          deltas: [
-            `<strong>1. Event columns append at the right end</strong>, oldest first, so the term reads left to right`,
-            `<strong>2. Each event cell is three glyphs</strong>: invited, answered, attended`,
-            `<strong>3. A recruit never invited</strong> shows dashed outlines, so absence is visible rather than ambiguous`,
-            `<strong>Decide:</strong> three glyphs in one cell is dense. The alternative triples the width`,
+            `<strong>1. A status change and nothing more</strong>`,
+            `<strong>2. The board resorts</strong> — the exits sink to the bottom rather than disappearing`,
+            `<strong>3. She stops receiving everything</strong>, including anything an operator tries to send from W9`,
+            `<strong>Decide:</strong> <code>void</code> as a separate marker rather than a seventh status value. Every other value says something about the person; <code>void</code> says the record is wrong`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/operate/recruits",

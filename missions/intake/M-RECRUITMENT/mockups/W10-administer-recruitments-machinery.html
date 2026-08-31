@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>W1 · The recruit board</title>
+    <title>W10 · Administer the messages, cycles and QR</title>
     <style>
       /* ------------------------------------------------------------------ *
        * Token provenance. Everything visual here is taken from the running
@@ -1233,11 +1233,10 @@
   <body>
     <div class="page">
       <header class="page-head">
-        <h1>W1 · The recruit board</h1>
+        <h1>W10 · Administer the messages, cycles and QR</h1>
         <p>
-          Recruitment's own board: one line per recruit for the open season, in the club's existing
-      board language. Its columns decide which recruit facts and which signals exist, and every
-      other workflow puts something on it or takes something off it.
+          What recruitment says, when it says it, whether a step runs at all, and which QR codes are
+      live — changed by an operator rather than an engineer.
           <strong>The surfaces here exist on <code>main</code></strong>, so every screen is a
            <strong>photograph on both sides</strong> — the same running page at <code>e669331</code>,
            differing only by the proposal evaluated into it.
@@ -1254,9 +1253,9 @@
         </p>
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
-          <span>Three bands, where the roster has three — but a recruit holds no membership, so <strong>Onboarding and Season describe nothing</strong> and are replaced</span>
-          <span>Rows are <strong>synthetic</strong>. Rosalind Penhaligon and Tobias Wrenfield are really seeded and render with their real facts; four more are invented so a board can be judged as a board</span>
-          <span><strong>Two artifacts of the mockup, not the design:</strong> the pinned column overlays the Notes text when scrolled, and the old Roster nav item still paints as selected because React re-renders that subtree</span>
+          <span>This is the workflow Brian named as the one he was least sure of: <em>“I'm most confused about this one. I think we need to go through the workflow and find the boundary there.”</em></span>
+          <span>It is drawn tenth rather than third for exactly that reason — the boundary is found against the flows that configure it, not guessed in the abstract</span>
+          <span><strong>The proposed boundary:</strong> Mission 4 owns the scheduler and the transport; recruitment owns what is sent, on what trigger, in what order, and whether a step runs at all. Recruitment declares a cycle and never schedules</span>
         </div>
       </header>
       <div id="screens"></div>
@@ -1275,35 +1274,19 @@
 
       const SCREENS = [
         {
-          id: "W1-01",
-          title: "The board, at the left end",
+          id: "W10-01",
+          title: "The recruitment cycle",
           disposition: "modified",
-          blurb: `What an operator opens. The pinned recruit, the person facts they already know how to read,
-         and the first of the recruitment facts this mission owns.`,
+          blurb: `The shipped messaging schedule is the shell and the language. Recruitment's cycle is a
+         sibling object in that language, not a new column on it.`,
           deltas: [
-            `<strong>1. Person band, unchanged.</strong> Same slate, same read-only treatment, same routing out to the person record`,
-            `<strong>2. Recruitment band, new, teal.</strong> A new colour because these are a new kind of fact. <strong>Decide:</strong> the colour is yours`,
-            `<strong>3. Status is the seven-value ladder</strong>, coloured per rung, edited in the cell. <code>joined</code> is the one value a cell never writes — W14 intercepts it`,
-            `<strong>4. <code>On WhatsApp</code> already exists</strong> on the person record at the baseline and is empty on both seeded recruits — so channel presence needs no new storage`,
-            `<strong>5. The filters changed.</strong> Availability and Missing onboarding data describe memberships a recruit does not hold`,
+            `<strong>1. The boundary, stated on the screen</strong> rather than left implicit`,
+            `<strong>2. The cycle as a sequence</strong> of five named steps, each editable, each able to be turned off entirely`,
+            `<strong>3. The community-group link</strong> with when it last changed — the most likely silent failure in the mission is a rotated link nobody notices`,
+            `<strong>4. QR codes minted, named, counted and revocable.</strong> <strong>Decide:</strong> whether these belong here or on their own screen`,
           ],
           clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/recruits",
-        },
-        {
-          id: "W1-02",
-          title: "Scrolled to the recruitment and event columns",
-          disposition: "modified",
-          blurb: `The same board after the sideways scroll. This is where every fact this mission owns lives,
-         and it is the whole point of appending one column per recruitment event.`,
-          deltas: [
-            `<strong>1. Event columns append at the right end</strong>, oldest first, so the term reads left to right`,
-            `<strong>2. Each event cell is three glyphs</strong>: invited, answered, attended`,
-            `<strong>3. A recruit never invited</strong> shows dashed outlines, so absence is visible rather than ambiguous`,
-            `<strong>Decide:</strong> three glyphs in one cell is dense. The alternative triples the width`,
-          ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/recruits",
+          url: "oxfordlancers.example/operate/admin/recruitment",
         },
       ];
 

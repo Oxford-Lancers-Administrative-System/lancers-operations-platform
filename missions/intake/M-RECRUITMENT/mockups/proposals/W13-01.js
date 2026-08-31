@@ -300,14 +300,11 @@
     return list;
   };
 
-  // W1-01 — The recruit board, proposed.
-  //
-  // The board is CLONED from the shipped roster board, element by element, so the
-  // banding, sticky header, filter chips and type scale are identical by
-  // construction. Rows are synthetic: only Rosalind Penhaligon (identified) and
-  // Tobias Wrenfield (engaged) are seeded at main@e669331, and both render here
-  // with their real seeded facts; four more are invented in the same synthetic
-  // universe so the board can be judged as a board.
+  // W13-01 — Take a recruit off the board, proposed. The same board after
+  // Clementine Varrow is moved to declined: she leaves the board, the board
+  // resorts, and nothing further is sent to her. There is no separate removal
+  // mechanism — Brian, 2026-08-31: "that's a status change... and then the board
+  // resorts, more or less."
   const table = document.querySelector("table");
   const thead = table.querySelector("thead");
   const tbody = table.querySelector("tbody");
@@ -445,7 +442,7 @@
   );
 
   // ---- The proposed rows ---------------------------------------------------
-  const RECRUITS = [
+  const RECRUITS_UNSORTED = [
     [
       "Rosalind Penhaligon",
       "Dunsfold",
@@ -544,6 +541,8 @@
     ],
   ];
 
+  const ORDER = ["identified", "engaged", "committed", "joined", "disengaged", "declined"];
+  const RECRUITS = [...RECRUITS_UNSORTED].sort((a, b) => ORDER.indexOf(a[5]) - ORDER.indexOf(b[5]));
   tbody.replaceChildren(
     ...RECRUITS.map((r) => {
       const tr = templateRow.cloneNode(false);
@@ -580,4 +579,18 @@
   }
 
   selectRecruitsNav();
+
+  appendCard(
+    "What just happened",
+    [
+      makeRow("Clementine Varrow", "disengaged \u2192 declined"),
+      makeRow("Recorded by", "Caspian Hallowfield, today"),
+      makeRow(
+        "She stops receiving",
+        "Everything. Including anything an operator tries to send from W9.",
+      ),
+      makeRow("Her record", "Intact. Every signal, every message, every note stays."),
+    ],
+    "Leaving the board is a status change and nothing more. No archive, no delete. Removing the person is erasure and is Mission 8's, never recruitment's \u2014 owner decision 2026-08-25.",
+  );
 })();

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>W1 · The recruit board</title>
+    <title>W3 · Say yes to the club</title>
     <style>
       /* ------------------------------------------------------------------ *
        * Token provenance. Everything visual here is taken from the running
@@ -1233,14 +1233,13 @@
   <body>
     <div class="page">
       <header class="page-head">
-        <h1>W1 · The recruit board</h1>
+        <h1>W3 · Say yes to the club</h1>
         <p>
-          Recruitment's own board: one line per recruit for the open season, in the club's existing
-      board language. Its columns decide which recruit facts and which signals exist, and every
-      other workflow puts something on it or takes something off it.
-          <strong>The surfaces here exist on <code>main</code></strong>, so every screen is a
-           <strong>photograph on both sides</strong> — the same running page at <code>e669331</code>,
-           differing only by the proposal evaluated into it.
+          The smallest journey in the mission and the most load-bearing outside it: Missions 7 and 8
+      inherit whatever shape it takes, and every door in this mission ends by firing it.
+          <strong>Mixed grounding.</strong> Screens on a surface that exists are photographed on both
+           sides; screens with no analogue are drawn and labelled <em>New surface, nothing to
+           compare</em>.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1252,11 +1251,10 @@
             >Proposed — this mission</span
           >. Nothing on this page is approved.
         </p>
-        <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
+        <span class="grounding">Grounding: mixed · photographs where a surface exists, drawn where none does</span>
         <div class="legend">
-          <span>Three bands, where the roster has three — but a recruit holds no membership, so <strong>Onboarding and Season describe nothing</strong> and are replaced</span>
-          <span>Rows are <strong>synthetic</strong>. Rosalind Penhaligon and Tobias Wrenfield are really seeded and render with their real facts; four more are invented so a board can be judged as a board</span>
-          <span><strong>Two artifacts of the mockup, not the design:</strong> the pinned column overlays the Notes text when scrolled, and the old Roster nav item still paints as selected because React re-renders that subtree</span>
+          <span>Brian's own sequence, 2026-08-31: <em>“First notification goes out today to invite them in. If they sign in, they get asked. If they accept, they get asked to fill out some details immediately. They get a polite reminder…”</em></span>
+          <span><strong>W3-02 is drawn</strong> — these are WhatsApp messages, and no inbound conversation is captured anywhere on main; the webhook parses only <code>statuses[]</code></span>
         </div>
       </header>
       <div id="screens"></div>
@@ -1275,35 +1273,33 @@
 
       const SCREENS = [
         {
-          id: "W1-01",
-          title: "The board, at the left end",
+          id: "W3-01",
+          title: "Where each recruit is in the flow",
           disposition: "modified",
-          blurb: `What an operator opens. The pinned recruit, the person facts they already know how to read,
-         and the first of the recruitment facts this mission owns.`,
+          blurb: `The operator's view, built on Mission 4's delivery screen — the nearest thing the product
+         already has to “what did we send and what came back”.`,
           deltas: [
-            `<strong>1. Person band, unchanged.</strong> Same slate, same read-only treatment, same routing out to the person record`,
-            `<strong>2. Recruitment band, new, teal.</strong> A new colour because these are a new kind of fact. <strong>Decide:</strong> the colour is yours`,
-            `<strong>3. Status is the seven-value ladder</strong>, coloured per rung, edited in the cell. <code>joined</code> is the one value a cell never writes — W14 intercepts it`,
-            `<strong>4. <code>On WhatsApp</code> already exists</strong> on the person record at the baseline and is empty on both seeded recruits — so channel presence needs no new storage`,
-            `<strong>5. The filters changed.</strong> Availability and Missing onboarding data describe memberships a recruit does not hold`,
+            `<strong>1. The five-step ladder</strong> is visible per recruit rather than inferred from delivery rows`,
+            `<strong>2. What the club can honestly see</strong> is stated next to what it sends — the join is recorded, never watched for`,
+            `<strong>3. Opt-in evidence is per door.</strong> Operator add is the one door with no natural opt-in, and the welcome does not fire without it`,
           ],
           clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/recruits",
+          url: "oxfordlancers.example/operate/events/1d76b9f8/delivery",
         },
         {
-          id: "W1-02",
-          title: "Scrolled to the recruitment and event columns",
-          disposition: "modified",
-          blurb: `The same board after the sideways scroll. This is where every fact this mission owns lives,
-         and it is the whole point of appending one column per recruitment event.`,
+          id: "W3-02",
+          title: "What the recruit actually receives",
+          disposition: "new",
+          blurb: `Four messages, then silence until a person chooses to say something. This is the only place
+         the never-harsh rule is actually visible.`,
           deltas: [
-            `<strong>1. Event columns append at the right end</strong>, oldest first, so the term reads left to right`,
-            `<strong>2. Each event cell is three glyphs</strong>: invited, answered, attended`,
-            `<strong>3. A recruit never invited</strong> shows dashed outlines, so absence is visible rather than ambiguous`,
-            `<strong>Decide:</strong> three glyphs in one cell is dense. The alternative triples the width`,
+            `<strong>1. Welcome and group invite</strong> on capture, from every door — Task 09 D3`,
+            `<strong>2. The standard ask</strong> immediately after they accept. <strong>Decide:</strong> what it asks is open — the recommendation is one question`,
+            `<strong>3. One polite reminder</strong>, the next day, only if nothing came back. This is the message the old never-chased rule forbade`,
+            `<strong>4. Then the W4 form</strong>, and then nothing`,
           ],
           clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/recruits",
+          url: "WhatsApp · Oxford Lancers",
         },
       ];
 

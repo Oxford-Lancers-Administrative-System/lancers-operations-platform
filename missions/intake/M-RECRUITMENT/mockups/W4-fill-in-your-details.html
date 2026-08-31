@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>W1 · The recruit board</title>
+    <title>W4 · Fill in your details</title>
     <style>
       /* ------------------------------------------------------------------ *
        * Token provenance. Everything visual here is taken from the running
@@ -1233,14 +1233,12 @@
   <body>
     <div class="page">
       <header class="page-head">
-        <h1>W1 · The recruit board</h1>
+        <h1>W4 · Fill in your details</h1>
         <p>
-          Recruitment's own board: one line per recruit for the open season, in the club's existing
-      board language. Its columns decide which recruit facts and which signals exist, and every
-      other workflow puts something on it or takes something off it.
-          <strong>The surfaces here exist on <code>main</code></strong>, so every screen is a
-           <strong>photograph on both sides</strong> — the same running page at <code>e669331</code>,
-           differing only by the proposal evaluated into it.
+          The recruit-stage ask: a form minted for one recruit and linked to their person, asked
+      politely and reminded once.
+          <strong>Nothing like this exists on <code>main</code></strong>, so every screen is
+           <strong>drawn</strong> and labelled <em>New surface, nothing to compare</em>.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1252,11 +1250,10 @@
             >Proposed — this mission</span
           >. Nothing on this page is approved.
         </p>
-        <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
+        <span class="grounding">Grounding: code-only · drawn on both sides · measured 1280 and 375</span>
         <div class="legend">
-          <span>Three bands, where the roster has three — but a recruit holds no membership, so <strong>Onboarding and Season describe nothing</strong> and are replaced</span>
-          <span>Rows are <strong>synthetic</strong>. Rosalind Penhaligon and Tobias Wrenfield are really seeded and render with their real facts; four more are invented so a board can be judged as a board</span>
-          <span><strong>Two artifacts of the mockup, not the design:</strong> the pinned column overlays the Notes text when scrolled, and the old Roster nav item still paints as selected because React re-renders that subtree</span>
+          <span><strong>Drawn on both sides.</strong> <code>person_access_tokens</code>, <code>rsvp_access_tokens</code> and <code>club_link_tokens</code> are all empty in the seeded data, so no signed-link page renders anything but the uniform invalid state</span>
+          <span>The field set is <strong>enumerated here for the first time anywhere</strong>. Task 08 routed these fields to Task 09 and never listed them; Mission 5's packet records the set as an open unknown</span>
         </div>
       </header>
       <div id="screens"></div>
@@ -1275,35 +1272,18 @@
 
       const SCREENS = [
         {
-          id: "W1-01",
-          title: "The board, at the left end",
-          disposition: "modified",
-          blurb: `What an operator opens. The pinned recruit, the person facts they already know how to read,
-         and the first of the recruitment facts this mission owns.`,
+          id: "W4-01",
+          title: "The form",
+          disposition: "new",
+          blurb: `Six questions, every one optional, none of which gates anything.`,
           deltas: [
-            `<strong>1. Person band, unchanged.</strong> Same slate, same read-only treatment, same routing out to the person record`,
-            `<strong>2. Recruitment band, new, teal.</strong> A new colour because these are a new kind of fact. <strong>Decide:</strong> the colour is yours`,
-            `<strong>3. Status is the seven-value ladder</strong>, coloured per rung, edited in the cell. <code>joined</code> is the one value a cell never writes — W14 intercepts it`,
-            `<strong>4. <code>On WhatsApp</code> already exists</strong> on the person record at the baseline and is empty on both seeded recruits — so channel presence needs no new storage`,
-            `<strong>5. The filters changed.</strong> Availability and Missing onboarding data describe memberships a recruit does not hold`,
+            `<strong>1. Every field optional.</strong> Missing information never blocks a capture and never blocks the flip — Task 09 D5, invariant 4`,
+            `<strong>2. Position interest is explicitly not binding</strong> — it gives a coach something to talk to them about`,
+            `<strong>3. How they heard about us</strong> is the only recruitment-effectiveness question worth asking`,
+            `<strong>Decide:</strong> the six fields themselves. This is the first enumeration and it is a proposal`,
           ],
           clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/recruits",
-        },
-        {
-          id: "W1-02",
-          title: "Scrolled to the recruitment and event columns",
-          disposition: "modified",
-          blurb: `The same board after the sideways scroll. This is where every fact this mission owns lives,
-         and it is the whole point of appending one column per recruitment event.`,
-          deltas: [
-            `<strong>1. Event columns append at the right end</strong>, oldest first, so the term reads left to right`,
-            `<strong>2. Each event cell is three glyphs</strong>: invited, answered, attended`,
-            `<strong>3. A recruit never invited</strong> shows dashed outlines, so absence is visible rather than ambiguous`,
-            `<strong>Decide:</strong> three glyphs in one cell is dense. The alternative triples the width`,
-          ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/recruits",
+          url: "oxfordlancers.example/a/9f3c…",
         },
       ];
 

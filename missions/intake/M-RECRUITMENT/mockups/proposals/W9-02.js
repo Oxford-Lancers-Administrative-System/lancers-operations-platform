@@ -300,284 +300,35 @@
     return list;
   };
 
-  // W1-01 — The recruit board, proposed.
-  //
-  // The board is CLONED from the shipped roster board, element by element, so the
-  // banding, sticky header, filter chips and type scale are identical by
-  // construction. Rows are synthetic: only Rosalind Penhaligon (identified) and
-  // Tobias Wrenfield (engaged) are seeded at main@e669331, and both render here
-  // with their real seeded facts; four more are invented in the same synthetic
-  // universe so the board can be judged as a board.
-  const table = document.querySelector("table");
-  const thead = table.querySelector("thead");
-  const tbody = table.querySelector("tbody");
-  const [bandRow, colRow] = thead.querySelectorAll("tr");
-  const bandCells = [...bandRow.querySelectorAll("th")];
-  const templateRow = tbody.querySelector("tr");
-
-  // ---- Templates cloned from the shipped board -----------------------------
-  const spacerBand = bandCells[0];
-  const personBand = bandCells[1];
-  const seasonBand = bandCells[3];
-  const colCells = [...colRow.querySelectorAll("th")];
-  const pinnedCol = colCells[0];
-  const filterCol = colCells[1];
-
-  const bodyCells = [...templateRow.querySelectorAll("td")];
-  const pinnedCell = bodyCells[0];
-  const linkCell = bodyCells[1];
-  const chipCell = bodyCells[5];
-  const plainCell = bodyCells[6];
-  const statusCell = bodyCells[8];
-
-  const band = (template, label, span, colour) => {
-    const th = template.cloneNode(true);
-    th.setAttribute("colspan", String(span));
-    th.querySelector("span").textContent = label;
-    if (colour) th.style.backgroundColor = colour;
-    return th;
-  };
-
-  const column = (label, caption) => {
-    const th = filterCol.cloneNode(true);
-    const sort = th.querySelector('[role="button"]');
-    sort.childNodes[0].nodeValue = label;
-    const filter = th.querySelector("button");
-    if (filter) filter.setAttribute("aria-label", `Filter ${label}`);
-    const cap = th.querySelector(".MuiTypography-caption");
-    if (cap) cap.textContent = caption;
-    return th;
-  };
-
-  const textCell = (text, muted) => {
-    const td = plainCell.cloneNode(true);
-    const p = td.querySelector("p");
-    p.textContent = text;
-    p.style.color = muted ? "rgba(0,0,0,0.38)" : "";
-    p.style.fontStyle = muted ? "italic" : "";
-    return td;
-  };
-
-  const recordCell = (text) => {
-    const td = linkCell.cloneNode(true);
-    const a = td.querySelector("a");
-    if (text === null) {
-      td.replaceChildren();
-      const p = plainCell.querySelector("p").cloneNode(true);
-      p.textContent = "Not recorded";
-      p.style.color = "rgba(0,0,0,0.38)";
-      td.append(p);
-      return td;
-    }
-    a.textContent = text;
-    return td;
-  };
-
-  const chipsCell = (labels) => {
-    const td = chipCell.cloneNode(true);
-    const stack = td.querySelector(".MuiStack-root");
-    const chip = stack.querySelector(".MuiChip-root").cloneNode(true);
-    stack.replaceChildren();
-    for (const l of labels) {
-      const c = chip.cloneNode(true);
-      c.querySelector(".MuiChip-label").textContent = l;
-      stack.append(c);
-    }
-    return td;
-  };
-
-  // The status cell reuses the board's own filled chip, recoloured per rung.
-  const statusChip = (value) => {
-    const td = statusCell.cloneNode(true);
-    asRung(td.querySelector(".MuiChip-root"), value);
-    return td;
-  };
-
-  // One appended event column cell: invited · answered · attended.
-  const eventCell = (invited, answered, attended) => {
-    const td = chipCell.cloneNode(true);
-    const stack = td.querySelector(".MuiStack-root");
-    stack.replaceChildren();
-    const glyph = (text, colour, title) => {
-      const s = document.createElement("span");
-      s.textContent = text;
-      s.title = title;
-      s.style.cssText = `display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;font-size:11px;font-weight:700;margin-right:3px;color:${colour === "none" ? "rgba(0,0,0,0.26)" : "#fff"};background:${colour === "none" ? "transparent" : colour};border:${colour === "none" ? "1px dashed rgba(0,0,0,0.18)" : "none"}`;
-      return s;
-    };
-    stack.append(glyph(invited ? "I" : "·", invited ? "#78909c" : "none", "Invited"));
-    stack.append(
-      glyph(
-        answered === "yes" ? "Y" : answered === "no" ? "N" : "·",
-        answered === "yes" ? "#2e7d32" : answered === "no" ? "#8d6e63" : "none",
-        "Answered",
-      ),
-    );
-    stack.append(glyph(attended ? "A" : "·", attended ? "#0b3d91" : "none", "Attended"));
-    return td;
-  };
-
-  // ---- The proposed header -------------------------------------------------
-  bandRow.replaceChildren(
-    spacerBand.cloneNode(true),
-    band(personBand, "Person", 5),
-    band(seasonBand, "Recruitment", 6, "#00695c"),
-    band(seasonBand, "Events", 3),
+  // W9-02 — The follow-up composer. Drawn: no composer exists anywhere in the
+  // application. Mission 5 composes, schedules and sends nothing, and Mission 4
+  // sends only from its ladder.
+  const card = drawnSurface({
+    title: "Say something to Rosalind Penhaligon",
+    subtitle: "WhatsApp · approved 28 April · last heard from her: never",
+    chrome: "Opened from her row on the recruit board",
+  });
+  const outstanding = drawnPanel("What she has not done");
+  outstanding.append(
+    makeRow("Recruit-stage ask", "Never sent"),
+    makeRow("Freshers' Fair, 30 Apr", "Invited · no answer · did not attend"),
   );
-
-  const pinned = pinnedCol.cloneNode(true);
-  pinned.querySelector('[role="button"]').childNodes[0].nodeValue = "Recruit";
-  colRow.replaceChildren(
-    pinned,
-    column("College", "edit on the record"),
-    column("Matric", "edit on the record"),
-    column("Contactable", "indicators only"),
-    column("On WhatsApp", "set by sign-on"),
-    column("Status", "edit here"),
-    column("Source", "edit here"),
-    column("First contact", "edit here"),
-    column("Asked", "set by the form"),
-    column("Last touch", "derived"),
-    column("Notes", "edit here"),
-    column("Freshers' Fair 30 Apr", ""),
-    column("Taster 1 · 30 Apr", ""),
-    column("Taster 2 · 7 May", ""),
+  card.append(outstanding);
+  const pick = drawnPanel("Start from one of these");
+  pick.append(
+    makeRow("Ask for their details", "“Hi Rosalind — lovely to meet you at the Fair…”"),
+    makeRow("Invite them along", "“Hi Rosalind — we have a taster on Thursday at 6…”"),
+    makeRow("Just say hello", "“Hi Rosalind — how are you finding things?…”"),
   );
-
-  // ---- The proposed rows ---------------------------------------------------
-  const RECRUITS = [
-    [
-      "Rosalind Penhaligon",
-      "Dunsfold",
-      "2026",
-      ["Mobile"],
-      "Not yet",
-      "identified",
-      "QR · Freshers' Fair",
-      "28 Apr",
-      "Not sent",
-      "Welcome, 28 Apr",
-      "Came to the stand with a friend from Dunsfold.",
-      [true, "none", false],
-      [false, "none", false],
-      [false, "none", false],
-    ],
-    [
-      "Tobias Wrenfield",
-      "Marlbrook",
-      "2025",
-      ["Mobile", "Email"],
-      "In the group",
-      "engaged",
-      "Walk-up · Taster 1",
-      "30 Apr",
-      "Answered 2 May",
-      "Invitation, 6 May",
-      "Played at school. Asked about kit.",
-      [true, "yes", true],
-      [true, "yes", true],
-      [true, "none", false],
-    ],
-    [
-      "Marguerite Ashdown",
-      "Kestrelhall",
-      "2026",
-      ["Mobile", "Email"],
-      "In the group",
-      "committed",
-      "Operator · sourced",
-      "22 Apr",
-      "Answered 25 Apr",
-      "Follow-up, 9 May",
-      "Said she is in. Wants to play safety.",
-      [true, "yes", true],
-      [true, "yes", true],
-      [true, "yes", true],
-    ],
-    [
-      "Peregrine Oakhollow",
-      "Beaumont",
-      "2024",
-      ["Mobile"],
-      "Not yet",
-      "identified",
-      "QR · Taster 2",
-      "7 May",
-      "Sent 8 May",
-      "Ask, 8 May",
-      "",
-      [false, "none", false],
-      [false, "none", false],
-      [true, "none", true],
-    ],
-    [
-      "Clementine Varrow",
-      "Harewell",
-      "2026",
-      ["Email"],
-      "Declined",
-      "disengaged",
-      "Walk-up · Freshers' Fair",
-      "30 Apr",
-      "Not answered",
-      "Invitation, 6 May",
-      "Came once, has not answered since.",
-      [true, "none", false],
-      [true, "no", false],
-      [false, "none", false],
-    ],
-    [
-      "Ambrose Kittiwake",
-      null,
-      null,
-      ["Mobile"],
-      "Not yet",
-      "declined",
-      "Walk-up · Taster 1",
-      "30 Apr",
-      "Not sent",
-      "Welcome, 30 Apr",
-      "Said rugby clashes. Happy to be asked again next year.",
-      [true, "no", false],
-      [false, "none", false],
-      [false, "none", false],
-    ],
-  ];
-
-  tbody.replaceChildren(
-    ...RECRUITS.map((r) => {
-      const tr = templateRow.cloneNode(false);
-      const name = pinnedCell.cloneNode(true);
-      name.querySelector("a").textContent = r[0];
-      tr.append(
-        name,
-        recordCell(r[1]),
-        recordCell(r[2]),
-        chipsCell(r[3]),
-        textCell(r[4], r[4] === "Not yet"),
-        statusChip(r[5]),
-        textCell(r[6]),
-        textCell(r[7]),
-        textCell(r[8], r[8] === "Not sent"),
-        textCell(r[9]),
-        textCell(r[10] || "—", !r[10]),
-        eventCell(...r[11]),
-        eventCell(...r[12]),
-        eventCell(...r[13]),
-      );
-      return tr;
-    }),
+  card.append(pick);
+  card.append(
+    field(
+      "Your message",
+      "“Hi Rosalind — lovely to meet you at the Fair. When you have a minute, could you fill this in? It helps us know what to put on for you.”",
+    ),
+    primaryButton("SEND"),
+    note(
+      "One recruit, one message, sent by a person, now. This surface never grows a cadence, a rung or a bulk send — invariant 1. Brian, 2026-08-31: the messages should be good, and it should be easy.",
+    ),
   );
-
-  setHeading("Recruits", "Season 2026-27 \u00b7 6 recruits \u00b7 3 recruitment events");
-  relabelButton("add player", "ADD RECRUIT");
-
-  // The roster's filters describe memberships. A recruit holds none.
-  const FILTERS = { Availability: "Source", "Missing onboarding data": "Ask outstanding" };
-  for (const node of $$("label, .MuiInputLabel-root, .MuiSelect-select")) {
-    const t = node.textContent.trim();
-    if (FILTERS[t]) node.textContent = FILTERS[t];
-  }
-
-  selectRecruitsNav();
 })();

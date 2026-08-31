@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>W1 · The recruit board</title>
+    <title>W7 · Sign yourself in</title>
     <style>
       /* ------------------------------------------------------------------ *
        * Token provenance. Everything visual here is taken from the running
@@ -1233,14 +1233,12 @@
   <body>
     <div class="page">
       <header class="page-head">
-        <h1>W1 · The recruit board</h1>
+        <h1>W7 · Sign yourself in</h1>
         <p>
-          Recruitment's own board: one line per recruit for the open season, in the club's existing
-      board language. Its columns decide which recruit facts and which signals exist, and every
-      other workflow puts something on it or takes something off it.
-          <strong>The surfaces here exist on <code>main</code></strong>, so every screen is a
-           <strong>photograph on both sides</strong> — the same running page at <code>e669331</code>,
-           differing only by the proposal evaluated into it.
+          A recruit at the Freshers' Fair stand puts themselves into the club's system, on the
+      club's own page, and comes out of it in the community group.
+          <strong>Nothing like this exists on <code>main</code></strong>, so every screen is
+           <strong>drawn</strong> and labelled <em>New surface, nothing to compare</em>.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1252,11 +1250,11 @@
             >Proposed — this mission</span
           >. Nothing on this page is approved.
         </p>
-        <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
+        <span class="grounding">Grounding: code-only · drawn on both sides · measured 1280 and 375</span>
         <div class="legend">
-          <span>Three bands, where the roster has three — but a recruit holds no membership, so <strong>Onboarding and Season describe nothing</strong> and are replaced</span>
-          <span>Rows are <strong>synthetic</strong>. Rosalind Penhaligon and Tobias Wrenfield are really seeded and render with their real facts; four more are invented so a board can be judged as a board</span>
-          <span><strong>Two artifacts of the mockup, not the design:</strong> the pinned column overlays the Notes text when scrolled, and the old Roster nav item still paints as selected because React re-renders that subtree</span>
+          <span><strong>Drawn on both sides.</strong> There is no public self-entry page on main</span>
+          <span>Brian, 2026-08-31: <em>“they go to a form. And then, once they submit the form, they should get a login, basically an invite to the WhatsApp group.”</em> <strong>“A login” is read here as the group invite and the signed link, not an account</strong> — Task 08 §3 fixes that there are no player logins in Release One. Flagged rather than assumed</span>
+          <span>The <strong>375px frame is the real one</strong> — nobody scans a QR on a desktop</span>
         </div>
       </header>
       <div id="screens"></div>
@@ -1275,35 +1273,18 @@
 
       const SCREENS = [
         {
-          id: "W1-01",
-          title: "The board, at the left end",
-          disposition: "modified",
-          blurb: `What an operator opens. The pinned recruit, the person facts they already know how to read,
-         and the first of the recruitment facts this mission owns.`,
+          id: "W7-01",
+          title: "The page behind the QR",
+          disposition: "new",
+          blurb: `Four fields on the club's own domain, and what happens when the club already has them.`,
           deltas: [
-            `<strong>1. Person band, unchanged.</strong> Same slate, same read-only treatment, same routing out to the person record`,
-            `<strong>2. Recruitment band, new, teal.</strong> A new colour because these are a new kind of fact. <strong>Decide:</strong> the colour is yours`,
-            `<strong>3. Status is the seven-value ladder</strong>, coloured per rung, edited in the cell. <code>joined</code> is the one value a cell never writes — W14 intercepts it`,
-            `<strong>4. <code>On WhatsApp</code> already exists</strong> on the person record at the baseline and is empty on both seeded recruits — so channel presence needs no new storage`,
-            `<strong>5. The filters changed.</strong> Availability and Missing onboarding data describe memberships a recruit does not hold`,
+            `<strong>1. The club's own page on the club's own domain</strong> — Brian, 2026-08-28. They are signing in to the club's application, not a form somewhere else`,
+            `<strong>2. The same capture standard as every other door</strong>: name and mobile, email optional`,
+            `<strong>3. If we already have them, they are told</strong> — Brian, 2026-08-31. Nothing is created and nothing is sent`,
+            `<strong>Decide:</strong> the duplicate telling confirms only what the submitter typed. A public page that volunteers who else the club holds is a membership oracle`,
           ],
           clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/recruits",
-        },
-        {
-          id: "W1-02",
-          title: "Scrolled to the recruitment and event columns",
-          disposition: "modified",
-          blurb: `The same board after the sideways scroll. This is where every fact this mission owns lives,
-         and it is the whole point of appending one column per recruitment event.`,
-          deltas: [
-            `<strong>1. Event columns append at the right end</strong>, oldest first, so the term reads left to right`,
-            `<strong>2. Each event cell is three glyphs</strong>: invited, answered, attended`,
-            `<strong>3. A recruit never invited</strong> shows dashed outlines, so absence is visible rather than ambiguous`,
-            `<strong>Decide:</strong> three glyphs in one cell is dense. The alternative triples the width`,
-          ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/recruits",
+          url: "oxfordlancers.example/join",
         },
       ];
 
