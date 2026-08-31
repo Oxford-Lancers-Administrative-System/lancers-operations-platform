@@ -1790,17 +1790,19 @@ let FORM_TEMPLATES = null;
 
 /** Capture real controls BEFORE the page is cleared to draw on. */
 const captureFormControls = () => {
-  const select = must(
-    document.querySelector(".MuiSelect-select")?.closest(".MuiFormControl-root"),
-    "this page renders no MUI select to clone",
-  );
+  // The select is OPTIONAL. Not every page has one: /operate/people/new is all
+  // text inputs, and requiring a select there threw rather than degrading. When
+  // there is none, a choice question renders as the text field the page does
+  // have, with its options listed beneath — which is what the shipped person
+  // form already does for College and Matriculation year, both plain text.
+  const select = document.querySelector(".MuiSelect-select")?.closest(".MuiFormControl-root") ?? null;
   const text = must(
     [...document.querySelectorAll(".MuiTextField-root, .MuiFormControl-root")].find(
       (f) => f.querySelector("input") && !f.querySelector(".MuiSelect-select"),
     ),
     "this page renders no MUI text field to clone",
   );
-  FORM_TEMPLATES = { select: select.cloneNode(true), text: text.cloneNode(true) };
+  FORM_TEMPLATES = { select: select ? select.cloneNode(true) : null, text: text.cloneNode(true) };
   return FORM_TEMPLATES;
 };
 
@@ -1809,7 +1811,7 @@ const questionField = ({ prompt, kind, options = [], value = "" }) => {
   const wrap = document.createElement("div");
   wrap.style.cssText = "margin:0 0 20px";
 
-  const isSelect = kind === "boolean" || kind === "choice";
+  const isSelect = (kind === "boolean" || kind === "choice") && FORM_TEMPLATES.select !== null;
   const field = (isSelect ? FORM_TEMPLATES.select : FORM_TEMPLATES.text).cloneNode(true);
   field.style.width = "100%";
 
@@ -1899,6 +1901,6 @@ fill("givenName", "Marguerite");
 fill("familyName", "Ashdown");
 fill("phone", "07700 900461");
 
-await settle()
+await settle();
 
 })()

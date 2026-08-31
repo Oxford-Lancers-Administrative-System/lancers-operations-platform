@@ -1790,17 +1790,19 @@ let FORM_TEMPLATES = null;
 
 /** Capture real controls BEFORE the page is cleared to draw on. */
 const captureFormControls = () => {
-  const select = must(
-    document.querySelector(".MuiSelect-select")?.closest(".MuiFormControl-root"),
-    "this page renders no MUI select to clone",
-  );
+  // The select is OPTIONAL. Not every page has one: /operate/people/new is all
+  // text inputs, and requiring a select there threw rather than degrading. When
+  // there is none, a choice question renders as the text field the page does
+  // have, with its options listed beneath — which is what the shipped person
+  // form already does for College and Matriculation year, both plain text.
+  const select = document.querySelector(".MuiSelect-select")?.closest(".MuiFormControl-root") ?? null;
   const text = must(
     [...document.querySelectorAll(".MuiTextField-root, .MuiFormControl-root")].find(
       (f) => f.querySelector("input") && !f.querySelector(".MuiSelect-select"),
     ),
     "this page renders no MUI text field to clone",
   );
-  FORM_TEMPLATES = { select: select.cloneNode(true), text: text.cloneNode(true) };
+  FORM_TEMPLATES = { select: select ? select.cloneNode(true) : null, text: text.cloneNode(true) };
   return FORM_TEMPLATES;
 };
 
@@ -1809,7 +1811,7 @@ const questionField = ({ prompt, kind, options = [], value = "" }) => {
   const wrap = document.createElement("div");
   wrap.style.cssText = "margin:0 0 20px";
 
-  const isSelect = kind === "boolean" || kind === "choice";
+  const isSelect = (kind === "boolean" || kind === "choice") && FORM_TEMPLATES.select !== null;
   const field = (isSelect ? FORM_TEMPLATES.select : FORM_TEMPLATES.text).cloneNode(true);
   field.style.width = "100%";
 
@@ -1886,28 +1888,40 @@ const recruitFormHead = (card, { name, title, blurb }) => {
   return card;
 };
 
-// W6-02 — Refused: he is already on the team. A player is not a recruit.
+// W6-02 — The duplicate check, as it actually runs.
+//
+// Brian, 2026-08-31: "I don't understand at all what W6-02 is doing." Fairly:
+// it drew an amber panel refusing to add somebody who is already on the team.
+// That refusal was invented, and it was invented on top of a check the form
+// already performs.
+//
+// `/operate/people/new` ships a real `Check for duplicates` step: it lists
+// candidates under "Already in the club", handles an exact match, and offers to
+// link to the existing person instead of creating a second one. So this screen
+// FILLS the shipped form with somebody who is already in the club, PRESSES the
+// application's own button, and photographs the answer it gives.
+//
+// It is also the answer to the condition Brian attached to W5: this is the door
+// that has the check, and the walk-up door deliberately has none.
+// The same shell as W6-01: this door is reached from ADD RECRUIT on the board,
+// so it reads as recruitment rather than as the People form it reuses.
+selectRecruitmentNav();
 setHeading("Add a recruit");
+
 fill("givenName", "Alaric");
 fill("familyName", "Brindlewood");
-fill("phone", "07700 900753");
-const box = proposedBlock("amber");
-blockTitle(box, "Alaric Brindlewood is already on the team");
-blockText(
-  box,
-  "2026-27 membership · active. He is a player, not a recruit, and nothing was created.",
+fill("mobile", "07700 900753");
+
+await openControl("check for duplicates", 1400);
+
+const result = must(
+  [...document.querySelectorAll(".MuiPaper-root, section, div")].find((n) =>
+    /already in the club|duplicate check/i.test(n.innerText ?? ""),
+  ),
+  "the form did not render a duplicate-check result",
 );
-const link = document.createElement("div");
-link.textContent = "Open his roster record →";
-link.style.cssText = "font-size:13px;font-weight:700;color:#b26a00;margin-top:10px";
-box.append(link);
-afterField("phone", box) ?? document.querySelector("form")?.append(box);
-const submit = $$("button").find(
-  (b) => /add|save|create/i.test(b.textContent) && b.offsetHeight > 20,
-);
-if (submit) {
-  submit.style.opacity = "0.45";
-  submit.style.pointerEvents = "none";
-}
+mark(result, 1);
+
+await settle()
 
 })()
