@@ -44,6 +44,7 @@
     "intake": "node scripts/intake/cli.mjs",
     "types:generate": "node scripts/local-supabase-command.mjs types-generate",
     "types:check": "node scripts/generate-types.mjs --check",
+    "telemetry:harvest": "node scripts/telemetry/harvest.mjs",
     "check:rls": "node scripts/check-rls-migrations.mjs",
     "visual:preflight": "node scripts/visual-preflight.mjs",
     "visual:start": "node scripts/visual-environment.mjs start",
