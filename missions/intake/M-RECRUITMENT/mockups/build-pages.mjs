@@ -393,7 +393,7 @@ const WORKFLOWS = [
          this screen below the form fields is drawn.`,
         [
           "<strong>This is where a duplicate is caught</strong> — at capture, before a person exists. Task 09 D7 locks dedup-before-create at every door, and the form already implements it",
-          "<strong>The form already demands an explicit choice.</strong> An exact match cannot be created past without a written reason; that shipped override is the shape W8 inherits rather than replaces",
+          "<strong>The choice is already in front of the operator.</strong> Each candidate carries its own action, so <em>this is them</em> is a press rather than a judgement typed into a box. On an exact match the shipped form goes further and refuses to create without a written reason",
         ],
         "oxfordlancers.example/operate/recruits/review",
       ),
@@ -748,9 +748,10 @@ for (const wf of WORKFLOWS) {
   const headEnd = out.indexOf('      <div id="screens"></div>');
   const drawnNote =
     wf.grounding === "photograph"
-      ? `<strong>The surfaces here exist on <code>main</code></strong>, so every screen is a
-           <strong>photograph on both sides</strong> — the same running page at <code>e669331</code>,
-           differing only by the proposal evaluated into it.`
+      ? `<strong>Every screen here is a photograph on both sides</strong> — the same running page at
+           <code>e669331</code>, differing only by the proposal evaluated into it. Where a screen's
+           own route does not exist yet, it is photographed on the shell it reuses and its head says
+           so; the URL bar always shows what was really photographed.`
       : wf.grounding === "code-only"
         ? `<strong>Nothing like this exists on <code>main</code></strong>, so every screen is
            <strong>drawn</strong> and labelled <em>New surface, nothing to compare</em>.`
@@ -844,6 +845,17 @@ ${s.deltas.map((d) => `            \`${esc(d)}\``).join(",\n")},
         );
         border-radius: 6px;
       }
+      /* The template's legend is a flex row of short chips. This mission's legend
+         items are sentences, and flex-wrap laid them out as ragged columns that
+         read as a broken table. Stack them. */
+      .legend {
+        display: block;
+      }
+      .legend span {
+        display: block;
+        margin-bottom: 7px;
+        line-height: 1.6;
+      }
       .noscreens {
         font-size: 13px;
         line-height: 1.65;
@@ -881,7 +893,7 @@ ${s.deltas.map((d) => `            \`${esc(d)}\``).join(",\n")},
         text-align: center;
       }
       .pin.inline { position: static; display: inline-block; vertical-align: -5px; }
-      .pinnote { font-size: 12px; color: rgba(0, 0, 0, 0.5); margin: 8px 0 0; line-height: 1.55; }
+      .pinnote { font-size: 12px; color: rgba(0, 0, 0, 0.5); margin: 12px 0 0; line-height: 1.9; }
       .placard strong { font-size: 14px; color: rgba(0, 0, 0, 0.68); }
       .placard span { font-size: 12.5px; color: rgba(0, 0, 0, 0.5); margin-top: 6px; max-width: 42ch; line-height: 1.55; }
     </style>`,
