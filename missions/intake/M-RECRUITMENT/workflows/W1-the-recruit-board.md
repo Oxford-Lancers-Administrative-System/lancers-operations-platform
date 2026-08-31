@@ -296,6 +296,35 @@ Recruitment is a top-level destination second in the sidebar, route /operate/rec
 
 nowhere. The two-line cell (presence chip over a prefixed RSVP) was invented and wrongly described as reuse; no grid cell in the application stacks a state over an RSVP, and no presence value is rendered as a filled pill. Rebuilt as Brian then specified: one band per event over an RSVP column and an Attendance column side by side, plain text, exactly as attendance-section.tsx renders the same two facts. Invitation is not shown at all — “I don't care if they were invited or not” — so a walk-up reads as RSVP Not recorded with an attendance of Present.
 
+## Added after approval — the QR code, and it needs Brian's word
+
+Brian, 2026-08-31, having first been shown the QR code on the messaging
+schedule: _"The QR code doesn't go here. That doesn't make any damn sense for the
+QR code to go on the messaging page. It should be on the recruit page. It should
+be at the top right, so you can just go get the QR code if you need to, and then
+they can go and copy it, print it off."_ And then: _"There should still be a
+separate QR code page... then people can either scan it on their phone, have it
+as their wallpaper, whatever, and the QR code takes them to the sign-up."_
+
+So the board gains **one outlined button, `QR CODE`, beside `ADD RECRUIT`** — the
+slot already exists, and outlined against contained is this application's own
+primary/secondary pairing. It navigates to **`W1-04`**, a page carrying the
+season's code big enough to scan off a screen, screenshot or print, with
+`DOWNLOAD` and `COPY LINK`, and the count of sign-ins that have come through it.
+
+**One code, minted once a season.** Per-event codes were considered and dropped:
+they existed to answer _"where did this recruit come from"_, and the recruit's
+own record already answers that — `Came in through` is a stored field set at the
+door.
+
+**This arrived after the approval recorded below**, and is noted here rather than
+by reopening the workflow, because the ledger's ordering rule would invalidate
+`W2` through `W8`.
+
+**Open, and not invented:** "once per season" means something has to mint next
+season's code. Whether that happens automatically at rollover or by a button
+somebody presses is undecided, and Mission 11 owns the season boundary.
+
 ## Brian approval
 
 - Exact words: _"Okay, workflow 1 is approved."_

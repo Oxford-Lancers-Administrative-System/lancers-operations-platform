@@ -1094,6 +1094,7 @@ const buildRecruitBoard = () => {
   }
 
   selectRecruitmentNav();
+  addBoardQrButton();
   setRecruitmentRoute();
 };
 
@@ -2050,6 +2051,39 @@ const pageSubtitle = (text) => {
   return p;
 };
 
+/**
+ * The board's own top-right actions, with the QR code beside ADD RECRUIT.
+ *
+ * Brian, 2026-08-31: "I should be able to press a button... There should still
+ * be a separate QR code page, but I think it should be at the top and then take
+ * me to a page." So the slot that already holds ADD RECRUIT gains one outlined
+ * button beside it — the app's own primary/secondary pairing — and it navigates
+ * rather than opening a dialog, because the page is the thing worth having: it
+ * can be scanned off a screen, screenshotted, or made somebody's wallpaper.
+ */
+const addBoardQrButton = () => {
+  const add = must(
+    [...document.querySelectorAll("a, button")].find((b) =>
+      /add (a )?(player|recruit)/i.test(b.textContent),
+    ),
+    "the board has no ADD control to sit beside",
+  );
+  const qr = add.cloneNode(true);
+  qr.textContent = "QR CODE";
+  qr.removeAttribute("href");
+  qr.className = qr.className.replace("MuiButton-contained", "MuiButton-outlined");
+  qr.style.cssText =
+    "background:transparent;color:#0b3d91;box-shadow:none;border:1px solid rgba(11,61,145,0.5)";
+
+  // Group the two, or the header's space-between drops QR CODE into the middle
+  // of the row instead of beside ADD RECRUIT.
+  const group = document.createElement("div");
+  group.style.cssText = "display:flex;gap:8px;align-items:center";
+  add.parentElement?.insertBefore(group, add);
+  group.append(qr, add);
+  return qr;
+};
+
 // W10-01 — The recruitment cycle, as a group on the messaging schedule.
 //
 // Rebuilt twice on 2026-08-31. Brian on the second attempt: "I don't know what
@@ -2265,44 +2299,10 @@ const recruitHead = sectionHeading(
 );
 host.insertBefore(recruitHead, template);
 
-// ONE QR code, for the season, at the top of the section.
-//
-// Brian, 2026-08-31: "I don't think we should do it per event. We should just
-// have one that is just the QR code to sign in to get into the WhatsApp group.
-// That's it... created once per season and exists on the page. That's it.
-// Nothing else should exist: no new pages."
-//
-// So the separate QR page is deleted and this is all of it: the one code, what
-// it points at, how many have come through it, and a way to copy it for a
-// poster. Per-event codes are gone entirely — there was never a question the
-// club needed answered per event that this does not answer once.
-const qr = document.createElement("div");
-qr.style.cssText =
-  "display:flex;align-items:center;gap:20px;flex-wrap:wrap;border:1px solid rgba(0,0,0,0.12);" +
-  "border-radius:8px;padding:14px 16px;margin-bottom:14px;background:#fff";
-const qrGlyph = document.createElement("div");
-qrGlyph.textContent = "\u25A6";
-qrGlyph.style.cssText = "font-size:34px;line-height:1;color:rgba(0,0,0,0.8)";
-const qrBody = document.createElement("div");
-qrBody.style.cssText = "flex:1;min-width:220px";
-const qrName = document.createElement("div");
-qrName.textContent = "Sign-up QR \u00b7 2026-27";
-qrName.style.cssText = "font-size:14px;font-weight:700";
-const qrWhere = document.createElement("div");
-qrWhere.textContent =
-  "Points at oxfordlancers.example/join \u00b7 59 sign-ins this season";
-qrWhere.style.cssText = "font-size:13px;color:rgba(0,0,0,0.6);margin-top:3px";
-qrBody.append(qrName, qrWhere);
-const copy = must(
-  [...document.querySelectorAll("a, button")].find((b) =>
-    b.className.includes("MuiButton-contained"),
-  ),
-  "the page has no contained button to clone",
-).cloneNode(true);
-copy.textContent = "COPY QR CODE";
-copy.removeAttribute("href");
-qr.append(qrGlyph, qrBody, copy);
-host.insertBefore(qr, template);
+// The QR code is NOT here. Brian, 2026-08-31: "the QR code doesn't go here.
+// That doesn't make any damn sense for the QR code to go on the messaging page.
+// It should be on the recruit page." It lives on W1's board, behind a QR CODE
+// button top right, and on its own page at W1-04. This page is the cycle.
 
 host.insertBefore(cycleRule, template);
 for (const row of built) host.insertBefore(row, template);
@@ -2312,7 +2312,7 @@ host.insertBefore(
 );
 host.insertBefore(rule, template);
 
-mark(qr, 1);
+mark(recruitHead, 1);
 mark(built[0], 2);
 
 await settle();

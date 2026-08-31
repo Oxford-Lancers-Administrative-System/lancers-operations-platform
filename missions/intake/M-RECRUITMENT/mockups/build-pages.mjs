@@ -76,6 +76,20 @@ const WORKFLOWS = [
         ],
         "oxfordlancers.example/operate/recruits",
       ),
+      P(
+        "W1-04",
+        "The QR code page",
+        `Reached from QR CODE on the board. One code, minted once a season, pointing at the club's own
+         /join page. Brian, 2026-08-31: "There should still be a separate QR code page... then people
+         can either scan it on their phone, have it as their wallpaper, whatever, and the QR code
+         takes them to the sign-up."`,
+        [
+          "<strong>1. The page IS the feature.</strong> Big enough to scan off a screen, screenshot, or print — which is why it is a page rather than a popup",
+          "<strong>The shell is the application's own; only the code is drawn</strong>, because a QR code has no analogue anywhere in this product to photograph",
+          "<strong>It does not live on the messaging schedule.</strong> Brian: “the QR code doesn't go here. That doesn't make any damn sense for the QR code to go on the messaging page. It should be on the recruit page.” W10 is the cycle and nothing else",
+        ],
+        "oxfordlancers.example/operate/recruitment/qr",
+      ),
     ],
   },
   {
@@ -438,15 +452,14 @@ const WORKFLOWS = [
     screens: [
       P(
         "W10-01",
-        "The recruitment cycle, and the season's QR code",
+        "The recruitment cycle",
         `Administration → Messaging schedule → <code>/operate/admin/messaging</code>. One screen, no
-         new pages. The whole of W10 is now this: the recruitment section of a page that already
-         exists.`,
+         new pages: the recruitment section of a page that already exists.`,
         [
-          "<strong>1. One QR code, for the season.</strong> Brian, 2026-08-31: <em>“I don't think we should do it per event. We should just have one that is just the QR code to sign in to get into the WhatsApp group... created once per season and exists on the page. Nothing else should exist: no new pages.”</em> It points at <code>/join</code>, says how many have come through it, and copies for a poster",
-          "<strong>2. The cycle, in the page's own rows.</strong> Each step is a cloned <code>schedule-row</code>, condensed to the fields it needs, with “Show an example” removed — a step that fires once on a fixed delay has no worked example worth showing",
-          "<strong>The page is sectioned:</strong> Recruitment, then Event messaging. Onboarding is the third section and is deliberately not built — the structure makes room for Mission 7",
-          "<strong>Two things deleted rather than drawn.</strong> The per-event QR page is gone. So is the templates page: a Meta-approved template is created in Meta's own tooling, so a page listing them would manage nothing. The approval gate survives as an owner action",
+          "<strong>1. The page is sectioned.</strong> Recruitment, then Event messaging. Onboarding is the third section and is deliberately not built — the structure makes room for Mission 7",
+          "<strong>2. The cycle is in the page's own rows.</strong> Each step is a cloned <code>schedule-row</code>, condensed to the fields it needs, with “Show an example” removed — a step firing once on a fixed delay has no worked example worth showing",
+          "<strong>The QR code is NOT here.</strong> It moved to the recruit board and W1-04. Brian: “that doesn't make any damn sense for the QR code to go on the messaging page”",
+          "<strong>Deleted rather than drawn:</strong> the templates page. A Meta-approved template is created in Meta's own tooling, so a page listing them would manage nothing. The approval gate survives as an owner action",
         ],
         "oxfordlancers.example/operate/admin/messaging",
       ),

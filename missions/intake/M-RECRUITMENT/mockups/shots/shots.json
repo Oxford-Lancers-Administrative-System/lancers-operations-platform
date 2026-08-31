@@ -3,12 +3,12 @@
     {
       "id": "W1-01",
       "route": "/operate/roster",
-      "headSha": "a848625b7ca9883d342d1333b6fb9bddf37574b5",
+      "headSha": "446fa5c57235f4f28beb2dc18ec2e1d5e314df91",
       "slot": "mission-m-recruitment-1",
       "proposal": {
         "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W1-01.js",
-        "sha256": "5eb75b7cc71daeece2bb991ed1eebb7f484ecee58abbeceddb1dc0fe86bc0cfb",
-        "bytes": 44495
+        "sha256": "012cf9982581cc445a588d1805120c3ed0001f1a39c37b71ab92d5fce3bfdce5",
+        "bytes": 87899
       },
       "captures": [
         {
@@ -44,17 +44,17 @@
           "file": "shots/W1-01-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-31T18:21:22.148Z"
+      "at": "2026-08-31T22:14:45.941Z"
     },
     {
       "id": "W1-02",
       "route": "/operate/roster",
-      "headSha": "a848625b7ca9883d342d1333b6fb9bddf37574b5",
+      "headSha": "446fa5c57235f4f28beb2dc18ec2e1d5e314df91",
       "slot": "mission-m-recruitment-1",
       "proposal": {
         "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W1-02.js",
-        "sha256": "27f17da503d837f5797ab9eb194b7ef06112fb3825fddf2c631021306766519b",
-        "bytes": 45856
+        "sha256": "bd450cd8caad49e70c413cd50c2b3d4bf0ac52b1d858817d4bee9b10361313fa",
+        "bytes": 89250
       },
       "captures": [
         {
@@ -90,17 +90,17 @@
           "file": "shots/W1-02-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-31T18:22:05.046Z"
+      "at": "2026-08-31T22:14:50.838Z"
     },
     {
       "id": "W1-03",
       "route": "/operate/roster",
-      "headSha": "07d0edbee770ec7b8311d8224457e78c20e8e1dd",
+      "headSha": "446fa5c57235f4f28beb2dc18ec2e1d5e314df91",
       "slot": "mission-m-recruitment-1",
       "proposal": {
         "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W1-03.js",
-        "sha256": "997585a328a1133dc475266ab90e33fcccc690d3a4a4eff4384102ba36a2115c",
-        "bytes": 46482
+        "sha256": "04b654983e5309a1c13a7595677339c043e600c85d07a6de14a1dcc68c42a3cc",
+        "bytes": 89766
       },
       "captures": [
         {
@@ -136,7 +136,53 @@
           "file": "shots/W1-03-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-31T18:12:57.157Z"
+      "at": "2026-08-31T22:14:57.025Z"
+    },
+    {
+      "id": "W1-04",
+      "route": "/operate/roster",
+      "headSha": "446fa5c57235f4f28beb2dc18ec2e1d5e314df91",
+      "slot": "mission-m-recruitment-1",
+      "proposal": {
+        "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W1-04.js",
+        "sha256": "46bd5eff2336606b27659ad48498e0deea555e6695ecc88a8d888b699f8f4e10",
+        "bytes": 90006
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W1-04-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W1-04-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W1-04-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W1-04-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-08-31T22:13:24.411Z"
     },
     {
       "id": "W10-01",

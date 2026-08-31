@@ -1094,6 +1094,7 @@ const buildRecruitBoard = () => {
   }
 
   selectRecruitmentNav();
+  addBoardQrButton();
   setRecruitmentRoute();
 };
 
@@ -2048,6 +2049,39 @@ const pageSubtitle = (text) => {
   );
   p.textContent = text;
   return p;
+};
+
+/**
+ * The board's own top-right actions, with the QR code beside ADD RECRUIT.
+ *
+ * Brian, 2026-08-31: "I should be able to press a button... There should still
+ * be a separate QR code page, but I think it should be at the top and then take
+ * me to a page." So the slot that already holds ADD RECRUIT gains one outlined
+ * button beside it — the app's own primary/secondary pairing — and it navigates
+ * rather than opening a dialog, because the page is the thing worth having: it
+ * can be scanned off a screen, screenshotted, or made somebody's wallpaper.
+ */
+const addBoardQrButton = () => {
+  const add = must(
+    [...document.querySelectorAll("a, button")].find((b) =>
+      /add (a )?(player|recruit)/i.test(b.textContent),
+    ),
+    "the board has no ADD control to sit beside",
+  );
+  const qr = add.cloneNode(true);
+  qr.textContent = "QR CODE";
+  qr.removeAttribute("href");
+  qr.className = qr.className.replace("MuiButton-contained", "MuiButton-outlined");
+  qr.style.cssText =
+    "background:transparent;color:#0b3d91;box-shadow:none;border:1px solid rgba(11,61,145,0.5)";
+
+  // Group the two, or the header's space-between drops QR CODE into the middle
+  // of the row instead of beside ADD RECRUIT.
+  const group = document.createElement("div");
+  group.style.cssText = "display:flex;gap:8px;align-items:center";
+  add.parentElement?.insertBefore(group, add);
+  group.append(qr, add);
+  return qr;
 };
 
 // W7-03 — Signed in, and on to WhatsApp.

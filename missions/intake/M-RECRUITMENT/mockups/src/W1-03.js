@@ -62,6 +62,7 @@ for (const node of $$("label, .MuiInputLabel-root, .MuiSelect-select")) {
 }
 
 selectRecruitmentNav();
+addBoardQrButton();
 setRecruitmentRoute();
 
 await settle();

@@ -183,7 +183,7 @@
         {
           "screen_id": "W10-01",
           "date": "2026-08-31",
-          "text": "The white spacing is atrocious. It doesn't need to show an example. This should be squeezed down. Where do I get the QR code from? We don't have anything on W1 that points to a QR code. I don't think we should do it per event - just one QR code to sign in to get into the WhatsApp group, created once per season, at the top of the page as Copy QR code. Nothing else should exist: no new pages. Simplify. — DONE: W10 is ONE screen. One season QR at the top of the Recruitment section with COPY QR CODE and its sign-in count; rows condensed and 'Show an example' removed; the per-event QR page deleted along with W10-03."
+          "text": "The QR code doesn't go here - it should be on the recruit page, at the top right. There should still be a separate QR code page. Do that for W1. And fix W10. — DONE: W1's board gains a QR CODE button beside ADD RECRUIT, going to a new W1-04 page carrying the season's code with DOWNLOAD and COPY LINK. W10 is the cycle only."
         }
       ]
     },
@@ -1063,7 +1063,7 @@
       }
     ]
   },
-  "next_action": "W1-W8 approved; W3 and W9 folded; W2-04 tentative. W10 is now ONE screen and with Brian: the recruitment section of /operate/admin/messaging, holding one season QR code and the three cycle rows. W10-02 and W10-03 are both deleted. NEXT: W11 (renumber - the Type screen comes first; tighten the 'polite follow-up' wording; the countByCapacity defect omitting recruits from the approval summary is real), then W12-W14, all stale. OWNER ACTION FOR CLOSEOUT: four WhatsApp templates must be submitted to Meta by Brian; only event_invitation is approved, so the cycle can be built and cannot run. OPEN: no shipped control for turning a cycle step off; 'said no to WhatsApp' vs 'declined'; W2 button placement; W2-04's real approval; events violet vs blue; channel presence on the record; the Contactable cell option.",
+  "next_action": "W1-W8 approved; W3 and W9 folded. TWO SCREENS ARRIVED AFTER APPROVAL and Brian has not signed either off: W2-04 (the never-harsh refusal, tentatively accepted pending the WhatsApp flow, which W10 now settles) and W1-04 (the QR code page, with a QR CODE button added to the approved board). Both are recorded in their specifications rather than by reopening the workflows, because the ledger's ordering rule would invalidate everything after them. ASK HIM ABOUT BOTH. W10 is the cycle only and is with him. NEXT: W11 (renumber - the Type screen comes first; tighten the 'polite follow-up' wording; the countByCapacity defect omitting recruits from the approval summary), then W12-W14, all stale. OWNER ACTION FOR CLOSEOUT: four WhatsApp templates must be submitted to Meta. OPEN: who mints next season's QR code (Mission 11 owns the season boundary); no shipped control for turning a cycle step off; 'said no to WhatsApp' vs 'declined'; W2 button placement; events violet vs blue; channel presence on the record; the Contactable cell option.",
   "subject_coverage": {
     "areas": [
       {
