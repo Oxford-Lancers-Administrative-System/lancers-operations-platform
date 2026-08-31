@@ -38,6 +38,63 @@
   to merge. The screen therefore compares a _submission_ to a _record_, and its
   two outcomes are create and link, not survivor and loser.
 
+## The check belongs to the door, not to a page
+
+Brian, 2026-08-31: _"This is happening inside of the people page. I don't want
+this to happen inside people. This is on the recruit page. If I check for
+duplicates on the recruit page, the same thing happens with the operator page. It
+happens in the roster, and it happens on that page when I add them... I'm not
+going to the people page to do this."_
+
+So `W8` is not a place an operator visits to check for duplicates. The check is a
+**step inside whichever door is open**, rendered on that door's own surface.
+`W8-01` is therefore the check as it runs while adding a **recruit**, wearing
+recruitment's shell, at a proposed `/operate/recruitment/new`. It is photographed
+on `/operate/people/new` because that is the surface implementing the check on
+`main`.
+
+## Each candidate has to say who it is
+
+Brian: _"If I add a name and their contact details, I want to see what their
+status is. Are they a part of the current season? Are they already a player on
+the season? Are they another recruit? Who are they, because it could have the
+same name. It could just be incredibly similar to another player, so we need a
+way to differentiate them."_
+
+The shipped rows give a name, a contact line and the fields that matched. None of
+that separates two Brindlewoods. Each candidate now carries its identity, in the
+club's own vocabulary — membership status and season from
+`MEMBERSHIP_STATUS_LABELS`, the recruit rung from the ladder this mission
+approved on the board:
+
+- **Player · Active · this season**
+- **Recruit · identified · this season**
+- **Past member · last played 2024-25**
+
+## `W8-02` is the queue, and it is the only after-the-fact resolution
+
+Rebuilt because Brian could not tell what it was: _"W8-02 is super confusing to
+me. What the hell is going on?"_
+
+It exists for one case. `W7`'s door is self-serve: somebody signs themselves in at
+a stand, their details match a person already in the club, and **nobody is
+standing there to decide**. `W7` takes the details regardless, so nothing is
+refused at the stand and nothing is merged behind anybody's back — it waits here.
+
+The queue is built on the shipped People list, reading as recruitment, with the
+columns this question needs: **Signed themselves in · When · Might already be ·
+Who that is**, and the shipped check's own decision on each row — `THIS IS THEM`
+or a new person. People's own filters and its add button are removed: a review
+queue is not filtered by membership status and is not where anybody is added.
+
+### It must not contradict the three doors
+
+| Door              | Duplicate handling                   | Resolved    |
+| ----------------- | ------------------------------------ | ----------- |
+| `W5` walk-up      | None                                 | Later, here |
+| `W6` operator add | The full shipped check, at the door  | At the door |
+| `W7` QR sign-in   | Simple, takes the details regardless | Later, here |
+
 ## Required actions
 
 1. See how many captures are waiting, from the board.

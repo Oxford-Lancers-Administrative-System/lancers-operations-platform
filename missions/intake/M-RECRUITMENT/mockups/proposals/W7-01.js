@@ -1952,6 +1952,6 @@ card.append(
   ),
 );
 
-await settle()
+await settle();
 
 })()

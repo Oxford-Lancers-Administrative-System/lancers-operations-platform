@@ -144,8 +144,14 @@
       "id": "W8",
       "name": "Resolve a possible duplicate",
       "state": "spec_draft",
-      "stale": true,
-      "feedback": []
+      "stale": false,
+      "feedback": [
+        {
+          "screen_id": "W8-01",
+          "date": "2026-08-31",
+          "text": "This is happening inside of the people page. I don't want this to happen inside people. This is on the recruit page. If I add a name and their contact details, I want to see what their status is - are they a player on the season, another recruit, who are they. W8-02 is super confusing to me. — REBUILT: W8-01 runs the real check on the recruitment shell at a proposed /operate/recruitment/new, and each candidate now carries its identity (Player Active this season / Past member last played 2024-25). W8-02 is rebuilt as 'Recruits waiting for review' on the shipped People list, reading as recruitment, with columns Signed themselves in / When / Might already be / Who that is and the shipped THIS IS THEM decision."
+        }
+      ]
     },
     {
       "id": "W9",
@@ -1043,7 +1049,7 @@
       }
     ]
   },
-  "next_action": "W1, W2, W4, W5, W6, W7 done and approved; W3 removed. NEXT IS W8 (resolve a possible duplicate), then W9 (follow up), then W10 (the machinery: what is sent, on what trigger, in what order, including the WhatsApp onboarding inherited from W3), then W11-W14. W8-W14 stale. THE THREE DOORS NOW HAVE THREE DELIBERATE DUPLICATE POSTURES and W8 must not contradict them: W5 walk-up has NO check (Brian removed the match path), W6 operator-add runs the full shipped check with candidates and linking, W7 QR takes the details regardless and reconciles later. W8 is where that reconciliation happens. Method: one workflow at a time; open every rendered PNG including 375px before showing him; when screens are deleted cut build-pages.mjs in the SAME change and rescan pages for missing images. OPEN: W2 button placement (reserved while approving); events violet vs blue; channel presence on the record; W3's five decisions in W10 and W2; W5's unmet duplicate condition; and the offered-not-taken Contactable cell reading 'No way to reach them'.",
+  "next_action": "W1, W2, W4, W5, W6, W7 approved; W3 removed; W8 rebuilt and with Brian. NEXT after W8: W9 (follow up), then W10 (the machinery), then W11-W14. W9-W14 stale. OPEN: W2 button placement; events violet vs blue; channel presence on the record; W3's five decisions in W10 and W2; W5's unmet duplicate condition (W8's spec now explains why the three doors differ); and the offered-not-taken Contactable cell reading 'No way to reach them'.",
   "subject_coverage": {
     "areas": [
       {

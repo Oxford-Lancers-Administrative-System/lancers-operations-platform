@@ -1364,38 +1364,39 @@
       const SCREENS = [
         {
           id: "W8-01",
-          title: "How the duplicate check actually gets done",
+          title: "The check, on the door being used",
           disposition: "new",
           drawn: false,
-          blurb: `The shipped add-a-person form, driven: names and a mobile typed in, the application's own
-         <em>Check for duplicates</em> button pressed, and its own answer photographed. Nothing on
-         this screen below the form fields is drawn.`,
+          blurb: `The duplicate check is not a page of its own: it is a step belonging to whichever door is
+         open, rendered inside that door. Brian, 2026-08-31: "This is happening inside of the people
+         page. I don't want this to happen inside people. This is on the recruit page... I'm not going
+         to the people page to do this."`,
           deltas: [
-            `<strong>This is where a duplicate is caught</strong> — at capture, before a person exists. Task 09 D7 locks dedup-before-create at every door, and the form already implements it`,
-            `<strong>The choice is already in front of the operator.</strong> Each candidate carries its own action, so <em>this is them</em> is a press rather than a judgement typed into a box. On an exact match the shipped form goes further and refuses to create without a written reason`,
+            `<strong>1. Each candidate says who they actually are</strong> — <em>“Are they a part of the current season? Are they already a player on the season? Are they another recruit?... it could just be incredibly similar to another player.”</em> A name and a phone number cannot answer that; membership status and season can, in the shipped words`,
+            `<strong>The check itself is real.</strong> The screen fills the form, presses the application's own CHECK FOR DUPLICATES and photographs the answer. The recruitment shell around it is the proposal; the proposed route is <code>/operate/recruitment/new</code>`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/operate/people/new",
           shotRoute: "/operate/people/new",
-          proposedRoute: "/operate/recruits/review",
+          proposedRoute: "/operate/recruitment/new",
         },
         {
           id: "W8-02",
-          title: "The one case the shipped check cannot resolve",
+          title: "Recruits waiting for review",
           disposition: "new",
           drawn: false,
-          blurb: `W7's door is self-serve. A recruit types their own name at a stand, the check finds a
-         candidate, and there is no operator present to choose. Nothing is created, nothing is
-         messaged, and it parks. That queue is the only genuinely new thing in this workflow.`,
+          blurb: `The one case no door can settle at the door: somebody signs themselves in at a stand, matches
+         a person already in the club, and nobody is standing there to say whether it is them. W7
+         takes the details regardless and it waits here.`,
           deltas: [
-            `<strong>What is waiting, and what is held while it waits.</strong> No person, no recruit, no welcome. A queue nobody can see is a queue nobody works, so its count also sits on the board`,
-            `<strong>A submission beside a record</strong> — not two records, because only one of them exists. Field by field, in the language of the shipped check above, not the language of merge`,
-            `<strong>Two outcomes: create and link</strong>, never survivor and loser. Linking an existing member must never fire a “welcome to the club” message — Task 09's worked example B`,
+            `<strong>1. The same identity as the check above</strong>, so an operator working the queue answers the same question the same way — the player, another recruit, or somebody who merely shares a surname`,
+            `<strong>2. The decision is the shipped check's own</strong> — THIS IS THEM, or a new person. Nothing is merged behind anybody's back and nothing was refused at the stand`,
+            `<strong>This is the only after-the-fact resolution in the mission.</strong> W6 settles it at the door with an operator present; W5 does not check at all, because Brian removed that path`,
           ],
           clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/people/new",
-          shotRoute: "/operate/people/new",
-          proposedRoute: "/operate/recruits/review",
+          url: "oxfordlancers.example/operate/people",
+          shotRoute: "/operate/people",
+          proposedRoute: "/operate/recruitment/review",
         },
       ];
 
