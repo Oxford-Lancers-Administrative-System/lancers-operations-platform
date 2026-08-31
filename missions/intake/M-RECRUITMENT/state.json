@@ -126,22 +126,16 @@
     {
       "id": "W7",
       "name": "Sign yourself in",
-      "state": "mock_approved",
+      "state": "done",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W7-02",
-          "date": "2026-08-31",
-          "text": "AMENDMENT AFTER APPROVAL. We just need to ship something simpler here... there should just be a quick check to say 'have you already registered before?' If they say yes, it pops them to the WhatsApp board. If it's no, it creates it as a new thing. If there's a duplicate, we go through the deduplication process in the people table. — W7 gained W7-02, the question, and the old W7-02 became W7-03. W8's parked review queue is deleted entirely."
-        }
-      ],
+      "feedback": [],
       "approvals": {
         "spec": {
-          "words": "Okay, sounds great. W7 approved.",
+          "words": "W7 approved.",
           "date": "2026-08-31"
         },
         "mock": {
-          "words": "Okay, sounds great. W7 approved.",
+          "words": "W7 approved.",
           "date": "2026-08-31"
         }
       }
@@ -149,15 +143,19 @@
     {
       "id": "W8",
       "name": "Resolve a possible duplicate",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W8-01",
-          "date": "2026-08-31",
-          "text": "Recruits waiting for a review is ungrounded. I don't know where in the app we get to here from, where it comes from, or how they get notified that this is there. In relation to W1, where does it go? — RESOLVED BY DELETION. There was no good answer, and Brian replaced the queue with one question at the door in W7-02. W8 is now just the check itself on whichever door is open, and leftover duplicates go to the people table's shipped merge, which is Mission 5's."
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "W8 approved.",
+          "date": "2026-08-31"
+        },
+        "mock": {
+          "words": "W8 approved.",
+          "date": "2026-08-31"
         }
-      ]
+      }
     },
     {
       "id": "W9",
@@ -1055,7 +1053,7 @@
       }
     ]
   },
-  "next_action": "W1, W2, W4, W5, W6 approved; W3 removed; W7 AMENDED AFTER APPROVAL with a new W7-02 (the have-you-registered question) and needs Brian's word again; W8 reduced to W8-01 and with him. NEXT: W9 (follow up), then W10 (the machinery), then W11-W14. W9-W14 stale. OPEN: W2 button placement; events violet vs blue; channel presence on the record; W3's five decisions in W10 and W2; the offered-not-taken Contactable cell. W5's duplicate condition is now ANSWERED by W8's table of the three doors.",
+  "next_action": "W1-W8 all done and approved; W3 removed. NEXT IS W9 (follow up with a recruit), then W10 (the machinery: what is sent, on what trigger, in what order, including the WhatsApp onboarding inherited from W3), then W11-W14. W9-W14 stale. W9 CAUTION: its spec still describes 'a polite, good message' as though an operator writes one. There is no composer anywhere - src/lib/delivery/config.ts:168, 'template is the only production shape' - so a follow-up is choosing a template and firing it, and the surface is 'which template, to whom, and when it last went out'. Fix that wording as part of W9. Method: one workflow at a time; open every rendered PNG including 375px before showing him; when screens are deleted cut build-pages.mjs in the SAME change and rescan pages for missing images. OPEN: W2 button placement (he reserved it while approving); events violet vs blue; whether channel presence renders on a recruit's record; whether W3's five decisions belong in W10 and W2; and the offered-not-taken Contactable cell reading 'No way to reach them'.",
   "subject_coverage": {
     "areas": [
       {
