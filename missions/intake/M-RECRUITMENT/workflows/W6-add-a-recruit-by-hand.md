@@ -148,5 +148,9 @@ Person minted or linked. Prospect created at `identified`. `W3` fires.
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- Exact words: _"W6 is approved."_
+- Date: 2026-08-31
+
+Given after the form was extended with the Academic section, `W6-02` was rebuilt to drive
+the shipped duplicate check rather than draw a refusal over it, and `W6-03` was deleted on
+the recommendation he accepted. The `Contactable` cell option recorded above stays open.
