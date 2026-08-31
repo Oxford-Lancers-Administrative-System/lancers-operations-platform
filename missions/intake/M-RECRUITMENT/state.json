@@ -31,91 +31,91 @@
     {
       "id": "W2",
       "name": "One recruit's record",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": []
     },
     {
       "id": "W3",
       "name": "Say yes to the club",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": []
     },
     {
       "id": "W4",
       "name": "Fill in your details",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": []
     },
     {
       "id": "W5",
       "name": "Capture a walk-up as a recruit",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": []
     },
     {
       "id": "W6",
       "name": "Add a recruit by hand",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": []
     },
     {
       "id": "W7",
       "name": "Sign yourself in",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": []
     },
     {
       "id": "W8",
       "name": "Resolve a possible duplicate",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": []
     },
     {
       "id": "W9",
       "name": "Follow up with a recruit",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": []
     },
     {
       "id": "W10",
       "name": "Administer recruitment's messages, cycles and QR",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": []
     },
     {
       "id": "W11",
       "name": "Run a recruitment event",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": []
     },
     {
       "id": "W12",
       "name": "Take attendance at a recruitment event",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": []
     },
     {
       "id": "W13",
       "name": "Take a recruit off the board",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": []
     },
     {
       "id": "W14",
       "name": "Flip a recruit to joined",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": []
     }
@@ -967,7 +967,7 @@
       }
     ]
   },
-  "next_action": "Brian reviews W1 in mockups/index.html; his spec and mock approvals open W2.",
+  "next_action": "Build the remaining mockups, then hand Brian the index for one review pass across all fourteen.",
   "subject_coverage": {
     "areas": [
       {
