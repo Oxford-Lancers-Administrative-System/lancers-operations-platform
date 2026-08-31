@@ -147,5 +147,20 @@ duplicate does not create and does not message; it parks for `W8`.
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- Exact words: _"Okay, sounds great. W7 approved."_
+- Date: 2026-08-31
+
+Given once the flow ran through to WhatsApp and the separate "already on our
+list" screen was removed.
+
+### The three doors now hold three deliberate postures
+
+Worth recording together, because they look like inconsistency and are not:
+
+| Door              | Duplicate handling                       | Why                                                                     |
+| ----------------- | ---------------------------------------- | ----------------------------------------------------------------------- |
+| `W5` walk-up      | None                                     | Written on a phone at the side of a pitch; Brian removed the match path |
+| `W6` operator add | The full shipped check, candidates, link | An operator at a desk, with time                                        |
+| `W7` QR sign-in   | Simple, takes the details regardless     | A stranger at a stand; refusing them loses them                         |
+
+`W8` is where all three reconcile, and it must not contradict any of them.

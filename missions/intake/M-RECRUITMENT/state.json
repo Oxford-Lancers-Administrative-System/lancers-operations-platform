@@ -126,15 +126,19 @@
     {
       "id": "W7",
       "name": "Sign yourself in",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W7-02",
-          "date": "2026-08-31",
-          "text": "Is it that once they sign up, they get a link to go to our WhatsApp when they approve and they send this in? The duplicate should be very simple - based on email or phone number - and we should just take their contact information regardless. It should take them to WhatsApp then. After they do the information, you'll get the sign-in, and then they go to WhatsApp. That's part of W7. — REBUILT: W7-02 is now the sign-in confirmation with JOIN THE WHATSAPP GROUP, and pressing it is the opt-in, which is why this door has a natural one and W6 does not. The separate 'already on our list' screen is deleted: the door refuses nobody and takes the contact details regardless, reconciling later."
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Okay, sounds great. W7 approved.",
+          "date": "2026-08-31"
+        },
+        "mock": {
+          "words": "Okay, sounds great. W7 approved.",
+          "date": "2026-08-31"
         }
-      ]
+      }
     },
     {
       "id": "W8",
@@ -1039,7 +1043,7 @@
       }
     ]
   },
-  "next_action": "W1, W2, W4, W5, W6 approved; W3 removed; W7 rebuilt and with Brian. NEXT after W7: W8 (resolve a possible duplicate), W9 (follow up), then W10 (the machinery). W8-W14 stale. When screens are deleted, cut build-pages.mjs in the SAME change and rescan every page for image references with no file. OPEN: W2 button placement; events violet vs blue; channel presence on the record; W3's five decisions in W10 and W2; W5's unmet duplicate condition; and the offered-not-taken Contactable cell reading 'No way to reach them'.",
+  "next_action": "W1, W2, W4, W5, W6, W7 done and approved; W3 removed. NEXT IS W8 (resolve a possible duplicate), then W9 (follow up), then W10 (the machinery: what is sent, on what trigger, in what order, including the WhatsApp onboarding inherited from W3), then W11-W14. W8-W14 stale. THE THREE DOORS NOW HAVE THREE DELIBERATE DUPLICATE POSTURES and W8 must not contradict them: W5 walk-up has NO check (Brian removed the match path), W6 operator-add runs the full shipped check with candidates and linking, W7 QR takes the details regardless and reconciles later. W8 is where that reconciliation happens. Method: one workflow at a time; open every rendered PNG including 375px before showing him; when screens are deleted cut build-pages.mjs in the SAME change and rescan pages for missing images. OPEN: W2 button placement (reserved while approving); events violet vs blue; channel presence on the record; W3's five decisions in W10 and W2; W5's unmet duplicate condition; and the offered-not-taken Contactable cell reading 'No way to reach them'.",
   "subject_coverage": {
     "areas": [
       {
