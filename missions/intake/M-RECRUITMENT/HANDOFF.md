@@ -1,14 +1,17 @@
 # Handoff — M-RECRUITMENT intake
 
-Written 2026-08-31 after the Stage 3 sweep. It replaces the earlier handoff of
-the same day, whose repairs are done.
+Written 2026-08-31 when Brian stopped the session. **Read this before you touch
+anything.** It replaces both earlier handoffs of the same day.
 
-> **The short version.** Stage 0, 1 and 2 are closed and sound. Stage 3's
-> screens have been rebuilt from the ground up and re-shot at one head SHA, and
-> the three mechanical faults that produced every complaint at the stop are
-> fixed. **Nothing in Stage 3 is approved**, and no approval should be recorded
-> that Brian has not given in his own words. The next action is to open
-> `mockups/index.html` with him and walk `W1`.
+> **The short version.** Stage 0, 1 and 2 are closed and sound. **Stage 3 is not
+> trustworthy and all fourteen workflows are stale.** A sweep was run, it fixed
+> some real faults, and it shipped a new one it did not catch. Brian has
+> abandoned the sweep approach: _"We're just going to go through the workflows.
+> I'm just going to fix this one workflow at a time."_ Do that. Do not run
+> another sweep.
+>
+> **Nothing in Stage 3 is approved.** Do not record an approval Brian has not
+> given in his own words.
 
 ## Where the ledger is
 
@@ -19,122 +22,161 @@ npm run intake -- status M-RECRUITMENT
 
 - Stage `workflows`. Baseline `main@e669331d96fb949a3c29d7475842a6414cfe9e57`.
 - Ledger version 3. `npm run intake -- check` is consistent and both coverage
-  validators pass.
+  validators pass. **That is a statement about structure, not about quality.**
 - **Approvals: boundary, overview, inventory. Nothing else.**
-- Local runtime: lease `mission-m-recruitment-1`, application on port 3101.
-  Release it with `npm run db:release` when you are not using it. The lease is
-  held by the main checkout and this worktree is attached to it.
+- No runtime is held. Acquire one when you need it (see the bottom of this file).
 
-## What the sweep found, and what it changed
+## The defect that stopped the session — fix this first
 
-An audit of all 36 screens against the running application found three faults.
-Each was one defect repeated, not a series of judgement calls.
+`mockups/src/_prelude.js` has three helpers that **silently do nothing** when
+their target is not shaped the way they assume:
 
-### 1. The URL bar lied on eighteen of thirty-six frames
+| Helper                | Silently no-ops when                                  |
+| --------------------- | ----------------------------------------------------- |
+| `rebuildCard`         | the card has no `[data-testid="record-row"]` children |
+| `setPersonRows`       | same                                                  |
+| `replaceSummaryStrip` | the strip is not found                                |
 
-`/operate/recruits`, `/operate/recruits/review` and `/operate/admin/recruitment`
-do not exist on `main` — `src/app/operate` has no `recruits` directory — yet
-those routes were printed in the browser chrome above a photograph of a
-different page, and all eighteen declared themselves `modified`.
+`rebuildCard` renames the card's header and stamps `PROPOSED — this mission` on
+it **before** it tries to replace the rows. So when the replacement fails, the
+card ends up with a recruitment heading, a proposed flag, and the player
+record's original content still inside it.
 
-| The frame said               | It was a photograph of                    |
-| ---------------------------- | ----------------------------------------- |
-| `/operate/recruits`          | `/operate/roster`                         |
-| `/operate/recruits/<id>`     | `/operate/roster/<id>`, the player record |
-| `/operate/admin/recruitment` | `/operate/admin/messaging`                |
-| `/operate/recruits/review`   | `/operate/people/<id>/merge`              |
-| `/operate/recruits/new`      | `/operate/people/new`                     |
+**Confirmed on `W2-01`**, which is the first screen Brian opened:
 
-That is the whole of _"why the fuck are we on the messaging page"_ and _"that's
-not where it belongs."_ It was not four bad shell choices; it was one technique
-applied eighteen times.
+- **"WHAT WE HAVE SAID"** — heading renamed, but the card still holds the player
+  record's sixty-row attendance table, headed _"7 of 7 mandatory · 100% · 12
+  attendants not recorded"_.
+- **"NOTES"** — heading renamed, but the card still holds the player's seasons
+  content: _"2025-26 / Blue 44"_.
+- **"STATUS HISTORY"** — never touched by the proposal at all, so it shows
+  _"Created as onboarding… Onboarding → Active"_, which is membership history a
+  recruit cannot have.
+- The left navigation still shows **Roster** selected and there is no Recruits
+  item; the button at the foot still reads **BACK TO ROSTER**. The prelude has
+  `selectRecruitsNav()` for exactly this and `W2-01` never calls it.
 
-**Fixed.** `build-pages.mjs` now derives every frame's URL and every screen's
-disposition from `shots.json` rather than taking an assertion. Where a proposed
-route does not exist, the screen head says so in words and the frame shows what
-was really photographed. The build refuses a screen that has no shot.
+This is why Brian asked why W2 shows the roster. It does show the roster.
 
-### 2. Half the screens were a five-thousand-pixel page in a 520px window
+**How many other screens this affects is unknown — it was not audited.** Assume
+every screen using `rebuildCard`, `setPersonRows` or `replaceSummaryStrip` is
+suspect until you have looked at its rendered image.
 
-`shoot.mjs` captures `fullPage: true`; the review page renders the result in
-`max-height: 520px; overflow: auto` at full width. Fourteen screens were 2,800
-to 5,700px tall. On `W10-01` the QR administration was built and appended at the
-bottom of a 3,557px image, so what was visible was the top of an untouched
-messaging page — exactly _"you just screenshotted it."_ The correlation was
-near-perfect: every workflow Brian complained about was a tall screen, and every
-one he did not was 900–1,500px.
+**The fix that makes this class of error impossible:** make these helpers
+**throw** rather than return, exactly as `npm run intake -- edit` refuses a
+zero-match edit. A proposal that cannot apply must fail the shoot, not produce a
+confident-looking screen. `rebuildCard` must also not rename a header or add the
+proposed flag until the row replacement has succeeded.
 
-**Fixed, and deliberately not by cropping.** Brian, 2026-08-31: _"I don't care
-if it has extra, as long as it stays bounded and I can scroll. That's fine, but
-if there is something relevant, it needs to be pointed out. I don't want that
-through narration."_ So the shots stay whole pages in a bounded scrolling box,
-every proposal places its regions **above the page's first card**, and each
-changed region carries a numbered outline.
+## The second defect — the mockups do not show a recruits section
 
-### 3. Review commentary was painted inside the application frame
+Brian, at the stop: _"You completely destroyed the recruits page. None of these
+pages have a recruits page anymore. There's supposed to be a fucking recruits
+page."_ And when the last session answered that nothing had been deleted:
+_"Yeah, no shit, because that's what we're fucking creating here."_
 
-`proposedBlock()` inserted a teal or amber prose card into the live DOM, which
-is the narration habit in a new costume, and `docs/ux/mockup-standards.md` puts
-that material in the screen head.
+He is right, and the deletion question is beside the point. **A recruits section
+is what this mission exists to build, and the mockups are supposed to depict
+it.** On 33 of 37 screens they do not. `selectRecruitsNav()` is called by four
+screens only — `W1-01`, `W1-02`, `W1-03`, `W13-01`. Everywhere else the left
+navigation is whatever shipped page was photographed, with **Roster** or
+**People** or **Messaging schedule** selected and no Recruits item at all.
 
-**Fixed.** `mark(node, n)` draws a numbered outline and nothing else. The prose
-for number _n_ is delta _n_ in the screen head, outside the frame. Every screen's
-marker count now matches its delta count; this was verified in the live DOM, not
-assumed.
+That is why `W2` reads as the roster: it _is_ the roster shell with its
+navigation, its selected state and its `BACK TO ROSTER` button untouched, and a
+few cards swapped underneath. `W10` reads as the messaging schedule for the same
+reason.
 
-## What changed per workflow
+It is the same root cause as the card defect above: **a proposal rewrites the
+content and leaves the shell around it alone.** Navigation, selected state,
+breadcrumbs, headings and the button at the foot of the page all belong to the
+surface, and none of them says "recruits".
 
-- **`W3` folds into the doors and `W10`** — Brian's decision. It keeps its
-  specification, which is where the ladder and its invariants are defined, and
-  draws no screens. Its three screens moved to where a reviewer can see them:
-  the templates to `W10-03`, the ladder on a recruit to `W2-03`, the held
-  welcome to `W6-03` (operator-add is the door with no natural opt-in).
-- **`W8` is re-grounded on the shipped duplicate check.** _"That's not how the
-  duplicate checks get done."_ Correct: `create-person-form.tsx` is a
-  check-then-create, and `W8-01` now drives that real form — types a name and a
-  mobile, presses the application's own _Check for duplicates_, and photographs
-  its own answer. Only the parked queue is drawn, because only the queue is new.
-- **`W10` has its QR screen**, `W10-02`, as its own screen rather than buried.
-- **`W11` points at machinery that already ships.** `audience-builder.tsx` has a
-  Capacity filter whose `Recruits` option appears on a Recruitment event and
-  nowhere else — D46, running code. The first draft asserted an invented table
-  instead. `W11-01` is now shot on `?step=audience` of the seeded draft
-  recruitment event with that control set to `Recruits`. `W11-02`, which was
-  captured and then never put on the page, is on it.
-- **`W12` stops reinventing the sheet.** The sheet already groups, with a
-  toggle, label, detail, count chip and row list. The proposal clones that group,
-  renames it `Recruits`, fills it with cloned real rows and moves it to the
-  front. Verified first in the DOM.
-- **Vocabulary settled: walk-up.** Three shipped strings in
-  `presentation.ts` change; recorded as a locked decision in `W5`.
+**What has to be true for a screen to be finished:** if its proposed route is
+under `/operate/recruits`, the screen shows the Recruits item in the
+Administration navigation, selected, and every other affordance on the page
+points inside recruitment. That covers `W1`, `W2`, `W6`, `W8`, `W9`, `W13`,
+`W14`, and the recruitment administration screens under `W4` and `W10`. Only
+`W5`, `W11` and `W12` keep another section's navigation, because they genuinely
+happen on the attendance sheet and on the event.
 
-## Bookkeeping that was also wrong
+## Why it got through, so you do not repeat it
 
-- Nine screens had no mention in any specification. All are now accounted for.
-- `W10-02` was promised by its specification and never shot. It exists.
-- `W11-02` had no proposed side and was not on its review page. Both fixed.
-- Four specifications named a route that was not what was photographed —
-  `W2`, `W9`, `W3-01`, `W3-02`. All corrected to say what was really shot.
-- Shots spanned six head SHAs. All 37 are now at one.
-- `/a/[token]` **does** ship at the baseline. `W4` and `W7` are drawn for want
-  of a seeded token, not for want of a route; if a token becomes available they
-  should be re-shot as photographs.
+The last session verified **its own mechanism** and not the **screens**. It
+checked that every numbered marker rendered and that no frame printed a false
+route — both true — and reported the sweep as done without opening W2's
+rendered image. That is the same error the earlier handoff had already recorded
+in different clothes: written from the shape of the code rather than from the
+screen.
 
-## What is still open, and still Brian's
+**Look at the rendered PNG of every screen you touch, before you show Brian
+anything.** `missions/intake/M-RECRUITMENT/mockups/shots/<id>-proposed-desktop.png`.
 
-1. **Every Stage 3 approval.** No specification, mockup or acceptance verdict
-   has been approved. Walk `W1` first; `Wn` completes before `Wn+1` is approved.
-2. **Where "how a message gets sent" belongs.** `W10` proposes
-   `/operate/admin/recruitment` as a sibling of the shipped messaging schedule,
-   with Mission 4 owning the scheduler and recruitment declaring a cycle. That is
-   a proposal, and it is the boundary Brian said he was least sure of.
-3. The `proposed for owner approval` rows in each specification's decision table.
+## What the sweep did fix, and what is worth keeping
+
+These are real and were verified; do not redo them.
+
+1. **Frames no longer lie.** Eighteen of thirty-six frames used to print a route
+   that does not exist on `main` — `/operate/recruits`,
+   `/operate/recruits/review`, `/operate/admin/recruitment` — above a photograph
+   of a different page, all calling themselves `modified`. `build-pages.mjs` now
+   derives every frame URL and disposition from `shots.json`, refuses to build a
+   screen that has no shot, and states the provenance in the screen head where a
+   proposed route does not exist.
+2. **Pointing instead of narrating.** Brian, 2026-08-31: _"I don't care if it
+   has extra, as long as it stays bounded and I can scroll. That's fine, but if
+   there is something relevant, it needs to be pointed out. I don't want that
+   through narration."_ `mark(node, n)` draws a numbered outline and nothing
+   else; the prose for that number is delta _n_ in the screen head, outside the
+   frame. Proposals place their regions above the page's first card.
+3. **`W8-01` drives the real form.** Proposals are now async, so a screen can
+   fill the shipped add-a-person form, press its own _Check for duplicates_, and
+   photograph the real answer. This one was inspected in the browser and is
+   good — it is the model for how a screen should be built.
+4. **`W12-01` clones the attendance sheet's own group markup** rather than
+   authoring a replacement, and was verified in the DOM: the recruits group is
+   first. Worth checking visually, but the approach is right.
+5. **One head SHA** across all 37 shots, and the legend renders as a list rather
+   than a broken table.
+
+## Brian's two decisions from this session — these stand
+
+1. **`W3` folds into the doors and `W10`.** It keeps its specification, where
+   the ladder and its invariants live, and draws no screens. Its three screens
+   moved to `W10-03` (the templates), `W2-03` (one recruit's position in the
+   ladder) and `W6-03` (the welcome held for want of opt-in evidence, because
+   operator-add is the door with no natural opt-in). Recorded in
+   `workflows/W3-say-yes-to-the-club.md`.
+2. **Vocabulary: walk-up.** `WALK_UP_HEADLINE`, `WALK_UP_SUBMIT` and
+   `WALK_UP_CHIP` in `src/app/operate/events/[id]/attendance/presentation.ts`
+   are corrected by this mission. Recorded as locked in
+   `workflows/W5-capture-a-walk-up-as-a-recruit.md`.
+
+## How Brian wants this done now
+
+One workflow at a time, start to finish, with him. Not a sweep. Build `W1`,
+look at the rendered image yourself, show him, take his corrections, and do not
+move to `W2` until he has approved `W1` in his own words.
+
+## Restarting the runtime
+
+```bash
+node scripts/local-supabase-coordinator.mjs acquire-mission M-RECRUITMENT \
+  --base-commit e669331d96fb949a3c29d7475842a6414cfe9e57 --migration-head 26
+npm run db:start
+npm run dev:slot                      # application on port 3101
+# from this worktree, to attach it to the same stack:
+node scripts/local-supabase-coordinator.mjs attach-mission M-RECRUITMENT \
+  --token "$(node -e 'console.log(require("/Users/schuster/Documents/Lancers/Prod_DB_Push/lancers-operations-platform/.lancers-runtime/lease.json").token)')"
+```
+
+The review pages are static; serve `missions/intake/M-RECRUITMENT/mockups` on
+any port to open them, because the Chrome extension cannot load `file://`.
 
 ## Do not
 
 Merge, un-draft, deploy, migrate hosted Supabase, edit Notion without Brian's
 approval of the exact text, record an approval he has not given, or open the PR
 before Stage 5. The final PR carries exactly the `missions/intake/M-RECRUITMENT`
-and `missions/packets/M-RECRUITMENT` trees and nothing else — `scripts/intake`
-is out of scope, which is why the capture tool was left alone and the review
-page does the work.
+and `missions/packets/M-RECRUITMENT` trees — `scripts/intake` is out of scope,
+which is why the capture tool was left alone.
