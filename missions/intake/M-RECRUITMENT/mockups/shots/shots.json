@@ -554,7 +554,7 @@
     },
     {
       "id": "W14-01",
-      "route": "(drawn — no route on main)",
+      "route": "(drawn \u2014 no route on main)",
       "headSha": "90f8df461b352a6d08df07a919ad7ecd33ce4ef2",
       "slot": "mission-m-recruitment-1",
       "proposal": {
@@ -630,7 +630,7 @@
     },
     {
       "id": "W14-03",
-      "route": "(drawn — no route on main)",
+      "route": "(drawn \u2014 no route on main)",
       "headSha": "90f8df461b352a6d08df07a919ad7ecd33ce4ef2",
       "slot": "mission-m-recruitment-1",
       "proposal": {
@@ -1165,54 +1165,8 @@
       "at": "2026-08-31T20:33:55.770Z"
     },
     {
-      "id": "W6-03",
-      "route": "/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
-      "headSha": "90f8df461b352a6d08df07a919ad7ecd33ce4ef2",
-      "slot": "mission-m-recruitment-1",
-      "proposal": {
-        "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W6-03.js",
-        "sha256": "8fc14a1e95f227c258497d4d24c824174149146a81984745a1e2cf60bc5a8bb2",
-        "bytes": 24847
-      },
-      "captures": [
-        {
-          "side": "current",
-          "viewport": "desktop",
-          "requestedWidth": 1280,
-          "measuredWidth": 1280,
-          "measuredHeight": 900,
-          "file": "shots/W6-03-current-desktop.png"
-        },
-        {
-          "side": "proposed",
-          "viewport": "desktop",
-          "requestedWidth": 1280,
-          "measuredWidth": 1280,
-          "measuredHeight": 900,
-          "file": "shots/W6-03-proposed-desktop.png"
-        },
-        {
-          "side": "current",
-          "viewport": "phone375",
-          "requestedWidth": 375,
-          "measuredWidth": 375,
-          "measuredHeight": 812,
-          "file": "shots/W6-03-current-phone375.png"
-        },
-        {
-          "side": "proposed",
-          "viewport": "phone375",
-          "requestedWidth": 375,
-          "measuredWidth": 375,
-          "measuredHeight": 812,
-          "file": "shots/W6-03-proposed-phone375.png"
-        }
-      ],
-      "at": "2026-08-31T16:38:40.973Z"
-    },
-    {
       "id": "W7-01",
-      "route": "(drawn — no route on main)",
+      "route": "(drawn \u2014 no route on main)",
       "headSha": "90f8df461b352a6d08df07a919ad7ecd33ce4ef2",
       "slot": "mission-m-recruitment-1",
       "proposal": {
@@ -1242,7 +1196,7 @@
     },
     {
       "id": "W7-02",
-      "route": "(drawn — no route on main)",
+      "route": "(drawn \u2014 no route on main)",
       "headSha": "90f8df461b352a6d08df07a919ad7ecd33ce4ef2",
       "slot": "mission-m-recruitment-1",
       "proposal": {
@@ -1410,7 +1364,7 @@
     },
     {
       "id": "W9-02",
-      "route": "(drawn — no route on main)",
+      "route": "(drawn \u2014 no route on main)",
       "headSha": "90f8df461b352a6d08df07a919ad7ecd33ce4ef2",
       "slot": "mission-m-recruitment-1",
       "proposal": {
@@ -1486,7 +1440,7 @@
     },
     {
       "id": "W9-04",
-      "route": "(drawn — no route on main)",
+      "route": "(drawn \u2014 no route on main)",
       "headSha": "90f8df461b352a6d08df07a919ad7ecd33ce4ef2",
       "slot": "mission-m-recruitment-1",
       "proposal": {

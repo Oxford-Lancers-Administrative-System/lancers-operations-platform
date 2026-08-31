@@ -110,8 +110,14 @@
       "id": "W6",
       "name": "Add a recruit by hand",
       "state": "spec_draft",
-      "stale": true,
-      "feedback": []
+      "stale": false,
+      "feedback": [
+        {
+          "screen_id": "W6-01",
+          "date": "2026-08-31",
+          "text": "I think we can add more personal details about them here... At the minimum, we need the name, first name, last name, and phone number. And then maybe the other details underneath it. I don't understand at all what W6-02 is doing. W6-03 seems rather ungrounded... I'm looking for recommendations. — REBUILT: W6-01 keeps the four shipped fields and adds an Academic section (College, Matriculation year, how we came by the number) drawn from the person record's own inventory; the opt-in is a field rather than a callout. W6-02 now drives the shipped duplicate check and photographs the real answer. W6-03 deleted on the accepted recommendation - the Contactable column and the Missing data queue already carry it."
+        }
+      ]
     },
     {
       "id": "W7",

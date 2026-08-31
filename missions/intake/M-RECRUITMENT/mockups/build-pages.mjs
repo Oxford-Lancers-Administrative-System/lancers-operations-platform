@@ -268,40 +268,29 @@ const WORKFLOWS = [
     screens: [
       P(
         "W6-01",
-        "Adding somebody the club went looking for",
-        `Everything about the shipped form stays. The addition is the evidence that makes the welcome
-         lawful to send from this door.`,
+        "Adding a recruit by hand",
+        `The shipped add-a-person form, reading as recruitment. Its four fields stay as they are and
+         an Academic section is proposed beneath them, because Brian asked for more than a name and a
+         number: "At the minimum, we need the name, first name, last name, and phone number. And then
+         maybe the other details underneath it."`,
         [
-          "<strong>1. How we came by this number</strong>, recorded as a sentence plus a confirmation. <strong>Decide:</strong> free text alone is unauditable, a tick alone records nothing — the recommendation is both",
-          "<strong>2. Without it the welcome does not fire</strong>, and the record says why",
-          "<strong>3. Source and a first note</strong> while they are fresh",
+          "<strong>1. The extra fields are the person record's own</strong>, in the order <code>MISSING_FILTER_FIELDS</code> lists them, and the shipped person-edit form already groups College and Matriculation year under a section headed Academic. They are text inputs because that is what this product uses for them — there is no college dropdown anywhere in it",
+          "<strong>The opt-in is a field, not a callout.</strong> Task 09 §9.1 requires this door to capture one; a control captures it where a callout only talks about it. It is a fixed set and should be a select, but no select renders on this route to clone",
         ],
-        "oxfordlancers.example/operate/recruits/new",
+        "oxfordlancers.example/operate/recruitment/new",
       ),
       P(
         "W6-02",
-        "Two refusals on this door",
-        `Somebody who is already a player, and a recruit created without opt-in evidence.`,
+        "The duplicate check, as it actually runs",
+        `Not a drawing. This screen fills the shipped form with somebody already in the club, presses
+         the application's own CHECK FOR DUPLICATES, and photographs the answer. An earlier draft drew
+         an amber refusal panel on top of a check the form already performs — Brian: "I don't
+         understand at all what W6-02 is doing."`,
         [
-          "<strong>1. An existing member is refused, not converted.</strong> Creating a recruit beside a live membership would put a member on a board that messages people about joining",
-          "<strong>2. No opt-in evidence: the recruit exists, the message waits.</strong> The record says why, and what would release it",
-          "<strong>3. This is the lawful-basis claim made visible</strong> — Meta requires documented opt-in before a first business message",
+          "<strong>1. Two candidates, with the reasons they matched</strong> and a THIS IS THEM on each, so the operator links rather than creating a second record. All shipped",
+          "<strong>This is also the answer to the condition on W5.</strong> This door has the duplicate check; the walk-up door deliberately has none, because Brian removed that path — <em>“they know who's on their roster, there are only 40 people”</em>",
         ],
-        "oxfordlancers.example/operate/recruits/new",
-      ),
-      P(
-        "W6-03",
-        "The welcome that did not fire",
-        `Moved here from W3 on 2026-08-31: operator-add is the door that carries no natural opt-in, so
-         this consequence belongs to W6. Task 09 §9.1 is explicit that an operator adding somebody by
-         hand has no natural opt-in, and W6 has to capture one. This is what it looks like when it
-         did not.`,
-        [
-          "<strong>She exists on the board, and the club says nothing to her.</strong> The capture always stands; only the message waits",
-          "<strong>The screen says what would release it</strong> — record how the club came by her number. A blocked step that does not say why is indistinguishable from a broken one",
-          "<strong>This is the lawful-basis rule made visible on the recruit it affects.</strong> Meta requires documented opt-in before a first business message and GDPR requires a basis; neither is satisfied by an operator typing a number in",
-        ],
-        "oxfordlancers.example/operate/recruits/f31a02c8",
+        "oxfordlancers.example/operate/recruitment/new",
       ),
     ],
   },
