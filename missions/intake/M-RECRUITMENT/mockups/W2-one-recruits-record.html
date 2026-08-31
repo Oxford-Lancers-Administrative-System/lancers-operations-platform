@@ -1228,7 +1228,7 @@
         border-radius: 4px;
         padding: 2px 8px;
       }
-    
+
       /* Capped frames — LAN intake feedback, 2026-08-31. A full-page shot of a
          long record ran to several thousand pixels, so a page of them could not
          be scanned. The shot is unchanged; the box it sits in is scrollable. */
@@ -1313,10 +1313,10 @@
         <h1>W2 · One recruit's record</h1>
         <p>
           Everything the club knows about one recruit on one working page. The person half is
-      Mission 5's and routes out; the recruitment half is this mission's and is editable here.
-          <strong>The surfaces here exist on <code>main</code></strong>, so every screen is a
-           <strong>photograph on both sides</strong> — the same running page at <code>e669331</code>,
-           differing only by the proposal evaluated into it.
+          Mission 5's and routes out; the recruitment half is this mission's and is editable here.
+          <strong>The surfaces here exist on <code>main</code></strong
+          >, so every screen is a <strong>photograph on both sides</strong> — the same running page
+          at <code>e669331</code>, differing only by the proposal evaluated into it.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1330,10 +1330,32 @@
         </p>
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
-          <span><strong>Rebuilt 2026-08-31.</strong> Brian: <em>“You use the people workflow as the basis of it. It does not come from the people workflow… It needs to be a new page that's like the roster page, but it's just for the recruit.”</em> The first draft bolted cards onto the person record, which was the wrong entryway entirely</span>
-          <span><strong>Built on the player record's shell</strong> at <code>/operate/roster/[membershipId]</code> — the same banded cards, the same row markup, cloned rather than imitated. Reached by clicking a row on the recruit board</span>
-          <span><strong>The bands change because a recruit holds no membership:</strong> Person stays as it is, Onboarding becomes Recruitment, Season becomes Events, and the membership summary strip becomes a recruitment one</span>
-          <span><strong>What goes on it is not settled.</strong> Brian: <em>“I don't know what items go on this yet.”</em> This is the structure and the entry point; the contents are a proposal</span>
+          <span
+            ><strong>Rebuilt 2026-08-31.</strong> Brian:
+            <em
+              >“You use the people workflow as the basis of it. It does not come from the people
+              workflow… It needs to be a new page that's like the roster page, but it's just for the
+              recruit.”</em
+            >
+            The first draft bolted cards onto the person record, which was the wrong entryway
+            entirely</span
+          >
+          <span
+            ><strong>Built on the player record's shell</strong> at
+            <code>/operate/roster/[membershipId]</code> — the same banded cards, the same row
+            markup, cloned rather than imitated. Reached by clicking a row on the recruit
+            board</span
+          >
+          <span
+            ><strong>The bands change because a recruit holds no membership:</strong> Person stays
+            as it is, Onboarding becomes Recruitment, Season becomes Events, and the membership
+            summary strip becomes a recruitment one</span
+          >
+          <span
+            ><strong>What goes on it is not settled.</strong> Brian:
+            <em>“I don't know what items go on this yet.”</em> This is the structure and the entry
+            point; the contents are a proposal</span
+          >
         </div>
       </header>
       <div id="screens"></div>
@@ -1385,6 +1407,24 @@
           url: "oxfordlancers.example/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
           shotRoute: "/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
           proposedRoute: "/operate/recruits/192fd288",
+        },
+        {
+          id: "W2-03",
+          title: "Where she has reached in the sign-on ladder",
+          disposition: "new",
+          drawn: false,
+          blurb: `Moved here from W3 when Brian folded that workflow on 2026-08-31. Nobody types to a recruit,
+         so there is no conversation to show — there is a sequence of templates and their delivery
+         receipts, and this is where an operator reads it.`,
+          deltas: [
+            `<strong>Five steps, each with its own delivery state.</strong> An earlier draft drew a two-way WhatsApp thread here; it was invented, and it was unsendable under the template-only rule`,
+            `<strong>What the club can honestly claim to know.</strong> <code>read</code> is stored today and mapped to nothing — widening <code>delivery_outcome</code> is a frozen-model change and is not proposed here`,
+            `<strong>Being in the community group is not observable at all.</strong> The Cloud API does not expose group membership, so she tells us or we do not know. It is recorded, never watched for`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
+          shotRoute: "/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
+          proposedRoute: "/operate/recruits/0b938ce0",
         },
       ];
 

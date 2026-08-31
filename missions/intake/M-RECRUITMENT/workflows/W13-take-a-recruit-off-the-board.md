@@ -29,7 +29,10 @@ volume of the whole funnel.
 - Reused component, language, interaction, and permission patterns: the in-cell
   edit `W1` already specifies, the roster board's own audited status changes, and
   the ladder colours.
-- Desktop and 375px evidence: `W13-01`, both sides, measured.
+- Desktop and 375px evidence: `W13-01` and `W13-02`, both sides, measured.
+  `W13-01` is the board before and after the status change, so the resort is
+  visible rather than described; `W13-02` is the recruit's own row carrying the
+  exit value and what stops being sent.
 - Reason for any departure from the implemented application: none. Brian settled
   that this is a status change and nothing more; there is deliberately no separate
   removal mechanism, no archive action and no delete.

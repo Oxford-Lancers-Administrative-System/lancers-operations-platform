@@ -23,7 +23,9 @@
 - Reused component, language, interaction, and permission patterns: the shipped
   attendance sheet, its one-touch states with immediate save and no Submit, its
   walk-up capture form, and the LAN-110 coach grant.
-- Desktop and 375px evidence: `W5-01` and `W5-02`, both sides, measured. The
+- Desktop and 375px evidence: `W5-01` through `W5-05`, both sides, measured —
+  the sheet, the capture form opening, the duplicate check answering on it, the
+  read-back step, and the row landing back on the sheet. The
   375px frame matters more here than anywhere else in the mission: this is the
   one workflow performed on a phone, at a touchline, in the cold.
 - Reason for any departure from the implemented application: Brian, 2026-08-31:
@@ -47,11 +49,24 @@
      not say is that saving **sends that person a message**, which is the part an
      operator most needs to know before reading a number back.
 
-**Vocabulary drift found at the same time, and unresolved.** The shipped surface
-calls this three things: the button says **Add walk-up**, the page headline says
-**Add a walk-on**, and the chip on the row says **Walk-on · in recruitment**. The
-approved briefs say **walk-up** throughout. One of the two words should win, and
-which one is Brian's — this mission touches every one of those surfaces.
+**Vocabulary drift found at the same time, and settled 2026-08-31.** The shipped
+surface calls this three things: the button says **Add walk-up**, the page
+headline says **Add a walk-on**, and the chip on the row says **Walk-on · in
+recruitment**. The approved briefs say **walk-up** throughout.
+
+Brian chose **walk-up**. Three user-visible constants in
+`src/app/operate/events/[id]/attendance/presentation.ts` are corrected by this
+mission and nothing else moves:
+
+| Constant           | Today                      | Becomes                    |
+| ------------------ | -------------------------- | -------------------------- |
+| `ADD_WALK_UP`      | `Add walk-up`              | unchanged                  |
+| `WALK_UP_HEADLINE` | `Add a walk-on`            | `Add a walk-up`            |
+| `WALK_UP_SUBMIT`   | `Add walk-on`              | `Add walk-up`              |
+| `WALK_UP_CHIP`     | `Walk-on · in recruitment` | `Walk-up · in recruitment` |
+
+This is a change to shipped copy, so it is the Mission Lead's to make under an
+approved decision rather than intake's to make here.
 
 ## Required actions
 
@@ -115,15 +130,16 @@ present. `W3` fires. All four are one action from the operator's point of view.
 
 ## Core decisions
 
-| Decision                                                        | Classification                | Governing evidence or recommended default                                                             | Status  |
-| --------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------- | ------- |
-| Every walk-up is a recruit                                      | `locked`                      | Brian, 2026-08-28                                                                                     | Settled |
-| Capture stays on every event type, for anyone taking attendance | `locked`                      | Brian, 2026-08-28                                                                                     | Settled |
-| Name plus mobile required, email optional                       | `locked`                      | Task 04 D-1                                                                                           | Settled |
-| The read-back step is built                                     | `locked`                      | Task 04 D-4; unimplemented at the baseline                                                            | Settled |
-| An interactive duplicate check at this door                     | `proposed for owner approval` | Task 09 amendment 4 records the drift and sends it here. Recommendation: check and offer, never block | Open    |
-| The form says plainly that this creates a recruit               | `proposed for owner approval` | Nothing on the shipped screen says so                                                                 | Open    |
-| The flow is reworked for clarity rather than patched            | `locked`                      | Brian, 2026-08-31                                                                                     | Settled |
+| Decision                                                         | Classification                | Governing evidence or recommended default                                                             | Status  |
+| ---------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------- | ------- |
+| Every walk-up is a recruit                                       | `locked`                      | Brian, 2026-08-28                                                                                     | Settled |
+| Capture stays on every event type, for anyone taking attendance  | `locked`                      | Brian, 2026-08-28                                                                                     | Settled |
+| Name plus mobile required, email optional                        | `locked`                      | Task 04 D-1                                                                                           | Settled |
+| The read-back step is built                                      | `locked`                      | Task 04 D-4; unimplemented at the baseline                                                            | Settled |
+| An interactive duplicate check at this door                      | `proposed for owner approval` | Task 09 amendment 4 records the drift and sends it here. Recommendation: check and offer, never block | Open    |
+| The form says plainly that this creates a recruit                | `proposed for owner approval` | Nothing on the shipped screen says so                                                                 | Open    |
+| The flow is reworked for clarity rather than patched             | `locked`                      | Brian, 2026-08-31                                                                                     | Settled |
+| The word is **walk-up**, and three shipped strings are corrected | `locked`                      | Brian, 2026-08-31. The briefs say walk-up throughout and it is the fewest strings to change           | Settled |
 
 ## Brian approval
 

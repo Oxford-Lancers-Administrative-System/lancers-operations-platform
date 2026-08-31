@@ -19,7 +19,10 @@
 - Reused component, language, interaction, and permission patterns: that form
   wholesale, including its dedup-before-create behaviour, which is exactly what
   this door needs and already works.
-- Desktop and 375px evidence: `W6-01`, both sides, measured.
+- Desktop and 375px evidence: `W6-01`, `W6-02` and `W6-03`, both sides,
+  measured. `W6-02` is the duplicate check answering on this door; `W6-03` is the
+  welcome held for want of opt-in evidence, moved here from `W3` on 2026-08-31
+  because operator-add is the door that carries no natural opt-in.
 - Reason for any departure from the implemented application: one addition only.
   Task 09 §9.1 is explicit that **operator manual add carries no natural opt-in** —
   a number sourced in conversation was not given by its owner for this purpose —

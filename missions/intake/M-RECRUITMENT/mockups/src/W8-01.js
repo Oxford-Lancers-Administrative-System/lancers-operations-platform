@@ -22,7 +22,12 @@ await openControl("Check for duplicates", 1400);
 const check = $("[data-testid='candidate-count']")?.closest(".MuiPaper-root, section, div");
 if (check) mark(check, 1);
 
-// 2. The explicit choice the form already demands. An exact match cannot be
-//    created past without a written reason — the shipped override.
-const reason = document.querySelector("input[name='overrideReason']");
-if (reason) mark(reason.closest(".MuiFormControl-root, .MuiTextField-root") ?? reason, 2);
+// 2. The choice the form already puts in front of the operator: each candidate
+//    carries its own action, so "this is them" is a press rather than a
+//    judgement typed into a box. On an exact match the shipped form goes
+//    further and refuses to create without a written reason.
+const candidate = document
+  .querySelector("[data-testid='candidate-count']")
+  ?.closest(".MuiPaper-root, section, div")
+  ?.querySelector("a, button");
+if (candidate) mark(candidate.closest("div") ?? candidate, 2);

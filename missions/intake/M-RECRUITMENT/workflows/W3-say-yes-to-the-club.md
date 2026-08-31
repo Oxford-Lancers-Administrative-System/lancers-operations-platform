@@ -15,7 +15,30 @@
 - User-visible result: the recruit is in the group, the club has recorded that it
   may message them, and `On WhatsApp` on their record stops reading `Not yet`.
 
-## Why this is its own workflow
+## This workflow draws no surfaces of its own — Brian, 2026-08-31
+
+W3's actor is the recruit and the journey happens inside WhatsApp, which this
+product does not render. Asked whether W3 should therefore be a recruit-facing
+page this mission builds, an operator view only, or something folded into the
+workflows around it, Brian chose to **fold it**.
+
+So the ladder below is still W3's to define and W3's to approve — it is the
+definition of what the club says, in what order, on what trigger, and the
+invariants that hold it — but every screen that would have belonged to it now
+sits with the workflow that owns the surface:
+
+| What used to be here                        | Now      | Where                                   |
+| ------------------------------------------- | -------- | --------------------------------------- |
+| The templates the club sends                | `W10-03` | The cycle's own administration screen   |
+| Where one recruit has reached in the ladder | `W2-03`  | Her own record                          |
+| A welcome held for want of opt-in evidence  | `W6-03`  | The door that carries no natural opt-in |
+| The doors that fire the ladder              | —        | `W5`, `W6`, `W7`                        |
+
+Nothing about the ladder was dropped; the screens moved to where a reviewer can
+see them in context. `mockups/W3-say-yes-to-the-club.html` states this and links
+to each.
+
+## Why this is still its own workflow
 
 Brian, 2026-08-31: _"The initial WhatsApp registration, I think, needs to be
 handled here… Even though it's rather small, it will define this for other steps
@@ -25,17 +48,14 @@ and 8 inherit its shape, and every door in this mission ends by firing it.
 
 ## Current `main` grounding
 
-- Locally rendered route or nearest implemented analogue:
-  `/operate/events/[id]/delivery` at `main@e669331`, photographed as `W3-01` —
-  the operator's existing view of what was sent to whom and what came back. The
-  recruit-facing side has no analogue: no signed-link token exists in the seeded
-  data and `person_access_tokens` is empty, so `W3-02` is **drawn on both sides**
-  and labelled `New surface, nothing to compare`.
+- Locally rendered route or nearest implemented analogue: **none of its own.**
+  This workflow draws no screens; its evidence is `W10-03`, `W2-03` and `W6-03`,
+  each photographed against the surface that owns it.
 - Reused component, language, interaction, and permission patterns: Mission 4's
   transport, its template machinery and its five delivery states, used verbatim.
   Recruitment owns what is said and on what trigger; it builds no scheduler.
-- Desktop and 375px evidence: `W3-01` photographed both sides; `W3-02` drawn at
-  both widths.
+- Desktop and 375px evidence: carried by `W10-03`, `W2-03` and `W6-03`, each
+  photographed on both sides at a browser-measured 1280px and 375px.
 - Reason for any departure: none. This workflow adds a ladder to machinery that
   exists.
 
@@ -117,8 +137,9 @@ receipt is not an interaction.
 
 ## Acceptance evidence
 
-- `W3-01` `grounding: photograph`; `W3-02` `grounding: code-only`, drawn on both
-  sides, because no signed-link token exists to photograph.
+- `grounding: photograph`, by way of the three screens that carry this ladder —
+  `W10-03`, `W2-03` and `W6-03` — each a photograph of the running application at
+  `main@e669331`, both sides, measured.
 - `On WhatsApp · 2026-27` already exists on the person record at the baseline and
   reads `not recorded` for both seeded recruits. This workflow is what fills it,
   so channel presence needs no new storage.

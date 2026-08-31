@@ -9,7 +9,9 @@
 // and nowhere else — D46, in the running code at the baseline. So this screen
 // points at the shipped control instead of drawing a replacement for it.
 
-// 1. The shipped Capacity filter, set to Recruits. This is the separation, and
+// The order below is the order the marks appear down the page.
+//
+// 2. The shipped Capacity filter, set to Recruits. This is the separation, and
 //    it exists today: D46 puts the Recruits option on a Recruitment event only.
 const selects = $$(
   "[data-testid='audience-builder'] .MuiSelect-select, [data-testid='audience-builder'] [role='combobox']",
@@ -17,17 +19,17 @@ const selects = $$(
 const capacity = selects.find((s) => /all|players|coaches|committee|recruits/i.test(s.textContent));
 if (capacity) {
   capacity.textContent = "Recruits (6)";
-  mark(capacity.closest(".MuiFormControl-root, .MuiTextField-root") ?? capacity, 1);
+  mark(capacity.closest(".MuiFormControl-root, .MuiTextField-root") ?? capacity, 2);
 }
 
-// 2. The candidate list, filtered to the six recruits — the shipped list, with
-//    the shipped row treatment.
+// 3. The candidate list, filtered to the recruits — the shipped list, with the
+//    shipped row treatment.
 const candidates = $("[data-testid='candidate-list']");
-if (candidates) mark(candidates, 2);
+if (candidates) mark(candidates, 3);
 
-// 3. What each audience is chased with. This is the part that does not exist:
+// 1. What each audience is chased with. This is the part that does not exist:
 //    one event carries two ladders, and today the player ladder reaches recruits.
-const anchor = $("[data-testid='review-selection']")?.closest(".MuiPaper-root") ?? cardTemplate();
+const anchor = $("[data-testid='audience-builder']") ?? cardTemplate();
 const ladders = proposedRegion("What each audience receives");
 ladders.append(
   makeRow(
@@ -38,7 +40,7 @@ ladders.append(
   makeRow("4 coaches", "Invitation now · reminder at 48h"),
 );
 placeBefore(anchor, ladders);
-mark(ladders, 3);
+mark(ladders, 1);
 
 // 4. The approval summary, which omits recruits from its count today —
 //    `countByCapacity` filters them out, so an operator approves an event

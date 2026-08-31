@@ -35,7 +35,9 @@ Four things, and all four are settled:
   exists in the application.
 - Reused component, language, interaction, and permission patterns: the roster's
   own membership rows and status ladder; the application's dialog language.
-- Desktop and 375px evidence: `W14-01` drawn at both widths; `W14-02` photographed
+- Desktop and 375px evidence: `W14-01` and `W14-03` drawn at both widths —
+  the confirmation that interrupts, and the refusal when the season membership
+  cannot be created; `W14-02` photographed
   both sides.
 - Reason for any departure from the implemented application: the schema already
   binds `converted` to a real membership for the same person and the same season

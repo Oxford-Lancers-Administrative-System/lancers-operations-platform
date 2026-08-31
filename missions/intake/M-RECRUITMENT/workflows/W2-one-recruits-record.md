@@ -17,14 +17,17 @@
 ## Current `main` grounding
 
 - Locally rendered route or nearest implemented analogue:
-  `/operate/people/[personId]` at `main@e669331`, photographed as `W2-01` against
-  the seeded recruit Rosalind Penhaligon.
+  `/operate/roster/[membershipId]` at `main@e669331` — the player record —
+  photographed as `W2-01` against seeded synthetic data. Brian rejected
+  `/operate/people/[personId]` on 2026-08-31 (_"It does not come from the people
+  workflow"_) and accepted the player record shell; this specification is
+  corrected to say what was actually photographed.
 - Reused component, language, interaction, and permission patterns: the person
   record's card stack — _Who they are_, _How to reach them_, _Academic_,
   _Restricted_, _Where they stand_, _Their seasons_, _What changed_ — its label
   and value rows, its `not recorded` grey, its `CORRECT THIS RECORD` action, and
   its four-role gate.
-- Desktop and 375px evidence: `W2-01` and `W2-02`, both sides, measured.
+- Desktop and 375px evidence: `W2-01`, `W2-02` and `W2-03`, both sides, measured.
 - Reason for any departure from the implemented application: the recruit's page is
   a new surface because Task 08's 2026-08-27 amendment forbids recruitment facts
   on the person record — Brian: _"There's nothing on here related to recruits…
@@ -100,8 +103,11 @@ except `joined` is a direct audited change; `joined` is intercepted by `W14`.
 
 ## Acceptance evidence
 
-- `grounding: photograph`. `/operate/people/[personId]` is the shell, photographed
-  both sides at measured 1280px and 375px, against a really seeded recruit.
+- `grounding: photograph`. `/operate/roster/[membershipId]` — the player record —
+  is the shell, photographed both sides at measured 1280px and 375px. The
+  proposed route `/operate/recruits/[prospectId]` does not exist on `main`, and
+  every frame says so rather than printing a route that is not there.
+- `W2-03` carries the sign-on ladder, moved here from `W3` on 2026-08-31.
 - The duplicate Recruit chip visible on the current side is a defect this mission
   found and this page does not reproduce.
 

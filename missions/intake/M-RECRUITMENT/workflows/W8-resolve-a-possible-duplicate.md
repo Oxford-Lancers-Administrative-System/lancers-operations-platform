@@ -17,13 +17,20 @@
 
 ## Current `main` grounding
 
-- Locally rendered route or nearest implemented analogue:
-  `/operate/people/[personId]/merge` at `main@e669331`, photographed as `W8-01` —
-  the shipped merge screen, which is the closest thing to a two-records-one-human
-  decision in the product.
-- Reused component, language, interaction, and permission patterns: that screen's
-  side-by-side comparison, its explicit choice, its audit, and the shipped
-  duplicate check behind it.
+- Locally rendered route or nearest implemented analogue: `/operate/people/new`
+  at `main@e669331` — **the shipped duplicate check itself**, photographed as
+  `W8-01` with the real form driven: names and a mobile typed in, the
+  application's own _Check for duplicates_ pressed, and its own answer captured.
+- **Re-grounded 2026-08-31.** The first draft used `/operate/people/[personId]/merge`.
+  Brian: _"That's not where in the fucking workflow it belongs. That's not how
+  the duplicate checks get done. That's not where it happens."_ He was right
+  twice. Merge resolves two records that both exist, and the check that matters
+  here already ships in `create-person-form.tsx` as a check-then-create: the form
+  answers `Already in the club` with candidate rows, or says plainly that nothing
+  matched.
+- Reused component, language, interaction, and permission patterns: that form's
+  check, its candidate rows, its per-candidate action, and its refusal to create
+  past an exact match without a written reason.
 - Desktop and 375px evidence: `W8-01` and `W8-02`, both sides, measured.
 - Reason for any departure from the implemented application: merge resolves two
   records that both exist. This queue resolves a submission that does **not** exist
@@ -79,8 +86,11 @@ messaged. On create: person minted, prospect at `identified`, `W3` fires.
 
 ## Acceptance evidence
 
-- `grounding: photograph`. The shipped merge screen as the shell, both sides at
-  measured 1280px and 375px.
+- `grounding: photograph`. The shipped add-a-person form and its own duplicate
+  check as the shell, both sides at measured 1280px and 375px, with `W8-01`'s
+  proposed side produced by driving the real form rather than by drawing its
+  output. The proposed route `/operate/recruits/review` does not exist on `main`
+  and every frame says so.
 
 ## Core decisions
 

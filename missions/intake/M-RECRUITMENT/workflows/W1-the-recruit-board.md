@@ -30,8 +30,10 @@
   first column, per-column filter chips, and in-cell editing for facts this
   mission owns against read-only cells that route to the person record. The
   authority gate is the same `person_record_authority` the roster board reads.
-- Desktop and 375px evidence: `W1-01` and `W1-02`, both sides, each photographed
-  at a browser-measured 1280px and a browser-measured 375px.
+- Desktop and 375px evidence: `W1-01`, `W1-02` and `W1-03`, both sides, each
+  photographed at a browser-measured 1280px and a browser-measured 375px.
+  `W1-03` is the board's empty state, which names the doors rather than saying
+  "no results".
 - Reason for any departure from the implemented application: none in structure or
   colour. Brian, 2026-08-31: _"W1 and W2 are very similar to how the current board
   is set up on main right now, with similar structures. That's all really good,

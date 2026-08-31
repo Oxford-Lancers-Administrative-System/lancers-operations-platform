@@ -1228,7 +1228,7 @@
         border-radius: 4px;
         padding: 2px 8px;
       }
-    
+
       /* Capped frames — LAN intake feedback, 2026-08-31. A full-page shot of a
          long record ran to several thousand pixels, so a page of them could not
          be scanned. The shot is unchanged; the box it sits in is scrollable. */
@@ -1313,10 +1313,10 @@
         <h1>W10 · Administer the messages, cycles and QR</h1>
         <p>
           What recruitment says, when it says it, whether a step runs at all, and which QR codes are
-      live — changed by an operator rather than an engineer.
-          <strong>The surfaces here exist on <code>main</code></strong>, so every screen is a
-           <strong>photograph on both sides</strong> — the same running page at <code>e669331</code>,
-           differing only by the proposal evaluated into it.
+          live — changed by an operator rather than an engineer.
+          <strong>The surfaces here exist on <code>main</code></strong
+          >, so every screen is a <strong>photograph on both sides</strong> — the same running page
+          at <code>e669331</code>, differing only by the proposal evaluated into it.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1330,9 +1330,29 @@
         </p>
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
-          <span>This is the workflow Brian named as the one he was least sure of: <em>“I'm most confused about this one. I think we need to go through the workflow and find the boundary there.”</em></span>
-          <span>It is drawn tenth rather than third for exactly that reason — the boundary is found against the flows that configure it, not guessed in the abstract</span>
-          <span><strong>The proposed boundary:</strong> Mission 4 owns the scheduler and the transport; recruitment owns what is sent, on what trigger, in what order, and whether a step runs at all. Recruitment declares a cycle and never schedules</span>
+          <span
+            >This is the workflow Brian named as the one he was least sure of:
+            <em
+              >“I'm most confused about this one. I think we need to go through the workflow and
+              find the boundary there.”</em
+            ></span
+          >
+          <span
+            ><strong>Rebuilt 2026-08-31.</strong> Brian:
+            <em
+              >“You just fucking didn't do W10… There's literally nothing here about the QR code.
+              You just screenshotted it.”</em
+            >
+            The QR administration <em>was</em> built, and appended to the bottom of a 3,557px page
+            inside a 520px review box, so the only thing visible was the top of an untouched
+            messaging screen. It is its own screen now, and every region lands above the page's
+            first card</span
+          >
+          <span
+            ><strong>The proposed boundary:</strong> Mission 4 owns the scheduler and the transport;
+            recruitment owns what is sent, on what trigger, in what order, and whether a step runs
+            at all. Recruitment declares a cycle and never schedules</span
+          >
         </div>
       </header>
       <div id="screens"></div>
@@ -1358,10 +1378,42 @@
           blurb: `The shipped messaging schedule is the shell and the language. Recruitment's cycle is a
          sibling object in that language, not a new column on it.`,
           deltas: [
-            `<strong>1. The boundary, stated on the screen</strong> rather than left implicit`,
-            `<strong>2. The cycle as a sequence</strong> of five named steps, each editable, each able to be turned off entirely`,
-            `<strong>3. The community-group link</strong> with when it last changed — the most likely silent failure in the mission is a rotated link nobody notices`,
-            `<strong>4. QR codes minted, named, counted and revocable.</strong> <strong>Decide:</strong> whether these belong here or on their own screen`,
+            `<strong>The cycle as an ordered sequence</strong> of five named steps, each editable and each able to be turned off entirely — boundary item 43`,
+            `<strong>The community-group link, and when it last changed.</strong> A rotated link nobody notices is the most likely silent failure in this mission: recruits receive an invitation to a dead group and nothing reports it`,
+            `<strong>A step that is off, stated plainly on the cycle.</strong> Otherwise a recruit going quiet reads as disinterest when the club simply stopped asking`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/admin/messaging",
+          shotRoute: "/operate/admin/messaging",
+          proposedRoute: "/operate/admin/recruitment",
+        },
+        {
+          id: "W10-02",
+          title: "QR codes — minting, counting, revoking",
+          disposition: "new",
+          drawn: false,
+          blurb: `Its own screen, because printing a code on a poster and later turning it off is its own job
+         with its own consequences. This is what was missing.`,
+          deltas: [
+            `<strong>What is live, where it points, and how many people came through it.</strong> The submission count is what makes revoking a code a decision rather than a shrug`,
+            `<strong>Minting one asks for a name and nothing else.</strong> Every code lands on the same page and carries the same group link; the name is how an operator later knows which poster took which submissions`,
+            `<strong>A revoked code, and what it took before it was turned off.</strong> Posters stay up after revocation, so the scan lands on the uniform invalid page — never a message that reads as though the club has gone away`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/admin/messaging",
+          shotRoute: "/operate/admin/messaging",
+          proposedRoute: "/operate/admin/recruitment",
+        },
+        {
+          id: "W10-03",
+          title: "The templates behind the cycle",
+          disposition: "new",
+          drawn: false,
+          blurb: `Moved here from W3 when Brian folded that workflow on 2026-08-31. Every business-initiated
+         WhatsApp message is a Meta-approved template — free text is not a production shape.`,
+          deltas: [
+            `<strong>Four new templates the club does not have yet</strong>, beside the one it does. Each needs Meta approval with real lead time before anything can send: that is a schedule gate, not a formality`,
+            `<strong>Only <code>event_invitation</code> is approved today.</strong> The distance between those two states is the whole delivery risk in this mission`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/operate/admin/messaging",

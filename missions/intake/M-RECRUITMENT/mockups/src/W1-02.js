@@ -11,7 +11,7 @@ const thead = table.querySelector("thead");
 const tbody = table.querySelector("tbody");
 const [bandRow, colRow] = thead.querySelectorAll("tr");
 const bandCells = [...bandRow.querySelectorAll("th")];
-const templateRow = tbody.querySelector("tr");
+const bodyRowTemplate = tbody.querySelector("tr");
 
 // ---- Templates cloned from the shipped board -----------------------------
 const spacerBand = bandCells[0];
@@ -21,7 +21,7 @@ const colCells = [...colRow.querySelectorAll("th")];
 const pinnedCol = colCells[0];
 const filterCol = colCells[1];
 
-const bodyCells = [...templateRow.querySelectorAll("td")];
+const bodyCells = [...bodyRowTemplate.querySelectorAll("td")];
 const pinnedCell = bodyCells[0];
 const linkCell = bodyCells[1];
 const chipCell = bodyCells[5];
@@ -244,7 +244,7 @@ const RECRUITS = [
 
 tbody.replaceChildren(
   ...RECRUITS.map((r) => {
-    const tr = templateRow.cloneNode(false);
+    const tr = bodyRowTemplate.cloneNode(false);
     const name = pinnedCell.cloneNode(true);
     name.querySelector("a").textContent = r[0];
     tr.append(

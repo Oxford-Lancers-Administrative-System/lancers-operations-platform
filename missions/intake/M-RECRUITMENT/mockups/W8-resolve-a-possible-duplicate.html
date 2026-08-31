@@ -1228,7 +1228,7 @@
         border-radius: 4px;
         padding: 2px 8px;
       }
-    
+
       /* Capped frames — LAN intake feedback, 2026-08-31. A full-page shot of a
          long record ran to several thousand pixels, so a page of them could not
          be scanned. The shot is unchanged; the box it sits in is scrollable. */
@@ -1313,10 +1313,11 @@
         <h1>W8 · Resolve a possible duplicate</h1>
         <p>
           A capture the system could not safely resolve waits for a human, and one operator decision
-      settles it — without ever having silently created a person, merged two, or messaged a member.
-          <strong>The surfaces here exist on <code>main</code></strong>, so every screen is a
-           <strong>photograph on both sides</strong> — the same running page at <code>e669331</code>,
-           differing only by the proposal evaluated into it.
+          settles it — without ever having silently created a person, merged two, or messaged a
+          member.
+          <strong>The surfaces here exist on <code>main</code></strong
+          >, so every screen is a <strong>photograph on both sides</strong> — the same running page
+          at <code>e669331</code>, differing only by the proposal evaluated into it.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1330,8 +1331,25 @@
         </p>
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
-          <span>The shipped merge screen is the nearest analogue, but <strong>merge resolves two records that both exist</strong>. This queue resolves a submission that does not exist yet against a record that does</span>
-          <span>Nothing is written until a human decides — the locked rule at the centre of R2</span>
+          <span
+            ><strong>Re-grounded 2026-08-31.</strong> Brian:
+            <em
+              >“That's not where in the fucking workflow it belongs. That's not how the duplicate
+              checks get done. That's not where it happens.”</em
+            >
+            The first draft used the merge screen. Merge resolves two records that both exist; this
+            workflow resolves a submission against a record before anything is written</span
+          >
+          <span
+            ><strong>The check itself already ships.</strong> <code>create-person-form.tsx</code> is
+            a check-then-create: press <em>Check for duplicates</em> and the form answers
+            <em>Already in the club</em> with candidate rows, or says plainly that nothing matched.
+            <code>W8-01</code> drives that real form and photographs its real answer</span
+          >
+          <span
+            ><strong>Only the queue is new</strong>, and it exists for one case: a self-serve door
+            with nobody at the keyboard to choose</span
+          >
         </div>
       </header>
       <div id="screens"></div>
@@ -1351,36 +1369,37 @@
       const SCREENS = [
         {
           id: "W8-01",
-          title: "The queue",
+          title: "How the duplicate check actually gets done",
           disposition: "new",
           drawn: false,
-          blurb: `Three parked captures, each comparing what somebody submitted against what the club already
-         holds. Two outcomes: link, or create.`,
+          blurb: `The shipped add-a-person form, driven: names and a mobile typed in, the application's own
+         <em>Check for duplicates</em> button pressed, and its own answer photographed. Nothing on
+         this screen below the form fields is drawn.`,
           deltas: [
-            `<strong>1. A submission beside a record</strong>, not two records. Nothing is written yet, so there is nothing to merge`,
-            `<strong>2. Everything is held</strong> — no person, no recruit, no welcome. An existing member never receives a “welcome to the club” message`,
-            `<strong>3. A declined recruit signing up again</strong> is a real case, and it is the operator's to read rather than the system's to guess`,
-            `<strong>4. Attendance was recorded regardless.</strong> Capture always stands; only the recruit record waits`,
+            `<strong>This is where a duplicate is caught</strong> — at capture, before a person exists. Task 09 D7 locks dedup-before-create at every door, and the form already implements it`,
+            `<strong>The form already demands an explicit choice.</strong> An exact match cannot be created past without a written reason; that shipped override is the shape W8 inherits rather than replaces`,
           ],
           clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/people/192fd288-fb48-4fb5-b36c-eb61781b9619/merge",
-          shotRoute: "/operate/people/192fd288-fb48-4fb5-b36c-eb61781b9619/merge",
+          url: "oxfordlancers.example/operate/people/new",
+          shotRoute: "/operate/people/new",
           proposedRoute: "/operate/recruits/review",
         },
         {
           id: "W8-02",
-          title: "The empty queue",
+          title: "The one case the shipped check cannot resolve",
           disposition: "new",
           drawn: false,
-          blurb: `What zero looks like, and why nothing drains itself.`,
+          blurb: `W7's door is self-serve. A recruit types their own name at a stand, the check finds a
+         candidate, and there is no operator present to choose. Nothing is created, nothing is
+         messaged, and it parks. That queue is the only genuinely new thing in this workflow.`,
           deltas: [
-            `<strong>1. Nothing expires and nothing is auto-resolved</strong>`,
-            `<strong>2. A forgotten queue is visible as a count on the board</strong> rather than silently emptying`,
-            `<strong>3. Captures land here only when the check cannot decide safely</strong> — this is the normal state, not a broken one`,
+            `<strong>What is waiting, and what is held while it waits.</strong> No person, no recruit, no welcome. A queue nobody can see is a queue nobody works, so its count also sits on the board`,
+            `<strong>A submission beside a record</strong> — not two records, because only one of them exists. Field by field, in the language of the shipped check above, not the language of merge`,
+            `<strong>Two outcomes: create and link</strong>, never survivor and loser. Linking an existing member must never fire a “welcome to the club” message — Task 09's worked example B`,
           ],
           clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/people/192fd288-fb48-4fb5-b36c-eb61781b9619/merge",
-          shotRoute: "/operate/people/192fd288-fb48-4fb5-b36c-eb61781b9619/merge",
+          url: "oxfordlancers.example/operate/people/new",
+          shotRoute: "/operate/people/new",
           proposedRoute: "/operate/recruits/review",
         },
       ];

@@ -38,13 +38,14 @@ const step = (n, name, when, on) => {
 
 // 1. The cycle as an ordered sequence of named steps, each able to be turned off.
 const cycle = proposedRegion("The cycle");
-cycle.append(
+const steps = [
   step(1, "recruit_welcome", "On capture, from every door", true),
   step(2, "recruit_interest_ask", "Immediately after they accept", true),
   step(3, "recruit_gentle_reminder", "1 day later, only if nothing came back", true),
   step(4, "recruit_details_ask", "1 day after the welcome", true),
   step(5, "recruit_details_reminder", "3 days later, once only", false),
-);
+];
+cycle.append(...steps);
 placeBefore(anchor, cycle);
 mark(cycle, 1);
 
@@ -61,5 +62,4 @@ mark(link, 2);
 
 // 3. The step that is off. Stated on the cycle, so a recruit going quiet is not
 //    mistaken for disinterest when the club simply stopped asking.
-const off = cycle.querySelectorAll("div[style*='margin-bottom:10px']");
-if (off.length >= 5) mark(off[4], 3);
+mark(steps[4], 3);

@@ -33,7 +33,9 @@ the boundary.
 ## Current `main` grounding
 
 - Locally rendered route or nearest implemented analogue: **the recruit's own
-  record**, `/operate/people/[personId]`, photographed as `W9-01` and `W9-03`.
+  record**, photographed as `W9-01` and `W9-03` on the player record shell
+  `/operate/roster/[membershipId]` — the shell Brian accepted for `W2` on
+  2026-08-31, corrected here to say what was actually photographed.
   There is **no composer anywhere in the application**: Mission 5's packet is
   explicit that it composes, schedules and sends nothing, and Mission 4 sends only
   from its ladder, so `W9-02` and `W9-04` are drawn.

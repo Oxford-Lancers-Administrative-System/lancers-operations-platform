@@ -1228,7 +1228,7 @@
         border-radius: 4px;
         padding: 2px 8px;
       }
-    
+
       /* Capped frames — LAN intake feedback, 2026-08-31. A full-page shot of a
          long record ran to several thousand pixels, so a page of them could not
          be scanned. The shot is unchanged; the box it sits in is scrollable. */
@@ -1313,10 +1313,10 @@
         <h1>W6 · Add a recruit by hand</h1>
         <p>
           The club finds somebody it wants and puts them in deliberately — proactive sourcing as a
-      first-class path rather than a fallback.
-          <strong>The surfaces here exist on <code>main</code></strong>, so every screen is a
-           <strong>photograph on both sides</strong> — the same running page at <code>e669331</code>,
-           differing only by the proposal evaluated into it.
+          first-class path rather than a fallback.
+          <strong>The surfaces here exist on <code>main</code></strong
+          >, so every screen is a <strong>photograph on both sides</strong> — the same running page
+          at <code>e669331</code>, differing only by the proposal evaluated into it.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1330,8 +1330,14 @@
         </p>
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
-          <span>The shipped add-a-person form and its duplicate check are reused wholesale. One card is added</span>
-          <span>This is the <strong>one door carrying no natural opt-in</strong> — Task 09 §9.1. A number sourced in conversation was not given by its owner for this purpose</span>
+          <span
+            >The shipped add-a-person form and its duplicate check are reused wholesale. One card is
+            added</span
+          >
+          <span
+            >This is the <strong>one door carrying no natural opt-in</strong> — Task 09 §9.1. A
+            number sourced in conversation was not given by its owner for this purpose</span
+          >
         </div>
       </header>
       <div id="screens"></div>
@@ -1381,6 +1387,25 @@
           url: "oxfordlancers.example/operate/people/new",
           shotRoute: "/operate/people/new",
           proposedRoute: "/operate/recruits/new",
+        },
+        {
+          id: "W6-03",
+          title: "The welcome that did not fire",
+          disposition: "new",
+          drawn: false,
+          blurb: `Moved here from W3 on 2026-08-31: operator-add is the door that carries no natural opt-in, so
+         this consequence belongs to W6. Task 09 §9.1 is explicit that an operator adding somebody by
+         hand has no natural opt-in, and W6 has to capture one. This is what it looks like when it
+         did not.`,
+          deltas: [
+            `<strong>She exists on the board, and the club says nothing to her.</strong> The capture always stands; only the message waits`,
+            `<strong>The screen says what would release it</strong> — record how the club came by her number. A blocked step that does not say why is indistinguishable from a broken one`,
+            `<strong>This is the lawful-basis rule made visible on the recruit it affects.</strong> Meta requires documented opt-in before a first business message and GDPR requires a basis; neither is satisfied by an operator typing a number in`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
+          shotRoute: "/operate/roster/3841beb2-bd45-4c46-9175-5de457a06a42",
+          proposedRoute: "/operate/recruits/f31a02c8",
         },
       ];
 

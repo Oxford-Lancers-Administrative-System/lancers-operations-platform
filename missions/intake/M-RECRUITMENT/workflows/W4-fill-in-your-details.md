@@ -27,7 +27,15 @@
   signed-link contract Task 08 §3 already fixes — acts as the Person, carries no
   session, exposes only that person's own flow, and shows the uniform invalid page
   on expiry or revocation with no information leakage.
-- Desktop and 375px evidence: `W4-01` and `W4-02`, drawn at both widths.
+- Desktop and 375px evidence: `W4-01` and `W4-02`, drawn at both widths;
+  `W4-03` photographed both sides on the messaging-schedule shell.
+- **`W4-03` answers the question Brian asked at the stop** — _"No explanation on
+  how we got here. Is this automated? Does this get sent out? I don't know
+  because it doesn't say anywhere."_ It is automated, it is an approved template,
+  and it carries her own signed link; `W4-03` is step 4 of the cycle that fires
+  it. Note that `/a/[token]` **does** ship at the baseline: the route exists and
+  only a seeded token is missing, so these two screens are drawn for want of a
+  token rather than for want of a route.
 - Reason for any departure from the implemented application: nothing to depart
   from. This is the substrate's first instance.
 

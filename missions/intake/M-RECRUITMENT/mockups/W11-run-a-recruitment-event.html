@@ -1228,7 +1228,7 @@
         border-radius: 4px;
         padding: 2px 8px;
       }
-    
+
       /* Capped frames — LAN intake feedback, 2026-08-31. A full-page shot of a
          long record ran to several thousand pixels, so a page of them could not
          be scanned. The shot is unchanged; the box it sits in is scrollable. */
@@ -1313,10 +1313,10 @@
         <h1>W11 · Run a recruitment event</h1>
         <p>
           An operator schedules a session recruits are invited to, invites recruits and players
-      together where that is what the session is, and approves it knowing exactly what it sends.
-          <strong>The surfaces here exist on <code>main</code></strong>, so every screen is a
-           <strong>photograph on both sides</strong> — the same running page at <code>e669331</code>,
-           differing only by the proposal evaluated into it.
+          together where that is what the session is, and approves it knowing exactly what it sends.
+          <strong>The surfaces here exist on <code>main</code></strong
+          >, so every screen is a <strong>photograph on both sides</strong> — the same running page
+          at <code>e669331</code>, differing only by the proposal evaluated into it.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1330,8 +1330,27 @@
         </p>
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
-          <span>Brian, 2026-08-31: <em>“we should be able to invite players and recruits, but recruits get treated differently.”</em> Two ladders, not one suppressed ladder</span>
-          <span><strong>Both defects are real and verified in the running code.</strong> <code>scheduleEventLadder</code> inserts a reminder for every invitation filtered only by <code>event_id</code>, and <code>countByCapacity</code> omits recruits from the approval counts</span>
+          <span
+            >Brian, 2026-08-31:
+            <em
+              >“none of the machinery to explain how we separate out recruitment recruits from
+              non-recruits.”</em
+            >
+            <strong>The machinery already ships.</strong> <code>audience-builder.tsx</code> offers a
+            Capacity filter whose <em>Recruits</em> option appears on a Recruitment event and
+            nowhere else — D46, in the running code at the baseline. The first draft answered the
+            question with an invented table instead of pointing at the control</span
+          >
+          <span
+            ><strong>W11-02 was captured and then never put on this page</strong>, so the one screen
+            that explains why a Recruits audience exists at all was invisible. It is here now</span
+          >
+          <span
+            ><strong>Both defects are real and verified in the running code.</strong>
+            <code>scheduleEventLadder</code> inserts a reminder for every invitation filtered only
+            by <code>event_id</code>, and <code>countByCapacity</code> omits recruits from the
+            approval counts</span
+          >
         </div>
       </header>
       <div id="screens"></div>
@@ -1350,21 +1369,37 @@
 
       const SCREENS = [
         {
-          id: "W11-01",
-          title: "Before you approve",
-          disposition: "new",
+          id: "W11-02",
+          title: "Where the separation begins — the event's Type",
+          disposition: "modified",
           drawn: false,
-          blurb: `The change is the approval summary: today it states one audience number and omits recruits
-         from it entirely.`,
+          blurb: `The shipped form's Type control decides which audience groups the event may carry. Nothing
+         here is added: the control is the application's own, set to Recruitment.`,
           deltas: [
-            `<strong>1. Both audiences and both ladders</strong>, stated before approval`,
-            `<strong>2. A recruit gets one invitation and at most one polite follow-up</strong>, then nothing`,
-            `<strong>3. A recruit who says no is never asked why.</strong> <strong>Decide:</strong> R5's reason-on-no is a member obligation; demanding one of a recruit is harsh`,
-            `<strong>4. The defect this fixes</strong>, named on the screen with the code that causes it`,
+            `<strong>D46: recruits exist on a Recruitment event and nowhere else.</strong> Setting the Type is what makes a Recruits audience exist, and it is already how the product works`,
+            `<strong>The form already explains the consequence of its own Type.</strong> That sentence is where the recruits group is announced to the operator`,
           ],
           clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/events/1d76b9f8-82d2-4945-90cc-0b41bdd37ead",
-          shotRoute: "/operate/events/1d76b9f8-82d2-4945-90cc-0b41bdd37ead",
+          url: "oxfordlancers.example/operate/events/new",
+          shotRoute: "/operate/events/new",
+          proposedRoute: null,
+        },
+        {
+          id: "W11-01",
+          title: "Choosing the audience, and what each one receives",
+          disposition: "new",
+          drawn: false,
+          blurb: `The shipped audience builder, with the Capacity filter set to Recruits. The separation is a
+         control that exists; what does not exist is the second ladder.`,
+          deltas: [
+            `<strong>The shipped Capacity filter, set to Recruits.</strong> This is the separation, and it is running code today — not a proposal`,
+            `<strong>The shipped candidate list</strong>, filtered to the recruits, in the shipped row treatment`,
+            `<strong>What each audience is chased with — this is the new part.</strong> One event, two ladders: players get the escalation, recruits get one invitation and at most one polite follow-up, then nothing, ever`,
+            `<strong>The approval summary omits recruits from its count today.</strong> <code>countByCapacity</code> filters them out, so an operator approves an event without being told how many recruits it reaches`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/operate/events/b1103589-92f5-4e4f-aae6-a5618c780de6?step=audience",
+          shotRoute: "/operate/events/b1103589-92f5-4e4f-aae6-a5618c780de6?step=audience",
           proposedRoute: "/operate/events/1d76b9f8",
         },
       ];

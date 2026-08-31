@@ -15,5 +15,5 @@ if (control) mark(control, 1);
 // 2. The template's own note about what this type carries. The form already
 //    explains the consequence of the Type it is set to; on Recruitment that
 //    sentence is where the recruits group is announced.
-const note = $("[data-testid='draft-boundary-note']") ?? $(".MuiAlert-root");
-if (note) mark(note, 2);
+const boundaryNote = $("[data-testid='draft-boundary-note']") ?? $(".MuiAlert-root");
+if (boundaryNote) mark(boundaryNote, 2);

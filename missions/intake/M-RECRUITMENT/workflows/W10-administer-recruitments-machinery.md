@@ -39,7 +39,10 @@ specification proposes:
   and is already a per-type cadence editor.
 - Reused component, language, interaction, and permission patterns: that screen
   wholesale — its per-type rows, its offsets, its save behaviour and its audit.
-- Desktop and 375px evidence: `W10-01` and `W10-02`, both sides, measured.
+- Desktop and 375px evidence: `W10-01`, `W10-02` and `W10-03`, both sides,
+  measured. `W10-02` is QR administration, which was promised by this
+  specification and never shot; `W10-03` is the templates behind the cycle, moved
+  here from `W3` when Brian folded that workflow on 2026-08-31.
 - Reason for any departure from the implemented application: the shipped screen
   configures reminder cadence per event type. Recruitment's cycle is a different
   object — a sequence of named steps with content — so it is a sibling screen in
@@ -95,8 +98,15 @@ None on any recruit. This workflow changes configuration, never a person.
 
 ## Acceptance evidence
 
-- `grounding: photograph`. The shipped messaging schedule as the shell, both sides
-  at measured 1280px and 375px.
+- `grounding: photograph`. The shipped messaging schedule as the shell, both
+  sides at measured 1280px and 375px. The proposed route
+  `/operate/admin/recruitment` does not exist on `main` and every frame says so.
+- **QR administration is its own screen now.** It was built into `W10-01` and
+  appended below three thousand pixels of messaging schedule inside a 520px
+  review box, so the only thing visible was an untouched page — Brian, correctly:
+  _"You just fucking didn't do W10… There's literally nothing here about the QR
+  code. You just screenshotted it."_ Every region now lands above the page's
+  first card.
 
 ## Core decisions
 

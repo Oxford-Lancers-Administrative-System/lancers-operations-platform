@@ -1228,7 +1228,7 @@
         border-radius: 4px;
         padding: 2px 8px;
       }
-    
+
       /* Capped frames — LAN intake feedback, 2026-08-31. A full-page shot of a
          long record ran to several thousand pixels, so a page of them could not
          be scanned. The shot is unchanged; the box it sits in is scrollable. */
@@ -1313,10 +1313,10 @@
         <h1>W12 · Take attendance at a recruitment event</h1>
         <p>
           On the day, whoever is holding the phone records who actually turned up — recruits first,
-      everyone else below — and captures the people nobody expected.
-          <strong>The surfaces here exist on <code>main</code></strong>, so every screen is a
-           <strong>photograph on both sides</strong> — the same running page at <code>e669331</code>,
-           differing only by the proposal evaluated into it.
+          everyone else below — and captures the people nobody expected.
+          <strong>The surfaces here exist on <code>main</code></strong
+          >, so every screen is a <strong>photograph on both sides</strong> — the same running page
+          at <code>e669331</code>, differing only by the proposal evaluated into it.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1330,8 +1330,31 @@
         </p>
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
-          <span>The sheet derives its roster from memberships, so <strong>invited recruits do not appear on it at all</strong>. That is the gap Task 09 §9.1 names</span>
-          <span>A recruit's funnel status never appears on a sheet a coach can open — a coach reading “declined” beside somebody standing in front of them is both a privacy leak and a bad afternoon</span>
+          <span
+            ><strong>Rebuilt 2026-08-31.</strong> Brian:
+            <em
+              >“I don't know why we're reinventing fucking UI. That's perfectly good. For a
+              recruitment event, the recruits just need to go on top as their own category.”</em
+            >
+            The first draft authored a replacement row with its own state buttons. Nothing is
+            authored now</span
+          >
+          <span
+            ><strong>The sheet already groups.</strong> Attending, Everyone else and Walk-ups each
+            have a toggle, a label, a detail line, a count chip and a list of rows. The proposal
+            clones that group wholesale, renames it, fills it with cloned real rows and moves it to
+            the front — every control, chip and spacing below is the application's own markup</span
+          >
+          <span
+            >The sheet derives its roster from memberships, so
+            <strong>invited recruits do not appear on it at all</strong> today. That is the gap Task
+            09 §9.1 names, and adding a group is the whole of the fix</span
+          >
+          <span
+            >A recruit's funnel status never appears on a sheet a coach can open — a coach reading
+            “declined” beside somebody standing in front of them is both a privacy leak and a bad
+            afternoon</span
+          >
         </div>
       </header>
       <div id="screens"></div>
@@ -1354,12 +1377,10 @@
           title: "The sheet on the day",
           disposition: "new",
           drawn: false,
-          blurb: `Recruits at the top, everyone else below, and what a recruit's absence actually means.`,
+          blurb: `A fourth group at the top of the shipped sheet, built from the shipped sheet's own group
+         markup. Everything below it is untouched.`,
           deltas: [
-            `<strong>1. Recruits at the top</strong> — Task 09 D11, optimised for scanning who showed up`,
-            `<strong>2. Names only.</strong> No funnel status on a sheet a coach can open`,
-            `<strong>3. A recruit who does not turn up triggers nothing.</strong> “Did not show up” is deliberately not a recruit status`,
-            `<strong>4. Turnout is the sum of the records.</strong> No separate headcount — D8, superseding Register F4`,
+            `<strong>Recruits as a category at the top</strong> — Task 09 D11, and the sheet's own grouping mechanism rather than a new one. Names and the sheet's own state controls; nothing else on a recruit row that a player row does not have`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/operate/events/1d76b9f8-82d2-4945-90cc-0b41bdd37ead/attendance",
@@ -1371,11 +1392,12 @@
           title: "The same sheet, opened by a coach",
           disposition: "new",
           drawn: false,
-          blurb: `What is absent is the point.`,
+          blurb: `What is absent is the point — and absence cannot be drawn as a card listing what is absent,
+         because that is narration. This is the real coach view; the outlines point at where to look.`,
           deltas: [
-            `<strong>1. Names and attendance states. That is the whole payload</strong>`,
-            `<strong>2. Recruitment status, contact values, notes and signals are absent</strong> — not hidden. The data never reaches the browser`,
-            `<strong>3. A coach reading “declined” beside somebody standing in front of them</strong> is both a privacy leak and a bad afternoon`,
+            `<strong>The recruits group is here.</strong> A coach records attendance for recruits like anyone else — the group is not withheld from them`,
+            `<strong>A recruit row carries a name and an RSVP line and nothing else.</strong> No status, no source, no notes, no link to the board — absent from the page <em>and</em> from the payload, which is the LAN-75 contract. The data never reaches the browser, so there is nothing to reveal by inspecting the page`,
+            `<strong>The navigation a coach receives.</strong> Recruits is not in it`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/operate/events/1d76b9f8-82d2-4945-90cc-0b41bdd37ead/attendance",

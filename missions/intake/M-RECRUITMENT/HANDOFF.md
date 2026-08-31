@@ -1,174 +1,140 @@
 # Handoff — M-RECRUITMENT intake
 
-Written 2026-08-31 when Brian stopped the session. **Read this before you touch
-anything.** It replaces the 2026-08-28 handoff, whose resume is done.
+Written 2026-08-31 after the Stage 3 sweep. It replaces the earlier handoff of
+the same day, whose repairs are done.
 
-> **The short version.** Stage 2 is closed and sound. Stage 3 is not: the
-> specifications are usable but carry errors, and **most of the mockups are
-> wrong and should be treated as suspect until re-grounded.** Brian's words at
-> the stop: _"This is horrendous. If you needed to know more information from me,
-> you should have fucking asked before doing this, especially four times."_
-> Nothing in Stage 3 is approved. Do not build on the mockups. Ask him first.
+> **The short version.** Stage 0, 1 and 2 are closed and sound. Stage 3's
+> screens have been rebuilt from the ground up and re-shot at one head SHA, and
+> the three mechanical faults that produced every complaint at the stop are
+> fixed. **Nothing in Stage 3 is approved**, and no approval should be recorded
+> that Brian has not given in his own words. The next action is to open
+> `mockups/index.html` with him and walk `W1`.
 
-## Where the ledger actually is
+## Where the ledger is
 
 ```bash
 cd .claude/worktrees/intake-M-RECRUITMENT   # branch intake/M-RECRUITMENT
 npm run intake -- status M-RECRUITMENT
 ```
 
-- Stage: `workflows`. Baseline `main@e669331d96fb949a3c29d7475842a6414cfe9e57`.
-- Ledger version 3. `npm run intake -- check` is consistent; both coverage
-  validators pass. That is a statement about structure, not about quality.
-- **Approvals: boundary, overview, inventory. Nothing else.** No workflow has a
-  spec approval, a mock approval or an acceptance verdict, and none should be
-  recorded without Brian's own words.
-- Local runtime: lease `mission-m-recruitment-1`, app on port 3101. Release it
-  with `npm run db:release` if you are not using it.
+- Stage `workflows`. Baseline `main@e669331d96fb949a3c29d7475842a6414cfe9e57`.
+- Ledger version 3. `npm run intake -- check` is consistent and both coverage
+  validators pass.
+- **Approvals: boundary, overview, inventory. Nothing else.**
+- Local runtime: lease `mission-m-recruitment-1`, application on port 3101.
+  Release it with `npm run db:release` when you are not using it. The lease is
+  held by the main checkout and this worktree is attached to it.
 
-## What is solid, and worth keeping
+## What the sweep found, and what it changed
 
-1. **Stage 0, 1 and 2.** The 44-item boundary, the overview with its eight
-   invariants, and the frozen fourteen-workflow inventory all carry Brian's
-   exact words. 89 controlling decisions across nine sources, 44 subject areas.
-   Do not reopen these; amend only with his approval.
-2. **The never-harsh amendment** (2026-08-31) and the nine decisions from his
-   inventory review are recorded correctly in `01-overview.md`.
-3. **One genuine finding, and it is load-bearing.**
-   `src/lib/delivery/config.ts`: _"template is the only production shape."_
-   Every business-initiated WhatsApp message must be a Meta-approved template;
-   free text exists on the loopback test path alone, and only
-   `event_invitation` is approved today. Brian confirmed the intent:
-   _"We're sending WhatsApp template messages. We don't have the president
-   sending them each individual messages… These should be sending automated
-   templates."_ This kills any design where an operator types a message.
-4. **The tooling works.** `mockups/build-proposals.mjs` assembles proposals from
-   `mockups/src/_prelude.js` plus one body per screen; `mockups/build-pages.mjs`
-   emits the review pages; the hub and coverage files are generated. The
-   prelude's helpers for cloning real cards, rows and form fields are sound and
-   worth reusing.
+An audit of all 36 screens against the running application found three faults.
+Each was one defect repeated, not a series of judgement calls.
 
-## The mistakes. Read these before writing a single screen
+### 1. The URL bar lied on eighteen of thirty-six frames
 
-### 1. Choosing a shell because its name sounded right — four times
+`/operate/recruits`, `/operate/recruits/review` and `/operate/admin/recruitment`
+do not exist on `main` — `src/app/operate` has no `recruits` directory — yet
+those routes were printed in the browser chrome above a photograph of a
+different page, and all eighteen declared themselves `modified`.
 
-This is the root error and it was pointed out three times before it stopped.
-Each time I grounded a workflow on whatever route had a similar-sounding name
-rather than on where the work actually happens:
+| The frame said               | It was a photograph of                    |
+| ---------------------------- | ----------------------------------------- |
+| `/operate/recruits`          | `/operate/roster`                         |
+| `/operate/recruits/<id>`     | `/operate/roster/<id>`, the player record |
+| `/operate/admin/recruitment` | `/operate/admin/messaging`                |
+| `/operate/recruits/review`   | `/operate/people/<id>/merge`              |
+| `/operate/recruits/new`      | `/operate/people/new`                     |
 
-| Workflow            | Shell I used                 | Why it was wrong                                                                                                                                  |
-| ------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `W9` follow-up      | `/operate/admin/follow-ups`  | Mission 4's chase queue for **members who owe the club an answer**. A recruit owes nothing. Brian: _"That's not even the right place."_           |
-| `W2` recruit record | `/operate/people/[personId]` | Brian: _"It does not come from the people workflow."_ Corrected to the player record shell, which he accepted.                                    |
-| `W3`, `W4`          | `/operate/admin/messaging`   | Mission 4's **per-event-type reminder cadence**. Nothing to do with recruitment sign-on. Brian: _"Message scheduling? Why the fuck is it there?"_ |
-| `W8` duplicates     | `/operate/people/[id]/merge` | Brian: _"That's not where in the fucking workflow it belongs. That's not how the duplicate checks get done."_ **Still wrong. Not fixed.**         |
+That is the whole of _"why the fuck are we on the messaging page"_ and _"that's
+not where it belongs."_ It was not four bad shell choices; it was one technique
+applied eighteen times.
 
-**What to do instead:** decide where a workflow lives from the workflow, and if
-the answer is not obvious in the running app, **ask Brian**. Do not pick the
-nearest route.
+**Fixed.** `build-pages.mjs` now derives every frame's URL and every screen's
+disposition from `shots.json` rather than taking an assertion. Where a proposed
+route does not exist, the screen head says so in words and the frame shows what
+was really photographed. The build refuses a screen that has no shot.
 
-### 2. Narration instead of screens
+### 2. Half the screens were a five-thousand-pixel page in a 520px window
 
-The first full build appended cards of label/value rows _describing_ what a
-screen would do, next to an untouched page. Brian: _"it didn't actually make the
-fucking screens. It just showed what it wanted to do."_ These were swept, but
-the habit reappeared as thin work elsewhere — see `W10` below.
+`shoot.mjs` captures `fullPage: true`; the review page renders the result in
+`max-height: 520px; overflow: auto` at full width. Fourteen screens were 2,800
+to 5,700px tall. On `W10-01` the QR administration was built and appended at the
+bottom of a 3,557px image, so what was visible was the top of an untouched
+messaging page — exactly _"you just screenshotted it."_ The correlation was
+near-perfect: every workflow Brian complained about was a tall screen, and every
+one he did not was 900–1,500px.
 
-**The correct technique**, and it does work: insert the proposal **into the real
-DOM**. `fill()` real fields, `afterField()` to place a block between real
-fields, `rebuildCard()`/`recordRow()` to replace a real card's rows with cloned
-markup. `W5` and `W2` are the two examples worth copying.
+**Fixed, and deliberately not by cropping.** Brian, 2026-08-31: _"I don't care
+if it has extra, as long as it stays bounded and I can scroll. That's fine, but
+if there is something relevant, it needs to be pointed out. I don't want that
+through narration."_ So the shots stay whole pages in a bounded scrolling box,
+every proposal places its regions **above the page's first card**, and each
+changed region carries a numbered outline.
 
-### 3. Inventing product reality instead of checking or asking
+### 3. Review commentary was painted inside the application frame
 
-- **The WhatsApp chat thread** in the first `W3-02` was invented. Brian:
-  _"That's not what a WhatsApp page looks like… This is completely invented."_
-  It was also unsendable under the template-only constraint, which I found only
-  after drawing it twice.
-- **A defect that did not exist.** `W5`'s spec claimed nothing tells the operator
-  a walk-up creates a recruit. The shipped form says exactly that in an alert.
-  Written from the shape of the code rather than from the screen. Struck in the
-  spec, with the correction recorded — **check the other specs for the same
-  class of error; they were written the same way.**
+`proposedBlock()` inserted a teal or amber prose card into the live DOM, which
+is the narration habit in a new costume, and `docs/ux/mockup-standards.md` puts
+that material in the screen head.
 
-### 4. Not asking
+**Fixed.** `mark(node, n)` draws a numbered outline and nothing else. The prose
+for number _n_ is delta _n_ in the screen head, outside the frame. Every screen's
+marker count now matches its delta count; this was verified in the live DOM, not
+assumed.
 
-Four rounds of rework, three of them avoidable. Brian invited questions
-explicitly and I built instead. When the answer is not in the record, ask.
+## What changed per workflow
 
-## Brian's per-workflow feedback at the stop, verbatim in substance
+- **`W3` folds into the doors and `W10`** — Brian's decision. It keeps its
+  specification, which is where the ladder and its invariants are defined, and
+  draws no screens. Its three screens moved to where a reviewer can see them:
+  the templates to `W10-03`, the ladder on a recruit to `W2-03`, the held
+  welcome to `W6-03` (operator-add is the door with no natural opt-in).
+- **`W8` is re-grounded on the shipped duplicate check.** _"That's not how the
+  duplicate checks get done."_ Correct: `create-person-form.tsx` is a
+  check-then-create, and `W8-01` now drives that real form — types a name and a
+  mobile, presses the application's own _Check for duplicates_, and photographs
+  its own answer. Only the parked queue is drawn, because only the queue is new.
+- **`W10` has its QR screen**, `W10-02`, as its own screen rather than buried.
+- **`W11` points at machinery that already ships.** `audience-builder.tsx` has a
+  Capacity filter whose `Recruits` option appears on a Recruitment event and
+  nowhere else — D46, running code. The first draft asserted an invented table
+  instead. `W11-01` is now shot on `?step=audience` of the seeded draft
+  recruitment event with that control set to `Recruits`. `W11-02`, which was
+  captured and then never put on the page, is on it.
+- **`W12` stops reinventing the sheet.** The sheet already groups, with a
+  toggle, label, detail, count chip and row list. The proposal clones that group,
+  renames it `Recruits`, fills it with cloned real rows and moves it to the
+  front. Verified first in the DOM.
+- **Vocabulary settled: walk-up.** Three shipped strings in
+  `presentation.ts` change; recorded as a locked decision in `W5`.
 
-Treat every one of these as open. **None is fixed.**
+## Bookkeeping that was also wrong
 
-- **`W3`** — _"the wrong fucking screen. It has nothing to do with the workflows.
-  Why are we on the messaging page? How is it grounded in the rest of the app?
-  Where the fuck is this supposed to be?"_ The unresolved design question
-  underneath: `W3`'s actor is the recruit and their journey happens in WhatsApp,
-  which the product does not render. Either it has almost no screens, or it
-  folds into the doors plus `W10`, or there is a recruit-facing surface nobody
-  has described yet. **Ask him.**
-- **`W4`** — _"No explanation on how we got here. Is this automated? Does this
-  get sent out? I don't know because it doesn't say anywhere."_ The form is
-  drawn; how it reaches the recruit is not explained anywhere a reviewer can
-  see it.
-- **`W7`** — _"it's not clear to me how this page is supposed to be organized,
-  where we get to this QR code, or how we explain where it happens."_ Where the
-  QR lives, who mints it, how a recruit reaches the page — none of it is shown.
-- **`W8`** — the merge screen is the wrong flow, and _"that's not how the
-  duplicate checks get done. That's not where it happens."_
-- **`W10`** — _"You just fucking didn't do W10… There's literally nothing here
-  about the QR code. You just screenshotted it."_ One screen, and the QR
-  administration the spec promises is absent.
-- **`W11`** — _"none of the machinery to explain how we separate out recruitment
-  recruits from non-recruits."_
-- **`W12`** — _"I don't know why we're reinventing fucking UI. That's perfectly
-  good. For a recruitment event, the recruits just need to go on top as their
-  own category."_ The shipped attendance sheet is fine; recruits become a
-  category at the top of it and nothing else changes.
+- Nine screens had no mention in any specification. All are now accounted for.
+- `W10-02` was promised by its specification and never shot. It exists.
+- `W11-02` had no proposed side and was not on its review page. Both fixed.
+- Four specifications named a route that was not what was photographed —
+  `W2`, `W9`, `W3-01`, `W3-02`. All corrected to say what was really shot.
+- Shots spanned six head SHAs. All 37 are now at one.
+- `/a/[token]` **does** ship at the baseline. `W4` and `W7` are drawn for want
+  of a seeded token, not for want of a route; if a token becomes available they
+  should be re-shot as photographs.
 
-## Questions Brian has not answered
+## What is still open, and still Brian's
 
-He rejected the question set when he stopped the session, so these are still
-open and they block real progress:
-
-1. **What `W3` actually is** — an operator view only, folded into other
-   workflows, or a recruit-facing surface we build.
-2. **Where "how a message gets sent" belongs** — per recruit on their record, a
-   recruitment settings page this mission builds, or both. It is emphatically
-   **not** Mission 4's messaging schedule.
-3. **Vocabulary: `walk-up` or `walk-on`.** The shipped button says _Add
-   walk-up_, the page says _Add a walk-on_, the row chip says _Walk-on_, every
-   brief says _walk-up_. Unresolved and recorded in `W5`'s spec.
-
-## What is where
-
-| Thing          | Path                                                               |
-| -------------- | ------------------------------------------------------------------ |
-| Stage files    | `00-boundary.md`, `01-overview.md`, `02-workflows.md`              |
-| Specifications | `workflows/W1..W14-*.md` — usable, but see mistake 3               |
-| Review pages   | `mockups/W1..W14-*.html`, generated by `build-pages.mjs`           |
-| Screens        | `mockups/shots/` — 126 PNGs, and `shots.json` is the record        |
-| Proposals      | `mockups/src/*.js` + `_prelude.js`, built by `build-proposals.mjs` |
-| Index          | `mockups/index.html` — generated, never hand-edited                |
-| Acceptance     | `acceptance/W*.md` — all `awaiting review`                         |
-
-Reading companions (`.html` beside each stage file) are for Brian and are
-regenerated from the markdown; the markdown is the record.
-
-## What I would do first if I were you
-
-1. **Do not defend the existing mockups.** Open the index with Brian, agree
-   which screens survive, and mark the rest stale in `state.json` rather than
-   silently rebuilding.
-2. **Settle the three open questions above** before drawing anything.
-3. **Re-ground `W8`, `W10`, `W11`, `W12` from the workflow**, not from a route
-   that sounds right. `W12` in particular needs _less_ invention, not more.
-4. **Re-read the specs for claims written from code rather than from screens.**
-   At least one was false; assume there are others.
+1. **Every Stage 3 approval.** No specification, mockup or acceptance verdict
+   has been approved. Walk `W1` first; `Wn` completes before `Wn+1` is approved.
+2. **Where "how a message gets sent" belongs.** `W10` proposes
+   `/operate/admin/recruitment` as a sibling of the shipped messaging schedule,
+   with Mission 4 owning the scheduler and recruitment declaring a cycle. That is
+   a proposal, and it is the boundary Brian said he was least sure of.
+3. The `proposed for owner approval` rows in each specification's decision table.
 
 ## Do not
 
 Merge, un-draft, deploy, migrate hosted Supabase, edit Notion without Brian's
 approval of the exact text, record an approval he has not given, or open the PR
-before Stage 5. The final PR carries exactly `missions/intake/M-RECRUITMENT/**`
-and `missions/packets/M-RECRUITMENT/**`.
+before Stage 5. The final PR carries exactly the `missions/intake/M-RECRUITMENT`
+and `missions/packets/M-RECRUITMENT` trees and nothing else — `scripts/intake`
+is out of scope, which is why the capture tool was left alone and the review
+page does the work.
