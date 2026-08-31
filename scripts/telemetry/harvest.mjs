@@ -19,9 +19,9 @@
  *  4. No message text. The rows are counts, identifiers and timestamps, so
  *     that a transcript's secrets cannot reach the output repository at all.
  *     Two labelling fields are the deliberate exception, documented in
- *     `schema.md`.
+ *     `docs/agent-telemetry.md`.
  *
- * It runs no model and consumes no tokens. See `schema.md` for the tables.
+ * It runs no model and consumes no tokens. See `docs/agent-telemetry.md` for the tables.
  */
 import {
   appendFileSync,
@@ -634,7 +634,7 @@ function bootstrapOutputRepo(outDir) {
       "`scripts/telemetry/harvest.mjs` in the lancers-operations-platform repo.",
       "",
       "Rows are counts, identifiers and timestamps. No conversation text is stored.",
-      "See `scripts/telemetry/schema.md` in that repo for the tables.",
+      "See `docs/agent-telemetry.md` in that repo for the tables.",
       "",
       "Private by design. Do not make this repository public.",
       "",
@@ -783,7 +783,13 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error.stack || error.message}\n`);
-  process.exitCode = 1;
-});
+// Only run when invoked as a command. Importing this module — which the tests
+// do, to exercise the extractor against fixtures — must not start a harvest.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    process.stderr.write(`${error.stack || error.message}\n`);
+    process.exitCode = 1;
+  });
+}
+
+export { extractTranscript, extractAgentRuns, sessionWorkLinks, recordedUsage, main };

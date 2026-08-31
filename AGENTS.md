@@ -32,6 +32,7 @@ identities and synthetic scenarios under `docs/pilot-data-runbook.md`.
 | Hosted non-schema manifest  | `docs/pilot-data-manifest.md`     |
 | Deploy and rollback         | `docs/deployment.md`              |
 | Mission operation           | `docs/mission-harness.md`         |
+| Agent session telemetry     | `docs/agent-telemetry.md`         |
 | Decisions                   | `docs/adr/README.md`              |
 
 The more specific document wins; correct this file when it drifts.
@@ -70,6 +71,7 @@ npm run db:release
 npm run types:generate
 npm run types:check
 npm run check:rls
+npm run telemetry:harvest
 ```
 
 `npm run verify` is exactly format check, lint, typecheck, tests, and build.
