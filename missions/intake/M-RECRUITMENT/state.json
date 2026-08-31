@@ -198,9 +198,9 @@
       "stale": false,
       "feedback": [
         {
-          "screen_id": "W11-03",
+          "screen_id": "W11-01",
           "date": "2026-08-31",
-          "text": "They do not see the full event page. They see a WhatsApp invite with yes or no, then the yes page or the no page - it's built in the app already. We never ask them for a reason; it just puts in 'no reason given'. — DONE: W11-03 and W11-04 are photographs of the shipped saved page with an attending and a declined response. There is no event page for a recruit. The database constraint requiring a reason is untouched; the system supplies 'No reason given' and the reason step never runs."
+          "text": "I don't approve the events, but you're not getting them right. We're just going to make a note that we're moving past it because the app will have to just reuse elements that it already has. — NOT APPROVED. Moved past on his instruction with that note recorded. Do not present W11 as approved and do not quietly mark it done; the build reuses the shipped event elements and the workflow is carried unapproved into the packet."
         }
       ]
     },
@@ -231,6 +231,19 @@
       "state": "spec_draft",
       "stale": true,
       "feedback": []
+    },
+    {
+      "id": "W15",
+      "name": "The recruit messaging flow",
+      "state": "spec_draft",
+      "stale": false,
+      "feedback": [
+        {
+          "screen_id": "W15-01",
+          "date": "2026-08-31",
+          "text": "Where is the workflow to manage the messaging flow just for recruits? I've mentioned this a dozen times. It's not on this page... Recruit messaging flow. Get that workflow in here. — ADDED as W15 on his explicit instruction. Nothing renumbers; W3 and W9 stay folded and their numbers stay dead."
+        }
+      ]
     }
   ],
   "mockup_hub": "generated",
@@ -1080,7 +1093,7 @@
       }
     ]
   },
-  "next_action": "W1-W8 and W10 approved; W3 and W9 folded. W11 is four screens and with Brian. W12 IS ALREADY APPROVED IN HIS WORDS - 'W12 is approved. I looked at it. It's simple. It's done.' - but the ledger refuses it as done until W11 is done. FLIP W12 TO DONE THE MOMENT W11 IS APPROVED and do not ask him again. NEXT: W13, W14 - both stale. Then the packet. W2-04 still only tentatively accepted. LOCAL TEST DATA: an rsvp_access_tokens row and an rsvp_responses row were written to the mission database so /rsvp/[token] could be photographed. Synthetic and local. OWNER ACTION: four WhatsApp templates to Meta. DEFECT: countByCapacity omits recruits from the event approval summary. OPEN: who mints next season's QR; no control for turning a cycle step off; 'said no to WhatsApp' vs 'declined'; W2 button placement; events violet vs blue; channel presence on the record; the Contactable cell; Brian's later copy for the declined page.",
+  "next_action": "W1-W8 and W10 approved; W3 and W9 folded; W12 approved in his words and held by the ordering rule. W11 is NOT APPROVED - Brian moved past it with a note that the build reuses the shipped event elements; do not present it as approved. W15 - THE RECRUIT MESSAGING FLOW - was added on his explicit instruction after he asked for it repeatedly. It is the end-to-end sequence of everything the club sends a recruit: the trigger, the template, what the recruit lands on, and what gets recorded. Nothing renumbers. NEXT: finish W15, then W13 and W14, then the packet. OWNER ACTION: four WhatsApp templates to Meta. DEFECT: countByCapacity omits recruits from the event approval summary. OPEN: W2-04's real approval; who mints next season's QR; no control for turning a cycle step off; 'said no to WhatsApp' vs 'declined'; W2 button placement; events violet vs blue; channel presence on the record; the Contactable cell; Brian's copy for the declined page.",
   "subject_coverage": {
     "areas": [
       {

@@ -653,6 +653,33 @@ const WORKFLOWS = [
       ),
     ],
   },
+  {
+    id: "W15",
+    slug: "the-recruit-messaging-flow",
+    name: "The recruit messaging flow",
+    lede: `Everything the club ever sends a recruit, in order — the trigger, the template, what they
+      land on, and what is recorded. Added on Brian's explicit instruction after he asked for it
+      repeatedly.`,
+    grounding: "photograph",
+    noScreens: `<strong>This workflow has no screens of its own, and that is the point.</strong> The
+      flow is not a page — it is what W10 configures and what W2 observes, and drawing a third
+      surface to narrate it would be the invention this mission has struck all day.
+      <ul>
+        <li><strong>Configured</strong> — <a href="W10-administer-recruitments-machinery.html">W10</a>, the Recruitment section of the messaging schedule: steps 1–5 as cycle rows, steps 6–7 as the <code>Recruit event invitations</code> row</li>
+        <li><strong>Observed, per recruit</strong> — <a href="W2-one-recruits-record.html">W2</a>, whose audit carries every send with its date and delivery state</li>
+        <li><strong>What the recruit lands on</strong> — <a href="W4-fill-in-your-details.html">W4-01 and W4-02</a> for the questionnaires, <a href="W11-run-a-recruitment-event.html">W11-03 and W11-04</a> for an event</li>
+      </ul>
+      <p>The sequence itself, what is never sent, and the two ladders side by side are in
+      <code>workflows/W15-the-recruit-messaging-flow.md</code>. That specification is the deliverable:
+      seven messages, each bounded, and a list of what the club will never do.</p>
+      <p><strong>Blocked on an owner action.</strong> Only <code>event_invitation</code> exists in
+      Meta. Steps 1 to 5 need four templates that have not been submitted, so the flow can be built
+      and cannot run until Brian has cleared them.</p>`,
+    legend: [
+      "<strong>Never harsh, end to end.</strong> One reminder per ask and then silence; no escalation ever reaches the President; nothing at all is sent to a recruit who declined; and no message is composed, because every one is a Meta-approved template",
+      "<strong>A QR recruit skips the welcome</strong> — they joined the group themselves at the stand, so it has nothing to tell them",
+    ],
+    screens: [],
 ];
 
 // Every frame's URL bar, and every screen's disposition, are derived from

@@ -71,6 +71,11 @@ mission and its shape depends on what everything before it became.
 14. `W14` — **Flip a recruit to joined**: one of the core four decides a recruit is
     in → a confirmation interrupts, the season membership exists, the roster shows
     them joined this season, and onboarding opens.
+15. `W15` — **The recruit messaging flow**: one place that says everything the
+    club ever sends a recruit, in order → the trigger, the template, what the
+    recruit lands on, and what is recorded. Added 2026-08-31 on Brian's explicit
+    instruction — _"Recruit messaging flow. Get that workflow in here."_
+    Appended, so nothing renumbers and `W3` and `W9` stay dead.
 
 ## Excluded stages and invariants
 
