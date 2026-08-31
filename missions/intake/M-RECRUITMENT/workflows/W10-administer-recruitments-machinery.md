@@ -121,6 +121,22 @@ outside the club's control, so **the cycle can be built and cannot run** until
 Brian has loaded and cleared them. That belongs in the packet's owner actions at
 closeout, not on a screen.
 
+### One QR code, for the season
+
+Brian, 2026-08-31: _"I really don't like this page. I don't think we should do it
+per event. We should just have one that is just the QR code to sign in to get
+into the WhatsApp group. That's it... created once per season and exists on the
+page. That's it. Nothing else should exist: no new pages. Simplify."_
+
+So there is **one** code, minted once a season, at the top of the Recruitment
+section. It points at `/join`, says how many have signed in through it, and
+copies for a poster. **The separate QR page is deleted**, and with it per-event
+codes, revoking, and the question of where that page lived.
+
+Nothing was lost. Per-event codes existed to answer _"where did this recruit come
+from"_, and the recruit's own record already answers that: `Came in through` is a
+stored field on every recruit, set at the door.
+
 ### The three sections of the messaging schedule
 
 Brian, same day: _"This page really needs to be split up into multiple
