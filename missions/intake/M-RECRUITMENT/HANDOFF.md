@@ -1,5 +1,27 @@
 # Handoff — M-RECRUITMENT intake
 
+> **UPDATE, 2026-08-31, later the same day.** The two defects this file was
+> written about are **fixed and verified**, and W1 has been rebuilt with Brian
+> and re-photographed. Everything below is retained because the reasoning still
+> governs; only the "fix this first" instructions are discharged.
+>
+> - `mockups/src/_prelude.js` helpers now **throw** (`must()`), so a proposal
+>   that cannot apply fails the shoot instead of producing a confident-looking
+>   screen. `rebuildCard` replaces rows **before** it touches the header.
+> - `setRecruitCards()` rebuilds the **phone** card list. Both renderings are
+>   always in the DOM (`display:{xs,md}` hides, it does not unmount), so a board
+>   proposal now rewrites the table and the cards from one dataset. The old
+>   phone shots were the shipped roster's 42 players under a recruitment
+>   heading; that class of error is closed.
+> - Navigation is fixed and **asserted**: `selectRecruitmentNav()` throws unless
+>   exactly one item ends up selected. Recruitment is a **top-level destination
+>   under Roster** at `/operate/recruitment` — Brian, 2026-08-31 — not an
+>   Administration entry.
+> - Transitions are disabled before capture. The first rebuilt shots caught MUI
+>   mid-fade and showed two selected destinations while the DOM had one.
+> - **W1 is no longer stale.** W2-W14 still are. Brian goes one workflow at a
+>   time; do not sweep.
+
 Written 2026-08-31 when Brian stopped the session. **Read this before you touch
 anything.** It replaces both earlier handoffs of the same day.
 

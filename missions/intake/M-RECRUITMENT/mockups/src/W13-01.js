@@ -276,7 +276,7 @@ for (const node of $$("label, .MuiInputLabel-root, .MuiSelect-select")) {
   if (FILTERS[t]) node.textContent = FILTERS[t];
 }
 
-selectRecruitsNav();
+selectRecruitmentNav();
 
 appendCard(
   "What just happened",

@@ -3,12 +3,12 @@
     {
       "id": "W1-01",
       "route": "/operate/roster",
-      "headSha": "90f8df461b352a6d08df07a919ad7ecd33ce4ef2",
+      "headSha": "07d0edbee770ec7b8311d8224457e78c20e8e1dd",
       "slot": "mission-m-recruitment-1",
       "proposal": {
         "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W1-01.js",
-        "sha256": "3eb0b8528ce6927c9213a50427714c8167e1c3e5e8fa8fb016bf07db7f48c4ca",
-        "bytes": 31819
+        "sha256": "87fbf3c71cc4102db92d38d7b9c69be0d82d33b1e43d394b23fda965c4d4615c",
+        "bytes": 44636
       },
       "captures": [
         {
@@ -44,17 +44,17 @@
           "file": "shots/W1-01-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-31T16:41:27.237Z"
+      "at": "2026-08-31T18:12:47.043Z"
     },
     {
       "id": "W1-02",
       "route": "/operate/roster",
-      "headSha": "90f8df461b352a6d08df07a919ad7ecd33ce4ef2",
+      "headSha": "07d0edbee770ec7b8311d8224457e78c20e8e1dd",
       "slot": "mission-m-recruitment-1",
       "proposal": {
         "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W1-02.js",
-        "sha256": "5ea1b04bb01cc13ccc9ceea159a6189442aa24e723e4fb3e88e1a34fc929801f",
-        "bytes": 32081
+        "sha256": "9b6df8f62d7e95f873d2f6aea4d071afdc13fc9259db713baa59ab00684c9967",
+        "bytes": 45557
       },
       "captures": [
         {
@@ -90,17 +90,17 @@
           "file": "shots/W1-02-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-31T16:41:31.494Z"
+      "at": "2026-08-31T18:13:58.206Z"
     },
     {
       "id": "W1-03",
       "route": "/operate/roster",
-      "headSha": "90f8df461b352a6d08df07a919ad7ecd33ce4ef2",
+      "headSha": "07d0edbee770ec7b8311d8224457e78c20e8e1dd",
       "slot": "mission-m-recruitment-1",
       "proposal": {
         "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W1-03.js",
-        "sha256": "79dfe6c9c64fdf88dac3e5265fd79fa8212f8972c5a535f9c83004a8b96166fe",
-        "bytes": 24991
+        "sha256": "997585a328a1133dc475266ab90e33fcccc690d3a4a4eff4384102ba36a2115c",
+        "bytes": 46482
       },
       "captures": [
         {
@@ -136,7 +136,7 @@
           "file": "shots/W1-03-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-31T16:37:36.713Z"
+      "at": "2026-08-31T18:12:57.157Z"
     },
     {
       "id": "W10-01",

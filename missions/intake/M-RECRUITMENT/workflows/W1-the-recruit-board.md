@@ -9,9 +9,12 @@
   President, Secretary, General Manager.
 - Trigger: the operator wants to know where recruitment stands, usually before a
   Monday conversation or before a recruitment event.
-- Entry point: a Recruits item in the Administration group of the left navigation,
-  directly beneath People.
-- Route/placement: `/operate/recruits`.
+- Entry point: a **Recruitment** destination in the top group of the left
+  navigation, directly beneath Roster. Brian, 2026-08-31: _"It's a new page on the
+  sidebar underneath Roster, and it's under /operate. That's it. There's no factual
+  thing: roster, recruitment, events, and whatever."_ It is deliberately **not**
+  an Administration entry; the Administration group is unchanged.
+- Route/placement: `/operate/recruitment`, its own page.
 - Controlling source: Task 09 D4 and D9; portfolio row 6's "recruits list beside
   the roster"; Brian's 2026-08-28 board decision and his 2026-08-31 confirmation
   that it is recruitment's own board modelled on the roster board.
@@ -22,8 +25,11 @@
 ## Current `main` grounding
 
 - Locally rendered route or nearest implemented analogue: `/operate/roster` at
-  `main@e669331`, photographed as `W1-01`. `/operate/people` is photographed as
-  `W1-02` for its list-and-search language.
+  `main@e669331`. `W1-01` is that board with the proposal applied; `W1-02` is the
+  same board scrolled to its right end, where the Events band lives. Both sides
+  of both screens are photographs of the running application. (An earlier
+  revision of this file claimed `W1-02` photographed `/operate/people`; it never
+  did, and `shots.json` always said `/operate/roster`.)
 - Reused component, language, interaction, and permission patterns: the banded
   board built by LAN-186 — `src/app/operate/roster/board-columns.ts` supplies the
   band model, the 28px band-header row, the 16px band label inset, the pinned
@@ -65,13 +71,18 @@ one-line swap and changes nothing else.
 **Person band** — read-only, routes to the person record on click, exactly as the
 roster board's person columns do.
 
-| Column      | Source                    | Notes                                                              |
-| ----------- | ------------------------- | ------------------------------------------------------------------ |
-| Recruit     | `people`                  | Pinned first column. Display name, links to `W2`.                  |
-| College     | `people`                  | `Not recorded` in grey where absent, as the roster does.           |
-| Matric      | `people`                  |                                                                    |
-| Contactable | derived                   | Mobile / Email pills, exactly the roster's indicators.             |
-| On WhatsApp | seasonal channel presence | Already a row on the person record and empty today; `W3` fills it. |
+| Column      | Source   | Notes                                                    |
+| ----------- | -------- | -------------------------------------------------------- |
+| Recruit     | `people` | Pinned first column. Display name, links to `W2`.        |
+| College     | `people` | `Not recorded` in grey where absent, as the roster does. |
+| Matric      | `people` |                                                          |
+| Contactable | derived  | Mobile / Email pills, exactly the roster's indicators.   |
+
+**`On WhatsApp` was struck on 2026-08-31.** It is not a recruit field: it is
+seasonal channel presence on the person record, owned by Mission 5 and empty at
+the baseline. Brian, on being shown it beside College and Matric: _"It doesn't
+make any sense here."_ Group presence is a thing the club observes, not a column
+of fact about a recruit, and it goes with the signal abstraction struck below.
 
 **Recruitment band** — this mission's facts, edited in the cell.
 
@@ -81,13 +92,59 @@ roster board's person columns do.
 | Source        | `recruitment_prospects` | Which door they came through.                                          |
 | First contact | `recruitment_prospects` | Date.                                                                  |
 | Asked         | the `W4` request        | Whether the recruit-stage form is open, answered, or never sent.       |
-| Last touch    | derived from messages   | When the club last said anything, and what.                            |
 | Notes         | `recruitment_prospects` | Prose. Never scored, never ranked — Task 09 D9 and 8/5.                |
+
+**`Last touch` was struck on 2026-08-31**, with `On WhatsApp`, and for the same
+reason. Brian: _"Instead of an innocuous signals thing, we should just take the
+events as signals. Don't conflate those, right? Let's just make events events."_
+So the board carries the recruit's own stored fields and the person facts it may
+read, and derived signal columns are not among them. What the club said and when
+lives on the recruit's record (`W2`), where it is a dated fact with a source.
+
+`committed_on` is not a board column. Brian redefined it on 2026-08-31: it marks
+the day the recruit reaches **joined**, not the day they reach `committed` —
+_"the day that's joined, I would say."_ Whether it is also stamped at `committed`
+is explicitly unsettled: _"maybe that field should be set. I think we'll figure
+out how it needs to really work."_ Recorded as open below.
 
 **Events band** — one column per recruitment event, appended at the right end in
 date order, oldest first, so the term reads left to right. Each column is headed
-by a compact handle carrying the event's name and date. Each cell shows three
-things in one glyph group: invited, answered and what they said, attended.
+by the event's name and date.
+
+Each cell says two things, in the club's own words, on two lines:
+
+1. **What was observed** — the attendance state, as the attendance sheet writes
+   it: `Present`, `Late`, `Excused`, `Absent`, or `Not recorded` in grey where
+   the register has not been taken. `Not invited` in grey where there was no
+   invitation and no attendance.
+2. **What was said** — the RSVP, always carrying its prefix: `RSVP: Attending`,
+   `RSVP: Not attending`, `RSVP: No response`, or `Walk-up · never invited`.
+
+This replaces the invited/answered/attended glyph triplet that stood here until
+2026-08-31. Brian: _"The events and how they're shown are completely fucking
+made up… we don't do anything in the UI like that at all."_ He was right on
+three counts, each of which the application already legislates:
+
+- **It conflated intent with observation.** `attendance/presentation.ts` states
+  the rule: _"Delivered never means responded. Attending is intent; Present is
+  observed attendance."_ Every shipped RSVP string carries its prefix
+  deliberately, _"so that a recorder scanning a column never reads an intent as
+  an observation"_. A bare `Y` in a green box is exactly that error.
+- **It carried state in colour alone.** `PRESENCE_COLORS` is documented as _"the
+  second channel, never the only one"_, because `slice-ux.md` §7 requires phone
+  presentation to expose state without relying on colour. A single letter in a
+  coloured square has no first channel.
+- **The buckets did not exist.** Attendance is not a boolean. The shipped states
+  are Present, Late, Excused and Absent, and the mismatches the club actually
+  reads — _Said Attending · marked Absent_, _Said Not attending · turned up_,
+  _Attended without an invitation_ — are precisely the cases three dots discard.
+
+Boundary item 36 asked for this directly: _"almost copy how normal event
+attendance works, except for recruitment."_ The per-person events table on the
+shipped person record (`[membershipId]/attendance-section.tsx`) already carries
+**Event · Date · Mandatory · RSVP · Attendance · Event status** as separate
+labelled columns. Nothing here is invented; it is that vocabulary, one event per
+column.
 
 ## Required actions
 
@@ -167,17 +224,23 @@ recorded` in grey, never blank, never defaulted — the roster board's rule and 
 
 ## Core decisions
 
-| Decision                                                                           | Classification                | Governing evidence or recommended default                                         | Status  |
-| ---------------------------------------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------- | ------- |
-| The board is recruitment's own, modelled on the roster board, not a list beside it | `locked`                      | Brian, 2026-08-28 and 2026-08-31                                                  | Settled |
-| Structure, grouping and colour language carried from `/operate/roster`             | `locked`                      | Brian, 2026-08-31: "similar colors, if we can keep them consistent"               | Settled |
-| Route is `/operate/recruits`, in Administration beneath People                     | `delegated to Mission Lead`   | Matches `/operate/people` and `/operate/roster`; changes no intent                | Settled |
-| Three bands: Person, Recruitment, Events                                           | `proposed for owner approval` | A recruit holds no membership, so Onboarding and Season describe nothing          | Open    |
-| The Recruitment band is teal `#00695c`                                             | `proposed for owner approval` | Sits beside slate and blue without competing; not the amber that means Onboarding | Open    |
-| The six recruitment columns above                                                  | `proposed for owner approval` | Drawn from the 2026-08-28 research and the boundary's signal items                | Open    |
-| Event columns append oldest-first, left to right                                   | `locked`                      | Brian, 2026-08-28: appended at the right end, read as signals across the term     | Settled |
-| Status is edited in the cell, except `joined`                                      | `proposed for owner approval` | Matches the roster board's in-cell season editing; `joined` is `W14`'s            | Open    |
-| Default sort is ladder order, then most recent first contact                       | `delegated to Mission Lead`   | Reversible, changes no meaning                                                    | Settled |
+| Decision                                                                           | Classification                | Governing evidence or recommended default                                                     | Status  |
+| ---------------------------------------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------- | ------- |
+| The board is recruitment's own, modelled on the roster board, not a list beside it | `locked`                      | Brian, 2026-08-28 and 2026-08-31                                                              | Settled |
+| Structure, grouping and colour language carried from `/operate/roster`             | `locked`                      | Brian, 2026-08-31: "similar colors, if we can keep them consistent"                           | Settled |
+| Route is `/operate/recruits`, in Administration beneath People                     | `delegated to Mission Lead`   | Matches `/operate/people` and `/operate/roster`; changes no intent                            | Settled |
+| Three bands: Person, Recruitment, Events                                           | `proposed for owner approval` | A recruit holds no membership, so Onboarding and Season describe nothing                      | Open    |
+| The Recruitment band is teal `#00695c`                                             | `proposed for owner approval` | Sits beside slate and blue without competing; not the amber that means Onboarding             | Open    |
+| Status, Source and First contact as columns                                        | `locked`                      | Brian, 2026-08-31: "Statuses are fine, source is fine, first interest system is great"        | Settled |
+| `On WhatsApp` and `Last touch` struck from the board                               | `locked`                      | Brian, 2026-08-31: "let's just make events events"; neither is a recruit field                | Settled |
+| `Asked` remains a column                                                           | `proposed for owner approval` | The only recruitment column Brian has not spoken to either way                                | Open    |
+| `committed_on` marks reaching `joined`, not `committed`                            | `locked`                      | Brian, 2026-08-31: "the day that's joined, I would say"                                       | Settled |
+| Whether `committed_on` is also stamped at `committed`                              | `proposed for owner approval` | Brian: "maybe that field should be set. I think we'll figure out how it needs to really work" | Open    |
+| Notes belong on the membership                                                     | `proposed for owner approval` | Brian, 2026-08-31: "that should be in the membership" — placement not yet worked through      | Open    |
+| Event cells use the shipped attendance vocabulary, two lines, never a glyph        | `locked`                      | Brian, 2026-08-31; `attendance/presentation.ts` and `slice-ux.md` §7                          | Settled |
+| Event columns append oldest-first, left to right                                   | `locked`                      | Brian, 2026-08-28: appended at the right end, read as signals across the term                 | Settled |
+| Status is edited in the cell, except `joined`                                      | `proposed for owner approval` | Matches the roster board's in-cell season editing; `joined` is `W14`'s                        | Open    |
+| Default sort is ladder order, then most recent first contact                       | `delegated to Mission Lead`   | Reversible, changes no meaning                                                                | Settled |
 
 ## Brian approval
 

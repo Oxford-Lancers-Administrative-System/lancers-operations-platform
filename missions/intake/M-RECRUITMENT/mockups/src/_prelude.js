@@ -11,6 +11,27 @@
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
+// ---------------------------------------------------------------------------
+// A proposal that cannot apply must FAIL THE SHOOT, never produce a
+// confident-looking screen.
+//
+// The 2026-08-31 defect: `rebuildCard`, `setPersonRows` and `replaceSummaryStrip`
+// returned quietly when their target was not shaped the way they assumed.
+// `rebuildCard` renamed the card's header and stamped "PROPOSED" on it BEFORE
+// attempting the row replacement, so a failed replacement left a recruitment
+// heading over the player record's own content — and the screen looked
+// deliberate. Every screen built that way was shown as evidence.
+//
+// So these throw, exactly as `npm run intake -- edit` refuses a zero-match edit.
+// A red shoot is cheap; a plausible lie in an approval packet is not.
+// ---------------------------------------------------------------------------
+const must = (value, what) => {
+  if (value === null || value === undefined || (Array.isArray(value) && value.length === 0)) {
+    throw new Error(`Proposal could not apply: ${what}. The screen was not photographed.`);
+  }
+  return value;
+};
+
 const setHeading = (title, subtitle) => {
   const h1 = $("h1");
   if (h1) h1.textContent = title;
@@ -43,32 +64,159 @@ const injectStyle = (css) => {
   return style;
 };
 
-// Add a Recruits item to the Administration list and move the selected
-// treatment onto it.
-const selectRecruitsNav = (label = "Recruits", href = "/operate/recruits") => {
-  const links = $$("nav a");
-  const people = links.find((a) => a.textContent.trim() === "People");
-  const current = links.find((a) => a.classList.contains("Mui-selected"));
-  if (!people) return null;
+// ---------------------------------------------------------------------------
+// Photograph a settled page, never a transition.
+//
+// The shoot screenshots immediately after the proposal returns. MUI animates
+// background-color, so a nav item that has just been deselected is still ~82%
+// opaque at t=0 and only reaches transparent a few hundred milliseconds later.
+// The first rebuilt W1 shots caught exactly that: Roster measured
+// `rgba(66,66,66,0.824)` in the photograph and `rgba(0,0,0,0)` a second later,
+// so the screen showed two selected destinations and the DOM showed one.
+//
+// Killing transitions is better than sleeping: it is deterministic, and it
+// removes a whole class of half-painted evidence rather than one instance.
+// ---------------------------------------------------------------------------
+injectStyle("*,*::before,*::after{transition:none !important;animation:none !important}");
 
-  const item = people.cloneNode(true);
+/** Let style and layout settle before the screenshot. Proposals end with this. */
+const settle = async (frames = 3) => {
+  for (let i = 0; i < frames; i += 1) {
+    await new Promise((r) => requestAnimationFrame(() => r()));
+  }
+  await new Promise((r) => setTimeout(r, 120));
+};
+
+// ---------------------------------------------------------------------------
+// Where recruitment lives in the shell — Brian, 2026-08-31.
+//
+//   "It's a new page on the sidebar underneath Roster, and it's under /operate.
+//    That's it. There's no factual thing: roster, recruitment, events, and
+//    whatever. Don't change anything else. I'm just telling you where the
+//    fucking order goes."
+//
+// So Recruitment is a TOP-LEVEL destination, second in the list, and NOT an
+// entry in the Administration group. `destinations.ts` renders that list from
+// `DESTINATIONS`; this clones the Roster item, renames it, and inserts it
+// directly after Roster.
+//
+// The previous helper put a "Recruits" item in Administration and tried to move
+// the selected treatment with an injected stylesheet. It failed silently and
+// every W1 shot went out with BOTH Roster and Recruits looking selected. This
+// one asserts what it found, moves the selection through the same three
+// channels the component uses — the `Mui-selected` class, `aria-current`, and
+// the 700-weight primary — and then verifies exactly one item is selected.
+// ---------------------------------------------------------------------------
+const RECRUITMENT_HREF = "/operate/recruitment";
+
+const selectRecruitmentNav = (label = "Recruitment", href = RECRUITMENT_HREF) => {
+  const links = $$('nav a, [role="navigation"] a');
+  must(links, "the operator navigation has no links");
+  const roster = must(
+    links.find((a) => a.textContent.trim().startsWith("Roster")),
+    "the operator navigation has no Roster destination to sit under",
+  );
+
+  const item = roster.cloneNode(true);
   const text = item.querySelector(".MuiListItemText-primary") ?? item;
   text.textContent = label;
   item.setAttribute("href", href);
-  item.setAttribute(
-    "class",
-    current ? current.getAttribute("class") : people.getAttribute("class"),
-  );
-  people.after(item);
+  item.dataset.intakeNav = "recruitment";
+  roster.after(item);
 
-  if (current) {
-    const currentHref = current.getAttribute("href");
-    injectStyle(
-      `nav a[href="${currentHref}"]{background-color:transparent !important}` +
-        `nav a[href="${href}"]{background-color:rgb(66,66,66) !important}`,
+  // Deselect everything, then select this one. Class, aria and weight together:
+  // the shipped component sets all three, so moving only the background leaves
+  // a bold "Roster" that still reads as the current page.
+  const deselect = (a) => {
+    a.classList.remove("Mui-selected");
+    a.removeAttribute("aria-current");
+    const primary = a.querySelector(".MuiListItemText-primary");
+    if (primary) primary.style.fontWeight = "500";
+  };
+  for (const a of $$('nav a, [role="navigation"] a')) deselect(a);
+  item.classList.add("Mui-selected");
+  item.setAttribute("aria-current", "page");
+  const primary = item.querySelector(".MuiListItemText-primary");
+  if (primary) primary.style.fontWeight = "700";
+
+  // React owns this subtree and re-renders revert attribute edits; a stylesheet
+  // is not part of its diff. Belt and braces, keyed on the marker set above.
+  injectStyle(
+    `nav a:not([data-intake-nav="recruitment"]){background-color:transparent !important}` +
+      `nav a[data-intake-nav="recruitment"]{background-color:rgb(66,66,66) !important}`,
+  );
+
+  // Prove it, rather than trust it. This is the check the last session skipped.
+  const selected = $$('nav a, [role="navigation"] a').filter((a) =>
+    a.classList.contains("Mui-selected"),
+  );
+  if (selected.length !== 1 || selected[0] !== item) {
+    throw new Error(
+      `Navigation selection is wrong: ${selected.length} item(s) selected (${selected
+        .map((a) => a.textContent.trim())
+        .join(", ")}). Exactly one, Recruitment, must be.`,
     );
   }
   return item;
+};
+
+// The board is its own page under /operate, so the frame must say so.
+const setRecruitmentRoute = () => {
+  history.replaceState(null, "", RECRUITMENT_HREF);
+};
+
+// ---------------------------------------------------------------------------
+// The phone rendering, which is half of every board screen and was wrong.
+//
+// The board is a <table> at md and up and a list of Cards below it
+// (`roster-board.tsx:679`, `PlayerCard` at :1117). BOTH are always in the DOM —
+// MUI's `display: { xs: "block", md: "none" }` hides one with CSS rather than
+// unmounting it — so a proposal that rewrites only the table leaves the phone
+// side showing the shipped roster underneath a recruitment heading. That is
+// exactly what shipped on 2026-08-31: "Recruits · 6 recruits" over 42 players
+// with Onboarding and "N missing" chips.
+//
+// Because both renderings are always present, one script fixes both, and this
+// throws if the card list is missing rather than letting the phone shot lie.
+// ---------------------------------------------------------------------------
+const setRecruitCards = (recruits) => {
+  const cards = $$('[data-testid="roster-card"]');
+  must(cards, 'the phone rendering has no [data-testid="roster-card"] to replace');
+  const host = must(cards[0].parentElement, "the phone card list has no parent");
+  const template = cards[0];
+
+  const built = recruits.map(({ name, status, detail }) => {
+    const card = template.cloneNode(true);
+    const title = must(
+      card.querySelector(".MuiTypography-subtitle1"),
+      "a roster card has no name line",
+    );
+    title.textContent = name;
+
+    // The chip row: one ladder rung, and the source/first-contact line. The
+    // membership chips this card shipped with describe a membership a recruit
+    // does not hold, so they are replaced rather than hidden.
+    const chipRow = must(
+      card.querySelector(".MuiStack-root .MuiStack-root") ??
+        card.querySelector(".MuiChip-root")?.parentElement,
+      "a roster card has no chip row",
+    );
+    const chipTemplate = must(
+      card.querySelector(".MuiChip-root"),
+      "a roster card has no chip to clone",
+    ).cloneNode(true);
+    chipRow.replaceChildren(asRung(chipTemplate, status));
+
+    const line = document.createElement("p");
+    line.textContent = detail;
+    line.style.cssText = "margin:6px 0 0;font-size:13px;color:rgba(0,0,0,0.6)";
+    chipRow.parentElement.append(line);
+    return card;
+  });
+
+  for (const card of cards) card.remove();
+  for (const card of built) host.append(card);
+  return built;
 };
 
 // The recruit ladder's colours, used by every screen that shows a status.
@@ -430,24 +578,30 @@ const recordRow = (label, value, opts = {}) => {
 // Anything that is not a row - an onboarding alert, a filter strip - belongs to
 // the card being replaced and goes with it.
 const rebuildCard = (card, title, rows, opts = {}) => {
-  if (!card) return null;
-  const head = card.querySelector(".MuiTypography-overline") ?? card.firstElementChild;
-  if (head) {
-    const walker = document.createTreeWalker(head, NodeFilter.SHOW_TEXT);
-    const first = walker.nextNode();
-    if (first) first.nodeValue = title;
-    else head.textContent = title;
-    if (opts.colour) {
-      const bar = head.closest("div");
-      if (bar) bar.style.backgroundColor = opts.colour;
-    }
-  }
+  must(card, `rebuildCard("${title}") was given no card`);
+
+  // The rows go in FIRST. Renaming a header before the replacement is what
+  // produced a recruitment heading over a player's attendance table on
+  // 2026-08-31; if this throws, the card is still honestly the card it was.
   const existing = [...card.querySelectorAll('[data-testid="record-row"]')];
-  const host = existing[0]?.parentElement;
-  if (host) {
-    for (const child of [...host.children]) child.remove();
-    for (const r of rows) host.append(r);
+  must(existing, `card "${title}" holds no [data-testid="record-row"] to replace`);
+  const host = must(existing[0].parentElement, `card "${title}" rows have no parent`);
+  for (const child of [...host.children]) child.remove();
+  for (const r of rows) host.append(r);
+
+  const head = must(
+    card.querySelector(".MuiTypography-overline") ?? card.firstElementChild,
+    `card "${title}" has no header to retitle`,
+  );
+  const walker = document.createTreeWalker(head, NodeFilter.SHOW_TEXT);
+  const first = walker.nextNode();
+  if (first) first.nodeValue = title;
+  else head.textContent = title;
+  if (opts.colour) {
+    const bar = head.closest("div");
+    if (bar) bar.style.backgroundColor = opts.colour;
   }
+
   // Strip anything left over from the card this one replaces.
   for (const alert of card.querySelectorAll(".MuiAlert-root, .MuiChip-root")) {
     if (!rows.some((r) => r.contains(alert))) alert.remove();
@@ -457,7 +611,7 @@ const rebuildCard = (card, title, rows, opts = {}) => {
     flag.textContent = "PROPOSED — this mission";
     flag.style.cssText =
       "font-size:10px;font-weight:700;letter-spacing:.09em;color:#00695c;padding:10px 16px 0";
-    const bar = head?.closest("div");
+    const bar = head.closest("div");
     if (bar && bar.nextSibling) card.insertBefore(flag, bar.nextSibling);
     else card.insertBefore(flag, card.firstChild);
   }
@@ -466,13 +620,14 @@ const rebuildCard = (card, title, rows, opts = {}) => {
 
 // The strip under the heading describes a membership. A recruit has none.
 const replaceSummaryStrip = (items) => {
-  const h1 = $("h1");
-  const sub = h1?.parentElement?.parentElement;
-  if (!sub) return;
-  const strip = [...sub.children].find(
-    (c) => c !== h1?.parentElement && c.innerText && c.innerText.split("\n").length >= 4,
+  const h1 = must($("h1"), "replaceSummaryStrip found no <h1>");
+  const sub = must(h1.parentElement?.parentElement, "replaceSummaryStrip found no heading block");
+  const strip = must(
+    [...sub.children].find(
+      (c) => c !== h1.parentElement && c.innerText && c.innerText.split("\n").length >= 4,
+    ),
+    "replaceSummaryStrip found no membership summary strip",
   );
-  if (!strip) return;
   strip.replaceChildren();
   strip.style.cssText = "display:flex;gap:38px;flex-wrap:wrap;margin:10px 0 18px";
   for (const [value, label] of items) {
@@ -497,11 +652,10 @@ const replaceSummaryStrip = (items) => {
 
 // Overwrite the PERSON card's rows so the page is about the recruit it names.
 const setPersonRows = (rows) => {
-  const card = recordCard("PERSON");
-  if (!card) return;
+  const card = must(recordCard("PERSON"), "setPersonRows found no PERSON card");
   const existing = [...card.querySelectorAll('[data-testid="record-row"]')];
-  const host = existing[0]?.parentElement;
-  if (!host) return;
+  must(existing, 'the PERSON card holds no [data-testid="record-row"] to replace');
+  const host = must(existing[0].parentElement, "the PERSON card rows have no parent");
   for (const r of existing) r.remove();
   for (const r of rows) host.append(r);
 };
@@ -601,3 +755,345 @@ const placeBefore = (anchor, node) => {
  * own. Use for content the proposal adds; explain it in the screen head.
  */
 const proposedRegion = (title) => drawnPanel(title);
+
+// ---------------------------------------------------------------------------
+// The recruit board's data, in one place so W1-01 and W1-02 cannot disagree.
+//
+// Rosalind Penhaligon (identified) and Tobias Wrenfield (engaged) are the two
+// recruits actually seeded at main@e669331 and carry their real seeded facts.
+// Four more are invented in the same synthetic universe so a board can be
+// judged as a board.
+//
+// FIELDS — Brian, 2026-08-31. The board carries the recruit's own stored
+// fields and the person facts it may read, and nothing else:
+//
+//   Person (Mission 5's, read-only here): College, Matric, Contactable.
+//   Recruitment (`recruitment_prospects`): Status, Source, First contact,
+//     Asked, Notes.
+//
+// "On WhatsApp" is gone. It is not a recruit field — it is seasonal channel
+// presence on the person record, empty at the baseline — and Brian struck the
+// abstract signal column with it: "let's just make events events".
+// "Last touch" is gone for the same reason.
+// ---------------------------------------------------------------------------
+const RECRUITMENT_EVENTS = [
+  { name: "Freshers' Fair", date: "30 Apr" },
+  { name: "Taster 1", date: "3 May" },
+  { name: "Taster 2", date: "10 May" },
+];
+
+// `presence` is the club's own attendance vocabulary — Present, Late, Excused,
+// Absent — or null for "nothing recorded". `rsvp` is "yes" | "no" | null, and
+// is ALWAYS rendered with its prefix. attendance/presentation.ts:52:
+// "Delivered never means responded. Attending is intent; Present is observed
+// attendance." A bare tick in a coloured box is what that rule forbids.
+const RECRUITS = [
+  {
+    name: "Rosalind Penhaligon",
+    college: "Dunsfold",
+    matric: "2026",
+    contactable: ["Mobile"],
+    status: "identified",
+    source: "QR · Freshers' Fair",
+    firstContact: "28 Apr",
+    asked: "Not sent",
+    notes: "Came to the stand with a friend from Dunsfold.",
+    events: [
+      { invited: true, rsvp: null, presence: "absent" },
+      { invited: false, rsvp: null, presence: null },
+      { invited: false, rsvp: null, presence: null },
+    ],
+  },
+  {
+    name: "Tobias Wrenfield",
+    college: "Marlbrook",
+    matric: "2025",
+    contactable: ["Mobile", "Email"],
+    status: "engaged",
+    source: "Walk-up · Taster 1",
+    firstContact: "3 May",
+    asked: "Answered 5 May",
+    notes: "Played at school. Asked about kit.",
+    events: [
+      { invited: true, rsvp: "yes", presence: "present" },
+      { invited: false, rsvp: null, presence: "present", walkUp: true },
+      { invited: true, rsvp: "yes", presence: null },
+    ],
+  },
+  {
+    name: "Marguerite Ashdown",
+    college: "Kestrelhall",
+    matric: "2026",
+    contactable: ["Mobile", "Email"],
+    status: "committed",
+    source: "Operator · sourced",
+    firstContact: "22 Apr",
+    asked: "Answered 25 Apr",
+    notes: "Said she is in. Wants to play safety.",
+    events: [
+      { invited: true, rsvp: "yes", presence: "present" },
+      { invited: true, rsvp: "yes", presence: "late" },
+      { invited: true, rsvp: "yes", presence: null },
+    ],
+  },
+  {
+    name: "Peregrine Oakhollow",
+    college: null,
+    matric: null,
+    contactable: ["Mobile"],
+    status: "identified",
+    source: "QR · Taster 2",
+    firstContact: "10 May",
+    asked: "Sent 11 May",
+    notes: "",
+    events: [
+      { invited: false, rsvp: null, presence: null },
+      { invited: false, rsvp: null, presence: null },
+      { invited: false, rsvp: null, presence: "present", walkUp: true },
+    ],
+  },
+  {
+    name: "Clementine Varrow",
+    college: "Harewell",
+    matric: "2026",
+    contactable: ["Email"],
+    status: "disengaged",
+    source: "Walk-up · Freshers' Fair",
+    firstContact: "30 Apr",
+    asked: "Not answered",
+    notes: "Came once, has not answered since.",
+    events: [
+      { invited: true, rsvp: "yes", presence: "absent" },
+      { invited: true, rsvp: "no", presence: null },
+      { invited: true, rsvp: null, presence: null },
+    ],
+  },
+  {
+    name: "Ambrose Kittiwake",
+    college: null,
+    matric: null,
+    contactable: ["Mobile"],
+    status: "declined",
+    source: "Walk-up · Taster 1",
+    firstContact: "3 May",
+    asked: "Not sent",
+    notes: "Said rugby clashes. Happy to be asked again next year.",
+    events: [
+      { invited: true, rsvp: "no", presence: "absent" },
+      { invited: false, rsvp: null, presence: "present", walkUp: true },
+      { invited: false, rsvp: null, presence: null },
+    ],
+  },
+];
+
+// The four attendance states and their MUI colours, copied from
+// attendance/presentation.ts. The word is the primary channel and the colour is
+// the second — slice-ux §7 requires state to be legible "without relying on
+// color alone", which is the other thing the dot grid got wrong.
+const PRESENCE = {
+  present: { label: "Present", fg: "#1b5e20", bg: "#e8f5e9", border: "#a5d6a7" },
+  late: { label: "Late", fg: "#8a5100", bg: "#fdf6ec", border: "#f0c78a" },
+  excused: { label: "Excused", fg: "#01579b", bg: "#e3f2fd", border: "#9fc9ec" },
+  absent: { label: "Absent", fg: "#b71c1c", bg: "#ffebee", border: "#ef9a9a" },
+};
+
+const describeRsvp = (rsvp, walkUp) => {
+  if (walkUp) return "Walk-up · never invited";
+  if (rsvp === "yes") return "RSVP: Attending";
+  if (rsvp === "no") return "RSVP: Not attending";
+  return "RSVP: No response";
+};
+
+// ---------------------------------------------------------------------------
+// The recruit board itself, built once and shared by W1-01 and W1-02 so the two
+// screens cannot drift apart. W1-02 is this board scrolled to the Events band.
+// ---------------------------------------------------------------------------
+const buildRecruitBoard = () => {
+  const table = must(document.querySelector("table"), "the board has no table");
+  const thead = table.querySelector("thead");
+  const tbody = table.querySelector("tbody");
+  const [bandRow, colRow] = thead.querySelectorAll("tr");
+  const bandCells = [...bandRow.querySelectorAll("th")];
+  const bodyRowTemplate = must(tbody.querySelector("tr"), "the board has no body row to clone");
+
+  const spacerBand = bandCells[0];
+  const personBand = bandCells[1];
+  const seasonBand = bandCells[3];
+  const colCells = [...colRow.querySelectorAll("th")];
+  const pinnedCol = colCells[0];
+  const filterCol = colCells[1];
+
+  const bodyCells = [...bodyRowTemplate.querySelectorAll("td")];
+  const pinnedCell = bodyCells[0];
+  const linkCell = bodyCells[1];
+  const chipCell = bodyCells[5];
+  const plainCell = bodyCells[6];
+  const statusCell = bodyCells[8];
+
+  const band = (template, label, span, colour) => {
+    const th = template.cloneNode(true);
+    th.setAttribute("colspan", String(span));
+    th.querySelector("span").textContent = label;
+    if (colour) th.style.backgroundColor = colour;
+    return th;
+  };
+
+  const column = (label, caption) => {
+    const th = filterCol.cloneNode(true);
+    th.querySelector('[role="button"]').childNodes[0].nodeValue = label;
+    const filter = th.querySelector("button");
+    if (filter) filter.setAttribute("aria-label", `Filter ${label}`);
+    const cap = th.querySelector(".MuiTypography-caption");
+    if (cap) cap.textContent = caption;
+    return th;
+  };
+
+  const textCell = (text, dim) => {
+    const td = plainCell.cloneNode(true);
+    const p = td.querySelector("p");
+    p.textContent = text;
+    p.style.color = dim ? "rgba(0,0,0,0.38)" : "";
+    p.style.fontStyle = dim ? "italic" : "";
+    return td;
+  };
+
+  // A person fact: a link out to the person record, exactly as the roster board
+  // does it, or "Not recorded" in grey. Mission 5 owns correcting these.
+  const recordCell = (text) => {
+    const td = linkCell.cloneNode(true);
+    if (text === null) {
+      td.replaceChildren();
+      const p = plainCell.querySelector("p").cloneNode(true);
+      p.textContent = "Not recorded";
+      p.style.color = "rgba(0,0,0,0.38)";
+      td.append(p);
+      return td;
+    }
+    td.querySelector("a").textContent = text;
+    return td;
+  };
+
+  const chipsCell = (labels) => {
+    const td = chipCell.cloneNode(true);
+    const stack = td.querySelector(".MuiStack-root");
+    const chip = stack.querySelector(".MuiChip-root").cloneNode(true);
+    stack.replaceChildren();
+    for (const l of labels) {
+      const c = chip.cloneNode(true);
+      c.querySelector(".MuiChip-label").textContent = l;
+      stack.append(c);
+    }
+    return td;
+  };
+
+  const statusChip = (value) => {
+    const td = statusCell.cloneNode(true);
+    asRung(td.querySelector(".MuiChip-root"), value);
+    return td;
+  };
+
+  // ---- The proposed header -------------------------------------------------
+  // Person 3 · Recruitment 5 · Events 3. The pinned Recruit column sits outside
+  // the bands, in the spacer, as the roster board's pinned column does.
+  bandRow.replaceChildren(
+    spacerBand.cloneNode(true),
+    band(personBand, "Person", 3),
+    band(seasonBand, "Recruitment", 5, "#00695c"),
+    band(seasonBand, "Events", RECRUITMENT_EVENTS.length),
+  );
+
+  const pinned = pinnedCol.cloneNode(true);
+  pinned.querySelector('[role="button"]').childNodes[0].nodeValue = "Recruit";
+  colRow.replaceChildren(
+    pinned,
+    column("College", "edit on the record"),
+    column("Matric", "edit on the record"),
+    column("Contactable", "indicators only"),
+    column("Status", "edit here"),
+    column("Source", "edit here"),
+    column("First contact", "edit here"),
+    column("Asked", "set by the form"),
+    column("Notes", "edit here"),
+    ...RECRUITMENT_EVENTS.map((e) => column(`${e.name} · ${e.date}`, "")),
+  );
+
+  // ---- One event cell, in the club's own words ------------------------------
+  // Two lines: what was observed, then what was said. Never one without the
+  // other, and never the observation implied by the intent.
+  const eventCell = ({ invited, rsvp, presence, walkUp }) => {
+    const td = plainCell.cloneNode(true);
+    td.replaceChildren();
+    const wrap = document.createElement("div");
+
+    if (!invited && !presence) {
+      const p = document.createElement("p");
+      p.textContent = "Not invited";
+      p.style.cssText = "margin:0;font-size:13px;color:rgba(0,0,0,0.38);font-style:italic";
+      wrap.append(p);
+      td.append(wrap);
+      return td;
+    }
+
+    const state = presence ? PRESENCE[presence] : null;
+    const top = document.createElement("span");
+    if (state) {
+      top.textContent = state.label;
+      top.style.cssText =
+        `display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:11px;` +
+        `color:${state.fg};background:${state.bg};border:1px solid ${state.border}`;
+    } else {
+      top.textContent = "Not recorded";
+      top.style.cssText = "font-size:13px;color:rgba(0,0,0,0.38);font-style:italic";
+    }
+    const bottom = document.createElement("div");
+    bottom.textContent = describeRsvp(rsvp, walkUp);
+    bottom.style.cssText =
+      "margin-top:4px;font-size:11.5px;color:rgba(0,0,0,0.55);white-space:nowrap";
+    wrap.append(top, bottom);
+    td.append(wrap);
+    return td;
+  };
+
+  tbody.replaceChildren(
+    ...RECRUITS.map((r) => {
+      const tr = bodyRowTemplate.cloneNode(false);
+      const name = pinnedCell.cloneNode(true);
+      name.querySelector("a").textContent = r.name;
+      tr.append(
+        name,
+        recordCell(r.college),
+        recordCell(r.matric),
+        chipsCell(r.contactable),
+        statusChip(r.status),
+        textCell(r.source),
+        textCell(r.firstContact),
+        textCell(r.asked, r.asked === "Not sent"),
+        textCell(r.notes || "—", !r.notes),
+        ...r.events.map(eventCell),
+      );
+      return tr;
+    }),
+  );
+
+  // ---- The phone rendering, from the same data ------------------------------
+  setRecruitCards(
+    RECRUITS.map((r) => ({
+      name: r.name,
+      status: r.status,
+      detail: `${r.source} · first contact ${r.firstContact}`,
+    })),
+  );
+
+  setHeading("Recruitment", "Season 2026-27 · 6 recruits · 3 recruitment events");
+  relabelButton("add player", "ADD RECRUIT");
+
+  // The roster's filters describe memberships. A recruit holds none.
+  const FILTERS = { Availability: "Source", "Missing onboarding data": "Ask outstanding" };
+  for (const node of $$("label, .MuiInputLabel-root, .MuiSelect-select")) {
+    const t = node.textContent.trim();
+    if (FILTERS[t]) node.textContent = FILTERS[t];
+  }
+
+  selectRecruitmentNav();
+  setRecruitmentRoute();
+};

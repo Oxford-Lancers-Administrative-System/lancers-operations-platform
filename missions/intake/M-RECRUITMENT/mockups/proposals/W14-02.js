@@ -1,635 +1,1130 @@
 (async () => {
-  // Shared mockup prelude — M-RECRUITMENT.
-  //
-  // Every proposal in this mission is evaluated into the running application at
-  // main@e669331, so both sides of a screen are photographs of the same page
-  // differing only by the change. These helpers exist so each screen expresses
-  // only its own idea: they CLONE elements the application already rendered
-  // rather than authoring markup, which is why the banding, chips, type scale
-  // and spacing cannot drift from what shipped.
-  //
-  // Generated file. Edit mockups/src/<screen>.js and rerun build-proposals.mjs.
-  const $ = (s, r = document) => r.querySelector(s);
-  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+// Shared mockup prelude — M-RECRUITMENT.
+//
+// Every proposal in this mission is evaluated into the running application at
+// main@e669331, so both sides of a screen are photographs of the same page
+// differing only by the change. These helpers exist so each screen expresses
+// only its own idea: they CLONE elements the application already rendered
+// rather than authoring markup, which is why the banding, chips, type scale
+// and spacing cannot drift from what shipped.
+//
+// Generated file. Edit mockups/src/<screen>.js and rerun build-proposals.mjs.
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
-  const setHeading = (title, subtitle) => {
-    const h1 = $("h1");
-    if (h1) h1.textContent = title;
-    if (!subtitle) return;
-    for (const p of $$(".MuiTypography-body2")) {
-      if (/players|columns|recruits|people|Season 20/i.test(p.textContent)) {
-        p.textContent = subtitle;
-        return;
-      }
+// ---------------------------------------------------------------------------
+// A proposal that cannot apply must FAIL THE SHOOT, never produce a
+// confident-looking screen.
+//
+// The 2026-08-31 defect: `rebuildCard`, `setPersonRows` and `replaceSummaryStrip`
+// returned quietly when their target was not shaped the way they assumed.
+// `rebuildCard` renamed the card's header and stamped "PROPOSED" on it BEFORE
+// attempting the row replacement, so a failed replacement left a recruitment
+// heading over the player record's own content — and the screen looked
+// deliberate. Every screen built that way was shown as evidence.
+//
+// So these throw, exactly as `npm run intake -- edit` refuses a zero-match edit.
+// A red shoot is cheap; a plausible lie in an approval packet is not.
+// ---------------------------------------------------------------------------
+const must = (value, what) => {
+  if (value === null || value === undefined || (Array.isArray(value) && value.length === 0)) {
+    throw new Error(`Proposal could not apply: ${what}. The screen was not photographed.`);
+  }
+  return value;
+};
+
+const setHeading = (title, subtitle) => {
+  const h1 = $("h1");
+  if (h1) h1.textContent = title;
+  if (!subtitle) return;
+  for (const p of $$(".MuiTypography-body2")) {
+    if (/players|columns|recruits|people|Season 20/i.test(p.textContent)) {
+      p.textContent = subtitle;
+      return;
     }
-  };
+  }
+};
 
-  const relabelButton = (from, to) => {
-    for (const b of $$("a, button")) {
-      if (new RegExp(`^\\s*${from}\\s*$`, "i").test(b.textContent)) {
-        b.textContent = to;
-        return b;
-      }
+const relabelButton = (from, to) => {
+  for (const b of $$("a, button")) {
+    if (new RegExp(`^\\s*${from}\\s*$`, "i").test(b.textContent)) {
+      b.textContent = to;
+      return b;
     }
-    return null;
+  }
+  return null;
+};
+
+// Inject a stylesheet. React owns the navigation and re-renders it after a
+// mutation, reverting class and attribute changes; a stylesheet is not part of
+// its diff, so rules survive where attribute edits do not.
+const injectStyle = (css) => {
+  const style = document.createElement("style");
+  style.textContent = css;
+  document.head.append(style);
+  return style;
+};
+
+// ---------------------------------------------------------------------------
+// Photograph a settled page, never a transition.
+//
+// The shoot screenshots immediately after the proposal returns. MUI animates
+// background-color, so a nav item that has just been deselected is still ~82%
+// opaque at t=0 and only reaches transparent a few hundred milliseconds later.
+// The first rebuilt W1 shots caught exactly that: Roster measured
+// `rgba(66,66,66,0.824)` in the photograph and `rgba(0,0,0,0)` a second later,
+// so the screen showed two selected destinations and the DOM showed one.
+//
+// Killing transitions is better than sleeping: it is deterministic, and it
+// removes a whole class of half-painted evidence rather than one instance.
+// ---------------------------------------------------------------------------
+injectStyle(
+  "*,*::before,*::after{transition:none !important;animation:none !important}",
+);
+
+/** Let style and layout settle before the screenshot. Proposals end with this. */
+const settle = async (frames = 3) => {
+  for (let i = 0; i < frames; i += 1) {
+    await new Promise((r) => requestAnimationFrame(() => r()));
+  }
+  await new Promise((r) => setTimeout(r, 120));
+};
+
+// ---------------------------------------------------------------------------
+// Where recruitment lives in the shell — Brian, 2026-08-31.
+//
+//   "It's a new page on the sidebar underneath Roster, and it's under /operate.
+//    That's it. There's no factual thing: roster, recruitment, events, and
+//    whatever. Don't change anything else. I'm just telling you where the
+//    fucking order goes."
+//
+// So Recruitment is a TOP-LEVEL destination, second in the list, and NOT an
+// entry in the Administration group. `destinations.ts` renders that list from
+// `DESTINATIONS`; this clones the Roster item, renames it, and inserts it
+// directly after Roster.
+//
+// The previous helper put a "Recruits" item in Administration and tried to move
+// the selected treatment with an injected stylesheet. It failed silently and
+// every W1 shot went out with BOTH Roster and Recruits looking selected. This
+// one asserts what it found, moves the selection through the same three
+// channels the component uses — the `Mui-selected` class, `aria-current`, and
+// the 700-weight primary — and then verifies exactly one item is selected.
+// ---------------------------------------------------------------------------
+const RECRUITMENT_HREF = "/operate/recruitment";
+
+const selectRecruitmentNav = (label = "Recruitment", href = RECRUITMENT_HREF) => {
+  const links = $$('nav a, [role="navigation"] a');
+  must(links, "the operator navigation has no links");
+  const roster = must(
+    links.find((a) => a.textContent.trim().startsWith("Roster")),
+    "the operator navigation has no Roster destination to sit under",
+  );
+
+  const item = roster.cloneNode(true);
+  const text = item.querySelector(".MuiListItemText-primary") ?? item;
+  text.textContent = label;
+  item.setAttribute("href", href);
+  item.dataset.intakeNav = "recruitment";
+  roster.after(item);
+
+  // Deselect everything, then select this one. Class, aria and weight together:
+  // the shipped component sets all three, so moving only the background leaves
+  // a bold "Roster" that still reads as the current page.
+  const deselect = (a) => {
+    a.classList.remove("Mui-selected");
+    a.removeAttribute("aria-current");
+    const primary = a.querySelector(".MuiListItemText-primary");
+    if (primary) primary.style.fontWeight = "500";
   };
+  for (const a of $$('nav a, [role="navigation"] a')) deselect(a);
+  item.classList.add("Mui-selected");
+  item.setAttribute("aria-current", "page");
+  const primary = item.querySelector(".MuiListItemText-primary");
+  if (primary) primary.style.fontWeight = "700";
 
-  // Inject a stylesheet. React owns the navigation and re-renders it after a
-  // mutation, reverting class and attribute changes; a stylesheet is not part of
-  // its diff, so rules survive where attribute edits do not.
-  const injectStyle = (css) => {
-    const style = document.createElement("style");
-    style.textContent = css;
-    document.head.append(style);
-    return style;
-  };
+  // React owns this subtree and re-renders revert attribute edits; a stylesheet
+  // is not part of its diff. Belt and braces, keyed on the marker set above.
+  injectStyle(
+    `nav a:not([data-intake-nav="recruitment"]){background-color:transparent !important}` +
+      `nav a[data-intake-nav="recruitment"]{background-color:rgb(66,66,66) !important}`,
+  );
 
-  // Add a Recruits item to the Administration list and move the selected
-  // treatment onto it.
-  const selectRecruitsNav = (label = "Recruits", href = "/operate/recruits") => {
-    const links = $$("nav a");
-    const people = links.find((a) => a.textContent.trim() === "People");
-    const current = links.find((a) => a.classList.contains("Mui-selected"));
-    if (!people) return null;
-
-    const item = people.cloneNode(true);
-    const text = item.querySelector(".MuiListItemText-primary") ?? item;
-    text.textContent = label;
-    item.setAttribute("href", href);
-    item.setAttribute(
-      "class",
-      current ? current.getAttribute("class") : people.getAttribute("class"),
+  // Prove it, rather than trust it. This is the check the last session skipped.
+  const selected = $$('nav a, [role="navigation"] a').filter((a) =>
+    a.classList.contains("Mui-selected"),
+  );
+  if (selected.length !== 1 || selected[0] !== item) {
+    throw new Error(
+      `Navigation selection is wrong: ${selected.length} item(s) selected (${selected
+        .map((a) => a.textContent.trim())
+        .join(", ")}). Exactly one, Recruitment, must be.`,
     );
-    people.after(item);
+  }
+  return item;
+};
 
-    if (current) {
-      const currentHref = current.getAttribute("href");
-      injectStyle(
-        `nav a[href="${currentHref}"]{background-color:transparent !important}` +
-          `nav a[href="${href}"]{background-color:rgb(66,66,66) !important}`,
-      );
-    }
-    return item;
-  };
+// The board is its own page under /operate, so the frame must say so.
+const setRecruitmentRoute = () => {
+  history.replaceState(null, "", RECRUITMENT_HREF);
+};
 
-  // The recruit ladder's colours, used by every screen that shows a status.
-  const LADDER = {
-    identified: "#78909c",
-    engaged: "#00695c",
-    committed: "#2e7d32",
-    joined: "#0b3d91",
-    declined: "#8d6e63",
-    disengaged: "#b26a00",
-    void: "#546e7a",
-  };
+// ---------------------------------------------------------------------------
+// The phone rendering, which is half of every board screen and was wrong.
+//
+// The board is a <table> at md and up and a list of Cards below it
+// (`roster-board.tsx:679`, `PlayerCard` at :1117). BOTH are always in the DOM —
+// MUI's `display: { xs: "block", md: "none" }` hides one with CSS rather than
+// unmounting it — so a proposal that rewrites only the table leaves the phone
+// side showing the shipped roster underneath a recruitment heading. That is
+// exactly what shipped on 2026-08-31: "Recruits · 6 recruits" over 42 players
+// with Onboarding and "N missing" chips.
+//
+// Because both renderings are always present, one script fixes both, and this
+// throws if the card list is missing rather than letting the phone shot lie.
+// ---------------------------------------------------------------------------
+const setRecruitCards = (recruits) => {
+  const cards = $$('[data-testid="roster-card"]');
+  must(cards, 'the phone rendering has no [data-testid="roster-card"] to replace');
+  const host = must(cards[0].parentElement, "the phone card list has no parent");
+  const template = cards[0];
 
-  // Paint a cloned MUI chip as a ladder rung.
-  const asRung = (chip, value) => {
-    chip.className = chip.className.replace(/MuiChip-color\w+/, "MuiChip-colorDefault");
-    chip.style.backgroundColor = LADDER[value] ?? "#78909c";
-    chip.style.color = "#fff";
-    chip.style.fontWeight = "600";
-    const label = chip.querySelector(".MuiChip-label") ?? chip;
-    label.textContent = value;
-    label.style.color = "#fff";
-    return chip;
-  };
+  const built = recruits.map(({ name, status, detail }) => {
+    const card = template.cloneNode(true);
+    const title = must(
+      card.querySelector(".MuiTypography-subtitle1"),
+      "a roster card has no name line",
+    );
+    title.textContent = name;
 
-  // A muted "not recorded" paragraph in the application's own grey.
-  const muted = (node, text) => {
-    node.textContent = text;
-    node.style.color = "rgba(0,0,0,0.38)";
-    node.style.fontStyle = "italic";
-    return node;
-  };
+    // The chip row: one ladder rung, and the source/first-contact line. The
+    // membership chips this card shipped with describe a membership a recruit
+    // does not hold, so they are replaced rather than hidden.
+    const chipRow = must(
+      card.querySelector(".MuiStack-root .MuiStack-root") ??
+        card.querySelector(".MuiChip-root")?.parentElement,
+      "a roster card has no chip row",
+    );
+    const chipTemplate = must(
+      card.querySelector(".MuiChip-root"),
+      "a roster card has no chip to clone",
+    ).cloneNode(true);
+    chipRow.replaceChildren(asRung(chipTemplate, status));
 
-  // A card in the application's own shape. The page's Papers include alerts and
-  // wrappers, so pick one that actually looks like a content card: light
-  // background, real height, and a heading inside it.
-  const cardTemplate = () => {
-    const papers = $$(".MuiPaper-root").filter((el) => {
-      const bg = getComputedStyle(el).backgroundColor;
-      const light = /^rgba?\((2[0-9]{2}|25[0-5]), ?(2[0-9]{2}), ?(2[0-9]{2})/.test(bg);
-      return el.offsetHeight > 90 && light && el.querySelector("p, h1, h2, h3, h4, h5, h6");
-    });
-    return papers[0] ?? null;
-  };
+    const line = document.createElement("p");
+    line.textContent = detail;
+    line.style.cssText = "margin:6px 0 0;font-size:13px;color:rgba(0,0,0,0.6)";
+    chipRow.parentElement.append(line);
+    return card;
+  });
 
-  const drawnPanel = (title) => {
-    const tpl = cardTemplate();
-    const panel = document.createElement("div");
-    if (tpl) {
-      const s = getComputedStyle(tpl);
-      panel.style.cssText = `background:${s.backgroundColor};border:${s.borderTopWidth} ${s.borderTopStyle} ${s.borderTopColor};border-radius:${s.borderRadius};box-shadow:${s.boxShadow};margin-bottom:${s.marginBottom || "16px"}`;
+  for (const card of cards) card.remove();
+  for (const card of built) host.append(card);
+  return built;
+};
+
+// The recruit ladder's colours, used by every screen that shows a status.
+const LADDER = {
+  identified: "#78909c",
+  engaged: "#00695c",
+  committed: "#2e7d32",
+  joined: "#0b3d91",
+  declined: "#8d6e63",
+  disengaged: "#b26a00",
+  void: "#546e7a",
+};
+
+// Paint a cloned MUI chip as a ladder rung.
+const asRung = (chip, value) => {
+  chip.className = chip.className.replace(/MuiChip-color\w+/, "MuiChip-colorDefault");
+  chip.style.backgroundColor = LADDER[value] ?? "#78909c";
+  chip.style.color = "#fff";
+  chip.style.fontWeight = "600";
+  const label = chip.querySelector(".MuiChip-label") ?? chip;
+  label.textContent = value;
+  label.style.color = "#fff";
+  return chip;
+};
+
+// A muted "not recorded" paragraph in the application's own grey.
+const muted = (node, text) => {
+  node.textContent = text;
+  node.style.color = "rgba(0,0,0,0.38)";
+  node.style.fontStyle = "italic";
+  return node;
+};
+
+// A card in the application's own shape. The page's Papers include alerts and
+// wrappers, so pick one that actually looks like a content card: light
+// background, real height, and a heading inside it.
+const cardTemplate = () => {
+  const papers = $$(".MuiPaper-root").filter((el) => {
+    const bg = getComputedStyle(el).backgroundColor;
+    const light = /^rgba?\((2[0-9]{2}|25[0-5]), ?(2[0-9]{2}), ?(2[0-9]{2})/.test(bg);
+    return el.offsetHeight > 90 && light && el.querySelector("p, h1, h2, h3, h4, h5, h6");
+  });
+  return papers[0] ?? null;
+};
+
+const drawnPanel = (title) => {
+  const tpl = cardTemplate();
+  const panel = document.createElement("div");
+  if (tpl) {
+    const s = getComputedStyle(tpl);
+    panel.style.cssText = `background:${s.backgroundColor};border:${s.borderTopWidth} ${s.borderTopStyle} ${s.borderTopColor};border-radius:${s.borderRadius};box-shadow:${s.boxShadow};margin-bottom:${s.marginBottom || "16px"}`;
+  } else {
+    panel.style.cssText =
+      "background:#fff;border:1px solid rgba(0,0,0,0.12);border-radius:8px;margin-bottom:16px";
+  }
+  panel.style.padding = "20px 24px";
+  if (title) {
+    const h = document.createElement("div");
+    h.textContent = title;
+    h.style.cssText = "font-size:15px;font-weight:700;margin:0 0 14px;letter-spacing:.01em";
+    panel.append(h);
+  }
+  return panel;
+};
+
+// A label/value row in the record's own proportions. Built explicitly rather
+// than cloned: the page's rows are laid out by a flex rule that does not
+// survive being copied out of context.
+const makeRow = (label, value, opts = {}) => {
+  const row = document.createElement("div");
+  row.style.cssText =
+    "display:flex;align-items:baseline;gap:16px;padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.08)";
+  const l = document.createElement("div");
+  l.textContent = label;
+  l.style.cssText = "flex:0 0 210px;font-size:14px;color:rgba(0,0,0,0.75)";
+  const v = document.createElement("div");
+  v.style.cssText = "flex:1;font-size:14px;color:rgba(0,0,0,0.87)";
+  if (opts.chip) {
+    const src = $(".MuiChip-root");
+    if (src) {
+      const c = src.cloneNode(true);
+      asRung(c, opts.chip);
+      v.append(c);
     } else {
-      panel.style.cssText =
-        "background:#fff;border:1px solid rgba(0,0,0,0.12);border-radius:8px;margin-bottom:16px";
+      v.textContent = opts.chip;
     }
-    panel.style.padding = "20px 24px";
-    if (title) {
-      const h = document.createElement("div");
-      h.textContent = title;
-      h.style.cssText = "font-size:15px;font-weight:700;margin:0 0 14px;letter-spacing:.01em";
-      panel.append(h);
+  } else {
+    v.textContent = value;
+    if (opts.muted) {
+      v.style.color = "rgba(0,0,0,0.38)";
+      v.style.fontStyle = "italic";
     }
-    return panel;
-  };
+  }
+  row.append(l, v);
+  return row;
+};
 
-  // A label/value row in the record's own proportions. Built explicitly rather
-  // than cloned: the page's rows are laid out by a flex rule that does not
-  // survive being copied out of context.
-  const makeRow = (label, value, opts = {}) => {
+// Append a proposed card after the last real card on a record-style page.
+const appendCard = (title, rows, note) => {
+  const panel = drawnPanel(title);
+  panel.style.border = "1px solid rgba(0,105,92,0.45)";
+  const flag = document.createElement("div");
+  flag.textContent = "PROPOSED — this mission";
+  flag.style.cssText =
+    "font-size:10px;font-weight:700;letter-spacing:.09em;color:#00695c;margin-bottom:8px";
+  panel.insertBefore(flag, panel.firstChild);
+  for (const r of rows) panel.append(r);
+  if (rows.length) rows[rows.length - 1].style.borderBottom = "none";
+  if (note) {
+    const n = document.createElement("p");
+    n.textContent = note;
+    n.style.cssText = "margin:12px 0 0;font-size:12.5px;color:rgba(0,0,0,0.55);font-style:italic";
+    panel.append(n);
+  }
+  const anchor = cardTemplate();
+  const host = anchor?.parentElement ?? document.body;
+  host.append(panel);
+  return panel;
+};
+
+// Remove a status chip duplicated in the page header, without touching chips
+// that carry a real value inside a card.
+const dedupeHeaderChip = (text) => {
+  const firstCard = cardTemplate();
+  const chips = $$(".MuiChip-root").filter(
+    (c) =>
+      c.textContent.trim() === text &&
+      (!firstCard || !firstCard.contains(c)) &&
+      (!firstCard || c.compareDocumentPosition(firstCard) & Node.DOCUMENT_POSITION_FOLLOWING),
+  );
+  chips.slice(1).forEach((c) => c.remove());
+  return chips.length;
+};
+
+// A surface the application has no analogue for. The page is cleared and the
+// drawing rendered in its place, so the shot is the drawing and nothing else.
+// Screens built this way are labelled "New surface, nothing to compare" and
+// their acceptance grounding is code-only.
+const drawnSurface = ({ title, subtitle, chrome, width = 760 }) => {
+  const font = getComputedStyle(document.body).fontFamily;
+  document.body.replaceChildren();
+  document.body.style.cssText = `margin:0;background:#eceff1;font-family:${font};color:rgba(0,0,0,0.87)`;
+  const wrap = document.createElement("div");
+  wrap.style.cssText = `max-width:${width}px;margin:0 auto;padding:28px 20px 48px`;
+  const flag = document.createElement("div");
+  flag.textContent = "DRAWN — no equivalent surface exists on main";
+  flag.style.cssText =
+    "font-size:10px;font-weight:700;letter-spacing:.09em;color:#b26a00;margin-bottom:14px";
+  wrap.append(flag);
+  if (chrome) {
+    const bar = document.createElement("div");
+    bar.textContent = chrome;
+    bar.style.cssText =
+      "font-size:12px;color:rgba(0,0,0,0.5);background:#fff;border:1px solid rgba(0,0,0,0.12);border-radius:6px;padding:7px 12px;margin-bottom:14px;font-family:ui-monospace,monospace";
+    wrap.append(bar);
+  }
+  const card = document.createElement("div");
+  card.style.cssText =
+    "background:#fff;border:1px solid rgba(0,0,0,0.12);border-radius:10px;padding:26px 28px";
+  const h = document.createElement("div");
+  h.textContent = title;
+  h.style.cssText = "font-size:22px;font-weight:700;margin:0 0 6px";
+  card.append(h);
+  if (subtitle) {
+    const sub = document.createElement("p");
+    sub.textContent = subtitle;
+    sub.style.cssText = "margin:0 0 18px;font-size:14px;color:rgba(0,0,0,0.6)";
+    card.append(sub);
+  }
+  wrap.append(card);
+  document.body.append(wrap);
+  return card;
+};
+
+const field = (label, placeholder, opts = {}) => {
+  const box = document.createElement("div");
+  box.style.cssText = "margin:0 0 16px";
+  const l = document.createElement("div");
+  l.textContent = label + (opts.required ? " *" : "");
+  l.style.cssText = "font-size:13px;font-weight:600;margin-bottom:6px";
+  const i = document.createElement("div");
+  i.textContent = placeholder;
+  i.style.cssText =
+    "border:1px solid rgba(0,0,0,0.23);border-radius:6px;padding:11px 13px;font-size:14px;color:rgba(0,0,0,0.38)";
+  box.append(l, i);
+  if (opts.help) {
+    const h = document.createElement("div");
+    h.textContent = opts.help;
+    h.style.cssText = "font-size:12px;color:rgba(0,0,0,0.5);margin-top:5px";
+    box.append(h);
+  }
+  return box;
+};
+
+const primaryButton = (text) => {
+  const b = document.createElement("div");
+  b.textContent = text;
+  b.style.cssText =
+    "display:inline-block;background:#0b3d91;color:#fff;font-size:14px;font-weight:600;letter-spacing:.03em;padding:11px 22px;border-radius:6px;margin-top:6px";
+  return b;
+};
+
+const note = (text) => {
+  const n = document.createElement("p");
+  n.textContent = text;
+  n.style.cssText =
+    "margin:18px 0 0;font-size:12.5px;color:rgba(0,0,0,0.55);font-style:italic;line-height:1.6";
+  return n;
+};
+
+// A WhatsApp-style message ladder, for the messages this mission sends.
+const bubbles = (items) => {
+  const list = document.createElement("div");
+  list.style.cssText = "background:#e5ddd5;border-radius:8px;padding:16px";
+  for (const [text, meta] of items) {
     const row = document.createElement("div");
-    row.style.cssText =
-      "display:flex;align-items:baseline;gap:16px;padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.08)";
-    const l = document.createElement("div");
-    l.textContent = label;
-    l.style.cssText = "flex:0 0 210px;font-size:14px;color:rgba(0,0,0,0.75)";
-    const v = document.createElement("div");
-    v.style.cssText = "flex:1;font-size:14px;color:rgba(0,0,0,0.87)";
+    row.style.cssText = "margin-bottom:12px";
+    const b = document.createElement("div");
+    b.textContent = text;
+    b.style.cssText =
+      "background:#fff;border-radius:8px;padding:10px 13px;font-size:13.5px;line-height:1.5;max-width:88%;box-shadow:0 1px 1px rgba(0,0,0,0.12)";
+    const m = document.createElement("div");
+    m.textContent = meta;
+    m.style.cssText = "font-size:11px;color:rgba(0,0,0,0.45);margin-top:4px";
+    row.append(b, m);
+    list.append(row);
+  }
+  return list;
+};
+
+// Open a control the application already has, and wait for what it reveals.
+// Proposals that need this return a promise; page.evaluate awaits it.
+const openControl = async (text, ms = 700) => {
+  const el = $$("button, a").find((b) => new RegExp(text, "i").test(b.textContent));
+  if (el) el.click();
+  await new Promise((r) => setTimeout(r, ms));
+  return el;
+};
+
+// Fill a real form field, so the shot shows a filled form rather than a
+// described one.
+const fill = (name, value) => {
+  const input = document.querySelector(`input[name="${name}"], textarea[name="${name}"]`);
+  if (!input) return null;
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+  setter ? setter.call(input, value) : (input.value = value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  // MUI floats the label on focus/value via React state, which a scripted value
+  // set does not trigger. Add the class the component would have added.
+  const label = input.closest(".MuiFormControl-root")?.querySelector(".MuiInputLabel-root");
+  if (label) label.classList.add("MuiInputLabel-shrink", "MuiFormLabel-filled");
+  const legend = input.closest(".MuiFormControl-root")?.querySelector("legend");
+  if (legend) legend.style.maxWidth = "100%";
+  return input;
+};
+
+// Insert a proposed block immediately after a real form field, so an addition
+// reads as part of the form rather than as a note about it.
+const afterField = (name, node) => {
+  const input = document.querySelector(`input[name="${name}"]`);
+  const row = input?.closest(".MuiFormControl-root, .MuiTextField-root") ?? input?.parentElement;
+  row?.parentElement?.insertBefore(node, row.nextSibling);
+  return node;
+};
+
+// A block that is visibly part of the proposal, in the application's own idiom.
+const proposedBlock = (tone = "teal") => {
+  const colours = {
+    teal: ["#00695c", "rgba(0,105,92,0.06)", "rgba(0,105,92,0.45)"],
+    amber: ["#b26a00", "#fdf6ec", "rgba(178,106,0,0.55)"],
+    green: ["#1b5e20", "#e8f5e9", "rgba(46,125,50,0.45)"],
+  };
+  const [fg, bg, border] = colours[tone] ?? colours.teal;
+  const box = document.createElement("div");
+  box.style.cssText = `background:${bg};border:1px solid ${border};border-radius:8px;padding:14px 16px;margin:14px 0`;
+  box.dataset.fg = fg;
+  return box;
+};
+
+const blockTitle = (box, text) => {
+  const t = document.createElement("div");
+  t.textContent = text;
+  t.style.cssText = `font-size:13px;font-weight:700;color:${box.dataset.fg};margin-bottom:8px`;
+  box.append(t);
+  return box;
+};
+
+const blockText = (box, text) => {
+  const t = document.createElement("div");
+  t.textContent = text;
+  t.style.cssText = "font-size:13.5px;line-height:1.55;color:rgba(0,0,0,0.8)";
+  box.append(t);
+  return box;
+};
+
+const checkboxRow = (label, checked = false) => {
+  const row = document.createElement("label");
+  row.style.cssText =
+    "display:flex;gap:10px;align-items:flex-start;font-size:13.5px;margin-top:10px";
+  const box = document.createElement("span");
+  box.textContent = checked ? "\u2713" : "";
+  box.style.cssText =
+    "flex:0 0 18px;height:18px;border:2px solid rgba(0,0,0,0.45);border-radius:3px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;margin-top:1px";
+  const t = document.createElement("span");
+  t.textContent = label;
+  row.append(box, t);
+  return row;
+};
+
+// ---------------------------------------------------------------------------
+// Record-page helpers. The player record at /operate/roster/[membershipId] is
+// built from banded cards whose rows carry data-testid="record-row" and a
+// data-label. Cloning those rows is how a proposed card comes out identical to
+// a shipped one instead of merely similar.
+// ---------------------------------------------------------------------------
+
+const recordCards = () =>
+  $$(".MuiPaper-root").filter((c) => c.offsetHeight > 60 && c.innerText.trim());
+
+const recordCard = (label) =>
+  recordCards().find((c) =>
+    c.innerText.split("\n")[0].trim().toUpperCase().startsWith(label.toUpperCase()),
+  );
+
+const rowTpl = () => $('[data-testid="record-row"]');
+
+const recordRow = (label, value, opts = {}) => {
+  const tpl = rowTpl();
+  if (!tpl) return makeRow(label, value, opts);
+  const row = tpl.cloneNode(true);
+  row.setAttribute("data-label", label);
+  const boxes = [...row.children];
+  const l = boxes[0]?.querySelector("p") ?? boxes[0];
+  if (l) l.textContent = label;
+  const vBox = boxes[1];
+  if (vBox) {
+    const v = vBox.querySelector("p") ?? vBox;
     if (opts.chip) {
       const src = $(".MuiChip-root");
+      v.replaceChildren();
       if (src) {
         const c = src.cloneNode(true);
         asRung(c, opts.chip);
         v.append(c);
-      } else {
-        v.textContent = opts.chip;
-      }
+      } else v.textContent = opts.chip;
     } else {
-      v.textContent = value;
+      // Drop any nested extra markup and leave one line of text.
+      v.replaceChildren(document.createTextNode(value));
       if (opts.muted) {
         v.style.color = "rgba(0,0,0,0.38)";
         v.style.fontStyle = "italic";
       }
     }
-    row.append(l, v);
-    return row;
-  };
+  }
+  return row;
+};
 
-  // Append a proposed card after the last real card on a record-style page.
-  const appendCard = (title, rows, note) => {
-    const panel = drawnPanel(title);
-    panel.style.border = "1px solid rgba(0,105,92,0.45)";
+// Retitle a banded card, recolour its header, and replace everything in it.
+// Anything that is not a row - an onboarding alert, a filter strip - belongs to
+// the card being replaced and goes with it.
+const rebuildCard = (card, title, rows, opts = {}) => {
+  must(card, `rebuildCard("${title}") was given no card`);
+
+  // The rows go in FIRST. Renaming a header before the replacement is what
+  // produced a recruitment heading over a player's attendance table on
+  // 2026-08-31; if this throws, the card is still honestly the card it was.
+  const existing = [...card.querySelectorAll('[data-testid="record-row"]')];
+  must(existing, `card "${title}" holds no [data-testid="record-row"] to replace`);
+  const host = must(existing[0].parentElement, `card "${title}" rows have no parent`);
+  for (const child of [...host.children]) child.remove();
+  for (const r of rows) host.append(r);
+
+  const head = must(
+    card.querySelector(".MuiTypography-overline") ?? card.firstElementChild,
+    `card "${title}" has no header to retitle`,
+  );
+  const walker = document.createTreeWalker(head, NodeFilter.SHOW_TEXT);
+  const first = walker.nextNode();
+  if (first) first.nodeValue = title;
+  else head.textContent = title;
+  if (opts.colour) {
+    const bar = head.closest("div");
+    if (bar) bar.style.backgroundColor = opts.colour;
+  }
+
+  // Strip anything left over from the card this one replaces.
+  for (const alert of card.querySelectorAll(".MuiAlert-root, .MuiChip-root")) {
+    if (!rows.some((r) => r.contains(alert))) alert.remove();
+  }
+  if (opts.proposed) {
     const flag = document.createElement("div");
     flag.textContent = "PROPOSED — this mission";
     flag.style.cssText =
-      "font-size:10px;font-weight:700;letter-spacing:.09em;color:#00695c;margin-bottom:8px";
-    panel.insertBefore(flag, panel.firstChild);
-    for (const r of rows) panel.append(r);
-    if (rows.length) rows[rows.length - 1].style.borderBottom = "none";
-    if (note) {
-      const n = document.createElement("p");
-      n.textContent = note;
-      n.style.cssText = "margin:12px 0 0;font-size:12.5px;color:rgba(0,0,0,0.55);font-style:italic";
-      panel.append(n);
-    }
-    const anchor = cardTemplate();
-    const host = anchor?.parentElement ?? document.body;
-    host.append(panel);
-    return panel;
-  };
-
-  // Remove a status chip duplicated in the page header, without touching chips
-  // that carry a real value inside a card.
-  const dedupeHeaderChip = (text) => {
-    const firstCard = cardTemplate();
-    const chips = $$(".MuiChip-root").filter(
-      (c) =>
-        c.textContent.trim() === text &&
-        (!firstCard || !firstCard.contains(c)) &&
-        (!firstCard || c.compareDocumentPosition(firstCard) & Node.DOCUMENT_POSITION_FOLLOWING),
-    );
-    chips.slice(1).forEach((c) => c.remove());
-    return chips.length;
-  };
-
-  // A surface the application has no analogue for. The page is cleared and the
-  // drawing rendered in its place, so the shot is the drawing and nothing else.
-  // Screens built this way are labelled "New surface, nothing to compare" and
-  // their acceptance grounding is code-only.
-  const drawnSurface = ({ title, subtitle, chrome, width = 760 }) => {
-    const font = getComputedStyle(document.body).fontFamily;
-    document.body.replaceChildren();
-    document.body.style.cssText = `margin:0;background:#eceff1;font-family:${font};color:rgba(0,0,0,0.87)`;
-    const wrap = document.createElement("div");
-    wrap.style.cssText = `max-width:${width}px;margin:0 auto;padding:28px 20px 48px`;
-    const flag = document.createElement("div");
-    flag.textContent = "DRAWN — no equivalent surface exists on main";
-    flag.style.cssText =
-      "font-size:10px;font-weight:700;letter-spacing:.09em;color:#b26a00;margin-bottom:14px";
-    wrap.append(flag);
-    if (chrome) {
-      const bar = document.createElement("div");
-      bar.textContent = chrome;
-      bar.style.cssText =
-        "font-size:12px;color:rgba(0,0,0,0.5);background:#fff;border:1px solid rgba(0,0,0,0.12);border-radius:6px;padding:7px 12px;margin-bottom:14px;font-family:ui-monospace,monospace";
-      wrap.append(bar);
-    }
-    const card = document.createElement("div");
-    card.style.cssText =
-      "background:#fff;border:1px solid rgba(0,0,0,0.12);border-radius:10px;padding:26px 28px";
-    const h = document.createElement("div");
-    h.textContent = title;
-    h.style.cssText = "font-size:22px;font-weight:700;margin:0 0 6px";
-    card.append(h);
-    if (subtitle) {
-      const sub = document.createElement("p");
-      sub.textContent = subtitle;
-      sub.style.cssText = "margin:0 0 18px;font-size:14px;color:rgba(0,0,0,0.6)";
-      card.append(sub);
-    }
-    wrap.append(card);
-    document.body.append(wrap);
-    return card;
-  };
-
-  const field = (label, placeholder, opts = {}) => {
-    const box = document.createElement("div");
-    box.style.cssText = "margin:0 0 16px";
-    const l = document.createElement("div");
-    l.textContent = label + (opts.required ? " *" : "");
-    l.style.cssText = "font-size:13px;font-weight:600;margin-bottom:6px";
-    const i = document.createElement("div");
-    i.textContent = placeholder;
-    i.style.cssText =
-      "border:1px solid rgba(0,0,0,0.23);border-radius:6px;padding:11px 13px;font-size:14px;color:rgba(0,0,0,0.38)";
-    box.append(l, i);
-    if (opts.help) {
-      const h = document.createElement("div");
-      h.textContent = opts.help;
-      h.style.cssText = "font-size:12px;color:rgba(0,0,0,0.5);margin-top:5px";
-      box.append(h);
-    }
-    return box;
-  };
-
-  const primaryButton = (text) => {
-    const b = document.createElement("div");
-    b.textContent = text;
-    b.style.cssText =
-      "display:inline-block;background:#0b3d91;color:#fff;font-size:14px;font-weight:600;letter-spacing:.03em;padding:11px 22px;border-radius:6px;margin-top:6px";
-    return b;
-  };
-
-  const note = (text) => {
-    const n = document.createElement("p");
-    n.textContent = text;
-    n.style.cssText =
-      "margin:18px 0 0;font-size:12.5px;color:rgba(0,0,0,0.55);font-style:italic;line-height:1.6";
-    return n;
-  };
-
-  // A WhatsApp-style message ladder, for the messages this mission sends.
-  const bubbles = (items) => {
-    const list = document.createElement("div");
-    list.style.cssText = "background:#e5ddd5;border-radius:8px;padding:16px";
-    for (const [text, meta] of items) {
-      const row = document.createElement("div");
-      row.style.cssText = "margin-bottom:12px";
-      const b = document.createElement("div");
-      b.textContent = text;
-      b.style.cssText =
-        "background:#fff;border-radius:8px;padding:10px 13px;font-size:13.5px;line-height:1.5;max-width:88%;box-shadow:0 1px 1px rgba(0,0,0,0.12)";
-      const m = document.createElement("div");
-      m.textContent = meta;
-      m.style.cssText = "font-size:11px;color:rgba(0,0,0,0.45);margin-top:4px";
-      row.append(b, m);
-      list.append(row);
-    }
-    return list;
-  };
-
-  // Open a control the application already has, and wait for what it reveals.
-  // Proposals that need this return a promise; page.evaluate awaits it.
-  const openControl = async (text, ms = 700) => {
-    const el = $$("button, a").find((b) => new RegExp(text, "i").test(b.textContent));
-    if (el) el.click();
-    await new Promise((r) => setTimeout(r, ms));
-    return el;
-  };
-
-  // Fill a real form field, so the shot shows a filled form rather than a
-  // described one.
-  const fill = (name, value) => {
-    const input = document.querySelector(`input[name="${name}"], textarea[name="${name}"]`);
-    if (!input) return null;
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
-    setter ? setter.call(input, value) : (input.value = value);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    // MUI floats the label on focus/value via React state, which a scripted value
-    // set does not trigger. Add the class the component would have added.
-    const label = input.closest(".MuiFormControl-root")?.querySelector(".MuiInputLabel-root");
-    if (label) label.classList.add("MuiInputLabel-shrink", "MuiFormLabel-filled");
-    const legend = input.closest(".MuiFormControl-root")?.querySelector("legend");
-    if (legend) legend.style.maxWidth = "100%";
-    return input;
-  };
-
-  // Insert a proposed block immediately after a real form field, so an addition
-  // reads as part of the form rather than as a note about it.
-  const afterField = (name, node) => {
-    const input = document.querySelector(`input[name="${name}"]`);
-    const row = input?.closest(".MuiFormControl-root, .MuiTextField-root") ?? input?.parentElement;
-    row?.parentElement?.insertBefore(node, row.nextSibling);
-    return node;
-  };
-
-  // A block that is visibly part of the proposal, in the application's own idiom.
-  const proposedBlock = (tone = "teal") => {
-    const colours = {
-      teal: ["#00695c", "rgba(0,105,92,0.06)", "rgba(0,105,92,0.45)"],
-      amber: ["#b26a00", "#fdf6ec", "rgba(178,106,0,0.55)"],
-      green: ["#1b5e20", "#e8f5e9", "rgba(46,125,50,0.45)"],
-    };
-    const [fg, bg, border] = colours[tone] ?? colours.teal;
-    const box = document.createElement("div");
-    box.style.cssText = `background:${bg};border:1px solid ${border};border-radius:8px;padding:14px 16px;margin:14px 0`;
-    box.dataset.fg = fg;
-    return box;
-  };
-
-  const blockTitle = (box, text) => {
-    const t = document.createElement("div");
-    t.textContent = text;
-    t.style.cssText = `font-size:13px;font-weight:700;color:${box.dataset.fg};margin-bottom:8px`;
-    box.append(t);
-    return box;
-  };
-
-  const blockText = (box, text) => {
-    const t = document.createElement("div");
-    t.textContent = text;
-    t.style.cssText = "font-size:13.5px;line-height:1.55;color:rgba(0,0,0,0.8)";
-    box.append(t);
-    return box;
-  };
-
-  const checkboxRow = (label, checked = false) => {
-    const row = document.createElement("label");
-    row.style.cssText =
-      "display:flex;gap:10px;align-items:flex-start;font-size:13.5px;margin-top:10px";
-    const box = document.createElement("span");
-    box.textContent = checked ? "\u2713" : "";
-    box.style.cssText =
-      "flex:0 0 18px;height:18px;border:2px solid rgba(0,0,0,0.45);border-radius:3px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;margin-top:1px";
-    const t = document.createElement("span");
-    t.textContent = label;
-    row.append(box, t);
-    return row;
-  };
-
-  // ---------------------------------------------------------------------------
-  // Record-page helpers. The player record at /operate/roster/[membershipId] is
-  // built from banded cards whose rows carry data-testid="record-row" and a
-  // data-label. Cloning those rows is how a proposed card comes out identical to
-  // a shipped one instead of merely similar.
-  // ---------------------------------------------------------------------------
-
-  const recordCards = () =>
-    $$(".MuiPaper-root").filter((c) => c.offsetHeight > 60 && c.innerText.trim());
-
-  const recordCard = (label) =>
-    recordCards().find((c) =>
-      c.innerText.split("\n")[0].trim().toUpperCase().startsWith(label.toUpperCase()),
-    );
-
-  const rowTpl = () => $('[data-testid="record-row"]');
-
-  const recordRow = (label, value, opts = {}) => {
-    const tpl = rowTpl();
-    if (!tpl) return makeRow(label, value, opts);
-    const row = tpl.cloneNode(true);
-    row.setAttribute("data-label", label);
-    const boxes = [...row.children];
-    const l = boxes[0]?.querySelector("p") ?? boxes[0];
-    if (l) l.textContent = label;
-    const vBox = boxes[1];
-    if (vBox) {
-      const v = vBox.querySelector("p") ?? vBox;
-      if (opts.chip) {
-        const src = $(".MuiChip-root");
-        v.replaceChildren();
-        if (src) {
-          const c = src.cloneNode(true);
-          asRung(c, opts.chip);
-          v.append(c);
-        } else v.textContent = opts.chip;
-      } else {
-        // Drop any nested extra markup and leave one line of text.
-        v.replaceChildren(document.createTextNode(value));
-        if (opts.muted) {
-          v.style.color = "rgba(0,0,0,0.38)";
-          v.style.fontStyle = "italic";
-        }
-      }
-    }
-    return row;
-  };
-
-  // Retitle a banded card, recolour its header, and replace everything in it.
-  // Anything that is not a row - an onboarding alert, a filter strip - belongs to
-  // the card being replaced and goes with it.
-  const rebuildCard = (card, title, rows, opts = {}) => {
-    if (!card) return null;
-    const head = card.querySelector(".MuiTypography-overline") ?? card.firstElementChild;
-    if (head) {
-      const walker = document.createTreeWalker(head, NodeFilter.SHOW_TEXT);
-      const first = walker.nextNode();
-      if (first) first.nodeValue = title;
-      else head.textContent = title;
-      if (opts.colour) {
-        const bar = head.closest("div");
-        if (bar) bar.style.backgroundColor = opts.colour;
-      }
-    }
-    const existing = [...card.querySelectorAll('[data-testid="record-row"]')];
-    const host = existing[0]?.parentElement;
-    if (host) {
-      for (const child of [...host.children]) child.remove();
-      for (const r of rows) host.append(r);
-    }
-    // Strip anything left over from the card this one replaces.
-    for (const alert of card.querySelectorAll(".MuiAlert-root, .MuiChip-root")) {
-      if (!rows.some((r) => r.contains(alert))) alert.remove();
-    }
-    if (opts.proposed) {
-      const flag = document.createElement("div");
-      flag.textContent = "PROPOSED — this mission";
-      flag.style.cssText =
-        "font-size:10px;font-weight:700;letter-spacing:.09em;color:#00695c;padding:10px 16px 0";
-      const bar = head?.closest("div");
-      if (bar && bar.nextSibling) card.insertBefore(flag, bar.nextSibling);
-      else card.insertBefore(flag, card.firstChild);
-    }
-    return card;
-  };
-
-  // The strip under the heading describes a membership. A recruit has none.
-  const replaceSummaryStrip = (items) => {
-    const h1 = $("h1");
-    const sub = h1?.parentElement?.parentElement;
-    if (!sub) return;
-    const strip = [...sub.children].find(
-      (c) => c !== h1?.parentElement && c.innerText && c.innerText.split("\n").length >= 4,
-    );
-    if (!strip) return;
-    strip.replaceChildren();
-    strip.style.cssText = "display:flex;gap:38px;flex-wrap:wrap;margin:10px 0 18px";
-    for (const [value, label] of items) {
-      const cell = document.createElement("div");
-      const v = document.createElement("div");
-      v.style.cssText = "font-size:19px;font-weight:700;line-height:1.2";
-      if (value.chip) {
-        const src = $(".MuiChip-root");
-        if (src) {
-          const c = src.cloneNode(true);
-          asRung(c, value.chip);
-          v.append(c);
-        } else v.textContent = value.chip;
-      } else v.textContent = value;
-      const l = document.createElement("div");
-      l.textContent = label;
-      l.style.cssText = "font-size:12px;color:rgba(0,0,0,0.55);margin-top:3px";
-      cell.append(v, l);
-      strip.append(cell);
-    }
-  };
-
-  // Overwrite the PERSON card's rows so the page is about the recruit it names.
-  const setPersonRows = (rows) => {
-    const card = recordCard("PERSON");
-    if (!card) return;
-    const existing = [...card.querySelectorAll('[data-testid="record-row"]')];
-    const host = existing[0]?.parentElement;
-    if (!host) return;
-    for (const r of existing) r.remove();
-    for (const r of rows) host.append(r);
-  };
-
-  const removeCard = (label) => recordCard(label)?.remove();
-
-  // The line under the heading describes a membership. Replace it wholesale.
-  const setSubtitle = (text) => {
-    const h1 = $("h1");
-    const holder = h1?.parentElement?.parentElement ?? document.body;
-    for (const p of holder.querySelectorAll("p, .MuiTypography-body2")) {
-      if (
-        /membership|Returning|Active|Season 20/i.test(p.textContent) &&
-        p.textContent.length < 90
-      ) {
-        p.textContent = text;
-        return p;
-      }
-    }
-    return null;
-  };
-
-  // One row of a template listing: what it is called, what it says, and whether
-  // Meta has approved it. Every business-initiated WhatsApp message is one of
-  // these; free text is not a production shape.
-  const templateRow = (name, body, state) => {
-    const row = document.createElement("div");
-    row.style.cssText =
-      "border:1px solid rgba(0,0,0,0.12);border-radius:8px;padding:14px 16px;margin-bottom:12px;background:#fff";
-    const top = document.createElement("div");
-    top.style.cssText = "display:flex;justify-content:space-between;gap:16px;align-items:baseline";
-    const n = document.createElement("code");
-    n.textContent = name;
-    n.style.cssText = "font-size:12.5px;font-weight:700;color:#0b3d91";
-    const st = document.createElement("span");
-    st.textContent = state;
-    const approved = /approved/i.test(state);
-    st.style.cssText = `font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:${approved ? "#1b5e20" : "#b26a00"};background:${approved ? "#e8f5e9" : "#fdf6ec"};border-radius:4px;padding:3px 8px;white-space:nowrap`;
-    top.append(n, st);
-    const b = document.createElement("div");
-    b.textContent = body;
-    b.style.cssText = "font-size:13.5px;line-height:1.55;margin-top:9px;color:rgba(0,0,0,0.82)";
-    row.append(top, b);
-    return row;
-  };
-
-  // ---------------------------------------------------------------------------
-  // Pointing, not narrating — Brian, 2026-08-31.
-  //
-  // "I don't care if it has extra, as long as it stays bounded and I can scroll.
-  //  That's fine, but if there is something relevant, it needs to be pointed out.
-  //  I don't want that through narration."
-  //
-  // So a proposal never explains itself inside the application frame. It draws a
-  // numbered outline around each region it changed, and the prose for that number
-  // lives in the screen head, outside the frame, in build-pages.mjs. The number on
-  // the outline and the number on the delta are the same number.
-  //
-  // The outline is deliberately not a component: 2px of accent, a small numbered
-  // chip, and nothing else. It cannot be mistaken for product because no surface
-  // in this application has one.
-  const MARK_ACCENT = "#c2185b";
-
-  /**
-   * Outline one element as delta `n` of this screen. Returns the element so a
-   * proposal reads `mark(rebuildCard(...), 2)`.
-   */
-  const mark = (node, n) => {
-    if (!node) return node;
-    const host = node.nodeType === 1 ? node : null;
-    if (!host) return node;
-    if (getComputedStyle(host).position === "static") host.style.position = "relative";
-    host.style.outline = `2px solid ${MARK_ACCENT}`;
-    host.style.outlineOffset = "2px";
-    const chip = document.createElement("div");
-    chip.textContent = String(n);
-    chip.dataset.intakeMark = String(n);
-    chip.style.cssText =
-      `position:absolute;top:-11px;left:-11px;z-index:9;width:22px;height:22px;border-radius:50%;` +
-      `background:${MARK_ACCENT};color:#fff;font:700 12px/22px system-ui,sans-serif;text-align:center;` +
-      `box-shadow:0 1px 3px rgba(0,0,0,0.35)`;
-    host.append(chip);
-    return node;
-  };
-
-  /**
-   * Insert a node as high in the page's own content as it honestly belongs, so a
-   * marker is not buried four thousand pixels down a full-page shot. `anchor` is
-   * the application element the proposal is speaking about; the node lands
-   * immediately before it.
-   */
-  const placeBefore = (anchor, node) => {
-    const target = anchor ?? cardTemplate();
-    target?.parentElement?.insertBefore(node, target);
-    return node;
-  };
-
-  /**
-   * A region built out of the page's own card treatment, carrying no prose of its
-   * own. Use for content the proposal adds; explain it in the screen head.
-   */
-  const proposedRegion = (title) => drawnPanel(title);
-
-  // W14-02 — Where she lands: the roster, with what the flip actually did.
-  const box = proposedBlock("green");
-  blockTitle(box, "Marguerite Ashdown joined 2026-27");
-  const rows = document.createElement("div");
-  rows.style.cssText =
-    "display:grid;grid-template-columns:auto 1fr;gap:7px 18px;margin-top:8px;font-size:13.5px";
-  for (const [k, v] of [
-    ["Season membership", "Created · 2026-27 · onboarding"],
-    ["On the roster", "Yes — she is on this board now"],
-    ["Onboarding", "Open · 0 of 12 items"],
-    ["Active", "No. On the team is not active."],
-    ["Flipped by", "Caspian Hallowfield, Secretary, today · audited"],
-  ]) {
-    const a = document.createElement("div");
-    a.textContent = k;
-    a.style.cssText = "font-weight:700;white-space:nowrap";
-    const b = document.createElement("div");
-    b.textContent = v;
-    rows.append(a, b);
+      "font-size:10px;font-weight:700;letter-spacing:.09em;color:#00695c;padding:10px 16px 0";
+    const bar = head.closest("div");
+    if (bar && bar.nextSibling) card.insertBefore(flag, bar.nextSibling);
+    else card.insertBefore(flag, card.firstChild);
   }
-  box.append(rows);
-  const h1 = $("h1");
-  (h1?.parentElement?.parentElement ?? document.body).insertBefore(
-    box,
-    h1?.parentElement?.nextSibling ?? null,
+  return card;
+};
+
+// The strip under the heading describes a membership. A recruit has none.
+const replaceSummaryStrip = (items) => {
+  const h1 = must($("h1"), "replaceSummaryStrip found no <h1>");
+  const sub = must(h1.parentElement?.parentElement, "replaceSummaryStrip found no heading block");
+  const strip = must(
+    [...sub.children].find(
+      (c) => c !== h1.parentElement && c.innerText && c.innerText.split("\n").length >= 4,
+    ),
+    "replaceSummaryStrip found no membership summary strip",
   );
-})();
+  strip.replaceChildren();
+  strip.style.cssText = "display:flex;gap:38px;flex-wrap:wrap;margin:10px 0 18px";
+  for (const [value, label] of items) {
+    const cell = document.createElement("div");
+    const v = document.createElement("div");
+    v.style.cssText = "font-size:19px;font-weight:700;line-height:1.2";
+    if (value.chip) {
+      const src = $(".MuiChip-root");
+      if (src) {
+        const c = src.cloneNode(true);
+        asRung(c, value.chip);
+        v.append(c);
+      } else v.textContent = value.chip;
+    } else v.textContent = value;
+    const l = document.createElement("div");
+    l.textContent = label;
+    l.style.cssText = "font-size:12px;color:rgba(0,0,0,0.55);margin-top:3px";
+    cell.append(v, l);
+    strip.append(cell);
+  }
+};
+
+// Overwrite the PERSON card's rows so the page is about the recruit it names.
+const setPersonRows = (rows) => {
+  const card = must(recordCard("PERSON"), "setPersonRows found no PERSON card");
+  const existing = [...card.querySelectorAll('[data-testid="record-row"]')];
+  must(existing, "the PERSON card holds no [data-testid=\"record-row\"] to replace");
+  const host = must(existing[0].parentElement, "the PERSON card rows have no parent");
+  for (const r of existing) r.remove();
+  for (const r of rows) host.append(r);
+};
+
+const removeCard = (label) => recordCard(label)?.remove();
+
+// The line under the heading describes a membership. Replace it wholesale.
+const setSubtitle = (text) => {
+  const h1 = $("h1");
+  const holder = h1?.parentElement?.parentElement ?? document.body;
+  for (const p of holder.querySelectorAll("p, .MuiTypography-body2")) {
+    if (/membership|Returning|Active|Season 20/i.test(p.textContent) && p.textContent.length < 90) {
+      p.textContent = text;
+      return p;
+    }
+  }
+  return null;
+};
+
+// One row of a template listing: what it is called, what it says, and whether
+// Meta has approved it. Every business-initiated WhatsApp message is one of
+// these; free text is not a production shape.
+const templateRow = (name, body, state) => {
+  const row = document.createElement("div");
+  row.style.cssText =
+    "border:1px solid rgba(0,0,0,0.12);border-radius:8px;padding:14px 16px;margin-bottom:12px;background:#fff";
+  const top = document.createElement("div");
+  top.style.cssText = "display:flex;justify-content:space-between;gap:16px;align-items:baseline";
+  const n = document.createElement("code");
+  n.textContent = name;
+  n.style.cssText = "font-size:12.5px;font-weight:700;color:#0b3d91";
+  const st = document.createElement("span");
+  st.textContent = state;
+  const approved = /approved/i.test(state);
+  st.style.cssText = `font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:${approved ? "#1b5e20" : "#b26a00"};background:${approved ? "#e8f5e9" : "#fdf6ec"};border-radius:4px;padding:3px 8px;white-space:nowrap`;
+  top.append(n, st);
+  const b = document.createElement("div");
+  b.textContent = body;
+  b.style.cssText = "font-size:13.5px;line-height:1.55;margin-top:9px;color:rgba(0,0,0,0.82)";
+  row.append(top, b);
+  return row;
+};
+
+// ---------------------------------------------------------------------------
+// Pointing, not narrating — Brian, 2026-08-31.
+//
+// "I don't care if it has extra, as long as it stays bounded and I can scroll.
+//  That's fine, but if there is something relevant, it needs to be pointed out.
+//  I don't want that through narration."
+//
+// So a proposal never explains itself inside the application frame. It draws a
+// numbered outline around each region it changed, and the prose for that number
+// lives in the screen head, outside the frame, in build-pages.mjs. The number on
+// the outline and the number on the delta are the same number.
+//
+// The outline is deliberately not a component: 2px of accent, a small numbered
+// chip, and nothing else. It cannot be mistaken for product because no surface
+// in this application has one.
+const MARK_ACCENT = "#c2185b";
+
+/**
+ * Outline one element as delta `n` of this screen. Returns the element so a
+ * proposal reads `mark(rebuildCard(...), 2)`.
+ */
+const mark = (node, n) => {
+  if (!node) return node;
+  const host = node.nodeType === 1 ? node : null;
+  if (!host) return node;
+  if (getComputedStyle(host).position === "static") host.style.position = "relative";
+  host.style.outline = `2px solid ${MARK_ACCENT}`;
+  host.style.outlineOffset = "2px";
+  const chip = document.createElement("div");
+  chip.textContent = String(n);
+  chip.dataset.intakeMark = String(n);
+  chip.style.cssText =
+    `position:absolute;top:-11px;left:-11px;z-index:9;width:22px;height:22px;border-radius:50%;` +
+    `background:${MARK_ACCENT};color:#fff;font:700 12px/22px system-ui,sans-serif;text-align:center;` +
+    `box-shadow:0 1px 3px rgba(0,0,0,0.35)`;
+  host.append(chip);
+  return node;
+};
+
+/**
+ * Insert a node as high in the page's own content as it honestly belongs, so a
+ * marker is not buried four thousand pixels down a full-page shot. `anchor` is
+ * the application element the proposal is speaking about; the node lands
+ * immediately before it.
+ */
+const placeBefore = (anchor, node) => {
+  const target = anchor ?? cardTemplate();
+  target?.parentElement?.insertBefore(node, target);
+  return node;
+};
+
+/**
+ * A region built out of the page's own card treatment, carrying no prose of its
+ * own. Use for content the proposal adds; explain it in the screen head.
+ */
+const proposedRegion = (title) => drawnPanel(title);
+
+// ---------------------------------------------------------------------------
+// The recruit board's data, in one place so W1-01 and W1-02 cannot disagree.
+//
+// Rosalind Penhaligon (identified) and Tobias Wrenfield (engaged) are the two
+// recruits actually seeded at main@e669331 and carry their real seeded facts.
+// Four more are invented in the same synthetic universe so a board can be
+// judged as a board.
+//
+// FIELDS — Brian, 2026-08-31. The board carries the recruit's own stored
+// fields and the person facts it may read, and nothing else:
+//
+//   Person (Mission 5's, read-only here): College, Matric, Contactable.
+//   Recruitment (`recruitment_prospects`): Status, Source, First contact,
+//     Asked, Notes.
+//
+// "On WhatsApp" is gone. It is not a recruit field — it is seasonal channel
+// presence on the person record, empty at the baseline — and Brian struck the
+// abstract signal column with it: "let's just make events events".
+// "Last touch" is gone for the same reason.
+// ---------------------------------------------------------------------------
+const RECRUITMENT_EVENTS = [
+  { name: "Freshers' Fair", date: "30 Apr" },
+  { name: "Taster 1", date: "3 May" },
+  { name: "Taster 2", date: "10 May" },
+];
+
+// `presence` is the club's own attendance vocabulary — Present, Late, Excused,
+// Absent — or null for "nothing recorded". `rsvp` is "yes" | "no" | null, and
+// is ALWAYS rendered with its prefix. attendance/presentation.ts:52:
+// "Delivered never means responded. Attending is intent; Present is observed
+// attendance." A bare tick in a coloured box is what that rule forbids.
+const RECRUITS = [
+  {
+    name: "Rosalind Penhaligon",
+    college: "Dunsfold",
+    matric: "2026",
+    contactable: ["Mobile"],
+    status: "identified",
+    source: "QR · Freshers' Fair",
+    firstContact: "28 Apr",
+    asked: "Not sent",
+    notes: "Came to the stand with a friend from Dunsfold.",
+    events: [
+      { invited: true, rsvp: null, presence: "absent" },
+      { invited: false, rsvp: null, presence: null },
+      { invited: false, rsvp: null, presence: null },
+    ],
+  },
+  {
+    name: "Tobias Wrenfield",
+    college: "Marlbrook",
+    matric: "2025",
+    contactable: ["Mobile", "Email"],
+    status: "engaged",
+    source: "Walk-up · Taster 1",
+    firstContact: "3 May",
+    asked: "Answered 5 May",
+    notes: "Played at school. Asked about kit.",
+    events: [
+      { invited: true, rsvp: "yes", presence: "present" },
+      { invited: false, rsvp: null, presence: "present", walkUp: true },
+      { invited: true, rsvp: "yes", presence: null },
+    ],
+  },
+  {
+    name: "Marguerite Ashdown",
+    college: "Kestrelhall",
+    matric: "2026",
+    contactable: ["Mobile", "Email"],
+    status: "committed",
+    source: "Operator · sourced",
+    firstContact: "22 Apr",
+    asked: "Answered 25 Apr",
+    notes: "Said she is in. Wants to play safety.",
+    events: [
+      { invited: true, rsvp: "yes", presence: "present" },
+      { invited: true, rsvp: "yes", presence: "late" },
+      { invited: true, rsvp: "yes", presence: null },
+    ],
+  },
+  {
+    name: "Peregrine Oakhollow",
+    college: null,
+    matric: null,
+    contactable: ["Mobile"],
+    status: "identified",
+    source: "QR · Taster 2",
+    firstContact: "10 May",
+    asked: "Sent 11 May",
+    notes: "",
+    events: [
+      { invited: false, rsvp: null, presence: null },
+      { invited: false, rsvp: null, presence: null },
+      { invited: false, rsvp: null, presence: "present", walkUp: true },
+    ],
+  },
+  {
+    name: "Clementine Varrow",
+    college: "Harewell",
+    matric: "2026",
+    contactable: ["Email"],
+    status: "disengaged",
+    source: "Walk-up · Freshers' Fair",
+    firstContact: "30 Apr",
+    asked: "Not answered",
+    notes: "Came once, has not answered since.",
+    events: [
+      { invited: true, rsvp: "yes", presence: "absent" },
+      { invited: true, rsvp: "no", presence: null },
+      { invited: true, rsvp: null, presence: null },
+    ],
+  },
+  {
+    name: "Ambrose Kittiwake",
+    college: null,
+    matric: null,
+    contactable: ["Mobile"],
+    status: "declined",
+    source: "Walk-up · Taster 1",
+    firstContact: "3 May",
+    asked: "Not sent",
+    notes: "Said rugby clashes. Happy to be asked again next year.",
+    events: [
+      { invited: true, rsvp: "no", presence: "absent" },
+      { invited: false, rsvp: null, presence: "present", walkUp: true },
+      { invited: false, rsvp: null, presence: null },
+    ],
+  },
+];
+
+// The four attendance states and their MUI colours, copied from
+// attendance/presentation.ts. The word is the primary channel and the colour is
+// the second — slice-ux §7 requires state to be legible "without relying on
+// color alone", which is the other thing the dot grid got wrong.
+const PRESENCE = {
+  present: { label: "Present", fg: "#1b5e20", bg: "#e8f5e9", border: "#a5d6a7" },
+  late: { label: "Late", fg: "#8a5100", bg: "#fdf6ec", border: "#f0c78a" },
+  excused: { label: "Excused", fg: "#01579b", bg: "#e3f2fd", border: "#9fc9ec" },
+  absent: { label: "Absent", fg: "#b71c1c", bg: "#ffebee", border: "#ef9a9a" },
+};
+
+const describeRsvp = (rsvp, walkUp) => {
+  if (walkUp) return "Walk-up · never invited";
+  if (rsvp === "yes") return "RSVP: Attending";
+  if (rsvp === "no") return "RSVP: Not attending";
+  return "RSVP: No response";
+};
+
+// ---------------------------------------------------------------------------
+// The recruit board itself, built once and shared by W1-01 and W1-02 so the two
+// screens cannot drift apart. W1-02 is this board scrolled to the Events band.
+// ---------------------------------------------------------------------------
+const buildRecruitBoard = () => {
+  const table = must(document.querySelector("table"), "the board has no table");
+  const thead = table.querySelector("thead");
+  const tbody = table.querySelector("tbody");
+  const [bandRow, colRow] = thead.querySelectorAll("tr");
+  const bandCells = [...bandRow.querySelectorAll("th")];
+  const bodyRowTemplate = must(tbody.querySelector("tr"), "the board has no body row to clone");
+
+  const spacerBand = bandCells[0];
+  const personBand = bandCells[1];
+  const seasonBand = bandCells[3];
+  const colCells = [...colRow.querySelectorAll("th")];
+  const pinnedCol = colCells[0];
+  const filterCol = colCells[1];
+
+  const bodyCells = [...bodyRowTemplate.querySelectorAll("td")];
+  const pinnedCell = bodyCells[0];
+  const linkCell = bodyCells[1];
+  const chipCell = bodyCells[5];
+  const plainCell = bodyCells[6];
+  const statusCell = bodyCells[8];
+
+  const band = (template, label, span, colour) => {
+    const th = template.cloneNode(true);
+    th.setAttribute("colspan", String(span));
+    th.querySelector("span").textContent = label;
+    if (colour) th.style.backgroundColor = colour;
+    return th;
+  };
+
+  const column = (label, caption) => {
+    const th = filterCol.cloneNode(true);
+    th.querySelector('[role="button"]').childNodes[0].nodeValue = label;
+    const filter = th.querySelector("button");
+    if (filter) filter.setAttribute("aria-label", `Filter ${label}`);
+    const cap = th.querySelector(".MuiTypography-caption");
+    if (cap) cap.textContent = caption;
+    return th;
+  };
+
+  const textCell = (text, dim) => {
+    const td = plainCell.cloneNode(true);
+    const p = td.querySelector("p");
+    p.textContent = text;
+    p.style.color = dim ? "rgba(0,0,0,0.38)" : "";
+    p.style.fontStyle = dim ? "italic" : "";
+    return td;
+  };
+
+  // A person fact: a link out to the person record, exactly as the roster board
+  // does it, or "Not recorded" in grey. Mission 5 owns correcting these.
+  const recordCell = (text) => {
+    const td = linkCell.cloneNode(true);
+    if (text === null) {
+      td.replaceChildren();
+      const p = plainCell.querySelector("p").cloneNode(true);
+      p.textContent = "Not recorded";
+      p.style.color = "rgba(0,0,0,0.38)";
+      td.append(p);
+      return td;
+    }
+    td.querySelector("a").textContent = text;
+    return td;
+  };
+
+  const chipsCell = (labels) => {
+    const td = chipCell.cloneNode(true);
+    const stack = td.querySelector(".MuiStack-root");
+    const chip = stack.querySelector(".MuiChip-root").cloneNode(true);
+    stack.replaceChildren();
+    for (const l of labels) {
+      const c = chip.cloneNode(true);
+      c.querySelector(".MuiChip-label").textContent = l;
+      stack.append(c);
+    }
+    return td;
+  };
+
+  const statusChip = (value) => {
+    const td = statusCell.cloneNode(true);
+    asRung(td.querySelector(".MuiChip-root"), value);
+    return td;
+  };
+
+  // ---- The proposed header -------------------------------------------------
+  // Person 3 · Recruitment 5 · Events 3. The pinned Recruit column sits outside
+  // the bands, in the spacer, as the roster board's pinned column does.
+  bandRow.replaceChildren(
+    spacerBand.cloneNode(true),
+    band(personBand, "Person", 3),
+    band(seasonBand, "Recruitment", 5, "#00695c"),
+    band(seasonBand, "Events", RECRUITMENT_EVENTS.length),
+  );
+
+  const pinned = pinnedCol.cloneNode(true);
+  pinned.querySelector('[role="button"]').childNodes[0].nodeValue = "Recruit";
+  colRow.replaceChildren(
+    pinned,
+    column("College", "edit on the record"),
+    column("Matric", "edit on the record"),
+    column("Contactable", "indicators only"),
+    column("Status", "edit here"),
+    column("Source", "edit here"),
+    column("First contact", "edit here"),
+    column("Asked", "set by the form"),
+    column("Notes", "edit here"),
+    ...RECRUITMENT_EVENTS.map((e) => column(`${e.name} · ${e.date}`, "")),
+  );
+
+  // ---- One event cell, in the club's own words ------------------------------
+  // Two lines: what was observed, then what was said. Never one without the
+  // other, and never the observation implied by the intent.
+  const eventCell = ({ invited, rsvp, presence, walkUp }) => {
+    const td = plainCell.cloneNode(true);
+    td.replaceChildren();
+    const wrap = document.createElement("div");
+
+    if (!invited && !presence) {
+      const p = document.createElement("p");
+      p.textContent = "Not invited";
+      p.style.cssText = "margin:0;font-size:13px;color:rgba(0,0,0,0.38);font-style:italic";
+      wrap.append(p);
+      td.append(wrap);
+      return td;
+    }
+
+    const state = presence ? PRESENCE[presence] : null;
+    const top = document.createElement("span");
+    if (state) {
+      top.textContent = state.label;
+      top.style.cssText =
+        `display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:11px;` +
+        `color:${state.fg};background:${state.bg};border:1px solid ${state.border}`;
+    } else {
+      top.textContent = "Not recorded";
+      top.style.cssText = "font-size:13px;color:rgba(0,0,0,0.38);font-style:italic";
+    }
+    const bottom = document.createElement("div");
+    bottom.textContent = describeRsvp(rsvp, walkUp);
+    bottom.style.cssText = "margin-top:4px;font-size:11.5px;color:rgba(0,0,0,0.55);white-space:nowrap";
+    wrap.append(top, bottom);
+    td.append(wrap);
+    return td;
+  };
+
+  tbody.replaceChildren(
+    ...RECRUITS.map((r) => {
+      const tr = bodyRowTemplate.cloneNode(false);
+      const name = pinnedCell.cloneNode(true);
+      name.querySelector("a").textContent = r.name;
+      tr.append(
+        name,
+        recordCell(r.college),
+        recordCell(r.matric),
+        chipsCell(r.contactable),
+        statusChip(r.status),
+        textCell(r.source),
+        textCell(r.firstContact),
+        textCell(r.asked, r.asked === "Not sent"),
+        textCell(r.notes || "—", !r.notes),
+        ...r.events.map(eventCell),
+      );
+      return tr;
+    }),
+  );
+
+  // ---- The phone rendering, from the same data ------------------------------
+  setRecruitCards(
+    RECRUITS.map((r) => ({
+      name: r.name,
+      status: r.status,
+      detail: `${r.source} · first contact ${r.firstContact}`,
+    })),
+  );
+
+  setHeading("Recruitment", "Season 2026-27 · 6 recruits · 3 recruitment events");
+  relabelButton("add player", "ADD RECRUIT");
+
+  // The roster's filters describe memberships. A recruit holds none.
+  const FILTERS = { Availability: "Source", "Missing onboarding data": "Ask outstanding" };
+  for (const node of $$("label, .MuiInputLabel-root, .MuiSelect-select")) {
+    const t = node.textContent.trim();
+    if (FILTERS[t]) node.textContent = FILTERS[t];
+  }
+
+  selectRecruitmentNav();
+  setRecruitmentRoute();
+};
+
+// W14-02 — Where she lands: the roster, with what the flip actually did.
+const box = proposedBlock("green");
+blockTitle(box, "Marguerite Ashdown joined 2026-27");
+const rows = document.createElement("div");
+rows.style.cssText =
+  "display:grid;grid-template-columns:auto 1fr;gap:7px 18px;margin-top:8px;font-size:13.5px";
+for (const [k, v] of [
+  ["Season membership", "Created · 2026-27 · onboarding"],
+  ["On the roster", "Yes — she is on this board now"],
+  ["Onboarding", "Open · 0 of 12 items"],
+  ["Active", "No. On the team is not active."],
+  ["Flipped by", "Caspian Hallowfield, Secretary, today · audited"],
+]) {
+  const a = document.createElement("div");
+  a.textContent = k;
+  a.style.cssText = "font-weight:700;white-space:nowrap";
+  const b = document.createElement("div");
+  b.textContent = v;
+  rows.append(a, b);
+}
+box.append(rows);
+const h1 = $("h1");
+(h1?.parentElement?.parentElement ?? document.body).insertBefore(
+  box,
+  h1?.parentElement?.nextSibling ?? null,
+);
+
+})()

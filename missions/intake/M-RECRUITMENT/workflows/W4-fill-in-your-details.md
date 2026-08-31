@@ -47,14 +47,27 @@ inventory and were routed to Task 09; Mission 5's approved packet records the se
 as an open unknown. Enumerated here for the first time, and every field is
 optional:
 
-| Field                | Why the club wants it                                                |
-| -------------------- | -------------------------------------------------------------------- |
-| Played before        | Whether to point them at a taster or a session                       |
-| Position interest    | Nothing binding — a conversation opener for a coach                  |
-| Gear owned           | Whether they need kit to turn up at all                              |
-| Year and college     | Already on the person record; shown for correction, not re-asked     |
-| How they heard of us | The only recruitment-effectiveness question worth asking             |
-| Anything else        | Free text, because a recruit will tell you something you did not ask |
+| Field                             | Why the club wants it                                                |
+| --------------------------------- | -------------------------------------------------------------------- |
+| Played American football before?  | Yes/no. Whether to point them at a taster or a session               |
+| Watched American football before? | Yes/no. Someone who has watched it is not starting from nothing      |
+| Position interest                 | Nothing binding — a conversation opener for a coach                  |
+| Gear owned                        | Whether they need kit to turn up at all                              |
+| How they heard of us              | The only recruitment-effectiveness question worth asking             |
+| Anything else                     | Free text, because a recruit will tell you something you did not ask |
+
+Amended by Brian on 2026-08-31, on being shown the earlier six:
+
+- **Year and college is gone.** _"Whether they're in college is something we
+  already asked."_ It is on the person record; the form does not re-ask it and no
+  longer shows it for correction.
+- **"Played before" became two questions, both yes/no.** _"Have they ever played
+  American football before? Have they ever watched American football? Those
+  should be yes-or-no questions."_ Position interest, gear owned and how they
+  heard of us were each confirmed in the same pass.
+- **`Anything else` is retained but not confirmed.** Brian's "anything else?" was
+  the prompt that produced the two new questions rather than a ruling on the
+  free-text box. It stays proposed until he says otherwise.
 
 Nothing here gates anything. Missing information never blocks a capture and never
 blocks the flip — Task 09 D5, and invariant 4.
