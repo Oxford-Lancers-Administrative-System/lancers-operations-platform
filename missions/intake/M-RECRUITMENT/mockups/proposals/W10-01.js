@@ -2181,6 +2181,42 @@ const step = ({ name, first, firstUnit, second, secondUnit, on, save }) => {
   );
   if (button) button.textContent = save;
 
+  // "Show an example" belongs to an event's chase, which has something worth
+  // worked-examples. A step that fires once on a fixed delay does not.
+  for (const link of [...row.querySelectorAll("a, button")]) {
+    if (/show an example/i.test(link.textContent)) link.remove();
+  }
+
+  // Squeeze it. The shipped row is sized for six fields on three lines; these
+  // carry one or two, and Brian on the first attempt: "The white spacing, good
+  // fucking lord, is atrocious here... This should be squeezed down so it's much
+  // more narrow." Put the fields and the SAVE on one line.
+  row.style.padding = "12px 16px";
+  if (grid) {
+    grid.style.alignItems = "center";
+    grid.style.margin = "0";
+  }
+  // The SAVE button stays exactly where the shipped row puts it. Three attempts
+  // at moving it into the field row left it between the two fields with its
+  // label wrapped over three lines — fighting the component instead of using it.
+  // The height problem was the four removed fields, and that is already fixed.
+
+  // Anything left in the row that holds neither text nor a control is spacing
+  // the removed fields used to fill. It goes, or the row stays tall for content
+  // that is no longer there.
+  for (const node of [...row.querySelectorAll("div, span")]) {
+    if (
+      node !== grid &&
+      !node.contains(grid) &&
+      !node.textContent.trim() &&
+      !node.querySelector("input, button, a")
+    ) {
+      node.remove();
+    }
+  }
+  if (grid) grid.style.flexWrap = "nowrap";
+  row.style.paddingBottom = "12px";
+
   // NOT AN ON/OFF SWITCH. W10's spec says an operator must be able to turn a
   // step off, and the shipped row has no such control — `schedule-row-toggle` is
   // the "Show an example" disclosure, not a switch. Rather than draw a toggle
@@ -2223,8 +2259,51 @@ const built = STEPS.map(step);
 // Recruitment first, then the event types under their own heading. The page
 // stops being one undifferentiated list and becomes three sections, of which
 // two are built.
-const recruitHead = sectionHeading("Recruitment", "What the club sends after somebody is captured.");
+const recruitHead = sectionHeading(
+  "Recruitment",
+  "What the club sends after somebody is captured.",
+);
 host.insertBefore(recruitHead, template);
+
+// ONE QR code, for the season, at the top of the section.
+//
+// Brian, 2026-08-31: "I don't think we should do it per event. We should just
+// have one that is just the QR code to sign in to get into the WhatsApp group.
+// That's it... created once per season and exists on the page. That's it.
+// Nothing else should exist: no new pages."
+//
+// So the separate QR page is deleted and this is all of it: the one code, what
+// it points at, how many have come through it, and a way to copy it for a
+// poster. Per-event codes are gone entirely — there was never a question the
+// club needed answered per event that this does not answer once.
+const qr = document.createElement("div");
+qr.style.cssText =
+  "display:flex;align-items:center;gap:20px;flex-wrap:wrap;border:1px solid rgba(0,0,0,0.12);" +
+  "border-radius:8px;padding:14px 16px;margin-bottom:14px;background:#fff";
+const qrGlyph = document.createElement("div");
+qrGlyph.textContent = "\u25A6";
+qrGlyph.style.cssText = "font-size:34px;line-height:1;color:rgba(0,0,0,0.8)";
+const qrBody = document.createElement("div");
+qrBody.style.cssText = "flex:1;min-width:220px";
+const qrName = document.createElement("div");
+qrName.textContent = "Sign-up QR \u00b7 2026-27";
+qrName.style.cssText = "font-size:14px;font-weight:700";
+const qrWhere = document.createElement("div");
+qrWhere.textContent =
+  "Points at oxfordlancers.example/join \u00b7 59 sign-ins this season";
+qrWhere.style.cssText = "font-size:13px;color:rgba(0,0,0,0.6);margin-top:3px";
+qrBody.append(qrName, qrWhere);
+const copy = must(
+  [...document.querySelectorAll("a, button")].find((b) =>
+    b.className.includes("MuiButton-contained"),
+  ),
+  "the page has no contained button to clone",
+).cloneNode(true);
+copy.textContent = "COPY QR CODE";
+copy.removeAttribute("href");
+qr.append(qrGlyph, qrBody, copy);
+host.insertBefore(qr, template);
+
 host.insertBefore(cycleRule, template);
 for (const row of built) host.insertBefore(row, template);
 host.insertBefore(
@@ -2233,7 +2312,7 @@ host.insertBefore(
 );
 host.insertBefore(rule, template);
 
-mark(recruitHead, 1);
+mark(qr, 1);
 mark(built[0], 2);
 
 await settle();

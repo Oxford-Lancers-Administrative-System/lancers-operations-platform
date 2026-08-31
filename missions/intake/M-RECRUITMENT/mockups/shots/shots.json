@@ -141,12 +141,12 @@
     {
       "id": "W10-01",
       "route": "/operate/admin/messaging",
-      "headSha": "95a8f03d9aaf719eab4ed9510218abafa29a923a",
+      "headSha": "3d2015d94b5a4150f21482927bb966d47d54b7e7",
       "slot": "mission-m-recruitment-1",
       "proposal": {
         "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W10-01.js",
-        "sha256": "012bb7a3ae2606a66d4daa5d41d3ea4a220f3d7f13dc942f5d33c63df1f4564e",
-        "bytes": 93027
+        "sha256": "cfe9329752ddb814580939ea885c4faee8d909cc3ade675b72a9f49e21716bb6",
+        "bytes": 96432
       },
       "captures": [
         {
@@ -182,53 +182,7 @@
           "file": "shots/W10-01-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-31T21:56:07.554Z"
-    },
-    {
-      "id": "W10-02",
-      "route": "/operate/people",
-      "headSha": "95a8f03d9aaf719eab4ed9510218abafa29a923a",
-      "slot": "mission-m-recruitment-1",
-      "proposal": {
-        "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W10-02.js",
-        "sha256": "5347e9490a127f93727f32bf71739daa315e54d5bcc9b8ff29be1c2b29a03503",
-        "bytes": 91218
-      },
-      "captures": [
-        {
-          "side": "current",
-          "viewport": "desktop",
-          "requestedWidth": 1280,
-          "measuredWidth": 1280,
-          "measuredHeight": 900,
-          "file": "shots/W10-02-current-desktop.png"
-        },
-        {
-          "side": "proposed",
-          "viewport": "desktop",
-          "requestedWidth": 1280,
-          "measuredWidth": 1280,
-          "measuredHeight": 900,
-          "file": "shots/W10-02-proposed-desktop.png"
-        },
-        {
-          "side": "current",
-          "viewport": "phone375",
-          "requestedWidth": 375,
-          "measuredWidth": 375,
-          "measuredHeight": 812,
-          "file": "shots/W10-02-current-phone375.png"
-        },
-        {
-          "side": "proposed",
-          "viewport": "phone375",
-          "requestedWidth": 375,
-          "measuredWidth": 375,
-          "measuredHeight": 812,
-          "file": "shots/W10-02-proposed-phone375.png"
-        }
-      ],
-      "at": "2026-08-31T21:58:16.254Z"
+      "at": "2026-08-31T22:05:04.971Z"
     },
     {
       "id": "W11-01",

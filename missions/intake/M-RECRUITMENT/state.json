@@ -183,7 +183,7 @@
         {
           "screen_id": "W10-01",
           "date": "2026-08-31",
-          "text": "This page really needs to be split up into multiple sections - event messaging, recruitment, onboarding. These seem quite big. 'Doors' doesn't mean anything in our vocabulary. For W10-02, where do they get this page? It's not grounded anywhere. W10-03 doesn't make any damn sense - we don't control WhatsApp from in here, I have to load the templates into WhatsApp separately. — DONE: the messaging schedule is sectioned (Recruitment / Event messaging, with Onboarding as the third and deliberately unbuilt); rows condensed and 'Doors' removed; W10-02 rebuilt on the shipped People table and reached from the recruit board; W10-03 DELETED - templates are managed in Meta's own tooling and the approval gate becomes an owner action instead."
+          "text": "The white spacing is atrocious. It doesn't need to show an example. This should be squeezed down. Where do I get the QR code from? We don't have anything on W1 that points to a QR code. I don't think we should do it per event - just one QR code to sign in to get into the WhatsApp group, created once per season, at the top of the page as Copy QR code. Nothing else should exist: no new pages. Simplify. — DONE: W10 is ONE screen. One season QR at the top of the Recruitment section with COPY QR CODE and its sign-in count; rows condensed and 'Show an example' removed; the per-event QR page deleted along with W10-03."
         }
       ]
     },
@@ -1063,7 +1063,7 @@
       }
     ]
   },
-  "next_action": "W1-W8 approved; W3 and W9 folded; W2-04 tentatively accepted. W10 rebuilt AGAIN and with Brian: messaging schedule sectioned, QR codes grounded from the board, W10-03 deleted because WhatsApp templates are loaded in Meta's tooling and are not a surface of this product. OWNER ACTION FOR CLOSEOUT: Brian must submit four WhatsApp templates to Meta - recruit_welcome, recruit_details_ask, recruit_details_reminder, recruit_interest_ask. Only event_invitation is approved today; review is days to weeks and outside the club's control, so the cycle can be built and cannot run. NEXT after W10: W11 (renumber its two screens - 02 is the Type and comes first; tighten the 'polite follow-up' wording; the countByCapacity defect omitting recruits from the approval summary is real and should land as a fix), then W12-W14, all stale. OPEN: an entry point for QR codes is an addition to approved W1; whether a step can be turned off has no shipped control; 'said no to WhatsApp' vs 'declined'; W2 button placement; W2-04's real approval; events violet vs blue; channel presence on the record; the Contactable cell option.",
+  "next_action": "W1-W8 approved; W3 and W9 folded; W2-04 tentative. W10 is now ONE screen and with Brian: the recruitment section of /operate/admin/messaging, holding one season QR code and the three cycle rows. W10-02 and W10-03 are both deleted. NEXT: W11 (renumber - the Type screen comes first; tighten the 'polite follow-up' wording; the countByCapacity defect omitting recruits from the approval summary is real), then W12-W14, all stale. OWNER ACTION FOR CLOSEOUT: four WhatsApp templates must be submitted to Meta by Brian; only event_invitation is approved, so the cycle can be built and cannot run. OPEN: no shipped control for turning a cycle step off; 'said no to WhatsApp' vs 'declined'; W2 button placement; W2-04's real approval; events violet vs blue; channel presence on the record; the Contactable cell option.",
   "subject_coverage": {
     "areas": [
       {

@@ -438,31 +438,17 @@ const WORKFLOWS = [
     screens: [
       P(
         "W10-01",
-        "The recruitment cycle, as a section of the messaging schedule",
-        `Administration → Messaging schedule → <code>/operate/admin/messaging</code>. Not a new page
-         and no new navigation. Brian, 2026-08-31: "This page really needs to be split up into
-         multiple sections... event messaging... then there's the recruitment heading... Onboarding
-         should be a section."`,
+        "The recruitment cycle, and the season's QR code",
+        `Administration → Messaging schedule → <code>/operate/admin/messaging</code>. One screen, no
+         new pages. The whole of W10 is now this: the recruitment section of a page that already
+         exists.`,
         [
-          "<strong>1. The page is sectioned.</strong> <strong>Recruitment</strong> and <strong>Event messaging</strong> each get a heading and their own rule panel. Onboarding is the third section and is deliberately not built — the structure is what makes room for it",
-          "<strong>2. The rows are the page's own.</strong> Each step is a cloned <code>schedule-row</code>, the same component the seven event types use, with the same fields, the same SAVE and the same “Show an example”. Two earlier drafts drew panels instead — once on top of this page, once in place of it",
-          "<strong>Condensed, and “Doors” is gone.</strong> That word means nothing in the club's vocabulary. The welcome is simply <em>after capture, 0 hours</em>",
-          "<strong>Not shown, and recorded as a gap:</strong> W10 requires an operator to turn a step off, and the shipped row has no such control. No toggle was invented for it",
+          "<strong>1. One QR code, for the season.</strong> Brian, 2026-08-31: <em>“I don't think we should do it per event. We should just have one that is just the QR code to sign in to get into the WhatsApp group... created once per season and exists on the page. Nothing else should exist: no new pages.”</em> It points at <code>/join</code>, says how many have come through it, and copies for a poster",
+          "<strong>2. The cycle, in the page's own rows.</strong> Each step is a cloned <code>schedule-row</code>, condensed to the fields it needs, with “Show an example” removed — a step that fires once on a fixed delay has no worked example worth showing",
+          "<strong>The page is sectioned:</strong> Recruitment, then Event messaging. Onboarding is the third section and is deliberately not built — the structure makes room for Mission 7",
+          "<strong>Two things deleted rather than drawn.</strong> The per-event QR page is gone. So is the templates page: a Meta-approved template is created in Meta's own tooling, so a page listing them would manage nothing. The approval gate survives as an owner action",
         ],
         "oxfordlancers.example/operate/admin/messaging",
-      ),
-      P(
-        "W10-02",
-        "Recruitment QR codes",
-        `Reached from the recruit board: <strong>Recruitment → QR codes</strong>. A QR code is not a
-         message, so it does not belong on the messaging schedule; it is a recruitment asset, and the
-         board is recruitment's surface.`,
-        [
-          "<strong>1. Each code says where it is printed</strong>, because revoking one kills a physical poster and nothing on screen would otherwise say so",
-          "<strong>2. Built on the shipped People table</strong>, the same way W8-02 is — a real list with real columns, read as recruitment",
-          "<strong>The entry point is an addition to W1, which Brian has approved.</strong> It is named here and not drawn into W1; it waits on his word",
-        ],
-        "oxfordlancers.example/operate/recruitment/qr",
       ),
     ],
   },
