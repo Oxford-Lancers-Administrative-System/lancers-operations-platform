@@ -154,7 +154,7 @@
     <div class="bar">
       <div class="who">
         Workflow inventory<span
-          >M-RECRUITMENT · Stage 2, fourteen workflows, awaiting your freeze</span
+          >M-RECRUITMENT · Stage 2 closed, fourteen workflows frozen 2026-08-31</span
         >
       </div>
     </div>
@@ -165,45 +165,47 @@
         user-visible result.
       </p>
       <p>
-        Fourteen workflows. The order is the execution order: <code>Wn</code> completes before
-        <code>Wn+1</code> is approved, so the numbering is a decision in itself and not a listing
-        convenience.
+        <strong>Fourteen workflows, frozen by Brian on 2026-08-31.</strong> The order is the
+        execution order: <code>Wn</code> completes before <code>Wn+1</code> is approved, so the
+        numbering is a decision in itself and not a listing convenience.
       </p>
       <p>
-        <strong>Why this order — revised at Brian's 2026-08-31 inventory review.</strong> The first
-        draft led with the board. It now leads with the sign-on flow, on his direction:
-        <em
-          >"The initial WhatsApp registration… Even though it's rather small, it will define this
-          for other steps in this process. Recruits are the easiest place to handle this."</em
-        >
-        Channel registration is the smallest thing in the mission and the most load-bearing outside
-        it — Missions 7 and 8 inherit whatever shape it takes, and every door in this mission ends
-        by firing it. Settling what the club says and when it says it also settles what a recruit
-        signal actually is, which is what the board then shows.
+        <strong>Why this order.</strong> The board and the recruit's record lead. They are the spine
+        — the board's columns decide which recruit facts and which signals exist, and every other
+        workflow puts something on one of them or takes something off. They are also the two
+        surfaces with a real photograph available: <code>/operate/roster</code> and
+        <code>/operate/people/[personId]</code> are running code at <code>main@e669331</code>, so
+        the first two comps are current-versus-proposed rather than drawn, and they carry the
+        shipped board's structure, grouping and colour language forward on Brian's instruction.
       </p>
       <p>
-        The board and the record follow immediately, because they are the spine and because they are
-        the two surfaces with a real photograph available: <code>/operate/roster</code> and
-        <code>/operate/people/[personId]</code> are running code at <code>main@e669331</code>. Then
-        the doors, then the follow-up surface, then the events, then the exits.
-        <strong>The flip is last, by Brian's instruction.</strong>
+        The sign-on flow follows them, by Brian's decision at the freeze. It is the smallest thing
+        in the mission and the most load-bearing outside it — Missions 7 and 8 inherit whatever
+        shape it takes, and every door in this mission ends by firing it — but what it produces
+        lands on the board, so the board is drawn first and the flow is drawn into it.
+      </p>
+      <p>
+        Then the recruit's own form, then the doors, then the follow-up surface, then the
+        administration that configures all of it, then the events, then the exits.
+        <strong>The flip is last, by Brian's instruction</strong>, because it is the hand-off out of
+        the mission and its shape depends on what everything before it became.
       </p>
       <ol>
         <li value="1">
-          <code>W1</code> — <strong>Say yes to the club</strong>: a newly captured recruit receives
-          the club's first message → they accept WhatsApp communication and answer the standard
-          recruit ask on the spot, and the club knows it can reach them.
-        </li>
-
-        <li value="2">
-          <code>W2</code> — <strong>The recruit board</strong>: an operator opens recruitment's own
+          <code>W1</code> — <strong>The recruit board</strong>: an operator opens recruitment's own
           board → one line per recruit, person details then recruitment details, event columns
           appended at the right end, findable and filterable, actions from the row.
         </li>
 
-        <li value="3">
-          <code>W3</code> — <strong>One recruit's record</strong>: an operator clicks a row → that
+        <li value="2">
+          <code>W2</code> — <strong>One recruit's record</strong>: an operator clicks a row → that
           recruit's own working page, their details, their signals, their notes, correctable there.
+        </li>
+
+        <li value="3">
+          <code>W3</code> — <strong>Say yes to the club</strong>: a newly captured recruit receives
+          the club's first message → they accept WhatsApp communication and answer the standard
+          recruit ask on the spot, and the club knows it can reach them.
         </li>
 
         <li value="4">
@@ -214,13 +216,13 @@
 
         <li value="5">
           <code>W5</code> — <strong>Capture a walk-up as a recruit</strong>: an operator or coach
-          taking attendance writes somebody down → that person is a recruit on the board and W1 has
-          begun.
+          taking attendance writes somebody down → that person is a recruit on the board and
+          <code>W3</code> has begun.
         </li>
 
         <li value="6">
           <code>W6</code> — <strong>Add a recruit by hand</strong>: an operator sources somebody and
-          enters them → the recruit exists, deduped, and W1 has begun.
+          enters them → the recruit exists, deduped, and <code>W3</code> has begun.
         </li>
 
         <li value="7">
@@ -272,42 +274,6 @@
           shows them joined this season, and onboarding opens.
         </li>
       </ol>
-      <h2>What changed from the first draft, and why</h2>
-      <ul>
-        <li>
-          <strong><code>W1</code> is new.</strong> Channel registration was a line inside the doors;
-          it is now its own journey, on Brian's direction, because it defines the pattern other
-          missions inherit.
-        </li>
-
-        <li>
-          <strong>The recruit's entry splits into <code>W1</code> and <code>W4</code></strong
-          >, matching Brian's own description: accept and answer the standard ask immediately, then
-          the fuller form asked politely with one reminder. What the standard ask is, and what the
-          form collects, are open and are decided against drawings.
-        </li>
-
-        <li>
-          <strong>The board moved from first to second.</strong> Its columns are still the spine;
-          they are now drawn knowing what <code>W1</code> actually produces.
-        </li>
-
-        <li>
-          <strong>The QR keeps its own workflow</strong> and gains Brian's named flow — scan, form,
-          submit, group invite — with the detail still open.
-        </li>
-
-        <li>
-          <strong>Administration moved later, to <code>W10</code>.</strong> It is the workflow Brian
-          named as the one he is least sure of: _"W9 is important. I'm most confused about this one.
-          I think we need to go through the workflow and find the boundary there."_ Walking it after
-          the flows it configures means the boundary is found against real screens rather than
-          guessed in the abstract. <code>W1</code> still settles which side of the Mission 4 line
-          each piece of the ladder sits on, because it cannot be drawn without doing so.
-        </li>
-
-        <li><strong>Count is fourteen, not thirteen</strong> — one added, none removed.</li>
-      </ul>
       <h2>Excluded stages and invariants</h2>
       <p>
         These are real parts of the subject that are deliberately <strong>not</strong> workflows,
@@ -331,14 +297,18 @@
         </li>
 
         <li>
-          <strong>The recruit-stage field set</strong> is enumerated as an artifact of this stage
-          and approved with <code>W4</code>; the standard recruit ask is approved with
-          <code>W1</code>.
+          <strong>A recruit sees only an event's public details</strong> — invariant 8 in
+          <code>01-overview.md</code>, an access boundary rather than a screen decision.
+        </li>
+
+        <li>
+          <strong>The recruit-stage field set</strong> is enumerated as an artifact of Stage 2 and
+          approved with <code>W4</code>; the standard recruit ask is approved with <code>W3</code>.
         </li>
 
         <li>
           <strong>The signal set</strong> is enumerated from the 2026-08-28 observability research
-          and approved with <code>W2</code>'s columns.
+          and approved with <code>W1</code>'s columns.
         </li>
 
         <li>
@@ -348,15 +318,14 @@
           verbatim.
         </li>
       </ul>
-      <h2>Questions carried into the freeze — both settled 2026-08-31</h2>
+      <h2>Questions that stood against this inventory — all settled 2026-08-31</h2>
       <ol>
         <li value="1">
-          <strong><code>W9</code> versus the 2026-08-18 owner direction — settled.</strong> The
-          Authority Manifest §5 named Mission 7 as the candidate home for an operator
+          <strong>The follow-up surface versus the 2026-08-18 owner direction — settled.</strong>
+          The Authority Manifest §5 named Mission 7 as the candidate home for an operator
           message-and-flag capability, and never promoted it into a brief. Brian: _"Yes, recruits
           need a follow-up surface. That is not Mission 7. That is Mission 6. Mission 7 can inherit
-          from Mission 6 if it wants to."_ <code>W9</code> is this mission's, built for recruits;
-          the member-facing version extends it later.
+          from Mission 6 if it wants to."_ <code>W9</code> is this mission's.
         </li>
 
         <li value="2">
@@ -365,22 +334,31 @@
             <code>W11</code>.</strong
           >
           Brian: _"The recruit should just see the public details of the event. It shouldn't see
-          attendance or anything like that."_ Recorded as invariant 8 in
-          <code>01-overview.md</code>. There is not enough in the recruit's view to justify a
-          fifteenth workflow, and the rule that keeps it thin is an access boundary rather than a
-          screen decision.
+          attendance or anything like that."_ There is not enough in the recruit's view to justify a
+          fifteenth workflow.
+        </li>
+
+        <li value="3">
+          <strong>Whether channel registration is its own workflow — settled, yes</strong>, and then
+          placed third rather than first at the freeze.
         </li>
       </ol>
-      <p>
-        The count is therefore <strong>fourteen</strong>, with no question outstanding against it.
-      </p>
       <h2>Inventory amendments</h2>
-      <p>None.</p>
+      <p>
+        None. Any change to these fourteen ids, names, order or count requires another explicit
+        approval from Brian and is recorded here.
+      </p>
       <h2>Brian approval</h2>
       <ul>
-        <li>Exact approved list/count:</li>
-        <li>Exact words:</li>
-        <li>Date:</li>
+        <li>
+          Exact approved list/count: the fourteen workflows above, <code>W1</code>–<code>W14</code>,
+          in this order. Approved as the thirteen-then-fourteen list of 2026-08-31 with one ordering
+          change in Brian's words: _"W1 should be moved after the recruits' records"_ — the sign-on
+          flow moves from first to third, behind the board and the record, and nothing else moves.
+        </li>
+
+        <li>Exact words: "I approve of everything else. Let's move on to the next stage."</li>
+        <li>Date: 2026-08-31</li>
       </ul>
     </div>
   </body>
