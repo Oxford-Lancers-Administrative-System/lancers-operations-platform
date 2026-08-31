@@ -6,8 +6,13 @@
 - Primary actor: an operator holding the core four authority.
 - Trigger: a new term, a new push, a changed group link, a poster going out or
   being retired.
-- Entry point: Administration in the left navigation.
-- Route/placement: `/operate/admin/recruitment`.
+- Entry point: **Administration → Messaging schedule**, in the left navigation.
+- Route/placement: `/operate/admin/messaging` — the page that already exists. The
+  recruitment cycle is a **group of rows on it**, not a new page. Brian,
+  2026-08-31, on a draft that invented one: _"I don't know what page I'm looking
+  at. I don't know how I get here... Where is this page located? How do I get to
+  it?"_ That page is already the club's answer to when it messages people; the
+  cycle is the same question for a different trigger, so it belongs there.
 - Controlling source: boundary items 3, 13, 43 and Task 09 §9.1's open
   welcome-flow mechanics inherited from the walk-ups brief (Task 04 D-6 and §5);
   Brian's 2026-08-28 note — _"how that message gets sent out, where that machinery
@@ -76,6 +81,26 @@ is the list above, the cycle below, and the group link itself.
 - **Event invitations are not here.** An event sends its own, on its own terms
   (`W11`).
 - **Free text is impossible.** Every message is a Meta-approved template.
+
+### The screens use the page's own rows
+
+Each step is a cloned `schedule-row` — the same component the seven event types
+use, with the same fields, the same SAVE and the same "Show an example". Two
+earlier drafts drew panels instead: the first prepended them to this page, the
+second cleared the page and drew them in its place. Both were inventing, and the
+second was worse because it discarded the pattern it should have copied.
+
+The page already carries a `Recruitment` row further down. **That is a different
+thing** — it is the event _type_, governing invitations to a recruitment event.
+This group is what fires when somebody is captured, so it sits beside it.
+
+### Gap: there is no control for turning a step off
+
+This workflow requires that an operator can decide _whether a step runs at all_,
+and the shipped `schedule-row` has no such control — `schedule-row-toggle` is the
+"Show an example" disclosure, not a switch. **No toggle was drawn for it.**
+Turning a step off is therefore a proposed addition with no shipped precedent,
+and it needs Brian's decision on what it should look like before it is drawn.
 
 ### The template gate
 

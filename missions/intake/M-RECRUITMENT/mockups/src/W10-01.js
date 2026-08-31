@@ -1,154 +1,144 @@
-// W10-01 — The recruitment cycle: what the club sends, and when.
+// W10-01 — The recruitment cycle, as a group on the messaging schedule.
 //
-// Rebuilt on 2026-08-31 after Brian: "W10 is just not correct. It's using the
-// wrong pages. I don't even know what it's doing here."
+// Rebuilt twice on 2026-08-31. Brian on the second attempt: "I don't know what
+// page I'm looking at. I don't know how I get here... this seems to have an
+// invented UI... Everything seems totally invented from new, not using any of
+// the relevant UX/UI."
 //
-// It was prepending its content to /operate/admin/messaging, so it sat above
-// Mission 4's per-event-type cadence forms. Those settings decide how an EVENT
-// chases people; recruitment's cycle is a different thing on a different page,
-// so the body is replaced rather than decorated.
+// He was right, and the error was mine at the root. The first version PREPENDED
+// drawn panels to this page; the second CLEARED the page and drew panels in its
+// place. Both were inventing, and the second was worse, because it threw away
+// the very pattern it should have copied.
 //
-// WHAT THIS SCREEN HAS TO ANSWER, and did not:
+// WHERE THIS LIVES, which is the question he asked three ways:
 //
-//   * The WhatsApp flow, per door. W7's recruit joins the group themselves at
-//     the stand, so the welcome is not for them. W5 and W6 capture a number with
-//     no group membership, so for those two the welcome IS the way in.
-//   * Two questionnaires, not one. Brian settled that after this screen was
-//     drawn, and the cycle still named a single ask.
-//   * Never harsh, inherited from W9 when it folded: one reminder per ask, then
-//     silence, and nothing fires at a recruit who has declined.
-selectRecruitmentNav();
-setHeading("Recruitment cycle");
-pageSubtitle("Season 2026-27 · what the club sends, and when");
-const host = clearPageBody();
+//   Administration → Messaging schedule → /operate/admin/messaging
+//
+// It is not a new page and it needs no new navigation. That page is already the
+// club's answer to "when does the club message people": it carries a rule panel
+// and one `schedule-row` per event type, each with its timings, an on/off toggle
+// and a SAVE. The recruitment cycle is the same question for a different
+// trigger — capture instead of an event — so it is another group of the SAME
+// rows on the SAME page, cloned from the shipped component rather than drawn.
+//
+// Note the page already has a `Recruitment` row: that is the event TYPE, and it
+// governs invitations to a recruitment event. This group is different — it is
+// what fires when somebody is captured, and it is added beside it, not over it.
+setHeading("Messaging schedule");
+pageSubtitle("7 event types · and the recruitment cycle");
 
-const panel = (title) => {
-  const box = proposedRegion(title);
-  box.style.marginBottom = "18px";
-  host.append(box);
-  return box;
-};
+const rows = $$('[data-testid="schedule-row"]');
+must(rows, "the messaging schedule has no schedule-row to clone");
+const template = rows[0];
+const host = must(template.parentElement, "the schedule rows have no parent");
 
-// ---- 1. Getting them into WhatsApp, which differs by door -----------------
-const doors = panel("Getting them into WhatsApp");
-const doorRow = (door, optIn, first) => {
-  const row = document.createElement("div");
-  row.style.cssText =
-    "display:flex;gap:16px;align-items:baseline;padding:11px 0;border-bottom:1px solid rgba(0,0,0,0.08)";
-  const d = document.createElement("div");
-  d.textContent = door;
-  d.style.cssText = "flex:0 0 190px;font-size:14px;font-weight:700";
-  const o = document.createElement("div");
-  o.textContent = optIn;
-  o.style.cssText = "flex:0 0 200px;font-size:13.5px;color:rgba(0,0,0,0.7)";
-  const f = document.createElement("div");
-  f.textContent = first;
-  f.style.cssText = "flex:1;font-size:13.5px;color:rgba(0,0,0,0.87)";
-  row.append(d, o, f);
-  return row;
-};
-doors.append(
-  doorRow("Door", "Opt-in", "First message"),
-  doorRow("W7 · QR sign-in", "They joined at the stand", "None. They are already in the group."),
-  doorRow("W5 · Walk-up", "None captured", "recruit_welcome, carrying the group link"),
-  doorRow(
-    "W6 · Operator add",
-    "How we came by the number",
-    "recruit_welcome, carrying the group link",
-  ),
+// The heading for the new group, in the page's own rule-panel treatment.
+const rule = must(
+  document.querySelector('[data-testid="schedule-rule"]'),
+  "the messaging schedule has no rule panel to clone",
 );
-doors.firstElementChild.nextElementSibling.style.fontWeight = "700";
-mark(doors, 1);
+const cycleRule = rule.cloneNode(true);
+const ruleLeaves = [...cycleRule.querySelectorAll("*")].filter(
+  (n) => n.children.length === 0 && n.textContent.trim(),
+);
+const ruleText = [
+  "The recruitment cycle. What the club sends after somebody is captured, and when.",
+  "Days are counted from capture. A recruit who has declined receives none of it.",
+];
+ruleLeaves.forEach((leaf, i) => {
+  if (i < ruleText.length) leaf.textContent = ruleText[i];
+  else leaf.remove();
+});
 
-// ---- 2. The cycle itself ---------------------------------------------------
-const cycle = panel("The cycle");
-const step = (n, name, when, on, note) => {
-  const row = document.createElement("div");
-  row.style.cssText =
-    "display:flex;align-items:center;gap:16px;border:1px solid rgba(0,0,0,0.12);border-radius:8px;padding:13px 16px;margin-bottom:10px;background:#fff";
-  const num = document.createElement("div");
-  num.textContent = String(n);
-  num.style.cssText =
-    "flex:0 0 26px;height:26px;border-radius:50%;background:#00695c;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700";
-  const body = document.createElement("div");
-  body.style.cssText = "flex:1";
-  const t = document.createElement("code");
-  t.textContent = name;
-  t.style.cssText = "font-size:12.5px;font-weight:700;color:#0b3d91";
-  const w = document.createElement("div");
-  w.textContent = when;
-  w.style.cssText = "font-size:13px;color:rgba(0,0,0,0.72);margin-top:3px";
-  body.append(t, w);
-  if (note) {
-    const n2 = document.createElement("div");
-    n2.textContent = note;
-    n2.style.cssText = "font-size:12.5px;color:rgba(0,0,0,0.55);margin-top:2px";
-    body.append(n2);
+// One row per step, from the shipped row: same fields, same toggle, same SAVE.
+const step = ({ name, first, firstUnit, second, secondUnit, on, save }) => {
+  const row = template.cloneNode(true);
+  const label = must(
+    row.querySelector('[data-testid="schedule-row-label"]') ??
+      [...row.querySelectorAll("*")].find((n) => n.children.length === 0 && n.textContent.trim()),
+    "the cloned row has no label",
+  );
+  label.textContent = name;
+
+  // The shipped row carries six timing fields. A cycle step needs two, so the
+  // rest go — same component, fewer controls, nothing added.
+  const fields = [...row.querySelectorAll(".MuiFormControl-root, .MuiTextField-root")];
+  fields.forEach((field, i) => {
+    if (i > 1) {
+      field.remove();
+      return;
+    }
+    const spec = i === 0 ? first : second;
+    const unit = i === 0 ? firstUnit : secondUnit;
+    const lab = field.querySelector("label, .MuiInputLabel-root");
+    if (lab) lab.textContent = spec.label;
+    const input = field.querySelector("input");
+    if (input) input.value = spec.value;
+    const suffix = [...field.querySelectorAll("p, span")].find((n) =>
+      /^(days|h)$/.test(n.textContent.trim()),
+    );
+    if (suffix) suffix.textContent = unit;
+  });
+
+  // Any helper text under the removed fields goes with them.
+  for (const help of [...row.querySelectorAll(".MuiFormHelperText-root, p")]) {
+    if (
+      /WhatsApp messages sent|Email reminders sent|Hours after the RSVP|gap between messages/i.test(
+        help.textContent,
+      )
+    ) {
+      help.remove();
+    }
   }
-  const toggle = document.createElement("div");
-  toggle.textContent = on ? "ON" : "OFF";
-  toggle.style.cssText =
-    `flex:0 0 auto;font-size:11px;font-weight:700;letter-spacing:.06em;padding:4px 11px;border-radius:12px;` +
-    `color:${on ? "#1b5e20" : "rgba(0,0,0,0.5)"};background:${on ? "#e8f5e9" : "#eee"}`;
-  row.append(num, body, toggle);
+
+  const button = [...row.querySelectorAll("a, button")].find((b) =>
+    b.className.includes("MuiButton-contained"),
+  );
+  if (button) button.textContent = save;
+
+  // NOT AN ON/OFF SWITCH. W10's spec says an operator must be able to turn a
+  // step off, and the shipped row has no such control — `schedule-row-toggle` is
+  // the "Show an example" disclosure, not a switch. Rather than draw a toggle
+  // this product does not have, the gap is recorded in the specification and
+  // every step here is shown running.
   return row;
 };
-cycle.append(
-  step(
-    1,
-    "recruit_welcome",
-    "On capture — walk-up and operator-add only",
-    true,
-    "Carries the community-group link. A QR recruit is already in the group and is skipped.",
-  ),
-  step(
-    2,
-    "recruit_details_ask",
-    "1 day after capture",
-    true,
-    "Questionnaire A — who you are. Person facts, so they land on the person record.",
-  ),
-  step(
-    3,
-    "recruit_details_reminder",
-    "3 days later, once only",
-    true,
-    "Never harsh: one reminder, then silence.",
-  ),
-  step(
-    4,
-    "recruit_interest_ask",
-    "3 days after capture",
-    true,
-    "Questionnaire B — how you came to football.",
-  ),
-  step(
-    5,
-    "recruit_interest_reminder",
-    "3 days later, once only",
-    false,
-    "Currently off. A recruit going quiet is then not disinterest — the club stopped asking.",
-  ),
-);
-mark(cycle, 2);
 
-// ---- 3. What the cycle never does -----------------------------------------
-const never = panel("What the cycle never does");
-never.append(
-  makeRow("A recruit who declined", "Nothing fires. Ever."),
-  makeRow("More than one reminder", "There is no second. Never harsh, inherited from W9."),
-  makeRow("Event invitations", "Not here — an event sends its own, on its own terms (W11)."),
-  makeRow("Free text", "Impossible. Every message is a Meta-approved template."),
-);
-mark(never, 3);
+const STEPS = [
+  {
+    name: "Welcome",
+    first: { label: "Fires", value: "0" },
+    firstUnit: "days",
+    second: { label: "Doors", value: "Walk-up and operator add" },
+    secondUnit: "",
+    on: true,
+    save: "SAVE WELCOME",
+  },
+  {
+    name: "Personal details questionnaire",
+    first: { label: "After capture", value: "1" },
+    firstUnit: "days",
+    second: { label: "Reminder after", value: "3" },
+    secondUnit: "days",
+    on: true,
+    save: "SAVE PERSONAL DETAILS",
+  },
+  {
+    name: "Recruitment questionnaire",
+    first: { label: "After capture", value: "3" },
+    firstUnit: "days",
+    second: { label: "Reminder after", value: "3" },
+    secondUnit: "days",
+    on: true,
+    save: "SAVE RECRUITMENT QUESTIONNAIRE",
+  },
+];
 
-// ---- 4. The community-group link ------------------------------------------
-const link = panel("The community-group link");
-link.append(
-  makeRow("Current link", "chat.whatsapp.com/HxK2s…"),
-  makeRow("Last changed", "14 April 2026 by Caspian Hallowfield"),
-  makeRow("Carried by", "recruit_welcome, and every QR landing page"),
-);
-mark(link, 4);
+const built = STEPS.map(step);
+host.insertBefore(cycleRule, template);
+for (const row of built) host.insertBefore(row, template);
+
+mark(cycleRule, 1);
+mark(built[0], 2);
 
 await settle();

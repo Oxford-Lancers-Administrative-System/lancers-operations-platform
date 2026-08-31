@@ -2027,7 +2027,8 @@ const clearPageBody = () => {
     child.remove();
     removed += 1;
   }
-  if (removed === 0) throw new Error("clearPageBody removed nothing; the page shape is not what it assumes.");
+  if (removed === 0)
+    throw new Error("clearPageBody removed nothing; the page shape is not what it assumes.");
   return host;
 };
 
@@ -2104,6 +2105,6 @@ gate.append(
 );
 mark(gate, 2);
 
-await settle()
+await settle();
 
 })()

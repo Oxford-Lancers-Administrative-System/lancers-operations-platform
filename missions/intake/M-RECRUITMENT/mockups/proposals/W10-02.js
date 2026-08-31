@@ -2027,7 +2027,8 @@ const clearPageBody = () => {
     child.remove();
     removed += 1;
   }
-  if (removed === 0) throw new Error("clearPageBody removed nothing; the page shape is not what it assumes.");
+  if (removed === 0)
+    throw new Error("clearPageBody removed nothing; the page shape is not what it assumes.");
   return host;
 };
 
@@ -2092,7 +2093,9 @@ const codeRow = (name, where, scans, state) => {
   badge.textContent = state;
   badge.style.cssText =
     `font-size:11px;font-weight:700;letter-spacing:.05em;padding:3px 10px;border-radius:11px;` +
-    (live ? "color:#1b5e20;background:#e8f5e9;border:1px solid #a5d6a7" : "color:rgba(0,0,0,0.55);background:#eee;border:1px solid #ddd");
+    (live
+      ? "color:#1b5e20;background:#e8f5e9;border:1px solid #a5d6a7"
+      : "color:rgba(0,0,0,0.55);background:#eee;border:1px solid #ddd");
   const b = document.createElement("div");
   b.style.cssText = "flex:1;text-align:right";
   b.append(badge);
@@ -2115,6 +2118,6 @@ consequences.append(
 );
 mark(consequences, 2);
 
-await settle()
+await settle();
 
 })()

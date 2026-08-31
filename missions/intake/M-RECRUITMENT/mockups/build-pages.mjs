@@ -438,18 +438,18 @@ const WORKFLOWS = [
     screens: [
       P(
         "W10-01",
-        "The recruitment cycle",
-        `What the club sends, on what trigger, in what order, and whether each step runs at all. The
-         proposed route is /operate/admin/recruitment; the photograph is of the messaging schedule,
-         whose BODY is replaced rather than decorated — recruitment's cycle does not sit above Mission
-         4's event cadences, it is a different page.`,
+        "The recruitment cycle, on the messaging schedule",
+        `Administration → Messaging schedule → <code>/operate/admin/messaging</code>. Not a new page
+         and no new navigation: that page is already the club's answer to “when does the club message
+         people”, and the recruitment cycle is the same question for a different trigger — capture
+         instead of an event.`,
         [
-          "<strong>1. The WhatsApp flow differs by door, and that is the answer to how somebody gets into the group.</strong> A QR recruit joined it themselves at the stand, so the welcome is not for them. A walk-up and an operator-add have a number and no group membership, so for those two the welcome IS the way in, carrying the link",
-          "<strong>2. Two questionnaires, sent at different times</strong>, each with one reminder — the shape Brian settled after this screen was first drawn",
-          "<strong>3. What it never does.</strong> Nothing fires at a recruit who declined; there is never a second reminder; event invitations are the event's own; and free text is impossible",
-          "<strong>4. The community-group link</strong> lives in one place. A rotated link behind a live QR code is the most likely silent failure in the mission",
+          "<strong>1. The rows are the page's own.</strong> Each step is a cloned <code>schedule-row</code> — the same component as Practice, Game and the rest below it, with the same fields, the same SAVE and the same “Show an example”. Two earlier drafts drew panels instead, once on top of this page and once in place of it; both were inventing",
+          "<strong>2. Three steps, from capture.</strong> The welcome fires only for the doors that need it — a QR recruit joined the group themselves — then the two questionnaires, each with one reminder",
+          "<strong>The page already has a <code>Recruitment</code> row further down, and it is a different thing.</strong> That one is the event TYPE and governs invitations to a recruitment event. This group is what fires when somebody is captured, so it sits beside it rather than over it",
+          "<strong>Not shown, and recorded as a gap:</strong> W10 requires an operator to turn a step off, and the shipped row has no such control. No toggle was drawn for it",
         ],
-        "oxfordlancers.example/operate/admin/recruitment",
+        "oxfordlancers.example/operate/admin/messaging",
       ),
       P(
         "W10-02",
