@@ -1907,6 +1907,8 @@ const recruitFormHead = (card, { name, title, blurb }) => {
 // so it reads as recruitment rather than as the People form it reuses.
 selectRecruitmentNav();
 setHeading("Add a recruit");
+// The way back is recruitment, not People: this door is reached from the board.
+relabelButton("← People", "← Recruitment");
 
 fill("givenName", "Alaric");
 fill("familyName", "Brindlewood");

@@ -34,4 +34,4 @@ const result = must(
 );
 mark(result, 1);
 
-await settle()
+await settle();

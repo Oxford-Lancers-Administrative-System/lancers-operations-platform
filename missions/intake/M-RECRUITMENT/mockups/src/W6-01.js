@@ -74,4 +74,4 @@ const anchor = must(
 anchor.after(extra);
 mark(extra, 1);
 
-await settle()
+await settle();

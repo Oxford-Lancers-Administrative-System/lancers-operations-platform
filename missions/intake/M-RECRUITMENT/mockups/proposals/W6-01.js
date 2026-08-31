@@ -1919,6 +1919,8 @@ selectRecruitmentNav();
 captureFormControls();
 
 setHeading("Add a recruit");
+// The way back is recruitment, not People: this door is reached from the board.
+relabelButton("← People", "← Recruitment");
 fill("givenName", "Marguerite");
 fill("familyName", "Ashdown");
 fill("mobile", "07700 900461");

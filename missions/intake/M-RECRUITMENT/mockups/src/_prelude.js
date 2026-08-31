@@ -1794,7 +1794,8 @@ const captureFormControls = () => {
   // there is none, a choice question renders as the text field the page does
   // have, with its options listed beneath — which is what the shipped person
   // form already does for College and Matriculation year, both plain text.
-  const select = document.querySelector(".MuiSelect-select")?.closest(".MuiFormControl-root") ?? null;
+  const select =
+    document.querySelector(".MuiSelect-select")?.closest(".MuiFormControl-root") ?? null;
   const text = must(
     [...document.querySelectorAll(".MuiTextField-root, .MuiFormControl-root")].find(
       (f) => f.querySelector("input") && !f.querySelector(".MuiSelect-select"),
