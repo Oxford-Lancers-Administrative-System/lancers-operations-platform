@@ -438,41 +438,31 @@ const WORKFLOWS = [
     screens: [
       P(
         "W10-01",
-        "The recruitment cycle, on the messaging schedule",
+        "The recruitment cycle, as a section of the messaging schedule",
         `Administration → Messaging schedule → <code>/operate/admin/messaging</code>. Not a new page
-         and no new navigation: that page is already the club's answer to “when does the club message
-         people”, and the recruitment cycle is the same question for a different trigger — capture
-         instead of an event.`,
+         and no new navigation. Brian, 2026-08-31: "This page really needs to be split up into
+         multiple sections... event messaging... then there's the recruitment heading... Onboarding
+         should be a section."`,
         [
-          "<strong>1. The rows are the page's own.</strong> Each step is a cloned <code>schedule-row</code> — the same component as Practice, Game and the rest below it, with the same fields, the same SAVE and the same “Show an example”. Two earlier drafts drew panels instead, once on top of this page and once in place of it; both were inventing",
-          "<strong>2. Three steps, from capture.</strong> The welcome fires only for the doors that need it — a QR recruit joined the group themselves — then the two questionnaires, each with one reminder",
-          "<strong>The page already has a <code>Recruitment</code> row further down, and it is a different thing.</strong> That one is the event TYPE and governs invitations to a recruitment event. This group is what fires when somebody is captured, so it sits beside it rather than over it",
-          "<strong>Not shown, and recorded as a gap:</strong> W10 requires an operator to turn a step off, and the shipped row has no such control. No toggle was drawn for it",
+          "<strong>1. The page is sectioned.</strong> <strong>Recruitment</strong> and <strong>Event messaging</strong> each get a heading and their own rule panel. Onboarding is the third section and is deliberately not built — the structure is what makes room for it",
+          "<strong>2. The rows are the page's own.</strong> Each step is a cloned <code>schedule-row</code>, the same component the seven event types use, with the same fields, the same SAVE and the same “Show an example”. Two earlier drafts drew panels instead — once on top of this page, once in place of it",
+          "<strong>Condensed, and “Doors” is gone.</strong> That word means nothing in the club's vocabulary. The welcome is simply <em>after capture, 0 hours</em>",
+          "<strong>Not shown, and recorded as a gap:</strong> W10 requires an operator to turn a step off, and the shipped row has no such control. No toggle was invented for it",
         ],
         "oxfordlancers.example/operate/admin/messaging",
       ),
       P(
         "W10-02",
-        "The QR codes",
-        `Minting and revoking a code that is printed on a poster is its own job with its own
-         consequences.`,
+        "Recruitment QR codes",
+        `Reached from the recruit board: <strong>Recruitment → QR codes</strong>. A QR code is not a
+         message, so it does not belong on the messaging schedule; it is a recruitment asset, and the
+         board is recruitment's surface.`,
         [
           "<strong>1. Each code says where it is printed</strong>, because revoking one kills a physical poster and nothing on screen would otherwise say so",
-          "<strong>2. Every code points at the club's own /join page</strong>, never at WhatsApp directly — which is what lets the group link change without reprinting anything",
+          "<strong>2. Built on the shipped People table</strong>, the same way W8-02 is — a real list with real columns, read as recruitment",
+          "<strong>The entry point is an addition to W1, which Brian has approved.</strong> It is named here and not drawn into W1; it waits on his word",
         ],
-        "oxfordlancers.example/operate/admin/recruitment",
-      ),
-      P(
-        "W10-03",
-        "The templates behind the cycle",
-        `Moved here from W3 when that workflow was folded. Every business-initiated WhatsApp message is
-         a Meta-approved template — <code>config.ts:168</code>, “template is the only production
-         shape”.`,
-        [
-          "<strong>1. Four of the five do not exist yet.</strong> Only <code>event_invitation</code> is approved today",
-          "<strong>2. That is a gate, not a detail.</strong> Meta review takes days to weeks and is outside the club's control, so the cycle can be built and cannot run until they clear. Stated on the screen rather than buried in a decision log",
-        ],
-        "oxfordlancers.example/operate/admin/recruitment",
+        "oxfordlancers.example/operate/recruitment/qr",
       ),
     ],
   },

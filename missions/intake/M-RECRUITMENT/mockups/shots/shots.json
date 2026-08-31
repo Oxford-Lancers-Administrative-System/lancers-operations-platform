@@ -141,12 +141,12 @@
     {
       "id": "W10-01",
       "route": "/operate/admin/messaging",
-      "headSha": "3c13e2e7defe2cafead1f95e397e10e2894d89ed",
+      "headSha": "95a8f03d9aaf719eab4ed9510218abafa29a923a",
       "slot": "mission-m-recruitment-1",
       "proposal": {
         "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W10-01.js",
-        "sha256": "29b097847f924b2445186392dd34b2472f20a2d5379c3101ba7f5e580a622a0a",
-        "bytes": 91187
+        "sha256": "012bb7a3ae2606a66d4daa5d41d3ea4a220f3d7f13dc942f5d33c63df1f4564e",
+        "bytes": 93027
       },
       "captures": [
         {
@@ -182,17 +182,17 @@
           "file": "shots/W10-01-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-31T21:49:46.556Z"
+      "at": "2026-08-31T21:56:07.554Z"
     },
     {
       "id": "W10-02",
-      "route": "/operate/admin/messaging",
-      "headSha": "d59d1b1dbdff10714130322f53656323c65b43e1",
+      "route": "/operate/people",
+      "headSha": "95a8f03d9aaf719eab4ed9510218abafa29a923a",
       "slot": "mission-m-recruitment-1",
       "proposal": {
         "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W10-02.js",
-        "sha256": "6ac07662cd46b067424bb3a9ccd50044662c61697a9841f338c6217e79c45fd8",
-        "bytes": 88577
+        "sha256": "5347e9490a127f93727f32bf71739daa315e54d5bcc9b8ff29be1c2b29a03503",
+        "bytes": 91218
       },
       "captures": [
         {
@@ -228,53 +228,7 @@
           "file": "shots/W10-02-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-31T21:43:24.086Z"
-    },
-    {
-      "id": "W10-03",
-      "route": "/operate/admin/messaging",
-      "headSha": "d59d1b1dbdff10714130322f53656323c65b43e1",
-      "slot": "mission-m-recruitment-1",
-      "proposal": {
-        "file": "missions/intake/M-RECRUITMENT/mockups/proposals/W10-03.js",
-        "sha256": "c3f18502ea2245329d692b25bad987d78d844698d91ba966e055bb7d15e0daa9",
-        "bytes": 87724
-      },
-      "captures": [
-        {
-          "side": "current",
-          "viewport": "desktop",
-          "requestedWidth": 1280,
-          "measuredWidth": 1280,
-          "measuredHeight": 900,
-          "file": "shots/W10-03-current-desktop.png"
-        },
-        {
-          "side": "proposed",
-          "viewport": "desktop",
-          "requestedWidth": 1280,
-          "measuredWidth": 1280,
-          "measuredHeight": 900,
-          "file": "shots/W10-03-proposed-desktop.png"
-        },
-        {
-          "side": "current",
-          "viewport": "phone375",
-          "requestedWidth": 375,
-          "measuredWidth": 375,
-          "measuredHeight": 812,
-          "file": "shots/W10-03-current-phone375.png"
-        },
-        {
-          "side": "proposed",
-          "viewport": "phone375",
-          "requestedWidth": 375,
-          "measuredWidth": 375,
-          "measuredHeight": 812,
-          "file": "shots/W10-03-proposed-phone375.png"
-        }
-      ],
-      "at": "2026-08-31T21:43:28.309Z"
+      "at": "2026-08-31T21:58:16.254Z"
     },
     {
       "id": "W11-01",

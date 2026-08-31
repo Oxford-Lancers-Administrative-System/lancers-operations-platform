@@ -183,7 +183,7 @@
         {
           "screen_id": "W10-01",
           "date": "2026-08-31",
-          "text": "W10 is just not correct. It's using the wrong pages. I don't even know what it's doing here. — REBUILT: all three screens were PREPENDING content to /operate/admin/messaging, so each sat above ~2,800px of Mission 4's per-event-type cadence forms. They now REPLACE that page's body, read as recruitment, and the proposed route is /operate/admin/recruitment. W10-01 also now answers the WhatsApp flow per door and carries the two questionnaires Brian settled after it was first drawn; W10-02 is the QR codes; W10-03 the templates and the Meta gate."
+          "text": "This page really needs to be split up into multiple sections - event messaging, recruitment, onboarding. These seem quite big. 'Doors' doesn't mean anything in our vocabulary. For W10-02, where do they get this page? It's not grounded anywhere. W10-03 doesn't make any damn sense - we don't control WhatsApp from in here, I have to load the templates into WhatsApp separately. — DONE: the messaging schedule is sectioned (Recruitment / Event messaging, with Onboarding as the third and deliberately unbuilt); rows condensed and 'Doors' removed; W10-02 rebuilt on the shipped People table and reached from the recruit board; W10-03 DELETED - templates are managed in Meta's own tooling and the approval gate becomes an owner action instead."
         }
       ]
     },
@@ -1063,7 +1063,7 @@
       }
     ]
   },
-  "next_action": "W1-W8 approved; W3 and W9 folded; W2-04 tentatively accepted pending the WhatsApp flow. W10 IS REBUILT AND WITH BRIAN, and it answers that WhatsApp question - so revisit W2-04 once he has seen it. NEXT after W10: W11-W14, all stale. OPEN: whether 'said no to WhatsApp' is a separate fact from 'declined'; W2 button placement; W2-04's real approval; events violet vs blue; channel presence on the record; the Contactable cell option.",
+  "next_action": "W1-W8 approved; W3 and W9 folded; W2-04 tentatively accepted. W10 rebuilt AGAIN and with Brian: messaging schedule sectioned, QR codes grounded from the board, W10-03 deleted because WhatsApp templates are loaded in Meta's tooling and are not a surface of this product. OWNER ACTION FOR CLOSEOUT: Brian must submit four WhatsApp templates to Meta - recruit_welcome, recruit_details_ask, recruit_details_reminder, recruit_interest_ask. Only event_invitation is approved today; review is days to weeks and outside the club's control, so the cycle can be built and cannot run. NEXT after W10: W11 (renumber its two screens - 02 is the Type and comes first; tighten the 'polite follow-up' wording; the countByCapacity defect omitting recruits from the approval summary is real and should land as a fix), then W12-W14, all stale. OPEN: an entry point for QR codes is an addition to approved W1; whether a step can be turned off has no shipped control; 'said no to WhatsApp' vs 'declined'; W2 button placement; W2-04's real approval; events violet vs blue; channel presence on the record; the Contactable cell option.",
   "subject_coverage": {
     "areas": [
       {

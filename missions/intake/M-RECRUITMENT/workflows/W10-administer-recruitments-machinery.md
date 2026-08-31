@@ -102,12 +102,37 @@ and the shipped `schedule-row` has no such control — `schedule-row-toggle` is 
 Turning a step off is therefore a proposed addition with no shipped precedent,
 and it needs Brian's decision on what it should look like before it is drawn.
 
-### The template gate
+### The templates are not ours to manage, and there is no screen for them
 
-Only `event_invitation` is approved today. The other four do not exist, Meta
-review takes days to weeks, and it is outside the club's control. **The cycle can
-be built and cannot run until they clear.** `W10-03` states that on the screen
-rather than leaving it in a decision log.
+Brian, 2026-08-31: _"W10-03 doesn't make any damn sense. We don't control
+WhatsApp from in here. WhatsApp's controlled by its own app and its own thing out
+there. That's not controlled within the app... we don't have the fucking
+templates on this page. I have to load them into WhatsApp separately."_
+
+He is right, and `W10-03` is **deleted**. A Meta-approved template is created and
+submitted in Meta's own tooling; this product only names one when it sends. A
+page listing them would be a page that manages nothing.
+
+**What remains true is the gate, and it is an owner action rather than a
+surface.** Only `event_invitation` is approved today. The cycle above needs four
+more — `recruit_welcome`, `recruit_details_ask`, `recruit_details_reminder`,
+`recruit_interest_ask` — none submitted. Meta review takes days to weeks and is
+outside the club's control, so **the cycle can be built and cannot run** until
+Brian has loaded and cleared them. That belongs in the packet's owner actions at
+closeout, not on a screen.
+
+### The three sections of the messaging schedule
+
+Brian, same day: _"This page really needs to be split up into multiple
+sections... event messaging... then there's the recruitment heading... Onboarding
+should be a section. We don't have to do onboarding now, but that should be a
+section."_
+
+| Section             | What it holds                              | Built                                |
+| ------------------- | ------------------------------------------ | ------------------------------------ |
+| **Recruitment**     | The cycle above — what fires after capture | Yes                                  |
+| **Event messaging** | The seven event types and their chase      | Ships today                          |
+| **Onboarding**      | Mission 7's, when it comes                 | No — the structure makes room for it |
 
 ### What an operator must be able to tell about one recruit
 

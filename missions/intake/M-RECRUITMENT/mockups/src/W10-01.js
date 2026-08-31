@@ -27,6 +27,26 @@
 setHeading("Messaging schedule");
 pageSubtitle("7 event types · and the recruitment cycle");
 
+// Section headings, in the page's own type — the h1 cloned and stepped down.
+// Brian, 2026-08-31: "This page really needs to be split up into multiple
+// sections. One section needs to be just event messages... then there's the
+// recruitment heading... Onboarding should be a section." Onboarding is not
+// built here; the structure is what makes room for it.
+const sectionHeading = (text, note) => {
+  const h = must($("h1"), "the page has no heading to clone").cloneNode(true);
+  h.textContent = text;
+  h.style.cssText = "font-size:19px;font-weight:700;margin:28px 0 4px";
+  const wrap = document.createElement("div");
+  wrap.append(h);
+  if (note) {
+    const p = document.createElement("p");
+    p.textContent = note;
+    p.style.cssText = "margin:0 0 14px;font-size:13.5px;color:rgba(0,0,0,0.6)";
+    wrap.append(p);
+  }
+  return wrap;
+};
+
 const rows = $$('[data-testid="schedule-row"]');
 must(rows, "the messaging schedule has no schedule-row to clone");
 const template = rows[0];
@@ -63,8 +83,9 @@ const step = ({ name, first, firstUnit, second, secondUnit, on, save }) => {
   // The shipped row carries six timing fields. A cycle step needs two, so the
   // rest go — same component, fewer controls, nothing added.
   const fields = [...row.querySelectorAll(".MuiFormControl-root, .MuiTextField-root")];
+  const wanted = second ? 2 : 1;
   fields.forEach((field, i) => {
-    if (i > 1) {
+    if (i >= wanted) {
       field.remove();
       return;
     }
@@ -79,6 +100,18 @@ const step = ({ name, first, firstUnit, second, secondUnit, on, save }) => {
     );
     if (suffix) suffix.textContent = unit;
   });
+
+  // The shipped row lays its six fields on a grid. Removing four leaves the
+  // columns reserved and the row half empty, which is why Brian said "these seem
+  // quite big". Collapse the grid to the fields that remain.
+  const grid = fields[0]?.parentElement;
+  if (grid) {
+    grid.style.display = "flex";
+    grid.style.gap = "16px";
+    grid.style.flexWrap = "wrap";
+    grid.style.gridTemplateColumns = "none";
+    for (const field of [...grid.children]) field.style.flex = "0 1 240px";
+  }
 
   // Any helper text under the removed fields goes with them.
   for (const help of [...row.querySelectorAll(".MuiFormHelperText-root, p")]) {
@@ -107,10 +140,9 @@ const step = ({ name, first, firstUnit, second, secondUnit, on, save }) => {
 const STEPS = [
   {
     name: "Welcome",
-    first: { label: "Fires", value: "0" },
-    firstUnit: "days",
-    second: { label: "Doors", value: "Walk-up and operator add" },
-    secondUnit: "",
+    first: { label: "After capture", value: "0" },
+    firstUnit: "hours",
+    second: null,
     on: true,
     save: "SAVE WELCOME",
   },
@@ -135,10 +167,24 @@ const STEPS = [
 ];
 
 const built = STEPS.map(step);
+
+// Recruitment first, then the event types under their own heading. The page
+// stops being one undifferentiated list and becomes three sections, of which
+// two are built.
+const recruitHead = sectionHeading(
+  "Recruitment",
+  "What the club sends after somebody is captured.",
+);
+host.insertBefore(recruitHead, template);
 host.insertBefore(cycleRule, template);
 for (const row of built) host.insertBefore(row, template);
+host.insertBefore(
+  sectionHeading("Event messaging", "What an event sends, and how it chases, by event type."),
+  template,
+);
+host.insertBefore(rule, template);
 
-mark(cycleRule, 1);
+mark(recruitHead, 1);
 mark(built[0], 2);
 
 await settle();
