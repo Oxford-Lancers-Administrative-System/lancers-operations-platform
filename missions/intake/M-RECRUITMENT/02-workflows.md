@@ -53,7 +53,8 @@ the exits. **The flip is last, by Brian's instruction.**
     mints and revokes a QR → the change takes effect and who made it is recorded.
 11. `W11` — **Run a recruitment event**: an operator schedules one and invites
     recruits, players, or both → the event is approved knowing exactly what it
-    sends to each audience, and each audience is chased on its own terms.
+    sends to each audience, each audience is chased on its own terms, and a
+    recruit sees only the event's public details.
 12. `W12` — **Take attendance at a recruitment event**: an operator or coach works
     the sheet → recruits at the top, everyone else below, walk-ups captured into
     the flow, and who showed up reads back onto the recruit's row.
@@ -108,20 +109,22 @@ or other missions' work.
   erasure** are Mission 8's; **event and calendar machinery** is Mission 2's;
   **transport, scheduler and templates** are Mission 4's and are used verbatim.
 
-## Open questions carried into the freeze
+## Questions carried into the freeze — both settled 2026-08-31
 
-1. **`W9` versus the 2026-08-18 owner direction.** The Authority Manifest §5
-   records an operator-facing direct message-and-flag capability on the
-   roster/member surface, with Mission 7 named as its candidate home and Mission
-   7's portfolio row repeating that. The never-harsh amendment gives Mission 6 an
-   operator follow-up surface. These are the same idea pointed at two different
-   populations. `W9` is drawn as recruitment's own, for recruits only, and the
-   general member-facing version stays Mission 7's — but that seam is Brian's to
-   confirm, not intake's to assume.
-2. **What a recruit sees of an event** is currently the recruit-facing half of
-   `W11`. It could be the recruit's own journey instead, which would make fifteen.
-   Recommendation: leave it inside `W11`; `W1`, `W4` and `W7` already carry the
-   recruit's real journeys, and an invitation they receive is thin beside them.
+1. **`W9` versus the 2026-08-18 owner direction — settled.** The Authority
+   Manifest §5 named Mission 7 as the candidate home for an operator
+   message-and-flag capability, and never promoted it into a brief. Brian:
+   _"Yes, recruits need a follow-up surface. That is not Mission 7. That is
+   Mission 6. Mission 7 can inherit from Mission 6 if it wants to."_ `W9` is this
+   mission's, built for recruits; the member-facing version extends it later.
+2. **What a recruit sees of an event — settled, and it stays inside `W11`.**
+   Brian: _"The recruit should just see the public details of the event. It
+   shouldn't see attendance or anything like that."_ Recorded as invariant 8 in
+   `01-overview.md`. There is not enough in the recruit's view to justify a
+   fifteenth workflow, and the rule that keeps it thin is an access boundary
+   rather than a screen decision.
+
+The count is therefore **fourteen**, with no question outstanding against it.
 
 ## Inventory amendments
 

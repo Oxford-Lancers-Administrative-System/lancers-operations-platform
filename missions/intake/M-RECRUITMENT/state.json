@@ -252,7 +252,9 @@
           "SELF-DUP",
           "ASK-MINTED",
           "ATTENDANCE-DIFF",
-          "OFFBOARD-STATUS"
+          "OFFBOARD-STATUS",
+          "RECRUIT-EVENT-VIEW",
+          "FOLLOWUP-IS-M6"
         ]
       }
     ],
@@ -647,10 +649,10 @@
       {
         "id": "OWN-msgflag",
         "source_id": "SRC-authority",
-        "disposition": "other_mission",
-        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
-        "reason": "The 2026-08-18 operator message-and-flag direction is aimed at the roster and member surface and is routed to Mission 7. W8 is the narrower recruit-only follow-up surface the 2026-08-31 amendment creates here. The seam is flagged for Brian in 02-workflows.md and is his to confirm.",
-        "evidence": "Authority Manifest section 5: 'candidate home: extends Task 11's operator nudge M3 + per-player activity log'; portfolio row 7: 'Candidate home for the message-and-flag direction (still awaiting definition)'."
+        "disposition": "shared_cross_mission",
+        "reason": "The Authority Manifest named Mission 7 as the candidate home for an operator message-and-flag capability, and it was never promoted into a brief. Brian settled the seam on 2026-08-31: the recruit follow-up surface is this mission's and Mission 7 inherits from it. Recruitment builds it at W9 for recruits; the member-facing version extends it rather than replacing it.",
+        "evidence": "Authority Manifest section 5, 2026-08-18: 'candidate home: extends Task 11's operator nudge M3 + per-player activity log... Not promoted into any brief until defined and approved.' Brian, 2026-08-31: 'Yes, recruits need a follow-up surface. That is not Mission 7. That is Mission 6. Mission 7 can inherit from Mission 6 if it wants to.'",
+        "shared_owners": ["M-RECRUITMENT", "M-ONBOARDING-AND-INFORMATION-COMPLETION"]
       },
       {
         "id": "AM-presence",
@@ -942,6 +944,22 @@
         "workflow": "W13",
         "reason": "Leaving the board is a status change on the one flat field, and the board resorts. There is no separate removal mechanism. Brian: 'A moves statuses, and then the board resorts, more or less.'",
         "also_referenced_by": ["W2"]
+      },
+      {
+        "id": "RECRUIT-EVENT-VIEW",
+        "source_id": "SRC-owner-2026-08-31",
+        "disposition": "workflow",
+        "workflow": "W11",
+        "reason": "A recruit sees only the public details of an event - never attendance, never who else was invited or answered, never roster or member data. Recorded as invariant 8 in 01-overview.md and drawn as the recruit-facing half of W11, which is thin enough not to need a workflow of its own.",
+        "also_referenced_by": ["W12"]
+      },
+      {
+        "id": "FOLLOWUP-IS-M6",
+        "source_id": "SRC-owner-2026-08-31",
+        "disposition": "workflow",
+        "workflow": "W9",
+        "reason": "The recruit follow-up surface belongs to this mission and is not deferred to Mission 7's message-and-flag direction. Mission 7 may inherit from it.",
+        "also_referenced_by": ["W2", "W3"]
       }
     ]
   },
@@ -1354,7 +1372,7 @@
         "disposition": "workflow",
         "workflow": "W9",
         "implementation": "new",
-        "reason": "Composing and sending a polite message from wherever the operator already is, quickly and with good default wording."
+        "reason": "Composing and sending a polite message from wherever the operator already is, quickly and with good default wording. Confirmed as this mission's on 2026-08-31 against the Authority Manifest's Mission 7 candidate home; Mission 7 inherits rather than owns."
       }
     ]
   }

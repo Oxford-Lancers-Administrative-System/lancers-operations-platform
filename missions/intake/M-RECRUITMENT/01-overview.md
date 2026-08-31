@@ -281,6 +281,11 @@ lapsed, declined`. Three changes: `converted` becomes `joined`, `lapsed`
    membership status.
 7. Recruitment is the core four roles only, and no new capability is minted
    for it.
+8. A recruit sees only the **public details of an event** — never attendance,
+   never who else was invited or answered, never roster or member data. Brian,
+   2026-08-31: _"The recruit should just see the public details of the event. It
+   shouldn't see attendance or anything like that."_ A recruit is not a member,
+   and the invitation they receive is the thinnest possible view of one.
 
 ## Sources
 
@@ -486,6 +491,21 @@ here as the authority for it.
    that's a status change, right? A moves statuses, and then the board resorts,
    more or less."_ No separate removal mechanism; the one flat field does it, and
    the board's ordering answers.
+
+10. **The recruit follow-up surface is this mission's, and Mission 7 inherits from
+    it.** Brian, 2026-08-31: _"Yes, recruits need a follow-up surface. That is not
+    Mission 7. That is Mission 6. Mission 7 can inherit from Mission 6 if it wants
+    to."_ This settles the seam against the Authority Manifest's 2026-08-18
+    direction, which named Mission 7 as the candidate home for an operator
+    message-and-flag capability. The direction is not authority over this
+    mission's own surface: recruitment builds it, and the member-facing version
+    extends it rather than replacing it.
+11. **A recruit sees only the public details of an event.** _"The recruit should
+    just see the public details of the event. It shouldn't see attendance or
+    anything like that."_ Recorded as invariant 8, because it is an access
+    boundary rather than a screen decision. It also settles the question of
+    whether the recruit's view of an event deserves its own workflow: it does not,
+    because there is almost nothing in it.
 
 **Still open after this review**, and named as such by Brian: the boundary in the
 administration workflow — _"W9 is important. I'm most confused about this one. I
