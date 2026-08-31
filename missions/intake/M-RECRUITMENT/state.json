@@ -109,15 +109,19 @@
     {
       "id": "W6",
       "name": "Add a recruit by hand",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W6-01",
-          "date": "2026-08-31",
-          "text": "I think we can add more personal details about them here... At the minimum, we need the name, first name, last name, and phone number. And then maybe the other details underneath it. I don't understand at all what W6-02 is doing. W6-03 seems rather ungrounded... I'm looking for recommendations. — REBUILT: W6-01 keeps the four shipped fields and adds an Academic section (College, Matriculation year, how we came by the number) drawn from the person record's own inventory; the opt-in is a field rather than a callout. W6-02 now drives the shipped duplicate check and photographs the real answer. W6-03 deleted on the accepted recommendation - the Contactable column and the Missing data queue already carry it."
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "W6 is approved.",
+          "date": "2026-08-31"
+        },
+        "mock": {
+          "words": "W6 is approved.",
+          "date": "2026-08-31"
         }
-      ]
+      }
     },
     {
       "id": "W7",
@@ -1029,7 +1033,7 @@
       }
     ]
   },
-  "next_action": "W1, W2, W4, W5 done and approved; W3 removed. NEXT IS W6 (add a recruit by hand), then W7, W8, W9, then W10 (the machinery). W6-W14 stale. One at a time; open every rendered PNG including 375px. RAISED WITH BRIAN AND UNANSWERED: he approved W5 on the condition that the walk-up's duplicate check is the same as the person-add flow's. IT IS NOT, by his own earlier decision - recordWalkUpAttendance has NO pre-add check ('Brian removed it - they know who's on their roster, there are only 40 people'; a walk-on is always a new person and a duplicate is reconciliation's problem), while /operate/people/new runs a Check for duplicates step. Making them the same reverses that decision. ALSO STILL OPEN: W2 button placement, events violet vs blue, whether channel presence renders on a recruit's record, and whether W3's five decisions belong in W10 and W2.",
+  "next_action": "W1, W2, W4, W5, W6 done and approved; W3 removed. NEXT IS W7 (sign yourself in - the QR door), then W8, W9, then W10 (the machinery: what is sent, on what trigger, in what order, including the WhatsApp onboarding inherited from W3). W7-W14 stale. One workflow at a time; open every rendered PNG including 375px before showing him, and when screens are deleted cut build-pages.mjs in the same change. OPEN AND UNANSWERED: (1) W2 button placement - he reserved it while approving; (2) the events card is violet on the record and blue on the approved W1 board; (3) does channel presence render on a recruit's record at all; (4) do W3's five decisions belong in W10 and W2; (5) W5's approval condition is unmet - the walk-up door has no duplicate check by his own earlier decision, while W6's door does; (6) offered and not taken - the board's Contactable cell reading 'No way to reach them' when both mobile and email are missing.",
   "subject_coverage": {
     "areas": [
       {
