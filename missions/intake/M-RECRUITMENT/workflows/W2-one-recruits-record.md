@@ -91,7 +91,13 @@ covers both. The deleted `W2-03` was the sign-on ladder moved here from `W3`;
 
 ## The actions
 
-**One button, top right: `SEND QUESTIONNAIRE`.** Brian struck the previous build,
+**Two buttons, top right — one per questionnaire.** Brian, 2026-08-31: _"There
+are two questionnaires... There's one for the personal, and there's one for the
+recruitment."_ So `SEND PERSONAL QUESTIONNAIRE` and
+`SEND RECRUITMENT QUESTIONNAIRE`, each opening its own dialog, which is why the
+dialog never has to ask which one. They wrap onto their own lines at 375px.
+
+**Not links in card headers.** Brian struck the previous build,
 which put four text links in card headers — _"The UI elements for asking this are
 not very good. They're hidden... Everything we've changed on the person, you've
 done too much."_ The button is the application's own contained button, cloned.
@@ -100,8 +106,8 @@ done too much."_ The button is the application's own contained button, cloned.
 something that happens on a status change, not a button."_ So `W14` is reached by
 changing the status, which interrupts with its confirmation, and `W13` likewise.
 
-**The dialog** (`W2-03`) asks which questionnaire to send and shows **when each
-was last sent**, because the point is not bothering someone twice: _"here are the
+**The dialog** (`W2-03`) confirms the one questionnaire its button chose, and
+shows **when it was last sent**, because the point is not bothering someone twice: _"here are the
 last times we've sent them a questionnaire, because we don't want to bug them
 that many times."_ Where one has already been answered, it says so.
 
@@ -118,6 +124,23 @@ audit to see what was there."_ The separate `WHAT WE HAVE SENT` card is gone.
 
 `W2-02` and `W2-03` build the record from one shared function, so the page behind
 the dialog cannot drift from the page without it.
+
+## Where SEND goes
+
+Pressing SEND is the **handoff to `W4`**, which both specifications already
+stated: `W2`'s handoffs say _"To `W4` to send or resend the ask"_, and `W4`'s
+trigger is _"the end of W3's ladder, or an operator sending or resending the ask
+from `W2` or `W9`"_.
+
+So `W2` owns the decision to send and the record of it; `W4` owns everything
+after — the WhatsApp template going out, the signed link at `/a/[token]`, the
+form the recruit opens, the reminder, and the answers coming back. The dialog
+needs no destination of its own: it closes, and what changes is `W2`'s own state
+— the send line at the foot of the card, the `Questionnaire sent` row, and a new
+line in the audit with its delivery state.
+
+**One correction owed to `W4`:** its trigger still names _"the end of `W3`'s
+ladder"_, and `W3` was removed on 2026-08-31. That trigger is now `W10`'s ladder.
 
 ## Open question inherited from W3's removal
 
