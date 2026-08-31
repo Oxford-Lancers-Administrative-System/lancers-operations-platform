@@ -17,7 +17,7 @@
 
 Brian, 2026-08-31: _"If a player is invited to that as well, they get the normal
 chase, right, the thing there. Recruits get a recruit chase, and that's an
-entirely separate thing where they get set the invite once and maybe a polite
+entirely separate thing where they get set the invite once and maybe one further
 follow-up. That's up to them, but it needs to be a totally separate thing. We need
 to look at it separately. But we should be able to invite players and recruits,
 but recruits get treated differently."_
@@ -39,22 +39,17 @@ follow-up — beside it.
 ## Current `main` grounding
 
 - Locally rendered route or nearest implemented analogue: the real thing.
-  `/operate/events/new` photographed as `W11-02` for the Type control, and
-  `/operate/events/[id]?step=audience` photographed as `W11-01` against the
-  seeded draft recruitment event, both at `main@e669331`.
-- **The separation Brian asked for already ships.** He said the mockup carried
-  _"none of the machinery to explain how we separate out recruitment recruits
-  from non-recruits."_ The first draft answered with an invented audience table.
-  It should not have: `audience-builder.tsx` offers a Capacity filter whose
-  `Recruits` option appears on a Recruitment event and nowhere else — D46, in
-  running code at the baseline. `W11-01` sets that shipped control to `Recruits`
-  and points at it rather than drawing a replacement for it. `W11-02` shows the
-  Type control that makes the group exist at all, and was captured on 2026-08-31
-  but never placed on the review page, so the one screen explaining why a
-  Recruits audience exists was invisible.
-- Reused component, language, interaction, and permission patterns: Mission 2's
-  event machinery entirely — types, statuses, the 2-day recruitment RSVP deadline,
-  the audience builder, the approval summary.
+  `/operate/events/new` photographed as `W11-01` for the Type control, and
+  `/operate/events/[id]?step=audience` photographed as `W11-02` against the
+  shipped audience builder. **Renumbered on 2026-08-31**: the Type screen is the
+  first step of the journey and was numbered second because it was captured after
+  the audience screen and added to the review page afterwards. Brian: _"at the
+  very least, the numbering is screwed up."_ Screen numbers follow the journey.
+
+  `W11-01` sets the shipped Type control to `Recruitment` and points at it;
+  `W11-02` sets the shipped Capacity filter to `Recruits` and points at that,
+  rather than drawing replacements for either.
+
 - Desktop and 375px evidence: `W11-01` and `W11-02`, both sides, measured.
 - Reason for any departure from the implemented application: the approval summary
   must state both audiences and both ladders. Today it states one number and

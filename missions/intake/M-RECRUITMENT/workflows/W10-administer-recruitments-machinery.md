@@ -256,5 +256,10 @@ None on any recruit. This workflow changes configuration, never a person.
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- Exact words: _"Whatever, we'll deal with it. That's approved."_
+- Date: 2026-08-31
+
+Given after four rebuilds. The remaining reservation is the row height, which is the shipped
+`schedule-row`'s own shape: these rows already carry one or two fields where the event rows
+carry six, and shortening them further would make recruitment diverge from the page it sits
+on. Changing the component would change all seven event rows too, and that was not proposed.

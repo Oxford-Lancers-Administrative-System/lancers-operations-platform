@@ -479,28 +479,27 @@ const WORKFLOWS = [
     ],
     screens: [
       P(
-        "W11-02",
+        "W11-01",
         "Where the separation begins — the event's Type",
-        `The shipped form's Type control decides which audience groups the event may carry. Nothing
-         here is added: the control is the application's own, set to Recruitment.`,
+        `The first step of the journey, and now numbered as one. The shipped form's Type control
+         decides which audience groups the event may carry; nothing here is added.`,
         [
           "<strong>D46: recruits exist on a Recruitment event and nowhere else.</strong> Setting the Type is what makes a Recruits audience exist, and it is already how the product works",
-          "<strong>The form already explains the consequence of its own Type.</strong> That sentence is where the recruits group is announced to the operator",
+          "<strong>Renumbered on 2026-08-31.</strong> This screen was captured after the audience one and bolted on afterwards, so it took the next free number instead of its place in the sequence — Brian: “at the very least, the numbering is screwed up”",
         ],
         "oxfordlancers.example/operate/events/new",
       ),
       P(
-        "W11-01",
+        "W11-02",
         "Choosing the audience, and what each one receives",
         `The shipped audience builder, with the Capacity filter set to Recruits. The separation is a
-         control that exists; what does not exist is the second ladder.`,
+         control that already exists; what does not exist is the second ladder.`,
         [
-          "<strong>The shipped Capacity filter, set to Recruits.</strong> This is the separation, and it is running code today — not a proposal",
-          "<strong>The shipped candidate list</strong>, filtered to the recruits, in the shipped row treatment",
-          "<strong>What each audience is chased with — this is the new part.</strong> One event, two ladders: players get the escalation, recruits get one invitation and at most one polite follow-up, then nothing, ever",
-          "<strong>The approval summary omits recruits from its count today.</strong> <code>countByCapacity</code> filters them out, so an operator approves an event without being told how many recruits it reaches",
+          "<strong>The shipped Capacity filter, set to Recruits.</strong> Running code today, not a proposal",
+          "<strong>One event, two ladders.</strong> Players get the escalation; recruits get one invitation and at most one more template, then nothing. Neither is composed — every message is a Meta-approved template",
+          "<strong>A real defect, surfaced here:</strong> <code>countByCapacity</code> omits recruits from the approval summary, so an operator approves a recruitment event without being told how many recruits it reaches",
         ],
-        "oxfordlancers.example/operate/events/1d76b9f8",
+        "oxfordlancers.example/operate/events/1d76b9f8?step=audience",
       ),
     ],
   },

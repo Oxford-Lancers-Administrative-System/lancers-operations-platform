@@ -177,22 +177,32 @@
     {
       "id": "W10",
       "name": "Administer recruitment's messages, cycles and QR",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W10-01",
-          "date": "2026-08-31",
-          "text": "W10 still needs to be fixed. — The duplicated info panel is removed: the section heading and its line already said what the group is, and repeating it in a blue box underneath was narration. The rows are left in the shipped component's own shape - five attempts at pulling the SAVE onto the field line were reverted, none took because the styling is emotion's, and the rows are already shorter than the seven event rows below them. If the remaining height is still the problem, it is the component's and changing it changes the whole page."
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Whatever, we'll deal with it. That's approved.",
+          "date": "2026-08-31"
+        },
+        "mock": {
+          "words": "Whatever, we'll deal with it. That's approved.",
+          "date": "2026-08-31"
         }
-      ]
+      }
     },
     {
       "id": "W11",
       "name": "Run a recruitment event",
       "state": "spec_draft",
-      "stale": true,
-      "feedback": []
+      "stale": false,
+      "feedback": [
+        {
+          "screen_id": "W11-01",
+          "date": "2026-08-31",
+          "text": "Do an analysis of W11 to confirm it's accurate. At the very least, the numbering is screwed up. — CONFIRMED AND FIXED: the Type screen is the first step of the journey and was numbered 02 because it was captured after the audience screen and added to the review page afterwards; the two are swapped so numbers follow the journey. Also fixed: the audience panel said 'one polite follow-up', which reintroduces composing under a templates-only rule, and its counts (18 players, 6 recruits, 4 coaches) contradicted the page's own group chips (32, 2, 3); and the Capacity filter read Recruits while the list below showed all forty people. STILL OPEN: countByCapacity omits recruits from the approval summary, so an operator approves a recruitment event without being told how many recruits it reaches. That is a defect in shipped code, not a mockup issue, and should land as a fix."
+        }
+      ]
     },
     {
       "id": "W12",
@@ -1063,7 +1073,7 @@
       }
     ]
   },
-  "next_action": "W1-W8 approved; W3 and W9 folded. TWO SCREENS ARRIVED AFTER APPROVAL and Brian has not signed either off: W2-04 (the never-harsh refusal, tentatively accepted pending the WhatsApp flow, which W10 now settles) and W1-04 (the QR code page, with a QR CODE button added to the approved board). Both are recorded in their specifications rather than by reopening the workflows, because the ledger's ordering rule would invalidate everything after them. ASK HIM ABOUT BOTH. W10 is the cycle only and is with him. NEXT: W11 (renumber - the Type screen comes first; tighten the 'polite follow-up' wording; the countByCapacity defect omitting recruits from the approval summary), then W12-W14, all stale. OWNER ACTION FOR CLOSEOUT: four WhatsApp templates must be submitted to Meta. OPEN: who mints next season's QR code (Mission 11 owns the season boundary); no shipped control for turning a cycle step off; 'said no to WhatsApp' vs 'declined'; W2 button placement; events violet vs blue; channel presence on the record; the Contactable cell option.",
+  "next_action": "W1-W8 and W10 approved; W3 and W9 folded. W11 rebuilt and with Brian. NEXT: W12 (take attendance at a recruitment event), W13 (take a recruit off the board), W14 (flip a recruit to joined) - all stale. W2-04 is still only TENTATIVELY accepted and needs his real word. OWNER ACTION FOR CLOSEOUT: four WhatsApp templates must be submitted to Meta. DEFECT TO RAISE: countByCapacity omits recruits from the event approval summary. OPEN: who mints next season's QR; no shipped control for turning a cycle step off; 'said no to WhatsApp' vs 'declined'; W2 button placement; events violet vs blue; channel presence on the record; the Contactable cell option.",
   "subject_coverage": {
     "areas": [
       {
