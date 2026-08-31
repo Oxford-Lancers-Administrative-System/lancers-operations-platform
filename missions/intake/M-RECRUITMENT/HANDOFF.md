@@ -19,7 +19,9 @@ npm run intake -- status M-RECRUITMENT
 ```
 
 Expect: **stage `inventory`**, inventory not frozen. Branch
-`intake/M-RECRUITMENT`, pushed. Baseline `main@c69d544d92e5e246ee763008c1db492e8c7c7c60`.
+`intake/M-RECRUITMENT`, pushed. Baseline `main@e669331d96fb949a3c29d7475842a6414cfe9e57`
+(rebased there on 2026-08-31 on Brian's word; Stages 0-1 were reconciled against
+`c69d544` and keep those records).
 Working tree was clean at handoff; there is no uncommitted scratch to reconcile.
 
 **Resuming cold, from `/mission-intake 6`.** The ledger lives only on this
@@ -119,10 +121,13 @@ Each is recorded with his words in the ledger. None may be reopened without him.
    Stage 1, **counted here**, designed at Stage 3. Expect the QR door to be its
    own workflow because the actor is the recruit; the others are operator
    journeys. **The flip is late in the order by his instruction.**
-4. **Stage 3**, workflow by workflow, with mockups. Every screen is **drawn on
-   both sides** — Mission 5's surfaces do not exist on `main`, so there is
-   nothing to photograph, and the acceptance records are `grounding: code-only`
-   unless that changes.
+4. **Stage 3**, workflow by workflow, with mockups. This changed at the
+   2026-08-31 rebaseline: Mission 5 shipped, so `/operate/people`,
+   `/operate/people/[personId]` and `/operate/roster` **exist on `main` and are
+   photographed on both sides** with `npm run intake -- shoot`. `8a4239f` seeds
+   two people onto the Recruit rung, so the recruit case renders. Only genuinely
+   new recruitment surfaces are drawn, and only those carry
+   `grounding: code-only`.
 
 ## Open decisions to carry to Brian
 
