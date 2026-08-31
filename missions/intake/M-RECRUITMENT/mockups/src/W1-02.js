@@ -33,13 +33,9 @@ const firstEvent = must(
 // Measure against the SCROLLER, not the offset parent. `offsetLeft` is relative
 // to the table, which left the first event's RSVP column hidden behind the
 // sticky Recruit column.
-const pinnedWidth = document
-  .querySelector("thead tr:last-child th")
-  .getBoundingClientRect().width;
+const pinnedWidth = document.querySelector("thead tr:last-child th").getBoundingClientRect().width;
 scroller.scrollLeft +=
-  firstEvent.getBoundingClientRect().left -
-  scroller.getBoundingClientRect().left -
-  pinnedWidth;
+  firstEvent.getBoundingClientRect().left - scroller.getBoundingClientRect().left - pinnedWidth;
 
 if (scroller.scrollLeft === 0 && scroller.scrollWidth > scroller.clientWidth) {
   throw new Error("The board did not scroll; the Events band would not be in frame.");

@@ -1,16 +1,34 @@
-// W2-01 — One recruit's record. Built on the player record's own banded shell
-// at /operate/roster/[membershipId], because that is the page this should be
-// structured like — not the person record, which is where the first draft
-// wrongly started. Reached by clicking a row on the recruit board.
+// W2-01 — One recruit's record.
+//
+// Built on the shipped player record at `/operate/roster/[membershipId]`, card
+// for card, because Brian asked for exactly that on 2026-08-31: "The pages
+// underneath should be very similar to the roster in the way that it's done,
+// except it's the recruit player page, not the roster player page… We shouldn't
+// invent UI elements here."
+//
+// Rosalind Penhaligon is one of the two recruits actually seeded at
+// main@e669331. She is early in the funnel: identified, one event, the
+// recruit-stage ask not yet sent, no notes. That is the ordinary case at the top
+// of the funnel and the page has to read well when almost nothing is known.
+selectRecruitmentNav();
+
 setHeading("Rosalind Penhaligon");
-setSubtitle("Recruit · 2026-27 · opened from the recruit board");
+
+// "It should be very clear at the top that this is underneath the recruitment.
+// This is /recruitment, not /roster." So the line under the name names the
+// section and the season, and the button at the foot goes back to recruitment.
+setSubtitle("Recruitment · 2026-27 · opened from the recruit board");
+
 replaceSummaryStrip([
   [{ chip: "identified" }, "Recruitment status"],
-  ["4 days", "Since first contact"],
-  ["1", "Events invited to"],
-  ["0", "Events attended"],
+  ["28 Apr 2026", "First contact"],
+  ["1", "Events attended"],
   ["Not sent", "Recruit-stage ask"],
 ]);
+
+// ---- PERSON — kept as the shipped card, read-only, routing out -------------
+// Mission 5 owns these and owns correcting them. The card already carries its
+// "Open the person record →" action, so nothing here needs inventing.
 setPersonRows([
   recordRow("Name", "Rosalind Penhaligon"),
   recordRow("Aliases", "Not recorded", { muted: true }),
@@ -22,46 +40,111 @@ setPersonRows([
   recordRow("Degree field", "Human Sciences"),
 ]);
 
-// PERSON stays exactly as it is: the same rows, read-only, routing out.
-// ONBOARDING has nothing to describe for somebody who holds no membership.
+// ---- ONBOARDING -> RECRUITMENT --------------------------------------------
+// The recruit's own stored fields, and only those. `On WhatsApp` is gone: Brian
+// struck it from the board on the same day because it is not a recruit field,
+// and it is not one here either.
 rebuildCard(
-  recordCard("ONBOARDING"),
-  "RECRUITMENT",
+  bandedCard("ONBOARDING"),
+  "Recruitment",
   [
-    recordRow("Status", "", { chip: "identified" }),
+    recordRow("Status", null, { chip: "identified" }),
     recordRow("Came in through", "QR · Freshers' Fair stand"),
     recordRow("First contact", "28 April 2026"),
-    recordRow("Committed on", "Not yet", { muted: true }),
-    recordRow("On WhatsApp · 2026-27", "Not yet", { muted: true }),
+    recordRow("Committed on", "Not recorded", { muted: true }),
   ],
-  { proposed: true, colour: "#00695c" },
+  { colour: RECORD_BANDS.recruitment },
 );
 
+// ---- SEASON -> THE RECRUIT-STAGE ASK --------------------------------------
+// "I should see when they fill out information." Before they have, the card
+// says so plainly and offers the send; W2-02 is the same card answered.
 rebuildCard(
-  recordCard("SEASON"),
-  "EVENTS · 2026-27",
+  bandedCard("SEASON"),
+  "The recruit-stage ask",
   [
-    recordRow("Freshers' Fair · 30 Apr", "Invited · no answer · did not attend"),
-    recordRow("Taster 1 · 30 Apr", "Not invited", { muted: true }),
-    recordRow("Taster 2 · 7 May", "Not invited", { muted: true }),
+    recordRow("Ask", "Not sent", { muted: true }),
+    recordRow("Played American football before?", "Not answered", { muted: true }),
+    recordRow("Watched American football before?", "Not answered", { muted: true }),
+    recordRow("Position interest", "Not answered", { muted: true }),
+    recordRow("Gear owned", "Not answered", { muted: true }),
+    recordRow("How they heard of us", "Not answered", { muted: true }),
+    recordRow("Anything else", "Not answered", { muted: true }),
   ],
-  { proposed: true },
+  { colour: RECORD_BANDS.ask },
 );
 
-rebuildCard(
-  recordCard("ATTENDANCE"),
-  "WHAT WE HAVE SAID",
-  [
-    recordRow("Welcome + group invite", "28 Apr · delivered"),
-    recordRow("Event invitation", "29 Apr · delivered · no reply"),
-    recordRow("Recruit-stage ask", "Not sent", { muted: true }),
-  ],
-  { proposed: true },
-);
+// ---- ATTENDANCE -> RECRUITMENT EVENTS -------------------------------------
+// The shipped attendance table, kept whole. Same columns Brian approved on the
+// board that morning, same violet the record already gives this card.
+setRecruitmentEvents([
+  {
+    name: "Freshers' Fair",
+    date: "30 Apr 2026",
+    rsvp: NOT_RECORDED,
+    attendance: "Absent",
+    status: "Occurred",
+  },
+  {
+    name: "Taster 1",
+    date: "3 May 2026",
+    rsvp: NOT_RECORDED,
+    attendance: NOT_RECORDED,
+    status: "Occurred",
+  },
+  {
+    name: "Taster 2",
+    date: "10 May 2026",
+    rsvp: NOT_RECORDED,
+    attendance: NOT_RECORDED,
+    status: "Upcoming",
+  },
+]);
 
-rebuildCard(
-  recordCard("THEIR OTHER SEASONS"),
-  "NOTES",
-  [recordRow("Caspian Hallowfield · 28 Apr", "Came to the stand with a friend from Dunsfold.")],
-  { proposed: true },
-);
+// ---- THEIR OTHER SEASONS -> NOTES -----------------------------------------
+// "I should be able to fill in my own information where it makes sense for me to
+// be able to do that." Notes are the operator's own, attributed and dated.
+recolourCard("THEIR OTHER SEASONS", "Notes", RECORD_BANDS.person);
+const notes = bandedCard("NOTES");
+for (const child of [...notes.children].slice(1)) child.remove();
+const notesBody = document.createElement("div");
+notesBody.style.cssText = "padding:14px 16px";
+const oneNote = document.createElement("div");
+oneNote.style.cssText = "font-size:14px;line-height:1.6;color:rgba(0,0,0,0.87)";
+oneNote.textContent = "Came to the stand with a friend from Dunsfold.";
+const byline = document.createElement("div");
+byline.style.cssText = "margin-top:6px;font-size:12px;color:rgba(0,0,0,0.55)";
+byline.textContent = "Caspian Hallowfield · 28 April 2026";
+const addNote = document.createElement("div");
+addNote.style.cssText =
+  "margin-top:14px;border:1px dashed rgba(0,0,0,0.28);border-radius:6px;padding:11px 13px;" +
+  "font-size:14px;color:rgba(0,0,0,0.38)";
+addNote.textContent = "Add a note…";
+notesBody.append(oneNote, byline, addNote);
+notes.append(notesBody);
+
+// ---- STATUS HISTORY — recruitment's own changes ---------------------------
+recolourCard("STATUS HISTORY", "Status history", RECORD_BANDS.person);
+const historyCard = bandedCard("STATUS HISTORY");
+for (const child of [...historyCard.children].slice(1)) child.remove();
+const historyBody = document.createElement("div");
+historyBody.style.cssText = "padding:14px 16px";
+for (const [what, when] of [
+  ["Added as identified · QR scan at the Freshers' Fair stand", "28 Apr 2026, 14:12"],
+]) {
+  const line = document.createElement("div");
+  line.style.cssText = "font-size:14px;color:rgba(0,0,0,0.87)";
+  line.textContent = what;
+  const meta = document.createElement("div");
+  meta.style.cssText = "margin-top:3px;font-size:12px;color:rgba(0,0,0,0.55)";
+  meta.textContent = when;
+  historyBody.append(line, meta);
+}
+historyCard.append(historyBody);
+
+// The way back is to recruitment, not to the roster.
+relabelButton("back to roster", "BACK TO RECRUITMENT");
+
+window.history.replaceState(null, "", "/operate/recruitment/rosalind-penhaligon");
+
+await settle();

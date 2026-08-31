@@ -43,7 +43,33 @@
       "name": "One recruit's record",
       "state": "spec_draft",
       "stale": true,
-      "feedback": []
+      "feedback": [
+        {
+          "screen_id": "W2-01",
+          "date": "2026-08-31",
+          "text": "They should show the recruit page on the left, like we made consistent for everything else. The pages underneath should be very similar to the roster in the way that it's done, except it's the recruit player page, not the roster player page. It should be very clear at the top that this is underneath the recruitment. This is /recruitment, not /roster. — DONE on W2-01: Recruitment is selected in the sidebar, the page is built card-for-card on the shipped player record, the line under the name reads \"Recruitment · 2026-27\", the route is /operate/recruitment/<recruit> and the button at the foot reads BACK TO RECRUITMENT."
+        },
+        {
+          "screen_id": "W2-01",
+          "date": "2026-08-31",
+          "text": "We shouldn't invent UI elements here. We should see what the roster is, and we should see the player and all the stuff there. — DONE: every card is a shipped card. PERSON kept; ONBOARDING becomes RECRUITMENT; SEASON becomes THE RECRUIT-STAGE ASK; the shipped ATTENDANCE table becomes RECRUITMENT EVENTS unchanged in kind; THEIR OTHER SEASONS becomes NOTES; STATUS HISTORY stays."
+        },
+        {
+          "screen_id": "W2-01",
+          "date": "2026-08-31",
+          "text": "It seems like there are two invites for some reason. There are two invite sections in W2-01. — DONE. There were: an EVENTS card AND a purple card headed WHAT WE HAVE SAID that was actually the player's own 53-row attendance table with its heading renamed over it, because rebuildCard failed silently. One events section now, and the helpers throw."
+        },
+        {
+          "screen_id": "W2-02",
+          "date": "2026-08-31",
+          "text": "I do not understand what it's showing. — OPEN. It was the same page for a different recruit, which is not a screen. Proposed instead: the same record with the recruit-stage ask ANSWERED, so \"I should see when they fill out information\" is what the screen is for. Not yet built."
+        },
+        {
+          "screen_id": "W2-03",
+          "date": "2026-08-31",
+          "text": "W2-03 has a fair amount of narration. I do not know what this section is trying to show me. — OPEN. It was the sign-on ladder moved here from W3. Proposed instead: the operator editing a recruitment fact and adding a note in place, so \"I should be able to fill in my own information\" is what the screen is for. Not yet built."
+        }
+      ]
     },
     {
       "id": "W3",
@@ -977,7 +1003,7 @@
       }
     ]
   },
-  "next_action": "W1 is done and approved in Brian's words (\"Okay, workflow 1 is approved.\", 2026-08-31). W2 through W14 remain stale. Go to W2 next, one workflow at a time, with Brian. Do NOT sweep, and do not record an approval he has not given in his own words. Before showing him anything, open the rendered PNG of every screen touched. W1 is the worked example of what he accepts: the recruit's own stored fields plus readable person facts and nothing else; events rendered as events in the shipped vocabulary; and no invented UI element described as reuse.",
+  "next_action": "W2-01 is rebuilt on the shipped player record and is with Brian. W2-02 and W2-03 are NOT rebuilt and remain stale; his feedback was that neither showed him anything he understood. Proposed replacements are recorded in W2's feedback. One open question for him: the events card is violet #4527a0 here because that is the shipped ATTENDANCE colour, while W1's approved event bands are blue #0b3d91. Making them consistent means changing approved W1; do not touch W1 without his word.",
   "subject_coverage": {
     "areas": [
       {

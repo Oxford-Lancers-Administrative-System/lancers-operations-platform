@@ -1092,6 +1092,136 @@ const buildRecruitBoard = () => {
   setRecruitmentRoute();
 };
 
+// ---------------------------------------------------------------------------
+// The recruit's record, built on the shipped player record's own cards.
+//
+// Brian, 2026-08-31: "The pages underneath should be very similar to the roster
+// in the way that it's done, except it's the recruit player page, not the roster
+// player page… We shouldn't invent UI elements here. We should see what the
+// roster is, and we should see the player and all the stuff there."
+//
+// `/operate/roster/[membershipId]` ships six banded cards, and every one of them
+// has a recruit equivalent of the same shape:
+//
+//   PERSON              slate   #455a64  rows   -> PERSON, unchanged in kind
+//   ONBOARDING          amber   #b26a00  rows   -> RECRUITMENT, teal #00695c
+//   SEASON · 2026-27    blue    #0b3d91  rows   -> THE RECRUIT-STAGE ASK
+//   ATTENDANCE          violet  #4527a0  TABLE  -> RECRUITMENT EVENTS, as-is
+//   THEIR OTHER SEASONS slate   #455a64         -> NOTES
+//   STATUS HISTORY      slate   #455a64         -> STATUS HISTORY
+//
+// The ATTENDANCE card matters most: it is already a table of
+// Event · Date · Mandatory · RSVP · Attendance · Event status, which is the
+// treatment Brian approved for the board on the same day. Reusing it whole is
+// the strongest available answer to "where else are we using this element?".
+// ---------------------------------------------------------------------------
+const RECORD_BANDS = {
+  person: "#455a64",
+  recruitment: "#00695c",
+  ask: "#0b3d91",
+  events: "#4527a0",
+};
+
+/** The banded card whose header begins with `label`. Throws rather than guesses. */
+const bandedCard = (label) =>
+  must(
+    [...document.querySelectorAll(".MuiPaper-root")].find(
+      (c) =>
+        c.offsetHeight > 60 &&
+        c.innerText.split("\n")[0].trim().toUpperCase().startsWith(label.toUpperCase()),
+    ),
+    `the record has no ${label} card`,
+  );
+
+/**
+ * Rebuild the shipped ATTENDANCE table as the recruit's events.
+ *
+ * `rebuildCard` cannot touch this one — it has no `record-row` children and
+ * would throw, which is the guard working. The table is kept, its Mandatory
+ * column dropped (a recruit has no mandatory events), and its rows replaced.
+ * The mandatory-attendance percentage strip and the four filters go with it:
+ * both describe a season's obligations, and a recruit holds none.
+ */
+const setRecruitmentEvents = (events, title = "Recruitment events") => {
+  const card = bandedCard("ATTENDANCE");
+  const table = must(card.querySelector("table"), "the ATTENDANCE card has no table");
+  const heads = [...table.querySelectorAll("thead th")];
+  const bodyRows = [...table.querySelectorAll("tbody tr")];
+  must(bodyRows, "the ATTENDANCE table has no row to clone");
+
+  const drop = heads.findIndex((h) => /Mandatory/i.test(h.innerText));
+  const template = bodyRows[0].cloneNode(true);
+  const host = bodyRows[0].parentElement;
+
+  // The card's own banded header, kept and retitled. It is a sibling of the tint
+  // box, so it must be held aside before the sibling sweep below or the card
+  // loses its heading and its violet entirely.
+  const heading = must(card.querySelector("h2"), "the ATTENDANCE card has no heading");
+  heading.textContent = title.toUpperCase();
+  const headBar = must(heading.parentElement, "the ATTENDANCE heading has no bar");
+
+  // Everything in the card that is not the table describes a season's
+  // obligations: the "7 of 7 mandatory · 100% · 12 attendants not recorded"
+  // strip, the "Mandatory attendance" caption and the applied-filter row.
+  //
+  // Two earlier attempts removed nothing, because the strip and the table are on
+  // DIFFERENT branches: the card holds one tint Box, and inside it the strip is
+  // `Box > Stack > p` while the table is `Box > Box > TableContainer > table`.
+  // Walking `card.children` or the table's immediate parent both missed it, and
+  // a recruit's page went on claiming a mandatory-attendance percentage.
+  //
+  // So walk UP from the table to the card, clearing siblings at every level.
+  // Whatever the intermediate nesting is, only the table's own branch survives.
+  let node = table;
+  while (node.parentElement && node.parentElement !== card) {
+    const parent = node.parentElement;
+    for (const sibling of [...parent.children]) {
+      if (sibling !== node) sibling.remove();
+    }
+    node = parent;
+  }
+  for (const child of [...card.children]) {
+    if (!child.contains(table) && child !== headBar) child.remove();
+  }
+
+  // The header row keeps a live filter caption ("Event status / Occurred") and a
+  // filled filter button from the state that was just removed. Clear both, or
+  // the card advertises a filter that no longer exists.
+  for (const caption of table.querySelectorAll("thead .MuiTypography-caption")) caption.remove();
+  for (const button of table.querySelectorAll("thead button")) button.remove();
+
+  if (drop >= 0) heads[drop].remove();
+
+  const built = events.map((event) => {
+    const tr = template.cloneNode(true);
+    if (drop >= 0) [...tr.children][drop]?.remove();
+    const cells = [...tr.children];
+    const values = [event.name, event.date, event.rsvp, event.attendance, event.status];
+    cells.forEach((td, i) => {
+      const value = values[i];
+      if (value === undefined) return;
+      const target = td.querySelector("p, span, div") ?? td;
+      const recorded = value !== NOT_RECORDED;
+      target.replaceChildren(document.createTextNode(value));
+      target.style.color = recorded ? "" : "rgba(0,0,0,0.38)";
+      target.style.fontStyle = recorded ? "" : "italic";
+    });
+    return tr;
+  });
+  host.replaceChildren(...built);
+  return card;
+};
+
+/** Retitle a banded card and recolour its header, without touching its rows. */
+const recolourCard = (label, title, colour) => {
+  const card = bandedCard(label);
+  const h = must(card.querySelector("h2"), `the ${label} card has no heading`);
+  h.textContent = title.toUpperCase();
+  const bar = must(h.parentElement, `the ${label} heading has no bar`);
+  bar.style.backgroundColor = colour;
+  return card;
+};
+
 // W7-01 — Sign yourself in. Drawn: there is no public self-entry page on main.
 const card = drawnSurface({
   title: "Join the Oxford Lancers",
