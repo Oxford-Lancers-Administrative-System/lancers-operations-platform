@@ -22,13 +22,24 @@ const scroller = must(
   document.querySelector(".MuiTableContainer-root"),
   "the board has no scrolling container",
 );
-const headers = [...document.querySelectorAll("thead tr:last-child th")];
+// The event names now live in the BAND row — each event is its own band over
+// its RSVP and Attendance columns — so the scroll target is found there.
 const firstEvent = must(
-  headers.find((th) => /Freshers' Fair/.test(th.textContent)),
-  "the board has no first event column to scroll to",
+  [...document.querySelectorAll("thead tr:first-child th")].find((th) =>
+    /Freshers' Fair/.test(th.textContent),
+  ),
+  "the board has no first event band to scroll to",
 );
-const pinnedWidth = headers[0].getBoundingClientRect().width;
-scroller.scrollLeft = firstEvent.offsetLeft - pinnedWidth;
+// Measure against the SCROLLER, not the offset parent. `offsetLeft` is relative
+// to the table, which left the first event's RSVP column hidden behind the
+// sticky Recruit column.
+const pinnedWidth = document
+  .querySelector("thead tr:last-child th")
+  .getBoundingClientRect().width;
+scroller.scrollLeft +=
+  firstEvent.getBoundingClientRect().left -
+  scroller.getBoundingClientRect().left -
+  pinnedWidth;
 
 if (scroller.scrollLeft === 0 && scroller.scrollWidth > scroller.clientWidth) {
   throw new Error("The board did not scroll; the Events band would not be in frame.");

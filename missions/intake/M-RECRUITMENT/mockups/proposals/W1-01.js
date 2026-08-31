@@ -78,9 +78,7 @@ const injectStyle = (css) => {
 // Killing transitions is better than sleeping: it is deterministic, and it
 // removes a whole class of half-painted evidence rather than one instance.
 // ---------------------------------------------------------------------------
-injectStyle(
-  "*,*::before,*::after{transition:none !important;animation:none !important}",
-);
+injectStyle("*,*::before,*::after{transition:none !important;animation:none !important}");
 
 /** Let style and layout settle before the screenshot. Proposals end with this. */
 const settle = async (frames = 3) => {
@@ -657,7 +655,7 @@ const replaceSummaryStrip = (items) => {
 const setPersonRows = (rows) => {
   const card = must(recordCard("PERSON"), "setPersonRows found no PERSON card");
   const existing = [...card.querySelectorAll('[data-testid="record-row"]')];
-  must(existing, "the PERSON card holds no [data-testid=\"record-row\"] to replace");
+  must(existing, 'the PERSON card holds no [data-testid="record-row"] to replace');
   const host = must(existing[0].parentElement, "the PERSON card rows have no parent");
   for (const r of existing) r.remove();
   for (const r of rows) host.append(r);
@@ -802,9 +800,9 @@ const RECRUITS = [
     asked: "Not sent",
     notes: "Came to the stand with a friend from Dunsfold.",
     events: [
-      { invited: true, rsvp: null, presence: "absent" },
-      { invited: false, rsvp: null, presence: null },
-      { invited: false, rsvp: null, presence: null },
+      { rsvp: null, presence: "absent" },
+      { rsvp: null, presence: null },
+      { rsvp: null, presence: null },
     ],
   },
   {
@@ -818,9 +816,9 @@ const RECRUITS = [
     asked: "Answered 5 May",
     notes: "Played at school. Asked about kit.",
     events: [
-      { invited: true, rsvp: "yes", presence: "present" },
-      { invited: false, rsvp: null, presence: "present", walkUp: true },
-      { invited: true, rsvp: "yes", presence: null },
+      { rsvp: "yes", presence: "present" },
+      { rsvp: null, presence: "present" },
+      { rsvp: "yes", presence: null },
     ],
   },
   {
@@ -834,9 +832,9 @@ const RECRUITS = [
     asked: "Answered 25 Apr",
     notes: "Said she is in. Wants to play safety.",
     events: [
-      { invited: true, rsvp: "yes", presence: "present" },
-      { invited: true, rsvp: "yes", presence: "late" },
-      { invited: true, rsvp: "yes", presence: null },
+      { rsvp: "yes", presence: "present" },
+      { rsvp: "yes", presence: "late" },
+      { rsvp: "yes", presence: null },
     ],
   },
   {
@@ -850,9 +848,9 @@ const RECRUITS = [
     asked: "Sent 11 May",
     notes: "",
     events: [
-      { invited: false, rsvp: null, presence: null },
-      { invited: false, rsvp: null, presence: null },
-      { invited: false, rsvp: null, presence: "present", walkUp: true },
+      { rsvp: null, presence: null },
+      { rsvp: null, presence: null },
+      { rsvp: null, presence: "present" },
     ],
   },
   {
@@ -866,9 +864,9 @@ const RECRUITS = [
     asked: "Not answered",
     notes: "Came once, has not answered since.",
     events: [
-      { invited: true, rsvp: "yes", presence: "absent" },
-      { invited: true, rsvp: "no", presence: null },
-      { invited: true, rsvp: null, presence: null },
+      { rsvp: "yes", presence: "absent" },
+      { rsvp: "no", presence: null },
+      { rsvp: null, presence: null },
     ],
   },
   {
@@ -882,9 +880,9 @@ const RECRUITS = [
     asked: "Not sent",
     notes: "Said rugby clashes. Happy to be asked again next year.",
     events: [
-      { invited: true, rsvp: "no", presence: "absent" },
-      { invited: false, rsvp: null, presence: "present", walkUp: true },
-      { invited: false, rsvp: null, presence: null },
+      { rsvp: "no", presence: "absent" },
+      { rsvp: null, presence: "present" },
+      { rsvp: null, presence: null },
     ],
   },
 ];
@@ -893,19 +891,20 @@ const RECRUITS = [
 // attendance/presentation.ts. The word is the primary channel and the colour is
 // the second — slice-ux §7 requires state to be legible "without relying on
 // color alone", which is the other thing the dot grid got wrong.
-const PRESENCE = {
-  present: { label: "Present", fg: "#1b5e20", bg: "#e8f5e9", border: "#a5d6a7" },
-  late: { label: "Late", fg: "#8a5100", bg: "#fdf6ec", border: "#f0c78a" },
-  excused: { label: "Excused", fg: "#01579b", bg: "#e3f2fd", border: "#9fc9ec" },
-  absent: { label: "Absent", fg: "#b71c1c", bg: "#ffebee", border: "#ef9a9a" },
+// The two values each event column pair shows, in the club's own words and in
+// the shipped shape: PLAIN TEXT in two columns, exactly as the person record's
+// per-event table renders them (`[membershipId]/attendance-section.tsx:280`,
+// `RSVP_LABEL` and `ATTENDANCE_LABEL`). Not chips — nowhere in this application
+// is a presence value rendered as a filled pill, and the earlier revision of
+// this file invented one and called it reuse.
+const RSVP_LABEL = { yes: "Yes", no: "No" };
+const ATTENDANCE_LABEL = {
+  present: "Present",
+  late: "Late",
+  excused: "Excused",
+  absent: "Absent",
 };
-
-const describeRsvp = (rsvp, walkUp) => {
-  if (walkUp) return "Walk-up · never invited";
-  if (rsvp === "yes") return "RSVP: Attending";
-  if (rsvp === "no") return "RSVP: Not attending";
-  return "RSVP: No response";
-};
+const NOT_RECORDED = "Not recorded";
 
 // ---------------------------------------------------------------------------
 // The recruit board itself, built once and shared by W1-01 and W1-02 so the two
@@ -1002,7 +1001,12 @@ const buildRecruitBoard = () => {
     spacerBand.cloneNode(true),
     band(personBand, "Person", 3),
     band(seasonBand, "Recruitment", 5, "#00695c"),
-    band(seasonBand, "Events", RECRUITMENT_EVENTS.length),
+    // Brian, 2026-08-31: "a heading for what the event was, RSVP, what the RSVP
+    // status was, attendance right after that. I want to see them side by side."
+    // So each event is its own band spanning its two columns, which is the
+    // shipped two-row banded header used as it already works — no third header
+    // row, no new structure.
+    ...RECRUITMENT_EVENTS.map((e) => band(seasonBand, `${e.name} · ${e.date}`, 2)),
   );
 
   const pinned = pinnedCol.cloneNode(true);
@@ -1017,44 +1021,32 @@ const buildRecruitBoard = () => {
     column("First contact", "edit here"),
     column("Asked", "set by the form"),
     column("Notes", "edit here"),
-    ...RECRUITMENT_EVENTS.map((e) => column(`${e.name} · ${e.date}`, "")),
+    ...RECRUITMENT_EVENTS.flatMap(() => [column("RSVP", ""), column("Attendance", "")]),
   );
 
   // ---- One event cell, in the club's own words ------------------------------
   // Two lines: what was observed, then what was said. Never one without the
   // other, and never the observation implied by the intent.
-  const eventCell = ({ invited, rsvp, presence, walkUp }) => {
+  // Two cells per event, side by side: what they said, then what was observed.
+  //
+  // Invitation is deliberately absent. Brian, 2026-08-31: "I don't care if they
+  // were invited or not. I want to see if they intended, because they can
+  // always be added as a walk-up… If they show up, we can tag them." So a
+  // walk-up needs no special rendering here — it reads as RSVP `Not recorded`
+  // with an attendance of `Present`, which is exactly what happened.
+  const valueCell = (text, recorded) => {
     const td = plainCell.cloneNode(true);
-    td.replaceChildren();
-    const wrap = document.createElement("div");
-
-    if (!invited && !presence) {
-      const p = document.createElement("p");
-      p.textContent = "Not invited";
-      p.style.cssText = "margin:0;font-size:13px;color:rgba(0,0,0,0.38);font-style:italic";
-      wrap.append(p);
-      td.append(wrap);
-      return td;
-    }
-
-    const state = presence ? PRESENCE[presence] : null;
-    const top = document.createElement("span");
-    if (state) {
-      top.textContent = state.label;
-      top.style.cssText =
-        `display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:11px;` +
-        `color:${state.fg};background:${state.bg};border:1px solid ${state.border}`;
-    } else {
-      top.textContent = "Not recorded";
-      top.style.cssText = "font-size:13px;color:rgba(0,0,0,0.38);font-style:italic";
-    }
-    const bottom = document.createElement("div");
-    bottom.textContent = describeRsvp(rsvp, walkUp);
-    bottom.style.cssText = "margin-top:4px;font-size:11.5px;color:rgba(0,0,0,0.55);white-space:nowrap";
-    wrap.append(top, bottom);
-    td.append(wrap);
+    const p = td.querySelector("p");
+    p.textContent = text;
+    p.style.color = recorded ? "" : "rgba(0,0,0,0.38)";
+    p.style.fontStyle = recorded ? "" : "italic";
     return td;
   };
+
+  const eventCells = ({ rsvp, presence }) => [
+    valueCell(rsvp === null ? NOT_RECORDED : RSVP_LABEL[rsvp], rsvp !== null),
+    valueCell(presence === null ? NOT_RECORDED : ATTENDANCE_LABEL[presence], presence !== null),
+  ];
 
   tbody.replaceChildren(
     ...RECRUITS.map((r) => {
@@ -1071,7 +1063,7 @@ const buildRecruitBoard = () => {
         textCell(r.firstContact),
         textCell(r.asked, r.asked === "Not sent"),
         textCell(r.notes || "—", !r.notes),
-        ...r.events.map(eventCell),
+        ...r.events.flatMap(eventCells),
       );
       return tr;
     }),
@@ -1114,8 +1106,8 @@ const buildRecruitBoard = () => {
 //
 // The board and its data live in the prelude; W1-02 is the same board scrolled
 // to the Events band.
-buildRecruitBoard()
+buildRecruitBoard();
 
-await settle()
+await settle();
 
 })()

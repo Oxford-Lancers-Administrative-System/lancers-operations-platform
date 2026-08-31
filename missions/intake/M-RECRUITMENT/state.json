@@ -46,6 +46,11 @@
           "screen_id": "W1-01",
           "date": "2026-08-31",
           "text": "It's a new page on the sidebar underneath Roster, and it's under /operate. That's it. There's no factual thing: roster, recruitment, events, and whatever. Don't change anything else. — resolved: Recruitment is a top-level destination second in the sidebar, route /operate/recruitment. The Administration group is unchanged and carries no Recruits entry."
+        },
+        {
+          "screen_id": "W1-02",
+          "date": "2026-08-31",
+          "text": "How was this UI proposed? Where else are we using this particular UI element? — resolved: nowhere. The two-line cell (presence chip over a prefixed RSVP) was invented and wrongly described as reuse; no grid cell in the application stacks a state over an RSVP, and no presence value is rendered as a filled pill. Rebuilt as Brian then specified: one band per event over an RSVP column and an Attendance column side by side, plain text, exactly as attendance-section.tsx renders the same two facts. Invitation is not shown at all — “I don't care if they were invited or not” — so a walk-up reads as RSVP Not recorded with an attendance of Present."
         }
       ]
     },
