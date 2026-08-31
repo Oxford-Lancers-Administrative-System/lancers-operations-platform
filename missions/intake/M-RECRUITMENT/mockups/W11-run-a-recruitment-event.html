@@ -1228,7 +1228,7 @@
         border-radius: 4px;
         padding: 2px 8px;
       }
-    
+
       /* Capped frames — LAN intake feedback, 2026-08-31. A full-page shot of a
          long record ran to several thousand pixels, so a page of them could not
          be scanned. The shot is unchanged; the box it sits in is scrollable. */
@@ -1275,10 +1275,10 @@
         <h1>W11 · Run a recruitment event</h1>
         <p>
           An operator schedules a session recruits are invited to, invites recruits and players
-      together where that is what the session is, and approves it knowing exactly what it sends.
-          <strong>The surfaces here exist on <code>main</code></strong>, so every screen is a
-           <strong>photograph on both sides</strong> — the same running page at <code>e669331</code>,
-           differing only by the proposal evaluated into it.
+          together where that is what the session is, and approves it knowing exactly what it sends.
+          <strong>The surfaces here exist on <code>main</code></strong
+          >, so every screen is a <strong>photograph on both sides</strong> — the same running page
+          at <code>e669331</code>, differing only by the proposal evaluated into it.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1292,8 +1292,20 @@
         </p>
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
-          <span>Brian, 2026-08-31: <em>“we should be able to invite players and recruits, but recruits get treated differently.”</em> Two ladders, not one suppressed ladder</span>
-          <span><strong>Both defects are real and verified in the running code.</strong> <code>scheduleEventLadder</code> inserts a reminder for every invitation filtered only by <code>event_id</code>, and <code>countByCapacity</code> omits recruits from the approval counts</span>
+          <span
+            >Brian, 2026-08-31:
+            <em
+              >“we should be able to invite players and recruits, but recruits get treated
+              differently.”</em
+            >
+            Two ladders, not one suppressed ladder</span
+          >
+          <span
+            ><strong>Both defects are real and verified in the running code.</strong>
+            <code>scheduleEventLadder</code> inserts a reminder for every invitation filtered only
+            by <code>event_id</code>, and <code>countByCapacity</code> omits recruits from the
+            approval counts</span
+          >
         </div>
       </header>
       <div id="screens"></div>

@@ -25,98 +25,98 @@
       "id": "W1",
       "name": "The recruit board",
       "state": "spec_draft",
-      "stale": false,
+      "stale": true,
       "feedback": []
     },
     {
       "id": "W2",
       "name": "One recruit's record",
       "state": "spec_draft",
-      "stale": false,
+      "stale": true,
       "feedback": []
     },
     {
       "id": "W3",
       "name": "Say yes to the club",
       "state": "spec_draft",
-      "stale": false,
+      "stale": true,
       "feedback": []
     },
     {
       "id": "W4",
       "name": "Fill in your details",
       "state": "spec_draft",
-      "stale": false,
+      "stale": true,
       "feedback": []
     },
     {
       "id": "W5",
       "name": "Capture a walk-up as a recruit",
       "state": "spec_draft",
-      "stale": false,
+      "stale": true,
       "feedback": []
     },
     {
       "id": "W6",
       "name": "Add a recruit by hand",
       "state": "spec_draft",
-      "stale": false,
+      "stale": true,
       "feedback": []
     },
     {
       "id": "W7",
       "name": "Sign yourself in",
       "state": "spec_draft",
-      "stale": false,
+      "stale": true,
       "feedback": []
     },
     {
       "id": "W8",
       "name": "Resolve a possible duplicate",
       "state": "spec_draft",
-      "stale": false,
+      "stale": true,
       "feedback": []
     },
     {
       "id": "W9",
       "name": "Follow up with a recruit",
       "state": "spec_draft",
-      "stale": false,
+      "stale": true,
       "feedback": []
     },
     {
       "id": "W10",
       "name": "Administer recruitment's messages, cycles and QR",
       "state": "spec_draft",
-      "stale": false,
+      "stale": true,
       "feedback": []
     },
     {
       "id": "W11",
       "name": "Run a recruitment event",
       "state": "spec_draft",
-      "stale": false,
+      "stale": true,
       "feedback": []
     },
     {
       "id": "W12",
       "name": "Take attendance at a recruitment event",
       "state": "spec_draft",
-      "stale": false,
+      "stale": true,
       "feedback": []
     },
     {
       "id": "W13",
       "name": "Take a recruit off the board",
       "state": "spec_draft",
-      "stale": false,
+      "stale": true,
       "feedback": []
     },
     {
       "id": "W14",
       "name": "Flip a recruit to joined",
       "state": "spec_draft",
-      "stale": false,
+      "stale": true,
       "feedback": []
     }
   ],
@@ -967,7 +967,7 @@
       }
     ]
   },
-  "next_action": "Build the remaining mockups, then hand Brian the index for one review pass across all fourteen.",
+  "next_action": "Read missions/intake/M-RECRUITMENT/HANDOFF.md with Brian before touching anything. Stage 3 mockups are stale and unaccepted; three questions block progress.",
   "subject_coverage": {
     "areas": [
       {
