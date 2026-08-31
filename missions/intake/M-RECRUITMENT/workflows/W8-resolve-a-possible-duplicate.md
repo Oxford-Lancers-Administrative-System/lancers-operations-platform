@@ -164,5 +164,9 @@ messaged. On create: person minted, prospect at `identified`, `W3` fires.
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- Exact words: _"W8 approved."_
+- Date: 2026-08-31
+
+Given after the parked review queue was deleted and this workflow reduced to the check
+itself, on whichever door is open. Leftover duplicates go to the people table's own merge,
+which already ships and belongs to Mission 5.

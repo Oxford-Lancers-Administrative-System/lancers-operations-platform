@@ -183,8 +183,13 @@ duplicate does not create and does not message; it parks for `W8`.
 
 ## Brian approval
 
-- Exact words: _"Okay, sounds great. W7 approved."_
+- Exact words: _"Okay, sounds great. W7 approved."_, then re-approved as _"W7 approved."_
+  after the amendment below.
 - Date: 2026-08-31
+
+Approved once, then amended on Brian's instruction with the have-you-registered-before
+question, then approved again. The first approval did not cover that step, which is why the
+ledger reopened the workflow rather than letting the amendment ride on it.
 
 Given once the flow ran through to WhatsApp and the separate "already on our
 list" screen was removed.
