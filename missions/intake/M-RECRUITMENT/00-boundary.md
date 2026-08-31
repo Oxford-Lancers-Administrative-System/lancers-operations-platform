@@ -182,13 +182,17 @@ mission owns, not something that happens outside the system.
     when it changes, what an operator sees when one fails to deliver, and what
     happens when delivery is down at the moment of capture (Task 09 §9.1's open
     welcome-flow mechanics, inherited from the walk-ups brief).
-14. `[row]` The correction to Mission 4's shipped ladder: **capacity suppression**
-    so the player reminder-and-escalation rung never reaches a recruit
-    invitation, and the `countByCapacity` recruit-count fix (owner decision
-    2026-08-26). The 2026-08-31 amendment narrows this to the _player_ ladder: a
-    recruit-appropriate polite reminder is permitted and is this mission's to
-    design, so the suppression must not be written as "recruits get no follow-up
-    message".
+14. `[row]` The correction to Mission 4's shipped ladder, and **the recruit ladder
+    that stands beside it**. The `countByCapacity` recruit-count fix stands as
+    recorded (owner decision 2026-08-26). The reminder half is reframed by
+    Brian's 2026-08-31 inventory review: this is **not suppression**. _"If a
+    player is invited to that as well, they get the normal chase… Recruits get a
+    recruit chase, and that's an entirely separate thing where they get set the
+    invite once and maybe a polite follow-up… it needs to be a totally separate
+    thing."_ One event may carry both audiences, and each is treated on its own
+    terms. So the work is two things: keep the player ladder off a recruit
+    invitation, and build the recruit ladder — one invitation and at most a polite
+    follow-up — as recruitment's own.
 15. `[subject]` The **whole-system sweep** that rule implies: every place a
     recruit could meet the player escalation ladder, be counted into a chase, or
     be swept into a collection cadence — each one either suppressed or evidenced
