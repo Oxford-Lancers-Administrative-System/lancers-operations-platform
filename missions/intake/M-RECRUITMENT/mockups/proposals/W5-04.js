@@ -379,51 +379,23 @@
     return row;
   };
 
-  // W10-01 — Administer recruitment's machinery, proposed. The shipped messaging
-  // schedule is the shell and the language; recruitment's cycle is a sibling
-  // object in that language, not a new column on it.
-  setHeading(
-    "Recruitment cycle",
-    "Season 2026-27 · what recruitment sends, in what order, and who may change it",
+  // W5-04 — Refused: no mobile. The knowingly-accepted limitation, on the form
+  // where it actually bites, rather than in a decision log.
+  fill("givenName", "Peregrine");
+  fill("familyName", "Oakhollow");
+  const phone = document.querySelector('input[name="phone"]');
+  const wrap = phone?.closest(".MuiTextField-root, .MuiFormControl-root");
+  if (wrap) wrap.style.outline = "2px solid #b26a00";
+  const box = proposedBlock("amber");
+  blockTitle(box, "Without a mobile we cannot capture him");
+  blockText(
+    box,
+    "Nothing is saved — no person, no recruit, and no attendance row. Ask for a number, or let him go.",
   );
-  appendCard(
-    "The boundary",
-    [
-      makeRow("Mission 4 owns", "The scheduler, the transport, delivery states and retry"),
-      makeRow(
-        "Recruitment owns",
-        "What is sent, on what trigger, in what order, and whether a step runs at all",
-      ),
-      makeRow("The line", "Recruitment declares a cycle. It never schedules."),
-    ],
-    "This is the boundary Brian asked to be found by walking the workflow rather than guessed in the abstract. Proposed, not settled.",
-  );
-  appendCard(
-    "The cycle",
-    [
-      makeRow("1 · Welcome + group invite", "On capture, every door · ON"),
-      makeRow("2 · Standard recruit ask", "Immediately after they accept · ON"),
-      makeRow("3 · Polite reminder", "1 day later, if nothing came back · ON"),
-      makeRow("4 · Recruit-stage form", "1 day after the welcome · ON"),
-      makeRow("5 · Form reminder", "3 days later, once only · ON"),
-    ],
-    "Each step's content is editable, and any step can be turned off entirely — boundary item 43. A step that is off is stated on the recruit's record, so a quiet recruit is never mistaken for a disinterested one.",
-  );
-  appendCard(
-    "The community-group link",
-    [
-      makeRow("Current link", "chat.whatsapp.com/… · last changed 14 Apr by Caspian Hallowfield"),
-      makeRow("Carried by", "Step 1, and every QR page"),
-    ],
-    "The most likely silent failure in the mission: the link rotates, recruits are invited to a dead group, and nobody finds out. When it was last changed is on the screen for that reason.",
-  );
-  appendCard(
-    "QR codes",
-    [
-      makeRow("Freshers' Fair stand", "Live · 41 submissions · minted 22 Apr"),
-      makeRow("Taster poster, Michaelmas", "Live · 7 submissions · minted 2 May"),
-      makeRow("Old handout, Hilary 2025-26", "Revoked 14 Apr · 0 since"),
-    ],
-    "Minted, named, and revocable. A revoked code shows the uniform invalid page, and the count says how much a poster still in the wild is actually doing.",
-  );
+  afterField("phone", box) ?? document.querySelector("form")?.append(box);
+  const submit = $$("button").find((b) => /add walk-on/i.test(b.textContent));
+  if (submit) {
+    submit.style.opacity = "0.45";
+    submit.style.pointerEvents = "none";
+  }
 })();

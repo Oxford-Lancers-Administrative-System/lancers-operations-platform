@@ -37,9 +37,21 @@
   2. **No interactive duplicate check.** `attendance.ts` mints a person with no
      check, wider than Task 09 §3's coach-only exception. Recorded as drift by
      Task 09 amendment 4; reconciled here.
-  3. **Nothing tells the operator this creates a recruit.** The form captures a
-     walk-up; the person silently becomes a prospect. What the operator is doing
-     should be visible while they do it.
+  3. ~~**Nothing tells the operator this creates a recruit.**~~ **Struck
+     2026-08-31 — this was wrong.** Building the screens against the running page
+     showed the shipped form already says it, in an alert above the fields:
+     _"They are added to recruitment as somebody to follow up, and recorded at
+     this event. This does not put them on the roster or create a membership."_
+     The claim was written from the code's shape rather than from the screen, and
+     it should not have survived into a specification. What the form still does
+     not say is that saving **sends that person a message**, which is the part an
+     operator most needs to know before reading a number back.
+
+**Vocabulary drift found at the same time, and unresolved.** The shipped surface
+calls this three things: the button says **Add walk-up**, the page headline says
+**Add a walk-on**, and the chip on the row says **Walk-on · in recruitment**. The
+approved briefs say **walk-up** throughout. One of the two words should win, and
+which one is Brian's — this mission touches every one of those surfaces.
 
 ## Required actions
 

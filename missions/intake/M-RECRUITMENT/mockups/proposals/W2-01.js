@@ -300,6 +300,85 @@
     return list;
   };
 
+  // Open a control the application already has, and wait for what it reveals.
+  // Proposals that need this return a promise; page.evaluate awaits it.
+  const openControl = async (text, ms = 700) => {
+    const el = $$("button, a").find((b) => new RegExp(text, "i").test(b.textContent));
+    if (el) el.click();
+    await new Promise((r) => setTimeout(r, ms));
+    return el;
+  };
+
+  // Fill a real form field, so the shot shows a filled form rather than a
+  // described one.
+  const fill = (name, value) => {
+    const input = document.querySelector(`input[name="${name}"], textarea[name="${name}"]`);
+    if (!input) return null;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+    setter ? setter.call(input, value) : (input.value = value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    // MUI floats the label on focus/value via React state, which a scripted value
+    // set does not trigger. Add the class the component would have added.
+    const label = input.closest(".MuiFormControl-root")?.querySelector(".MuiInputLabel-root");
+    if (label) label.classList.add("MuiInputLabel-shrink", "MuiFormLabel-filled");
+    const legend = input.closest(".MuiFormControl-root")?.querySelector("legend");
+    if (legend) legend.style.maxWidth = "100%";
+    return input;
+  };
+
+  // Insert a proposed block immediately after a real form field, so an addition
+  // reads as part of the form rather than as a note about it.
+  const afterField = (name, node) => {
+    const input = document.querySelector(`input[name="${name}"]`);
+    const row = input?.closest(".MuiFormControl-root, .MuiTextField-root") ?? input?.parentElement;
+    row?.parentElement?.insertBefore(node, row.nextSibling);
+    return node;
+  };
+
+  // A block that is visibly part of the proposal, in the application's own idiom.
+  const proposedBlock = (tone = "teal") => {
+    const colours = {
+      teal: ["#00695c", "rgba(0,105,92,0.06)", "rgba(0,105,92,0.45)"],
+      amber: ["#b26a00", "#fdf6ec", "rgba(178,106,0,0.55)"],
+      green: ["#1b5e20", "#e8f5e9", "rgba(46,125,50,0.45)"],
+    };
+    const [fg, bg, border] = colours[tone] ?? colours.teal;
+    const box = document.createElement("div");
+    box.style.cssText = `background:${bg};border:1px solid ${border};border-radius:8px;padding:14px 16px;margin:14px 0`;
+    box.dataset.fg = fg;
+    return box;
+  };
+
+  const blockTitle = (box, text) => {
+    const t = document.createElement("div");
+    t.textContent = text;
+    t.style.cssText = `font-size:13px;font-weight:700;color:${box.dataset.fg};margin-bottom:8px`;
+    box.append(t);
+    return box;
+  };
+
+  const blockText = (box, text) => {
+    const t = document.createElement("div");
+    t.textContent = text;
+    t.style.cssText = "font-size:13.5px;line-height:1.55;color:rgba(0,0,0,0.8)";
+    box.append(t);
+    return box;
+  };
+
+  const checkboxRow = (label, checked = false) => {
+    const row = document.createElement("label");
+    row.style.cssText =
+      "display:flex;gap:10px;align-items:flex-start;font-size:13.5px;margin-top:10px";
+    const box = document.createElement("span");
+    box.textContent = checked ? "\u2713" : "";
+    box.style.cssText =
+      "flex:0 0 18px;height:18px;border:2px solid rgba(0,0,0,0.45);border-radius:3px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;margin-top:1px";
+    const t = document.createElement("span");
+    t.textContent = label;
+    row.append(box, t);
+    return row;
+  };
+
   // W2-01 — One recruit's record, proposed.
   //
   // Built on the shipped person record for the really seeded recruit Rosalind
