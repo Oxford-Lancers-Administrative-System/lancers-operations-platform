@@ -92,36 +92,47 @@ Each session carries four figures, deliberately kept separate:
 
 Two things to know before using any of them.
 
-**Requests are deduplicated by `request_id`.** Consecutive assistant records
-share a request id and repeat an identical `usage` block. Summing per record
-overstates tokens — verified here at 264 records against 152 real requests.
+**Requests are collapsed by `request_id`, keeping the highest value per
+field.** Several assistant records share one request id, so summing them counts
+a request many times over — 264 records against 152 real requests in one
+measured session. But which record survives matters just as much. The input and
+cache fields repeat unchanged across those records, while `output_tokens` grows
+as the response streams. Keeping the first record undercounted one reviewer run
+at 7,357 output tokens against a true 53,078, a **7.2x shortfall**. Taking the
+maximum per field fixes it: constant fields are unaffected, and the growing one
+lands at its final value.
 
-**On some sessions `attributed_usage` and `recorded_usage` do not agree, and
-the residual is unexplained.** Only 19 of 77 sessions in this project carry a
-rollup at all. Among those that do:
+**`attributed_usage` and `recorded_usage` still disagree on delegating
+sessions.** Only 19 of 77 sessions in this project carry a rollup at all. Among
+those that do, after the collapse was corrected:
 
-| Session shape                        | `recorded / attributed` output |
-| ------------------------------------ | ------------------------------ |
-| No delegation                        | 1.00 – 1.02                    |
-| Spawned subagents                    | ~4.8 – 6.8                     |
-| One session, no subagents, no `Task` | 9.2                            |
+| Session shape                         | `recorded / attributed` output |
+| ------------------------------------- | ------------------------------ |
+| No delegation                         | 1.00 – 1.02                    |
+| Spawned subagents                     | 1.6 – 2.6                      |
+| One 27-hour session, 17 `Agent` calls | 9.2                            |
 
-The 1.00–1.02 band is benign: it is the messages written after the rollup was
-last flushed. The rest is not.
+The 1.00–1.02 band is benign: messages written after the rollup was last
+flushed. Two known contributors explain the shape of the rest, both about work
+the transcripts never held:
 
-Ruled out: double counting (first, last and max per request id are identical);
-a multi-iteration `usage.iterations` array (every record carries exactly one);
-a truncated transcript (first and last timestamps span the rollup's full
-duration); and subagent traffic being dropped — that was a real bug in this
-extractor, now fixed, and fixing it only narrowed the gap rather than closing
-it. Because one outlier delegated nothing at all, delegation does not explain
-the remainder.
+- **Model labels differ between the transcript and billing.** `message.model`
+  records the base name while the rollup uses the context variant. A session
+  whose records all say `claude-opus-5` is billed under `claude-opus-5[1m]`.
+  Per-model comparisons must expect this.
+- **`Agent` dispatches do not always leave a `subagents/` directory.** The 9.2x
+  session made seventeen `Agent` calls and has none. Its rollup attributes 2.2M
+  output tokens to Sonnet while its transcript holds no Sonnet record at all,
+  so that work is genuinely absent from local logs.
 
-Until it is resolved: `attributed_usage` is complete over what the transcripts
-contain, `recorded_usage` is what Claude Code billed, and any analysis should
-state which it used. `usage_reconciliation` carries both plus an `agrees` flag.
-Treat per-session totals as a floor, and prefer `recorded_usage` when asking
-what a session actually cost in tokens.
+Note the tool is named `Agent`, not `Task`: a session with `agent_run_count` of
+zero has not necessarily delegated nothing. Check `tool_histogram.Agent`.
+
+So `attributed_usage` is complete over what the transcripts contain,
+`recorded_usage` is what Claude Code billed, and any analysis should state
+which it used. `usage_reconciliation` carries both plus an `agrees` flag. Treat
+per-session derived totals as a floor, and prefer `recorded_usage` when asking
+what a session actually cost.
 
 ## Free-text fields
 
