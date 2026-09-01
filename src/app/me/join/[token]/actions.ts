@@ -32,7 +32,7 @@ function toSubmission(values: SignupFieldValues & { consent: boolean }): SignupS
  */
 export async function submitTokenSignup(
   token: string,
-  values: SignupFieldValues & { consent: boolean; linkExistingPersonId: string | null },
+  values: SignupFieldValues & { consent: boolean; confirmedExistingMatch: boolean },
 ): Promise<SignupOutcome> {
   try {
     await withTransaction(async (tx) => {

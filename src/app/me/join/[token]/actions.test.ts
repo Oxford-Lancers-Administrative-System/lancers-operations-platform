@@ -95,7 +95,7 @@ describe("submitTokenSignup", () => {
     const outcome = await submitTokenSignup(token, {
       ...values({ college: "Kestrelhall" }),
       consent: true,
-      linkExistingPersonId: null,
+      confirmedExistingMatch: false,
     });
     expect(outcome).toEqual({ ok: true });
 
@@ -115,8 +115,8 @@ describe("submitTokenSignup", () => {
   it("creates no duplicate person and no second recruit row on a repeat submission", async () => {
     const { personId, token } = await mintPersonAndToken();
 
-    await submitTokenSignup(token, { ...values(), consent: true, linkExistingPersonId: null });
-    await submitTokenSignup(token, { ...values(), consent: true, linkExistingPersonId: null });
+    await submitTokenSignup(token, { ...values(), consent: true, confirmedExistingMatch: false });
+    await submitTokenSignup(token, { ...values(), consent: true, confirmedExistingMatch: false });
 
     const people = await observer.query(
       `select count(*)::int as count from public.people where given_name = $1`,
@@ -136,7 +136,7 @@ describe("submitTokenSignup", () => {
     const outcome = await submitTokenSignup("not-a-real-token", {
       ...values(),
       consent: true,
-      linkExistingPersonId: null,
+      confirmedExistingMatch: false,
     });
     expect(outcome.ok).toBe(false);
   });
