@@ -15,7 +15,12 @@ import fs from "node:fs";
 import process from "node:process";
 
 import { parseNameStatus } from "../fast-lane/classify.mjs";
-import { deriveGitVisualFiles, evaluateMissionGate, loadRules } from "./merge-gate.mjs";
+import {
+  deriveGitVisualFiles,
+  evaluateMissionGate,
+  linkedIssue,
+  loadRules,
+} from "./merge-gate.mjs";
 
 function argument(name) {
   const index = process.argv.indexOf(`--${name}`);
@@ -49,7 +54,7 @@ if (process.env.GITHUB_OUTPUT) {
       `merge=${verdict.merge}`,
       `head_sha=${pullRequest.headRefOid ?? ""}`,
       `package=${verdict.receipt?.package_id ?? ""}`,
-      `issue=${verdict.receipt?.linear_issue_id ?? ""}`,
+      `issue=${verdict.receipt?.linear_issue_id ?? linkedIssue(pullRequest, rules) ?? ""}`,
       "",
     ].join("\n"),
   );

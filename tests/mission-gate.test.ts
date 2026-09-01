@@ -79,14 +79,23 @@ describe("the guarded mission merge gate", () => {
     expect(verdict.receipt?.package_id).toBe("WP-events-filter");
   });
 
-  it("refuses a closed PR, a non-main base, a fork, a missing label, and an unknown mergeable state", () => {
+  it("refuses a closed PR, a non-main base, a fork, and an unknown mergeable state", () => {
     expect(gate({ pullRequest: pullRequest({ state: "MERGED" }) }).merge).toBe(false);
     expect(gate({ pullRequest: pullRequest({ baseRefName: "develop" }) }).merge).toBe(false);
     expect(gate({ pullRequest: pullRequest({ isCrossRepository: true }) }).merge).toBe(false);
-    expect(gate({ pullRequest: pullRequest({ labels: [] }) }).merge).toBe(false);
     const unknown = gate({ pullRequest: pullRequest({ mergeable: "UNKNOWN" }) });
     expect(unknown.merge).toBe(false);
     expect(unknown.reasons.join("\n")).toMatch(/mergeable=UNKNOWN/);
+  });
+
+  // Auto-merge is the default (Brian, 2026-09-01). The label used to be a
+  // conjunct, and it made the owner the default merger: 115 of 122 merged
+  // pull requests never carried it. A refusal must now be earned from
+  // evidence, so an unlabelled pull request merges like any other.
+  it("merges an unlabelled pull request: the label is not a conjunct", () => {
+    const verdict = gate({ pullRequest: pullRequest({ labels: [] }) });
+    expect(verdict.reasons).toEqual([]);
+    expect(verdict.merge).toBe(true);
   });
 
   it("refuses an empty diff and every prohibited surface, judging renames on both names", () => {
@@ -100,7 +109,6 @@ describe("the guarded mission merge gate", () => {
       "scripts/fast-lane/gate.mjs",
       "package.json",
       "Dockerfile",
-      "docs/adr/0027-mission-harness.md",
       "docs/mission-harness.md",
       "AGENTS.md",
       "tests/agent-harness.test.ts",
@@ -110,7 +118,7 @@ describe("the guarded mission merge gate", () => {
       "src/lib/supabase/admin.ts",
       "src/lib/db/url.ts",
       "src/app/login/page.tsx",
-      ".env.example",
+      "missions/packets/M-RECRUITMENT/packet.json",
     ]) {
       const verdict = gate({ files: [{ status: "M", path: file }] });
       expect(verdict.merge).toBe(false);
@@ -133,16 +141,56 @@ describe("the guarded mission merge gate", () => {
           { status: "M", path: "vitest.config.ts" },
           { status: "M", path: "scripts/seed-local.mjs" },
           { status: "M", path: "src/lib/db/errors.ts" },
+          // Narrowed 2026-09-01: none of these is executed by CI or deploy,
+          // and none is schema, an agent file or a trust boundary. Between
+          // them they forced 61 owner merges.
+          { status: "M", path: "docs/adr/0028-role-catalogue.md" },
+          { status: "M", path: "scripts/pilot/lan-80/setup.sql" },
+          { status: "M", path: ".env.example" },
+          { status: "M", path: ".gitignore" },
+          { status: "M", path: "next.config.ts" },
+          { status: "M", path: "missions/intake/M-RECRUITMENT/01-overview.md" },
         ],
         rules,
       ),
     ).toEqual([]);
   });
 
-  it("refuses a missing, ambiguous, or malformed receipt", () => {
+  // The receipt route only ever served work packages — 30 of 122 merged pull
+  // requests — so corrections, seed fixes, documentation and ordinary visual
+  // work were permanently owner-merged however safe the diff was. A pull
+  // request without a receipt now takes the standard route: the same
+  // prohibited-path scan, the same required checks, plus the traceability
+  // AGENTS.md already demands.
+  it("merges a receiptless pull request that names an issue: the standard route", () => {
+    const verdict = gate({
+      pullRequest: pullRequest({ body: "Replace the phone bottom bar (LAN-195)" }),
+    });
+    expect(verdict.reasons).toEqual([]);
+    expect(verdict.merge).toBe(true);
+    expect(verdict.receipt).toBeNull();
+  });
+
+  it("refuses a receiptless pull request that traces to no issue", () => {
     expect(
-      gate({ pullRequest: pullRequest({ body: "no receipt here" }) }).reasons.join("\n"),
-    ).toMatch(/No mission-merge receipt/);
+      gate({ pullRequest: pullRequest({ title: "tidy up", body: "no issue here" }) }).reasons.join(
+        "\n",
+      ),
+    ).toMatch(/names no Linear issue/);
+  });
+
+  // The middle tier is a citation requirement, and a citation lives in a
+  // receipt. With no receipt there is nothing to cite.
+  it("refuses an auth or delivery diff on the standard route", () => {
+    const verdict = gate({
+      pullRequest: pullRequest({ body: "LAN-200" }),
+      files: [{ status: "M", path: "src/lib/auth/capabilities.ts" }],
+    });
+    expect(verdict.merge).toBe(false);
+    expect(verdict.reasons.join("\n")).toMatch(/checkpoint-approval surface/);
+  });
+
+  it("still refuses an ambiguous or malformed receipt", () => {
     const doubled = bodyWith(receipt()) + bodyWith(receipt());
     expect(extractReceipt(doubled, rules)).toBeNull();
     expect(extractReceipt("```mission-merge-receipt\nnot json\n```", rules)).toBeNull();
