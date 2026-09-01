@@ -1,16 +1,12 @@
 # W8 — Resolve a possible duplicate
 
-- Purpose/intended outcome: the door an operator is already standing at tells
-  them whether this person is already in the club, and one click settles it —
-  without ever having silently created a person, merged two, or messaged a
-  member.
+- Purpose/intended outcome: the door an operator is already at tells them
+  whether this person is already in the club, and one click settles it — without
+  ever having silently created a person, merged two, or messaged a member.
 - Primary actor: an operator holding the core four authority.
 - Trigger: an operator is adding somebody at a door that runs the check.
-- Entry point: none of its own. The check is a step inside whichever door is
-  open, never a page an operator visits.
-- Route/placement: none of its own. It renders on the door's own surface —
-  `/operate/recruitment/new` for the recruit door, as `/operate/people/new`
-  implements it on `main`.
+- Entry point: none of its own; the check is a step inside whichever door is open.
+- Route/placement: none of its own; it renders on the door's own surface.
 - Controlling source: Task 09 D7 and §3, which lock dedup-before-create at every
   door; Brian's 2026-08-31 direction that the check belongs to the door and not
   to a page, and his 2026-09-01 confirmation that a real duplicate is resolved by
@@ -103,15 +99,10 @@ table, and that can be handled there simply."_
 
 ## Required actions
 
-1. Type the name and contact details into the door that is already open.
-2. Press the form's own check and see the candidates it answers with, each
-   saying who it is — membership status, season, or recruit rung.
-3. Choose: **this is them** (link to the existing record, create nothing) or
-   **this is somebody new** (create, and `W3` fires).
-4. Be refused a create past an exact match without a written reason, as the
-   shipped form already refuses it.
-
-Nothing is parked, nothing waits, and there is no list to come back to.
+1. Press the door's own check and read the candidates, each saying who it is.
+2. Choose: **this is them** (link, create nothing) or **this is somebody new**
+   (create, and `W3` fires).
+3. Be refused a create past an exact match without a written reason.
 
 ## State transitions
 
@@ -155,18 +146,16 @@ messaged. On create: person minted, prospect at `identified`, `W3` fires.
   check as the shell, both sides at measured 1280px and 375px, with `W8-01`'s
   proposed side produced by driving the real form rather than by drawing its
   output. `W8-01` is photographed on `/operate/people/new` because that is the
-  surface implementing the check on `main`; the recruit door it will render on
-  does not exist yet and every frame says so.
+  surface implementing the check on `main`, and every frame says so.
 
 ## Core decisions
 
-| Decision                                                      | Classification | Governing evidence or recommended default                                                 | Status  |
-| ------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------- | ------- |
-| Dedup at intake, never at the flip                            | `locked`       | Task 09 D7                                                                                | Settled |
-| Nothing is created or messaged until a human decides          | `locked`       | Task 09 §3                                                                                | Settled |
-| The check runs at the door and is never a page of its own     | `locked`       | Brian, 2026-08-31: the check belongs to the door, not to a page                           | Settled |
-| A real duplicate is resolved by the people record's own merge | `locked`       | Brian, 2026-09-01: "that's a normal merge record that is handled on the people record"    | Settled |
-| Each candidate says who it is, in the club's own vocabulary   | `locked`       | Brian, 2026-08-31: status, season and recruit rung, so two Brindlewoods can be told apart | Settled |
+| Decision                                                      | Classification | Governing evidence or recommended default                                              | Status  |
+| ------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------- | ------- |
+| Dedup at intake, never at the flip                            | `locked`       | Task 09 D7                                                                             | Settled |
+| Nothing is created or messaged until a human decides          | `locked`       | Task 09 §3                                                                             | Settled |
+| The check runs at the door and is never a page of its own     | `locked`       | Brian, 2026-08-31: the check belongs to the door, not to a page                        | Settled |
+| A real duplicate is resolved by the people record's own merge | `locked`       | Brian, 2026-09-01: "that's a normal merge record that is handled on the people record" | Settled |
 
 ## Brian approval
 
