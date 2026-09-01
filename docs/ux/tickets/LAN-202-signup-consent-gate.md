@@ -29,10 +29,10 @@ Sources, in the authority order `slice-ux.md` §1 sets:
 Both doors render the same `SignupForm` component
 (`src/app/join/[code]/signup-form.tsx`), parameterised by `mode`:
 
-| Door                    | Route              | Credential                                                 | Prefilled | Duplicate question |
-| ----------------------- | ------------------- | ------------------------------------------------------------ | --------- | ------------------- |
-| QR (anonymous)          | `/join/[code]`      | `recruitment_signup_codes.code` — not a secret, one per season | No        | Yes, when a mobile is given |
-| WhatsApp link (existing) | `/me/join/[token]`  | `person_access_tokens`, durable, non-single-use (the same substrate `/me/[token]` reads) | Yes | No — the token already names one person |
+| Door                     | Route              | Credential                                                                               | Prefilled | Duplicate question                      |
+| ------------------------ | ------------------ | ---------------------------------------------------------------------------------------- | --------- | --------------------------------------- |
+| QR (anonymous)           | `/join/[code]`     | `recruitment_signup_codes.code` — not a secret, one per season                           | No        | Yes, when a mobile is given             |
+| WhatsApp link (existing) | `/me/join/[token]` | `person_access_tokens`, durable, non-single-use (the same substrate `/me/[token]` reads) | Yes       | No — the token already names one person |
 
 `/me/stop/[token]` is the opt-out surface (item 6), reached the same way, under
 the same `/me/` prefix.
