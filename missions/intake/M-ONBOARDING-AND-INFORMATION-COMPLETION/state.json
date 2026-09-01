@@ -88,7 +88,7 @@
     {
       "id": "W3",
       "name": "A flipped recruit lands in onboarding",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -1617,5 +1617,5 @@
     ],
     "approval": null
   },
-  "next_action": "Begin W3 — A flipped recruit lands in onboarding: specification, then mockups"
+  "next_action": "W3 — specification and one photographed screen drafted, awaiting Brian: two proposed decisions"
 }

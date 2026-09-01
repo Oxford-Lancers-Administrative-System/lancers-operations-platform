@@ -1,0 +1,835 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W3 specification</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: #e7e9ee;
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: #212121;
+        color: #fff;
+        padding: 11px 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .layout {
+        display: flex;
+        gap: 26px;
+        max-width: 1220px;
+        margin: 26px auto 90px;
+        padding: 0 22px;
+        align-items: flex-start;
+      }
+      nav.toc {
+        position: sticky;
+        top: 68px;
+        flex: 0 0 252px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 16px 8px 16px 16px;
+        max-height: calc(100vh - 104px);
+        overflow: auto;
+      }
+      nav.toc h2 {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--sec);
+        margin: 0 0 10px;
+        border: 0;
+        padding: 0;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc > ol > li {
+        margin-bottom: 4px;
+      }
+      nav.toc a {
+        display: block;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13.5px;
+        padding: 4px 8px;
+        border-radius: 5px;
+      }
+      nav.toc a:hover {
+        background: var(--grey100);
+      }
+      nav.toc .sub {
+        padding-left: 11px;
+        margin-bottom: 6px;
+      }
+      nav.toc .sub a {
+        color: var(--sec);
+        font-size: 12.5px;
+        padding: 2px 8px;
+      }
+      main {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      section.doc {
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 4px 34px 30px;
+        margin-bottom: 22px;
+      }
+      section.doc > header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 16px 0 11px;
+        border-bottom: 1px solid var(--divider);
+      }
+      section.doc > header h2 {
+        font-size: 1.02rem;
+        margin: 0;
+        border: 0;
+        padding: 0;
+      }
+      section.doc > header .file {
+        font-size: 12px;
+        color: var(--sec);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        margin-left: auto;
+      }
+      h1 {
+        font-size: 1.45rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.1rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 0.98rem;
+        margin: 20px 0 6px;
+      }
+      h4 {
+        font-size: 0.92rem;
+        margin: 16px 0 4px;
+        color: var(--sec);
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul,
+      ol {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      .tablewrap {
+        overflow-x: auto;
+        margin: 14px 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+      }
+      a {
+        color: var(--primary);
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        margin: 22px 0;
+      }
+      .chip {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        padding: 2px 9px;
+        border-radius: 11px;
+        white-space: nowrap;
+      }
+      .chip.ok {
+        background: #edf7ed;
+        color: #1b5e20;
+      }
+      .chip.warn {
+        background: #fff4e5;
+        color: #663c00;
+      }
+      .chip.idle {
+        background: var(--grey100);
+        color: var(--sec);
+      }
+      @media (max-width: 900px) {
+        .layout {
+          display: block;
+          padding: 0 12px;
+        }
+        nav.toc {
+          position: static;
+          width: auto;
+          margin-bottom: 18px;
+          max-height: none;
+        }
+        section.doc {
+          padding: 4px 18px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        W3 — A flipped recruit lands in onboarding<span
+          >M-ONBOARDING-AND-INFORMATION-COMPLETION · main@332bc6b</span
+        >
+      </div>
+      <div>
+        <a href="../mockups/index.html">Index</a>
+        <a href="../specifications.html">All specifications</a>
+        <a href="../mockups/W3-a-flipped-recruit-lands-in-onboarding.html">Screens</a>
+      </div>
+    </div>
+    <div class="layout">
+      <nav class="toc">
+        <h2>On this page</h2>
+        <ol>
+          <li><a href="#s6-h2">The seam, stated exactly</a></li>
+          <li><a href="#s6-h3">Current main grounding</a></li>
+          <li><a href="#s6-h4">What the substrate already gives us</a></li>
+          <li><a href="#s6-h5">Required actions</a></li>
+          <li><a href="#s6-h6">State transitions</a></li>
+          <li><a href="#s6-h7">Handoffs</a></li>
+          <li><a href="#s6-h8">Dependencies and mission boundaries</a></li>
+          <li><a href="#s6-h9">Exceptions and recovery</a></li>
+          <li><a href="#s6-h10">Safety, privacy, consent, and authority boundaries</a></li>
+          <li><a href="#s6-h11">Acceptance evidence</a></li>
+          <li><a href="#s6-h12">Core decisions</a></li>
+          <li><a href="#s6-h13">Brian approval</a></li>
+        </ol>
+      </nav>
+      <main>
+        <section class="doc">
+          <header>
+            <h2>W3 — A flipped recruit lands in onboarding</h2>
+            <span class="chip warn">draft, not approved</span>
+            <span class="file">workflows/W3-a-flipped-recruit-lands-in-onboarding.md</span>
+          </header>
+          <h1 id="s6-h1">W3 — A flipped recruit lands in onboarding</h1>
+          <ul>
+            <li>
+              Purpose/intended outcome: Mission 6's <code>W14</code> ends at the words
+              &quot;onboarding opens&quot;. This workflow is what those words mean. A recruit the
+              club has been talking to for weeks arrives on the roster without being asked again for
+              anything they have already said.
+            </li>
+            <li>
+              Primary actor: A four-role operator — but only as the flip's actor.
+              <strong>This workflow has no action of its own</strong>: everything here is the
+              consequence of one decision taken in Mission 6.
+            </li>
+            <li>
+              Trigger: Mission 6's <code>W14</code> commits — prospect → <code>joined</code>, season
+              membership created at <code>onboarding</code>.
+            </li>
+            <li>Entry point: None. It is not reached; it happens.</li>
+            <li>
+              Route/placement: The operator lands wherever <code>W14</code> sends them. The state
+              this workflow produces is read on <code>/operate/roster/[membershipId]</code>, which
+              exists.
+            </li>
+            <li>
+              Controlling source: <code>S3</code>, <code>S12</code>, <code>S13</code>;
+              <code>R5</code>, <code>T11-supersede-on-conversion</code>,
+              <code>OD7-two-doors-lens</code>, <code>OD7-flip-workflow</code>; and Mission 6's
+              <code>workflows/W14-flip-a-recruit-to-joined.md</code> on <code>main</code>.
+            </li>
+            <li>
+              User-visible result: They are on the roster in onboarding with a checklist generated,
+              everything they already told the club carried across, their recruit link retired, and
+              their welcome queued.
+            </li>
+          </ul>
+          <h2 id="s6-h2">The seam, stated exactly</h2>
+          <p>
+            Mission 6's <code>W14</code> is merged and specific. In one transaction it produces:
+            prospect → <code>joined</code>, a season membership
+            <strong>at <code>onboarding</code></strong
+            >, a roster row, an audit row — and it says &quot;onboarding opens&quot;. It is explicit
+            that this is <strong>not active</strong>: &quot;Activation is a separate later human
+            gate at the end of onboarding and is Mission 7's.&quot;
+          </p>
+          <p>
+            <code>S3</code> records the gap precisely: &quot;Mission 6's W14 creates the membership
+            and states that onboarding opens.
+            <strong>What opens it, what generates and what is sent is defined in no mission.</strong
+            >&quot; That is this workflow, and it is four things:
+          </p>
+          <ol>
+            <li>
+              <strong>The checklist generates</strong> — the same
+              <code>generateOnboardingItems</code> call W1 and W2 already make, in
+              <code>W14</code>'s own transaction.
+            </li>
+            <li><strong>The recruit's answers carry across</strong> (<code>S12</code>).</li>
+            <li>
+              <strong>The recruit's open link is superseded, audited</strong> (<code>S13</code>,
+              <code>T11-supersede-on-conversion</code>).
+            </li>
+            <li>
+              <strong>The welcome is queued</strong> — the same message, the same template, as both
+              other doors (<code>OD7-two-doors-lens</code>, <code>M2</code>).
+            </li>
+          </ol>
+          <p>
+            <strong>Mission 6 owns the flip; this mission owns its far side.</strong> The
+            interruption dialog, the status cell and the board are <code>W14</code>'s and are drawn
+            on its review page. Nothing here redraws them.
+          </p>
+          <h2 id="s6-h3">Current <code>main</code> grounding</h2>
+          <ul>
+            <li>
+              Baseline: <code>main@332bc6b</code>, whose head commit is the recruitment schema
+              itself. The substrate exists; <strong>the surfaces do not.</strong> LAN-201 (schema)
+              and LAN-202 (sign-up form) are Done;
+              <strong
+                >LAN-204, which builds the board, the record and the flip, is in Backlog.</strong
+              >
+              There is therefore no recruit board and no flip to photograph, and the seed holds two
+              prospects, none converted, no questionnaire responses and no consent rows.
+            </li>
+            <li>
+              What that means for evidence: rather than propose a flipped recruit onto a long-seeded
+              player's record, <strong>one was seeded locally and photographed</strong>. The record
+              shows a real <code>recruitment_prospects</code> row at <code>joined</code> pointing at
+              a real <code>season_memberships</code> row at <code>onboarding</code> through
+              <code>converted_membership_id</code>, the seven onboarding items the checklist
+              generates, and a <code>season_messaging_consents</code> row granted at the door on 14
+              August. The first draft proposed all of it onto another player and argued with itself
+              in four places — sixty rows of club attendance under a status history saying they
+              joined that morning, a season confirmed in April, items completed on 30 April, and the
+              page heading carrying the other person's name. Seeding the real thing removed every
+              one of those rather than papering over them.
+            </li>
+            <li>
+              Reused component, language, interaction, and permission patterns: entirely Mission 5's
+              person record and roster board. This workflow proposes
+              <strong>no new surface and no new card</strong>.
+            </li>
+          </ul>
+          <h2 id="s6-h4">What the substrate already gives us</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Need</th>
+                  <th>Where it already lives</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>The recruit → membership link</td>
+                  <td><code>recruitment_prospects.converted_membership_id</code></td>
+                </tr>
+                <tr>
+                  <td>Their questionnaire answers</td>
+                  <td>
+                    <code>recruitment_questionnaire_responses</code>, keyed by prospect, with a
+                    <code>superseded_at</code> idiom and one current row per question
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Their consent</strong></td>
+                  <td>
+                    <code>season_messaging_consents</code>,
+                    <strong>unique per person per season</strong>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Their open recruit link</td>
+                  <td>
+                    <code>recruitment_signup_codes</code> is the season QR; the recruit's own
+                    compiled ask is Mission 6's request record
+                  </td>
+                </tr>
+                <tr>
+                  <td>The checklist</td>
+                  <td>
+                    <code>onboarding_item_types</code> → <code>onboarding_items</code>, generated by
+                    <code>generateOnboardingItems</code>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <strong>Consent needs no copying, and this is the load-bearing detail.</strong>
+            <code>season_messaging_consents</code> is unique on <code>(person_id, season_id)</code>.
+            A recruit who ticked at the door this season already holds that row, and the flip does
+            not change the person or the season — so the row simply <em>is</em> their consent. It is
+            neither carried nor re-asked. Next season it is asked again, of everybody.
+          </p>
+          <h2 id="s6-h5">Required actions</h2>
+          <p>
+            None by this workflow's actor. Its whole content is what the flip's transaction must
+            additionally do, and what an operator then sees.
+          </p>
+          <h2 id="s6-h6">State transitions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>What</th>
+                  <th>Value on landing</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Season membership</td>
+                  <td>
+                    <code>onboarding</code> — Mission 6 creates it; <code>R5</code> says
+                    <code>confirmed</code> is an action, never a resting status
+                  </td>
+                </tr>
+                <tr>
+                  <td>Onboarding items</td>
+                  <td>
+                    The full season checklist, generated in the same transaction. Idempotent, so a
+                    season with no configured types is a no-op
+                  </td>
+                </tr>
+                <tr>
+                  <td>The recruit's compiled ask</td>
+                  <td>
+                    <strong>Superseded, audited.</strong> The onboarding ask becomes the only live
+                    one — at most one open ask per person, ever
+                  </td>
+                </tr>
+                <tr>
+                  <td>Consent</td>
+                  <td>Unchanged, and already granted this season. Not re-asked</td>
+                </tr>
+                <tr>
+                  <td>The welcome</td>
+                  <td>Queued</td>
+                </tr>
+                <tr>
+                  <td>The prospect record</td>
+                  <td>
+                    Retained, linked by <code>converted_membership_id</code>. Nothing is deleted
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <strong>All of it inside <code>W14</code>'s single transaction</strong>, or none of it.
+            A membership that exists with no checklist, or a live recruit link beside a live
+            onboarding link, is the failure this avoids.
+          </p>
+          <h2 id="s6-h7">Handoffs</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>To / from</th>
+                  <th>What crosses</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>From Mission 6</td>
+                  <td>
+                    The committed flip: membership at <code>onboarding</code>, roster row, audit.
+                    Its <code>W14</code> is merged and specific
+                  </td>
+                </tr>
+                <tr>
+                  <td>To <code>W4</code></td>
+                  <td>
+                    The welcome, and <strong>a form that arrives pre-filled</strong> — the pre-fill
+                    rule is this workflow's, the form is <code>W4</code>'s
+                  </td>
+                </tr>
+                <tr>
+                  <td>To <code>W6</code></td>
+                  <td>
+                    The checklist, and the provenance of every carried value.
+                    <strong
+                      >Where the supersession and the queued welcome show on the record is W6's
+                      activity log</strong
+                    >, not this workflow's
+                  </td>
+                </tr>
+                <tr>
+                  <td>To <code>W8</code></td>
+                  <td>
+                    They join the outstanding population, chased on the same cadence as anybody else
+                  </td>
+                </tr>
+                <tr>
+                  <td>To Mission 5</td>
+                  <td>The roster row and the record that render all of it</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s6-h8">Dependencies and mission boundaries</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Seam</th>
+                  <th>This mission's side</th>
+                  <th>The other side</th>
+                  <th>Blocking?</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Mission 6 · the flip</td>
+                  <td>Everything after the transaction commits</td>
+                  <td>The interruption, the status cell, the board, the transaction itself</td>
+                  <td>
+                    <strong>Not blocking to specify</strong> — <code>W14</code> is merged and
+                    precise. <strong>Blocking to walk</strong>: LAN-204 is in Backlog, so there is
+                    no flip to run
+                  </td>
+                </tr>
+                <tr>
+                  <td>Mission 6 · questionnaire answers</td>
+                  <td>Reading them as pre-fill</td>
+                  <td>Asking them, and their supersession idiom</td>
+                  <td>Independently walkable — the tables exist</td>
+                </tr>
+                <tr>
+                  <td>Mission 6 · the recruit's ask</td>
+                  <td>Superseding it at the flip</td>
+                  <td>Creating it</td>
+                  <td>Independently walkable</td>
+                </tr>
+                <tr>
+                  <td>Mission 5 · the record and roster</td>
+                  <td>Nothing — both consumed unchanged</td>
+                  <td>Both surfaces</td>
+                  <td>Independently walkable</td>
+                </tr>
+                <tr>
+                  <td>Mission 4 · dispatch</td>
+                  <td>Enqueuing <code>onboarding-opened</code></td>
+                  <td>Scheduler and transport</td>
+                  <td>Independently walkable</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s6-h9">Exceptions and recovery</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>What goes wrong</th>
+                  <th>What happens</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>The checklist cannot generate</td>
+                  <td>
+                    The whole flip rolls back. Mission 6's <code>W14-03</code> already draws the
+                    refusal when the membership cannot be created
+                  </td>
+                </tr>
+                <tr>
+                  <td>The recruit's link cannot be superseded</td>
+                  <td>
+                    The flip rolls back. Two live asks for one person breaks the one-open-ask
+                    invariant
+                  </td>
+                </tr>
+                <tr>
+                  <td>The welcome cannot be queued</td>
+                  <td>
+                    The flip rolls back. A person moved onto the roster and never told is the
+                    failure this exists to prevent
+                  </td>
+                </tr>
+                <tr>
+                  <td>They have no mobile</td>
+                  <td>
+                    Mission 6's doors require one, as W2 now does. If one is ever missing, the flip
+                    refuses rather than landing silently
+                  </td>
+                </tr>
+                <tr>
+                  <td>They already hold a membership this season</td>
+                  <td>
+                    Mission 6's problem, before the flip; the schema's composite keys already bind
+                    <code>converted</code> to one membership
+                  </td>
+                </tr>
+                <tr>
+                  <td>They consented, then withdrew, before the flip</td>
+                  <td>
+                    Withdrawn is withdrawn. The welcome is the one message permitted in order to
+                    obtain consent, so it still goes; nothing else does
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s6-h10">Safety, privacy, consent, and authority boundaries</h2>
+          <ul>
+            <li>
+              <strong>The consent row is the recruit's own</strong>, granted at the door with its
+              <code>source</code> recorded. The flip neither re-writes nor re-asks it, and
+              re-writing it would destroy the provenance of a permission a person actually gave.
+            </li>
+            <li>
+              <strong>One live ask, always.</strong> The supersession is what keeps that true across
+              the door.
+            </li>
+            <li>
+              <strong>Nothing is deleted.</strong> The prospect record is retained and linked.
+            </li>
+            <li>
+              <strong>Nothing gates.</strong> A flipped recruit is a full member of the squad on
+              landing.
+            </li>
+            <li>
+              <strong>No new authority.</strong> The only actor is <code>W14</code>'s four-role
+              operator.
+            </li>
+          </ul>
+          <h2 id="s6-h11">Acceptance evidence</h2>
+          <ul>
+            <li>
+              With Mission 6's flip available: flipping a recruit lands them at
+              <code>onboarding</code> with the full checklist, their answers on the record, their
+              recruit ask superseded, and exactly one welcome queued.
+            </li>
+            <li>
+              Their consent row is the same row, unchanged, with its original source and date.
+            </li>
+            <li>A second flip attempt writes nothing.</li>
+            <li>
+              The welcome is byte-identical in template to an imported player's — proven by
+              comparing queued rows across all three doors.
+            </li>
+            <li>
+              <strong>Until LAN-204 ships</strong>, the walk is done by exercising the far side
+              directly against a seeded prospect and asserting the same end state; recorded as a
+              limitation rather than a pass.
+            </li>
+            <li>
+              <code>grounding: application-walked</code> — the record is photographed on both sides
+              against a locally seeded flipped recruit. The <strong>flip itself</strong> is still
+              not walkable, because LAN-204 is in Backlog; the far side is exercised directly and
+              that limitation is recorded rather than passed over.
+            </li>
+          </ul>
+          <h2 id="s6-h12">Core decisions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Decision</th>
+                  <th>Classification</th>
+                  <th>Governing evidence or recommended default</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>The four consequences all happen inside Mission 6's flip transaction</td>
+                  <td>locked</td>
+                  <td>
+                    <code>S3</code>; and <code>W14</code>'s own &quot;all of it, or none of it&quot;
+                  </td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>The welcome is the same message and template as the other two doors</td>
+                  <td>locked</td>
+                  <td>
+                    <code>OD7-two-doors-lens</code>, <code>M2</code>, and W1's approved decision
+                  </td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>The recruit's open ask is superseded and audited at the flip</td>
+                  <td>locked</td>
+                  <td>
+                    <code>T11-supersede-on-conversion</code>, <code>S13</code>, and the one-open-ask
+                    invariant
+                  </td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>
+                    Consent is neither copied nor re-asked — the row already exists for this person
+                    and season
+                  </td>
+                  <td>locked</td>
+                  <td>
+                    <code>season_messaging_consents</code> unique
+                    <code>(person_id, season_id)</code>, and the approved item inventory
+                  </td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>Their questionnaire answers arrive pre-filled and are not asked again</td>
+                  <td>locked</td>
+                  <td>
+                    <code>S12</code>, <code>OD7-recheck-prefill</code>, and the approved item
+                    inventory's carry-across table
+                  </td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong
+                      >No new <code>membership_entry</code> value for &quot;came through
+                      recruitment&quot;</strong
+                    >
+                  </td>
+                  <td>proposed for owner approval</td>
+                  <td>
+                    <code>membership_entry</code> is <code>('new','returning')</code> and describes
+                    whether they are new to the club, not which door they used. The prospect record
+                    and its <code>converted_membership_id</code> carry the provenance.
+                    <strong
+                      >But the photograph makes the cost visible: on this record a flipped recruit
+                      is indistinguishable from a hand-added player</strong
+                    >
+                    — Entry reads <code>New</code> and nothing names recruitment. Recommended: still
+                    add nothing to the enum, and let W6's activity log carry it; but this is the
+                    decision most worth overruling, and the screen is the argument against my own
+                    recommendation
+                  </td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td><strong>This workflow draws no new surface and no new card</strong></td>
+                  <td>proposed for owner approval</td>
+                  <td>
+                    Everything it produces is read on Mission 5's record and roster. Where the
+                    supersession and the queued welcome appear is W6's activity log. Recommended:
+                    yes
+                  </td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>Which questionnaire answers map to which onboarding fields</td>
+                  <td>delegated to Mission Lead</td>
+                  <td>
+                    The approved item inventory's carry-across table already fixes the set; the
+                    column mapping is mechanical
+                  </td>
+                  <td>open</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s6-h13">Brian approval</h2>
+          <ul>
+            <li>Exact words:</li>
+            <li>Date:</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

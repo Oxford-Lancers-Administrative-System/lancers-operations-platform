@@ -1,0 +1,180 @@
+# W3 — A flipped recruit lands in onboarding
+
+- Purpose/intended outcome: Mission 6's `W14` ends at the words "onboarding
+  opens". This workflow is what those words mean. A recruit the club has been
+  talking to for weeks arrives on the roster without being asked again for
+  anything they have already said.
+- Primary actor: A four-role operator — but only as the flip's actor. **This
+  workflow has no action of its own**: everything here is the consequence of one
+  decision taken in Mission 6.
+- Trigger: Mission 6's `W14` commits — prospect → `joined`, season membership
+  created at `onboarding`.
+- Entry point: None. It is not reached; it happens.
+- Route/placement: The operator lands wherever `W14` sends them. The state this
+  workflow produces is read on `/operate/roster/[membershipId]`, which exists.
+- Controlling source: `S3`, `S12`, `S13`; `R5`, `T11-supersede-on-conversion`,
+  `OD7-two-doors-lens`, `OD7-flip-workflow`; and Mission 6's
+  `workflows/W14-flip-a-recruit-to-joined.md` on `main`.
+- User-visible result: They are on the roster in onboarding with a checklist
+  generated, everything they already told the club carried across, their recruit
+  link retired, and their welcome queued.
+
+## The seam, stated exactly
+
+Mission 6's `W14` is merged and specific. In one transaction it produces:
+prospect → `joined`, a season membership **at `onboarding`**, a roster row, an
+audit row — and it says "onboarding opens". It is explicit that this is **not
+active**: "Activation is a separate later human gate at the end of onboarding and
+is Mission 7's."
+
+`S3` records the gap precisely: "Mission 6's W14 creates the membership and
+states that onboarding opens. **What opens it, what generates and what is sent is
+defined in no mission.**" That is this workflow, and it is four things:
+
+1. **The checklist generates** — the same `generateOnboardingItems` call W1 and
+   W2 already make, in `W14`'s own transaction.
+2. **The recruit's answers carry across** (`S12`).
+3. **The recruit's open link is superseded, audited** (`S13`,
+   `T11-supersede-on-conversion`).
+4. **The welcome is queued** — the same message, the same template, as both
+   other doors (`OD7-two-doors-lens`, `M2`).
+
+**Mission 6 owns the flip; this mission owns its far side.** The interruption
+dialog, the status cell and the board are `W14`'s and are drawn on its review
+page. Nothing here redraws them.
+
+## Current `main` grounding
+
+- Baseline: `main@332bc6b`, whose head commit is the recruitment schema itself.
+  The substrate exists; **the surfaces do not.** LAN-201 (schema) and LAN-202
+  (sign-up form) are Done; **LAN-204, which builds the board, the record and the
+  flip, is in Backlog.** There is therefore no recruit board and no flip to
+  photograph, and the seed holds two prospects, none converted, no questionnaire
+  responses and no consent rows.
+- What that means for evidence: rather than propose a flipped recruit onto a
+  long-seeded player's record, **one was seeded locally and photographed**. The
+  record shows a real `recruitment_prospects` row at `joined` pointing at a real
+  `season_memberships` row at `onboarding` through `converted_membership_id`,
+  the seven onboarding items the checklist generates, and a
+  `season_messaging_consents` row granted at the door on 14 August. The first
+  draft proposed all of it onto another player and argued with itself in four
+  places — sixty rows of club attendance under a status history saying they
+  joined that morning, a season confirmed in April, items completed on 30 April,
+  and the page heading carrying the other person's name. Seeding the real thing
+  removed every one of those rather than papering over them.
+- Reused component, language, interaction, and permission patterns: entirely
+  Mission 5's person record and roster board. This workflow proposes **no new
+  surface and no new card**.
+
+## What the substrate already gives us
+
+| Need                          | Where it already lives                                                                                                  |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| The recruit → membership link | `recruitment_prospects.converted_membership_id`                                                                         |
+| Their questionnaire answers   | `recruitment_questionnaire_responses`, keyed by prospect, with a `superseded_at` idiom and one current row per question |
+| **Their consent**             | `season_messaging_consents`, **unique per person per season**                                                           |
+| Their open recruit link       | `recruitment_signup_codes` is the season QR; the recruit's own compiled ask is Mission 6's request record               |
+| The checklist                 | `onboarding_item_types` → `onboarding_items`, generated by `generateOnboardingItems`                                    |
+
+**Consent needs no copying, and this is the load-bearing detail.**
+`season_messaging_consents` is unique on `(person_id, season_id)`. A recruit who
+ticked at the door this season already holds that row, and the flip does not
+change the person or the season — so the row simply _is_ their consent. It is
+neither carried nor re-asked. Next season it is asked again, of everybody.
+
+## Required actions
+
+None by this workflow's actor. Its whole content is what the flip's transaction
+must additionally do, and what an operator then sees.
+
+## State transitions
+
+| What                       | Value on landing                                                                                                          |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Season membership          | `onboarding` — Mission 6 creates it; `R5` says `confirmed` is an action, never a resting status                           |
+| Onboarding items           | The full season checklist, generated in the same transaction. Idempotent, so a season with no configured types is a no-op |
+| The recruit's compiled ask | **Superseded, audited.** The onboarding ask becomes the only live one — at most one open ask per person, ever             |
+| Consent                    | Unchanged, and already granted this season. Not re-asked                                                                  |
+| The welcome                | Queued                                                                                                                    |
+| The prospect record        | Retained, linked by `converted_membership_id`. Nothing is deleted                                                         |
+
+**All of it inside `W14`'s single transaction**, or none of it. A membership that
+exists with no checklist, or a live recruit link beside a live onboarding link,
+is the failure this avoids.
+
+## Handoffs
+
+| To / from      | What crosses                                                                                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| From Mission 6 | The committed flip: membership at `onboarding`, roster row, audit. Its `W14` is merged and specific                                                                      |
+| To `W4`        | The welcome, and **a form that arrives pre-filled** — the pre-fill rule is this workflow's, the form is `W4`'s                                                           |
+| To `W6`        | The checklist, and the provenance of every carried value. **Where the supersession and the queued welcome show on the record is W6's activity log**, not this workflow's |
+| To `W8`        | They join the outstanding population, chased on the same cadence as anybody else                                                                                         |
+| To Mission 5   | The roster row and the record that render all of it                                                                                                                      |
+
+## Dependencies and mission boundaries
+
+| Seam                              | This mission's side                      | The other side                                                       | Blocking?                                                                                                                          |
+| --------------------------------- | ---------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Mission 6 · the flip              | Everything after the transaction commits | The interruption, the status cell, the board, the transaction itself | **Not blocking to specify** — `W14` is merged and precise. **Blocking to walk**: LAN-204 is in Backlog, so there is no flip to run |
+| Mission 6 · questionnaire answers | Reading them as pre-fill                 | Asking them, and their supersession idiom                            | Independently walkable — the tables exist                                                                                          |
+| Mission 6 · the recruit's ask     | Superseding it at the flip               | Creating it                                                          | Independently walkable                                                                                                             |
+| Mission 5 · the record and roster | Nothing — both consumed unchanged        | Both surfaces                                                        | Independently walkable                                                                                                             |
+| Mission 4 · dispatch              | Enqueuing `onboarding-opened`            | Scheduler and transport                                              | Independently walkable                                                                                                             |
+
+## Exceptions and recovery
+
+| What goes wrong                                | What happens                                                                                                                     |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| The checklist cannot generate                  | The whole flip rolls back. Mission 6's `W14-03` already draws the refusal when the membership cannot be created                  |
+| The recruit's link cannot be superseded        | The flip rolls back. Two live asks for one person breaks the one-open-ask invariant                                              |
+| The welcome cannot be queued                   | The flip rolls back. A person moved onto the roster and never told is the failure this exists to prevent                         |
+| They have no mobile                            | Mission 6's doors require one, as W2 now does. If one is ever missing, the flip refuses rather than landing silently             |
+| They already hold a membership this season     | Mission 6's problem, before the flip; the schema's composite keys already bind `converted` to one membership                     |
+| They consented, then withdrew, before the flip | Withdrawn is withdrawn. The welcome is the one message permitted in order to obtain consent, so it still goes; nothing else does |
+
+## Safety, privacy, consent, and authority boundaries
+
+- **The consent row is the recruit's own**, granted at the door with its
+  `source` recorded. The flip neither re-writes nor re-asks it, and re-writing it
+  would destroy the provenance of a permission a person actually gave.
+- **One live ask, always.** The supersession is what keeps that true across the
+  door.
+- **Nothing is deleted.** The prospect record is retained and linked.
+- **Nothing gates.** A flipped recruit is a full member of the squad on landing.
+- **No new authority.** The only actor is `W14`'s four-role operator.
+
+## Acceptance evidence
+
+- With Mission 6's flip available: flipping a recruit lands them at `onboarding`
+  with the full checklist, their answers on the record, their recruit ask
+  superseded, and exactly one welcome queued.
+- Their consent row is the same row, unchanged, with its original source and date.
+- A second flip attempt writes nothing.
+- The welcome is byte-identical in template to an imported player's — proven by
+  comparing queued rows across all three doors.
+- **Until LAN-204 ships**, the walk is done by exercising the far side directly
+  against a seeded prospect and asserting the same end state; recorded as a
+  limitation rather than a pass.
+- `grounding: application-walked` — the record is photographed on both sides
+  against a locally seeded flipped recruit. The **flip itself** is still not
+  walkable, because LAN-204 is in Backlog; the far side is exercised directly and
+  that limitation is recorded rather than passed over.
+
+## Core decisions
+
+| Decision                                                                                   | Classification              | Governing evidence or recommended default                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Status |
+| ------------------------------------------------------------------------------------------ | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| The four consequences all happen inside Mission 6's flip transaction                       | locked                      | `S3`; and `W14`'s own "all of it, or none of it"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | open   |
+| The welcome is the same message and template as the other two doors                        | locked                      | `OD7-two-doors-lens`, `M2`, and W1's approved decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | open   |
+| The recruit's open ask is superseded and audited at the flip                               | locked                      | `T11-supersede-on-conversion`, `S13`, and the one-open-ask invariant                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | open   |
+| Consent is neither copied nor re-asked — the row already exists for this person and season | locked                      | `season_messaging_consents` unique `(person_id, season_id)`, and the approved item inventory                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | open   |
+| Their questionnaire answers arrive pre-filled and are not asked again                      | locked                      | `S12`, `OD7-recheck-prefill`, and the approved item inventory's carry-across table                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | open   |
+| **No new `membership_entry` value for "came through recruitment"**                         | proposed for owner approval | `membership_entry` is `('new','returning')` and describes whether they are new to the club, not which door they used. The prospect record and its `converted_membership_id` carry the provenance. **But the photograph makes the cost visible: on this record a flipped recruit is indistinguishable from a hand-added player** — Entry reads `New` and nothing names recruitment. Recommended: still add nothing to the enum, and let W6's activity log carry it; but this is the decision most worth overruling, and the screen is the argument against my own recommendation | open   |
+| **This workflow draws no new surface and no new card**                                     | proposed for owner approval | Everything it produces is read on Mission 5's record and roster. Where the supersession and the queued welcome appear is W6's activity log. Recommended: yes                                                                                                                                                                                                                                                                                                                                                                                                                    | open   |
+| Which questionnaire answers map to which onboarding fields                                 | delegated to Mission Lead   | The approved item inventory's carry-across table already fixes the set; the column mapping is mechanical                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | open   |
+
+## Brian approval
+
+- Exact words:
+- Date:
