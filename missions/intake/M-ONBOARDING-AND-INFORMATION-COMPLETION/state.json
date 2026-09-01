@@ -88,10 +88,26 @@
     {
       "id": "W3",
       "name": "A flipped recruit lands in onboarding",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {
+        "spec": {
+          "words": "If that's the case, W3 is approved.",
+          "date": "2026-09-01",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "If that's the case, W3 is approved.",
+          "date": "2026-09-01",
+          "by": "Brian Schuster"
+        },
+        "acceptance": {
+          "words": "If that's the case, W3 is approved.",
+          "date": "2026-09-01",
+          "by": "Brian Schuster"
+        }
+      }
     },
     {
       "id": "W4",
@@ -1617,5 +1633,5 @@
     ],
     "approval": null
   },
-  "next_action": "W3 — specification and one photographed screen drafted, awaiting Brian: two proposed decisions"
+  "next_action": "Begin W4 — Say yes and fill in your details: the mission largest workflow, 22 owned decisions"
 }

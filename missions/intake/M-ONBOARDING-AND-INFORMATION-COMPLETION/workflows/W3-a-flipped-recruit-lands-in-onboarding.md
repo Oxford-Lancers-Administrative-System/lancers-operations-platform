@@ -221,5 +221,10 @@ is the failure this avoids.
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- Exact words: "If that's the case, W3 is approved."
+- Date: 2026-09-01
+- What "that" was: the ownership statement now recorded above as **What the flip
+  starts, and who owns each part**.
+- Both proposed decisions locked at their recommendations. **`membership_entry`
+  is the one to revisit** — Brian did not address it in his own words, and the
+  photograph is an argument against the recommendation. See `acceptance/W3.md`.
