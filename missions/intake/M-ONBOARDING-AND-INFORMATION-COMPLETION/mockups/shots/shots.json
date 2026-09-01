@@ -183,6 +183,144 @@
         }
       ],
       "at": "2026-09-01T19:22:19.269Z"
+    },
+    {
+      "id": "W2-01",
+      "route": "/operate/roster/new",
+      "headSha": "71c69ab36d7b0ad7b09acb1f4a04f7945686bf77",
+      "slot": "mission-m-onboarding-and-information-completion-3",
+      "proposal": {
+        "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W2-01.js",
+        "sha256": "68dc0743b7709b17e175e9af240132a3cb9feca7b52841b90290e2ad71d64a44",
+        "bytes": 19455
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W2-01-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W2-01-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W2-01-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W2-01-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-01T20:23:50.963Z"
+    },
+    {
+      "id": "W2-02",
+      "route": "/operate/roster/new",
+      "headSha": "71c69ab36d7b0ad7b09acb1f4a04f7945686bf77",
+      "slot": "mission-m-onboarding-and-information-completion-3",
+      "proposal": {
+        "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W2-02.js",
+        "sha256": "072ca64195d19c2599f058030a0b54ffc7cc58df5ad4f4d993831123038df1b4",
+        "bytes": 17880
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W2-02-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W2-02-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W2-02-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W2-02-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-01T20:24:46.325Z"
+    },
+    {
+      "id": "W2-03",
+      "route": "/operate/roster/9878545e-39aa-4342-8f9b-a50c2ff63a3f",
+      "headSha": "71c69ab36d7b0ad7b09acb1f4a04f7945686bf77",
+      "slot": "mission-m-onboarding-and-information-completion-3",
+      "proposal": {
+        "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W2-03.js",
+        "sha256": "138f8d13d796f2e1836ff174806de315032a490a5ec1a362e33128fc46e6772c",
+        "bytes": 18477
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W2-03-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W2-03-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W2-03-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W2-03-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-01T20:25:27.314Z"
     }
   ]
 }

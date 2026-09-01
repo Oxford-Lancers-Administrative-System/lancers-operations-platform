@@ -109,6 +109,64 @@ const WORKFLOWS = [
       ),
     ],
   },
+  {
+    id: "W2",
+    slug: "add-one-player-by-hand",
+    name: "Add one player by hand",
+    grounding: "photograph",
+    lede: `One person turns up who was not in the file. An operator enters them and they arrive
+      exactly where an imported player arrives \u2014 on this season's roster in onboarding, with the
+      same checklist and the same welcome.`,
+    legend: [
+      "<strong>This workflow builds no surface.</strong> <code>/operate/roster/new</code> exists, built by LAN-74 as the returner intake, and every screen here is that page photographed as it runs",
+      "<strong>Most of it already works.</strong> <code>enterReturningPlayer</code> already mints the person, creates the membership <em>at onboarding</em>, writes the transition, <strong>generates the checklist</strong>, and audits all of it \u2014 in one transaction",
+      "<strong>What is missing is that nothing is sent.</strong> Subject area <code>S2</code> says this door \u201copens nothing\u201d; read against the code that means there is no welcome, no signed link, and so no way for the person to answer. That is the whole of what W2 adds",
+      "<strong>The second change is the required set.</strong> The form enforces only a first name today, while the item-and-ask inventory and <code>person-required.ts</code> both require last name and mobile as well",
+      "<strong>Two decisions are proposed</strong>: whether authority stays at the shipped general-operator floor rather than W1's four-role, and whether personal email stays optional here",
+    ],
+    screens: [
+      P(
+        "W2-01",
+        "The form, with the required set the club actually uses",
+        `The shipped form, unchanged in shape. All three of first name, last name and mobile are
+         required \u2014 but only two of those are a change, and the screen says which.`,
+        [
+          "<strong>First name was already required</strong> on <code>main</code>; the field simply never carried an asterisk, so a screen starring only the new ones would have said it was optional",
+          "<strong>Last name becomes required.</strong> The missing-data queue chases a blank one on day one",
+          "<strong>Mobile becomes required.</strong> The welcome travels by mobile, and without one the player is never told",
+          "<strong>Personal email stays optional</strong> \u2014 it is one of the things the player's own link collects",
+          "<strong>What confirming does</strong>, stated where the operator decides to do it: roster, checklist, and the welcome queued, in one transaction",
+        ],
+        "oxfordlancers.example/operate/roster/new",
+      ),
+      P(
+        "W2-02",
+        "The duplicate check, driven for real",
+        `Nothing here is this mission's to change. It is photographed because W2 has to show that
+         adding one player runs the <em>same</em> duplicate question the import does, rather than a
+         second one. The proposal fills the shipped form and presses the application's own
+         <em>Check for matches</em>; the two candidates are real rows out of the seeded database.`,
+        [
+          "<strong>The count and the explicit-choice rule are shipped</strong>: the system never silently merges and never silently creates",
+          "<strong>A real candidate</strong>, with what it matched on stated underneath \u2014 here, a phone number",
+          "<strong>Already a member</strong> is flagged on the candidate, which is what feeds the shipped refusal step when the operator picks them",
+        ],
+        "oxfordlancers.example/operate/roster/new",
+      ),
+      P(
+        "W2-03",
+        "Where the operator lands, and the one thing that is new there",
+        `The shipped redirect goes to the person's record, and that record already shows the
+         generated checklist \u2014 the seven items in the ONBOARDING card below are real, not drawn.
+         What it cannot show today is that anybody was told.`,
+        [
+          "<strong>What just happened</strong>: on the roster, checklist generated, welcome queued \u2014 and nothing else sent until they consent",
+          "<strong>What the club has said</strong> \u2014 a new card, because the record has nowhere today to show that a welcome exists. Queued, dated, not yet sent",
+        ],
+        "oxfordlancers.example/operate/roster/9878545e-39aa-4342-8f9b-a50c2ff63a3f",
+      ),
+    ],
+  },
 ];
 
 const SHOTS = JSON.parse(readFileSync(path.join(OUT, "shots", "shots.json"), "utf8"));

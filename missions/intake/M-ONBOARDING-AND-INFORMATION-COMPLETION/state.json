@@ -64,7 +64,7 @@
     {
       "id": "W2",
       "name": "Add one player by hand",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -1601,5 +1601,5 @@
     ],
     "approval": null
   },
-  "next_action": "Begin W2 — Add one player by hand: specification, then mockups"
+  "next_action": "W2 — specification and three screens drafted, awaiting Brian: two proposed decisions"
 }
