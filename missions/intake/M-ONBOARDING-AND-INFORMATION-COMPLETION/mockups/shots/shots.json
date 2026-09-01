@@ -3,12 +3,12 @@
     {
       "id": "W1-01",
       "route": "/operate/roster",
-      "headSha": "0e66a0a8a27dd38fe1ab6d5542f3eb009067b262",
+      "headSha": "b58022620622e6d89e7e6296fedc35e3ed4196d2",
       "slot": "mission-m-onboarding-and-information-completion-3",
       "proposal": {
         "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W1-01.js",
-        "sha256": "c138bf666a4a981f3f6eb063f1f9e4a5edec36e59da3df569c100900176b5d53",
-        "bytes": 17970
+        "sha256": "8dc6247699bd2a64942315dc181865163b8183907e37f828e3d5d0abd6eca0c0",
+        "bytes": 17955
       },
       "captures": [
         {
@@ -44,7 +44,7 @@
           "file": "shots/W1-01-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-01T19:19:50.811Z"
+      "at": "2026-09-01T20:06:14.227Z"
     },
     {
       "id": "W1-02",

@@ -58,7 +58,7 @@ const WORKFLOWS = [
          LAN-155 so bulk import could sit beside the single-record path without displacing it.`,
         [
           "<strong>Add players</strong> replaces the single add control and opens a menu of two, anchored under itself",
-          "<strong>Import last season's squad</strong> is this workflow. Adding one player by hand is W2, and both doors end in the same checklist and the same welcome",
+          "<strong>Bulk import players</strong> is this workflow; <strong>Add one player</strong> is W2. Both doors end in the same checklist and the same welcome",
         ],
         "oxfordlancers.example/operate/roster",
       ),

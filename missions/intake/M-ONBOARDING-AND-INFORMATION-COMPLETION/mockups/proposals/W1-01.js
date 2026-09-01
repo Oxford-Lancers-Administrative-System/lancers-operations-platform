@@ -379,8 +379,8 @@
   // heading and its status filter.
 
   for (const [title, sub] of [
-    ["Add one player by hand", "W2 · one person, the same checklist and welcome"],
-    ["Import last season's squad", "W1 · a CSV, previewed before anything is written"],
+    ["Add one player", "W2 · one person, the same checklist and welcome"],
+    ["Bulk import players", "W1 · a CSV, previewed before anything is written"],
   ]) {
     const item = document.createElement("div");
     item.className = "MuiMenuItem-root";
