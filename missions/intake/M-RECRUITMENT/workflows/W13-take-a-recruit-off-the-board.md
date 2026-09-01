@@ -1,7 +1,8 @@
 # W13 — Take a recruit off the board
 
-- Purpose/intended outcome: a recruit who is not going to onboarding leaves the
-  board without leaving the record, and nothing further is sent to them.
+- Purpose/intended outcome: a recruit who is not going to onboarding sinks to
+  the bottom of the working board without leaving the record, and nothing
+  further is sent to them.
 - Primary actor: an operator holding the core four authority.
 - Trigger: they said no, they went quiet, or the record should never have existed.
 - Entry point: the status cell on `W1`, or the status on `W2`.
@@ -11,15 +12,20 @@
   3 or 4 ways, but they can get off in several ways"_ — and his 2026-08-31
   ruling: _"When a recruit leaves the board, that's a status change, right? A moves
   statuses, and then the board resorts, more or less."_
-- User-visible result: they are off the board, the board resorts, their history is
-  intact, and the club stops talking to them.
+- User-visible result: the board resorts, they sink to the bottom, the Status
+  filter can take them out of view, their history is intact, and the club stops
+  talking to them.
 
 ## Why this is a workflow and not a button
 
 Every walk-up is a recruit, and every QR scan is a recruit. That decision is what
-makes the exits load-bearing: without them the board fills with everybody who ever
-stood near the stand and stops being readable by November. The exits carry the
-volume of the whole funnel.
+makes the exits load-bearing: without them the board would read as an
+ever-growing wall of names by November. Ladder order sinks the exits to the
+bottom and the Status filter takes them out of view, so the exits carry the
+volume of the whole funnel without erasing it. The approved `W1-01` and
+`W13-01` frames keep `declined` and `disengaged` rows on the board, and that is
+what Brian looked at when he approved them, 2026-09-01: `W13`'s earlier "off
+the board" language is superseded.
 
 ## Current `main` grounding
 
@@ -121,14 +127,15 @@ and no record is archived out of sight.
 
 ## Core decisions
 
-| Decision                                                      | Classification                | Governing evidence or recommended default     | Status  |
-| ------------------------------------------------------------- | ----------------------------- | --------------------------------------------- | ------- |
-| Leaving the board is a status change; the board resorts       | `locked`                      | Brian, 2026-08-31                             | Settled |
-| No separate removal, archive or delete mechanism              | `locked`                      | Same                                          | Settled |
-| `disengaged` is recoverable with history intact               | `locked`                      | Task 09 §1; the ladder decision of 2026-08-28 | Settled |
-| `void` is a separate marker, not a seventh status value       | `proposed for owner approval` | Open decision 10. Recommendation: the marker  | Open    |
-| A reason is required for `void`, recommended for `disengaged` | `proposed for owner approval` | A mistake worth recording is worth explaining | Open    |
-| Deleting the person is never recruitment's                    | `locked`                      | Owner decision 2026-08-25                     | Settled |
+| Decision                                                                                                                                   | Classification                | Governing evidence or recommended default                       | Status  |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------- | --------------------------------------------------------------- | ------- |
+| Leaving the board is a status change; the board resorts                                                                                    | `locked`                      | Brian, 2026-08-31                                               | Settled |
+| `declined` and `disengaged` recruits stay on the working board, sunk to the bottom; the Status filter, not removal, takes them out of view | `locked`                      | Brian, 2026-09-01, against the approved `W1-01`/`W13-01` frames | Settled |
+| No separate removal, archive or delete mechanism                                                                                           | `locked`                      | Same                                                            | Settled |
+| `disengaged` is recoverable with history intact                                                                                            | `locked`                      | Task 09 §1; the ladder decision of 2026-08-28                   | Settled |
+| `void` is a separate marker, not a seventh status value                                                                                    | `proposed for owner approval` | Open decision 10. Recommendation: the marker                    | Open    |
+| A reason is required for `void`, recommended for `disengaged`                                                                              | `proposed for owner approval` | A mistake worth recording is worth explaining                   | Open    |
+| Deleting the person is never recruitment's                                                                                                 | `locked`                      | Owner decision 2026-08-25                                       | Settled |
 
 ## Brian approval
 

@@ -50,15 +50,24 @@ they go to WhatsApp, right? That's part of W7."_
 
 Yes, and it is the whole point of this door:
 
-1. They scan the QR and land on the club's own page.
-2. They leave a name and a way to reach them.
-3. They are taken to the WhatsApp group, and **pressing that button is the
-   opt-in.**
+1. They scan the QR and land on the club's own page — **the sign-up form, the
+   same surface as Questionnaire A.**
+2. They leave a name and a way to reach them, and **tick consent to WhatsApp
+   messaging.** The tick is a required condition of submitting: first name,
+   last name and the tick are the required set; every other field, including
+   the rest of Questionnaire A, stays visibly optional. The form cannot be
+   saved without it — Brian, 2026-09-01.
+3. The saved page reveals the community group link. **Only the tick opens it**
+   — the earlier build showed the button unconditionally, before the gate
+   existed.
 
-Step 3 is why `W7` carries a **natural opt-in** and `W6` does not. Here the
-recruit acts for themselves, so joining the group is the consent; there, an
-operator types somebody in, and Task 09 §9.1 makes that door ask how the club
-came by the number.
+The consent tick, not pressing the WhatsApp button, is `W7`'s **natural
+opt-in**, and it is why `W7` carries one and `W6` does not: here the recruit
+ticks for themselves; there, an operator types somebody in, and Task 09 §9.1
+makes that door ask how the club came by the number. Because the tick is
+required to submit, `refused` is not reachable through this door — the
+five-value `messaging_consent_state` enum is otherwise unchanged; Brian:
+_"I don't think we need to fix the statuses, that's just a comment."_
 
 ## The check is one question, asked of the person standing there
 
@@ -86,6 +95,12 @@ operator, no queue, no notification and no surface — which is why the old
 
 Anything that still slips through is resolved in **the people table's own merge**,
 which already ships at `/operate/people/[personId]/merge` and belongs to Mission 5. This mission does not own merging.
+
+**The form also carries Questionnaire A**, `W4`'s personal-details questions,
+on this same surface rather than a later signed link. Its "Known as" answer
+writes a `person_aliases` row — there is no preferred-name field anywhere in
+the product, and Brian caught the mockup that invented one: _"this is old
+information."_
 
 ### The one thing this screen must not become
 
@@ -117,12 +132,16 @@ error.
 
 1. Scan and land on the club's own page, on the club's own domain, which looks
    like the club.
-2. Enter first name, last name and mobile; email optional. Same standard as every
-   other door.
-3. **Be told if the club already has them** — Brian, 2026-08-31: _"they should see
+2. Enter first name and last name, required; mobile, email and the rest of
+   Questionnaire A stay visibly optional here, unlike the other three doors'
+   required mobile — Brian, 2026-09-01: the tick, not the phone number, is
+   this door's required set beyond a name.
+3. **Tick consent to WhatsApp messaging** — required to submit. Brian,
+   2026-09-01: the form cannot be saved without it.
+4. **Be told if the club already has them** — Brian, 2026-08-31: _"they should see
    if they're already in the list. If their name is already there, they go, 'Oh,
    you've already done this.'"_
-4. Submit, and land in the community group.
+5. Submit, and land in the community group, with the group link now shown.
 
 ## State transitions
 
@@ -173,14 +192,17 @@ second record; nothing is parked.
 
 ## Core decisions
 
-| Decision                                                             | Classification                | Governing evidence or recommended default                                                      | Status  |
-| -------------------------------------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------- | ------- |
-| The QR points at the club's own page on the club's own domain        | `locked`                      | Brian, 2026-08-28                                                                              | Settled |
-| Scan, form, submit, group invite                                     | `locked`                      | Brian, 2026-08-31                                                                              | Settled |
-| The recruit is told if they are already in the list                  | `locked`                      | Brian, 2026-08-31                                                                              | Settled |
-| "A login" means the signed link and the group invite, not an account | `proposed for owner approval` | Task 08 §3 fixes no player logins in Release One; an account for recruits is a larger decision | Open    |
-| The duplicate telling confirms only what the submitter typed         | `proposed for owner approval` | A public page that says "yes, we have a Rosalind Penhaligon" is a membership oracle            | Open    |
-| What the page asks beyond name and mobile                            | `proposed for owner approval` | Open by Brian's word. Recommendation: nothing — every extra field costs completions at a stand | Open    |
+| Decision                                                                                    | Classification                | Governing evidence or recommended default                                                      | Status  |
+| ------------------------------------------------------------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------- | ------- |
+| The QR points at the club's own page on the club's own domain                               | `locked`                      | Brian, 2026-08-28                                                                              | Settled |
+| Scan, form, submit, group invite                                                            | `locked`                      | Brian, 2026-08-31                                                                              | Settled |
+| The recruit is told if they are already in the list                                         | `locked`                      | Brian, 2026-08-31                                                                              | Settled |
+| "A login" means the signed link and the group invite, not an account                        | `proposed for owner approval` | Task 08 §3 fixes no player logins in Release One; an account for recruits is a larger decision | Open    |
+| The duplicate telling confirms only what the submitter typed                                | `proposed for owner approval` | A public page that says "yes, we have a Rosalind Penhaligon" is a membership oracle            | Open    |
+| The page also asks Questionnaire A, on the same surface as the consent gate                 | `locked`                      | Brian, 2026-09-01: every door leads to the single consent gate                                 | Settled |
+| The consent tick is required to submit; every other field, including mobile, stays optional | `locked`                      | Brian, 2026-09-01                                                                              | Settled |
+| The group link appears on the saved page only after the tick                                | `locked`                      | Brian, 2026-09-01; the earlier build showed it unconditionally, before the gate existed        | Settled |
+| "Known as" writes a `person_aliases` row; there is no preferred-name field                  | `locked`                      | Brian, 2026-09-01: "this is old information"; `main` has `person_aliases` and no such field    | Settled |
 
 ## Brian approval
 

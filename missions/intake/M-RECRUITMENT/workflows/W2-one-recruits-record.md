@@ -41,14 +41,27 @@ content replaced**. Brian, 2026-08-31: _"The pages underneath should be very
 similar to the roster in the way that it's done, except it's the recruit player
 page, not the roster player page… We shouldn't invent UI elements here."_
 
-| Shipped card          | Colour           | Becomes                   | What it holds                                                          |
-| --------------------- | ---------------- | ------------------------- | ---------------------------------------------------------------------- |
-| `PERSON`              | slate `#455a64`  | **Person**, unchanged     | Person facts, read-only, keeping its own `Open the person record →`    |
-| `ONBOARDING`          | amber → teal     | **Recruitment**           | Status, came in through, first contact, committed on — edited in place |
-| `SEASON · 2026-27`    | blue `#0b3d91`   | **The recruit-stage ask** | Whether it was sent and answered, and the six answers                  |
-| `ATTENDANCE`          | violet `#4527a0` | **Recruitment events**    | The shipped table, reused whole, `Mandatory` dropped                   |
-| `THEIR OTHER SEASONS` | slate `#455a64`  | **Notes**                 | Prose, attributed and dated, with somewhere to write the next one      |
-| `STATUS HISTORY`      | slate `#455a64`  | **Status history**        | Recruitment's own changes, not membership's                            |
+| Shipped card          | Colour           | Becomes                | What it holds                                                                                                                                         |
+| --------------------- | ---------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PERSON`              | slate `#455a64`  | **Person**, unchanged  | Person facts, read-only. Carries the personal questionnaire's sent row.                                                                               |
+| `ONBOARDING`          | amber → teal     | **Recruitment**        | Status, came in through, first contact, committed on, whether the recruitment questionnaire was sent, and its six answers — one card, edited in place |
+| `ATTENDANCE`          | violet `#4527a0` | **Recruitment events** | The shipped table, reused whole, `Mandatory` dropped                                                                                                  |
+| `THEIR OTHER SEASONS` | slate `#455a64`  | **Notes**              | Prose, attributed and dated, with somewhere to write the next one                                                                                     |
+| `STATUS HISTORY`      | slate `#455a64`  | **Status history**     | Recruitment's own changes, not membership's                                                                                                           |
+
+**Recruitment and the recruit-stage ask are one card, not two.** Brian,
+2026-09-01: _"Recruitment and recruitment questions are one thing."_ `W2` was
+approved with them as two cards, teal and blue; they merge, keeping the teal.
+Each questionnaire's sent row sits with the questions it asks, not together on
+one card: _"The personnel questions sent should be with the personnel
+questions. The recruitment questions should be with the recruitment
+questions."_ Personal-sent is on the Person card; recruitment-sent is on the
+Recruitment card.
+
+**The Person card carries no `Open the person record →`.** Brian, 2026-09-01,
+on the shipped card this one clones: _"that shouldn't be something that they do
+here."_ A person fact is corrected from Mission 5's own record, reached the way
+`W1`'s person columns already route there, not from a link on this card.
 
 The events card matters most: it already ships as a table of
 `Event · Date · Mandatory · RSVP · Attendance · Event status`, the exact treatment
@@ -116,7 +129,7 @@ _"`template` is the only production shape"_ — so the dialog chooses a template
 and fires it. There is no composer anywhere in this mission and nothing to type.
 
 **The send record is embedded, not a card.** A quiet line at the foot of the
-PERSON card and the QUESTIONNAIRE card lists the dates that questionnaire went
+Person card and the Recruitment card lists the dates that questionnaire went
 out — _"it should be embedded. It should just be a list of what dates they were
 sent on."_ The full history of sends lives in the **audit**, the `STATUS HISTORY`
 card, alongside every other change: _"What we've sent should just be part of the
@@ -212,14 +225,14 @@ except `joined` is a direct audited change; `joined` is intercepted by `W14`.
 
 ## Core decisions
 
-| Decision                                                     | Classification                | Governing evidence or recommended default                          | Status  |
-| ------------------------------------------------------------ | ----------------------------- | ------------------------------------------------------------------ | ------- |
-| The recruit's page is its own surface, not the person record | `locked`                      | Task 08 amendment 2026-08-27 item 4                                | Settled |
-| Person facts render read-only and route out                  | `locked`                      | Same amendment; Mission 5 owns correction                          | Settled |
-| Signals are dated facts with a source, never scored          | `locked`                      | Task 09 D9; the 8/5 schema comment                                 | Settled |
-| Five recruitment cards as above                              | `proposed for owner approval` | Drawn from the boundary's signal and notes items                   | Open    |
-| Notes carry an author and a timestamp                        | `proposed for owner approval` | Brian made notes first-class; an unattributed note is not evidence | Open    |
-| The page survives the flip and stays readable                | `proposed for owner approval` | Recruitment history is not deleted because somebody joined         | Open    |
+| Decision                                                     | Classification                | Governing evidence or recommended default                                                                  | Status  |
+| ------------------------------------------------------------ | ----------------------------- | ---------------------------------------------------------------------------------------------------------- | ------- |
+| The recruit's page is its own surface, not the person record | `locked`                      | Task 08 amendment 2026-08-27 item 4                                                                        | Settled |
+| Person facts render read-only and route out                  | `locked`                      | Same amendment; Mission 5 owns correction                                                                  | Settled |
+| Signals are dated facts with a source, never scored          | `locked`                      | Task 09 D9; the 8/5 schema comment                                                                         | Settled |
+| Four recruitment cards as above                              | `proposed for owner approval` | Drawn from the boundary's signal and notes items; Recruitment and the recruit-stage ask merged, 2026-09-01 | Open    |
+| Notes carry an author and a timestamp                        | `proposed for owner approval` | Brian made notes first-class; an unattributed note is not evidence                                         | Open    |
+| The page survives the flip and stays readable                | `proposed for owner approval` | Recruitment history is not deleted because somebody joined                                                 | Open    |
 
 ## Added after approval — `W2-04`, and it needs Brian's word
 

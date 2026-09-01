@@ -69,14 +69,28 @@ one-line swap and changes nothing else.
 ## The columns
 
 **Person band** — read-only, routes to the person record on click, exactly as the
-roster board's person columns do.
+roster board's person columns do. The board and the record carry the same
+person set — Brian, 2026-09-01, on finding `Grad` and `Degree field` as record
+rows with no column: the two surfaces cannot disagree about what the club knows.
 
-| Column      | Source   | Notes                                                    |
-| ----------- | -------- | -------------------------------------------------------- |
-| Recruit     | `people` | Pinned first column. Display name, links to `W2`.        |
-| College     | `people` | `Not recorded` in grey where absent, as the roster does. |
-| Matric      | `people` |                                                          |
-| Contactable | derived  | Mobile / Email pills, exactly the roster's indicators.   |
+| Column       | Source   | Notes                                                    |
+| ------------ | -------- | -------------------------------------------------------- |
+| Recruit      | `people` | Pinned first column. Display name, links to `W2`.        |
+| College      | `people` | `Not recorded` in grey where absent, as the roster does. |
+| Matric       | `people` |                                                          |
+| Grad         | `people` | Expected graduation year.                                |
+| Degree field | `people` |                                                          |
+| Contactable  | derived  | Mobile / Email pills, exactly the roster's indicators.   |
+
+**No `Year` column and no `Preferred name` column, anywhere.** Matriculated
+2026 means first year in 2026-27, so a `Year` column said the same thing as
+`Matric` twice — and it is the half that goes stale, since "First year" is
+wrong the moment the next season opens and nothing recomputes it. Brian,
+2026-09-01: the questionnaire still asks; the club records the matriculation
+year it implies. `Preferred name` never existed: `main` has `person_aliases`
+and nothing else, and every `isPreferred` in the tree is about which contact
+to use, not what to call somebody — Brian: _"this is old information."_ `W7`'s
+"Known as" answer writes an alias.
 
 **`On WhatsApp` was struck on 2026-08-31.** It is not a recruit field: it is
 seasonal channel presence on the person record, owned by Mission 5 and empty at
@@ -84,15 +98,43 @@ the baseline. Brian, on being shown it beside College and Matric: _"It doesn't
 make any sense here."_ Group presence is a thing the club observes, not a column
 of fact about a recruit, and it goes with the signal abstraction struck below.
 
-**Recruitment band** — this mission's facts, edited in the cell.
+**Recruitment band** — this mission's facts. Status and Consent aside,
+read-only: the recruit's own words, attributed to them, so an operator typing
+over them would misattribute what the club was told.
 
-| Column        | Source                  | Notes                                                                  |
-| ------------- | ----------------------- | ---------------------------------------------------------------------- |
-| Status        | `recruitment_prospects` | The seven-value ladder. Edited in the cell; `W14` intercepts `joined`. |
-| Source        | `recruitment_prospects` | Which door they came through.                                          |
-| First contact | `recruitment_prospects` | Date.                                                                  |
-| Asked         | the `W4` request        | Whether the recruit-stage form is open, answered, or never sent.       |
-| Notes         | `recruitment_prospects` | Prose. Never scored, never ranked — Task 09 D9 and 8/5.                |
+| Column            | Source                  | Notes                                                                  |
+| ----------------- | ----------------------- | ---------------------------------------------------------------------- |
+| Status            | `recruitment_prospects` | The seven-value ladder. Edited in the cell; `W14` intercepts `joined`. |
+| Source            | `recruitment_prospects` | Which door they came through. Read-only, no filter.                    |
+| First contact     | `recruitment_prospects` | Date.                                                                  |
+| Personal sent     | `recruitment_prospects` | Whether the personal questionnaire was sent.                           |
+| Recruitment sent  | `recruitment_prospects` | Whether the recruitment questionnaire (`W4`) was sent.                 |
+| Consent           | `recruitment_prospects` | Its own word, kept at five values rather than reduced to Yes/No.       |
+| Played before     | `W4` answer             | Yes/no.                                                                |
+| Watched before    | `W4` answer             | Yes/no.                                                                |
+| Position interest | `W4` answer             | Chooser.                                                               |
+| Gear owned        | `W4` answer             | Chooser.                                                               |
+| How they heard    | `W4` answer             | Chooser.                                                               |
+| Anything else     | `W4` answer             | Free text.                                                             |
+
+**`Source` is read-only with no filter** — Brian, 2026-09-01: _"source should
+not be an editable field… I shouldn't be able to edit that thing,"_ and
+_"Source doesn't need a filter."_ Both the column funnel and the pinned
+control are gone.
+
+**`Personal sent` and `Recruitment sent` replace `Asked`.** Brian, 2026-09-01:
+_"'Ask' doesn't make sense as a field. I don't know what that's saying,"_ and
+_"Were they sent the questionnaire? Yes or no?"_ Each sits with the
+questionnaire it names: personal on `W2`'s Person card, recruitment on `W2`'s
+Recruitment card.
+
+**`Consent` carries its own word rather than a boolean** — Brian, 2026-09-01,
+asked for consent at the top level too, and chose to keep its five states:
+`Never asked`, `Refused` and `Withdrawn` are three different facts.
+
+**`Notes` is not a board column.** Brian, 2026-09-01: _"Note should just be
+removed from the top-level recruitment page… It should just be on the
+lower-end page."_ It stays a card on `W2`'s record.
 
 **`Last touch` was struck on 2026-08-31**, with `On WhatsApp`, and for the same
 reason. Brian: _"Instead of an innocuous signals thing, we should just take the
@@ -167,8 +209,9 @@ _"almost copy how normal event attendance works, except for recruitment."_
 1. **Read the board.** One line per recruit in the open season. Default sort:
    status ladder order, then most recent first contact.
 2. **Search** by name and alias, matching the roster board's search exactly.
-3. **Filter** by status, by source, by whether the ask is outstanding, and by
-   whether they attended any event. Filters are combinable and immediate.
+3. **Filter** by status, by consent, by whether personal or recruitment
+   questionnaires were sent, and by whether they attended any event. Source
+   carries no filter — Brian, 2026-09-01. Filters are combinable and immediate.
 4. **Sort** every column.
 5. **Act from the row** — open the recruit (`W2`), follow up (`W9`), change status
    (`W13`, and `W14` where the change is to `joined`).
@@ -237,28 +280,34 @@ recorded` in grey, never blank, never defaulted — the roster board's rule and 
 - The seeded recruits Rosalind Penhaligon (`identified`) and Tobias Wrenfield
   (`engaged`) render on the board with their real seeded facts, including the
   empty `On WhatsApp` cell.
+- **`W1-02`'s `Present` cell for Peregrine Oakhollow at Taster 2 is wrong.**
+  `W2-01` dates Taster 2 10 May 2026 with status `Upcoming`, and an event that
+  has not happened cannot have observed attendance. Lead ruling, 2026-09-01: the
+  cell is wrong and the record is empty.
 
 ## Core decisions
 
-| Decision                                                                            | Classification                | Governing evidence or recommended default                                                     | Status  |
-| ----------------------------------------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------- | ------- |
-| The board is recruitment's own, modelled on the roster board, not a list beside it  | `locked`                      | Brian, 2026-08-28 and 2026-08-31                                                              | Settled |
-| Structure, grouping and colour language carried from `/operate/roster`              | `locked`                      | Brian, 2026-08-31: "similar colors, if we can keep them consistent"                           | Settled |
-| Route is `/operate/recruits`, in Administration beneath People                      | `delegated to Mission Lead`   | Matches `/operate/people` and `/operate/roster`; changes no intent                            | Settled |
-| Three bands: Person, Recruitment, Events                                            | `proposed for owner approval` | A recruit holds no membership, so Onboarding and Season describe nothing                      | Open    |
-| The Recruitment band is teal `#00695c`                                              | `proposed for owner approval` | Sits beside slate and blue without competing; not the amber that means Onboarding             | Open    |
-| Status, Source and First contact as columns                                         | `locked`                      | Brian, 2026-08-31: "Statuses are fine, source is fine, first interest system is great"        | Settled |
-| `On WhatsApp` and `Last touch` struck from the board                                | `locked`                      | Brian, 2026-08-31: "let's just make events events"; neither is a recruit field                | Settled |
-| `Asked` remains a column                                                            | `proposed for owner approval` | The only recruitment column Brian has not spoken to either way                                | Open    |
-| `committed_on` marks reaching `joined`, not `committed`                             | `locked`                      | Brian, 2026-08-31: "the day that's joined, I would say"                                       | Settled |
-| Whether `committed_on` is also stamped at `committed`                               | `proposed for owner approval` | Brian: "maybe that field should be set. I think we'll figure out how it needs to really work" | Open    |
-| Notes belong on the membership                                                      | `proposed for owner approval` | Brian, 2026-08-31: "that should be in the membership" — placement not yet worked through      | Open    |
-| Event cells are plain text in two columns, as `attendance-section.tsx` renders them | `locked`                      | Brian, 2026-08-31; the two-line chip cell it replaced existed nowhere in the application      | Settled |
-| Each event is a band over an RSVP column and an Attendance column, side by side     | `locked`                      | Brian, 2026-08-31: "I want to see them side by side"                                          | Settled |
-| Invitation is not shown on the board                                                | `locked`                      | Brian, 2026-08-31: "I don't care if they were invited or not"                                 | Settled |
-| Event columns append oldest-first, left to right                                    | `locked`                      | Brian, 2026-08-28: appended at the right end, read as signals across the term                 | Settled |
-| Status is edited in the cell, except `joined`                                       | `proposed for owner approval` | Matches the roster board's in-cell season editing; `joined` is `W14`'s                        | Open    |
-| Default sort is ladder order, then most recent first contact                        | `delegated to Mission Lead`   | Reversible, changes no meaning                                                                | Settled |
+| Decision                                                                              | Classification                | Governing evidence or recommended default                                                                                      | Status  |
+| ------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------- |
+| The board is recruitment's own, modelled on the roster board, not a list beside it    | `locked`                      | Brian, 2026-08-28 and 2026-08-31                                                                                               | Settled |
+| Structure, grouping and colour language carried from `/operate/roster`                | `locked`                      | Brian, 2026-08-31: "similar colors, if we can keep them consistent"                                                            | Settled |
+| Route is `/operate/recruits`, in Administration beneath People                        | `delegated to Mission Lead`   | Matches `/operate/people` and `/operate/roster`; changes no intent                                                             | Settled |
+| Three bands: Person, Recruitment, Events                                              | `proposed for owner approval` | A recruit holds no membership, so Onboarding and Season describe nothing                                                       | Open    |
+| The Recruitment band is teal `#00695c`                                                | `proposed for owner approval` | Sits beside slate and blue without competing; not the amber that means Onboarding                                              | Open    |
+| Status, Source and First contact as columns                                           | `locked`                      | Brian, 2026-08-31: "Statuses are fine, source is fine, first interest system is great"                                         | Settled |
+| `On WhatsApp` and `Last touch` struck from the board                                  | `locked`                      | Brian, 2026-08-31: "let's just make events events"; neither is a recruit field                                                 | Settled |
+| `Source` is read-only with no filter                                                  | `locked`                      | Brian, 2026-09-01: "source should not be an editable field"; "Source doesn't need a filter"                                    | Settled |
+| `Personal sent` and `Recruitment sent` replace `Asked`; `Notes` struck from the board | `locked`                      | Brian, 2026-09-01: "'Ask' doesn't make sense as a field"; "Note should just be removed from the top-level recruitment page"    | Settled |
+| Grad, Degree field, Consent and all six recruitment answers are columns               | `locked`                      | Brian, 2026-09-01: the board and the record carry the same person set                                                          | Settled |
+| `committed_on` marks reaching `joined`, not `committed`                               | `locked`                      | Brian, 2026-08-31: "the day that's joined, I would say"                                                                        | Settled |
+| Whether `committed_on` is also stamped at `committed`                                 | `proposed for owner approval` | Brian: "maybe that field should be set. I think we'll figure out how it needs to really work"                                  | Open    |
+| Notes are on the recruitment record (`W2`), not the board                             | `locked`                      | Brian, 2026-09-01: "Note should just be removed from the top-level recruitment page… It should just be on the lower-end page." | Settled |
+| Event cells are plain text in two columns, as `attendance-section.tsx` renders them   | `locked`                      | Brian, 2026-08-31; the two-line chip cell it replaced existed nowhere in the application                                       | Settled |
+| Each event is a band over an RSVP column and an Attendance column, side by side       | `locked`                      | Brian, 2026-08-31: "I want to see them side by side"                                                                           | Settled |
+| Invitation is not shown on the board                                                  | `locked`                      | Brian, 2026-08-31: "I don't care if they were invited or not"                                                                  | Settled |
+| Event columns append oldest-first, left to right                                      | `locked`                      | Brian, 2026-08-28: appended at the right end, read as signals across the term                                                  | Settled |
+| Status is edited in the cell, except `joined`                                         | `proposed for owner approval` | Matches the roster board's in-cell season editing; `joined` is `W14`'s                                                         | Open    |
+| Default sort is ladder order, then most recent first contact                          | `delegated to Mission Lead`   | Reversible, changes no meaning                                                                                                 | Settled |
 
 ## Owner feedback, and how each item was resolved
 
