@@ -1,12 +1,18 @@
 {
   "mission_id": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
   "ledger_version": 3,
-  "stage": "boundary",
+  "stage": "overview",
   "baseline": {
     "branch": "main",
     "commit": "332bc6b3ba3028f1b79d99fc59dc1417791c2d81"
   },
-  "approvals": {},
+  "approvals": {
+    "boundary": {
+      "words": "All right, cool. I think the boundary makes sense here. Let's go to the next stage.",
+      "date": "2026-09-01",
+      "by": "Brian Schuster"
+    }
+  },
   "workflows": [],
   "mockup_hub": "generated",
   "decision_coverage": {
@@ -20,5 +26,5 @@
     "items": [],
     "approval": null
   },
-  "next_action": "Complete and approve 00-boundary.md"
+  "next_action": "Complete and approve 01-overview.md"
 }
