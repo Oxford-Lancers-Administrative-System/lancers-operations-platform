@@ -187,12 +187,12 @@
     {
       "id": "W2-01",
       "route": "/operate/roster/new",
-      "headSha": "71c69ab36d7b0ad7b09acb1f4a04f7945686bf77",
+      "headSha": "6caa2a4bb987d99b736ee2c3a260b83ab345e5db",
       "slot": "mission-m-onboarding-and-information-completion-3",
       "proposal": {
         "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W2-01.js",
-        "sha256": "68dc0743b7709b17e175e9af240132a3cb9feca7b52841b90290e2ad71d64a44",
-        "bytes": 19455
+        "sha256": "2b34b69515f17351f2cca5706e1e40913944a5bc7f583375ab7ff140ec292a6d",
+        "bytes": 19418
       },
       "captures": [
         {
@@ -228,7 +228,7 @@
           "file": "shots/W2-01-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-01T20:23:50.963Z"
+      "at": "2026-09-01T20:42:16.293Z"
     },
     {
       "id": "W2-02",
@@ -278,13 +278,13 @@
     },
     {
       "id": "W2-03",
-      "route": "/operate/roster/9878545e-39aa-4342-8f9b-a50c2ff63a3f",
-      "headSha": "71c69ab36d7b0ad7b09acb1f4a04f7945686bf77",
+      "route": "/operate/roster/9878545e-39aa-4342-8f9b-a50c2ff63a3f?created=1",
+      "headSha": "6caa2a4bb987d99b736ee2c3a260b83ab345e5db",
       "slot": "mission-m-onboarding-and-information-completion-3",
       "proposal": {
         "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W2-03.js",
-        "sha256": "138f8d13d796f2e1836ff174806de315032a490a5ec1a362e33128fc46e6772c",
-        "bytes": 18477
+        "sha256": "f09eaf4110a7d8bf6105c7296a9755ef64209ace4e9d3c6b449b5ff8e60b4a71",
+        "bytes": 17330
       },
       "captures": [
         {
@@ -320,7 +320,7 @@
           "file": "shots/W2-03-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-01T20:25:27.314Z"
+      "at": "2026-09-01T20:42:33.360Z"
     }
   ]
 }

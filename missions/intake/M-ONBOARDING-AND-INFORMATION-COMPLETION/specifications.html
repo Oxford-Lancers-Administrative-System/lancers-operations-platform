@@ -2086,7 +2086,7 @@
         <section class="doc" id="sec5">
           <header>
             <h2>W2 — Add one player by hand</h2>
-            <span class="chip warn">draft, not approved</span>
+            <span class="chip ok">spec approved</span>
             <span class="file">workflows/W2-add-one-player-by-hand.md</span>
           </header>
           <h1 id="s5-h1">W2 — Add one player by hand</h1>
@@ -2184,6 +2184,18 @@
             <li>
               Reason for any departure: two, and only two — the required set, and the welcome. Both
               are below.
+            </li>
+            <li>
+              <strong>No new UX element.</strong> Brian, 2026-09-01: &quot;So long as we're not
+              inventing new UX elements here.&quot; Two were removed on that instruction. What the
+              form does on confirming is said in the page's own subtitle rather than a new banner
+              underneath it; and the record's confirmation is the shipped
+              <code>created-summary</code> sentence rewritten, not a new card. An earlier draft
+              added a &quot;What the club has said&quot; card, which was wrong twice over: it
+              invented an element, and the per-player activity log is <strong>W6's</strong> —
+              <code>S32</code>, <code>T10-activity-log</code>, <code>PR7-activity-log</code> and
+              <code>OD7-log-by-section</code> all name W6 as its owner. Where a queued welcome shows
+              on the record is W6's question, not this workflow's.
             </li>
           </ul>
           <h2 id="s5-h4">Required actions</h2>
@@ -2516,8 +2528,23 @@
           </div>
           <h2 id="s5-h12">Brian approval</h2>
           <ul>
-            <li>Exact words:</li>
-            <li>Date:</li>
+            <li>
+              Exact words: &quot;Last name and mobile are absolutely required. That's what I'm
+              telling all my bots at this point, and W2 is fucking approved. So long as we're not
+              inventing new UX elements here&quot;
+            </li>
+            <li>Date: 2026-09-01</li>
+            <li>
+              Condition, and how it was met: the approval is conditional on inventing no new UX
+              element. Two were found and removed before it was recorded — the info banner on the
+              form, and the &quot;What the club has said&quot; card on the record. Both are now
+              shipped elements with rewritten text.
+            </li>
+            <li>
+              The two open decisions resolved as recommended, and both mean
+              <em>leave it as shipped</em>: authority stays at the general-operator floor, and
+              personal email stays optional.
+            </li>
           </ul>
         </section>
       </main>

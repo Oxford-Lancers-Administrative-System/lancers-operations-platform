@@ -64,10 +64,26 @@
     {
       "id": "W2",
       "name": "Add one player by hand",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {
+        "spec": {
+          "words": "Last name and mobile are absolutely required. That's what I'm telling all my bots at this point, and W2 is fucking approved. So long as we're not inventing new UX elements here",
+          "date": "2026-09-01",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "Last name and mobile are absolutely required. That's what I'm telling all my bots at this point, and W2 is fucking approved. So long as we're not inventing new UX elements here",
+          "date": "2026-09-01",
+          "by": "Brian Schuster"
+        },
+        "acceptance": {
+          "words": "Last name and mobile are absolutely required. That's what I'm telling all my bots at this point, and W2 is fucking approved. So long as we're not inventing new UX elements here",
+          "date": "2026-09-01",
+          "by": "Brian Schuster"
+        }
+      }
     },
     {
       "id": "W3",
@@ -1601,5 +1617,5 @@
     ],
     "approval": null
   },
-  "next_action": "W2 — specification and three screens drafted, awaiting Brian: two proposed decisions"
+  "next_action": "Begin W3 — A flipped recruit lands in onboarding: specification, then mockups"
 }

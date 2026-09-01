@@ -55,6 +55,15 @@ W2 adds.
 - Desktop and 375px evidence: both sides photographed at a measured 1280 and 375.
 - Reason for any departure: two, and only two — the required set, and the
   welcome. Both are below.
+- **No new UX element.** Brian, 2026-09-01: "So long as we're not inventing new
+  UX elements here." Two were removed on that instruction. What the form does on
+  confirming is said in the page's own subtitle rather than a new banner
+  underneath it; and the record's confirmation is the shipped `created-summary`
+  sentence rewritten, not a new card. An earlier draft added a "What the club
+  has said" card, which was wrong twice over: it invented an element, and the
+  per-player activity log is **W6's** — `S32`, `T10-activity-log`,
+  `PR7-activity-log` and `OD7-log-by-section` all name W6 as its owner. Where a
+  queued welcome shows on the record is W6's question, not this workflow's.
 
 ## Required actions
 
@@ -149,5 +158,14 @@ W2 adds.
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- Exact words: "Last name and mobile are absolutely required. That's what I'm
+  telling all my bots at this point, and W2 is fucking approved. So long as
+  we're not inventing new UX elements here"
+- Date: 2026-09-01
+- Condition, and how it was met: the approval is conditional on inventing no new
+  UX element. Two were found and removed before it was recorded — the info
+  banner on the form, and the "What the club has said" card on the record. Both
+  are now shipped elements with rewritten text.
+- The two open decisions resolved as recommended, and both mean _leave it as
+  shipped_: authority stays at the general-operator floor, and personal email
+  stays optional.

@@ -423,20 +423,19 @@
   email.append(emailHelp);
   mark(email, 4);
 
-  // What confirming actually does. The one genuinely new behaviour in this
-  // workflow, stated where the operator decides to do it.
-  const outcome = document.createElement("div");
-  outcome.className = "MuiAlert-root";
-  outcome.style.cssText =
-    "display:flex;gap:12px;background:#e8f0fb;color:#0b3d91;border-radius:4px;" +
-    "padding:10px 16px;margin-top:18px;font:400 14px/1.5 inherit";
-  outcome.innerHTML =
-    '<span style="font-size:18px;line-height:1.3">ℹ</span>' +
-    "<span>On confirming, this person joins the 2026-27 roster in onboarding, their checklist is " +
-    "generated, and <strong>their welcome is queued</strong> — the same message an imported player " +
-    "receives. All in one transaction.</span>";
-  form.append(outcome);
-  mark(outcome, 5);
+  // What confirming does belongs in the sentence the page already has, not in a
+  // new element. Brian, 2026-09-01: "So long as we're not inventing new UX
+  // elements here." The shipped subtitle already explains the duplicate check;
+  // this extends it rather than adding a banner underneath.
+  const subtitle = must(
+    $$("p").find((p) => /duplicate check runs before anything is written/i.test(p.textContent)),
+    "the add-player page has lost its subtitle",
+  );
+  subtitle.textContent =
+    "Enter the person's details. A duplicate check runs before anything is written. " +
+    "On confirming they join the 2026-27 roster in onboarding, their checklist is generated, " +
+    "and their welcome is queued.";
+  mark(subtitle, 5);
 
   await settle();
 })();
