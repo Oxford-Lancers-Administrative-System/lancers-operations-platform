@@ -453,7 +453,7 @@ describe("signUpAnonymouslyIn — the QR door", () => {
 });
 
 describe("probeExistingRecruitForQrSignup", () => {
-  it("finds an existing person by an exact phone match", async () => {
+  it("finds an existing person by a given name and phone together", async () => {
     const mobile = uniquePhone();
     const existing = await observer.query<{ id: string }>(
       `insert into public.people (given_name, family_name) values ($1, 'Findme') returning id`,
@@ -466,17 +466,87 @@ describe("probeExistingRecruitForQrSignup", () => {
     );
 
     const probe = await probeExistingRecruitForQrSignup(MARKER, mobile);
-    expect(probe).toEqual({ found: true, matchedPersonId: existing.rows[0].id });
+    expect(probe).toEqual({ found: true });
+  });
+
+  // LAN-208: findPersonDuplicates ORs given-name/family-name/alias/email/phone across
+  // the whole row, so a candidate's matched_phone flag was never conditioned on that
+  // same row's name also matching — any fabricated name plus a real phone number
+  // confirmed a match. This is the regression test: it fails (found: true) against
+  // the defect and passes (found: false) after requiring both on the same row.
+  it("finds nobody for a fabricated name against somebody else's real phone — the typed name must match too", async () => {
+    const mobile = uniquePhone();
+    const existing = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ('RealPersonNotMarker', 'Findme') returning id`,
+    );
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1::uuid, 'phone', $2, true, 'test fixture')`,
+      [existing.rows[0].id, mobile],
+    );
+
+    const probe = await probeExistingRecruitForQrSignup(MARKER, mobile);
+    expect(probe).toEqual({ found: false });
+
+    await observer.query(`delete from public.contact_points where person_id = $1::uuid`, [
+      existing.rows[0].id,
+    ]);
+    await observer.query(`delete from public.people where id = $1::uuid`, [existing.rows[0].id]);
+  });
+
+  it("finds an existing person by a matching alias and phone together, not just the given name", async () => {
+    const mobile = uniquePhone();
+    const existing = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ('SomeoneElse', 'Findme') returning id`,
+    );
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1::uuid, 'phone', $2, true, 'test fixture')`,
+      [existing.rows[0].id, mobile],
+    );
+    await observer.query(
+      `insert into public.person_aliases (person_id, alias, is_display_name)
+       values ($1::uuid, $2, false)`,
+      [existing.rows[0].id, MARKER],
+    );
+
+    const probe = await probeExistingRecruitForQrSignup(MARKER, mobile);
+    expect(probe).toEqual({ found: true });
+
+    await observer.query(`delete from public.person_aliases where person_id = $1::uuid`, [
+      existing.rows[0].id,
+    ]);
+    await observer.query(`delete from public.contact_points where person_id = $1::uuid`, [
+      existing.rows[0].id,
+    ]);
+    await observer.query(`delete from public.people where id = $1::uuid`, [existing.rows[0].id]);
   });
 
   it("finds nobody when no mobile is supplied — never probes on name alone", async () => {
     const probe = await probeExistingRecruitForQrSignup(MARKER, null);
-    expect(probe).toEqual({ found: false, matchedPersonId: null });
+    expect(probe).toEqual({ found: false });
   });
 
   it("finds nobody for a mobile nobody holds", async () => {
     const probe = await probeExistingRecruitForQrSignup(MARKER, uniquePhone());
-    expect(probe).toEqual({ found: false, matchedPersonId: null });
+    expect(probe).toEqual({ found: false });
+  });
+
+  it("never surfaces a database identifier in its result shape, even on a real match", async () => {
+    const mobile = uniquePhone();
+    const existing = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ($1, 'Findme') returning id`,
+      [MARKER],
+    );
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1::uuid, 'phone', $2, true, 'test fixture')`,
+      [existing.rows[0].id, mobile],
+    );
+
+    const probe = await probeExistingRecruitForQrSignup(MARKER, mobile);
+    expect(probe.found).toBe(true);
+    expect(Object.keys(probe)).toEqual(["found"]);
   });
 });
 

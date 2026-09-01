@@ -5,7 +5,7 @@
  * records and approved by Brian before execution. This module is the
  * repository-local, mechanically-checked schema for it: explicit per-field
  * validators rather than a generic schema engine, in the same dependency-free
- * style as the fast-lane classifier. An invalid or unapproved packet must
+ * style as the merge rule. An invalid or unapproved packet must
  * fail closed — `validatePacket` returns every defect it can see, and the
  * mission-init event is refused unless the list is empty.
  *

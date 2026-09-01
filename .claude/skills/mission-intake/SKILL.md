@@ -189,7 +189,8 @@ npm run intake -- check <mission-id>
 ```
 
 On Brian's word, push once, open the draft PR from `PR.md`, and wait for every
-required check at the final SHA. Never merge or un-draft; Brian's merge is packet
+required check at the final SHA. Never merge and never lift a draft; Brian's merge is
+packet
 approval.
 
 After merge, return the Project Manager receipt: coverage, dependencies,

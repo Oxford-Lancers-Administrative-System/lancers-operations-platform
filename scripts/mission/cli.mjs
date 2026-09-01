@@ -46,13 +46,8 @@ import {
   relinquishImplementationPreflight,
   repositoryExecutors,
 } from "./runtime-broker-executors.mjs";
-import {
-  deriveChangedFiles,
-  deriveGitVisualFiles,
-  evaluateProspectiveMissionGate,
-  loadRules,
-} from "./merge-gate.mjs";
-import { parseNameStatus } from "../fast-lane/classify.mjs";
+import { deriveChangedFiles, evaluateDraftLift, loadRules } from "./merge-gate.mjs";
+import { parseNameStatus } from "../merge/paths.mjs";
 import { coordinatorStatus, implementationRecord } from "../lib/local-supabase-coordinator.mjs";
 
 const repoPath = process.cwd();
@@ -1094,6 +1089,12 @@ async function main() {
       break;
     }
 
+    /**
+     * May the Lead lift this package's draft? Un-drafting is the last act of
+     * the work and the authorization to merge it (LAN-209), so this is the
+     * command that decides it: the rule's three conditions, plus green checks
+     * at the exact head. The Lead runs `gh pr ready` only on a pass.
+     */
     case "gate": {
       const [, packageId] = positional;
       if (!missionId || !packageId || !flags["pr-json"] || !flags["checks-json"] || !flags.files) {
@@ -1104,28 +1105,25 @@ async function main() {
       const state = replayState(repoPath, missionId);
       const pullRequest = readJson(flags["pr-json"]);
       const files = parseNameStatus(fs.readFileSync(flags.files, "utf8"));
-      const verdict = evaluateProspectiveMissionGate({
+      const verdict = evaluateDraftLift({
         state,
         packageId,
         pullRequest,
         checkRuns: readJson(flags["checks-json"]),
         files,
         rules: loadRules(),
-        deriveVisualFiles: (fromSha, toSha, currentHead) =>
-          deriveGitVisualFiles(repoPath, fromSha, toSha, currentHead),
       });
       if (
-        verdict.merge &&
+        verdict.lift &&
         state.packages[packageId]?.gate_passed?.head_sha !== pullRequest.headRefOid
       ) {
         await append(missionId, {
           type: "package-gate-passed",
           package_id: packageId,
           head_sha: pullRequest.headRefOid,
-          receipt: verdict.receipt,
         });
       } else if (
-        !verdict.merge &&
+        !verdict.lift &&
         state.packages[packageId]?.gate_passed?.head_sha === pullRequest.headRefOid
       ) {
         await append(missionId, {

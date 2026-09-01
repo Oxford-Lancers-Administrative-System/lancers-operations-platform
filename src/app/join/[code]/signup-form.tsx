@@ -62,8 +62,8 @@ export interface SignupOutcome {
 }
 
 export interface DuplicateCheckResult {
+  /** Never a name, an email, a phone number, or a database identifier (LAN-208) — only whether one matched. */
   readonly found: boolean;
-  readonly matchedPersonId: string | null;
 }
 
 export interface SignupFormProps {
@@ -75,8 +75,14 @@ export interface SignupFormProps {
   readonly groupLink: string | null;
   /** Anonymous door only — never called for `mode="prefilled"`, which has nothing to ask. */
   readonly checkDuplicate?: (givenName: string, mobile: string) => Promise<DuplicateCheckResult>;
+  /**
+   * `confirmedExistingMatch` is a bare boolean — "the recruit pressed 'Yes,
+   * that's me'" — never a person id: `checkDuplicate`'s own result carries
+   * none to echo back (LAN-208). The server re-derives who that is, from the
+   * same name and mobile the recruit has typed at submit time.
+   */
   readonly submit: (
-    values: SignupFieldValues & { consent: boolean; linkExistingPersonId: string | null },
+    values: SignupFieldValues & { consent: boolean; confirmedExistingMatch: boolean },
   ) => Promise<SignupOutcome>;
 }
 
@@ -105,7 +111,6 @@ export default function SignupForm({
   const [step, setStep] = useState<Step>("form");
   const [values, setValues] = useState<SignupFieldValues>(initial);
   const [consent, setConsent] = useState(false);
-  const [matchedPersonId, setMatchedPersonId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -162,11 +167,11 @@ export default function SignupForm({
         ? "Enter a first name, a last name and a mobile number to enable this."
         : "Tick the box below to enable this.";
 
-  async function doSubmit(linkExistingPersonId: string | null) {
+  async function doSubmit(confirmedExistingMatch: boolean) {
     setBusy(true);
     setError(null);
     try {
-      const outcome = await submit({ ...values, consent, linkExistingPersonId });
+      const outcome = await submit({ ...values, consent, confirmedExistingMatch });
       if (outcome.ok) {
         setStep("saved");
       } else {
@@ -186,7 +191,6 @@ export default function SignupForm({
       try {
         const probe = await checkDuplicate(values.givenName, values.mobile);
         if (probe.found) {
-          setMatchedPersonId(probe.matchedPersonId);
           setStep("already");
           return;
         }
@@ -194,7 +198,7 @@ export default function SignupForm({
         setBusy(false);
       }
     }
-    await doSubmit(null);
+    await doSubmit(false);
   }
 
   if (step === "already") {
@@ -230,7 +234,7 @@ export default function SignupForm({
             <Button
               variant="contained"
               disabled={busy}
-              onClick={() => doSubmit(matchedPersonId)}
+              onClick={() => doSubmit(true)}
               sx={{ minHeight: 48, flex: 1 }}
             >
               Yes, that&rsquo;s me
@@ -238,7 +242,7 @@ export default function SignupForm({
             <Button
               variant="outlined"
               disabled={busy}
-              onClick={() => doSubmit(null)}
+              onClick={() => doSubmit(false)}
               sx={{ minHeight: 48, flex: 1 }}
             >
               No, I&rsquo;m new

@@ -201,14 +201,20 @@ first; never prune dirty, unpushed, active, or unmerged work. Keep an overnight
 mission awake.
 
 For qualifying work, run `mission gate` with current PR, checks, and diff
-evidence. A pass records `gate-passed` at the exact head. Only its receipt may
-be published in the PR and followed by the `mission-merge` label. The workflow
-re-derives the result and merges immediately; the Lead never runs a merge or
-un-drafts. Record the resulting merge and route, reclaim it, and let dependent
-work start from the updated `main`.
-Prohibited paths remain owner-merged. Highest-risk, auth, and delivery work use
-the guarded lane only after an answered owner checkpoint names the package.
-Mission merges never deploy.
+evidence. A pass records `gate-passed` at the exact head and is the only
+authority to run `gh pr ready` on that package.
+
+Lifting the draft is the last act of the work and the authorization to merge
+it (AGENTS.md, "Merging"). Lift it only when the diff touches no prohibited
+path, review is clear at the exact current head, and, for visual work,
+Brian's visual approval is recorded against that same head. Otherwise leave
+the draft and Brian merges. Never merge.
+
+The merge workflow then enables GitHub's auto-merge and GitHub merges once the
+checks are green. Record the resulting merge and route, reclaim it, and let
+dependent work start from the updated `main`. Prohibited paths stay drafts for
+Brian. Highest-risk, auth, and delivery work leaves draft only after an answered
+owner checkpoint names the package. Merging never deploys.
 
 After every live package has merged, run `npm run verify` once on current
 `main`, then `mission walker request` and one bounded Sonnet walker in the

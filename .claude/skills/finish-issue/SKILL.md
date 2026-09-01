@@ -12,7 +12,7 @@ Invocation: `/finish-issue LAN-### [--abandoned]`
 ## Intent
 
 Exist to reclaim one completed run without losing work or touching another run.
-Never implement, review, delegate, merge, un-draft, deploy, or use hosted
+Never implement, review, delegate, merge, never lift a draft, deploy, or use hosted
 Supabase. Done means local resources are safely reclaimed and Linear is closed,
 or a precise refusal leaves everything untouched.
 

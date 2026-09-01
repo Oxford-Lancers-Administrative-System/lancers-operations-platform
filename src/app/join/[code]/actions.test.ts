@@ -91,7 +91,7 @@ describe("submitQrSignup", () => {
     const outcome = await submitQrSignup(code, {
       ...values(),
       consent: true,
-      linkExistingPersonId: null,
+      confirmedExistingMatch: false,
     });
     expect(outcome).toEqual({ ok: true });
 
@@ -108,7 +108,7 @@ describe("submitQrSignup", () => {
     const outcome = await submitQrSignup(code, {
       ...values(),
       consent: false,
-      linkExistingPersonId: null,
+      confirmedExistingMatch: false,
     });
     expect(outcome.ok).toBe(false);
     expect(outcome.message).toMatch(/tick/i);
@@ -118,7 +118,7 @@ describe("submitQrSignup", () => {
     const outcome = await submitQrSignup("this-code-was-never-minted", {
       ...values(),
       consent: true,
-      linkExistingPersonId: null,
+      confirmedExistingMatch: false,
     });
     expect(outcome.ok).toBe(false);
   });
@@ -126,7 +126,121 @@ describe("submitQrSignup", () => {
 
 describe("checkForExistingQrRecruit", () => {
   it("finds nobody when no match exists", async () => {
-    const result = await checkForExistingQrRecruit(MARKER, "");
-    expect(result).toEqual({ found: false, matchedPersonId: null });
+    const code = await mintCode();
+    const result = await checkForExistingQrRecruit(code, MARKER, "");
+    expect(result).toEqual({ found: false });
+  });
+
+  // LAN-208: this action took no `code` at all before the fix, so it was callable
+  // forever once any /join/[code] page had loaded — codes go on posters, and are
+  // meant to stop working once deactivated. This is the regression test: it fails
+  // (probes anyway) against the defect and passes (refuses) after gating by a live
+  // code resolution, identical to submitQrSignup's own check.
+  // Both tests below insert a real matching person before probing — a probe
+  // that ignored the code gate would still find that real match (found: true)
+  // regardless, which is exactly why an assertion against unmatched data alone
+  // would not catch a missing gate.
+  it("refuses to probe against an unknown code — gated the same way submitQrSignup is, even with a real match on file", async () => {
+    const mobile = "07700900444";
+    const existing = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ($1, 'Findme') returning id`,
+      [MARKER],
+    );
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1::uuid, 'phone', $2, true, 'test fixture')`,
+      [existing.rows[0].id, mobile],
+    );
+
+    const result = await checkForExistingQrRecruit("this-code-was-never-minted", MARKER, mobile);
+    expect(result).toEqual({ found: false });
+  });
+
+  it("refuses to probe against a deactivated code, even with a real match on file", async () => {
+    const mobile = "07700900555";
+    const existing = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ($1, 'Findme') returning id`,
+      [MARKER],
+    );
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1::uuid, 'phone', $2, true, 'test fixture')`,
+      [existing.rows[0].id, mobile],
+    );
+
+    const code = await mintCode();
+    // Minting a second code for the same season deactivates the first —
+    // recruitment-signup-codes.ts's own "one live per season" rule.
+    await mintCode();
+    const result = await checkForExistingQrRecruit(code, MARKER, mobile);
+    expect(result).toEqual({ found: false });
+  });
+
+  it("still finds a real match through a live code", async () => {
+    const mobile = "07700900111";
+    const existing = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ($1, 'Findme') returning id`,
+      [MARKER],
+    );
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1::uuid, 'phone', $2, true, 'test fixture')`,
+      [existing.rows[0].id, mobile],
+    );
+    const code = await mintCode();
+    const result = await checkForExistingQrRecruit(code, MARKER, mobile);
+    expect(result).toEqual({ found: true });
+  });
+});
+
+describe("submitQrSignup — confirming an existing match", () => {
+  it("links to the existing person when confirmed, re-deriving who from the resubmitted name and mobile", async () => {
+    const mobile = "07700900222";
+    const existing = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ($1, 'Findme') returning id`,
+      [MARKER],
+    );
+    const existingPersonId = existing.rows[0].id;
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1::uuid, 'phone', $2, true, 'test fixture')`,
+      [existingPersonId, mobile],
+    );
+
+    const code = await mintCode();
+    const outcome = await submitQrSignup(code, {
+      ...values({ mobile }),
+      consent: true,
+      confirmedExistingMatch: true,
+    });
+    expect(outcome).toEqual({ ok: true });
+
+    const people = await observer.query(
+      `select count(*)::int as count from public.people where given_name = $1`,
+      [MARKER],
+    );
+    expect(people.rows[0].count).toBe(1);
+
+    const prospect = await observer.query(
+      `select count(*)::int as count from public.recruitment_prospects where person_id = $1::uuid`,
+      [existingPersonId],
+    );
+    expect(prospect.rows[0].count).toBe(1);
+  });
+
+  it("creates a new person when confirmed but the resubmitted name and mobile no longer match anyone — refuses nobody", async () => {
+    const code = await mintCode();
+    const outcome = await submitQrSignup(code, {
+      ...values({ mobile: "07700900333" }),
+      consent: true,
+      confirmedExistingMatch: true,
+    });
+    expect(outcome).toEqual({ ok: true });
+
+    const people = await observer.query(
+      `select count(*)::int as count from public.people where given_name = $1`,
+      [MARKER],
+    );
+    expect(people.rows[0].count).toBe(1);
   });
 });

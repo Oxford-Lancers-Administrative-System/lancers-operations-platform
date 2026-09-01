@@ -109,7 +109,7 @@ why. Open draft PRs only. State the change, verification, external configuration
 and limitations. Fill every line in the Production handoff block, including
 explicit `No` and `None`.
 
-Run `npm run verify` before a normal PR. When migrations change, also run:
+Run `npm run verify` before opening a PR. When migrations change, also run:
 
 ```bash
 npm run db:reset
@@ -118,28 +118,29 @@ npm run types:generate
 npm run check:rls
 ```
 
-## The fast lane
+## Merging
 
-Only documentation and qualifying cross-cutting tests are eligible; the
-agent-instruction class is empty today. Application/schema/migration,
-dependency, deployment/workflow, changes that weaken valid coverage, deletion/rename, and mixed
-changes are ineligible regardless of how small they are. A tiny application fix
-stays draft-only in the normal lane, runs `npm run verify`, and never
-auto-merges.
+One rule, and it applies to every pull request in this repository, whatever
+opened it (Brian, 2026-09-01; ADR 0038).
 
-`.github/fast-lane-rules.json` is the gate and `docs/fast-lane.md` is the
-runbook. Eligibility is recomputed from `main...head`; the label asks and is
-never evidence. Classification fails closed: absence of a rule is never
-permission. Changes to eligibility, required verification, automatic-merge
-authority, or protection of these rules are protected and use the normal lane.
-Everything else goes to the mission lane, where **auto-merge is the default**
-(Brian, 2026-09-01): `npm run verify` passes locally, the PR opens as a draft,
-and `.github/workflows/mission-merge.yml` evaluates it whether or not it is
-labelled or tied to a work package. It merges unless a conjunct refuses —
-a prohibited surface in the real diff, a missing Linear issue, a failed or
-missing required check at the exact head, or, where a receipt is present, an
-incoherent one. Brian merges what the gate refuses. No agent may merge or
-un-draft; that authority lives only in the workflow. Neither lane deploys.
+> A pull request leaves draft exactly once, as the last act of the work, and
+> that act is the authorization to merge it. An agent may lift the draft only
+> when all three are true: the diff touches no prohibited path; review is clear
+> at the pull request's exact current head; and, for visual work, Brian's visual
+> approval is recorded against that same head. Otherwise the draft stays and
+> Brian merges. No agent merges, ever.
+
+Only `/start-issue` and `/run-mission` may lift a draft; `implementation-worker`,
+`/finish-issue`, `/finish-mission`, `/mission-intake`, `code-reviewer` and
+`scout` never do. Nothing is expected to happen to a pull request afterwards, so
+there is deliberately no re-draft-on-push machinery.
+
+`.github/workflows/merge.yml` is the only merge workflow, and it neither merges
+nor un-drafts. It enables GitHub's own auto-merge on a non-draft pull request
+whose diff touches no `prohibited` path in `.github/merge-rules.json`; GitHub
+merges it when the required checks are green. A prohibited path gets one comment
+and stays Brian's. The scan is recomputed from the real diff against `main`, and
+nothing written in a pull request changes it. Merging never deploys.
 
 Pilot artifacts are required only when `docs/pilot-data-runbook.md` says local
 proof is insufficient and hosted synthetic rows are absent. Tell Brian as soon
@@ -234,12 +235,10 @@ and cleanup proofs are authoritative. The Lead follows its executable frontier
 and uses scouts instead of loading repository investigation into top-tier
 context.
 
-No agent merges, un-drafts a pull request, deploys, migrates hosted Supabase, or
-writes to production. No agent weakens local-only guards, changes GitHub
-settings, or bypasses a fence. Draft PRs remain drafts until Brian or the
-merge workflow merges them. A mission merge does not deploy because
-`deploy.yml` is manual-only. LAN-90 and LAN-92 remain binding; manual
-distribution is never a fallback.
+No agent merges, deploys, migrates hosted Supabase, or writes to production. No
+agent weakens local-only guards, changes GitHub settings, or bypasses a fence.
+A merge does not deploy: `deploy.yml` is manual-only. LAN-90 and LAN-92 remain
+binding; manual distribution is never a fallback.
 
 ## Done
 
@@ -247,4 +246,5 @@ A repository change is done only when applicable verification passed; migrations
 apply from empty; generated types and the data-model map agree; new tables have
 RLS and narrow grants; behavior docs are current; no secret, real member data,
 or unauthorized domain concept was added; CI is green; and the PR's Production
-handoff is complete. Fast-lane changes use only their fixed class verification.
+handoff is complete. Done does not mean merged: the draft lifts only when the
+merge rule above says it may.
