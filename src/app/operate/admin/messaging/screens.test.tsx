@@ -22,8 +22,15 @@ vi.mock("@/lib/services/messaging-schedule", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/messaging-schedule")>();
   return { ...actual, listMessagingSchedulesWithPreview: vi.fn() };
 });
+vi.mock("@/lib/services/recruitment-cycle", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/recruitment-cycle")>();
+  return { ...actual, listRecruitmentCycleSteps: vi.fn() };
+});
 vi.mock("./actions", () => ({
   updateOneMessagingScheduleAction: vi.fn(() =>
+    Promise.resolve({ notice: null, error: null, refusal: null, candidates: null }),
+  ),
+  updateRecruitmentCycleStepsAction: vi.fn(() =>
     Promise.resolve({ notice: null, error: null, refusal: null, candidates: null }),
   ),
 }));
@@ -35,6 +42,10 @@ import {
   type MessagingSchedule,
   type MessagingScheduleWithPreview,
 } from "@/lib/services/messaging-schedule";
+import {
+  listRecruitmentCycleSteps,
+  type RecruitmentCycleStep,
+} from "@/lib/services/recruitment-cycle";
 import MessagingSchedulePage from "./page";
 
 function administrator(seat = "president"): ResolvedOperator {
@@ -65,6 +76,8 @@ function schedule(overrides: Partial<MessagingSchedule> = {}): MessagingSchedule
     whatsappReminderCount: 2,
     emailReminderCount: 1,
     escalationHours: 12,
+    recruitInvitationLeadDays: null,
+    recruitFollowUpCadenceHours: null,
     updatedAt: new Date("2026-08-25T00:00:00Z"),
     ...overrides,
   };
@@ -113,6 +126,7 @@ function plan(base: MessagingSchedule, overrides: Partial<MessagingPlan> = {}): 
     lateApproval: false,
     rungs,
     escalationAt: new Date(responseDeadlineAt.getTime() + base.escalationHours * HOUR_MS),
+    recruitLadder: null,
     ...overrides,
   };
 }
@@ -129,9 +143,40 @@ const EVENT_TYPES = [
 
 function rows(): MessagingScheduleWithPreview[] {
   return EVENT_TYPES.map((eventType) => {
-    const row = schedule({ eventType });
+    const row = schedule(
+      eventType === "recruitment"
+        ? { eventType, recruitInvitationLeadDays: 5, recruitFollowUpCadenceHours: 72 }
+        : { eventType },
+    );
     return { schedule: row, preview: plan(row) };
   });
+}
+
+/**
+ * The four cycle steps, seeded as LAN-199/the migration ship them. No
+ * `enabled` field — Brian, 2026-09-01: "the toggles were completely
+ * invented… Remove the toggles." The database column survives untouched;
+ * `RecruitmentCycleStep` simply no longer carries it.
+ */
+function cycleSteps(): RecruitmentCycleStep[] {
+  return [
+    { step: "welcome", offsetHours: 0, updatedAt: new Date("2026-08-25T00:00:00Z") },
+    {
+      step: "details_reminder",
+      offsetHours: 96,
+      updatedAt: new Date("2026-08-25T00:00:00Z"),
+    },
+    {
+      step: "interest_ask",
+      offsetHours: 72,
+      updatedAt: new Date("2026-08-25T00:00:00Z"),
+    },
+    {
+      step: "interest_reminder",
+      offsetHours: 144,
+      updatedAt: new Date("2026-08-25T00:00:00Z"),
+    },
+  ];
 }
 
 beforeEach(() => {
@@ -139,6 +184,7 @@ beforeEach(() => {
   cleanup();
   signedIn(administrator());
   vi.mocked(listMessagingSchedulesWithPreview).mockResolvedValue(rows());
+  vi.mocked(listRecruitmentCycleSteps).mockResolvedValue(cycleSteps());
 });
 
 describe("who may open the messaging schedule", () => {
@@ -307,8 +353,16 @@ describe("one save button per row — OWNER-LAN171-04", () => {
   it("gives every row its own form and its own save button, not one for the page", async () => {
     const { container } = render(await MessagingSchedulePage());
 
+    // Seven event types, plus LAN-203's two recruitment cycle rows
+    // (`cycle-step-row`, Brian 2026-09-01: Welcome and its details reminder
+    // collapsed onto one row) — each is its own form on the same
+    // one-row-one-save law, so the total grows with the cycle rather than
+    // staying fixed at seven.
     const forms = container.querySelectorAll("form");
-    expect(forms).toHaveLength(7);
+    expect(forms).toHaveLength(9);
+    const cycleRows = screen.getAllByTestId("cycle-step-row");
+    expect(cycleRows).toHaveLength(2);
+    for (const row of cycleRows) expect(row.tagName).toBe("FORM");
 
     const rowsFound = screen.getAllByTestId("schedule-row");
     const practiceRow = rowsFound[0];
@@ -324,5 +378,163 @@ describe("one save button per row — OWNER-LAN171-04", () => {
     expect(Array.from(hiddenInputs).map((input) => (input as HTMLInputElement).value)).toEqual(
       EVENT_TYPES,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-203 — the page's three sections
+// ---------------------------------------------------------------------------
+
+describe("the page's three sections — W10, Brian 2026-08-31", () => {
+  it("reads as Recruitment, then Event messaging, then Onboarding, in that order", async () => {
+    render(await MessagingSchedulePage());
+
+    const headings = screen.getAllByRole("heading", { level: 2 });
+    expect(headings.map((heading) => heading.textContent)).toEqual([
+      "Recruitment",
+      "Event messaging",
+      "Onboarding",
+    ]);
+  });
+
+  it("Onboarding says plainly that it is not built yet, and carries no rows", async () => {
+    render(await MessagingSchedulePage());
+
+    const section = screen.getByTestId("onboarding-section");
+    expect(section.textContent).toMatch(/not built yet/i);
+    expect(section.querySelectorAll("form")).toHaveLength(0);
+  });
+
+  it("the QR code is not on this page at all — W10: 'This workflow is the cycle and nothing else'", async () => {
+    render(await MessagingSchedulePage());
+    expect(screen.queryByText(/qr code/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("the recruitment cycle section — REQ-recruitment-cycle", () => {
+  // Brian, 2026-09-01: "the top two bars here should be made as one" —
+  // Welcome now draws exactly two rows: Welcome (covering `welcome` and its
+  // own `details_reminder`) and Recruitment questionnaire.
+  it("draws exactly two rows: Welcome, Recruitment questionnaire", async () => {
+    render(await MessagingSchedulePage());
+
+    const labels = screen.getAllByTestId("cycle-step-row-label").map((node) => node.textContent);
+    expect(labels).toEqual(["Welcome", "Recruitment questionnaire"]);
+  });
+
+  it("never draws a per-step on/off control — the toggles were invented and removed (Brian, 2026-09-01)", async () => {
+    const { container } = render(await MessagingSchedulePage());
+
+    expect(container.querySelector('input[type="checkbox"]')).toBeNull();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("shows Welcome as one card, two offsets — the first message at 0h, the second (details reminder) after N hours", async () => {
+    render(await MessagingSchedulePage());
+
+    const welcomeRow = screen.getAllByTestId("cycle-step-row")[0];
+    const firstField = welcomeRow.querySelector(
+      'input[name="step_welcome_offsetHours"]',
+    ) as HTMLInputElement;
+    const secondField = welcomeRow.querySelector(
+      'input[name="step_details_reminder_offsetHours"]',
+    ) as HTMLInputElement;
+    expect(firstField.value).toBe("0");
+    expect(secondField.value).toBe("96");
+  });
+
+  it("shows the Recruitment questionnaire row carrying both the ask and its reminder — LAN-199", async () => {
+    render(await MessagingSchedulePage());
+
+    const questionnaireRow = screen.getAllByTestId("cycle-step-row")[1];
+    const askField = questionnaireRow.querySelector(
+      'input[name="step_interest_ask_offsetHours"]',
+    ) as HTMLInputElement;
+    const reminderField = questionnaireRow.querySelector(
+      'input[name="step_interest_reminder_offsetHours"]',
+    ) as HTMLInputElement;
+    expect(askField.value).toBe("72");
+    expect(reminderField.value).toBe("144");
+  });
+
+  it("carries a hidden steps field naming which database rows each form covers", async () => {
+    const { container } = render(await MessagingSchedulePage());
+
+    const hidden = Array.from(container.querySelectorAll('input[name="steps"]')).map(
+      (input) => (input as HTMLInputElement).value,
+    );
+    expect(hidden).toEqual(["welcome,details_reminder", "interest_ask,interest_reminder"]);
+  });
+});
+
+describe("the Recruitment event row's two audiences — DEC-split-on-the-schedule", () => {
+  it("splits into Regular players and Recruits, in that order, within one row", async () => {
+    render(await MessagingSchedulePage());
+
+    const recruitmentRow = screen
+      .getAllByTestId("schedule-row")
+      .find((row) => row.textContent?.startsWith("Recruitment"))!;
+    expect(recruitmentRow).toBeDefined();
+
+    const groupHeadings = recruitmentRow.querySelectorAll('[data-testid="audience-group-heading"]');
+    expect(Array.from(groupHeadings).map((node) => node.textContent)).toEqual([
+      "Regular players",
+      "Recruits",
+    ]);
+  });
+
+  it("carries the Regular players' unchanged six fields, including a President field", async () => {
+    render(await MessagingSchedulePage());
+
+    const recruitmentRow = screen
+      .getAllByTestId("schedule-row")
+      .find((row) => row.textContent?.startsWith("Recruitment"))!;
+    for (const label of ["RSVP by", "First inv.", "Cadence", "WhatsApp", "Email", "President"]) {
+      expect(recruitmentRow.textContent).toContain(label);
+    }
+  });
+
+  it("carries the Recruits group's own two fields and their values, with no President field for them", async () => {
+    render(await MessagingSchedulePage());
+
+    const recruitmentRow = screen
+      .getAllByTestId("schedule-row")
+      .find((row) => row.textContent?.startsWith("Recruitment"))!;
+
+    const invitation = recruitmentRow.querySelector(
+      'input[name="recruitInvitationLeadDays"]',
+    ) as HTMLInputElement;
+    const followUp = recruitmentRow.querySelector(
+      'input[name="recruitFollowUpCadenceHours"]',
+    ) as HTMLInputElement;
+    expect(invitation.value).toBe("5");
+    expect(followUp.value).toBe("72");
+
+    // "No escalation field at all" for Recruits (REQ-two-ladders): neither
+    // recruit field's own box mentions the President, which belongs to
+    // Regular players alone.
+    expect(invitation.closest("[data-field]")?.textContent).not.toMatch(/president/i);
+    expect(followUp.closest("[data-field]")?.textContent).not.toMatch(/president/i);
+  });
+
+  it("saves the Recruits group's fields through the same one row, one submit as Regular players", async () => {
+    const { container } = render(await MessagingSchedulePage());
+
+    const recruitmentForm = Array.from(container.querySelectorAll("form")).find((form) =>
+      form.querySelector('input[name="eventType"][value="recruitment"]'),
+    )!;
+    expect(recruitmentForm).toBeDefined();
+    expect(recruitmentForm.querySelectorAll('button[type="submit"]')).toHaveLength(1);
+    expect(recruitmentForm.querySelector('input[name="recruitInvitationLeadDays"]')).not.toBeNull();
+  });
+
+  it("every other event type's row has no Recruits group at all", async () => {
+    render(await MessagingSchedulePage());
+
+    const practiceRow = screen
+      .getAllByTestId("schedule-row")
+      .find((row) => row.textContent?.startsWith("Practice"))!;
+    expect(practiceRow.querySelectorAll('[data-testid="audience-group-heading"]')).toHaveLength(0);
+    expect(practiceRow.querySelector('input[name="recruitInvitationLeadDays"]')).toBeNull();
   });
 });

@@ -24,7 +24,14 @@ import {
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../gate";
 import PeopleFilters from "./people-filters";
-import { labelFor, statusColour, STATUS_LABELS } from "./presentation";
+import {
+  labelFor,
+  personType,
+  personTypeColour,
+  PERSON_TYPE_LABELS,
+  statusColour,
+  STATUS_LABELS,
+} from "./presentation";
 
 /**
  * `W1-01` … `W1-04` — the People list, its search, its two empty states and
@@ -52,6 +59,10 @@ const SORT_OPTIONS: readonly { value: string; label: string }[] = Object.freeze(
   { value: "club", label: "To the club" },
   { value: "contactable", label: "Contactable" },
   { value: "missing", label: "Missing" },
+  // Finding 8, Brian 2026-09-01, positioned last — "on the right side when I
+  // see the whole player list" — sortable through the identical
+  // SortableHeader/query-param mechanism every other column already uses.
+  { value: "type", label: "Type" },
 ]);
 
 export default async function PeoplePage({ searchParams }: PageProps<"/operate/people">) {
@@ -186,6 +197,13 @@ export default async function PeoplePage({ searchParams }: PageProps<"/operate/p
                   <SortableHeader
                     column="missing"
                     label="Missing"
+                    sort={sort}
+                    direction={direction}
+                    query={params}
+                  />
+                  <SortableHeader
+                    column="type"
+                    label="Type"
                     sort={sort}
                     direction={direction}
                     query={params}
@@ -390,7 +408,24 @@ function PersonRow({ person }: { person: PersonListEntry }) {
       <TableCell>
         <MissingCell person={person} />
       </TableCell>
+      <TableCell>
+        <TypeCell status={person.status} />
+      </TableCell>
     </TableRow>
+  );
+}
+
+/** Finding 8, Brian 2026-09-01 — the right-hand, sortable Player/Recruit column. */
+function TypeCell({ status }: { status: PersonListEntry["status"] }) {
+  const type = personType(status);
+  return (
+    <Chip
+      size="small"
+      variant="outlined"
+      color={personTypeColour(type)}
+      label={PERSON_TYPE_LABELS[type]}
+      data-testid="person-type-chip"
+    />
   );
 }
 

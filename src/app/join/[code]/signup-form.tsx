@@ -11,6 +11,11 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import {
+  validateAcademicYear,
+  validateEmailAddress,
+  validatePhoneNumber,
+} from "@/lib/services/person-validation";
 
 /**
  * The sign-up gate's one form — LAN-202. **The single consent gate**, and the
@@ -24,11 +29,19 @@ import Typography from "@mui/material/Typography";
  *     starts filled in, and there is no duplicate question at all, "because
  *     there is nothing to ask" (`W7`).
  *
- * First name, last name and the consent tick are the only required fields —
- * Brian, 2026-09-01 — enforced here for the disabled `Save` button (standards
- * rule 4, "a disabled control says what would enable it") and, independently,
- * by the service layer this component never talks to directly: every write
+ * First name, last name, mobile and the consent tick are the required fields
+ * — superseded, Brian, 2026-09-01: "Mobile is required no matter what…
+ * Missing never blocks except for phone… Nothing else works if we don't have
+ * a phone number." Enforced here for the disabled `Save` button (standards
+ * rule 4, "a disabled control says what would enable it") and, independently
+ * and authoritatively, by `recruitment-signup.ts`'s `validateSignupSubmission`
+ * — this component never talks to the service layer directly; every write
  * goes through the `submit` prop, a server action the page supplies.
+ *
+ * Mobile, email, matriculation year and expected graduation are all
+ * validated inline with the same `person-validation.ts` functions the
+ * server repeats (finding 2, finding 3) — one shared standard, checked
+ * twice, never two different rules for the same field.
  */
 
 export interface SignupFieldValues {
@@ -112,12 +125,46 @@ export default function SignupForm({
   }
 
   const nameMissing = values.givenName.trim() === "" || values.familyName.trim() === "";
-  const ready = !nameMissing && consent;
-  const disabledReason =
-    nameMissing && !consent
-      ? "Enter a first name and a last name, and tick the box below, to enable this."
-      : nameMissing
-        ? "Enter a first name and a last name to enable this."
+  const mobileMissing = values.mobile.trim() === "";
+
+  // Every one of the four format checks below is the same
+  // person-validation.ts function the server repeats — one shared standard,
+  // never a second, looser copy for the browser (finding 2, finding 3).
+  const mobileValidation = values.mobile.trim() === "" ? null : validatePhoneNumber(values.mobile);
+  const mobileError = mobileMissing
+    ? null // "required" is covered by disabledReason below, not a red field error on an empty required field nobody has failed to fill in yet.
+    : mobileValidation && !mobileValidation.valid
+      ? mobileValidation.message
+      : null;
+
+  const emailValidation = values.email.trim() === "" ? null : validateEmailAddress(values.email);
+  const emailError = emailValidation && !emailValidation.valid ? emailValidation.message : null;
+
+  const matriculationValidation =
+    values.matriculationYear.trim() === ""
+      ? null
+      : validateAcademicYear(values.matriculationYear, "Matriculation year");
+  const matriculationError =
+    matriculationValidation && !matriculationValidation.valid
+      ? matriculationValidation.message
+      : null;
+
+  const graduationValidation =
+    values.expectedGraduationYear.trim() === ""
+      ? null
+      : validateAcademicYear(values.expectedGraduationYear, "Expected graduation");
+  const graduationError =
+    graduationValidation && !graduationValidation.valid ? graduationValidation.message : null;
+
+  const requiredMissing = nameMissing || mobileMissing;
+  const formatInvalid = Boolean(mobileError || emailError || matriculationError || graduationError);
+  const ready = !requiredMissing && !formatInvalid && consent;
+  const disabledReason = formatInvalid
+    ? "Correct the field marked in red to enable this."
+    : requiredMissing && !consent
+      ? "Enter a first name, a last name and a mobile number, and tick the box below, to enable this."
+      : requiredMissing
+        ? "Enter a first name, a last name and a mobile number to enable this."
         : "Tick the box below to enable this.";
 
   async function doSubmit(confirmedExistingMatch: boolean) {
@@ -259,7 +306,7 @@ export default function SignupForm({
               : "We already have most of this. Check it, change anything that is wrong, and tell us how we may contact you."}
           </Typography>
           <Typography sx={{ fontSize: 15, fontWeight: 600, mt: 1.5 }}>
-            Only your name and the tick below are needed. The rest can wait.
+            Your name, your mobile number and the tick below are needed. The rest can wait.
           </Typography>
         </Box>
 
@@ -267,8 +314,21 @@ export default function SignupForm({
 
         <TextField label="First name" required fullWidth {...field("givenName")} />
         <TextField label="Last name" required fullWidth {...field("familyName")} />
-        <TextField label="Mobile number" fullWidth {...field("mobile")} />
-        <TextField label="Email address" fullWidth {...field("email")} />
+        <TextField
+          label="Mobile number"
+          required
+          fullWidth
+          error={Boolean(mobileError)}
+          helperText={mobileError ?? "How the club will message you about sessions."}
+          {...field("mobile")}
+        />
+        <TextField
+          label="Email address"
+          fullWidth
+          error={Boolean(emailError)}
+          helperText={emailError ?? undefined}
+          {...field("email")}
+        />
         <TextField
           label="Known as"
           fullWidth
@@ -279,10 +339,17 @@ export default function SignupForm({
         <TextField
           label="Matriculation year"
           fullWidth
-          helperText="The year you started at Oxford."
+          error={Boolean(matriculationError)}
+          helperText={matriculationError ?? "The year you started at Oxford."}
           {...field("matriculationYear")}
         />
-        <TextField label="Expected graduation" fullWidth {...field("expectedGraduationYear")} />
+        <TextField
+          label="Expected graduation"
+          fullWidth
+          error={Boolean(graduationError)}
+          helperText={graduationError ?? undefined}
+          {...field("expectedGraduationYear")}
+        />
         <TextField label="Degree" fullWidth {...field("degreeField")} />
 
         <Paper variant="outlined" sx={{ p: 2, borderColor: consent ? "primary.main" : "divider" }}>

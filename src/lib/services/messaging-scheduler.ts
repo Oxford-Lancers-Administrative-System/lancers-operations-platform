@@ -21,6 +21,12 @@ import {
   MAX_ATTEMPTS,
   dispatchJob,
 } from "./delivery";
+import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
+import { issuePersonTokenIn } from "./player-answer-tokens";
+import {
+  readRecruitmentCycleCompletionIn,
+  type RecruitmentCycleStepName,
+} from "./recruitment-cycle";
 import type { MessagingPlan } from "./messaging-schedule";
 import { personDisplayAliasSql } from "./sql-text";
 
@@ -140,20 +146,55 @@ export async function scheduleEventLadderIn(
   // and this statement must never rewrite the anchor of a message that has
   // already gone — or already been stood down — under the pretence of
   // freshly scheduling it.
-  const anchored = await tx.query(
-    `update public.notification_jobs
+  //
+  // W11's defect, LAN-203: this used to be one unfiltered `update`, so a
+  // recruit's invitation job was anchored to the PLAYER lead time — the
+  // wrong number even before it goes on to receive the player's reminder
+  // ladder below. Two statements, one per audience, joined against
+  // `invitations` so each is anchored to its own ladder's own invitation
+  // instant. The recruit statement runs unconditionally; on every event type
+  // but Recruitment there are no recruit-capacity invitations to match, so it
+  // is a no-op there rather than a branch to remember.
+  const anchoredPlayers = await tx.query(
+    `update public.notification_jobs j
         set scheduled_for = $2::timestamptz,
             ladder_rung = 0,
             updated_at = now()
-      where event_id = $1 and job_type = 'invitation' and status in ('pending', 'ready')`,
+       from public.invitations i
+      where j.invitation_id = i.id
+        and j.event_id = $1 and j.job_type = 'invitation' and j.status in ('pending', 'ready')
+        and i.capacity <> 'recruit'`,
     [eventId, invitationRung?.at ?? plan.invitationAt],
   );
+
+  let anchoredRecruits = 0;
+  if (plan.recruitLadder) {
+    const result = await tx.query(
+      `update public.notification_jobs j
+          set scheduled_for = $2::timestamptz,
+              ladder_rung = 0,
+              updated_at = now()
+         from public.invitations i
+        where j.invitation_id = i.id
+          and j.event_id = $1 and j.job_type = 'invitation' and j.status in ('pending', 'ready')
+          and i.capacity = 'recruit'`,
+      [eventId, plan.recruitLadder.invitationAt],
+    );
+    anchoredRecruits = result.rowCount ?? 0;
+  }
 
   let reminders = 0;
 
   for (const rung of plan.rungs) {
     if (rung.kind !== "reminder") continue;
 
+    // `and i.capacity <> 'recruit'` is the other half of W11's defect: this
+    // insert used to select every invitation on the event with no capacity
+    // filter at all, so a recruit received the same reminder-and-escalation
+    // ladder a player does — "recruits get set the invite once and maybe one
+    // further follow-up... but recruits get treated differently" (Brian,
+    // 2026-08-31). The fix is not suppression: the recruit ladder below is
+    // built beside this one, on its own rung numbering, rather than dropped.
     const created = await tx.query(
       `insert into public.notification_jobs
          (idempotency_key, job_type, status, invitation_id, event_id, person_id,
@@ -166,6 +207,7 @@ export async function scheduleEventLadderIn(
          from public.invitations i
          left join public.season_memberships m on m.id = i.season_membership_id
         where i.event_id = $1
+          and i.capacity <> 'recruit'
        on conflict (idempotency_key) do nothing`,
       [eventId, rung.rung, rung.channel, rung.at],
     );
@@ -173,7 +215,56 @@ export async function scheduleEventLadderIn(
     reminders += created.rowCount ?? 0;
   }
 
-  return { invitations: anchored.rowCount ?? 0, reminders };
+  // REQ-two-ladders' other half: recruitment's own ladder, one invitation
+  // (anchored above) and at most one follow-up, `ladder_rung = 1` — never a
+  // rung 2, because there is never a second reminder (`REQ-never-harsh`).
+  // `plan.recruitLadder.followUpAt` is already `null` where the shared
+  // response deadline left no runway for it, so "not scheduled" and "not
+  // configured" collapse to the one `if` below rather than two.
+  //
+  // Consent is checked per recruit, here, at job-creation time rather than at
+  // dispatch: a recruit's invitation job already exists (`approveEvent`
+  // creates one per audience member, every capacity alike, before this
+  // function runs) and is not this function's to withhold, but the follow-up
+  // is entirely this function's own creation, so withholding it for an
+  // unconsented recruit costs nothing else. See `messaging-consent.ts`
+  // (LAN-203 Amendment 4 — the LAN-202 seam) and `claimJobIn` in
+  // `delivery.ts`, which is where the invitation job itself is refused for
+  // the same reason at the moment it would actually send.
+  if (plan.recruitLadder?.followUpAt) {
+    const recruitInvitees = await tx.query<{ invitation_id: string; person_id: string }>(
+      `select i.id as invitation_id, coalesce(i.person_id, m.person_id) as person_id
+         from public.invitations i
+         left join public.season_memberships m on m.id = i.season_membership_id
+        where i.event_id = $1 and i.capacity = 'recruit'`,
+      [eventId],
+    );
+
+    const event = await tx.query<{ season_id: string }>(
+      `select season_id from public.events where id = $1`,
+      [eventId],
+    );
+    const seasonId = event.rows[0]?.season_id ?? null;
+
+    for (const invitee of recruitInvitees.rows) {
+      if (seasonId === null) continue;
+      if (!(await hasGrantedSeasonMessagingConsentIn(tx, invitee.person_id, seasonId))) continue;
+
+      const created = await tx.query(
+        `insert into public.notification_jobs
+           (idempotency_key, job_type, status, invitation_id, event_id, person_id,
+            channel, scheduled_for, ladder_rung, template_variables)
+         values ('event:' || $1::uuid::text || ':reminder:recruit:' || $2::uuid::text || ':1',
+                 'reminder', 'pending', $2::uuid, $1::uuid, $3::uuid,
+                 'whatsapp'::public.notification_channel, $4::timestamptz, 1, '{}'::jsonb)
+         on conflict (idempotency_key) do nothing`,
+        [eventId, invitee.invitation_id, invitee.person_id, plan.recruitLadder.followUpAt],
+      );
+      reminders += created.rowCount ?? 0;
+    }
+  }
+
+  return { invitations: (anchoredPlayers.rowCount ?? 0) + anchoredRecruits, reminders };
 }
 
 // ---------------------------------------------------------------------------
@@ -321,11 +412,20 @@ async function raiseDueEscalations(): Promise<{
       // approved event. Reading it rather than reimplementing the predicate is
       // what keeps the chase queue an operator sees and the escalation the
       // President receives counting the same people.
+      // `and q.capacity <> 'recruit'` — REQ-two-ladders, REQ-never-harsh.
+      // `nonresponse_queue` is capacity-agnostic by design (W5's chase queue
+      // reads every unanswered invitee, recruits included, so an operator can
+      // still see and follow up with one by hand); the President escalation
+      // is not that queue, and a recruit's own ladder never escalates. Without
+      // this filter a recruit crossing the deadline would still raise a flag
+      // and be counted in `outstanding` below, silently reaching the
+      // President despite `scheduleEventLadderIn` never having scheduled
+      // them an escalation job of their own.
       const raised = await tx.query<{ invitation_id: string }>(
         `insert into public.nonresponse_flags (invitation_id, threshold)
          select q.invitation_id, 'escalation'::public.nonresponse_threshold
            from public.nonresponse_queue q
-          where q.event_id = $1 and q.invitation_id is not null
+          where q.event_id = $1 and q.invitation_id is not null and q.capacity <> 'recruit'
          on conflict (invitation_id, threshold) do nothing
          returning invitation_id`,
         [eventId],
@@ -453,14 +553,24 @@ async function readDueJobs(limit: number): Promise<readonly { id: string; jobTyp
       `select id, job_type::text as job_type
          from public.notification_jobs
         where held_at is null
-          -- The rungs this package schedules, the escalation it raises, and
-          -- OWNER-LAN173-03's two notices.
+          -- The rungs this package schedules, the escalation it raises,
+          -- OWNER-LAN173-03's two notices, and LAN-203's own recruitment
+          -- cycle messages.
           --
           -- Named as an allow-list rather than an exclusion so a seventh job
           -- type is not silently swept the day somebody adds one.
-          and job_type in (
-            'invitation', 'reminder', 'escalation',
-            'schedule_change_notice', 'cancellation_notice'
+          -- 'other' is not the seventh: it is the sixth, already declared
+          -- and unused everywhere else in this codebase (a grep confirms
+          -- it), and only the recruit-cycle: idempotency-key shape admitted
+          -- here is new — see declareRecruitmentCycleJobsIn
+          -- (recruitment-cycle.ts) for why 'other' was the safe value to
+          -- adopt rather than a migrated seventh.
+          and (
+            job_type in (
+              'invitation', 'reminder', 'escalation',
+              'schedule_change_notice', 'cancellation_notice'
+            )
+            or (job_type = 'other' and idempotency_key like 'recruit-cycle:%')
           )
           -- A player-facing rung whose event has already begun is
           -- undispatchable, and this predicate is what stops the sweep
@@ -510,6 +620,11 @@ async function readDueJobs(limit: number): Promise<readonly { id: string; jobTyp
           and (
             job_type = 'escalation'
             or job_type = 'cancellation_notice'
+            -- LAN-203. A cycle job carries no event at all — event_id is
+            -- always null — so it is exempt from the event-approved-and-
+            -- future check for the identical reason escalation is: there is
+            -- no event lifecycle to check against.
+            or (job_type = 'other' and idempotency_key like 'recruit-cycle:%')
             or exists (
               select 1
                 from public.events e
@@ -561,7 +676,14 @@ export async function runMessagingSweep(
           ? await dispatchEscalationJob(job.id, options)
           : job.jobType === "cancellation_notice"
             ? await dispatchNoticeJob(job.id, options)
-            : await dispatchJob(job.id, { ...options, automatic: true });
+            : // LAN-203. readDueJobs's own WHERE clause admits an 'other' row
+              // only when its idempotency_key carries the recruit-cycle:
+              // prefix, so every 'other' row reaching this loop is one of
+              // declareRecruitmentCycleJobsIn's own jobs — nothing else in
+              // this codebase produces one.
+              job.jobType === "other"
+              ? await dispatchRecruitmentCycleJob(job.id, options)
+              : await dispatchJob(job.id, { ...options, automatic: true });
 
       if (outcome === "accepted") accepted += 1;
       else if (outcome === "refused") refused += 1;
@@ -1016,6 +1138,362 @@ async function failClaimTerminallyIn(
      on conflict (notification_job_id, attempt_number) do nothing`,
     [jobId, attemptNumber, channel, provider, reason],
   );
+}
+
+// ---------------------------------------------------------------------------
+// The recruitment cycle's own dispatch — LAN-203, Brian 2026-09-01 (W9b)
+// ---------------------------------------------------------------------------
+
+/** `recruit_welcome` etc — the four MessageKinds `templates.ts` already declares, one per step. */
+const CYCLE_MESSAGE_KIND: Readonly<Record<RecruitmentCycleStepName, OutboundMessage["kind"]>> = {
+  welcome: "recruit_welcome",
+  details_reminder: "recruit_details_reminder",
+  interest_ask: "recruit_interest_ask",
+  interest_reminder: "recruit_interest_reminder",
+};
+
+/** Which `RecruitmentCycleCompletion` field each step's track is stopped by. */
+const CYCLE_COMPLETION_TRACK: Readonly<
+  Record<RecruitmentCycleStepName, "welcomeStepComplete" | "questionnaireBComplete">
+> = {
+  welcome: "welcomeStepComplete",
+  details_reminder: "welcomeStepComplete",
+  interest_ask: "questionnaireBComplete",
+  interest_reminder: "questionnaireBComplete",
+};
+
+const RECRUIT_CYCLE_KEY_PREFIX = "recruit-cycle:";
+const RECRUIT_CYCLE_NOT_ELIGIBLE_REASON =
+  "This recruit is no longer an open prospect (declined, disengaged, converted, or the record " +
+  "was voided), so this message is never sent.";
+const RECRUIT_CYCLE_NOT_CONSENTED_REASON =
+  "This person has not granted messaging consent for this season, so this message is never sent.";
+const RECRUIT_CYCLE_ALREADY_COMPLETE_REASON =
+  "This recruit has already supplied this track's completing set, so this message is never sent " +
+  '(Brian, 2026-09-01: "if they fill out the whole thing … then it doesn\'t send out again").';
+
+/**
+ * Parses `declareRecruitmentCycleJobsIn`'s own `idempotency_key` shape —
+ * `recruit-cycle:<step>:<personId>:<seasonId>` — back into the step this
+ * job is. The one place that mapping is read, matching the same
+ * parse-the-structured-key idiom `idempotency_key not like '%${EMAIL_FALLBACK_SUFFIX}'`
+ * already uses in `delivery.ts`. Never `template_variables`, which stays
+ * exactly what its own comment says it is — a rendering input, not a
+ * routing key.
+ */
+function parseRecruitCycleKey(
+  idempotencyKey: string,
+): { step: RecruitmentCycleStepName; seasonId: string } | null {
+  if (!idempotencyKey.startsWith(RECRUIT_CYCLE_KEY_PREFIX)) return null;
+  const rest = idempotencyKey.slice(RECRUIT_CYCLE_KEY_PREFIX.length);
+  const parts = rest.split(":");
+  if (parts.length !== 3) return null;
+  const [step, , seasonId] = parts;
+  if (!(step in CYCLE_MESSAGE_KIND)) return null;
+  return { step: step as RecruitmentCycleStepName, seasonId };
+}
+
+/**
+ * Sends one recruitment-cycle message — welcome, its details reminder, the
+ * Questionnaire B ask, or its one reminder.
+ *
+ * A separate path from `dispatchJob`, on exactly `dispatchEscalationJob`'s
+ * own reasoning one section up: every assumption `claimJobIn` is built on
+ * (an invitation) is false here too — a cycle job carries only `person_id`.
+ * `job_type` is `'other'`, adopted rather than migrated (see
+ * `declareRecruitmentCycleJobsIn`'s own doc comment for why that is safe);
+ * which of the four messages this job is comes from `idempotency_key`, read
+ * once, here, by `parseRecruitCycleKey`.
+ *
+ * Consent and eligibility are re-checked at claim time, not trusted from
+ * declaration — Brian, 2026-09-01: "a withdrawal after the job exists still
+ * stops it at claim time." A recruit who withdrew, declined, or whose
+ * season closed between declaration and this sweep tick is refused here,
+ * terminally, exactly as `claimJobIn`'s own `not_consented` refusal never
+ * retries a refusal no channel would fix.
+ *
+ * No WhatsApp-to-email fallback is built for this path this round — every
+ * capture door this package builds requires a mobile number (finding 1), so
+ * the unreachable-recipient case this exists to catch for the event ladder
+ * is the rarer case here, not the common one; a future package can add the
+ * same `scheduleWhatsAppFallbackIn`-shaped shadow job `dispatchEscalationJob`
+ * already has if it proves necessary.
+ */
+export async function dispatchRecruitmentCycleJob(
+  jobId: string,
+  options: { source?: EnvironmentSource; transport?: Transport } = {},
+): Promise<"accepted" | "refused" | "skipped"> {
+  const routed = await withTransaction(async (tx) =>
+    tx.query<{ channel: string | null }>(
+      `select channel::text as channel from public.notification_jobs
+        where id = $1 and job_type = 'other'`,
+      [jobId],
+    ),
+  );
+  const channel = routed.rows[0]?.channel === "email" ? "email" : "whatsapp";
+
+  const resolution = resolveDeliveryProvider(
+    options.source ?? process.env,
+    options.transport,
+    channel,
+  );
+  if (!resolution.ok) {
+    await withTransaction(async (tx) => {
+      await tx.query(
+        `update public.notification_jobs
+            set status = 'failed', last_error = $2, updated_at = now()
+          where id = $1 and status in ('pending', 'ready', 'failed')`,
+        [jobId, resolution.reason],
+      );
+    });
+    return "refused";
+  }
+  const context = resolution.context;
+
+  type CycleOutcome =
+    | { readonly kind: "no-send" }
+    | {
+        readonly kind: "send";
+        readonly attemptId: string;
+        readonly attemptNumber: number;
+        readonly message: OutboundMessage;
+      };
+
+  const claim = await withTransaction(async (tx): Promise<CycleOutcome> => {
+    const claimed = await tx.query<{
+      id: string;
+      idempotency_key: string;
+      person_id: string;
+      attempt_count: number;
+    }>(
+      `update public.notification_jobs
+          set status = 'processing', claimed_at = now(), claimed_by = $2,
+              attempt_count = attempt_count + 1, last_error = null, updated_at = now()
+        where id = $1
+          and job_type = 'other'
+          and idempotency_key like '${RECRUIT_CYCLE_KEY_PREFIX}%'
+          and status in ('pending', 'ready', 'failed')
+          and held_at is null
+          and attempt_count < $3
+          and person_id is not null
+        returning id, idempotency_key, person_id, attempt_count`,
+      [jobId, `${SWEEP_ACTOR_LABEL}:${jobId}`, MAX_ATTEMPTS],
+    );
+
+    const job = claimed.rows[0];
+    if (!job) return { kind: "no-send" };
+
+    const parsed = parseRecruitCycleKey(job.idempotency_key);
+    if (!parsed) return { kind: "no-send" };
+    const { step, seasonId } = parsed;
+
+    const prospect = await tx.query<{ id: string; status: string }>(
+      `select id, status::text as status from public.recruitment_prospects
+        where person_id = $1::uuid and season_id = $2::uuid`,
+      [job.person_id, seasonId],
+    );
+    const status = prospect.rows[0]?.status ?? null;
+    if (!status || !["identified", "engaged", "committed"].includes(status)) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        RECRUIT_CYCLE_NOT_ELIGIBLE_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    const consented = await hasGrantedSeasonMessagingConsentIn(tx, job.person_id, seasonId);
+    if (!consented) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        RECRUIT_CYCLE_NOT_CONSENTED_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    // Re-checked at claim time on exactly the eligibility and consent
+    // pattern immediately above — Brian, 2026-09-01: "if they fill out the
+    // whole thing … then it doesn't send out again." The ask and its
+    // reminder are declared together but scheduled far apart (72h/144h by
+    // default), so a recruit who completes the relevant track in between
+    // must still be skipped here, not merely refused at declaration.
+    const completion = await readRecruitmentCycleCompletionIn(
+      tx,
+      job.person_id,
+      prospect.rows[0]?.id ?? null,
+    );
+    const trackComplete =
+      CYCLE_COMPLETION_TRACK[step] === "welcomeStepComplete"
+        ? completion.welcomeStepComplete
+        : completion.questionnaireBComplete;
+    if (trackComplete) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        RECRUIT_CYCLE_ALREADY_COMPLETE_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    const person = await tx.query<{ given_name: string }>(
+      `select given_name from public.people where id = $1::uuid`,
+      [job.person_id],
+    );
+    const givenName = person.rows[0]?.given_name ?? "";
+
+    const contacts = await tx.query<{
+      kind: string;
+      raw_value: string;
+      normalised_value: string | null;
+      is_preferred: boolean;
+    }>(
+      `select kind::text as kind, raw_value, normalised_value, is_preferred
+         from public.contact_points
+        where person_id = $1::uuid
+          and valid_from <= current_date
+          and (valid_until is null or valid_until > current_date)
+        order by is_preferred desc, valid_from desc, created_at desc, id`,
+      [job.person_id],
+    );
+    const rows = contacts.rows.map((row) => ({
+      kind: row.kind,
+      rawValue: row.raw_value,
+      normalisedValue: row.normalised_value,
+      isPreferred: row.is_preferred,
+    }));
+
+    const recipient = selectMobileNumber(rows, context.defaultCallingCode);
+    if (!recipient) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        NO_USABLE_NUMBER_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    if (!recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode)) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        RECIPIENT_NOT_PERMITTED_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    // Minted here, at dispatch, never persisted at declaration —
+    // `player-answer-tokens.ts`'s own rule (a previously issued plaintext
+    // cannot be recovered), the same reason `claimJobIn` mints the
+    // invitation's yes/no tokens inside its own claim rather than at
+    // `scheduleEventLadderIn` time.
+    const issued = await issuePersonTokenIn(tx, job.person_id, seasonId, { actorPersonId: null });
+    const formUrl = `${context.appBaseUrl}/me/join/${issued.token}`;
+    const stopUrl = `${context.appBaseUrl}/me/stop/${issued.token}`;
+
+    const attempt = await tx.query<{ id: string }>(
+      `insert into public.delivery_attempts
+         (notification_job_id, attempt_number, channel, provider)
+       values ($1, $2, $3, $4)
+       returning id`,
+      [jobId, job.attempt_count, context.channel, context.provider.name],
+    );
+
+    return {
+      kind: "send",
+      attemptId: attempt.rows[0].id,
+      attemptNumber: job.attempt_count,
+      message: {
+        kind: CYCLE_MESSAGE_KIND[step],
+        recipient,
+        inviteeName: givenName,
+        // Every field below is declared but unused by all four recruit-cycle
+        // templates (`templates.ts`) — carried only because `OutboundMessage`
+        // is one shared shape across every kind.
+        eventName: "",
+        whenLabel: "",
+        rsvpUrl: "",
+        formUrl,
+        stopUrl,
+      },
+    };
+  });
+
+  if (claim.kind !== "send") return "skipped";
+  const claimed = claim;
+
+  const outcome = await context.provider.send(claimed.message);
+
+  await withTransaction(async (tx) => {
+    if (outcome.status === "accepted") {
+      await tx.query(
+        `update public.delivery_attempts
+            set accepted_at = now(), provider_message_id = $2 where id = $1`,
+        [claimed.attemptId, outcome.providerMessageId],
+      );
+      await tx.query("update public.notification_jobs set next_attempt_at = null where id = $1", [
+        jobId,
+      ]);
+      await recordAudit(tx, {
+        actorLabel: DISPATCH_ACTOR_LABEL,
+        action: "delivery.attempted",
+        entityTable: "notification_jobs",
+        entityId: jobId,
+        context: {
+          attemptNumber: claimed.attemptNumber,
+          provider: context.provider.name,
+          channel: context.channel,
+          providerMessageId: outcome.providerMessageId,
+        },
+      });
+      return;
+    }
+
+    await tx.query(
+      "update public.delivery_attempts set concluded_at = now(), failure_reason = $2 where id = $1",
+      [claimed.attemptId, outcome.reason],
+    );
+    await tx.query(
+      `insert into public.delivery_results
+         (notification_job_id, attempt_number, outcome, channel, provider, detail)
+       values ($1, $2, $3, $4, $5, $6)
+       on conflict (notification_job_id, attempt_number) do nothing`,
+      [
+        jobId,
+        claimed.attemptNumber,
+        outcome.retryable ? "failed" : "rejected",
+        context.channel,
+        context.provider.name,
+        outcome.reason,
+      ],
+    );
+    await tx.query(
+      `update public.notification_jobs
+          set status = 'failed', last_error = $2, claimed_at = null, claimed_by = null,
+              next_attempt_at = case when $3 then now() + interval '15 minutes' else null end,
+              automatic_attempts = automatic_attempts + 1,
+              updated_at = now()
+        where id = $1`,
+      [jobId, outcome.reason, outcome.retryable],
+    );
+  });
+
+  return outcome.status === "accepted" ? "accepted" : "refused";
 }
 
 // ---------------------------------------------------------------------------

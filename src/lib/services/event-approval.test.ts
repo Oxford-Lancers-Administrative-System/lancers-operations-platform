@@ -37,7 +37,12 @@ import {
   type AudienceCatalogue,
 } from "./event-audience";
 import { createEventDraft, readEvent, updateEventDraft, type EventDraftInput } from "./events";
-import { readMessagingScheduleIn, resolveMessagingPlanIn } from "./messaging-schedule";
+import {
+  readMessagingScheduleIn,
+  resolveMessagingPlanIn,
+  updateMessagingScheduleIn,
+} from "./messaging-schedule";
+import { recordAnswerIn } from "./rsvp";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const NAME_MARKER = "LAN77ApprovalSuite";
@@ -82,6 +87,14 @@ afterEach(async () => {
     scope,
   ]);
   await observer.query(`delete from public.notification_jobs where event_id in ${events}`, [scope]);
+  // LAN-203's own addition: `recordAnswerIn` writes `rsvp_responses`, which
+  // `invitations` is referenced by — before it, in the same dependency order
+  // the rest of this block already keeps.
+  await observer.query(
+    `delete from public.rsvp_responses where invitation_id in
+         (select id from public.invitations where event_id in ${events})`,
+    [scope],
+  );
   await observer.query(`delete from public.invitations where event_id in ${events}`, [scope]);
   await observer.query(`delete from public.event_audience_members where event_id in ${events}`, [
     scope,
@@ -91,6 +104,17 @@ afterEach(async () => {
     [scope],
   );
   await observer.query("delete from public.events where name like $1", [scope]);
+
+  // LAN-203. `grantRecruitConsent` writes a durable, season-scoped row — not
+  // scoped to one event or one test — so a later test in this same file
+  // would otherwise inherit an earlier one's grant. Reset every seeded
+  // recruit's consent to a clean slate (no row at all — "never asked" is
+  // the honest default a real capture has not reached yet) after every test,
+  // not only the ones that call it.
+  await observer.query(
+    `delete from public.season_messaging_consents
+      where person_id in (select person_id from public.recruitment_prospects)`,
+  );
 });
 
 afterAll(async () => {
@@ -175,7 +199,15 @@ async function catalogueFor(event: {
   const full = await withTransaction((tx) =>
     listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn),
   );
-  const candidates = full.candidates.filter((candidate) => seededPeople.has(candidate.personId));
+  // Recruits are exempt from the `seededPeople` narrowing below: the seeded
+  // dataset carries exactly two, each captured on its own later date (Source
+  // Data Analysis's own churn), so both fall outside "the club's own"
+  // earliest-person timestamp every player/coach/committee test isolates
+  // against. There is no drift risk here to guard against — it is a fixed,
+  // small, LAN-203-owned set.
+  const candidates = full.candidates.filter(
+    (candidate) => candidate.capacity === "recruit" || seededPeople.has(candidate.personId),
+  );
   return {
     candidates,
     counts: {
@@ -189,7 +221,7 @@ async function catalogueFor(event: {
 
 async function keysFor(
   event: { seasonId: string; scheduledOn: string | null },
-  capacity: "player" | "coach" | "committee",
+  capacity: "player" | "coach" | "committee" | "recruit",
   limit = 3,
 ): Promise<string[]> {
   const catalogue = await catalogueFor(event);
@@ -732,6 +764,282 @@ describe("a successful approval", () => {
       remindersScheduled: 6,
       lateApproval: false,
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-203 — the two defects W11 names, and the recruit ladder beside the
+// player one it must never reach
+// ---------------------------------------------------------------------------
+
+/** Grants season consent for one recruit — LAN-203's own seam. `season_messaging_consents` is never seeded, so a test that wants the recruit follow-up scheduled has to grant it explicitly. */
+async function grantRecruitConsent(personId: string, seasonId: string): Promise<void> {
+  await observer.query(
+    `insert into public.season_messaging_consents (person_id, season_id, state, source)
+     values ($1, $2, 'granted', 'qr_self_entry')
+     on conflict (person_id, season_id) do update set state = 'granted', source = 'qr_self_entry'`,
+    [personId, seasonId],
+  );
+}
+
+describe("the recruit ladder — LAN-203", () => {
+  it("countByCapacity reports recruits in the approval summary — the second defect, restored and fixed", async () => {
+    const event = await newDraft({ eventType: "recruitment", scheduledOn: "2026-11-20" });
+    const playerKeys = await keysFor(event, "player", 2);
+    const recruitKeys = await keysFor(event, "recruit", 2);
+    expect(recruitKeys.length).toBeGreaterThan(0);
+
+    await approve(event.id, [...playerKeys, ...recruitKeys]);
+
+    const audit = await observer.query<{ context: { byCapacity?: Record<string, number> } }>(
+      `select context from public.audit_events
+        where entity_table = 'events' and entity_id = $1 and action = 'event.approved'`,
+      [event.id],
+    );
+
+    // The defect, restored: `byCapacity` only ever carried player, coach and
+    // committee, so an operator approving a recruitment event was never told
+    // how many recruits it reached — the exact number they care about most.
+    // Uncomment to watch this test fail against that restored behaviour:
+    //   delete audit.rows[0].context.byCapacity!.recruit;
+    expect(audit.rows[0].context.byCapacity).toMatchObject({ recruit: recruitKeys.length });
+  });
+
+  it("never gives a recruit invitation the player reminder ladder — the first defect, restored and fixed", async () => {
+    const event = await newDraft({ eventType: "recruitment", scheduledOn: "2026-11-20" });
+    const playerKeys = await keysFor(event, "player", 1);
+    const recruitKeys = await keysFor(event, "recruit", 1);
+    expect(recruitKeys.length).toBe(1);
+
+    await approve(event.id, [...playerKeys, ...recruitKeys]);
+
+    const jobs = await observer.query<{
+      job_type: string;
+      ladder_rung: number;
+      capacity: string;
+    }>(
+      `select j.job_type::text as job_type, j.ladder_rung, i.capacity::text as capacity
+         from public.notification_jobs j
+         join public.invitations i on i.id = j.invitation_id
+        where j.event_id = $1
+        order by i.capacity, j.job_type, j.ladder_rung`,
+      [event.id],
+    );
+
+    const recruitJobs = jobs.rows.filter((row) => row.capacity === "recruit");
+    const playerJobs = jobs.rows.filter((row) => row.capacity === "player");
+
+    // The defect, restored: `scheduleEventLadderIn`'s reminder insert had no
+    // capacity filter, so the recruit invitee above would carry the exact
+    // same reminder rungs (1, 2 on WhatsApp, 3 on email) the player does —
+    // the player chase that ends with the President, on a recruit. Fixed:
+    // the recruit gets at most rung 1, on WhatsApp, and no email rung, ever.
+    expect(recruitJobs.map((row) => row.job_type)).toEqual(["invitation"]);
+    expect(playerJobs.length).toBeGreaterThan(1);
+    expect(playerJobs.some((row) => row.job_type === "reminder")).toBe(true);
+  });
+
+  it("anchors the recruit invitation to the Recruits group's own lead, not the player one", async () => {
+    // The Recruitment row's shipped defaults differ — 5 days for recruits,
+    // 5 days for players too here, so widen the gap so a defect that
+    // anchored both to the same instant cannot pass by coincidence.
+    const event = await newDraft({ eventType: "recruitment", scheduledOn: "2026-11-20" });
+    await withTransaction((tx) =>
+      updateMessagingScheduleIn(tx, actorPersonId, "recruitment", {
+        rsvpByDays: 2,
+        invitationLeadDays: 20,
+        reminderCadenceHours: 24,
+        whatsappReminderCount: 2,
+        emailReminderCount: 1,
+        escalationHours: 12,
+        recruitInvitationLeadDays: 5,
+        recruitFollowUpCadenceHours: 24,
+      }),
+    );
+    try {
+      const playerKeys = await keysFor(event, "player", 1);
+      const recruitKeys = await keysFor(event, "recruit", 1);
+      expect(recruitKeys.length).toBe(1);
+
+      await approve(event.id, [...playerKeys, ...recruitKeys]);
+
+      const jobs = await observer.query<{ capacity: string; scheduled_for: Date }>(
+        `select i.capacity::text as capacity, j.scheduled_for
+           from public.notification_jobs j
+           join public.invitations i on i.id = j.invitation_id
+          where j.event_id = $1 and j.job_type = 'invitation'`,
+        [event.id],
+      );
+      const byCapacity = Object.fromEntries(
+        jobs.rows.map((row) => [row.capacity, row.scheduled_for.getTime()]),
+      );
+      // 20 days vs 5 days before the same event start — these must differ by
+      // exactly 15 days, not be equal.
+      expect(byCapacity.player).not.toBe(byCapacity.recruit);
+      // Player lead is 20 days, recruit lead is 5 — the player invitation is
+      // the earlier of the two.
+      expect(byCapacity.recruit - byCapacity.player).toBe(15 * 24 * 60 * 60 * 1000);
+    } finally {
+      await withTransaction((tx) =>
+        updateMessagingScheduleIn(tx, actorPersonId, "recruitment", {
+          rsvpByDays: 2,
+          invitationLeadDays: 5,
+          reminderCadenceHours: 24,
+          whatsappReminderCount: 2,
+          emailReminderCount: 1,
+          escalationHours: 12,
+          recruitInvitationLeadDays: 5,
+          recruitFollowUpCadenceHours: 72,
+        }),
+      );
+    }
+  });
+
+  it("never escalates a recruit, and never counts one toward the President's outstanding tally", async () => {
+    const event = await newDraft({ eventType: "recruitment", scheduledOn: "2026-11-20" });
+    const recruitKeys = await keysFor(event, "recruit", 1);
+    expect(recruitKeys.length).toBe(1);
+
+    await approve(event.id, recruitKeys);
+
+    const flags = await observer.query<{ count: string }>(
+      `select count(*) as count
+         from public.nonresponse_flags f
+         join public.invitations i on i.id = f.invitation_id
+        where i.event_id = $1`,
+      [event.id],
+    );
+    expect(Number(flags.rows[0].count)).toBe(0);
+  });
+
+  it("freezes the recruit ladder onto the plan, and grouped by audience — REQ-approval-shows-both-ladders", async () => {
+    const event = await newDraft({ eventType: "recruitment", scheduledOn: "2026-11-20" });
+    const playerKeys = await keysFor(event, "player", 1);
+    const recruitKeys = await keysFor(event, "recruit", 1);
+    const [recruitId] = recruitKeys;
+    expect(recruitId).toBeDefined();
+
+    const recruitPersonRow = await observer.query<{ person_id: string; season_id: string }>(
+      `select rp.person_id, rp.season_id
+         from public.recruitment_prospects rp
+         join public.people p on p.id = rp.person_id
+        where rp.season_id = (select season_id from public.events where id = $1)
+        limit 1`,
+      [event.id],
+    );
+    // Grant consent for every seeded recruit's person id this event could
+    // have selected, so the follow-up is scheduled regardless of which one
+    // the catalogue actually offered first.
+    const catalogue = await catalogueFor(event);
+    for (const candidate of catalogue.candidates.filter((c) => c.capacity === "recruit")) {
+      await grantRecruitConsent(candidate.personId, recruitPersonRow.rows[0].season_id);
+    }
+
+    await approve(event.id, [...playerKeys, ...recruitKeys]);
+
+    const plan = await observer.query<{
+      recruit_invitation_at: Date | null;
+      recruit_follow_up_at: Date | null;
+      recruit_dispatches_immediately: boolean | null;
+      invitation_at: Date;
+    }>(
+      `select recruit_invitation_at, recruit_follow_up_at, recruit_dispatches_immediately, invitation_at
+         from public.event_messaging_plans where event_id = $1`,
+      [event.id],
+    );
+    const row = plan.rows[0];
+    expect(row.recruit_invitation_at).not.toBeNull();
+    expect(row.recruit_dispatches_immediately).not.toBeNull();
+    // The two ladders are frozen as two independent fields (this row's own
+    // `recruit_*` columns beside its player columns) rather than one restated
+    // — REQ-approval-shows-both-ladders. Under the shipped Recruitment
+    // defaults both leads happen to be 5 days, so the two anchors coincide
+    // here; "anchors the recruit invitation to the Recruits group's own
+    // lead" above proves they are computed independently, with a schedule
+    // where they genuinely differ.
+    expect(row.recruit_follow_up_at).not.toBeNull();
+
+    const recruitFollowUpJob = await observer.query<{ count: string }>(
+      `select count(*) as count
+         from public.notification_jobs j
+         join public.invitations i on i.id = j.invitation_id
+        where j.event_id = $1 and i.capacity = 'recruit' and j.job_type = 'reminder'`,
+      [event.id],
+    );
+    expect(Number(recruitFollowUpJob.rows[0].count)).toBe(1);
+  });
+
+  it("schedules no recruit follow-up job for a recruit with no granted consent this season", async () => {
+    const event = await newDraft({ eventType: "recruitment", scheduledOn: "2026-11-20" });
+    const recruitKeys = await keysFor(event, "recruit", 1);
+    expect(recruitKeys.length).toBe(1);
+
+    // No consent granted — `season_messaging_consents` is never seeded, so
+    // this is the ordinary state, not a manufactured one.
+    await approve(event.id, recruitKeys);
+
+    const recruitJobs = await observer.query<{ count: string }>(
+      `select count(*) as count
+         from public.notification_jobs j
+         join public.invitations i on i.id = j.invitation_id
+        where j.event_id = $1 and i.capacity = 'recruit' and j.job_type = 'reminder'`,
+      [event.id],
+    );
+    expect(Number(recruitJobs.rows[0].count)).toBe(0);
+  });
+
+  it("cancels a recruit's own pending follow-up the moment they answer — never a second reminder to someone who has already replied", async () => {
+    const event = await newDraft({ eventType: "recruitment", scheduledOn: "2026-11-20" });
+    const recruitKeys = await keysFor(event, "recruit", 1);
+    expect(recruitKeys.length).toBe(1);
+
+    const catalogue = await catalogueFor(event);
+    const recruit = catalogue.candidates.find((candidate) => candidate.capacity === "recruit");
+    expect(recruit).toBeDefined();
+    await grantRecruitConsent(recruit!.personId, event.seasonId);
+
+    await approve(event.id, recruitKeys);
+
+    const invitation = await observer.query<{ id: string }>(
+      `select id from public.invitations where event_id = $1 and capacity = 'recruit'`,
+      [event.id],
+    );
+    const invitationId = invitation.rows[0].id;
+
+    const before = await observer.query<{ count: string }>(
+      `select count(*) as count from public.notification_jobs
+        where invitation_id = $1 and job_type = 'reminder' and status = 'pending'`,
+      [invitationId],
+    );
+    expect(Number(before.rows[0].count)).toBe(1);
+
+    // The recruit answers — via `consumeAnswerTokenIn`'s own `recordAnswerIn`
+    // call, the same path `/a/[token]` uses, and the "No" carries no
+    // typed-reason field for a recruit at all (REQ-no-reason-asked); this
+    // reaches the identical service function with a system-supplied reason.
+    await withTransaction((tx) =>
+      recordAnswerIn(
+        tx,
+        invitationId,
+        { response: "no", reason: "No reason given" },
+        { actorLabel: "player: WhatsApp/email answer link", source: "signed_link" },
+      ),
+    );
+
+    const after = await observer.query<{ status: string; cancelled_reason: string | null }>(
+      `select status::text as status, cancelled_reason from public.notification_jobs
+        where invitation_id = $1 and job_type = 'reminder'`,
+      [invitationId],
+    );
+    expect(after.rows[0].status).toBe("cancelled");
+    expect(after.rows[0].cancelled_reason).not.toBeNull();
+
+    const response = await observer.query<{ response: string; reason: string }>(
+      `select response::text as response, reason from public.rsvp_responses where invitation_id = $1`,
+      [invitationId],
+    );
+    expect(response.rows[0].response).toBe("no");
+    expect(response.rows[0].reason).toBe("No reason given");
   });
 });
 

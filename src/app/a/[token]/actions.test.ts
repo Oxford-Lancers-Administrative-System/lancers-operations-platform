@@ -76,6 +76,7 @@ beforeEach(() => {
     personId: "00000000-0000-4000-8000-000000000003",
     seasonId: "00000000-0000-4000-8000-000000000004",
     recorded: true,
+    capacity: "player",
   });
   vi.mocked(issuePersonTokenIn).mockResolvedValue({
     token: "durable-token-plaintext-000000000000000000000",
@@ -116,6 +117,47 @@ describe("a successful answer", () => {
       "00000000-0000-4000-8000-000000000003",
       "00000000-0000-4000-8000-000000000004",
     );
+  });
+});
+
+describe("a recruit's answer — LAN-203, REQ-recruit-sees-public-only", () => {
+  beforeEach(() => {
+    vi.mocked(consumeAnswerTokenIn).mockResolvedValue({
+      invitationId: "00000000-0000-4000-8000-000000000002",
+      answer: "no",
+      personId: "00000000-0000-4000-8000-000000000003",
+      seasonId: "00000000-0000-4000-8000-000000000004",
+      recorded: true,
+      capacity: "recruit",
+    });
+  });
+
+  it("redirects back to this same route, not to the durable /me/[token] page they have no page at", async () => {
+    const target = await redirectFrom(() => submitAnswer(formFor()));
+
+    expect(target).toBe(`/a/${encodeURIComponent(TOKEN)}`);
+    // No durable credential minted for someone who will never use one.
+    expect(issuePersonTokenIn).not.toHaveBeenCalled();
+  });
+
+  it("never saves event questions for a recruit — there is no event page, and none to answer", async () => {
+    vi.mocked(consumeAnswerTokenIn).mockResolvedValue({
+      invitationId: "00000000-0000-4000-8000-000000000002",
+      // "yes" deliberately — proves the recruit branch is what stops this,
+      // not merely that a "no" never reaches the question-saving branch.
+      answer: "yes",
+      personId: "00000000-0000-4000-8000-000000000003",
+      seasonId: "00000000-0000-4000-8000-000000000004",
+      recorded: true,
+      capacity: "recruit",
+    });
+    const form = formFor();
+    form.set("q_q1", "true");
+    form.set("qkind_q1", "boolean");
+
+    await redirectFrom(() => submitAnswer(form));
+
+    expect(answerEventQuestionsIn).not.toHaveBeenCalled();
   });
 });
 
@@ -192,6 +234,7 @@ describe("OWNER-LAN172-12 — the landing page's own questions save with the ans
       personId: "00000000-0000-4000-8000-000000000003",
       seasonId: "00000000-0000-4000-8000-000000000004",
       recorded: true,
+      capacity: "player",
     });
     const form = formFor();
     form.set("q_q1", "true");

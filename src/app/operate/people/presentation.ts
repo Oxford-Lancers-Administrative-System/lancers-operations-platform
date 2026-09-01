@@ -54,6 +54,33 @@ export function statusColour(status: AssembledStatus): "default" | "info" | "suc
   }
 }
 
+// ---------------------------------------------------------------------------
+// Finding 8, Brian 2026-09-01: a sortable Player/Recruit column
+// ---------------------------------------------------------------------------
+
+/**
+ * The whole six-rung `Status` ladder collapses to two words here — every
+ * status but `recruit` itself is somebody the club already has, in whatever
+ * state; `recruit` is the one rung that is not a club member at all
+ * (`presentation.ts`'s own module note: "Recruit is not a membership status
+ * at all"). Brian: "on the player page, I should be able to sort by player
+ * or recruit so I can easily see it."
+ */
+export type PersonType = "player" | "recruit";
+
+export function personType(status: AssembledStatus): PersonType {
+  return status === "recruit" ? "recruit" : "player";
+}
+
+export const PERSON_TYPE_LABELS: Readonly<Record<PersonType, string>> = Object.freeze({
+  player: "Player",
+  recruit: "Recruit",
+});
+
+export function personTypeColour(type: PersonType): "default" | "info" {
+  return type === "recruit" ? "info" : "default";
+}
+
 /** Every fact the missing-data queue may name or filter by, in the field inventory's own order. */
 export const MISSING_FILTER_FIELDS: readonly RequiredField[] = Object.freeze([
   "given_name",

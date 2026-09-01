@@ -16,9 +16,14 @@ import { closePool, withTransaction } from "@/lib/db";
 import {
   probeExistingRecruitForQrSignup,
   readSignupPrefillIn,
+  SIGNUP_INVALID_EMAIL_RULE,
+  SIGNUP_INVALID_EXPECTED_GRADUATION_YEAR_RULE,
+  SIGNUP_INVALID_MATRICULATION_YEAR_RULE,
+  SIGNUP_INVALID_MOBILE_RULE,
   SIGNUP_REQUIRES_CONSENT_RULE,
   SIGNUP_REQUIRES_FIRST_NAME_RULE,
   SIGNUP_REQUIRES_LAST_NAME_RULE,
+  SIGNUP_REQUIRES_MOBILE_RULE,
   signUpAnonymouslyIn,
   signUpWithTokenIn,
   type SignupSubmission,
@@ -35,6 +40,10 @@ function baseSubmission(overrides: Partial<SignupSubmission> = {}): SignupSubmis
   return {
     givenName: MARKER,
     familyName: "Recruit",
+    // Mobile is required (Brian, 2026-09-01, finding 1) — every fixture
+    // carries a fresh, valid one by default; a test about mobile itself
+    // overrides it.
+    mobile: uniquePhone(),
     consent: true,
     ...overrides,
   };
@@ -48,9 +57,13 @@ function baseSubmission(overrides: Partial<SignupSubmission> = {}): SignupSubmis
  * incidental seed collision.
  */
 let phoneCounter = 0;
+// Fixed at 11 digits total (a UK number's own length: a leading 0 plus ten
+// more) regardless of how large the counter grows within one run — a two-
+// digit counter previously overflowed this into a 12-digit number the
+// now-mandatory phone validation correctly refused (finding 2).
 function uniquePhone(): string {
   phoneCounter += 1;
-  return `07${String(Date.now()).slice(-8)}${String(phoneCounter).padStart(1, "0")}`;
+  return `07${String(Date.now()).slice(-7)}${String(phoneCounter % 100).padStart(2, "0")}`;
 }
 
 beforeAll(async () => {
@@ -152,6 +165,77 @@ describe("validateSignupSubmission (via signUpAnonymouslyIn)", () => {
     );
     expect(result.personCreated).toBe(true);
     expect(result.prospectCreated).toBe(true);
+  });
+
+  // Finding 1, Brian 2026-09-01: "Mobile is required no matter what…
+  // Missing never blocks except for phone."
+  it("refuses a blank mobile number", async () => {
+    const code = await mintCode();
+    await withTransaction(async (tx) => {
+      await expect(
+        signUpAnonymouslyIn(tx, {
+          seasonId,
+          code,
+          submission: baseSubmission({ mobile: "  " }),
+        }),
+      ).rejects.toMatchObject({ rule: SIGNUP_REQUIRES_MOBILE_RULE });
+    });
+  });
+
+  // Finding 2: the shared person-validation.ts standard, not a locally
+  // re-derived rule — "07" with no more digits is not a real UK number.
+  it("refuses a mobile number that does not validate", async () => {
+    const code = await mintCode();
+    await withTransaction(async (tx) => {
+      await expect(
+        signUpAnonymouslyIn(tx, {
+          seasonId,
+          code,
+          submission: baseSubmission({ mobile: "07" }),
+        }),
+      ).rejects.toMatchObject({ rule: SIGNUP_INVALID_MOBILE_RULE });
+    });
+  });
+
+  // Finding 3: optional, but validated when supplied rather than silently
+  // discarded — the sign-up form had no validation at all before this.
+  it("refuses a malformed email address when one is supplied", async () => {
+    const code = await mintCode();
+    await withTransaction(async (tx) => {
+      await expect(
+        signUpAnonymouslyIn(tx, {
+          seasonId,
+          code,
+          submission: baseSubmission({ email: "not-an-email" }),
+        }),
+      ).rejects.toMatchObject({ rule: SIGNUP_INVALID_EMAIL_RULE });
+    });
+  });
+
+  it("refuses a malformed matriculation year instead of silently discarding it — finding 3", async () => {
+    const code = await mintCode();
+    await withTransaction(async (tx) => {
+      await expect(
+        signUpAnonymouslyIn(tx, {
+          seasonId,
+          code,
+          submission: baseSubmission({ matriculationYear: "twenty-twenty-four" }),
+        }),
+      ).rejects.toMatchObject({ rule: SIGNUP_INVALID_MATRICULATION_YEAR_RULE });
+    });
+  });
+
+  it("refuses an out-of-range expected graduation year instead of silently discarding it — finding 3", async () => {
+    const code = await mintCode();
+    await withTransaction(async (tx) => {
+      await expect(
+        signUpAnonymouslyIn(tx, {
+          seasonId,
+          code,
+          submission: baseSubmission({ expectedGraduationYear: "3050" }),
+        }),
+      ).rejects.toMatchObject({ rule: SIGNUP_INVALID_EXPECTED_GRADUATION_YEAR_RULE });
+    });
   });
 });
 
@@ -263,6 +347,32 @@ describe("signUpAnonymouslyIn — the QR door", () => {
         { kind: "phone", raw_value: "07700900456" },
       ]),
     );
+  });
+
+  // Finding 2: reuses person-validation.ts's own validatePhoneNumber, and
+  // stores its E.164 digits as normalised_value alongside the raw typed
+  // text — raw_value stays exactly what the recruit typed, on
+  // contact_points' own "deliberately unvalidated" rule; normalised_value is
+  // the separate, reversible step that rule already names.
+  it("stores the mobile's own E.164 digits as normalised_value, raw_value unchanged", async () => {
+    const code = await mintCode();
+    const result = await withTransaction((tx) =>
+      signUpAnonymouslyIn(tx, {
+        seasonId,
+        code,
+        submission: baseSubmission({ mobile: "07700 900457" }),
+      }),
+    );
+
+    const contact = await observer.query<{ raw_value: string; normalised_value: string | null }>(
+      `select raw_value, normalised_value from public.contact_points
+        where person_id = $1::uuid and kind = 'phone'`,
+      [result.personId],
+    );
+    expect(contact.rows[0]).toEqual({
+      raw_value: "07700 900457",
+      normalised_value: "447700900457",
+    });
   });
 
   it("links to an existing person rather than creating a second, when confirmed", async () => {

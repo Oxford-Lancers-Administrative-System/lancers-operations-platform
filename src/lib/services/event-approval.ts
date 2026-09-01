@@ -756,11 +756,17 @@ export async function approveEvent(
   });
 }
 
+// W11's second defect, LAN-203: this omitted recruits entirely, so an
+// operator approving a recruitment event was never told how many recruits it
+// reaches — precisely the number they care about most. `recruit` is one of
+// four values `AudienceCapacity` already carries (`./event-audience.ts`);
+// this function had simply never been extended to read it.
 function countByCapacity(members: readonly { capacity: AudienceCapacity }[]) {
   return {
     player: members.filter((member) => member.capacity === "player").length,
     coach: members.filter((member) => member.capacity === "coach").length,
     committee: members.filter((member) => member.capacity === "committee").length,
+    recruit: members.filter((member) => member.capacity === "recruit").length,
   };
 }
 

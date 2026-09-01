@@ -87,6 +87,7 @@ const TOKEN = "y.00000000-0000-4000-8000-000000000079.abcdefghijklmnopqrstuvwxyz
 
 const BASE: SignedRsvpPage = {
   invitationId: "00000000-0000-4000-8000-000000000079",
+  capacity: "player",
   eventName: "Team Practice",
   eventType: "game",
   eventStatus: "approved",
@@ -306,5 +307,104 @@ describe("OWNER-LAN172-18 — the answer is never gated on a required question",
     const field = container.querySelector('input[name="q_00000000-0000-4000-8000-0000000000aa"]');
     expect(field).not.toBeNull();
     expect(field).not.toHaveAttribute("required");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-203 — a recruit's own reduced confirm screen
+// ---------------------------------------------------------------------------
+
+const RECRUIT_BASE: SignedRsvpPage = { ...BASE, capacity: "recruit", playerName: "" };
+
+function givenRecruitAnswer(answer: "yes" | "no") {
+  givenAnswer(answer, [QUESTION]);
+  vi.mocked(readSignedRsvpPageIn).mockResolvedValue(RECRUIT_BASE);
+  // A recruit's invitation carries no event questions in practice
+  // (`event_questions.applies_to_capacities` is never seeded with
+  // `recruit`), but even the "yes, there is one" case must not render it —
+  // this proves the branch, not the data.
+  vi.mocked(readPlayerAnswerLandingIn).mockResolvedValue({ ...LANDING, questions: [QUESTION] });
+}
+
+describe("LAN-203, REQ-recruit-sees-public-only — a recruit's confirm screen", () => {
+  it("never shows the player-name fact, the attending count, or the other-outstanding notice", async () => {
+    givenRecruitAnswer("yes");
+    const { container, queryByText } = await renderPage();
+
+    expect(container.textContent).not.toContain("Avery Fielding");
+    expect(queryByText(/other people have already said yes/i)).toBeNull();
+    expect(queryByText(/still need to answer/i)).toBeNull();
+  });
+
+  it("never renders the event's own questions, even where one exists", async () => {
+    givenRecruitAnswer("yes");
+    const { container } = await renderPage();
+
+    expect(
+      container.querySelector('input[name="q_00000000-0000-4000-8000-0000000000aa"]'),
+    ).toBeNull();
+    expect(container.textContent).not.toMatch(/can you drive/i);
+  });
+
+  it("never renders a reason field, or any of the player No-page's reason controls, on a No", async () => {
+    givenRecruitAnswer("no");
+    const { container, queryByText } = await renderPage();
+
+    expect(container.querySelector('textarea[name="reason"], input[name="reason"]')).toBeNull();
+    expect(queryByText(NO_BUTTON_LABEL)).toBeNull();
+    expect(queryByText(/give a reason and continue/i)).toBeNull();
+    expect(queryByText(/change to yes/i)).toBeNull();
+  });
+
+  it("offers exactly one plain confirm button, on both Yes and No", async () => {
+    givenRecruitAnswer("yes");
+    const yes = await renderPage();
+    expect(yes.container.querySelectorAll('button[type="submit"]')).toHaveLength(1);
+    yes.unmount();
+
+    givenRecruitAnswer("no");
+    const no = await renderPage();
+    expect(no.container.querySelectorAll('button[type="submit"]')).toHaveLength(1);
+  });
+
+  it("still wires the same auto-submit trigger to the same form id", async () => {
+    givenRecruitAnswer("yes");
+    const { container, getByTestId } = await renderPage();
+
+    expect(container.querySelector(`form#${ANSWER_FORM_ID}`)).not.toBeNull();
+    expect(getByTestId("auto-submit-stub")).toHaveAttribute("data-form-id", ANSWER_FORM_ID);
+  });
+
+  it("still shows the event's own public venue, when there is one", async () => {
+    givenRecruitAnswer("yes");
+    const { container } = await renderPage();
+
+    expect(container.textContent).toContain(RECRUIT_BASE.venue);
+  });
+
+  it("lands on its own saved page once the token is consumed — submitAnswer's redirect target, resolved", async () => {
+    // `submitAnswer` (actions.ts) sends a recruit back to this exact route
+    // rather than to `/me/[token]`; by the time this GET re-resolves the
+    // token it is already consumed, and that is what this proves renders —
+    // "Your response is saved", never the player copy naming "your own page".
+    givenRecruitAnswer("no");
+    vi.mocked(resolveAnswerTokenIn).mockResolvedValue({
+      state: "valid",
+      answer: "no",
+      invitation: {
+        invitationId: RECRUIT_BASE.invitationId,
+        eventId: "00000000-0000-4000-8000-0000000000ee",
+        eventName: RECRUIT_BASE.eventName,
+        eventStatus: RECRUIT_BASE.eventStatus,
+        scheduledOn: RECRUIT_BASE.scheduledOn,
+      },
+      writable: false,
+      consumed: true,
+    });
+
+    const { container } = await renderPage();
+
+    expect(container.textContent).toMatch(/your response is saved/i);
+    expect(container.textContent).not.toMatch(/your own page/i);
   });
 });

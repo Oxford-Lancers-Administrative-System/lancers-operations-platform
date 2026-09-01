@@ -47,6 +47,9 @@ import {
   REASON_LABEL,
   REASON_PLACEHOLDER,
   REASON_PROMPT,
+  RECRUIT_CONFIRM_LABEL,
+  RECRUIT_NO_HEADING,
+  RECRUIT_YES_HEADING,
   YES_HEADING,
   attendingSentence,
   cancelledSentence,
@@ -145,7 +148,16 @@ export default async function AnswerLinkPage({ params, searchParams }: PageProps
   const error = firstValue(query[ERROR_PARAM]);
 
   if (resolved.resolution.consumed) {
-    return <AlreadyRecorded />;
+    // LAN-203. This is a recruit's actual "saved" landing — `submitAnswer`
+    // redirects a recruit straight back to this route rather than to
+    // `/me/[token]`, which they have no page at, so the token this GET
+    // re-resolves is already consumed by the time it renders. The player
+    // copy names "your own page", which does not exist for a recruit.
+    return resolved.base.capacity === "recruit" ? (
+      <RecruitAlreadyRecorded answer={answer} base={resolved.base} />
+    ) : (
+      <AlreadyRecorded />
+    );
   }
 
   return (
@@ -212,6 +224,19 @@ function Confirm({
   landing: PlayerAnswerLanding;
   busy: boolean;
 }) {
+  // LAN-203, REQ-recruit-sees-public-only. A recruit reaches this exact route
+  // through `recruit_event_followup`'s own yes/no buttons — the invitation
+  // itself is unchanged (`event_invitation`, every audience's shared first
+  // message) — and this is the one place `/a/[token]` has to know the
+  // difference: never their own name framed as "Player", never the event's
+  // questions, never who else answered, and never asked for a reason on a
+  // No. `RecruitConfirm` below is the whole of that difference; everything
+  // else on this route — the token mechanics, the saved page it posts to —
+  // is the one substrate both audiences share.
+  if (base.capacity === "recruit") {
+    return <RecruitConfirm token={token} answer={answer} base={base} busy={busy} />;
+  }
+
   const date = formatEventDate(base.scheduledOn);
   const time = formatEventTime(base.startsAt, base.endsAt);
   const when = [date, time].filter(Boolean).join(" · ") || null;
@@ -417,6 +442,76 @@ function Confirm({
   );
 }
 
+/**
+ * REQ-recruit-sees-public-only, REQ-no-reason-asked, REQ-never-harsh. One
+ * question, one confirm, nothing else: no player-name framing, no event
+ * questions (there are none an `applies_to_capacities` including `recruit`
+ * would offer, but this also never asks), no reason field, no attending
+ * count, no other-outstanding count — none of `player-home.ts`'s counts are
+ * even read into this branch. A No submits with no `reason` field in the
+ * form at all, so `consumeAnswerTokenIn` falls back to its own
+ * `NO_REASON_GIVEN_DEFAULT`, exactly as `rsvp_responses_no_requires_a_reason`
+ * requires without this page ever asking the question.
+ */
+function RecruitConfirm({
+  token,
+  answer,
+  base,
+  busy,
+}: {
+  token: string;
+  answer: PlayerAnswer;
+  base: SignedRsvpPage;
+  busy: boolean;
+}) {
+  const date = formatEventDate(base.scheduledOn);
+  const time = formatEventTime(base.startsAt, base.endsAt);
+  const when = [date, time].filter(Boolean).join(" · ") || null;
+
+  return (
+    <Shell>
+      <Chip
+        label={eventTypeLabel(base.eventType)}
+        size="small"
+        color="primary"
+        sx={{ mb: 1.5, fontWeight: 700, letterSpacing: "0.04em" }}
+      />
+      <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
+        {answer === "yes" ? RECRUIT_YES_HEADING : RECRUIT_NO_HEADING}
+      </Typography>
+      <Typography sx={{ fontSize: { xs: 17, sm: 19 }, fontWeight: 600, mt: 1 }}>
+        {base.eventName}
+        {when ? ` · ${when}` : ""}
+      </Typography>
+
+      {busy ? (
+        <Alert severity="warning" sx={{ mt: 2 }}>
+          {BUSY_MESSAGE}
+        </Alert>
+      ) : null}
+
+      {base.venue ? (
+        <Box component="dl" sx={{ mt: 3, mb: 1 }}>
+          <Fact label="Venue" value={base.venue} />
+        </Box>
+      ) : null}
+
+      <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 2, mb: 2 }}>
+        {PRIVACY_NOTE}
+      </Typography>
+
+      <Box id={ANSWER_FORM_ID} component="form" action={submitAnswer}>
+        <input type="hidden" name="token" value={token} />
+        <Button type="submit" variant="contained" color="success" fullWidth sx={{ minHeight: 48 }}>
+          {RECRUIT_CONFIRM_LABEL}
+        </Button>
+      </Box>
+
+      {!busy ? <AutoSubmitOnInteraction formId={ANSWER_FORM_ID} /> : null}
+    </Shell>
+  );
+}
+
 function AlreadyRecorded() {
   return (
     <Shell>
@@ -425,6 +520,26 @@ function AlreadyRecorded() {
       </Typography>
       <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 1.5 }}>
         {ALREADY_RECORDED_NOTE}
+      </Typography>
+    </Shell>
+  );
+}
+
+/**
+ * LAN-203. The recruit journey's actual saved page: "Your response is saved",
+ * the answer and the event on one line — the same shape the mockup's
+ * illustration draws — reached because `submitAnswer` sends a recruit back to
+ * this exact route rather than to `/me/[token]`. No "your own page" note,
+ * because there is no such page for them.
+ */
+function RecruitAlreadyRecorded({ answer, base }: { answer: PlayerAnswer; base: SignedRsvpPage }) {
+  return (
+    <Shell>
+      <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
+        Your response is saved
+      </Typography>
+      <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 1 }}>
+        {`${answer === "yes" ? RECRUIT_YES_HEADING : RECRUIT_NO_HEADING} · ${base.eventName}`}
       </Typography>
     </Shell>
   );

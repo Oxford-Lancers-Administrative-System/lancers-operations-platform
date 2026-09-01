@@ -4,6 +4,11 @@ import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
 import { grantSeasonMessagingConsentIn } from "./messaging-consent";
 import { findPersonMatchingGivenNameAndPhoneIn } from "./person-duplicate";
+import {
+  validateAcademicYear,
+  validateEmailAddress,
+  validatePhoneNumber,
+} from "./person-validation";
 import { recordRecruitmentSignupCodeUseIn } from "./recruitment-signup-codes";
 
 /**
@@ -26,13 +31,23 @@ import { recordRecruitmentSignupCodeUseIn } from "./recruitment-signup-codes";
  * authorization, and `recordAudit`'s `actorLabel` names the mechanism honestly
  * instead of a person who was never there.
  *
- * ## First name, last name, the tick — nothing else blocks
+ * ## First name, last name, mobile, the tick — nothing else blocks
  *
- * Brian, 2026-09-01: "First name, last name and the consent tick are the
- * required set." {@link validateSignupSubmission} is the one place that is
- * enforced, for both doors, before anything is written. Every other field
- * below is filled only when the recruit actually supplied it, and a blank
- * optional field never blocks the save (`REQ-missing-never-blocks`).
+ * Superseded, Brian, 2026-09-01: "Mobile is required no matter what… Missing
+ * never blocks except for phone. I'm fine not getting email, but we also need
+ * to get the phone number. That is how we communicate with them. Nothing else
+ * works if we don't have a phone number." The required set is now first name,
+ * last name, mobile and the consent tick — mobile joins the set this same
+ * module's header once called complete at three. {@link validateSignupSubmission}
+ * is the one place that is enforced, for both doors, before anything is
+ * written, and it is also where a supplied mobile is validated and
+ * normalised to E.164 (`person-validation.ts`'s `validatePhoneNumber`,
+ * LAN-183 — reused rather than re-derived; see that module's own note on why
+ * it is not `src/lib/delivery/phone.ts`'s `toE164` directly). Email, and the
+ * two academic years, are validated the same way when supplied and stay
+ * optional (`REQ-missing-never-blocks`) — a blank optional field never
+ * blocks the save; a **malformed** one now does, where blank previously
+ * discarded it silently (finding 3).
  *
  * ## Questionnaire A lands on the person record, not a response table
  *
@@ -61,11 +76,13 @@ import { recordRecruitmentSignupCodeUseIn } from "./recruitment-signup-codes";
 export interface SignupSubmission {
   readonly givenName: string;
   readonly familyName: string;
+  /** Required, Brian 2026-09-01 (finding 1) — validated and normalised to E.164 by `validateSignupSubmission`. */
   readonly mobile?: string | null;
+  /** Optional; validated for shape when supplied (finding 3), never silently discarded. */
   readonly email?: string | null;
   readonly knownAs?: string | null;
   readonly college?: string | null;
-  /** Raw text, as typed — parsed leniently; unparsable input is simply not recorded. */
+  /** Raw text, as typed. Optional; validated as a year when supplied (finding 3), never silently discarded. */
   readonly matriculationYear?: string | null;
   readonly expectedGraduationYear?: string | null;
   readonly degreeField?: string | null;
@@ -82,6 +99,16 @@ export interface SignupResult {
 export const SIGNUP_REQUIRES_FIRST_NAME_RULE = "recruitment_signup_requires_a_first_name";
 export const SIGNUP_REQUIRES_LAST_NAME_RULE = "recruitment_signup_requires_a_last_name";
 export const SIGNUP_REQUIRES_CONSENT_RULE = "recruitment_signup_requires_consent";
+/** Brian, 2026-09-01: mobile joins the required set. Finding 1. */
+export const SIGNUP_REQUIRES_MOBILE_RULE = "recruitment_signup_requires_a_mobile_number";
+/** `person-validation.ts`'s own per-field rule, surfaced here rather than re-derived. Finding 2. */
+export const SIGNUP_INVALID_MOBILE_RULE = "recruitment_signup_invalid_mobile_number";
+/** Finding 3 — optional, but validated when supplied rather than silently discarded. */
+export const SIGNUP_INVALID_EMAIL_RULE = "recruitment_signup_invalid_email_address";
+export const SIGNUP_INVALID_MATRICULATION_YEAR_RULE =
+  "recruitment_signup_invalid_matriculation_year";
+export const SIGNUP_INVALID_EXPECTED_GRADUATION_YEAR_RULE =
+  "recruitment_signup_invalid_expected_graduation_year";
 
 function trimmedOrNull(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
@@ -90,13 +117,22 @@ function trimmedOrNull(value: string | null | undefined): string | null {
 }
 
 /**
- * `W7`/`W4`, Brian 2026-09-01. Throws before anything is written — never a
- * raw database constraint — naming exactly which of the three required
- * things is missing.
+ * `W7`/`W4`, Brian 2026-09-01 (superseded the same day — see the module
+ * note). Throws before anything is written — never a raw database
+ * constraint — naming exactly which required thing is missing or which
+ * supplied field is malformed. First name, last name, mobile and consent are
+ * required; email, matriculation year and expected graduation are optional
+ * but validated when supplied, never silently discarded (finding 3).
+ *
+ * Returns the mobile's own E.164 digits alongside the two trimmed names —
+ * `mobileE164` is what every caller now writes as this contact point's
+ * `normalised_value`, computed once here rather than re-derived at the
+ * write site or left for a later delivery-time guess.
  */
 function validateSignupSubmission(submission: SignupSubmission): {
   givenName: string;
   familyName: string;
+  mobileE164: string;
 } {
   const givenName = trimmedOrNull(submission.givenName);
   if (!givenName) {
@@ -110,13 +146,53 @@ function validateSignupSubmission(submission: SignupSubmission): {
       rule: SIGNUP_REQUIRES_LAST_NAME_RULE,
     });
   }
+
+  const mobileRaw = trimmedOrNull(submission.mobile);
+  if (!mobileRaw) {
+    throw new ConstraintViolated("A mobile number is required — it is how the club reaches you.", {
+      rule: SIGNUP_REQUIRES_MOBILE_RULE,
+    });
+  }
+  const mobileValidation = validatePhoneNumber(mobileRaw);
+  if (!mobileValidation.valid || !mobileValidation.e164) {
+    throw new ConstraintViolated(mobileValidation.message, { rule: SIGNUP_INVALID_MOBILE_RULE });
+  }
+
+  const emailRaw = trimmedOrNull(submission.email);
+  if (emailRaw) {
+    const emailValidation = validateEmailAddress(emailRaw);
+    if (!emailValidation.valid) {
+      throw new ConstraintViolated(emailValidation.message, { rule: SIGNUP_INVALID_EMAIL_RULE });
+    }
+  }
+
+  const matriculationRaw = trimmedOrNull(submission.matriculationYear);
+  if (matriculationRaw) {
+    const yearValidation = validateAcademicYear(matriculationRaw, "Matriculation year");
+    if (!yearValidation.valid) {
+      throw new ConstraintViolated(yearValidation.message, {
+        rule: SIGNUP_INVALID_MATRICULATION_YEAR_RULE,
+      });
+    }
+  }
+
+  const graduationRaw = trimmedOrNull(submission.expectedGraduationYear);
+  if (graduationRaw) {
+    const yearValidation = validateAcademicYear(graduationRaw, "Expected graduation");
+    if (!yearValidation.valid) {
+      throw new ConstraintViolated(yearValidation.message, {
+        rule: SIGNUP_INVALID_EXPECTED_GRADUATION_YEAR_RULE,
+      });
+    }
+  }
+
   if (submission.consent !== true) {
     throw new ConstraintViolated(
       "Tick the consent box to save this form — it cannot be saved without it.",
       { rule: SIGNUP_REQUIRES_CONSENT_RULE },
     );
   }
-  return { givenName, familyName };
+  return { givenName, familyName, mobileE164: mobileValidation.e164 };
 }
 
 // ---------------------------------------------------------------------------
@@ -203,7 +279,14 @@ const YEAR_FIELD_COLUMNS = {
   expectedGraduationYear: "expected_graduation_year",
 } as const;
 
-/** Parsed leniently — `W7`: "recruitment is not a validation exercise." Unparsable input is simply skipped. */
+/**
+ * Superseded, Brian, 2026-09-01 (finding 3): `W7`'s "recruitment is not a
+ * validation exercise" no longer governs matriculation year and expected
+ * graduation specifically — `validateSignupSubmission` already refuses a
+ * malformed value before this is ever reached, so the bounds check below is
+ * now a defensive backstop rather than the actual validation; a value that
+ * fails it here would already have thrown upstream.
+ */
 async function fillPersonYearFieldIfBlankIn(
   tx: Tx,
   personId: string,
@@ -232,6 +315,7 @@ async function fillContactIfNoneIn(
   kind: "phone" | "email",
   scope: "personal" | null,
   rawValue: string | null | undefined,
+  normalisedValue: string | null = null,
 ): Promise<void> {
   const trimmed = trimmedOrNull(rawValue);
   if (!trimmed) return;
@@ -246,9 +330,10 @@ async function fillContactIfNoneIn(
   if (current.rows.length > 0) return;
 
   await tx.query(
-    `insert into public.contact_points (person_id, kind, scope, raw_value, is_preferred, source)
-     values ($1::uuid, $2::public.contact_point_kind, $3::public.contact_point_scope, $4, true, $5)`,
-    [personId, kind, scope, trimmed, "recruitment sign-up (LAN-202)"],
+    `insert into public.contact_points
+       (person_id, kind, scope, raw_value, normalised_value, is_preferred, source)
+     values ($1::uuid, $2::public.contact_point_kind, $3::public.contact_point_scope, $4, $5, true, $6)`,
+    [personId, kind, scope, trimmed, normalisedValue, "recruitment sign-up (LAN-202)"],
   );
 }
 
@@ -287,6 +372,7 @@ async function applyQuestionnaireAAnswersIn(
   personId: string,
   givenName: string,
   submission: SignupSubmission,
+  mobileE164: string,
 ): Promise<void> {
   await recordKnownAsIn(tx, personId, givenName, submission.knownAs);
   await fillPersonTextFieldIfBlankIn(tx, personId, TEXT_FIELD_COLUMNS.college, submission.college);
@@ -308,7 +394,11 @@ async function applyQuestionnaireAAnswersIn(
     YEAR_FIELD_COLUMNS.expectedGraduationYear,
     submission.expectedGraduationYear,
   );
-  await fillContactIfNoneIn(tx, personId, "phone", null, submission.mobile);
+  // The mobile's own raw text is stored as typed (contact_points.raw_value
+  // is deliberately unvalidated); mobileE164 is the same value's already-
+  // validated E.164 digits, stored as normalised_value so selectMobileNumber
+  // (src/lib/delivery/phone.ts) never has to guess at send time.
+  await fillContactIfNoneIn(tx, personId, "phone", null, submission.mobile, mobileE164);
   await fillContactIfNoneIn(tx, personId, "email", "personal", submission.email);
 }
 
@@ -391,7 +481,7 @@ export async function signUpAnonymouslyIn(
     linkExistingPersonId?: string | null;
   },
 ): Promise<SignupResult> {
-  const { givenName, familyName } = validateSignupSubmission(params.submission);
+  const { givenName, familyName, mobileE164 } = validateSignupSubmission(params.submission);
 
   let personId: string;
   let personCreated: boolean;
@@ -414,7 +504,7 @@ export async function signUpAnonymouslyIn(
     personCreated = true;
   }
 
-  await applyQuestionnaireAAnswersIn(tx, personId, givenName, params.submission);
+  await applyQuestionnaireAAnswersIn(tx, personId, givenName, params.submission, mobileE164);
   const prospect = await ensureProspectIn(tx, personId, params.seasonId, SELF_ENTRY_SOURCE);
   await grantSeasonMessagingConsentIn(tx, personId, params.seasonId);
   await recordRecruitmentSignupCodeUseIn(tx, params.code);
@@ -449,7 +539,7 @@ export async function signUpWithTokenIn(
     submission: SignupSubmission;
   },
 ): Promise<SignupResult> {
-  const { givenName, familyName } = validateSignupSubmission(params.submission);
+  const { givenName, familyName, mobileE164 } = validateSignupSubmission(params.submission);
 
   // The credential already acts as this exact person (Task 08 §3), so their
   // own correction to their own name is taken at face value here — unlike
@@ -459,7 +549,7 @@ export async function signUpWithTokenIn(
     [params.personId, givenName, familyName],
   );
 
-  await applyQuestionnaireAAnswersIn(tx, params.personId, givenName, params.submission);
+  await applyQuestionnaireAAnswersIn(tx, params.personId, givenName, params.submission, mobileE164);
   const prospect = await ensureProspectIn(tx, params.personId, params.seasonId, SELF_ENTRY_SOURCE);
   await grantSeasonMessagingConsentIn(tx, params.personId, params.seasonId);
 
