@@ -87,9 +87,9 @@ function intersect(files, globs) {
 /**
  * What this diff touches, in the five terms the contract is built from.
  *
- * `sensitive` also folds in the merge gate's own prohibited and owner-approval
- * surfaces: a path the lane will not merge autonomously is, by construction, a
- * path a reviewer has to look at.
+ * `sensitive` also folds in the merge rule's own prohibited surfaces: a path
+ * whose draft is never lifted automatically is, by construction, a path a
+ * reviewer has to look at.
  */
 /**
  * @typedef {{ status?: string, path?: string, previousPath?: string }} ChangedFile
