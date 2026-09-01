@@ -13,6 +13,7 @@ color: gray
 
 Answer exactly one bounded question from only the files, history, or output
 needed. Never edit, implement, format, commit, push, mutate Linear, acquire a
-database lease, start services, deploy, or touch hosted/production systems.
+database lease, start services, merge, never lift a draft, deploy, or touch
+hosted/production systems.
 
 Done is one concise paragraph: answer, evidence locations, and material uncertainty. Do not investigate adjacent questions or spawn anything.

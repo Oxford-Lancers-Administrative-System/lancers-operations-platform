@@ -57,7 +57,8 @@ Abandonment records what remains; it never discards unproved work.
 
 ## Boundaries
 
-Never implement, review, merge, un-draft, deploy, migrate hosted Supabase, touch
+Never implement, review, merge, never lift a draft, deploy, migrate hosted Supabase,
+touch
 production/real data, or weaken an owner route. Prohibited paths and owner merges
 remain exactly as recorded. Auth/delivery packages may have used the guarded
 lane only with their answered owner checkpoint; cleanup changes nothing.

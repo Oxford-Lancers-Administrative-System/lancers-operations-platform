@@ -1,0 +1,214 @@
+name: Merge
+
+# One rule, applied to every pull request in this repository, whatever opened
+# it (LAN-209, docs/adr/0034).
+#
+# A pull request leaves draft exactly once, as the last act of the work, and
+# that act is the authorization to merge it. GitHub already refuses to merge a
+# draft and its auto-merge already waits for the draft to lift, so this
+# workflow does not reconstruct any of that. It never merges and it never
+# un-drafts. It answers one question, from the real diff:
+#
+#   Does this change touch a path only Brian may merge?
+#
+# Yes  -> enable nothing, say so once on the pull request, exit.
+# No   -> `gh pr merge --auto --squash`. GitHub merges when CI is green.
+#
+# The rules are read from the BASE branch — `main`, already reviewed and
+# merged — and applied to the pull request's real diff. The pull request's code
+# is fetched as git objects and diffed. It is never checked out and never
+# executed. `workflow_run` and `pull_request_target` both run the default
+# branch's copy of this file.
+#
+# Auto-merge is enabled at `ready_for_review` rather than at open because
+# GitHub's documentation does not state whether auto-merge can be enabled on a
+# draft. Enabling it at the moment the draft lifts sidesteps the question and
+# matches the rule. The `workflow_run` trigger catches the case where CI
+# finishes after the draft was already lifted.
+#
+# There is deliberately no re-draft-on-push machinery. Un-drafting is the final
+# step of the process; nothing is expected to happen to a pull request
+# afterwards. A commit landing after that means the process was run wrong, and
+# that is not a case this builds for.
+#
+# CONSEQUENCE, decided deliberately (Brian, 2026-08-18): a merge performed with
+# GITHUB_TOKEN does not trigger downstream workflows, so an automatic merge
+# does NOT run deploy.yml. `main` moves ahead of production until Brian runs
+# `gh workflow run deploy.yml` or merges something himself.
+
+on:
+  pull_request_target:
+    types: [ready_for_review]
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: "Pull-request number to re-evaluate."
+        required: true
+        type: string
+
+concurrency:
+  group: merge
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    name: Evaluate the merge rule
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      # Narrowed from the repository default, which must itself allow write —
+      # a workflow can only reduce GITHUB_TOKEN's permissions, never widen.
+      # There is no `gh pr ready` here and there never will be: lifting the
+      # draft is the work's own last act, not this workflow's.
+      contents: write # enable auto-merge
+      pull-requests: write # enable auto-merge, comment
+
+    steps:
+      - name: Check out the base branch
+        uses: actions/checkout@v5
+        with:
+          # Deliberately the base branch and never the pull request's head.
+          # The rules and the gate that decide this must be the reviewed,
+          # merged ones. `fetch-depth: 0` so the merge base is computable.
+          ref: main
+          fetch-depth: 0
+
+      - name: Resolve the pull request
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          DISPATCH_PR: ${{ inputs.pull_request }}
+          TARGET_PR: ${{ github.event.pull_request.number }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          case "$EVENT" in
+            workflow_dispatch) PR="$DISPATCH_PR" ;;
+            pull_request_target) PR="$TARGET_PR" ;;
+            workflow_run)
+              PR=$(gh api "repos/$REPO/commits/$RUN_HEAD_SHA/pulls" \
+                     --jq '[.[] | select(.state == "open")] | first | .number // empty')
+              ;;
+            *) PR="" ;;
+          esac
+          if [ -z "${PR:-}" ]; then
+            echo "No open pull request to evaluate." >> "$GITHUB_STEP_SUMMARY"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "found=true" >> "$GITHUB_OUTPUT"
+          echo "number=$PR" >> "$GITHUB_OUTPUT"
+
+      - name: Read the pull request and its diff
+        if: steps.resolve.outputs.found == 'true'
+        id: read
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.resolve.outputs.number }}
+        run: |
+          set -euo pipefail
+
+          gh pr view "$PR" --repo "$REPO" \
+            --json number,state,isDraft,isCrossRepository,baseRefName,headRefName,headRefOid,title \
+            > pr.json
+
+          # A draft is the whole point. Stop before touching anything else:
+          # nothing is enabled, nothing is said, and the pull request waits for
+          # the work to lift its own draft.
+          if [ "$(jq -r .isDraft pr.json)" = "true" ]; then
+            echo "Pull request #$PR is a draft. Draft state is the readiness gate." \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo "draft=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "draft=false" >> "$GITHUB_OUTPUT"
+
+          HEAD_SHA=$(jq -r .headRefOid pr.json)
+          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+          # The pull request's objects, fetched but never checked out and never
+          # executed. Only `git diff` reads them.
+          git fetch --no-tags origin "pull/$PR/head:refs/merge/head"
+          FETCHED=$(git rev-parse refs/merge/head)
+          if [ "$FETCHED" != "$HEAD_SHA" ]; then
+            echo "Head moved during evaluation ($FETCHED vs $HEAD_SHA); refusing." \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "stale=false" >> "$GITHUB_OUTPUT"
+
+          BASE=$(git merge-base origin/main refs/merge/head)
+          git diff --name-status "$BASE" refs/merge/head > files.txt
+
+      - name: Apply the merge rule
+        if: >-
+          steps.resolve.outputs.found == 'true' &&
+          steps.read.outputs.draft == 'false' &&
+          steps.read.outputs.stale == 'false'
+        id: gate
+        run: |
+          set -euo pipefail
+          node scripts/merge/gate-cli.mjs --pr pr.json --files files.txt
+
+      - name: Say once that Brian merges this
+        if: steps.gate.outputs.prohibited == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.resolve.outputs.number }}
+          MARKER: "<!-- merge-rule:prohibited -->"
+        run: |
+          set -euo pipefail
+          # Two triggers can reach the same pull request, and a prohibited path
+          # does not resolve itself, so say it exactly once.
+          SAID=$(gh pr view "$PR" --repo "$REPO" --json comments \
+            --jq "[.comments[].body | select(contains(\"$MARKER\"))] | length")
+          if [ "$SAID" != "0" ]; then
+            echo "Already said on #$PR. Not repeating." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          {
+            echo "$MARKER"
+            echo "**Brian merges this one by hand.** Auto-merge was not enabled."
+            echo ""
+            echo "The diff reaches a surface that no automation may merge:"
+            echo ""
+            jq -r '.prohibited[] | "- " + .' merge-verdict.json
+            echo ""
+            echo "This was recomputed from the real diff against \`main\`, using"
+            echo "\`.github/merge-rules.json\` as it stands on \`main\`. Nothing written in"
+            echo "this pull request changes it. See \`AGENTS.md\`."
+          } | gh pr comment "$PR" --repo "$REPO" --body-file -
+
+      - name: Enable auto-merge
+        if: steps.gate.outputs.auto_merge == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.resolve.outputs.number }}
+        run: |
+          set -euo pipefail
+          # The only merge instruction in this repository, and it is not a
+          # merge: GitHub holds it until every required check is green at the
+          # head, and branch protection is the authoritative gate. No --admin,
+          # ever. If auto-merge is already enabled this is a no-op.
+          gh pr merge "$PR" --repo "$REPO" --auto --squash --delete-branch
+
+      - name: Record the verdict
+        if: always() && steps.resolve.outputs.found == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: merge-verdict
+          path: merge-verdict.json
+          if-no-files-found: ignore
