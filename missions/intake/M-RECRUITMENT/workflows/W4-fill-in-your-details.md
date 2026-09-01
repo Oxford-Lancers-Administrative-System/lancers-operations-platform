@@ -54,15 +54,19 @@ they get put together. I'm doing that."_ The order below is not a decision.
 ### Questionnaire A — Who you are
 
 The recruit supplies or confirms their own personal details. Enumerated with
-Mission 5, because these are its fields.
+Mission 5, because these are its fields. Settled 2026-08-31, **after** this
+workflow's own approval: Questionnaire A is asked on the sign-up form itself
+(`W7`), the same surface as the consent gate, not sent later as its own
+signed-link message. Its submission carries `W7`'s rule — first name, last
+name and the consent tick are required; every field below stays optional.
 
-| Field          | Why the club wants it                                    |
-| -------------- | -------------------------------------------------------- |
-| Preferred name | What to call them, where it differs from their full name |
-| Mobile         | Confirm or correct what the door captured                |
-| Email          | Often not captured at a stand at all                     |
-| College        | Confirm or supply                                        |
-| Year           | Confirm or supply                                        |
+| Field    | Why the club wants it                                                                                                                                                                                                     |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Known as | What to call them. Writes a `person_aliases` row, not a preferred-name field — `main` has no such field, and every `isPreferred` in the tree is about which contact to use. Brian, 2026-09-01: "this is old information." |
+| Mobile   | Confirm or correct what the door captured                                                                                                                                                                                 |
+| Email    | Often not captured at a stand at all                                                                                                                                                                                      |
+| College  | Confirm or supply                                                                                                                                                                                                         |
+| Year     | Confirm or supply. The club records the matriculation year it implies rather than a separately stored "Year" — see `W1`'s columns.                                                                                        |
 
 **The seam, stated rather than assumed:** the _fields_ belong to Mission 5's
 person record, which this mission does not own and does not correct. This

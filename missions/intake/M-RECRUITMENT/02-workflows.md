@@ -68,8 +68,9 @@ mission and its shape depends on what everything before it became.
     the sheet → recruits at the top, everyone else below, walk-ups captured into
     the flow, and who showed up reads back onto the recruit's row.
 13. `W13` — **Take a recruit off the board**: an operator changes a recruit's
-    status to an exit value → the recruit leaves the board, the board resorts, the
-    record and its history stay intact, and nothing further is sent.
+    status to an exit value → the board resorts, the recruit sinks to the bottom
+    rather than leaving it, the record and its history stay intact, and nothing
+    further is sent.
 14. `W14` — **Flip a recruit to joined**: one of the core four decides a recruit is
     in → a confirmation interrupts, the season membership exists, the roster shows
     them joined this season, and onboarding opens.

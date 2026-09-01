@@ -85,6 +85,12 @@
       "kind": "document",
       "ref": "Mission journal M-RECRUITMENT, owner question Q-3",
       "version": "Brian Schuster, 2026-09-01, confirming the deletion W8 recorded 2026-08-31"
+    },
+    {
+      "id": "SRC-owner-2026-09-01-walkthrough",
+      "kind": "document",
+      "ref": "Mission journal M-RECRUITMENT, owner questions Q-consent-required and Q-exits-stay-on-board",
+      "version": "Brian Schuster, 2026-09-01, walking the LAN-200 recruitment fidelity mockup"
     }
   ],
   "requirements": [
@@ -177,6 +183,16 @@
       "id": "REQ-duplicate-queue",
       "text": "The duplicate check runs inside whichever door is open, on that door's own surface, never as a page an operator visits: it offers candidates and the operator links or creates on the spot. There is no review queue. A duplicate that still gets through is resolved by the people record's own merge, which already ships. The walk-up door runs no check at all.",
       "source_id": "SRC-owner-2026-09-01"
+    },
+    {
+      "id": "REQ-consent-required-to-submit",
+      "text": "The sign-up form's consent tick is a required condition of submitting it: the form cannot be saved without it. First name, last name and the tick are the required set; every other field, including mobile, stays visibly optional. The five-value messaging_consent_state enum is unchanged; refused is not reachable through this door.",
+      "source_id": "SRC-owner-2026-09-01-walkthrough"
+    },
+    {
+      "id": "REQ-exits-stay-on-board",
+      "text": "A recruit reaching declined or joined stays visible on the working recruit board: ladder order sinks them to the bottom, and the Status filter, not automatic removal, takes them out of view. The approved W1-01 and W13-01 frames are correct; disengaged and void behave the same way.",
+      "source_id": "SRC-owner-2026-09-01-walkthrough"
     },
     {
       "id": "REQ-flip",
@@ -326,7 +342,7 @@
   },
   "gates": {
     "owner": [
-      "Four WhatsApp templates must be submitted to Meta and approved before the recruitment cycle can run: recruit_welcome, recruit_details_ask, recruit_details_reminder and recruit_interest_ask, plus the recruit event follow-up. Only event_invitation exists in Meta today. Brian submits them; agents never do.",
+      "Four WhatsApp templates must be submitted to Meta and approved before the recruitment cycle can run: recruit_welcome, recruit_details_reminder, recruit_interest_ask and the recruit event follow-up, plus a fifth optional one. recruit_details_ask is withdrawn (AMD-1; LAN-199) \u2014 the welcome carries the form and is itself the ask. Only event_invitation exists in Meta today. Brian submits them; agents never do.",
       "LAN-86 and LAN-101 remain open gates: no real recruit data and no real sends in any environment this mission touches.",
       "The club's own domain must serve the QR sign-up page before a QR is printed for a real recruiting moment.",
       "Brian merges this packet. No execution is authorized before that merge."
@@ -357,7 +373,7 @@
       "placement": "/operate/recruitment",
       "actions": [
         "Read every recruit as one line: person details, then recruitment details, then one pair of columns per recruitment event",
-        "Search, filter by status, source and outstanding ask",
+        "Search, filter by status, consent and whether either questionnaire was sent; source carries no filter",
         "Change a recruit's status from the row",
         "Open a recruit's record from the pinned Recruit column",
         "Add a recruit",
@@ -374,7 +390,7 @@
       "placement": "/operate/recruitment/[prospectId]",
       "actions": [
         "Read the person half, routing out to Mission 5's record to correct it",
-        "Read and set the recruitment status, source, first contact and committed-on",
+        "Read and set the recruitment status, first contact and committed-on; source is read-only",
         "Read both questionnaires and what the recruit answered",
         "Read every recruitment event with its RSVP and its attendance as distinct columns",
         "Write a note, attributed and dated",
@@ -447,11 +463,12 @@
       "entry_point": "The QR on the stand, on a poster, or shared in a message",
       "placement": "A public page on the club's own domain",
       "actions": [
-        "Fill in their own details on the club's own page",
+        "Fill in their own details on the club's own page, the same surface as Questionnaire A",
+        "Tick consent to WhatsApp messaging, required to submit alongside first and last name",
         "Answer the one duplicate question this door asks",
-        "Submit, and land in the community group"
+        "Submit, and land in the community group with the link now shown"
       ],
-      "user_visible_result": "They are a recruit, they are in the group, and they were never sent to a form somewhere else"
+      "user_visible_result": "They are a recruit, they are in the group because they ticked consent to get there, and they were never sent to a form somewhere else"
     },
     {
       "id": "W8",

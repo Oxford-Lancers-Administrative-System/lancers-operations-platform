@@ -10,7 +10,8 @@
 - Route/placement: an interruption on the surface where the decision is made.
 - Controlling source: Task 09 D5 and D6; Brian's 2026-08-31 ruling on its shape.
 - User-visible result: they are on the roster as joined for this season, they are
-  in onboarding, and they are off the recruit board.
+  in onboarding, and they stay on the recruit board, sunk to the bottom by
+  ladder order — Brian, 2026-09-01, against the approved `W1-01` frame.
 
 ## Brian's shape, 2026-08-31
 
@@ -110,16 +111,17 @@ of onboarding and is Mission 7's. This workflow never produces an active member.
 
 ## Core decisions
 
-| Decision                                                   | Classification                | Governing evidence or recommended default                                                             | Status  |
-| ---------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------- | ------- |
-| The flip is the four roles only, one audited action        | `locked`                      | Task 09 D5; invariant 3                                                                               | Settled |
-| It interrupts rather than committing silently              | `locked`                      | Brian, 2026-08-31                                                                                     | Settled |
-| `joined` means a season membership exists                  | `locked`                      | Brian, 2026-08-31; the schema already binds it                                                        | Settled |
-| The roster shows them joined this season; onboarding opens | `locked`                      | Brian, 2026-08-31                                                                                     | Settled |
-| On the team is not active                                  | `locked`                      | Task 09 D5; R2 acceptance                                                                             | Settled |
-| Missing information never blocks it                        | `locked`                      | Task 09 D5; invariant 4                                                                               | Settled |
-| What the interruption actually says                        | `proposed for owner approval` | Recommendation: name the three consequences and the season, and nothing else                          | Open    |
-| Where the operator lands afterwards                        | `proposed for owner approval` | Recommendation: stay on the board, with a confirmation naming the roster. Recruitment's job continues | Open    |
+| Decision                                                              | Classification                | Governing evidence or recommended default                                                             | Status  |
+| --------------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------- | ------- |
+| The flip is the four roles only, one audited action                   | `locked`                      | Task 09 D5; invariant 3                                                                               | Settled |
+| It interrupts rather than committing silently                         | `locked`                      | Brian, 2026-08-31                                                                                     | Settled |
+| `joined` means a season membership exists                             | `locked`                      | Brian, 2026-08-31; the schema already binds it                                                        | Settled |
+| The roster shows them joined this season; onboarding opens            | `locked`                      | Brian, 2026-08-31                                                                                     | Settled |
+| A newly joined recruit stays on the recruit board, sunk to the bottom | `locked`                      | Brian, 2026-09-01, against the approved `W1-01` frame                                                 | Settled |
+| On the team is not active                                             | `locked`                      | Task 09 D5; R2 acceptance                                                                             | Settled |
+| Missing information never blocks it                                   | `locked`                      | Task 09 D5; invariant 4                                                                               | Settled |
+| What the interruption actually says                                   | `proposed for owner approval` | Recommendation: name the three consequences and the season, and nothing else                          | Open    |
+| Where the operator lands afterwards                                   | `proposed for owner approval` | Recommendation: stay on the board, with a confirmation naming the roster. Recruitment's job continues | Open    |
 
 ## Brian approval
 

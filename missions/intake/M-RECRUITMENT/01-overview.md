@@ -87,13 +87,14 @@ bullet list — Brian's direction of 2026-08-28, read under portfolio rule 1. Th
   copying it where copying works, because a surface the club already reads is
   worth more than a new idea. Its columns differ: **person details** first, then
   **recruitment details** for the person going through the process. One line per
-  recruit, notes attached, findable and filterable, and actions available from
-  the row.
-  **Event columns append.** Every recruitment event adds a column at the right
-  end, headed by a compact handle carrying the event name, showing whether that
-  recruit was invited, **whether they answered and what they said**, and whether
-  they attended — scrolled left to right through the term, read as signals rather
-  than as a register.
+  recruit, findable and filterable, and actions available from the row. Notes
+  are not among the columns — they are first-class on the recruit's own record,
+  `W2`'s.
+  **Event columns append.** Every recruitment event adds a band at the right
+  end, headed by the event's own name and date over an RSVP column and an
+  Attendance column side by side, plain text — scrolled left to right through
+  the term, read as signals rather than as a register. Whether a recruit was
+  invited is deliberately not shown.
 - **The recruit's own page** — clicking a row opens that recruit, the way clicking
   a player opens their record. Personal details, the recruitment details for that
   recruit **for that season**, every signal, and the notes. It is a working page,
@@ -135,9 +136,12 @@ bullet list — Brian's direction of 2026-08-28, read under portfolio rule 1. Th
   GM that converts the prospect, creates the membership, puts the person on the
   roster and opens onboarding. On the team is not the same as active.
 - **The off-ramps** — Brian's framing, 2026-08-28: _"Recruits can get in 3 or 4
-  ways, but they can get off in several ways."_ Getting off the board is a
-  first-class part of the subject, not an afterthought, because a board that only
-  ever grows stops being readable by November. The ramps:
+  ways, but they can get off in several ways."_ Exiting the active funnel is a
+  first-class part of the subject, not an afterthought: ladder order sinks the
+  exits to the bottom of the board and the Status filter takes them out of
+  view, so a board that only ever grew would still be readable by November.
+  The approved `W1-01` and `W13-01` frames keep exits on the board rather than
+  removing them — confirmed against the frames, 2026-09-01. The ramps:
   1. **Converted** — the flip into onboarding. The only way up, and once taken
      there is no pathway back off except a leadership reversal.
   2. **Declined** — they said no.

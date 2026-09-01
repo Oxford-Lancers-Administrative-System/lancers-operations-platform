@@ -97,9 +97,10 @@ exactly, in order, and the validator enforces it.
 ## Gates that remain with Brian
 
 1. **Four WhatsApp templates must clear Meta** before the recruitment cycle can run:
-   `recruit_welcome`, `recruit_details_ask`, `recruit_details_reminder`,
-   `recruit_interest_ask`, plus the recruit event follow-up. Only `event_invitation` exists
-   in Meta today. Externally timed, and outside the club's control.
+   `recruit_welcome`, `recruit_details_reminder`, `recruit_interest_ask` and the recruit
+   event follow-up, plus a fifth optional one. `recruit_details_ask` is withdrawn (AMD-1;
+   LAN-199) — the welcome carries the form and is itself the ask. Only `event_invitation`
+   exists in Meta today. Externally timed, and outside the club's control.
 2. **LAN-86 and LAN-101** stay open: no real recruit data and no real sends.
 3. **The club's own domain** must serve the sign-up page before a QR is printed for a real
    recruiting moment.

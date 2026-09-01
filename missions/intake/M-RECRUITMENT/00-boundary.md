@@ -285,10 +285,11 @@ mission owns, not something that happens outside the system.
     onboarding-like in shape, holding the recruits, their signals and their
     notes. This supersedes the plainer reading of row item 5; the board is the
     mission's primary surface.
-34. `[owner]` **Notes people take.** First-class on the board: an operator opens
-    a recruit, reads what is known, and writes notes. Attribution, dating,
-    editing and who may read them are details Brian has flagged for thinking
-    through.
+34. `[owner]` **Notes people take.** First-class on the record: an operator opens
+    a recruit, reads what is known, and writes notes. Not a board column — Brian,
+    2026-09-01: "Note should just be removed from the top-level recruitment page…
+    It should just be on the lower-end page." Attribution, dating, editing and
+    who may read them are details Brian has flagged for thinking through.
 35. `[owner]` **Layering onto Mission 5's in-flight surfaces as its own section.**
     Mission 5 is being built now; this mission layers onto whatever it lands.
     The layering itself is scope — a named section of the mission, not an
