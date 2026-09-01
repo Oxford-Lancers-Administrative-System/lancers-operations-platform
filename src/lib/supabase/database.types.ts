@@ -916,6 +916,11 @@ export type Database = {
           invitation_at: string
           invitation_lead_days: number
           late_approval: boolean
+          recruit_dispatches_immediately: boolean | null
+          recruit_follow_up_at: string | null
+          recruit_follow_up_cadence_hours: number | null
+          recruit_invitation_at: string | null
+          recruit_invitation_lead_days: number | null
           reminder_cadence_hours: number
           response_deadline_at: string
           rsvp_by_days: number
@@ -935,6 +940,11 @@ export type Database = {
           invitation_at: string
           invitation_lead_days: number
           late_approval: boolean
+          recruit_dispatches_immediately?: boolean | null
+          recruit_follow_up_at?: string | null
+          recruit_follow_up_cadence_hours?: number | null
+          recruit_invitation_at?: string | null
+          recruit_invitation_lead_days?: number | null
           reminder_cadence_hours: number
           response_deadline_at: string
           rsvp_by_days: number
@@ -954,6 +964,11 @@ export type Database = {
           invitation_at?: string
           invitation_lead_days?: number
           late_approval?: boolean
+          recruit_dispatches_immediately?: boolean | null
+          recruit_follow_up_at?: string | null
+          recruit_follow_up_cadence_hours?: number | null
+          recruit_invitation_at?: string | null
+          recruit_invitation_lead_days?: number | null
           reminder_cadence_hours?: number
           response_deadline_at?: string
           rsvp_by_days?: number
@@ -2655,6 +2670,45 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "event_questions"
             referencedColumns: ["id", "event_id"]
+          },
+        ]
+      }
+      recruitment_cycle_steps: {
+        Row: {
+          enabled: boolean
+          offset_hours: number
+          step: Database["public"]["Enums"]["recruitment_cycle_step"]
+          updated_at: string
+          updated_by_person_id: string | null
+        }
+        Insert: {
+          enabled: boolean
+          offset_hours: number
+          step: Database["public"]["Enums"]["recruitment_cycle_step"]
+          updated_at?: string
+          updated_by_person_id?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          offset_hours?: number
+          step?: Database["public"]["Enums"]["recruitment_cycle_step"]
+          updated_at?: string
+          updated_by_person_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_cycle_steps_updated_by_person_id_fkey"
+            columns: ["updated_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recruitment_cycle_steps_updated_by_person_id_fkey"
+            columns: ["updated_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
           },
         ]
       }
@@ -4457,6 +4511,11 @@ export type Database = {
         | "disengaged"
         | "void"
       question_answer_type: "text" | "boolean" | "choice"
+      recruitment_cycle_step:
+        | "welcome"
+        | "details_reminder"
+        | "interest_ask"
+        | "interest_reminder"
       recruitment_questionnaire: "personal_details" | "football_background"
       role_scope: "committee_year" | "season"
       rsvp_source: "signed_link" | "operator" | "channel_reply" | "import"
@@ -4713,6 +4772,12 @@ export const Constants = {
         "void",
       ],
       question_answer_type: ["text", "boolean", "choice"],
+      recruitment_cycle_step: [
+        "welcome",
+        "details_reminder",
+        "interest_ask",
+        "interest_reminder",
+      ],
       recruitment_questionnaire: ["personal_details", "football_background"],
       role_scope: ["committee_year", "season"],
       rsvp_source: ["signed_link", "operator", "channel_reply", "import"],

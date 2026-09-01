@@ -284,8 +284,8 @@ These are physical necessities, not new product scope.
 | `event_template_questions`            | D42's default questions. Copied onto a new event and marked `from_template`, so removing one per event never touches the template.                                                                                                                                                                                                                         |
 | `event_template_audience_groups`      | D47's default audience, stored as **groups** rather than people — a group is a way of selecting people, and the resolved list stays `event_audience_members`. D46 keeps `recruits` to the Recruitment type, as a check.                                                                                                                                    |
 | `club_link_tokens`                    | D2's signed club link: one event's participation table, for coaches who hold no operator account. A separate table from `rsvp_access_tokens` because that token names one **invitation** and this one names one **event**; stored as a digest, same shape check.                                                                                           |
-| `messaging_schedules`                 | The club's messaging policy, one row per `event_type`: RSVP-by days, invitation lead, reminder cadence, rung counts and escalation hours. Reference data, complete with **no default arm**, created by migration and never created or deleted by an operator. See [below](#the-messaging-schedule-and-the-chase).                                          |
-| `event_messaging_plans`               | That policy frozen onto one event at approval, because a schedule change is never retroactive. A **copy** of what was decided, never a place to decide something different.                                                                                                                                                                                |
+| `messaging_schedules`                 | The club's messaging policy, one row per `event_type`: RSVP-by days, invitation lead, reminder cadence, rung counts and escalation hours, plus the Recruitment row's own `recruit_invitation_lead_days`/`recruit_follow_up_cadence_hours` (LAN-201). Reference data, complete with **no default arm**, created by migration and never created or deleted by an operator. See [below](#the-messaging-schedule-and-the-chase).                                          |
+| `event_messaging_plans`               | That policy frozen onto one event at approval, because a schedule change is never retroactive. A **copy** of what was decided, never a place to decide something different. Six `recruit_*` columns (LAN-203) carry the recruit ladder's own frozen anchor and one follow-up beside the player columns, null together on every event with no recruit audience.                                                                                                        |
 | `person_access_tokens`                | The player's season-scoped credential for their own page, on the `club_link_tokens` pattern: digest only, revocable per person without waiting for a season close. Not a club concept — the mechanism that reaches one.                                                                                                                                    |
 | `nonresponse_flags`                   | One flag per invitation per crossed chase threshold, so the same exception is never raised twice however often the scheduler reruns. The typed home invariant P7's exception stream needed once something began chasing.                                                                                                                                   |
 | `recruitment_prospect_notes`          | LAN-201. `recruitment_prospects.notes` was one unattributed prose column; W2 needs a note's author and date, which is a repeating attribute and therefore a table. Migrated the prior column's content rather than dropping it silently. Append-only.                                                                                                      |
@@ -293,6 +293,7 @@ These are physical necessities, not new product scope.
 | `recruitment_questionnaire_responses` | LAN-201, REQ-two-questionnaires. Generic over `question_code` rather than a fixed field list, because W4's own field enumeration is still `proposed for owner approval`. Carries yes/no, a fixed-set chooser or open text, the `question_responses` shape; a later, corrected answer supersedes rather than overwrites, on the `rsvp_access_tokens` idiom. |
 | `recruitment_signup_codes`            | LAN-201, REQ-qr-per-season. One live sign-up code per season, mintable, deactivatable and re-mintable. Stores the plaintext code rather than a digest, deliberately: unlike a personal invite link this is a shared, printable code the operator's page has to redisplay indefinitely, and knowing it opens only the public sign-up form.                  |
 | `season_messaging_consents`           | LAN-201, packet amendment 1. The season-scoped consent gate every send checks, keyed `(person_id, season_id)`. This is Channel Presence's early, partial landing out of the frozen model's §1.2 deferral — see [below](#release-one-versus-structurally-present) — authorised by Brian's 2026-08-31 owner amendment, not a quiet migration.                |
+| `recruitment_cycle_steps`             | LAN-203. Exactly four rows — `welcome`, `details_reminder`, `interest_ask`, `interest_reminder` — the capture-triggered sends packet amendment 1 leaves once `recruit_details_ask` was withdrawn. Reference data on the `messaging_schedules` idiom: complete over the enum, no default arm, seeded by the migration and only ever updated. Each row's `enabled` and `offset_hours` are what `/operate/admin/messaging`'s Recruitment section edits.                    |
 
 #### The role catalogue
 
@@ -633,6 +634,47 @@ without joining to `delivery_attempts` and taking a maximum.
   (`REQ-two-ladders`) beside the unchanged shipped six fields Regular players
   keep. `WP-recruitment-messaging` builds the behaviour these columns
   configure.
+
+#### Recruitment messaging (LAN-203)
+
+`WP-recruitment-messaging`, mission `M-RECRUITMENT`, packet amendment 2. Two
+gaps LAN-201 left, verified against the live catalogue rather than assumed
+from its migration file, and closed in this package's own migration rather
+than a second LAN-201 pull request.
+
+- **The recruit ladder joined the frozen plan.** `event_messaging_plans`
+  gained six `recruit_*` columns — `recruit_invitation_lead_days`,
+  `recruit_follow_up_cadence_hours`, `recruit_invitation_at`,
+  `recruit_dispatches_immediately`, `recruit_follow_up_at` — on the exact
+  "copy, not a reference" idiom the seventeen player columns already use, so
+  `REQ-schedule-not-retroactive` holds for the recruit ladder too: an operator
+  shortening the cycle on Tuesday never reaches Monday's already-approved
+  event. All six are nullable together — most approved events carry no
+  recruit audience at all, and `recruit_invitation_at is null` is that plan's
+  own "no recruit ladder here", exactly as `escalation_at is null` already
+  means "this event will never escalate" on the player side.
+  `event_messaging_plans_recruit_ladder_is_coherent` holds the shape. There is
+  deliberately no `recruit_escalation_at` — `REQ-two-ladders` and
+  `REQ-never-harsh` mean recruits are never escalated, so there is nothing for
+  such a column to hold.
+- **The recruitment cycle got its own table.** `recruitment_cycle_steps` is
+  four rows — see the entity table above — on the same "complete over a
+  closed enum, no default arm, seeded once, only ever updated" idiom
+  `messaging_schedules` already carries. `public.recruitment_cycle_step` is
+  closed for the same reason `public.event_type` is: a fifth step is a
+  product decision, not a row an operator adds.
+- **No fifth `notification_job_type` and no new column on
+  `notification_jobs`.** The frozen job-type vocabulary stays at six.
+  `notification_jobs` already accepts a `person_id`-only row with no
+  `invitation_id` or `event_id` — the shape `job_type = 'escalation'` already
+  uses — so a capture-triggered cycle send is that same shape, discriminated
+  by `template_variables` rather than by a new column or enum value. Wiring
+  the scheduler's claim/dispatch path to actually send one, and the
+  capture-flow trigger that calls the declaration function this package
+  builds, are both out of this package's scope: neither has a caller in
+  `main` yet (LAN-205/LAN-206), and LAN-199's four templates are not yet
+  Meta-approved either way — "the cycle can be built and cannot run" (LAN-203
+  boundary), and this migration is the "built" half.
 
 ### Derived views
 
