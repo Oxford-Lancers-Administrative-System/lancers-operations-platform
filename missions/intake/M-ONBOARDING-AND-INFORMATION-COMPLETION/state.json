@@ -1,0 +1,24 @@
+{
+  "mission_id": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+  "ledger_version": 3,
+  "stage": "boundary",
+  "baseline": {
+    "branch": "main",
+    "commit": "332bc6b3ba3028f1b79d99fc59dc1417791c2d81"
+  },
+  "approvals": {},
+  "workflows": [],
+  "mockup_hub": "generated",
+  "decision_coverage": {
+    "sources": [],
+    "decisions": []
+  },
+  "subject_coverage": {
+    "areas": []
+  },
+  "amendment_plan": {
+    "items": [],
+    "approval": null
+  },
+  "next_action": "Complete and approve 00-boundary.md"
+}
