@@ -140,8 +140,12 @@ create table public.recruitment_cycle_steps (
   -- "lead" and "cadence" pair to keep apart here.
   offset_hours smallint not null,
 
+  -- No `updated_by_person_id` here, deliberately, on exactly the reasoning
+  -- `messaging_schedules` itself already carries: attribution lives in
+  -- `audit_events`, and a foreign key to `public.people` on reference data
+  -- is a table the synthetic seed's `truncate ... cascade` would take out
+  -- from under the club's own configuration the next time somebody reseeds.
   updated_at timestamptz not null default now(),
-  updated_by_person_id uuid references public.people (id) on delete restrict,
 
   constraint recruitment_cycle_steps_offset_is_sane check (offset_hours between 0 and 2160)
 );

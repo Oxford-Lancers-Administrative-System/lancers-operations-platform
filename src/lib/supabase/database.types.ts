@@ -2679,38 +2679,20 @@ export type Database = {
           offset_hours: number
           step: Database["public"]["Enums"]["recruitment_cycle_step"]
           updated_at: string
-          updated_by_person_id: string | null
         }
         Insert: {
           enabled: boolean
           offset_hours: number
           step: Database["public"]["Enums"]["recruitment_cycle_step"]
           updated_at?: string
-          updated_by_person_id?: string | null
         }
         Update: {
           enabled?: boolean
           offset_hours?: number
           step?: Database["public"]["Enums"]["recruitment_cycle_step"]
           updated_at?: string
-          updated_by_person_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "recruitment_cycle_steps_updated_by_person_id_fkey"
-            columns: ["updated_by_person_id"]
-            isOneToOne: false
-            referencedRelation: "people"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "recruitment_cycle_steps_updated_by_person_id_fkey"
-            columns: ["updated_by_person_id"]
-            isOneToOne: false
-            referencedRelation: "person_standing"
-            referencedColumns: ["person_id"]
-          },
-        ]
+        Relationships: []
       }
       recruitment_prospect_notes: {
         Row: {
