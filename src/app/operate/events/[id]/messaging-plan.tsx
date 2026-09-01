@@ -9,8 +9,10 @@ import Typography from "@mui/material/Typography";
 import {
   buildLadder,
   type FrozenMessagingPlan,
+  type FrozenRecruitLadder,
   type LadderRung,
   type MessagingPlan,
+  type RecruitMessagingLadder,
 } from "@/lib/services/messaging-schedule";
 import {
   describePlanStepCount,
@@ -51,11 +53,35 @@ import type { UnreachableAudienceMember } from "@/lib/services/event-approval";
  * this component actually draws, and the component itself never learns which
  * caller it came from.
  */
+/**
+ * REQ-approval-shows-both-ladders. `null` on every event but Recruitment's
+ * own — see {@link RecruitMessagingLadder}. One invitation and at most one
+ * follow-up, never an escalation: the rungs are built directly here rather
+ * than through {@link buildLadder}, which exists for the player ladder's
+ * WhatsApp/email split and rung-count arithmetic, neither of which the
+ * recruit ladder has.
+ */
+interface DisplayRecruitPlan {
+  readonly rungs: readonly LadderRung[];
+  readonly dispatchesImmediately: boolean;
+}
+
 interface DisplayPlan {
   readonly rungs: readonly LadderRung[];
   readonly escalationAt: Date | null;
   readonly dispatchesImmediately: boolean;
   readonly lateApproval: boolean;
+  readonly recruit: DisplayRecruitPlan | null;
+}
+
+function recruitRungs(ladder: RecruitMessagingLadder | FrozenRecruitLadder): LadderRung[] {
+  const rungs: LadderRung[] = [
+    { rung: 0, kind: "invitation", channel: "whatsapp", at: ladder.invitationAt },
+  ];
+  if (ladder.followUpAt) {
+    rungs.push({ rung: 1, kind: "reminder", channel: "whatsapp", at: ladder.followUpAt });
+  }
+  return rungs;
 }
 
 export function planForDisplay(plan: MessagingPlan): DisplayPlan {
@@ -64,6 +90,12 @@ export function planForDisplay(plan: MessagingPlan): DisplayPlan {
     escalationAt: plan.escalationAt,
     dispatchesImmediately: plan.dispatchesImmediately,
     lateApproval: plan.lateApproval,
+    recruit: plan.recruitLadder
+      ? {
+          rungs: recruitRungs(plan.recruitLadder),
+          dispatchesImmediately: plan.recruitLadder.dispatchesImmediately,
+        }
+      : null,
   };
 }
 
@@ -80,6 +112,12 @@ export function frozenPlanForDisplay(frozen: FrozenMessagingPlan): DisplayPlan {
     escalationAt: frozen.escalationAt,
     dispatchesImmediately: frozen.dispatchesImmediately,
     lateApproval: frozen.lateApproval,
+    recruit: frozen.recruitLadder
+      ? {
+          rungs: recruitRungs(frozen.recruitLadder),
+          dispatchesImmediately: frozen.recruitLadder.dispatchesImmediately,
+        }
+      : null,
   };
 }
 
@@ -216,17 +254,88 @@ function PlanRows({ display, audienceSize }: { display: DisplayPlan; audienceSiz
   );
 }
 
+/**
+ * REQ-approval-shows-both-ladders. The recruit ladder's own rows — never an
+ * escalation row (recruits are never escalated, `REQ-two-ladders`), and
+ * never a "still unanswered" second wording, because there is never a second
+ * reminder to distinguish it from (`REQ-never-harsh`).
+ */
+function RecruitPlanRows({
+  recruit,
+  recruitAudienceSize,
+}: {
+  recruit: DisplayRecruitPlan;
+  recruitAudienceSize: number;
+}) {
+  const people = `${recruitAudienceSize} ${recruitAudienceSize === 1 ? "recruit" : "recruits"}`;
+
+  return (
+    <Stack
+      component="ol"
+      spacing={0}
+      sx={{ listStyle: "none", p: 0, m: 0 }}
+      data-testid="recruit-plan-rows"
+    >
+      {recruit.rungs.map((rung) => (
+        <Box
+          component="li"
+          key={rung.rung}
+          data-testid="plan-row"
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) auto" },
+            gap: 1,
+            py: 1.25,
+            borderBottom: 1,
+            borderColor: "divider",
+            alignItems: "start",
+          }}
+        >
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              {formatPlanWhen(rung.at)}
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {rung.kind === "invitation" ? "WhatsApp message 1" : "WhatsApp message 2"}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {rung.kind === "invitation"
+                ? `Automated 1:1 message to all ${people}.`
+                : "The one follow-up. Only to recruits who have not answered, then silence."}
+            </Typography>
+          </Box>
+          <Chip
+            size="small"
+            label={rung.kind === "invitation" ? people : "Unanswered"}
+            sx={{ justifySelf: { xs: "flex-start", sm: "flex-end" } }}
+          />
+        </Box>
+      ))}
+    </Stack>
+  );
+}
+
 /** The expandable disclosure itself — open by default, per the approved mockup. */
 export function MessagingPlanDisclosure({
   display,
   audienceSize,
+  recruitAudienceSize,
   approved,
 }: {
   display: DisplayPlan;
+  /**
+   * When `display.recruit` is present, this is the non-recruit audience —
+   * everyone the player ladder above actually reaches (players, coaches and
+   * committee alike; recruits are never part of it). Otherwise the whole
+   * confirmed audience, unchanged from before LAN-203.
+   */
   audienceSize: number;
+  /** The recruit audience size. Required exactly when `display.recruit` is not null. */
+  recruitAudienceSize?: number;
   approved: boolean;
 }) {
-  const steps = display.rungs.length + (display.escalationAt ? 1 : 0);
+  const steps =
+    display.rungs.length + (display.escalationAt ? 1 : 0) + (display.recruit?.rungs.length ?? 0);
 
   return (
     <Accordion
@@ -261,7 +370,45 @@ export function MessagingPlanDisclosure({
               {PLAN_DISPATCHES_IMMEDIATELY}
             </Alert>
           ) : null}
+          {/*
+            REQ-approval-shows-both-ladders. Grouped by audience, exactly what
+            approval will send to each — the "Regular players"/"Recruits"
+            heading pair only appears once there is a second ladder to tell
+            apart from the first; every event without a recruit ladder renders
+            exactly as it always has, with no heading at all.
+          */}
+          {display.recruit ? (
+            <Typography
+              variant="overline"
+              color="text.secondary"
+              component="p"
+              sx={{ mb: -1 }}
+              data-testid="plan-audience-heading"
+            >
+              Regular players
+            </Typography>
+          ) : null}
           <PlanRows display={display} audienceSize={audienceSize} />
+          {display.recruit ? (
+            <>
+              {display.recruit.dispatchesImmediately && !display.lateApproval ? (
+                <Alert severity="info" data-testid="plan-recruit-dispatches-immediately">
+                  The recruit invitation goes out now — the event is closer than the Recruits
+                  group&apos;s own lead.
+                </Alert>
+              ) : null}
+              <Typography
+                variant="overline"
+                color="text.secondary"
+                component="p"
+                sx={{ mb: -1 }}
+                data-testid="plan-audience-heading"
+              >
+                Recruits
+              </Typography>
+              <RecruitPlanRows recruit={display.recruit} recruitAudienceSize={recruitAudienceSize ?? 0} />
+            </>
+          ) : null}
           <Box>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
               Recovery
