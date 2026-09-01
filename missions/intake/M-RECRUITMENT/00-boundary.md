@@ -11,7 +11,8 @@
   invitations and the recruits-on-top attendance sheet; the flip by
   President/VP/Secretary/GM. Builds the shared **signed-link → form substrate**
   with the recruit-stage field set (enumerated at intake); Missions 7/8 extend it"
-  — quoted from the portfolio row.
+  — quoted from the portfolio row. Its operator-review queue was deleted by the
+  owner on 2026-08-31; the check runs at the door.
 - Portfolio row URL and observed version:
   [Lancers Current Project Status](https://app.notion.com/p/3bb488886d578126a88cdd747f590a01),
   Release One Mission Portfolio **v2**, restructure approved by Brian Schuster

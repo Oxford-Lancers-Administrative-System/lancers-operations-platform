@@ -61,18 +61,18 @@ they approve.
 
 ## Application surfaces
 
-| Surface                             | What it is                                                                           |
-| ----------------------------------- | ------------------------------------------------------------------------------------ |
-| `/operate/recruitment`              | The recruit board. A top-level destination under Roster, not an Administration entry |
-| `/operate/recruitment/[prospectId]` | One recruit's record                                                                 |
-| `/operate/recruitment/new`          | Add a recruit by hand                                                                |
-| `/operate/recruitment/review`       | The parked-capture queue                                                             |
-| `/operate/recruitment/qr`           | The season's sign-up QR, minted once                                                 |
-| `/operate/admin/messaging`          | The recruitment cycle and both event ladders                                         |
-| `/operate/events/[id]/attendance`   | Walk-up capture, and recruits first on a recruitment event                           |
-| `/a/[token]`                        | Both questionnaires, on the shared signed-link substrate                             |
-| `/rsvp/[token]`                     | What a recruit lands on after answering in WhatsApp                                  |
-| the club's own domain               | The public sign-up page a QR points at                                               |
+| Surface                                       | What it is                                                                           |
+| --------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `/operate/recruitment`                        | The recruit board. A top-level destination under Roster, not an Administration entry |
+| `/operate/recruitment/[prospectId]`           | One recruit's record                                                                 |
+| `/operate/recruitment/new`                    | Add a recruit by hand                                                                |
+| _(none — the check renders inside each door)_ | The duplicate check, wherever the operator already is                                |
+| `/operate/recruitment/qr`                     | The season's sign-up QR, minted once                                                 |
+| `/operate/admin/messaging`                    | The recruitment cycle and both event ladders                                         |
+| `/operate/events/[id]/attendance`             | Walk-up capture, and recruits first on a recruitment event                           |
+| `/a/[token]`                                  | Both questionnaires, on the shared signed-link substrate                             |
+| `/rsvp/[token]`                               | What a recruit lands on after answering in WhatsApp                                  |
+| the club's own domain                         | The public sign-up page a QR points at                                               |
 
 ## Frozen workflow inventory
 

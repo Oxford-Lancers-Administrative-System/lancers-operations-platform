@@ -79,6 +79,12 @@
       "kind": "document",
       "ref": "missions/intake/M-RECRUITMENT/01-overview.md, Owner amendments after approval; missions/intake/M-RECRUITMENT/acceptance/*.md",
       "version": "Brian Schuster, 2026-08-31, recorded per workflow in his own words"
+    },
+    {
+      "id": "SRC-owner-2026-09-01",
+      "kind": "document",
+      "ref": "Mission journal M-RECRUITMENT, owner question Q-3",
+      "version": "Brian Schuster, 2026-09-01, confirming the deletion W8 recorded 2026-08-31"
     }
   ],
   "requirements": [
@@ -169,8 +175,8 @@
     },
     {
       "id": "REQ-duplicate-queue",
-      "text": "A capture the system could not safely resolve is parked rather than silently created, merged or messaged, and waits in an operator review queue at /operate/recruitment/review until one of the core four decides it is the existing person or a new one.",
-      "source_id": "SRC-task-09-brief"
+      "text": "The duplicate check runs inside whichever door is open, on that door's own surface, never as a page an operator visits: it offers candidates and the operator links or creates on the spot. There is no review queue. A duplicate that still gets through is resolved by the people record's own merge, which already ships. The walk-up door runs no check at all.",
+      "source_id": "SRC-owner-2026-09-01"
     },
     {
       "id": "REQ-flip",
@@ -451,15 +457,14 @@
       "id": "W8",
       "title": "Resolve a possible duplicate",
       "actor": "An operator holding the core four authority",
-      "trigger": "Any door parked a capture",
-      "entry_point": "A count on the recruit board, and an item in the Administration review queue",
-      "placement": "/operate/recruitment/review",
+      "trigger": "An operator is adding somebody at a door that runs the check",
+      "entry_point": "None of its own; the check is a step inside whichever door is open",
+      "placement": "None of its own; it renders on the door's own surface",
       "actions": [
-        "Read the parked capture beside its candidate matches",
-        "Decide it is the existing person, or a new one",
-        "Confirm, knowing nothing was silently created, merged, or messaged while it waited"
+        "Read each candidate the door's check offers, which says who it is",
+        "Link to the person already there, or create a new one"
       ],
-      "user_visible_result": "The parked capture becomes the existing person or a new one, audited, with nothing sent in the meantime"
+      "user_visible_result": "The operator links to the existing person or creates a new one, on the spot, with nothing silently created, merged or messaged"
     },
     {
       "id": "W9",
@@ -599,7 +604,7 @@
     "Canonical packet validation passes and the approved packet version is merged by Brian before execution.",
     "All fourteen frozen workflows carry an acceptance record with Brian's exact approval words and date, at missions/intake/M-RECRUITMENT/acceptance/.",
     "Every approved screen is a photograph of the running application at a browser-measured 1280px and a browser-measured 375px, on both the current and the proposed side, with its provenance recorded in mockups/shots/shots.json.",
-    "A recruit captured at each implemented door appears on the recruit board with no duplicate created, and a parked capture waits in the review queue rather than being silently created.",
+    "A recruit captured at each implemented door appears on the recruit board with no duplicate created, and the door's own check offers its candidates rather than silently creating a second record.",
     "A recruitment event approved with both audiences plans two ladders: the players' rungs ending with the President escalation, and the recruits' rungs ending after one follow-up with no escalation job created.",
     "countByCapacity reports recruits in the approval summary, and scheduleEventLadder creates no escalation job for a recruit invitation.",
     "A recruit declining an event writes an rsvp_responses row with a system-supplied reason, without the recruit being asked for one, and the rsvp_responses_no_requires_a_reason constraint is unchanged.",

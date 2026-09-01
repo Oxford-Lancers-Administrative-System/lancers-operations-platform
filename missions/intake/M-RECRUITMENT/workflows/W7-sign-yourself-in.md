@@ -126,13 +126,14 @@ error.
 
 ## State transitions
 
-Person minted if new. Prospect created at `identified`. `W3` fires. A likely
-duplicate does not create and does not message; it parks for `W8`.
+Person minted if new. Prospect created at `identified`. `W3` fires. A recruit
+who is told they are already in the list stops there rather than creating a
+second record; nothing is parked.
 
 ## Handoffs
 
 - To `W3` on submit.
-- To `W8` when the self-serve check cannot resolve a match.
+- To Mission 5's people merge when the same person really did get in twice.
 - To `W1` and `W2`.
 
 ## Dependencies and mission boundaries
@@ -204,4 +205,6 @@ Worth recording together, because they look like inconsistency and are not:
 | `W6` operator add | The full shipped check, candidates, link | An operator at a desk, with time                                        |
 | `W7` QR sign-in   | Simple, takes the details regardless     | A stranger at a stand; refusing them loses them                         |
 
-`W8` is where all three reconcile, and it must not contradict any of them.
+`W8` describes the check itself, wherever it runs, and must not contradict any
+of them. What none of them resolves is resolved by the people record's own
+merge, which already ships.

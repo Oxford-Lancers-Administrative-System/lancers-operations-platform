@@ -1,19 +1,18 @@
 # W8 — Resolve a possible duplicate
 
-- Purpose/intended outcome: a capture the system could not safely resolve waits
-  for a human, and one operator decision settles it — without ever having silently
-  created a person, merged two, or messaged a member.
+- Purpose/intended outcome: the door an operator is already at tells them
+  whether this person is already in the club, and one click settles it — without
+  ever having silently created a person, merged two, or messaged a member.
 - Primary actor: an operator holding the core four authority.
-- Trigger: any door parked a capture.
-- Entry point: a count on the recruit board, and an item in the Administration
-  navigation.
-- Route/placement: `/operate/recruitment/review`.
+- Trigger: an operator is adding somebody at a door that runs the check.
+- Entry point: none of its own; the check is a step inside whichever door is open.
+- Route/placement: none of its own; it renders on the door's own surface.
 - Controlling source: Task 09 D7 and §3, which lock dedup-before-create at every
-  door and put self-serve matches in an operator-review queue with the welcome
-  held; Brian's 2026-08-31 note that what the self-serve door cannot resolve needs
-  a separate way through.
-- User-visible result: the parked capture becomes the existing person or a new
-  one, and whatever was held is released.
+  door; Brian's 2026-08-31 direction that the check belongs to the door and not
+  to a page, and his 2026-09-01 confirmation that a real duplicate is resolved by
+  the people record's own merge.
+- User-visible result: the operator either links to the person who is already
+  there or creates a new one, on the spot.
 
 ## Current `main` grounding
 
@@ -100,13 +99,10 @@ table, and that can be handled there simply."_
 
 ## Required actions
 
-1. See how many captures are waiting, from the board.
-2. Open one and see the submission beside the candidate record, field by field.
-3. Choose: **this is them** (link, discard the submission, release nothing that
-   would message a member) or **this is somebody new** (create, and `W3` fires).
-4. See what is held — no welcome has fired and no record exists until this
-   decision.
-5. Leave one for later without losing it.
+1. Press the door's own check and read the candidates, each saying who it is.
+2. Choose: **this is them** (link, create nothing) or **this is somebody new**
+   (create, and `W3` fires).
+3. Be refused a create past an exact match without a written reason.
 
 ## State transitions
 
@@ -141,26 +137,25 @@ messaged. On create: person minted, prospect at `identified`, `W3` fires.
 - Nothing is written until a human decides. No silent create, no silent merge —
   the locked rule at the centre of R2.
 - An existing member never receives a "welcome to the club" message.
-- Four-role only. The queue holds contact details of people who are not yet
-  records, so it is at least as restricted as the board.
+- Four-role only. The check reveals contact details of existing people, so it is
+  at least as restricted as the board.
 
 ## Acceptance evidence
 
 - `grounding: photograph`. The shipped add-a-person form and its own duplicate
   check as the shell, both sides at measured 1280px and 375px, with `W8-01`'s
   proposed side produced by driving the real form rather than by drawing its
-  output. The proposed route `/operate/recruitment/review` does not exist on `main`
-  and every frame says so.
+  output. `W8-01` is photographed on `/operate/people/new` because that is the
+  surface implementing the check on `main`, and every frame says so.
 
 ## Core decisions
 
-| Decision                                                     | Classification                | Governing evidence or recommended default                                              | Status  |
-| ------------------------------------------------------------ | ----------------------------- | -------------------------------------------------------------------------------------- | ------- |
-| Dedup at intake, never at the flip                           | `locked`                      | Task 09 D7                                                                             | Settled |
-| Nothing is created or messaged until a human decides         | `locked`                      | Task 09 §3                                                                             | Settled |
-| The queue compares a submission to a record, not two records | `proposed for owner approval` | Nothing is written yet, so there is nothing to merge                                   | Open    |
-| The queue's count lives on the board                         | `proposed for owner approval` | A queue nobody can see is a queue nobody works                                         | Open    |
-| Discards are recorded with a reason                          | `proposed for owner approval` | A discarded capture is a person the club chose not to keep; that is worth an audit row | Open    |
+| Decision                                                      | Classification | Governing evidence or recommended default                                              | Status  |
+| ------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------- | ------- |
+| Dedup at intake, never at the flip                            | `locked`       | Task 09 D7                                                                             | Settled |
+| Nothing is created or messaged until a human decides          | `locked`       | Task 09 §3                                                                             | Settled |
+| The check runs at the door and is never a page of its own     | `locked`       | Brian, 2026-08-31: the check belongs to the door, not to a page                        | Settled |
+| A real duplicate is resolved by the people record's own merge | `locked`       | Brian, 2026-09-01: "that's a normal merge record that is handled on the people record" | Settled |
 
 ## Brian approval
 
