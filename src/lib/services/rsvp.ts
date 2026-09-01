@@ -59,6 +59,14 @@ import { personDisplayAliasSql } from "./sql-text";
 /** What the player is shown. Their own invitation, and nothing else's. */
 export interface SignedRsvpPage {
   readonly invitationId: string;
+  /**
+   * LAN-203. `recruit`, or one of the other three `invitation_capacity`
+   * values. `/a/[token]` reads this to draw the reduced, no-reason,
+   * no-roster-data confirm screen `REQ-recruit-sees-public-only` requires; the
+   * durable `/rsvp/[token]` player screen is never reached by a recruit at
+   * all (they carry no `rsvp_access_tokens` row) and does not read this.
+   */
+  readonly capacity: string;
   readonly eventName: string;
   /** `events.event_type`, raw. The page turns it into the club's word for it. */
   readonly eventType: string;
@@ -100,6 +108,7 @@ export interface CurrentResponse {
 export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promise<SignedRsvpPage> {
   const result = await tx.query<{
     invitation_id: string;
+    capacity: string;
     event_name: string;
     event_type: string;
     event_status: string;
@@ -115,6 +124,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
     responded_at: Date | null;
   }>(
     `select i.id as invitation_id,
+            i.capacity::text as capacity,
             e.name as event_name,
             e.event_type::text as event_type,
             e.status::text as event_status,
@@ -156,6 +166,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
 
   return {
     invitationId: row.invitation_id,
+    capacity: row.capacity,
     eventName: row.event_name,
     eventType: row.event_type,
     eventStatus: row.event_status,

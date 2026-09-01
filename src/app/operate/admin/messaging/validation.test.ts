@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readOneScheduleChange, scheduleChanged, SCHEDULE_FIELDS } from "./validation";
-import type { MessagingScheduleChange } from "@/lib/services/messaging-schedule";
+import type { MessagingSchedule, MessagingScheduleChange } from "@/lib/services/messaging-schedule";
 
 const VALID: MessagingScheduleChange = {
   rsvpByDays: 2,
@@ -9,6 +9,15 @@ const VALID: MessagingScheduleChange = {
   whatsappReminderCount: 2,
   emailReminderCount: 1,
   escalationHours: 12,
+};
+
+/** `scheduleChanged`'s `current` reads a full stored row, not a bare change. */
+const CURRENT: MessagingSchedule = {
+  eventType: "practice",
+  ...VALID,
+  recruitInvitationLeadDays: null,
+  recruitFollowUpCadenceHours: null,
+  updatedAt: new Date("2026-08-25T00:00:00Z"),
 };
 
 /** One row's own form submission — every one of its six fields, well formed. */
@@ -78,12 +87,48 @@ describe("readOneScheduleChange", () => {
   });
 
   it("accepts the invitation lead exactly equal to the RSVP deadline", () => {
+    // Any event type but "recruitment" — LAN-203 gives that one two further
+    // required fields (below), which is not what this case is testing.
     const result = readOneScheduleChange(
-      "recruitment",
+      "game",
       rowFormData({ rsvpByDays: "5", invitationLeadDays: "5" }),
     );
 
     expect(result.ok).toBe(true);
+  });
+
+  it("also reads the Recruits group's two fields on the Recruitment row alone", () => {
+    const data = rowFormData();
+    data.set("recruitInvitationLeadDays", "5");
+    data.set("recruitFollowUpCadenceHours", "72");
+
+    const result = readOneScheduleChange("recruitment", data);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.change.recruitInvitationLeadDays).toBe(5);
+    expect(result.change.recruitFollowUpCadenceHours).toBe(72);
+  });
+
+  it("refuses the Recruitment row when the Recruits group is left blank", () => {
+    const result = readOneScheduleChange("recruitment", rowFormData());
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected a refusal");
+    expect(result.message).toMatch(/recruits' first invitation/i);
+  });
+
+  it("leaves a non-Recruitment row's change with no recruit fields, even if the form somehow carried them", () => {
+    const data = rowFormData();
+    data.set("recruitInvitationLeadDays", "5");
+    data.set("recruitFollowUpCadenceHours", "72");
+
+    const result = readOneScheduleChange("game", data);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.change.recruitInvitationLeadDays).toBeUndefined();
+    expect(result.change.recruitFollowUpCadenceHours).toBeUndefined();
   });
 });
 
@@ -125,10 +170,40 @@ describe("SCHEDULE_FIELDS", () => {
 
 describe("scheduleChanged", () => {
   it("is false for two identical changes", () => {
-    expect(scheduleChanged(VALID, { ...VALID })).toBe(false);
+    expect(scheduleChanged(CURRENT, { ...VALID })).toBe(false);
   });
 
   it("is true when exactly one field differs", () => {
-    expect(scheduleChanged(VALID, { ...VALID, escalationHours: 6 })).toBe(true);
+    expect(scheduleChanged(CURRENT, { ...VALID, escalationHours: 6 })).toBe(true);
+  });
+
+  it("is false when a non-Recruitment row's proposed change carries no recruit fields", () => {
+    // `recruitInvitationLeadDays`/`recruitFollowUpCadenceHours` are undefined
+    // on every row's proposed change but the Recruitment row's own — they
+    // must never be compared against `current`'s stored `null`.
+    expect(scheduleChanged(CURRENT, { ...VALID })).toBe(false);
+  });
+
+  it("is true when the Recruitment row's own recruit fields change", () => {
+    const recruitmentCurrent: MessagingSchedule = {
+      ...CURRENT,
+      eventType: "recruitment",
+      recruitInvitationLeadDays: 5,
+      recruitFollowUpCadenceHours: 72,
+    };
+    expect(
+      scheduleChanged(recruitmentCurrent, {
+        ...VALID,
+        recruitInvitationLeadDays: 5,
+        recruitFollowUpCadenceHours: 96,
+      }),
+    ).toBe(true);
+    expect(
+      scheduleChanged(recruitmentCurrent, {
+        ...VALID,
+        recruitInvitationLeadDays: 5,
+        recruitFollowUpCadenceHours: 72,
+      }),
+    ).toBe(false);
   });
 });

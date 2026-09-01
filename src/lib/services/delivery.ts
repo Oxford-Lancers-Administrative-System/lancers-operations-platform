@@ -26,6 +26,7 @@ import {
 import { NO_USABLE_NUMBER_REASON, selectMobileNumber } from "@/lib/delivery/phone";
 import type { MessageKind, OutboundMessage, ProviderCallbackEvent } from "@/lib/delivery/provider";
 import { recordAudit } from "./audit";
+import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
 import { issueAnswerTokenIn } from "./player-answer-tokens";
 import { issueTokenIn, revokeTokensIn } from "./rsvp-tokens";
 import { personDisplayAliasSql } from "./sql-text";
@@ -216,13 +217,24 @@ interface ClaimedAttempt {
  * player who said yes and has not finished the event's questions — and W5 is
  * explicit that such a person is *answered* and never reaches the nonresponse
  * queue. It is not a chase, so it is not a reminder.
+ *
+ * `capacity` is LAN-203's own addition, read alongside `jobType` for exactly
+ * one case: a `reminder` job on a `recruit`-capacity invitation is the
+ * recruit ladder's one follow-up, not a rung of the player chase, and it
+ * carries a different Meta template (`recruit_event_followup`) with
+ * different copy — never "please respond now, your answer affects numbers,
+ * transport and coaching plans," which is squarely the player-escalation
+ * tone `REQ-never-harsh` exists to keep away from a recruit. The recruit's
+ * own invitation is deliberately NOT special-cased here: it reuses
+ * `event_invitation`, the one template Meta has already approved and the
+ * same message every audience gets for a first invitation.
  */
-function messageKindFor(jobType: string): MessageKind {
+function messageKindFor(jobType: string, capacity?: string): MessageKind {
   switch (jobType) {
     case "invitation":
       return "invitation";
     case "reminder":
-      return "reminder";
+      return capacity === "recruit" ? "recruit_event_followup" : "reminder";
     case "escalation":
       return "escalation";
     case "schedule_change_notice":
@@ -298,8 +310,6 @@ async function claimJobIn(
   const job = claimed.rows[0];
   if (!job || !job.invitation_id) return { claimed: false, reason: "unavailable" };
 
-  const kind = messageKindFor(job.job_type);
-
   const details = await tx.query<{
     invitation_id: string;
     event_id: string;
@@ -312,6 +322,8 @@ async function claimJobIn(
     given_name: string;
     display_alias: string | null;
     person_id: string;
+    capacity: string;
+    season_id: string;
     changed_name: boolean | null;
     changed_scheduled_on: boolean | null;
     changed_starts_at: boolean | null;
@@ -319,7 +331,9 @@ async function claimJobIn(
     changed_venue: boolean | null;
   }>(
     `select i.id as invitation_id,
+            i.capacity::text as capacity,
             e.id as event_id,
+            e.season_id,
             e.name as event_name,
             (e.starts_at is not null) as event_starts_at_set,
             to_char(
@@ -384,6 +398,8 @@ async function claimJobIn(
     };
   }
 
+  const kind = messageKindFor(job.job_type, detail.capacity);
+
   // F-C1. `starts_at` is nullable, and `approveEvent`'s new guard (Q-31) is
   // forward-only — it cannot reach an event that was approved, or slipped
   // through some earlier code path, before it existed. `when_label` above is
@@ -395,6 +411,25 @@ async function claimJobIn(
   // this must never trigger `scheduleWhatsAppFallbackIn`.
   if (!detail.event_starts_at_set) {
     return { claimed: false, reason: "unschedulable", detail: EVENT_HAS_NO_START_TIME_REASON };
+  }
+
+  // LAN-203, Amendment 4 — the LAN-202 seam (`messaging-consent.ts`).
+  // Recruit-capacity only: this is deliberately not extended to `player`,
+  // `coach` or `committee` invitations, whose consent behaviour is
+  // unchanged by this package — `season_messaging_consents` is a new,
+  // recruit-facing table and every existing player invitation in this
+  // dataset predates it. Checked here, at the moment of an actual send,
+  // rather than at job creation: `approveEvent` already creates one
+  // invitation job per audience member regardless of capacity (LAN-77,
+  // unmodified by this package), so this is the one place a recruit's own
+  // invitation — as opposed to their follow-up, which `scheduleEventLadderIn`
+  // never creates for an unconsented recruit in the first place — can still
+  // be refused.
+  if (detail.capacity === "recruit") {
+    const consented = await hasGrantedSeasonMessagingConsentIn(tx, detail.person_id, detail.season_id);
+    if (!consented) {
+      return { claimed: false, reason: "undeliverable", detail: NO_CONSENT_REASON };
+    }
   }
 
   const contacts = await tx.query<{
@@ -444,9 +479,14 @@ async function claimJobIn(
   // `rsvp_access_tokens` row above, which `delivery_attempts` still keys its
   // own bookkeeping on. Neither token supersedes the other; they are two
   // different credentials serving two different mechanisms.
+  //
+  // `recruit_event_followup` (LAN-203) needs exactly the same pair, for the
+  // same reason: a recruit's one follow-up is still answered by tapping Yes
+  // or No, and lands on the same shipped `/rsvp/[token]` saved page a
+  // player's answer does.
   let yesUrl: string | null = null;
   let noUrl: string | null = null;
-  if (kind === "invitation" || kind === "reminder") {
+  if (kind === "invitation" || kind === "reminder" || kind === "recruit_event_followup") {
     const [yes, no] = await Promise.all([
       issueAnswerTokenIn(tx, job.invitation_id, "yes"),
       issueAnswerTokenIn(tx, job.invitation_id, "no"),
@@ -604,6 +644,17 @@ function selectEmailAddress(rows: readonly ContactRow[], context: DeliveryContex
 export const EVENT_HAS_NO_START_TIME_REASON =
   "This event has no start time recorded, so no message can state one as fact. Add a start " +
   "time, then retry.";
+
+/**
+ * LAN-203. What an operator is told when a recruit invitation's dispatch was
+ * refused because there is no granted `season_messaging_consents` record for
+ * that person, that season — the LAN-202 seam's own refusal, restated in the
+ * club's words for the delivery surface (`docs/ux/standards.md` rule 5: name
+ * what is missing, not what failed). Not retryable automatically — granting
+ * consent is the fix, and nothing here can do that on its own.
+ */
+export const NO_CONSENT_REASON =
+  "No recorded consent to message this recruit for this season, so nothing was sent.";
 
 /**
  * Marks a job failed without having attempted a send — no number, no email.

@@ -76,6 +76,7 @@ beforeEach(() => {
     personId: "00000000-0000-4000-8000-000000000003",
     seasonId: "00000000-0000-4000-8000-000000000004",
     recorded: true,
+    capacity: "player",
   });
   vi.mocked(issuePersonTokenIn).mockResolvedValue({
     token: "durable-token-plaintext-000000000000000000000",
@@ -192,6 +193,7 @@ describe("OWNER-LAN172-12 — the landing page's own questions save with the ans
       personId: "00000000-0000-4000-8000-000000000003",
       seasonId: "00000000-0000-4000-8000-000000000004",
       recorded: true,
+      capacity: "player",
     });
     const form = formFor();
     form.set("q_q1", "true");

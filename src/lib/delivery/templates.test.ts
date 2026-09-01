@@ -24,6 +24,11 @@ import {
   MESSAGE_KINDS,
   MESSAGE_TEMPLATES,
   NO_BUTTON_LABEL,
+  RECRUIT_ANSWER_QUESTIONS_LABEL,
+  RECRUIT_FILL_IN_DETAILS_LABEL,
+  RECRUIT_NO_LABEL,
+  RECRUIT_STOP_MESSAGES_LABEL,
+  RECRUIT_YES_LABEL,
   TEMPLATE_NAMES,
   YES_BUTTON_LABEL,
   escalationCarriesNoPersonalData,
@@ -54,6 +59,8 @@ function message(overrides: Partial<OutboundMessage> = {}): OutboundMessage {
     cancellationReason: "The pitch is waterlogged.",
     outstandingCount: 6,
     queueUrl: "https://lancers.example/operate/follow-ups",
+    formUrl: "https://lancers.example/me/abc",
+    stopUrl: "https://lancers.example/me/abc/stop",
     ...overrides,
   };
 }
@@ -71,10 +78,12 @@ describe("every declared template", () => {
     }
   });
 
-  it("covers all six kinds and gives each one a distinct canonical name", () => {
-    expect(MESSAGE_KINDS).toHaveLength(6);
+  it("covers all eleven kinds and gives each one a distinct canonical name", () => {
+    // Six from LAN-169, plus LAN-203's five recruit kinds — see
+    // `recruit_event_followup` and the four capture-cycle templates below.
+    expect(MESSAGE_KINDS).toHaveLength(11);
     expect(Object.keys(MESSAGE_TEMPLATES).sort()).toEqual([...MESSAGE_KINDS].sort());
-    expect(new Set(Object.values(TEMPLATE_NAMES)).size).toBe(6);
+    expect(new Set(Object.values(TEMPLATE_NAMES)).size).toBe(11);
   });
 
   it("renders a subject and a non-empty body for each", () => {
@@ -257,5 +266,124 @@ describe("choosing a template name", () => {
     expect(
       templateNameFor("reminder", config, { WHATSAPP_TEMPLATE_REMINDER: "sandbox_reminder" }),
     ).toBe("sandbox_reminder");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-199, LAN-203 — the five recruit templates
+// ---------------------------------------------------------------------------
+
+describe("the recruit event follow-up", () => {
+  it("carries the event's own three facts and reuses the invitation's yes/no buttons", () => {
+    expect(MESSAGE_TEMPLATES.recruit_event_followup.parameterNames).toEqual([
+      "eventName",
+      "whenLabel",
+      "venue",
+    ]);
+    expect(
+      MESSAGE_TEMPLATES.recruit_event_followup.parameters(
+        message({ kind: "recruit_event_followup" }),
+      ),
+    ).toEqual(["Michaelmas week 3", "Wednesday 14 October, 20:00", "Iffley Road Sports Centre"]);
+
+    const buttons = MESSAGE_TEMPLATES.recruit_event_followup.buttonUrls?.(
+      message({ kind: "recruit_event_followup" }),
+    );
+    expect(buttons).toEqual([
+      "https://lancers.example/a/y.11111111-1111-1111-1111-111111111111.abc",
+      "https://lancers.example/a/n.11111111-1111-1111-1111-111111111111.xyz",
+    ]);
+  });
+
+  it("never carries a count, and never implies obligation", () => {
+    // REQ-never-harsh: no message tells a recruit they are required to be
+    // anywhere and nothing here carries a count of anyone.
+    const body = MESSAGE_TEMPLATES.recruit_event_followup
+      .body(message({ kind: "recruit_event_followup" }))
+      .join("\n");
+    expect(body).toContain("Come along if you can. No need to decide in advance.");
+    expect(body).not.toMatch(/\d+ (people|others)/);
+  });
+
+  it("repeats the date rather than sending a blank parameter when there is no venue yet", () => {
+    // Meta's positional parameters cannot skip a slot.
+    const rendered = MESSAGE_TEMPLATES.recruit_event_followup.parameters(
+      message({ kind: "recruit_event_followup", venue: null }),
+    );
+    expect(rendered[2]).toBe("Wednesday 14 October, 20:00");
+  });
+});
+
+describe("the recruitment cycle's four templates", () => {
+  it("carries the recruit's own name, once, on welcome, interest ask and its reminder", () => {
+    for (const kind of ["recruit_welcome", "recruit_interest_ask", "recruit_interest_reminder"] as const) {
+      expect(MESSAGE_TEMPLATES[kind].parameterNames).toEqual(["inviteeName"]);
+      expect(MESSAGE_TEMPLATES[kind].parameters(message({ kind }))).toEqual(["Jamie"]);
+    }
+  });
+
+  it("the details reminder carries no variables at all — LAN-199's own draft has none", () => {
+    expect(MESSAGE_TEMPLATES.recruit_details_reminder.parameterNames).toEqual([]);
+    expect(
+      MESSAGE_TEMPLATES.recruit_details_reminder.parameters(
+        message({ kind: "recruit_details_reminder" }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("every one of the four carries the form link and the opt-out link, never a raw Stop template", () => {
+    for (const kind of [
+      "recruit_welcome",
+      "recruit_details_reminder",
+      "recruit_interest_ask",
+      "recruit_interest_reminder",
+    ] as const) {
+      const buttons = MESSAGE_TEMPLATES[kind].buttonUrls?.(message({ kind }));
+      expect(buttons).toEqual(["https://lancers.example/me/abc", "https://lancers.example/me/abc/stop"]);
+    }
+  });
+
+  it("never asks a recruit for permission to send WhatsApp messages", () => {
+    // Consent is obtained in person, at the door — a WhatsApp message asking
+    // permission to send WhatsApp messages would itself require consent it
+    // does not have (LAN-199's own reasoning for why no such template exists).
+    for (const kind of [
+      "recruit_welcome",
+      "recruit_details_reminder",
+      "recruit_interest_ask",
+      "recruit_interest_reminder",
+    ] as const) {
+      const body = MESSAGE_TEMPLATES[kind].body(message({ kind })).join("\n").toLowerCase();
+      expect(body).not.toMatch(/permission|opt.?in|consent/);
+    }
+  });
+});
+
+describe("the recruit button labels", () => {
+  it("are Q-10's alphanumerics-and-spaces shape, no em dashes, exactly as LAN-199 drafted them", () => {
+    const labels = [
+      RECRUIT_FILL_IN_DETAILS_LABEL,
+      RECRUIT_STOP_MESSAGES_LABEL,
+      RECRUIT_ANSWER_QUESTIONS_LABEL,
+      RECRUIT_YES_LABEL,
+      RECRUIT_NO_LABEL,
+    ];
+    for (const label of labels) expect(label).toMatch(/^[A-Za-z0-9 ]+$/);
+
+    expect(RECRUIT_FILL_IN_DETAILS_LABEL).toBe("Fill in your details");
+    expect(RECRUIT_STOP_MESSAGES_LABEL).toBe("Stop messages");
+    expect(RECRUIT_ANSWER_QUESTIONS_LABEL).toBe("Answer a few questions");
+    expect(RECRUIT_YES_LABEL).toBe("Yes I can come");
+    expect(RECRUIT_NO_LABEL).toBe("No thanks");
+  });
+});
+
+describe("the five recruit template names", () => {
+  it("match LAN-199's own manifest exactly, including the _v1 suffix", () => {
+    expect(TEMPLATE_NAMES.recruit_welcome).toBe("recruit_welcome_v1");
+    expect(TEMPLATE_NAMES.recruit_details_reminder).toBe("recruit_details_reminder_v1");
+    expect(TEMPLATE_NAMES.recruit_interest_ask).toBe("recruit_interest_ask_v1");
+    expect(TEMPLATE_NAMES.recruit_event_followup).toBe("recruit_event_followup_v1");
+    expect(TEMPLATE_NAMES.recruit_interest_reminder).toBe("recruit_interest_reminder_v1");
   });
 });

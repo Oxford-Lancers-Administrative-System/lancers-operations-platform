@@ -297,6 +297,13 @@ export interface RecordedPlayerAnswer {
   readonly seasonId: string;
   /** Already-consumed double-taps return `false` — nothing was written again. */
   readonly recorded: boolean;
+  /**
+   * LAN-203. `recruit`, or one of the other three `invitation_capacity`
+   * values. The caller uses this to decide where the answer lands — a
+   * recruit has no durable `/me/[token]` page to be sent to (there is no
+   * event page for them at all, REQ-recruit-sees-public-only).
+   */
+  readonly capacity: string;
 }
 
 /**
@@ -355,13 +362,15 @@ export async function consumeAnswerTokenIn(
     already_started: boolean;
     event_status: string;
     resolved_person_id: string | null;
+    capacity: string;
   }>(
     `select t.id as token_id, t.person_id, t.season_id,
             t.revoked_at is not null as revoked,
             t.single_use_at,
             ${EVENT_START_EXPRESSION} <= now() as already_started,
             e.status::text as event_status,
-            coalesce(i.person_id, m.person_id) as resolved_person_id
+            coalesce(i.person_id, m.person_id) as resolved_person_id,
+            i.capacity::text as capacity
        from public.person_access_tokens t
        join public.invitations i on i.id = $2
        join public.events e on e.id = i.event_id
@@ -392,6 +401,7 @@ export async function consumeAnswerTokenIn(
       personId: row.person_id,
       seasonId: row.season_id,
       recorded: false,
+      capacity: row.capacity,
     };
   }
 
@@ -415,6 +425,7 @@ export async function consumeAnswerTokenIn(
     personId: row.person_id,
     seasonId: row.season_id,
     recorded: true,
+    capacity: row.capacity,
   };
 }
 

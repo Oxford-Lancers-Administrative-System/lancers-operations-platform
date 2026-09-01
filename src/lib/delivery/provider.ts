@@ -49,7 +49,30 @@ export type MessageKind =
   | "change_notice"
   | "cancellation"
   /** To the President, as an office. Carries no player personal data. */
-  | "escalation";
+  | "escalation"
+  /**
+   * LAN-203. A recruit's own event chase — one invitation (which reuses
+   * `invitation` above: the recruitment template Meta already has approved)
+   * and at most one polite follow-up, which is this kind. Never a second
+   * one, and never escalated — `REQ-two-ladders`, `REQ-never-harsh`.
+   */
+  | "recruit_event_followup"
+  /**
+   * The four remaining recruit templates LAN-199 names, one per surviving
+   * step of the recruitment cycle (packet amendment 1 withdrew
+   * `recruit_details_ask`; W10, LAN-203 Amendment 2). Declared in the
+   * registry below so the four templates this mission needs all exist with
+   * their exact parameter shapes; not yet reachable through
+   * `messageKindFor`/`claimJobIn`, because the job that would carry one has
+   * no caller in `main` today (LAN-205/LAN-206) and none of the four is
+   * Meta-approved yet either — "the cycle can be built and cannot run"
+   * (LAN-203 boundary).
+   */
+  | "recruit_welcome"
+  | "recruit_details_reminder"
+  | "recruit_interest_ask"
+  /** Off by default (`recruitment_cycle_steps`); submitted to Meta anyway per LAN-199. */
+  | "recruit_interest_reminder";
 
 /**
  * One message, reduced to what any channel would need to send it.
@@ -110,6 +133,21 @@ export interface OutboundMessage {
   readonly outstandingCount?: number | null;
   /** The operator-tier follow-up queue. Escalation only. */
   readonly queueUrl?: string | null;
+  /**
+   * LAN-203, LAN-199. The recruit's own tokenised, prefilled link — the
+   * sign-up form for `recruit_welcome`/`recruit_details_reminder`, Questionnaire
+   * B for `recruit_interest_ask`/`recruit_interest_reminder`. Both live under
+   * LAN-202's `/me/` prefix; which page a given token resolves to is that
+   * package's own routing, not a fact this module carries.
+   */
+  readonly formUrl?: string | null;
+  /**
+   * LAN-203, LAN-199. The opt-out link every recruit template but
+   * `recruit_event_followup` carries as its second URL button (that one
+   * spends both of its two allowed URL buttons on the yes/no answer, per
+   * LAN-199's own note). LAN-202 owns the page this resolves to.
+   */
+  readonly stopUrl?: string | null;
 }
 
 /**

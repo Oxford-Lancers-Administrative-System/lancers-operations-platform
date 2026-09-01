@@ -65,6 +65,8 @@ function schedule(overrides: Partial<MessagingSchedule> = {}): MessagingSchedule
     whatsappReminderCount: 2,
     emailReminderCount: 1,
     escalationHours: 12,
+    recruitInvitationLeadDays: null,
+    recruitFollowUpCadenceHours: null,
     updatedAt: new Date("2026-08-25T00:00:00Z"),
     ...overrides,
   };
@@ -113,6 +115,7 @@ function plan(base: MessagingSchedule, overrides: Partial<MessagingPlan> = {}): 
     lateApproval: false,
     rungs,
     escalationAt: new Date(responseDeadlineAt.getTime() + base.escalationHours * HOUR_MS),
+    recruitLadder: null,
     ...overrides,
   };
 }

@@ -104,6 +104,23 @@ export async function submitAnswer(form: FormData): Promise<void> {
   try {
     destination = await withTransaction(async (tx) => {
       const recorded = await consumeAnswerTokenIn(tx, token, { response, reason });
+
+      // LAN-203, REQ-recruit-sees-public-only. A recruit has no durable
+      // `/me/[token]` page to be sent to — there is no event page for them
+      // at all, and that page reads every invitation a person has ever held
+      // (`readPlayerHomeIn`), which is exactly the roster-and-attendance
+      // exposure this requirement forbids. Recruit invitations also carry no
+      // event questions to answer (`event_questions.applies_to_capacities`
+      // is never seeded with `recruit`), so `submissions` is always empty
+      // for one and the branch below is never reached on their behalf.
+      // Redirecting back to this same route re-resolves the now-consumed
+      // token and renders `AlreadyRecorded` — the one saved-confirmation
+      // screen this journey needs, with no second page and no durable
+      // credential minted for a person who will never use one.
+      if (recorded.capacity === "recruit") {
+        return `/a/${encoded}`;
+      }
+
       if (recorded.answer === "yes" && submissions.length > 0) {
         await answerEventQuestionsIn(tx, recorded.personId, recorded.invitationId, submissions);
       }

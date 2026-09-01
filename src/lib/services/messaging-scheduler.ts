@@ -21,6 +21,7 @@ import {
   MAX_ATTEMPTS,
   dispatchJob,
 } from "./delivery";
+import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
 import type { MessagingPlan } from "./messaging-schedule";
 import { personDisplayAliasSql } from "./sql-text";
 
@@ -140,20 +141,55 @@ export async function scheduleEventLadderIn(
   // and this statement must never rewrite the anchor of a message that has
   // already gone — or already been stood down — under the pretence of
   // freshly scheduling it.
-  const anchored = await tx.query(
-    `update public.notification_jobs
+  //
+  // W11's defect, LAN-203: this used to be one unfiltered `update`, so a
+  // recruit's invitation job was anchored to the PLAYER lead time — the
+  // wrong number even before it goes on to receive the player's reminder
+  // ladder below. Two statements, one per audience, joined against
+  // `invitations` so each is anchored to its own ladder's own invitation
+  // instant. The recruit statement runs unconditionally; on every event type
+  // but Recruitment there are no recruit-capacity invitations to match, so it
+  // is a no-op there rather than a branch to remember.
+  const anchoredPlayers = await tx.query(
+    `update public.notification_jobs j
         set scheduled_for = $2::timestamptz,
             ladder_rung = 0,
             updated_at = now()
-      where event_id = $1 and job_type = 'invitation' and status in ('pending', 'ready')`,
+       from public.invitations i
+      where j.invitation_id = i.id
+        and j.event_id = $1 and j.job_type = 'invitation' and j.status in ('pending', 'ready')
+        and i.capacity <> 'recruit'`,
     [eventId, invitationRung?.at ?? plan.invitationAt],
   );
+
+  let anchoredRecruits = 0;
+  if (plan.recruitLadder) {
+    const result = await tx.query(
+      `update public.notification_jobs j
+          set scheduled_for = $2::timestamptz,
+              ladder_rung = 0,
+              updated_at = now()
+         from public.invitations i
+        where j.invitation_id = i.id
+          and j.event_id = $1 and j.job_type = 'invitation' and j.status in ('pending', 'ready')
+          and i.capacity = 'recruit'`,
+      [eventId, plan.recruitLadder.invitationAt],
+    );
+    anchoredRecruits = result.rowCount ?? 0;
+  }
 
   let reminders = 0;
 
   for (const rung of plan.rungs) {
     if (rung.kind !== "reminder") continue;
 
+    // `and i.capacity <> 'recruit'` is the other half of W11's defect: this
+    // insert used to select every invitation on the event with no capacity
+    // filter at all, so a recruit received the same reminder-and-escalation
+    // ladder a player does — "recruits get set the invite once and maybe one
+    // further follow-up... but recruits get treated differently" (Brian,
+    // 2026-08-31). The fix is not suppression: the recruit ladder below is
+    // built beside this one, on its own rung numbering, rather than dropped.
     const created = await tx.query(
       `insert into public.notification_jobs
          (idempotency_key, job_type, status, invitation_id, event_id, person_id,
@@ -166,6 +202,7 @@ export async function scheduleEventLadderIn(
          from public.invitations i
          left join public.season_memberships m on m.id = i.season_membership_id
         where i.event_id = $1
+          and i.capacity <> 'recruit'
        on conflict (idempotency_key) do nothing`,
       [eventId, rung.rung, rung.channel, rung.at],
     );
@@ -173,7 +210,56 @@ export async function scheduleEventLadderIn(
     reminders += created.rowCount ?? 0;
   }
 
-  return { invitations: anchored.rowCount ?? 0, reminders };
+  // REQ-two-ladders' other half: recruitment's own ladder, one invitation
+  // (anchored above) and at most one follow-up, `ladder_rung = 1` — never a
+  // rung 2, because there is never a second reminder (`REQ-never-harsh`).
+  // `plan.recruitLadder.followUpAt` is already `null` where the shared
+  // response deadline left no runway for it, so "not scheduled" and "not
+  // configured" collapse to the one `if` below rather than two.
+  //
+  // Consent is checked per recruit, here, at job-creation time rather than at
+  // dispatch: a recruit's invitation job already exists (`approveEvent`
+  // creates one per audience member, every capacity alike, before this
+  // function runs) and is not this function's to withhold, but the follow-up
+  // is entirely this function's own creation, so withholding it for an
+  // unconsented recruit costs nothing else. See `messaging-consent.ts`
+  // (LAN-203 Amendment 4 — the LAN-202 seam) and `claimJobIn` in
+  // `delivery.ts`, which is where the invitation job itself is refused for
+  // the same reason at the moment it would actually send.
+  if (plan.recruitLadder?.followUpAt) {
+    const recruitInvitees = await tx.query<{ invitation_id: string; person_id: string }>(
+      `select i.id as invitation_id, coalesce(i.person_id, m.person_id) as person_id
+         from public.invitations i
+         left join public.season_memberships m on m.id = i.season_membership_id
+        where i.event_id = $1 and i.capacity = 'recruit'`,
+      [eventId],
+    );
+
+    const event = await tx.query<{ season_id: string }>(
+      `select season_id from public.events where id = $1`,
+      [eventId],
+    );
+    const seasonId = event.rows[0]?.season_id ?? null;
+
+    for (const invitee of recruitInvitees.rows) {
+      if (seasonId === null) continue;
+      if (!(await hasGrantedSeasonMessagingConsentIn(tx, invitee.person_id, seasonId))) continue;
+
+      const created = await tx.query(
+        `insert into public.notification_jobs
+           (idempotency_key, job_type, status, invitation_id, event_id, person_id,
+            channel, scheduled_for, ladder_rung, template_variables)
+         values ('event:' || $1::uuid::text || ':reminder:recruit:' || $2::uuid::text || ':1',
+                 'reminder', 'pending', $2::uuid, $1::uuid, $3::uuid,
+                 'whatsapp'::public.notification_channel, $4::timestamptz, 1, '{}'::jsonb)
+         on conflict (idempotency_key) do nothing`,
+        [eventId, invitee.invitation_id, invitee.person_id, plan.recruitLadder.followUpAt],
+      );
+      reminders += created.rowCount ?? 0;
+    }
+  }
+
+  return { invitations: (anchoredPlayers.rowCount ?? 0) + anchoredRecruits, reminders };
 }
 
 // ---------------------------------------------------------------------------
@@ -321,11 +407,20 @@ async function raiseDueEscalations(): Promise<{
       // approved event. Reading it rather than reimplementing the predicate is
       // what keeps the chase queue an operator sees and the escalation the
       // President receives counting the same people.
+      // `and q.capacity <> 'recruit'` — REQ-two-ladders, REQ-never-harsh.
+      // `nonresponse_queue` is capacity-agnostic by design (W5's chase queue
+      // reads every unanswered invitee, recruits included, so an operator can
+      // still see and follow up with one by hand); the President escalation
+      // is not that queue, and a recruit's own ladder never escalates. Without
+      // this filter a recruit crossing the deadline would still raise a flag
+      // and be counted in `outstanding` below, silently reaching the
+      // President despite `scheduleEventLadderIn` never having scheduled
+      // them an escalation job of their own.
       const raised = await tx.query<{ invitation_id: string }>(
         `insert into public.nonresponse_flags (invitation_id, threshold)
          select q.invitation_id, 'escalation'::public.nonresponse_threshold
            from public.nonresponse_queue q
-          where q.event_id = $1 and q.invitation_id is not null
+          where q.event_id = $1 and q.invitation_id is not null and q.capacity <> 'recruit'
          on conflict (invitation_id, threshold) do nothing
          returning invitation_id`,
         [eventId],

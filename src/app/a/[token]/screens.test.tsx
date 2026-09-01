@@ -87,6 +87,7 @@ const TOKEN = "y.00000000-0000-4000-8000-000000000079.abcdefghijklmnopqrstuvwxyz
 
 const BASE: SignedRsvpPage = {
   invitationId: "00000000-0000-4000-8000-000000000079",
+  capacity: "player",
   eventName: "Team Practice",
   eventType: "game",
   eventStatus: "approved",

@@ -109,7 +109,13 @@ function givenSession(access: OperatorAccess) {
 }
 
 function scheduleRow(eventType: string, change: MessagingScheduleChange): MessagingSchedule {
-  return { eventType, ...change, updatedAt: new Date("2026-08-01T00:00:00Z") };
+  return {
+    eventType,
+    ...change,
+    recruitInvitationLeadDays: change.recruitInvitationLeadDays ?? null,
+    recruitFollowUpCadenceHours: change.recruitFollowUpCadenceHours ?? null,
+    updatedAt: new Date("2026-08-01T00:00:00Z"),
+  };
 }
 
 /** One row's own form: `eventType` plus its six fields. */
