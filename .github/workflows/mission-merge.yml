@@ -121,7 +121,7 @@ jobs:
           # a reason to guess, so poll briefly and then let the gate decide.
           for _ in 1 2 3 4 5; do
             gh pr view "$PR" --repo "$REPO" \
-              --json number,state,isDraft,isCrossRepository,baseRefName,headRefOid,mergeable,labels,title,body \
+              --json number,state,isDraft,isCrossRepository,baseRefName,headRefName,headRefOid,mergeable,labels,title,body \
               > pr.json
             [ "$(jq -r .mergeable pr.json)" = "UNKNOWN" ] || break
             sleep 5
@@ -163,9 +163,12 @@ jobs:
           PR: ${{ steps.resolve.outputs.number }}
         run: |
           set -euo pipefail
-          # Only worth saying when a Mission Lead asked for this lane. An
-          # unlabelled pull request is simply a normal one.
-          if jq -e '.labels[]?.name | select(. == "mission-merge")' pr.json > /dev/null; then
+          # Every pull request is evaluated now, so a comment on every refusal
+          # would be noise. Speak when the Lead asked explicitly, or when the
+          # refusal is actionable — the diff is clean and something else failed.
+          LABELLED=$(jq -r '[.labels[]?.name] | index("mission-merge") // empty' pr.json)
+          PATHREFUSAL=$(jq -r '[.reasons[] | select(test("prohibited surface"))] | length' mission-merge-verdict.json)
+          if [ -n "$LABELLED" ] || [ "$PATHREFUSAL" = "0" ]; then
             {
               echo "**Mission merge: refused.** This pull request stays in the normal lane —"
               echo "it remains a draft, and Brian merges it."

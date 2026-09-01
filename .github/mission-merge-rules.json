@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "_purpose": "The checked-in rules for the guarded autonomous mission merge. The mission-merge workflow reads THIS file and scripts/mission/merge-gate.mjs from the base branch — never from the pull request under evaluation — and re-derives every server-verifiable conjunct from evidence: base branch, fork, mergeability, the prohibited-path scan of the real diff, required checks green at the exact head SHA, and the coherence of the Mission Lead's published receipt. Unlike the fast lane, src/** application work is allowed — that is this lane's purpose (docs/adr/0027) — but the surfaces below can never travel it, so the lane cannot widen itself and owner-gated classes cannot pass.",
+  "_purpose": "The checked-in rules for the guarded autonomous mission merge. The mission-merge workflow reads THIS file and scripts/mission/merge-gate.mjs from the base branch — never from the pull request under evaluation — and re-derives every server-verifiable conjunct from evidence: base branch, fork, mergeability, the prohibited-path scan of the real diff, required checks green at the exact head SHA, and the coherence of the Mission Lead's published receipt. Auto-merge is the DEFAULT (Brian, 2026-09-01): every pull request is evaluated, and refusal must be earned from evidence. Unlike the fast lane, src/** application work is allowed — that is this lane's purpose (docs/adr/0027) — but the surfaces below can never travel it, so the lane cannot widen itself and owner-gated classes cannot pass.",
   "baseBranch": "main",
   "optInLabel": "mission-merge",
   "requiredChecks": ["Format, lint, typecheck, test, build", "Container builds and serves"],
@@ -35,10 +35,6 @@
       "reason": "Production procedures remain owner-gated."
     },
     {
-      "path": "scripts/pilot/**/*.sql",
-      "reason": "Hosted pilot SQL is a human-run production-data procedure."
-    },
-    {
       "path": "scripts/gcp-bootstrap.sh",
       "reason": "The production infrastructure bootstrap remains owner-gated."
     },
@@ -61,10 +57,6 @@
     {
       "path": ".dockerignore",
       "reason": "The production container is owner-gated."
-    },
-    {
-      "path": "docs/adr/**",
-      "reason": "Decision records change through Brian, never through an autonomous merge."
     },
     {
       "path": "AGENTS.md",
@@ -127,20 +119,8 @@
       "reason": "RSVP token issuance and verification — the same public trust boundary as src/lib/rsvp/**."
     },
     {
-      "path": "missions/**",
-      "reason": "Mission packets. Brian's merge of a packet PR IS the approval of that exact packet version and commit; no automatic lane may perform it."
-    },
-    {
-      "path": ".env.example",
-      "reason": "Environment contracts are owner-gated."
-    },
-    {
-      "path": "next.config.ts",
-      "reason": "Build configuration is owner-gated."
-    },
-    {
-      "path": ".gitignore",
-      "reason": "Ignore rules guard untracked runtime state."
+      "path": "missions/**/packet.json",
+      "reason": "The approved packet itself. Brian's merge of a packet PR IS the approval of that exact packet version; no automatic lane may perform it. Mission prose and walkthrough records beside it are ordinary documentation and merge normally."
     }
   ],
   "ownerApprovalSurfaces": [
@@ -201,5 +181,11 @@
       "docs/showcase/**"
     ],
     "_evidenceSurfacesNote": "Seed and fixture sources. A change here alters what every later proof is measured against, so it is review-affecting even when no component changed; deterministic clearance is refused."
+  },
+  "standardRoute": {
+    "_purpose": "The default route (Brian, 2026-09-01). A pull request with no mission receipt still merges when it touches no prohibited surface, every required check is green at the exact head, and it names a Linear issue. This exists because the receipt route only ever served work packages — 30 of 122 merged pull requests — leaving corrections, seed fixes, documentation and ordinary visual work permanently owner-merged regardless of how safe the diff was.",
+    "requireLinearIssue": true,
+    "issuePattern": "LAN-\\d+",
+    "_ownerApprovalNote": "ownerApprovalSurfaces above require a receipt citing an answered owner question. A pull request with no receipt cannot cite one, so on this route those surfaces are refused outright."
   }
 }

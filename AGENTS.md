@@ -132,8 +132,14 @@ runbook. Eligibility is recomputed from `main...head`; the label asks and is
 never evidence. Classification fails closed: absence of a rule is never
 permission. Changes to eligibility, required verification, automatic-merge
 authority, or protection of these rules are protected and use the normal lane.
-Everything else keeps the normal workflow: `npm run verify` passes locally,
-the PR remains a draft, and Brian merges it. A fast-lane merge does not deploy.
+Everything else goes to the mission lane, where **auto-merge is the default**
+(Brian, 2026-09-01): `npm run verify` passes locally, the PR opens as a draft,
+and `.github/workflows/mission-merge.yml` evaluates it whether or not it is
+labelled or tied to a work package. It merges unless a conjunct refuses —
+a prohibited surface in the real diff, a missing Linear issue, a failed or
+missing required check at the exact head, or, where a receipt is present, an
+incoherent one. Brian merges what the gate refuses. No agent may merge or
+un-draft; that authority lives only in the workflow. Neither lane deploys.
 
 Pilot artifacts are required only when `docs/pilot-data-runbook.md` says local
 proof is insufficient and hosted synthetic rows are absent. Tell Brian as soon
