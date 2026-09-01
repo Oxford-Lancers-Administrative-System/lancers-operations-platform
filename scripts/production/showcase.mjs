@@ -355,6 +355,7 @@ async function verify(client, plan) {
     "public.onboarding_items",
     "public.position_assignments",
     "public.recruitment_prospects",
+    "public.recruitment_prospect_notes",
   ]) {
     check(`${table.replace("public.", "")} written`, await present(table), ids(table).length);
   }

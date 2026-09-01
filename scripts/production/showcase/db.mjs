@@ -445,6 +445,9 @@ export const ROLLBACK_ORDER = Object.freeze([
   // Cascades off `events`, so it is deleted deliberately rather than silently.
   "public.event_questions",
   "public.events",
+  // LAN-201: notes moved off `recruitment_prospects` onto their own attributed
+  // table, `on delete restrict` back to it — delete before the prospect row.
+  "public.recruitment_prospect_notes",
   "public.recruitment_prospects",
   "public.availability_statuses",
   "public.onboarding_items",

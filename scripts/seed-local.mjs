@@ -514,6 +514,7 @@ const rows = {
   season_memberships: [],
   season_membership_status_events: [],
   recruitment_prospects: [],
+  recruitment_prospect_notes: [],
   person_emergency_contacts: [],
   position_assignments: [],
   jersey_assignments: [],
@@ -1438,11 +1439,10 @@ add("recruitment_prospects", {
   first_contact_on: "2026-10-03",
   committed_on: null,
   converted_membership_id: null,
-  notes: null,
   created_at: "2026-10-03T09:00:00Z",
   updated_at: "2026-10-03T09:00:00Z",
 });
-add("recruitment_prospects", {
+const recruitTwoProspect = add("recruitment_prospects", {
   id: uuid(),
   person_id: recruitTwo.id,
   season_id: seasonCurrent.id,
@@ -1451,9 +1451,19 @@ add("recruitment_prospects", {
   first_contact_on: "2026-10-17",
   committed_on: null,
   converted_membership_id: null,
-  notes: "Came back for a second taster; waiting to hear about subs before committing.",
   created_at: "2026-10-17T09:00:00Z",
   updated_at: "2026-11-05T09:00:00Z",
+});
+
+// LAN-201 (W2): notes live on their own attributed, dated table now — this is
+// the same fixture the pre-schema seed carried as a bare prose column.
+add("recruitment_prospect_notes", {
+  id: uuid(),
+  prospect_id: recruitTwoProspect.id,
+  note: "Came back for a second taster; waiting to hear about subs before committing.",
+  author_person_id: null,
+  author_label: "Seed fixture",
+  created_at: "2026-11-05T09:00:00Z",
 });
 
 // --- Positions and jerseys -------------------------------------------------
@@ -4272,11 +4282,15 @@ const WRITE_PLAN = [
       "first_contact_on",
       "committed_on",
       "converted_membership_id",
-      "notes",
       "created_at",
       "updated_at",
     ],
     "recruitment_prospects",
+  ],
+  [
+    "public.recruitment_prospect_notes",
+    ["id", "prospect_id", "note", "author_person_id", "author_label", "created_at"],
+    "recruitment_prospect_notes",
   ],
   [
     "public.onboarding_item_types",

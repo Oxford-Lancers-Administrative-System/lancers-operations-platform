@@ -219,10 +219,11 @@ export async function listAudienceCatalogueIn(
      -- lives: modelling them as provisional memberships would pollute the roster
      -- with people who never commit (model §1.2).
      --
-     -- Converted is excluded because a converted prospect IS a member and
-     -- appears above under the player capacity; lapsed and declined are
-     -- excluded because D45 says inactive people are never invited, and
-     -- somebody who said no is exactly that.
+     -- Joined is excluded because a joined prospect IS a member and appears
+     -- above under the player capacity; disengaged, declined and void are
+     -- excluded because D45 says inactive people are never invited, somebody
+     -- who said no is exactly that, and a void row is not a person to invite
+     -- at all (LAN-201).
      select 'recruit' as capacity,
             p.id as anchor_id,
             p.id as person_id,

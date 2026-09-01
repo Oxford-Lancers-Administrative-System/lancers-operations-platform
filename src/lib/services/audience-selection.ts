@@ -45,7 +45,7 @@ export const CAPACITY_PRECEDENCE: readonly AudienceCapacity[] = Object.freeze([
   "coach",
   "committee",
   // Last, and it costs nothing: a prospect who is also a member is not a
-  // prospect any more — `recruitment_prospects.status` is `converted` and the
+  // prospect any more — `recruitment_prospects.status` is `joined` and the
   // catalogue stops offering them. The rank exists so the ordering is total.
   "recruit",
 ]);
