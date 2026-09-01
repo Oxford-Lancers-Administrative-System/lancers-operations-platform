@@ -289,15 +289,16 @@
           <li><a href="#s6-h2">The seam, stated exactly</a></li>
           <li><a href="#s6-h3">Current main grounding</a></li>
           <li><a href="#s6-h4">What the substrate already gives us</a></li>
-          <li><a href="#s6-h5">Required actions</a></li>
-          <li><a href="#s6-h6">State transitions</a></li>
-          <li><a href="#s6-h7">Handoffs</a></li>
-          <li><a href="#s6-h8">Dependencies and mission boundaries</a></li>
-          <li><a href="#s6-h9">Exceptions and recovery</a></li>
-          <li><a href="#s6-h10">Safety, privacy, consent, and authority boundaries</a></li>
-          <li><a href="#s6-h11">Acceptance evidence</a></li>
-          <li><a href="#s6-h12">Core decisions</a></li>
-          <li><a href="#s6-h13">Brian approval</a></li>
+          <li><a href="#s6-h5">What the flip starts, and who owns each part</a></li>
+          <li><a href="#s6-h6">Required actions</a></li>
+          <li><a href="#s6-h7">State transitions</a></li>
+          <li><a href="#s6-h8">Handoffs</a></li>
+          <li><a href="#s6-h9">Dependencies and mission boundaries</a></li>
+          <li><a href="#s6-h10">Exceptions and recovery</a></li>
+          <li><a href="#s6-h11">Safety, privacy, consent, and authority boundaries</a></li>
+          <li><a href="#s6-h12">Acceptance evidence</a></li>
+          <li><a href="#s6-h13">Core decisions</a></li>
+          <li><a href="#s6-h14">Brian approval</a></li>
         </ol>
       </nav>
       <main>
@@ -461,12 +462,96 @@
             not change the person or the season — so the row simply <em>is</em> their consent. It is
             neither carried nor re-asked. Next season it is asked again, of everybody.
           </p>
-          <h2 id="s6-h5">Required actions</h2>
+          <h2 id="s6-h5">What the flip starts, and who owns each part</h2>
+          <p>
+            Brian, 2026-09-01:
+            <em
+              >&quot;As soon as they get flipped to onboarding, if they have any outstanding
+              personal items, they should get re-notified at some level. They should get the
+              questionnaire for the onboarding, all the onboarding checklists, and all the items
+              they go through... we're going to have a chase associated with that and everything. I
+              don't think that gets built here.&quot;</em
+            >
+          </p>
+          <p>
+            He is right that it is not built here.
+            <strong>This workflow fires one trigger and owns nothing downstream of it.</strong>
+            <code>onboarding-opened</code> is a single event, and it is both the welcome and the
+            start of the chase clock — <code>M2</code>: one message class, no separate blast.
+          </p>
+          <p>What that ask contains, the moment a recruit is flipped:</p>
+          <ul>
+            <li>
+              <strong>Their missing required personal fields.</strong> Item 9 in the approved
+              inventory — contact and academic details — is <strong>derived</strong>, and it
+              &quot;completes when every required field on their record is present. This item
+              <em>is</em> the form, and its missing pieces <em>are</em> the queue.&quot; So the
+              mandatory personal data is not a separate errand; it is one checklist item that stays
+              outstanding until the record is complete. For the recruit photographed on
+              <code>W3-01</code> that means expected graduation, degree field, date of birth and
+              emergency contact — the four recruitment never asks.
+            </li>
+            <li>
+              <strong>Every other pending item</strong> the season's checklist generated. Seven of
+              them on that record, none resolved.
+            </li>
+            <li>
+              <strong>Nothing they have already answered.</strong> What carried across is confirmed,
+              not re-asked, and their consent is not re-asked at all this season.
+            </li>
+          </ul>
+          <p>
+            A flipped recruit is chased <strong>identically</strong> to an imported or hand-added
+            player. There is no recruit-specific cadence, and no recruit is ever chased — once they
+            are flipped they are not a recruit any more.
+          </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>The part</th>
+                  <th>Owned by</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Firing <code>onboarding-opened</code> inside the flip's transaction</td>
+                  <td><strong>W3</strong></td>
+                </tr>
+                <tr>
+                  <td>The welcome, the form, the compiled ask, one-open-request, its states</td>
+                  <td><strong>W4</strong></td>
+                </tr>
+                <tr>
+                  <td>The trigger set, the queue, the nudge — single and batch</td>
+                  <td><strong>W8</strong></td>
+                </tr>
+                <tr>
+                  <td>Cadence, gap, cap, suppression</td>
+                  <td><strong>W12</strong></td>
+                </tr>
+                <tr>
+                  <td>Which items exist this season, and how each is verified</td>
+                  <td><strong>W11</strong></td>
+                </tr>
+                <tr>
+                  <td>The record, per-item provenance and the activity log</td>
+                  <td><strong>W6</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <strong>If nothing is outstanding, nothing is chased.</strong> A recruit who arrived
+            with a complete record still gets the welcome, because the welcome is the arrival
+            message; the chase simply has nothing to ask for.
+          </p>
+          <h2 id="s6-h6">Required actions</h2>
           <p>
             None by this workflow's actor. Its whole content is what the flip's transaction must
             additionally do, and what an operator then sees.
           </p>
-          <h2 id="s6-h6">State transitions</h2>
+          <h2 id="s6-h7">State transitions</h2>
           <div class="tablewrap">
             <table>
               <thead>
@@ -519,7 +604,7 @@
             A membership that exists with no checklist, or a live recruit link beside a live
             onboarding link, is the failure this avoids.
           </p>
-          <h2 id="s6-h7">Handoffs</h2>
+          <h2 id="s6-h8">Handoffs</h2>
           <div class="tablewrap">
             <table>
               <thead>
@@ -566,7 +651,7 @@
               </tbody>
             </table>
           </div>
-          <h2 id="s6-h8">Dependencies and mission boundaries</h2>
+          <h2 id="s6-h9">Dependencies and mission boundaries</h2>
           <div class="tablewrap">
             <table>
               <thead>
@@ -615,7 +700,7 @@
               </tbody>
             </table>
           </div>
-          <h2 id="s6-h9">Exceptions and recovery</h2>
+          <h2 id="s6-h10">Exceptions and recovery</h2>
           <div class="tablewrap">
             <table>
               <thead>
@@ -670,7 +755,7 @@
               </tbody>
             </table>
           </div>
-          <h2 id="s6-h10">Safety, privacy, consent, and authority boundaries</h2>
+          <h2 id="s6-h11">Safety, privacy, consent, and authority boundaries</h2>
           <ul>
             <li>
               <strong>The consent row is the recruit's own</strong>, granted at the door with its
@@ -693,7 +778,7 @@
               operator.
             </li>
           </ul>
-          <h2 id="s6-h11">Acceptance evidence</h2>
+          <h2 id="s6-h12">Acceptance evidence</h2>
           <ul>
             <li>
               With Mission 6's flip available: flipping a recruit lands them at
@@ -720,7 +805,7 @@
               that limitation is recorded rather than passed over.
             </li>
           </ul>
-          <h2 id="s6-h12">Core decisions</h2>
+          <h2 id="s6-h13">Core decisions</h2>
           <div class="tablewrap">
             <table>
               <thead>
@@ -823,7 +908,7 @@
               </tbody>
             </table>
           </div>
-          <h2 id="s6-h13">Brian approval</h2>
+          <h2 id="s6-h14">Brian approval</h2>
           <ul>
             <li>Exact words:</li>
             <li>Date:</li>

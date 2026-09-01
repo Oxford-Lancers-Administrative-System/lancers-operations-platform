@@ -82,6 +82,51 @@ ticked at the door this season already holds that row, and the flip does not
 change the person or the season — so the row simply _is_ their consent. It is
 neither carried nor re-asked. Next season it is asked again, of everybody.
 
+## What the flip starts, and who owns each part
+
+Brian, 2026-09-01: _"As soon as they get flipped to onboarding, if they have any
+outstanding personal items, they should get re-notified at some level. They
+should get the questionnaire for the onboarding, all the onboarding checklists,
+and all the items they go through... we're going to have a chase associated with
+that and everything. I don't think that gets built here."_
+
+He is right that it is not built here. **This workflow fires one trigger and
+owns nothing downstream of it.** `onboarding-opened` is a single event, and it
+is both the welcome and the start of the chase clock — `M2`: one message class,
+no separate blast.
+
+What that ask contains, the moment a recruit is flipped:
+
+- **Their missing required personal fields.** Item 9 in the approved inventory —
+  contact and academic details — is **derived**, and it "completes when every
+  required field on their record is present. This item _is_ the form, and its
+  missing pieces _are_ the queue." So the mandatory personal data is not a
+  separate errand; it is one checklist item that stays outstanding until the
+  record is complete. For the recruit photographed on `W3-01` that means
+  expected graduation, degree field, date of birth and emergency contact —
+  the four recruitment never asks.
+- **Every other pending item** the season's checklist generated. Seven of them
+  on that record, none resolved.
+- **Nothing they have already answered.** What carried across is confirmed, not
+  re-asked, and their consent is not re-asked at all this season.
+
+A flipped recruit is chased **identically** to an imported or hand-added player.
+There is no recruit-specific cadence, and no recruit is ever chased — once they
+are flipped they are not a recruit any more.
+
+| The part                                                              | Owned by |
+| --------------------------------------------------------------------- | -------- |
+| Firing `onboarding-opened` inside the flip's transaction              | **W3**   |
+| The welcome, the form, the compiled ask, one-open-request, its states | **W4**   |
+| The trigger set, the queue, the nudge — single and batch              | **W8**   |
+| Cadence, gap, cap, suppression                                        | **W12**  |
+| Which items exist this season, and how each is verified               | **W11**  |
+| The record, per-item provenance and the activity log                  | **W6**   |
+
+**If nothing is outstanding, nothing is chased.** A recruit who arrived with a
+complete record still gets the welcome, because the welcome is the arrival
+message; the chase simply has nothing to ask for.
+
 ## Required actions
 
 None by this workflow's actor. Its whole content is what the flip's transaction

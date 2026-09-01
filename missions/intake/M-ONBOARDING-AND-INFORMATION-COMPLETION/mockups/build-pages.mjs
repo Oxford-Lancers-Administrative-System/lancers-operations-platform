@@ -181,6 +181,7 @@ const WORKFLOWS = [
       "<strong>Four things happen</strong>: the checklist generates, the recruit's answers carry across, their open recruit ask is superseded and audited, and the welcome is queued \u2014 the same message as both other doors",
       "<strong>Consent needs no copying.</strong> <code>season_messaging_consents</code> is unique on <code>(person_id, season_id)</code>, and the flip changes neither, so the row the recruit ticked at the door simply <em>is</em> their consent. Not carried, not re-asked",
       "<strong>The flip is not walkable yet.</strong> LAN-204, which builds Mission 6's board, record and flip, is in Backlog \u2014 so a flipped recruit was seeded locally and photographed rather than proposed onto somebody else's record",
+      "<strong>One trigger, and nothing downstream of it.</strong> <code>onboarding-opened</code> is both the welcome and the start of the chase. What the ask contains \u2014 the missing required personal fields as one derived item, plus every pending checklist item \u2014 belongs to <strong>W4</strong>; the queue and the nudge to <strong>W8</strong>; the cadence to <strong>W12</strong>. A flipped recruit is chased identically to anybody else",
       "<strong>No new surface and no new card.</strong> Everything this produces is read on Mission 5's record; where the supersession and the queued welcome appear is <strong>W6's</strong> activity log",
     ],
     screens: [
