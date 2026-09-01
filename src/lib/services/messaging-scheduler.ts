@@ -23,7 +23,10 @@ import {
 } from "./delivery";
 import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
 import { issuePersonTokenIn } from "./player-answer-tokens";
-import type { RecruitmentCycleStepName } from "./recruitment-cycle";
+import {
+  readRecruitmentCycleCompletionIn,
+  type RecruitmentCycleStepName,
+} from "./recruitment-cycle";
 import type { MessagingPlan } from "./messaging-schedule";
 import { personDisplayAliasSql } from "./sql-text";
 
@@ -1149,12 +1152,25 @@ const CYCLE_MESSAGE_KIND: Readonly<Record<RecruitmentCycleStepName, OutboundMess
   interest_reminder: "recruit_interest_reminder",
 };
 
+/** Which `RecruitmentCycleCompletion` field each step's track is stopped by. */
+const CYCLE_COMPLETION_TRACK: Readonly<
+  Record<RecruitmentCycleStepName, "welcomeStepComplete" | "questionnaireBComplete">
+> = {
+  welcome: "welcomeStepComplete",
+  details_reminder: "welcomeStepComplete",
+  interest_ask: "questionnaireBComplete",
+  interest_reminder: "questionnaireBComplete",
+};
+
 const RECRUIT_CYCLE_KEY_PREFIX = "recruit-cycle:";
 const RECRUIT_CYCLE_NOT_ELIGIBLE_REASON =
   "This recruit is no longer an open prospect (declined, disengaged, converted, or the record " +
   "was voided), so this message is never sent.";
 const RECRUIT_CYCLE_NOT_CONSENTED_REASON =
   "This person has not granted messaging consent for this season, so this message is never sent.";
+const RECRUIT_CYCLE_ALREADY_COMPLETE_REASON =
+  "This recruit has already supplied this track's completing set, so this message is never sent " +
+  '(Brian, 2026-09-01: "if they fill out the whole thing … then it doesn\'t send out again").';
 
 /**
  * Parses `declareRecruitmentCycleJobsIn`'s own `idempotency_key` shape —
@@ -1271,8 +1287,8 @@ export async function dispatchRecruitmentCycleJob(
     if (!parsed) return { kind: "no-send" };
     const { step, seasonId } = parsed;
 
-    const prospect = await tx.query<{ status: string }>(
-      `select status::text as status from public.recruitment_prospects
+    const prospect = await tx.query<{ id: string; status: string }>(
+      `select id, status::text as status from public.recruitment_prospects
         where person_id = $1::uuid and season_id = $2::uuid`,
       [job.person_id, seasonId],
     );
@@ -1295,6 +1311,33 @@ export async function dispatchRecruitmentCycleJob(
         tx,
         jobId,
         RECRUIT_CYCLE_NOT_CONSENTED_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    // Re-checked at claim time on exactly the eligibility and consent
+    // pattern immediately above — Brian, 2026-09-01: "if they fill out the
+    // whole thing … then it doesn't send out again." The ask and its
+    // reminder are declared together but scheduled far apart (72h/144h by
+    // default), so a recruit who completes the relevant track in between
+    // must still be skipped here, not merely refused at declaration.
+    const completion = await readRecruitmentCycleCompletionIn(
+      tx,
+      job.person_id,
+      prospect.rows[0]?.id ?? null,
+    );
+    const trackComplete =
+      CYCLE_COMPLETION_TRACK[step] === "welcomeStepComplete"
+        ? completion.welcomeStepComplete
+        : completion.questionnaireBComplete;
+    if (trackComplete) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        RECRUIT_CYCLE_ALREADY_COMPLETE_REASON,
         job.attempt_count,
         context.channel,
         context.provider.name,

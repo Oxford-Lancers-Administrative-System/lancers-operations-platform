@@ -230,7 +230,8 @@ export async function readRecruitmentCycleCompletionIn(
   );
   const mobile = await tx.query(
     `select 1 from public.contact_points
-      where person_id = $1::uuid and kind = 'phone' and valid_until is null
+      where person_id = $1::uuid and kind = 'phone'
+        and valid_from <= current_date and valid_until is null
       limit 1`,
     [personId],
   );

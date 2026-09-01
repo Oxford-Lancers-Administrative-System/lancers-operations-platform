@@ -171,6 +171,35 @@ async function completeWelcomeRecruit(status: string = "identified"): Promise<st
   return personId;
 }
 
+/**
+ * A recruit whose family name is never supplied — the welcome track stays
+ * incomplete (`readRecruitmentCycleCompletionIn` requires given name,
+ * family name *and* mobile) even once `addMobile` runs on its own below.
+ * `dispatchRecruitmentCycleJob`'s own completion re-check (LAN-203 fix,
+ * Brian 2026-09-01) means a job declared while missing *only* a mobile
+ * would, once that mobile arrives, read as complete and be skipped rather
+ * than sent — the fixture `incompleteRecruit` cannot exercise an accepted
+ * dispatch once a mobile is added post-declaration, so the two tests below
+ * that need a real send after a later `addMobile` use this shape instead.
+ */
+async function firstNameOnlyRecruit(status: string = "identified"): Promise<string> {
+  const person = await withTransaction((tx) =>
+    tx.query<{ id: string }>(
+      "insert into public.people (given_name, family_name) values ($1, null) returning id",
+      [MARKER],
+    ),
+  );
+  const personId = person.rows[0].id;
+  await withTransaction((tx) =>
+    tx.query(
+      `insert into public.recruitment_prospects (person_id, season_id, status, source)
+       values ($1::uuid, $2::uuid, $3::public.prospect_status, 'other')`,
+      [personId, seasonId, status],
+    ),
+  );
+  return personId;
+}
+
 async function addMobile(personId: string): Promise<void> {
   await withTransaction((tx) =>
     tx.query(
@@ -372,12 +401,13 @@ describe("declareRecruitmentCycleJobsIn", () => {
 
 describe("dispatchRecruitmentCycleJob", () => {
   it("sends the welcome template, records an accepted attempt, and leaves the job processing", async () => {
-    const personId = await incompleteRecruit();
+    const personId = await firstNameOnlyRecruit();
     await grantConsent(personId);
     await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
     // The welcome job was declared while no mobile was on file; a number
-    // arriving afterwards is what dispatch actually sends to — the already
-    // -declared job is not cancelled retroactively by a later profile edit.
+    // arriving afterwards is what dispatch actually sends to. The family
+    // name is never supplied, so the welcome track's completing set stays
+    // unmet and the completion re-check (LAN-203 fix) does not stop it.
     await addMobile(personId);
     const jobId = (
       await withTransaction((tx) =>
@@ -447,8 +477,48 @@ describe("dispatchRecruitmentCycleJob", () => {
     expect(job.rows[0].last_error).toMatch(/consent/i);
   });
 
+  it("skips the interest reminder once the recruit answers B1-B5 in between declaration and dispatch (Brian, 2026-09-01: completion stops the cycle)", async () => {
+    const personId = await completeWelcomeRecruit();
+    await grantConsent(personId);
+    // Declared while B is still unanswered — both the ask and its reminder
+    // are created, on the same 72h/144h-apart offsets the finding describes.
+    await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
+    const prospectId = await prospectIdFor(personId);
+
+    // The recruit answers the whole questionnaire before the reminder's own
+    // offset arrives — the exact window the completion re-check exists for.
+    await answerQuestionnaireB(prospectId, QUESTIONNAIRE_B_COMPLETING_CODES);
+
+    const jobId = (
+      await withTransaction((tx) =>
+        tx.query<{ id: string }>(
+          "select id from public.notification_jobs where idempotency_key = $1",
+          [`recruit-cycle:interest_reminder:${personId}:${seasonId}`],
+        ),
+      )
+    ).rows[0].id;
+
+    const { sent, transport } = acceptingTransport();
+    const outcome = await dispatchRecruitmentCycleJob(jobId, { source: CONFIGURED, transport });
+
+    expect(outcome).toBe("skipped");
+    expect(sent).toHaveLength(0);
+    const job = await withTransaction((tx) =>
+      tx.query<{ status: string; last_error: string | null }>(
+        "select status::text as status, last_error from public.notification_jobs where id = $1",
+        [jobId],
+      ),
+    );
+    expect(job.rows[0].status).toBe("failed");
+    expect(job.rows[0].last_error).toMatch(/completing set/i);
+  });
+
   it("is claimed and dispatched by runMessagingSweep alongside every other job type", async () => {
-    const personId = await incompleteRecruit();
+    // First-name-only, per firstNameOnlyRecruit's own comment: all four jobs
+    // must still be sendable after addMobile below, and the welcome track's
+    // completion re-check (LAN-203 fix) would otherwise stop the two welcome
+    // -track jobs the moment a mobile completed that track.
+    const personId = await firstNameOnlyRecruit();
     await grantConsent(personId);
     await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
     await addMobile(personId);
