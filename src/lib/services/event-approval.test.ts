@@ -42,6 +42,7 @@ import {
   resolveMessagingPlanIn,
   updateMessagingScheduleIn,
 } from "./messaging-schedule";
+import { recordAnswerIn } from "./rsvp";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const NAME_MARKER = "LAN77ApprovalSuite";
@@ -86,6 +87,14 @@ afterEach(async () => {
     scope,
   ]);
   await observer.query(`delete from public.notification_jobs where event_id in ${events}`, [scope]);
+  // LAN-203's own addition: `recordAnswerIn` writes `rsvp_responses`, which
+  // `invitations` is referenced by — before it, in the same dependency order
+  // the rest of this block already keeps.
+  await observer.query(
+    `delete from public.rsvp_responses where invitation_id in
+         (select id from public.invitations where event_id in ${events})`,
+    [scope],
+  );
   await observer.query(`delete from public.invitations where event_id in ${events}`, [scope]);
   await observer.query(`delete from public.event_audience_members where event_id in ${events}`, [
     scope,
@@ -977,6 +986,60 @@ describe("the recruit ladder — LAN-203", () => {
       [event.id],
     );
     expect(Number(recruitJobs.rows[0].count)).toBe(0);
+  });
+
+  it("cancels a recruit's own pending follow-up the moment they answer — never a second reminder to someone who has already replied", async () => {
+    const event = await newDraft({ eventType: "recruitment", scheduledOn: "2026-11-20" });
+    const recruitKeys = await keysFor(event, "recruit", 1);
+    expect(recruitKeys.length).toBe(1);
+
+    const catalogue = await catalogueFor(event);
+    const recruit = catalogue.candidates.find((candidate) => candidate.capacity === "recruit");
+    expect(recruit).toBeDefined();
+    await grantRecruitConsent(recruit!.personId, event.seasonId);
+
+    await approve(event.id, recruitKeys);
+
+    const invitation = await observer.query<{ id: string }>(
+      `select id from public.invitations where event_id = $1 and capacity = 'recruit'`,
+      [event.id],
+    );
+    const invitationId = invitation.rows[0].id;
+
+    const before = await observer.query<{ count: string }>(
+      `select count(*) as count from public.notification_jobs
+        where invitation_id = $1 and job_type = 'reminder' and status = 'pending'`,
+      [invitationId],
+    );
+    expect(Number(before.rows[0].count)).toBe(1);
+
+    // The recruit answers — via `consumeAnswerTokenIn`'s own `recordAnswerIn`
+    // call, the same path `/a/[token]` uses, and the "No" carries no
+    // typed-reason field for a recruit at all (REQ-no-reason-asked); this
+    // reaches the identical service function with a system-supplied reason.
+    await withTransaction((tx) =>
+      recordAnswerIn(
+        tx,
+        invitationId,
+        { response: "no", reason: "No reason given" },
+        { actorLabel: "player: WhatsApp/email answer link", source: "signed_link" },
+      ),
+    );
+
+    const after = await observer.query<{ status: string; cancelled_reason: string | null }>(
+      `select status::text as status, cancelled_reason from public.notification_jobs
+        where invitation_id = $1 and job_type = 'reminder'`,
+      [invitationId],
+    );
+    expect(after.rows[0].status).toBe("cancelled");
+    expect(after.rows[0].cancelled_reason).not.toBeNull();
+
+    const response = await observer.query<{ response: string; reason: string }>(
+      `select response::text as response, reason from public.rsvp_responses where invitation_id = $1`,
+      [invitationId],
+    );
+    expect(response.rows[0].response).toBe("no");
+    expect(response.rows[0].reason).toBe("No reason given");
   });
 });
 

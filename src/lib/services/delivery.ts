@@ -253,7 +253,13 @@ type ClaimOutcome =
   // F-C1. Distinct from "undeliverable": the event itself has no start time,
   // so no channel and no retry would fix it, and it must never be a
   // WhatsApp-to-email fallback trigger the way an unreachable recipient is.
-  | { readonly claimed: false; readonly reason: "unschedulable"; readonly detail: string };
+  | { readonly claimed: false; readonly reason: "unschedulable"; readonly detail: string }
+  // LAN-203. Distinct from "undeliverable" for the identical reason
+  // "unschedulable" already is: a recruit with no granted consent this
+  // season is not a channel problem — falling back to email would still
+  // reach someone who has not consented to being contacted at all, on any
+  // channel, which is the one thing this refusal exists to prevent.
+  | { readonly claimed: false; readonly reason: "not_consented"; readonly detail: string };
 
 /**
  * Claims one job and prepares its message, or explains why it cannot.
@@ -428,7 +434,7 @@ async function claimJobIn(
   if (detail.capacity === "recruit") {
     const consented = await hasGrantedSeasonMessagingConsentIn(tx, detail.person_id, detail.season_id);
     if (!consented) {
-      return { claimed: false, reason: "undeliverable", detail: NO_CONSENT_REASON };
+      return { claimed: false, reason: "not_consented", detail: NO_CONSENT_REASON };
     }
   }
 
@@ -902,6 +908,14 @@ export async function dispatchJob(
       // never a fallback trigger: the email channel would fail identically,
       // since the fact missing is the event's, not the recipient's.
       await recordUndeliverableIn(tx, jobId, outcome.detail, context);
+    } else if (!outcome.claimed && outcome.reason === "not_consented") {
+      // LAN-203. Same visible, retryable recording — an operator sees "no
+      // consent recorded" and a granted consent record then makes Retry
+      // succeed — but never a fallback trigger. `scheduleWhatsAppFallbackIn`
+      // exists for an unreachable *channel*; withholding consent is not
+      // that, and falling back to email would still message someone who has
+      // not agreed to being contacted at all.
+      await recordUndeliverableIn(tx, jobId, outcome.detail, context);
     }
     return { outcome, fallbackId };
   });
@@ -909,7 +923,9 @@ export async function dispatchJob(
   if (claim.fallbackId) await dispatchFallbackBestEffort(claim.fallbackId, options);
 
   if (!claim.outcome.claimed) {
-    return claim.outcome.reason === "undeliverable" || claim.outcome.reason === "unschedulable"
+    return claim.outcome.reason === "undeliverable" ||
+      claim.outcome.reason === "unschedulable" ||
+      claim.outcome.reason === "not_consented"
       ? "refused"
       : "skipped";
   }

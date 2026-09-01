@@ -29,7 +29,9 @@ import {
   JOB_NOT_FOUND_RULE,
   dispatchEventInvitations,
   dispatchJob,
+  EMAIL_FALLBACK_SUFFIX,
   MAX_ATTEMPTS,
+  NO_CONSENT_REASON,
   readEventDelivery,
   readEventDeliveryDiagnostics,
   retryDelivery,
@@ -179,6 +181,12 @@ afterEach(async () => {
   );
   await observer.query(
     "delete from public.audit_events where actor_person_id in (select id from public.people where given_name = $1)",
+    [MARKER],
+  );
+  // LAN-203. `season_messaging_consents.person_id` is `on delete restrict`, so
+  // it must go before the people it names or the delete below is refused.
+  await observer.query(
+    "delete from public.season_messaging_consents where person_id in (select id from public.people where given_name = $1)",
     [MARKER],
   );
   await observer.query("delete from public.people where given_name = $1", [MARKER]);
@@ -1802,5 +1810,143 @@ describe("the automatic email fallback -- LAN-173-r1-F1", () => {
     // exactly the two rows R15's evidence names, on two different channels.
     expect(attempts).toHaveLength(2);
     expect(attempts.map((attempt) => attempt.channel).sort()).toEqual(["email", "whatsapp"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-203 — the recruit consent gate. `messaging-consent.ts` is the LAN-202
+// seam (Amendment 4); this is the one place that seam's throwing primary is
+// not what runs — `claimJobIn` reads the non-throwing
+// `hasGrantedSeasonMessagingConsentIn` instead, matching every other refusal
+// in this file's own non-throwing `ClaimOutcome` shape.
+// ---------------------------------------------------------------------------
+
+describe("the recruit consent gate — LAN-203", () => {
+  /** A recruitment event, one recruit invitee with a usable number, one pending invitation job. */
+  async function recruitFixture(options: { phone?: string | null } = {}) {
+    const phone = options.phone === undefined ? "07700 900123" : options.phone;
+
+    await observer.query("begin");
+    try {
+      const person = await observer.query<{ id: string }>(
+        `insert into public.people (given_name, family_name, created_at)
+         values ($1, 'Recruit', now() + interval '100 years') returning id`,
+        [MARKER],
+      );
+      const personId = person.rows[0].id;
+
+      if (phone !== null) {
+        await observer.query(
+          `insert into public.contact_points (person_id, kind, raw_value, is_preferred)
+           values ($1, 'phone', $2, true)`,
+          [personId, phone],
+        );
+      }
+
+      const event = await observer.query<{ id: string }>(
+        `with target as (select (now() + interval '48 hours') at time zone 'Europe/London' as local)
+         insert into public.events
+           (season_id, name, event_type, status, scheduled_on, starts_at,
+            audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
+         select $1, $2, 'recruitment', 'approved',
+                (select local::date from target), (select local::time from target),
+                now(), $3, now(), $3
+         returning id`,
+        [seasonId, `${MARKER} recruitment`, personId],
+      );
+      const eventId = event.rows[0].id;
+
+      const audience = await observer.query<{ id: string }>(
+        `insert into public.event_audience_members
+           (event_id, season_id, capacity, person_id, added_by_person_id)
+         values ($1, $2, 'recruit', $3, $3) returning id`,
+        [eventId, seasonId, personId],
+      );
+
+      const invitation = await observer.query<{ id: string }>(
+        `insert into public.invitations
+           (event_id, event_status, season_id, capacity, person_id, status, audience_member_id)
+         values ($1, 'approved', $2, 'recruit', $3, 'pending', $4) returning id`,
+        [eventId, seasonId, personId, audience.rows[0].id],
+      );
+
+      const job = await observer.query<{ id: string }>(
+        `insert into public.notification_jobs
+           (idempotency_key, job_type, status, invitation_id, event_id, person_id, channel)
+         values ($1, 'invitation', 'pending', $2, $3, $4, 'whatsapp') returning id`,
+        [`${MARKER}:recruit:${eventId}`, invitation.rows[0].id, eventId, personId],
+      );
+
+      await observer.query("commit");
+      return { personId, eventId, invitationId: invitation.rows[0].id, jobId: job.rows[0].id };
+    } catch (error) {
+      await observer.query("rollback");
+      throw error;
+    }
+  }
+
+  async function grantConsent(personId: string): Promise<void> {
+    await observer.query(
+      `insert into public.season_messaging_consents (person_id, season_id, state, source)
+       values ($1, $2, 'granted', 'qr_self_entry')`,
+      [personId, seasonId],
+    );
+  }
+
+  it("refuses to dispatch a recruit invitation with no consent record at all", async () => {
+    const { eventId, jobId } = await recruitFixture();
+
+    const result = await dispatchJob(jobId, { source: CONFIGURED, transport: accepts() });
+
+    expect(result).toBe("refused");
+    expect((await row(eventId)).failureReason).toBe(NO_CONSENT_REASON);
+  });
+
+  it("refuses a recruit whose consent state is anything other than granted", async () => {
+    const { eventId, personId, jobId } = await recruitFixture();
+    await observer.query(
+      `insert into public.season_messaging_consents (person_id, season_id, state, source)
+       values ($1, $2, 'withdrawn', 'operator_recorded')`,
+      [personId, seasonId],
+    );
+
+    const result = await dispatchJob(jobId, { source: CONFIGURED, transport: accepts() });
+
+    expect(result).toBe("refused");
+    expect((await row(eventId)).failureReason).toBe(NO_CONSENT_REASON);
+  });
+
+  it("sends once consent is granted — the same job, retried, with nothing else changed", async () => {
+    const { eventId, personId, jobId } = await recruitFixture();
+    await grantConsent(personId);
+
+    const result = await dispatchJob(jobId, { source: CONFIGURED, transport: accepts() });
+
+    expect(result).toBe("accepted");
+    expect((await row(eventId)).state).toBe("attempted");
+  });
+
+  it("never falls back to email for a consent refusal — withholding consent is not a channel problem", async () => {
+    const { invitationId, jobId } = await recruitFixture();
+
+    await dispatchJob(jobId, { source: CONFIGURED, transport: accepts() });
+
+    const fallback = await observer.query<{ count: string }>(
+      `select count(*) as count from public.notification_jobs
+        where invitation_id = $1 and idempotency_key like '%${EMAIL_FALLBACK_SUFFIX}'`,
+      [invitationId],
+    );
+    expect(Number(fallback.rows[0].count)).toBe(0);
+  });
+
+  it("never checks consent for a player invitation — this package's own gate is recruit-only", async () => {
+    const { eventId, jobId } = await fixture();
+
+    // No `season_messaging_consents` row exists for this player at all, and
+    // the send still succeeds — the existing player pipeline is unmodified.
+    const result = await dispatchJob(jobId, { source: CONFIGURED, transport: accepts() });
+
+    expect(result).toBe("accepted");
+    expect((await row(eventId)).state).toBe("attempted");
   });
 });
