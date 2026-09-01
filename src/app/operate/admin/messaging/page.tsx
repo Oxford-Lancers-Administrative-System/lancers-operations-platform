@@ -2,6 +2,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import { listMessagingSchedulesWithPreview } from "@/lib/services/messaging-schedule";
+import { listRecruitmentCycleSteps } from "@/lib/services/recruitment-cycle";
 import { TYPE_LABELS, labelFor } from "@/lib/services/event-vocabulary";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../../gate";
@@ -12,7 +13,7 @@ import {
   MESSAGING_SCHEDULE_INTRO,
   MESSAGING_SCHEDULE_TITLE,
 } from "./presentation";
-import { SCHEDULE_FIELDS } from "./validation";
+import { RECRUIT_SCHEDULE_FIELDS, SCHEDULE_FIELDS } from "./validation";
 
 /**
  * **Messaging schedule** — Administration's third destination, and W7's
@@ -45,17 +46,32 @@ export default async function MessagingSchedulePage() {
   if ("screen" in gate) return gate.screen;
 
   let rows: ScheduleRowData[];
+  let cycleSteps: Awaited<ReturnType<typeof listRecruitmentCycleSteps>>;
   try {
-    const withPreview = await listMessagingSchedulesWithPreview();
+    const [withPreview, steps] = await Promise.all([
+      listMessagingSchedulesWithPreview(),
+      listRecruitmentCycleSteps(),
+    ]);
+    cycleSteps = steps;
     rows = withPreview.map(({ schedule, preview }) => {
       const values: Record<string, number> = {};
       for (const field of SCHEDULE_FIELDS) {
         values[field.key] = schedule[field.field];
       }
+      // LAN-203, DEC-split-on-the-schedule. Populated only for the
+      // Recruitment row — every other event type's two recruit columns are
+      // `null`, and `RecruitmentScheduleRow` is the only reader of this.
+      const recruitValues: Record<string, number> | null =
+        schedule.eventType === "recruitment"
+          ? Object.fromEntries(
+              RECRUIT_SCHEDULE_FIELDS.map((field) => [field.key, schedule[field.field] ?? 0]),
+            )
+          : null;
       return {
         eventType: schedule.eventType,
         label: labelFor(TYPE_LABELS, schedule.eventType),
         values,
+        recruitValues,
         preview: buildSchedulePreview(preview, schedule),
       };
     });
@@ -78,7 +94,7 @@ export default async function MessagingSchedulePage() {
         {MESSAGING_SCHEDULE_INTRO}
       </Typography>
 
-      <MessagingScheduleForm rows={rows} />
+      <MessagingScheduleForm rows={rows} cycleSteps={cycleSteps} />
     </Stack>
   );
 }

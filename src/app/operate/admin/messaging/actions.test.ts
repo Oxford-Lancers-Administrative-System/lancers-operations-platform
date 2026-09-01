@@ -64,6 +64,15 @@ vi.mock("@/lib/services/messaging-schedule", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/services/recruitment-cycle", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/recruitment-cycle")>();
+  return {
+    ...actual,
+    listRecruitmentCycleStepsIn: vi.fn(),
+    updateRecruitmentCycleStepIn: vi.fn(),
+  };
+});
+
 import { revalidatePath } from "next/cache";
 import { ConstraintViolated, isServiceError } from "@/lib/db";
 import {
@@ -77,9 +86,18 @@ import {
   type MessagingSchedule,
   type MessagingScheduleChange,
 } from "@/lib/services/messaging-schedule";
-import { updateOneMessagingScheduleAction } from "./actions";
+import {
+  listRecruitmentCycleStepsIn,
+  updateRecruitmentCycleStepIn,
+  type RecruitmentCycleStep,
+} from "@/lib/services/recruitment-cycle";
+import { updateOneMessagingScheduleAction, updateRecruitmentCycleStepsAction } from "./actions";
 import { EMPTY_ADMIN_ACTION_STATE } from "../action-state";
-import { NO_SCHEDULE_CHANGES_NOTICE, scheduleSavedNotice } from "./presentation";
+import {
+  NO_SCHEDULE_CHANGES_NOTICE,
+  cycleStepSavedNotice,
+  scheduleSavedNotice,
+} from "./presentation";
 import { SCHEDULE_FIELDS } from "./validation";
 
 const CHALK = "chalk";
@@ -129,11 +147,51 @@ function rowForm(eventType: string, change: Partial<MessagingScheduleChange> = {
   return data;
 }
 
+function cycleStep(
+  step: RecruitmentCycleStep["step"],
+  overrides: Partial<RecruitmentCycleStep> = {},
+): RecruitmentCycleStep {
+  return {
+    step,
+    enabled: true,
+    offsetHours: 0,
+    updatedAt: new Date("2026-08-01T00:00:00Z"),
+    ...overrides,
+  };
+}
+
+const CYCLE_STEPS: RecruitmentCycleStep[] = [
+  cycleStep("welcome", { offsetHours: 0 }),
+  cycleStep("details_reminder", { offsetHours: 96 }),
+  cycleStep("interest_ask", { offsetHours: 72 }),
+  cycleStep("interest_reminder", { enabled: false, offsetHours: 144 }),
+];
+
+/** One cycle row's own form: a hidden `steps` field plus each named step's two fields. */
+function cycleForm(
+  steps: readonly RecruitmentCycleStep["step"][],
+  overrides: Partial<Record<string, { enabled?: boolean; offsetHours?: number }>> = {},
+): FormData {
+  const data = new FormData();
+  data.set("steps", steps.join(","));
+  for (const step of steps) {
+    const current = CYCLE_STEPS.find((row) => row.step === step)!;
+    const change = { enabled: current.enabled, offsetHours: current.offsetHours, ...overrides[step] };
+    if (change.enabled) data.set(`step_${step}_enabled`, "on");
+    data.set(`step_${step}_offsetHours`, String(change.offsetHours));
+  }
+  return data;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(readMessagingScheduleIn).mockResolvedValue(scheduleRow(CHALK, BASE_CHANGE));
   vi.mocked(updateMessagingScheduleIn).mockImplementation(
     async (_tx, _actorId, eventType, change) => scheduleRow(eventType, change),
+  );
+  vi.mocked(listRecruitmentCycleStepsIn).mockResolvedValue(CYCLE_STEPS);
+  vi.mocked(updateRecruitmentCycleStepIn).mockImplementation(async (_tx, _actorId, step, change) =>
+    cycleStep(step, change),
   );
 });
 
@@ -235,5 +293,143 @@ describe("holding delivery_administration", () => {
     expect(state.error).toMatch(/President 6 h/);
     // …and never suggests a retry that cannot work.
     expect(state.error).not.toMatch(/try again/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `updateRecruitmentCycleStepsAction` — LAN-203. Same reasoning as above:
+// exercised unmocked, so a missing `requireCapability` call regresses here
+// rather than staying invisible behind `screens.test.tsx`'s mocked action.
+// ---------------------------------------------------------------------------
+
+describe("updateRecruitmentCycleStepsAction, without delivery_administration", () => {
+  it("is refused before the write, and writes nothing", async () => {
+    givenSession({ state: "active", operator: actor(["treasurer"]) });
+
+    let thrown: unknown;
+    try {
+      await updateRecruitmentCycleStepsAction(EMPTY_ADMIN_ACTION_STATE, cycleForm(["welcome"]));
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(isServiceError(thrown)).toBe(true);
+    expect((thrown as { kind: string }).kind).toBe("not_permitted");
+    expect(listRecruitmentCycleStepsIn).not.toHaveBeenCalled();
+    expect(updateRecruitmentCycleStepIn).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("refuses a signed-out caller the same way", async () => {
+    givenSession({ state: "no_session" });
+
+    await expect(
+      updateRecruitmentCycleStepsAction(EMPTY_ADMIN_ACTION_STATE, cycleForm(["welcome"])),
+    ).rejects.toMatchObject({ kind: "not_permitted" });
+    expect(updateRecruitmentCycleStepIn).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateRecruitmentCycleStepsAction, holding delivery_administration", () => {
+  it("writes a single-step row, attributed to the resolved operator", async () => {
+    const operator = actor(["secretary"]);
+    givenSession({ state: "active", operator });
+
+    const state = await updateRecruitmentCycleStepsAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      cycleForm(["welcome"], { welcome: { enabled: true, offsetHours: 1 } }),
+    );
+
+    expect(state.refusal).toBeNull();
+    expect(state.error).toBeNull();
+    expect(state.notice).toBe(cycleStepSavedNotice("Welcome"));
+    expect(updateRecruitmentCycleStepIn).toHaveBeenCalledTimes(1);
+    expect(updateRecruitmentCycleStepIn).toHaveBeenCalledWith(
+      expect.anything(),
+      operator.personId,
+      "welcome",
+      { enabled: true, offsetHours: 1 },
+    );
+    expect(revalidatePath).toHaveBeenCalledWith("/operate/admin/messaging");
+  });
+
+  it("writes both steps of the Recruitment questionnaire row in one submission, atomically", async () => {
+    givenSession({ state: "active", operator: actor(["president"]) });
+
+    const state = await updateRecruitmentCycleStepsAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      cycleForm(["interest_ask", "interest_reminder"], {
+        interest_reminder: { enabled: true, offsetHours: 150 },
+      }),
+    );
+
+    expect(state.error).toBeNull();
+    expect(updateRecruitmentCycleStepIn).toHaveBeenCalledTimes(1);
+    expect(updateRecruitmentCycleStepIn).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "interest_reminder",
+      { enabled: true, offsetHours: 150 },
+    );
+    // `interest_ask` is unchanged from its current stored value, so it is
+    // never written — the same "only the row that actually changed" rule
+    // `updateOneMessagingScheduleAction` already keeps.
+    expect(updateRecruitmentCycleStepIn).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "interest_ask",
+      expect.anything(),
+    );
+  });
+
+  it("reports no change and writes nothing when the row already matches", async () => {
+    givenSession({ state: "active", operator: actor(["president"]) });
+
+    const state = await updateRecruitmentCycleStepsAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      cycleForm(["welcome"]),
+    );
+
+    expect(state.notice).toBe(NO_SCHEDULE_CHANGES_NOTICE);
+    expect(updateRecruitmentCycleStepIn).not.toHaveBeenCalled();
+  });
+
+  it("reads an unchecked switch as disabled — the checkbox is absent from the form, not false", async () => {
+    givenSession({ state: "active", operator: actor(["president"]) });
+
+    const form = cycleForm(["interest_ask"]);
+    form.delete("step_interest_ask_enabled");
+
+    const state = await updateRecruitmentCycleStepsAction(EMPTY_ADMIN_ACTION_STATE, form);
+
+    expect(state.error).toBeNull();
+    expect(updateRecruitmentCycleStepIn).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "interest_ask",
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
+  it("refuses a malformed timing field before it reaches the database, naming the step", async () => {
+    givenSession({ state: "active", operator: actor(["president"]) });
+
+    const form = cycleForm(["welcome"]);
+    form.set("step_welcome_offsetHours", "9999");
+
+    const state = await updateRecruitmentCycleStepsAction(EMPTY_ADMIN_ACTION_STATE, form);
+
+    expect(state.error).toMatch(/Welcome/);
+    expect(state.error).toMatch(/between/i);
+    expect(updateRecruitmentCycleStepIn).not.toHaveBeenCalled();
+  });
+
+  it("refuses a submission that does not say which steps it covers", async () => {
+    givenSession({ state: "active", operator: actor(["president"]) });
+
+    const state = await updateRecruitmentCycleStepsAction(EMPTY_ADMIN_ACTION_STATE, new FormData());
+
+    expect(state.error).toMatch(/which recruitment cycle steps/i);
+    expect(updateRecruitmentCycleStepIn).not.toHaveBeenCalled();
   });
 });

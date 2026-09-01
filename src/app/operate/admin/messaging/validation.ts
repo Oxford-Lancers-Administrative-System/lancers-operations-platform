@@ -28,7 +28,8 @@ type CoreScheduleField = Exclude<
   "recruitInvitationLeadDays" | "recruitFollowUpCadenceHours"
 >;
 
-interface FieldBoundsShape {
+/** Exported for `ScheduleField` — the one rendering component both `ScheduleFieldBounds` and `RecruitScheduleFieldBounds` share. */
+export interface FieldBoundsShape {
   /** The `<input>` name within one row's own form. */
   readonly key: string;
   /** The settings grid's own short label (Brian's chosen shape): "RSVP by", not "Player RSVP by". */

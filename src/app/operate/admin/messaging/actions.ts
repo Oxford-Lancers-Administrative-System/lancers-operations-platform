@@ -8,9 +8,17 @@ import {
   readMessagingScheduleIn,
   updateMessagingScheduleIn,
 } from "@/lib/services/messaging-schedule";
+import {
+  listRecruitmentCycleStepsIn,
+  updateRecruitmentCycleStepIn,
+  type RecruitmentCycleStepName,
+} from "@/lib/services/recruitment-cycle";
 import { EMPTY_ADMIN_ACTION_STATE, type AdminActionState } from "../action-state";
+import { CYCLE_STEP_LABELS, readCycleStepsChange } from "./cycle-validation";
 import {
   NO_SCHEDULE_CHANGES_NOTICE,
+  cycleStepSavedNotice,
+  cycleStepSaveFailedNotice,
   scheduleSavedNotice,
   scheduleSaveFailedNotice,
 } from "./presentation";
@@ -89,6 +97,75 @@ export async function updateOneMessagingScheduleAction(
     return {
       ...EMPTY_ADMIN_ACTION_STATE,
       error: scheduleSaveFailedNotice(label, validated.change),
+    };
+  }
+}
+
+/**
+ * Saving one row of the recruitment cycle — LAN-203, `REQ-recruitment-cycle`.
+ *
+ * Two of the cycle's three rows cover exactly one `recruitment_cycle_steps`
+ * row; the third — Recruitment questionnaire — covers two (the ask and its
+ * own reminder), on the same "one row, one form, one SAVE" law
+ * `updateOneMessagingScheduleAction` already keeps for the Recruitment event
+ * type's six fields. `steps` names which database rows this particular
+ * form's fields cover; every one of them is written in the same transaction,
+ * so a row that covers two steps either saves both or saves neither.
+ */
+export async function updateRecruitmentCycleStepsAction(
+  _previous: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  const operator = await requireCapability("delivery_administration");
+
+  const stepsField = formData.get("steps");
+  if (typeof stepsField !== "string" || stepsField.trim() === "") {
+    return {
+      ...EMPTY_ADMIN_ACTION_STATE,
+      error: "This submission did not say which recruitment cycle steps it was for, so nothing " +
+        "was saved.",
+    };
+  }
+  const steps = stepsField.split(",").filter(Boolean) as RecruitmentCycleStepName[];
+
+  const validated = readCycleStepsChange(steps, formData);
+  if (!validated.ok) {
+    return { ...EMPTY_ADMIN_ACTION_STATE, error: validated.message };
+  }
+
+  const rowLabel = steps.map((step) => CYCLE_STEP_LABELS[step]).join(" / ");
+
+  try {
+    const wrote = await withTransaction(async (tx) => {
+      const current = await listRecruitmentCycleStepsIn(tx);
+      const currentByStep = new Map(current.map((step) => [step.step, step]));
+
+      let anyChanged = false;
+      for (const [step, change] of validated.changes) {
+        const before = currentByStep.get(step);
+        const changed =
+          !before || before.enabled !== change.enabled || before.offsetHours !== change.offsetHours;
+        if (!changed) continue;
+        anyChanged = true;
+        await updateRecruitmentCycleStepIn(tx, operator.personId, step, change);
+      }
+      return anyChanged;
+    });
+
+    revalidatePath("/operate/admin/messaging");
+
+    return {
+      ...EMPTY_ADMIN_ACTION_STATE,
+      notice: wrote ? cycleStepSavedNotice(rowLabel) : NO_SCHEDULE_CHANGES_NOTICE,
+    };
+  } catch (error) {
+    if (!isServiceError(error)) throw error;
+    if (error.kind === "not_permitted") {
+      return { ...EMPTY_ADMIN_ACTION_STATE, refusal: error.message };
+    }
+    return {
+      ...EMPTY_ADMIN_ACTION_STATE,
+      error: cycleStepSaveFailedNotice(rowLabel),
     };
   }
 }
