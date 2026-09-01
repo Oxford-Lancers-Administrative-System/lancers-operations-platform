@@ -1,0 +1,17 @@
+// W2-02 — The same page with something on it.
+//
+// Tobias Wrenfield, engaged: the questionnaire answered in his own words, two
+// events attended with one walk-up that never had an RSVP, notes already
+// written, and the status field open for editing.
+//
+// The record itself is built in the prelude and shared with W2-03, so the page
+// behind the dialog is the same page.
+buildRecruitRecord();
+
+// Two questionnaires means two buttons - Brian, 2026-08-31: "There's one for the
+// personal, and there's one for the recruitment." Each opens its own dialog, so
+// the dialog never has to ask which.
+pageButton("SEND PERSONAL QUESTIONNAIRE");
+pageButton("SEND RECRUITMENT QUESTIONNAIRE");
+
+await settle();

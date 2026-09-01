@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Workflow inventory</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --warn: #663c00;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: var(--grey100);
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #212121;
+        color: #fff;
+        padding: 10px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .sheet {
+        max-width: 880px;
+        margin: 26px auto 100px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 10px 30px 34px;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.12rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 1rem;
+        margin: 20px 0 6px;
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        display: block;
+        overflow-x: auto;
+        margin: 14px 0;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+        white-space: nowrap;
+      }
+      a {
+        color: var(--primary);
+      }
+      @media (max-width: 720px) {
+        .sheet {
+          margin: 14px 10px 60px;
+          padding: 6px 16px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        Workflow inventory<span
+          >M-RECRUITMENT · Stage 2 closed, fourteen workflows frozen 2026-08-31</span
+        >
+      </div>
+    </div>
+    <div class="sheet">
+      <h1>Frozen workflow inventory — M-RECRUITMENT</h1>
+      <p>
+        Definition: one primary actor's end-to-end journey from trigger and entry point to one
+        user-visible result.
+      </p>
+      <p>
+        <strong>Fourteen workflows, frozen by Brian on 2026-08-31.</strong> The order is the
+        execution order: <code>Wn</code> completes before <code>Wn+1</code> is approved, so the
+        numbering is a decision in itself and not a listing convenience.
+      </p>
+      <p>
+        <strong>Why this order.</strong> The board and the recruit's record lead. They are the spine
+        — the board's columns decide which recruit facts and which signals exist, and every other
+        workflow puts something on one of them or takes something off. They are also the two
+        surfaces with a real photograph available: <code>/operate/roster</code> and
+        <code>/operate/people/[personId]</code> are running code at <code>main@e669331</code>, so
+        the first two comps are current-versus-proposed rather than drawn, and they carry the
+        shipped board's structure, grouping and colour language forward on Brian's instruction.
+      </p>
+      <p>
+        The sign-on flow follows them, by Brian's decision at the freeze. It is the smallest thing
+        in the mission and the most load-bearing outside it — Missions 7 and 8 inherit whatever
+        shape it takes, and every door in this mission ends by firing it — but what it produces
+        lands on the board, so the board is drawn first and the flow is drawn into it.
+      </p>
+      <p>
+        Then the recruit's own form, then the doors, then the follow-up surface, then the
+        administration that configures all of it, then the events, then the exits.
+        <strong>The flip is last, by Brian's instruction</strong>, because it is the hand-off out of
+        the mission and its shape depends on what everything before it became.
+      </p>
+      <ol>
+        <li value="1">
+          <code>W1</code> — <strong>The recruit board</strong>: an operator opens recruitment's own
+          board → one line per recruit, person details then recruitment details, event columns
+          appended at the right end, findable and filterable, actions from the row.
+        </li>
+
+        <li value="2">
+          <code>W2</code> — <strong>One recruit's record</strong>: an operator clicks a row → that
+          recruit's own working page, their details, their signals, their notes, correctable there.
+        </li>
+
+        <li value="3">
+          <code>W3</code> — <strong>Say yes to the club</strong>: a newly captured recruit receives
+          the club's first message → they accept WhatsApp communication and answer the standard
+          recruit ask on the spot, and the club knows it can reach them.
+        </li>
+
+        <li value="4">
+          <code>W4</code> — <strong>Fill in your details</strong>: a recruit opens the form minted
+          for them and linked to their person → they tell the club as much about themselves as they
+          choose, and one polite reminder follows if they do not.
+        </li>
+
+        <li value="5">
+          <code>W5</code> — <strong>Capture a walk-up as a recruit</strong>: an operator or coach
+          taking attendance writes somebody down → that person is a recruit on the board and
+          <code>W3</code> has begun.
+        </li>
+
+        <li value="6">
+          <code>W6</code> — <strong>Add a recruit by hand</strong>: an operator sources somebody and
+          enters them → the recruit exists, deduped, and <code>W3</code> has begun.
+        </li>
+
+        <li value="7">
+          <code>W7</code> — <strong>Sign yourself in</strong>: a recruit scans the QR at Freshers'
+          Fair or a taster → they fill the club's own form on the club's own domain, and submitting
+          it lands them in the community group.
+        </li>
+
+        <li value="8">
+          <code>W8</code> — <strong>Resolve a possible duplicate</strong>: an operator opens the
+          review queue → the parked capture is either the existing person or a new one, and nothing
+          was silently created, merged, or messaged.
+        </li>
+
+        <li value="9">
+          <code>W9</code> — <strong>Follow up with a recruit</strong>: an operator decides to reach
+          out, usually about something the recruit has not filled in → a polite, good message leaves
+          the app and is visible against that recruit.
+        </li>
+
+        <li value="10">
+          <code>W10</code> — <strong>Administer recruitment's messages, cycles and QR</strong>: an
+          operator changes a template, the group link, the timing, whether a step runs at all, or
+          mints and revokes a QR → the change takes effect and who made it is recorded.
+        </li>
+
+        <li value="11">
+          <code>W11</code> — <strong>Run a recruitment event</strong>: an operator schedules one and
+          invites recruits, players, or both → the event is approved knowing exactly what it sends
+          to each audience, each audience is chased on its own terms, and a recruit sees only the
+          event's public details.
+        </li>
+
+        <li value="12">
+          <code>W12</code> — <strong>Take attendance at a recruitment event</strong>: an operator or
+          coach works the sheet → recruits at the top, everyone else below, walk-ups captured into
+          the flow, and who showed up reads back onto the recruit's row.
+        </li>
+
+        <li value="13">
+          <code>W13</code> — <strong>Take a recruit off the board</strong>: an operator changes a
+          recruit's status to an exit value → the recruit leaves the board, the board resorts, the
+          record and its history stay intact, and nothing further is sent.
+        </li>
+
+        <li value="14">
+          <code>W14</code> — <strong>Flip a recruit to joined</strong>: one of the core four decides
+          a recruit is in → a confirmation interrupts, the season membership exists, the roster
+          shows them joined this season, and onboarding opens.
+        </li>
+      </ol>
+      <h2>Excluded stages and invariants</h2>
+      <p>
+        These are real parts of the subject that are deliberately <strong>not</strong> workflows,
+        because a workflow is one actor's journey and these are properties, corrections, or other
+        missions' work.
+      </p>
+      <ul>
+        <li>
+          <strong>Never harsh</strong> is a system property, not a workflow. It is swept for across
+          every surface and evidenced once.
+        </li>
+
+        <li>
+          <strong>The two ladders.</strong> At <code>main@e669331</code>
+          <code>scheduleEventLadder</code> inserts a reminder job for every invitation on an event
+          with no capacity filter, so a recruit invited today receives the player escalation, and
+          <code>countByCapacity</code> omits recruits from the approval audit. The fix is not
+          suppression: the player ladder stops reaching recruits, and recruitment's own ladder — one
+          invitation and at most a polite follow-up — is built beside it. Verified inside
+          <code>W11</code> and <code>W12</code>.
+        </li>
+
+        <li>
+          <strong>A recruit sees only an event's public details</strong> — invariant 8 in
+          <code>01-overview.md</code>, an access boundary rather than a screen decision.
+        </li>
+
+        <li>
+          <strong>The recruit-stage field set</strong> is enumerated as an artifact of Stage 2 and
+          approved with <code>W4</code>; the standard recruit ask is approved with <code>W3</code>.
+        </li>
+
+        <li>
+          <strong>The signal set</strong> is enumerated from the 2026-08-28 observability research
+          and approved with <code>W1</code>'s columns.
+        </li>
+
+        <li>
+          <strong>Everything after the flip</strong> is Mission 7's; **consent wording, retention
+          and erasure<strong> are Mission 8's; </strong>event and calendar machinery** is Mission
+          2's; <strong>transport, scheduler and templates</strong> are Mission 4's and are used
+          verbatim.
+        </li>
+      </ul>
+      <h2>Questions that stood against this inventory — all settled 2026-08-31</h2>
+      <ol>
+        <li value="1">
+          <strong>The follow-up surface versus the 2026-08-18 owner direction — settled.</strong>
+          The Authority Manifest §5 named Mission 7 as the candidate home for an operator
+          message-and-flag capability, and never promoted it into a brief. Brian: _"Yes, recruits
+          need a follow-up surface. That is not Mission 7. That is Mission 6. Mission 7 can inherit
+          from Mission 6 if it wants to."_ <code>W9</code> is this mission's.
+        </li>
+
+        <li value="2">
+          <strong
+            >What a recruit sees of an event — settled, and it stays inside
+            <code>W11</code>.</strong
+          >
+          Brian: _"The recruit should just see the public details of the event. It shouldn't see
+          attendance or anything like that."_ There is not enough in the recruit's view to justify a
+          fifteenth workflow.
+        </li>
+
+        <li value="3">
+          <strong>Whether channel registration is its own workflow — settled, yes</strong>, and then
+          placed third rather than first at the freeze.
+        </li>
+      </ol>
+      <h2>Inventory amendments</h2>
+      <p>
+        None. Any change to these fourteen ids, names, order or count requires another explicit
+        approval from Brian and is recorded here.
+      </p>
+      <h2>Brian approval</h2>
+      <ul>
+        <li>
+          Exact approved list/count: the fourteen workflows above, <code>W1</code>–<code>W14</code>,
+          in this order. Approved as the thirteen-then-fourteen list of 2026-08-31 with one ordering
+          change in Brian's words: _"W1 should be moved after the recruits' records"_ — the sign-on
+          flow moves from first to third, behind the board and the record, and nothing else moves.
+        </li>
+
+        <li>Exact words: "I approve of everything else. Let's move on to the next stage."</li>
+        <li>Date: 2026-08-31</li>
+      </ul>
+    </div>
+  </body>
+</html>
