@@ -316,7 +316,11 @@ describe("the recruit event follow-up", () => {
 
 describe("the recruitment cycle's four templates", () => {
   it("carries the recruit's own name, once, on welcome, interest ask and its reminder", () => {
-    for (const kind of ["recruit_welcome", "recruit_interest_ask", "recruit_interest_reminder"] as const) {
+    for (const kind of [
+      "recruit_welcome",
+      "recruit_interest_ask",
+      "recruit_interest_reminder",
+    ] as const) {
       expect(MESSAGE_TEMPLATES[kind].parameterNames).toEqual(["inviteeName"]);
       expect(MESSAGE_TEMPLATES[kind].parameters(message({ kind }))).toEqual(["Jamie"]);
     }
@@ -339,7 +343,10 @@ describe("the recruitment cycle's four templates", () => {
       "recruit_interest_reminder",
     ] as const) {
       const buttons = MESSAGE_TEMPLATES[kind].buttonUrls?.(message({ kind }));
-      expect(buttons).toEqual(["https://lancers.example/me/abc", "https://lancers.example/me/abc/stop"]);
+      expect(buttons).toEqual([
+        "https://lancers.example/me/abc",
+        "https://lancers.example/me/abc/stop",
+      ]);
     }
   });
 

@@ -1,4 +1,7 @@
-import type { RecruitmentCycleStepChange, RecruitmentCycleStepName } from "@/lib/services/recruitment-cycle";
+import type {
+  RecruitmentCycleStepChange,
+  RecruitmentCycleStepName,
+} from "@/lib/services/recruitment-cycle";
 
 /**
  * Reading and checking the recruitment cycle's own rows — LAN-203,
@@ -61,7 +64,10 @@ export const CYCLE_STEP_LABELS: Readonly<Record<RecruitmentCycleStepName, string
 });
 
 export type CycleStepsValidation =
-  | { readonly ok: true; readonly changes: ReadonlyMap<RecruitmentCycleStepName, RecruitmentCycleStepChange> }
+  | {
+      readonly ok: true;
+      readonly changes: ReadonlyMap<RecruitmentCycleStepName, RecruitmentCycleStepChange>;
+    }
   | { readonly ok: false; readonly message: string };
 
 /**

@@ -29,10 +29,7 @@ import { deriveEntityIdFromNaturalKey, recordAudit } from "./audit";
 
 /** The four surviving steps, in the order the migration seeds them and the admin page renders them. */
 export type RecruitmentCycleStepName =
-  | "welcome"
-  | "details_reminder"
-  | "interest_ask"
-  | "interest_reminder";
+  "welcome" | "details_reminder" | "interest_ask" | "interest_reminder";
 
 export interface RecruitmentCycleStep {
   readonly step: RecruitmentCycleStepName;

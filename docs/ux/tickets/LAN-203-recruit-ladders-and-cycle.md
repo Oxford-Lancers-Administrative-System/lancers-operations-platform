@@ -35,14 +35,14 @@ questionnaire asks that fire on capture, not on an event) a place to live and be
 
 ## Owned screens and routes
 
-| Screen                                                  | Route                       | Audience                                   |
-| -------------------------------------------------------- | --------------------------- | ------------------------------------------- |
-| Recruitment cycle section (three rows)                   | `/operate/admin/messaging`  | Operator holding `delivery_administration`  |
-| Recruitment event row, split into two audience groups    | `/operate/admin/messaging`  | Operator holding `delivery_administration`  |
-| Onboarding section heading (structure only, not built)   | `/operate/admin/messaging`  | Operator holding `delivery_administration`  |
-| Messaging plan disclosure, grouped by audience            | `/operate/events/[id]`      | Designated event approver / operator        |
-| A recruit's reduced confirm screen                         | `/a/[token]`                 | Unauthenticated recruit, from a WhatsApp tap |
-| A recruit's saved screen (the token, consumed)             | `/a/[token]`                 | Unauthenticated recruit                      |
+| Screen                                                 | Route                      | Audience                                     |
+| ------------------------------------------------------ | -------------------------- | -------------------------------------------- |
+| Recruitment cycle section (three rows)                 | `/operate/admin/messaging` | Operator holding `delivery_administration`   |
+| Recruitment event row, split into two audience groups  | `/operate/admin/messaging` | Operator holding `delivery_administration`   |
+| Onboarding section heading (structure only, not built) | `/operate/admin/messaging` | Operator holding `delivery_administration`   |
+| Messaging plan disclosure, grouped by audience         | `/operate/events/[id]`     | Designated event approver / operator         |
+| A recruit's reduced confirm screen                     | `/a/[token]`               | Unauthenticated recruit, from a WhatsApp tap |
+| A recruit's saved screen (the token, consumed)         | `/a/[token]`               | Unauthenticated recruit                      |
 
 ## This ticket builds
 

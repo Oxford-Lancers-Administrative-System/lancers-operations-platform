@@ -176,7 +176,11 @@ function cycleForm(
   data.set("steps", steps.join(","));
   for (const step of steps) {
     const current = CYCLE_STEPS.find((row) => row.step === step)!;
-    const change = { enabled: current.enabled, offsetHours: current.offsetHours, ...overrides[step] };
+    const change = {
+      enabled: current.enabled,
+      offsetHours: current.offsetHours,
+      ...overrides[step],
+    };
     if (change.enabled) data.set(`step_${step}_enabled`, "on");
     data.set(`step_${step}_offsetHours`, String(change.offsetHours));
   }

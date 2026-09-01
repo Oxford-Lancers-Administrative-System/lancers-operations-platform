@@ -432,7 +432,11 @@ async function claimJobIn(
   // never creates for an unconsented recruit in the first place — can still
   // be refused.
   if (detail.capacity === "recruit") {
-    const consented = await hasGrantedSeasonMessagingConsentIn(tx, detail.person_id, detail.season_id);
+    const consented = await hasGrantedSeasonMessagingConsentIn(
+      tx,
+      detail.person_id,
+      detail.season_id,
+    );
     if (!consented) {
       return { claimed: false, reason: "not_consented", detail: NO_CONSENT_REASON };
     }

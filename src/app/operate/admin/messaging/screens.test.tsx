@@ -420,7 +420,9 @@ describe("the recruitment cycle section — REQ-recruitment-cycle", () => {
     render(await MessagingSchedulePage());
 
     const welcomeRow = screen.getAllByTestId("cycle-step-row")[0];
-    const toggle = welcomeRow.querySelector('input[name="step_welcome_enabled"]') as HTMLInputElement;
+    const toggle = welcomeRow.querySelector(
+      'input[name="step_welcome_enabled"]',
+    ) as HTMLInputElement;
     expect(toggle.checked).toBe(true);
     const field = welcomeRow.querySelector(
       'input[name="step_welcome_offsetHours"]',

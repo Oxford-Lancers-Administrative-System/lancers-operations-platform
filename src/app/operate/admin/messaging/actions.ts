@@ -122,7 +122,8 @@ export async function updateRecruitmentCycleStepsAction(
   if (typeof stepsField !== "string" || stepsField.trim() === "") {
     return {
       ...EMPTY_ADMIN_ACTION_STATE,
-      error: "This submission did not say which recruitment cycle steps it was for, so nothing " +
+      error:
+        "This submission did not say which recruitment cycle steps it was for, so nothing " +
         "was saved.",
     };
   }

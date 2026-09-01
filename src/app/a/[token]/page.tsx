@@ -532,13 +532,7 @@ function AlreadyRecorded() {
  * this exact route rather than to `/me/[token]`. No "your own page" note,
  * because there is no such page for them.
  */
-function RecruitAlreadyRecorded({
-  answer,
-  base,
-}: {
-  answer: PlayerAnswer;
-  base: SignedRsvpPage;
-}) {
+function RecruitAlreadyRecorded({ answer, base }: { answer: PlayerAnswer; base: SignedRsvpPage }) {
   return (
     <Shell>
       <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>

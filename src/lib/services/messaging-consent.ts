@@ -26,7 +26,8 @@ import { InvalidTransition, withTransaction, type Tx } from "@/lib/db";
 export const SEASON_MESSAGING_CONSENT_REQUIRED_RULE = "season_messaging_consent_required";
 
 /** The five-value ladder `season_messaging_consents.state` already carries (LAN-201). */
-export type SeasonMessagingConsentState = "never_asked" | "asked" | "granted" | "refused" | "withdrawn";
+export type SeasonMessagingConsentState =
+  "never_asked" | "asked" | "granted" | "refused" | "withdrawn";
 
 export interface SeasonMessagingConsent {
   readonly personId: string;

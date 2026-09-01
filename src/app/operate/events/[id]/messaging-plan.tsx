@@ -406,7 +406,10 @@ export function MessagingPlanDisclosure({
               >
                 Recruits
               </Typography>
-              <RecruitPlanRows recruit={display.recruit} recruitAudienceSize={recruitAudienceSize ?? 0} />
+              <RecruitPlanRows
+                recruit={display.recruit}
+                recruitAudienceSize={recruitAudienceSize ?? 0}
+              />
             </>
           ) : null}
           <Box>

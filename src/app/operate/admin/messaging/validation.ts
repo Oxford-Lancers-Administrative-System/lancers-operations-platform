@@ -219,7 +219,9 @@ export function readOneScheduleChange(eventType: string, formData: FormData): Sc
   // Recruits group's two fields are read from the same form the six core
   // ones just were, not a second submission — present in the markup, and
   // therefore in `formData`, only on the Recruitment row.
-  const recruitValues: Partial<Record<"recruitInvitationLeadDays" | "recruitFollowUpCadenceHours", number>> = {};
+  const recruitValues: Partial<
+    Record<"recruitInvitationLeadDays" | "recruitFollowUpCadenceHours", number>
+  > = {};
   if (eventType === "recruitment") {
     for (const bound of RECRUIT_SCHEDULE_FIELDS) {
       const raw = formData.get(bound.key);

@@ -12,11 +12,7 @@ import { render, screen, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 
-import {
-  MessagingPlanDisclosure,
-  frozenPlanForDisplay,
-  planForDisplay,
-} from "./messaging-plan";
+import { MessagingPlanDisclosure, frozenPlanForDisplay, planForDisplay } from "./messaging-plan";
 import type {
   FrozenMessagingPlan,
   MessagingPlan,

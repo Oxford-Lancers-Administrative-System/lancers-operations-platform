@@ -637,9 +637,8 @@ export async function resolveMessagingPlanIn(
       invitationAt: recruitInvitationAt,
       configuredInvitationAt: configuredRecruitInvitationAt,
       dispatchesImmediately: recruitDispatchesImmediately,
-      followUpAt: candidateFollowUpAt.getTime() <= responseDeadlineAt.getTime()
-        ? candidateFollowUpAt
-        : null,
+      followUpAt:
+        candidateFollowUpAt.getTime() <= responseDeadlineAt.getTime() ? candidateFollowUpAt : null,
     };
   }
 

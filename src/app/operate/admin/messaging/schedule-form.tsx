@@ -36,11 +36,7 @@ import {
   SHOW_EXAMPLE,
   type SchedulePreview,
 } from "./presentation";
-import {
-  RECRUIT_SCHEDULE_FIELDS,
-  SCHEDULE_FIELDS,
-  type FieldBoundsShape,
-} from "./validation";
+import { RECRUIT_SCHEDULE_FIELDS, SCHEDULE_FIELDS, type FieldBoundsShape } from "./validation";
 
 /** One event type's row: its current values and its already-resolved preview. */
 export interface ScheduleRowData {
@@ -234,7 +230,9 @@ function CycleStepRow({
                 data-field={step.step}
               >
                 <FormControlLabel
-                  control={<Switch name={`step_${step.step}_enabled`} defaultChecked={step.enabled} />}
+                  control={
+                    <Switch name={`step_${step.step}_enabled`} defaultChecked={step.enabled} />
+                  }
                   label={steps.length > 1 ? CYCLE_STEP_LABELS[step.step] : CYCLE_STEP_ENABLED_LABEL}
                   sx={{ whiteSpace: "nowrap" }}
                 />
