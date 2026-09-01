@@ -250,3 +250,64 @@ export async function findPersonDuplicates(
     });
   });
 }
+
+export interface PersonNameAndPhoneMatch {
+  readonly personId: string;
+}
+
+/**
+ * LAN-208. **Not** `findPersonDuplicates` with a filter — a different query,
+ * on purpose. That function's own doc explains why it is loose (an operator
+ * scanning candidates for a person they might already have wants every
+ * partial hit); this is the opposite question, for the one caller — the
+ * anonymous QR sign-up probe (`recruitment-signup.ts`) — that must never
+ * treat a fabricated name plus a real phone number as a match. `matched_given`
+ * and `matched_phone` in that function's `CandidateRow` are each computed
+ * against a candidate row independently and then OR'd together in the
+ * `WHERE`, so a row can carry `matched_phone: true` on a phone match alone —
+ * exactly the oracle LAN-208 found. This query requires both conditions
+ * **on the same row**, in its own `WHERE`, so there is no boolean flag a
+ * caller could misread or forget to check.
+ *
+ * Given name only, never family name — the QR door's probe never collects a
+ * family name before asking "have you signed up before?", so requiring one
+ * here would be a condition no legitimate caller could ever satisfy.
+ *
+ * Returns at most one row. Two different people sharing both a first name and
+ * a phone number's last nine digits is not a case this function resolves —
+ * it isn't the merge-candidate list `findPersonDuplicates` is for, and a
+ * second row here would defeat the point of only asking for one.
+ */
+export async function findPersonMatchingGivenNameAndPhoneIn(
+  tx: Tx,
+  givenName: string,
+  phone: string,
+): Promise<PersonNameAndPhoneMatch | null> {
+  const normalisedGiven = normaliseTerm(givenName);
+  const phoneTail = normaliseTerm(phone)?.replace(/\D/g, "").slice(-9) ?? "";
+  if (!normalisedGiven || phoneTail === "") return null;
+
+  const result = await tx.query<{ person_id: string }>(
+    `select p.id as person_id
+       from public.people p
+      where p.merged_into_person_id is null
+        and exists (
+              select 1 from public.contact_points c
+               where c.person_id = p.id and c.kind = 'phone'
+                 and nullif(right(regexp_replace(c.raw_value, '\\D', '', 'g'), 9), '') = $2
+            )
+        and (
+              lower(btrim(p.given_name)) = $1
+              or exists (
+                   select 1 from public.person_aliases a
+                    where a.person_id = p.id and lower(btrim(a.alias)) = $1
+                 )
+            )
+      order by p.id
+      limit 1`,
+    [normalisedGiven, phoneTail],
+  );
+
+  const row = result.rows[0];
+  return row ? { personId: row.person_id } : null;
+}

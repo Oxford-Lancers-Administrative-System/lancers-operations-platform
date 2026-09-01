@@ -58,7 +58,7 @@ export default async function JoinPage({ params }: PageProps) {
           mode="anonymous"
           initial={EMPTY_ALIAS}
           groupLink={groupLink}
-          checkDuplicate={checkForExistingQrRecruit}
+          checkDuplicate={checkForExistingQrRecruit.bind(null, code)}
           submit={submitQrSignup.bind(null, code)}
         />
       </Box>

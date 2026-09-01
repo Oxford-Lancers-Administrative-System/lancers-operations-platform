@@ -1,6 +1,7 @@
 "use server";
 
 import { isServiceError, withTransaction } from "@/lib/db";
+import { findPersonMatchingGivenNameAndPhoneIn } from "@/lib/services/person-duplicate";
 import {
   probeExistingRecruitForQrSignup,
   signUpAnonymouslyIn,
@@ -16,11 +17,23 @@ import type { DuplicateCheckResult, SignupFieldValues, SignupOutcome } from "./s
  * something to ask — needs a result back before deciding what to render next).
  */
 
-/** `W7`'s duplicate probe. Read-only; returns a bare boolean and an opaque id, never a candidate's own details. */
+/**
+ * `W7`'s duplicate probe. Read-only; returns a bare boolean, never a
+ * candidate's own details or a database identifier (LAN-208).
+ *
+ * Gated by `code` resolving to a live, non-deactivated season — the same
+ * check {@link submitQrSignup} makes before its own write. Codes are printed
+ * on posters and this is otherwise callable by anyone who has ever loaded any
+ * `/join/[code]` page; a deactivated or unknown code refuses the probe rather
+ * than leaving it reachable indefinitely.
+ */
 export async function checkForExistingQrRecruit(
+  code: string,
   givenName: string,
   mobile: string,
 ): Promise<DuplicateCheckResult> {
+  const resolved = await withTransaction((tx) => resolveRecruitmentSignupCodeIn(tx, code));
+  if (resolved.state !== "valid") return { found: false };
   return probeExistingRecruitForQrSignup(givenName, mobile);
 }
 
@@ -43,10 +56,20 @@ function toSubmission(values: SignupFieldValues & { consent: boolean }): SignupS
  * The QR door's one write. `code` is bound by the page (`submitQrSignup.bind(null, code)`)
  * before this reaches the client, so the client never carries the code as
  * form data of its own — it is the credential the URL already supplied.
+ *
+ * `confirmedExistingMatch` is a bare boolean — "the recruit pressed 'Yes,
+ * that's me' on the probe's own question" — never a person id (LAN-208): the
+ * probe that asked the question never handed one back, so there is nothing
+ * for the client to echo. When true, this re-runs the *exact same* strict
+ * given-name-and-phone match {@link probeExistingRecruitForQrSignup} used,
+ * against `values.givenName`/`values.mobile` as the recruit has them typed
+ * right now, and links to whatever that resolves to — `signUpAnonymouslyIn`
+ * falls back to creating a new person if it resolves to nothing or to a
+ * merged-away row, exactly as it already does for a stale id.
  */
 export async function submitQrSignup(
   code: string,
-  values: SignupFieldValues & { consent: boolean; linkExistingPersonId: string | null },
+  values: SignupFieldValues & { consent: boolean; confirmedExistingMatch: boolean },
 ): Promise<SignupOutcome> {
   try {
     await withTransaction(async (tx) => {
@@ -54,11 +77,15 @@ export async function submitQrSignup(
       if (resolved.state !== "valid" || !resolved.seasonId) {
         throw new Error("This code is no longer live. Refresh the page and try again.");
       }
+      const linkExistingPersonId = values.confirmedExistingMatch
+        ? (await findPersonMatchingGivenNameAndPhoneIn(tx, values.givenName, values.mobile))
+            ?.personId ?? null
+        : null;
       await signUpAnonymouslyIn(tx, {
         seasonId: resolved.seasonId,
         code,
         submission: toSubmission(values),
-        linkExistingPersonId: values.linkExistingPersonId,
+        linkExistingPersonId,
       });
     });
     return { ok: true };
