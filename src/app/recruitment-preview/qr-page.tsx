@@ -12,7 +12,7 @@ import DialogTitle from "@mui/material/DialogTitle";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { Aside, Row, Scaffold, Section } from "./chrome";
+import { Row, Scaffold, Section } from "./chrome";
 import { SEASON_LABEL } from "./fixtures";
 import type { RecruitmentStore } from "./store";
 
@@ -132,12 +132,6 @@ export default function QrPage({ store, onBack }: { store: RecruitmentStore; onB
             </Button>
           </Stack>
         </Box>
-        <Aside>
-          Deactivating is what makes a leaked poster harmless, and it is why the count matters: the
-          screen says how many submissions that code has already taken, so the person turning it off
-          knows what they are turning off. Reminting starts a new count — the old code stays dead
-          and is never reissued.
-        </Aside>
       </Section>
 
       <Scaffold title="Open, and not invented">
@@ -148,10 +142,6 @@ export default function QrPage({ store, onBack }: { store: RecruitmentStore; onB
           button above is the second of those two, drawn because a mockup has to do something — it
           is not a recommendation.
         </Typography>
-        <Aside>
-          The QR image is a drawn placeholder, not an encoding of the URL beside it. A real one is
-          generated from the link at mint time. Scanning this one does nothing.
-        </Aside>
       </Scaffold>
 
       <Dialog

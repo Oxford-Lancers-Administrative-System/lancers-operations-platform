@@ -7,12 +7,11 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
-import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { Aside, RecruitFrame, Scaffold } from "./chrome";
+import { RecruitFrame, Scaffold } from "./chrome";
 import { GROUP_LINK, SEASON_LABEL, SIGN_UP_URL } from "./fixtures";
 
 /**
@@ -64,9 +63,11 @@ export default function SignUpForm() {
   const [family, setFamily] = useState("");
   const [mobile, setMobile] = useState("");
   const [email, setEmail] = useState("");
-  const [preferred, setPreferred] = useState("");
+  const [knownAs, setKnownAs] = useState("");
   const [college, setCollege] = useState("");
-  const [year, setYear] = useState("");
+  const [matric, setMatric] = useState("");
+  const [grad, setGrad] = useState("");
+  const [degree, setDegree] = useState("");
   const [consent, setConsent] = useState(false);
 
   function switchEntry(next: Entry) {
@@ -78,17 +79,21 @@ export default function SignUpForm() {
       setFamily("Ashdown");
       setMobile("07700 900461");
       setEmail("m.ashdown@example.ac.uk");
-      setPreferred("");
+      setKnownAs("");
       setCollege("Kestrelhall");
-      setYear("First year");
+      setMatric("2026");
+      setGrad("2029");
+      setDegree("Law");
     } else {
       setGiven("");
       setFamily("");
       setMobile("");
       setEmail("");
-      setPreferred("");
+      setKnownAs("");
       setCollege("");
-      setYear("");
+      setMatric("");
+      setGrad("");
+      setDegree("");
     }
   }
 
@@ -123,12 +128,6 @@ export default function SignUpForm() {
             ? "Scanned at the stand. The club knows nothing about them, so every field is empty and the page asks one question after they submit."
             : "Sent to somebody the club already has — a walk-up, or an operator add. The link acts as them, the fields arrive filled in, and there is no duplicate question, because there is nothing to ask."}
         </Typography>
-        <Aside>
-          Note what the address bar says in each case. The QR points at a public page on the
-          club&rsquo;s own domain; the WhatsApp link is a signed link that exposes only that
-          person&rsquo;s own flow and never the roster, another person, or anything about the
-          club&rsquo;s other recruits.
-        </Aside>
       </Scaffold>
 
       <RecruitFrame url={url}>
@@ -154,6 +153,9 @@ export default function SignUpForm() {
                 {entry === "qr"
                   ? "Leave your name and a way to reach you. We will send you a WhatsApp message about the next session."
                   : "We already have most of this. Check it, change anything that is wrong, and tell us how we may contact you."}
+              </Typography>
+              <Typography sx={{ fontSize: 15, fontWeight: 600, mt: 1.5 }}>
+                Only the first three are needed. The rest can wait.
               </Typography>
             </Box>
 
@@ -189,15 +191,19 @@ export default function SignUpForm() {
               Questionnaire A, folded in. The consent model makes this form and
               the personal-details questionnaire the same surface, so the four
               fields above and the three below are one ask rather than two
-              sends. `preferred name`, `college` and `year` are Mission 5's own
-              fields; this mission owns the asking, never the fields.
+              sends. `known as`, `college` and `matriculation year` are Mission 5's
+              own fields;
+              this mission owns the asking, never the fields. The first writes an
+              alias — `person_aliases` — which is the field the application
+              actually has, and is what the returner intake already calls
+              "Known as".
             */}
             <TextField
-              label="What we should call you"
-              value={preferred}
-              onChange={(e) => setPreferred(e.target.value)}
+              label="Known as"
+              value={knownAs}
+              onChange={(e) => setKnownAs(e.target.value)}
               fullWidth
-              helperText="Only if it differs from your first name."
+              helperText="Only if it differs from your first name. It becomes an alias, so the club can find you by it."
             />
             <TextField
               label="College"
@@ -205,20 +211,35 @@ export default function SignUpForm() {
               onChange={(e) => setCollege(e.target.value)}
               fullWidth
             />
+            {/*
+              Matriculation year, not "Year".
+              
+              The form used to ask which year they were in, and the answer went
+              nowhere: nothing on the board or the record displays it, because
+              Brian dropped that field on 2026-09-01 in favour of the
+              matriculation year — the stored fact, which does not go stale the
+              way "First year" does at a season boundary. A form that asks a
+              question nothing records is worse than one that does not ask.
+            */}
             <TextField
-              select
-              label="Year"
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
+              label="Matriculation year"
+              value={matric}
+              onChange={(e) => setMatric(e.target.value)}
               fullWidth
-            >
-              <MenuItem value="">(no answer)</MenuItem>
-              <MenuItem value="First year">First year</MenuItem>
-              <MenuItem value="Second year">Second year</MenuItem>
-              <MenuItem value="Third year">Third year</MenuItem>
-              <MenuItem value="Fourth year or beyond">Fourth year or beyond</MenuItem>
-              <MenuItem value="Postgraduate">Postgraduate</MenuItem>
-            </TextField>
+              helperText="The year you started at Oxford."
+            />
+            <TextField
+              label="Expected graduation"
+              value={grad}
+              onChange={(e) => setGrad(e.target.value)}
+              fullWidth
+            />
+            <TextField
+              label="Degree"
+              value={degree}
+              onChange={(e) => setDegree(e.target.value)}
+              fullWidth
+            />
 
             {/* The gate. One tick, season-scoped, and it is the only place consent is collected. */}
             <Paper
@@ -252,12 +273,6 @@ export default function SignUpForm() {
             >
               {entry === "qr" ? "Sign me up" : "Save my details"}
             </Button>
-
-            <Typography sx={{ fontSize: 14, color: "text.secondary", fontStyle: "italic" }}>
-              Nothing here is required except a name and a way to reach you, and nothing here gates
-              anything. You can leave the tick off and still sign up — it only decides whether we
-              may message you.
-            </Typography>
           </Stack>
         ) : null}
 
@@ -301,13 +316,6 @@ export default function SignUpForm() {
                 No, I&rsquo;m new
               </Button>
             </Stack>
-
-            <Typography sx={{ fontSize: 14, color: "text.secondary", fontStyle: "italic" }}>
-              Yes adds nothing and takes them on. No creates them as a new person and takes them on.
-              Nobody is held, nothing is refused, and a duplicate that slips through is resolved
-              later in the people table&rsquo;s own merge — which already ships and belongs to
-              Mission 5.
-            </Typography>
           </Stack>
         ) : null}
 
@@ -353,12 +361,6 @@ export default function SignUpForm() {
             <Button variant="text" onClick={() => setStep("form")} sx={{ minHeight: 48 }}>
               Change what I entered
             </Button>
-
-            <Typography sx={{ fontSize: 14, color: "text.secondary", fontStyle: "italic" }}>
-              Signing in a second time reaches this same page: the details are taken again and
-              reconciled later, and nothing reads as an error. That is the common case at a second
-              event.
-            </Typography>
           </Stack>
         ) : null}
       </RecruitFrame>
@@ -369,12 +371,6 @@ export default function SignUpForm() {
           exactly one of those four outcomes, and it is the only place in the whole product where a
           recruit is handed it.
         </Typography>
-        <Aside>
-          <strong>Open, and Brian&rsquo;s.</strong> &ldquo;A login&rdquo; is read here as the signed
-          link and the group invite, never an account: Task 08 § 3 fixes that there are no player
-          logins in Release One, and creating one for recruits would be a larger decision than this
-          workflow can make. Flagged rather than assumed.
-        </Aside>
       </Scaffold>
     </Stack>
   );

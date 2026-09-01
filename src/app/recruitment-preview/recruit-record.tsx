@@ -1,8 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Alert from "@mui/material/Alert";
-import AlertTitle from "@mui/material/AlertTitle";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
@@ -19,11 +17,9 @@ import TableCell from "@mui/material/TableCell";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { Aside, NotRecorded, Row, Scaffold, Section, StatusChip } from "./chrome";
+import { NotRecorded, Row, Scaffold, Section, StatusChip } from "./chrome";
 import {
-  CONSENT_EFFECT,
   CONSENT_LABELS,
   CONSENT_PERMITS_SENDING,
   EVENTS,
@@ -176,20 +172,7 @@ export default function RecruitRecord({
         <Headline value={CONSENT_LABELS[recruit.consent]} label={`Consent · ${SEASON_LABEL}`} />
       </Stack>
 
-      {/*
-        `W2-04`'s first of three places, and the hardest to miss. Brian:
-        "That should be a status at the very top where they said no… Figure out
-        how to get it ingrained." A dialog that appears only when you try is a
-        trap: you find out at the moment you act, and only if you act.
-      */}
-      {refusal ? (
-        <Alert severity="info" data-testid="messaging-refusal">
-          <AlertTitle sx={{ fontWeight: 700 }}>{refusal.headline}</AlertTitle>
-          {refusal.because}
-        </Alert>
-      ) : null}
-
-      <Section band="person" title="Person" action={<PersonAction />}>
+      <Section band="person" title="Person">
         <Row label="Name">
           <Typography variant="body2">{recruit.displayName}</Typography>
         </Row>
@@ -243,20 +226,21 @@ export default function RecruitRecord({
           )}
         </Row>
         {/*
-          The send record is **embedded, not a card** — Brian: "it should just
-          be a list of what dates they were sent on." The full history of sends
-          is in the audit below, alongside every other change.
+          The send sits with the questions it asked — Brian, 2026-09-01: "The
+          personnel questions sent should be with the personnel questions."
+          Its twin is on the RECRUITMENT card below, beside the six answers it
+          collects.
+
+          There is no `Preferred name` row and no `Year` row. The first was
+          invented by this mockup — `main` has `person_aliases` and no
+          preferred-name field, so what the questionnaire collects writes to
+          `Aliases` above. The second said the same thing as Matriculation year.
         */}
-        <SendLine
-          label="Personal details questionnaire sent"
-          dates={recruit.questionnaireASentOn}
-        />
-        <Aside>
-          Every value above is a person fact. They render read-only here and are corrected on the
-          person record, where Mission 5&rsquo;s reason-and-supersede rule applies — this mission
-          does not own them and does not correct them. Date of birth and emergency contact are
-          absent from this page entirely, and from every list, board and queue.
-        </Aside>
+        <Row label="Personal questionnaire sent" note={sentNote(recruit.questionnaireASentOn)}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {recruit.questionnaireASentOn.length > 0 ? "Yes" : "No"}
+          </Typography>
+        </Row>
       </Section>
 
       <Section band="recruitment" title="Recruitment">
@@ -301,17 +285,14 @@ export default function RecruitRecord({
         <Row label="First contact">
           <Typography variant="body2">{recruit.firstContactOn}</Typography>
         </Row>
-        <Row
-          label="Committed on"
-          note="Marks the day they reach joined, not the day they reach committed."
-        >
+        <Row label="Committed on">
           {recruit.committedOn ? (
             <Typography variant="body2">{recruit.committedOn}</Typography>
           ) : (
             <NotRecorded />
           )}
         </Row>
-        <Row label={`Consent · ${SEASON_LABEL}`} note={CONSENT_EFFECT[recruit.consent]}>
+        <Row label={`Consent · ${SEASON_LABEL}`}>
           <Typography variant="body2">
             {CONSENT_LABELS[recruit.consent]}
             {recruit.consentOn ? ` · ${recruit.consentOn}` : ""}
@@ -322,47 +303,35 @@ export default function RecruitRecord({
             <Typography variant="body2">{recruit.exitReason}</Typography>
           </Row>
         ) : null}
-        <Aside>
-          The status is edited here, in place, exactly as it is in the cell on the board. Every
-          value commits on its own except the four that take somebody off the board — those
-          interrupt first. There is no flip button and no remove button on this page.
-        </Aside>
-      </Section>
 
-      <Section band="event" title="Recruitment questionnaire">
-        <Row label="Questionnaire sent">
-          {recruit.questionnaireBSentOn.length === 0 ? (
-            <NotRecorded word="not sent" />
-          ) : (
-            <Typography variant="body2">{recruit.questionnaireBSentOn[0]}</Typography>
-          )}
+        {/*
+          The six recruitment answers, in this card and not a second one —
+          Brian, 2026-09-01: "Recruitment and recruitment questions are one
+          thing." The separate blue RECRUITMENT QUESTIONNAIRE card is gone.
+        */}
+        <Row label="Played American football before?">
+          <Answered value={recruit.questionnaireBAnswers?.playedBefore ?? null} />
         </Row>
-        <Row label="Answered">
-          {recruit.questionnaireBAnswers === null ? (
-            <NotRecorded word="not answered" />
-          ) : (
-            <Typography variant="body2">In their own words, below</Typography>
-          )}
+        <Row label="Watched American football before?">
+          <Answered value={recruit.questionnaireBAnswers?.watchedBefore ?? null} />
         </Row>
-        <Answer
-          label="Played American football before?"
-          value={recruit.questionnaireBAnswers?.playedBefore ?? null}
-        />
-        <Answer
-          label="Watched American football before?"
-          value={recruit.questionnaireBAnswers?.watchedBefore ?? null}
-        />
-        <Answer
-          label="Position interest"
-          value={recruit.questionnaireBAnswers?.positionInterest ?? null}
-        />
-        <Answer label="Gear owned" value={recruit.questionnaireBAnswers?.gearOwned ?? null} />
-        <Answer
-          label="How they heard of us"
-          value={recruit.questionnaireBAnswers?.heardVia ?? null}
-        />
-        <Answer label="Anything else" value={recruit.questionnaireBAnswers?.anythingElse ?? null} />
-        <SendLine label="Recruitment questionnaire sent" dates={recruit.questionnaireBSentOn} />
+        <Row label="Position interest">
+          <Answered value={recruit.questionnaireBAnswers?.positionInterest ?? null} />
+        </Row>
+        <Row label="Gear owned">
+          <Answered value={recruit.questionnaireBAnswers?.gearOwned ?? null} />
+        </Row>
+        <Row label="How they heard of us">
+          <Answered value={recruit.questionnaireBAnswers?.heardVia ?? null} />
+        </Row>
+        <Row label="Anything else">
+          <Answered value={recruit.questionnaireBAnswers?.anythingElse ?? null} />
+        </Row>
+        <Row label="Recruitment questionnaire sent" note={sentNote(recruit.questionnaireBSentOn)}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {recruit.questionnaireBSentOn.length > 0 ? "Yes" : "No"}
+          </Typography>
+        </Row>
       </Section>
 
       {/*
@@ -410,11 +379,6 @@ export default function RecruitRecord({
             </TableBody>
           </Table>
         </Box>
-        <Aside>
-          Invitation is deliberately not a column, here or on the board. A walk-up therefore needs
-          no special rendering: it reads as RSVP <em>Not recorded</em> against an attendance of{" "}
-          <em>Present</em>, which is exactly what happened.
-        </Aside>
       </Section>
 
       <Section band="person" title="Notes">
@@ -461,10 +425,6 @@ export default function RecruitRecord({
             </Box>
           ))}
         </Stack>
-        <Aside>
-          Every send is in here too — &ldquo;What we&rsquo;ve sent should just be part of the audit
-          to see what was there.&rdquo; There is no separate <em>what we have sent</em> card.
-        </Aside>
       </Section>
 
       <Box>
@@ -492,13 +452,6 @@ export default function RecruitRecord({
             </Button>
           ))}
         </Stack>
-        <Aside>
-          Watch the banner and the two send buttons as you press these. The refusal is stated three
-          times, in descending order of how hard it is to miss — the banner, the disabled buttons,
-          and the dialog for the operator who pressed anyway. There is deliberately no{" "}
-          <em>send anyway</em>: under templates-only there is nothing to compose and nothing to
-          override.
-        </Aside>
       </Scaffold>
 
       {dialog === "A" || dialog === "B" ? (
@@ -649,10 +602,6 @@ function SendDialog({
             </Typography>
           ) : null}
         </Paper>
-        <Aside>
-          There is no composer and nothing to type. Every message a recruit receives is a
-          Meta-approved template, which is the only production shape this product permits.
-        </Aside>
       </DialogContent>
       <DialogActions>
         <Button onClick={onCancel}>Cancel</Button>
@@ -681,42 +630,19 @@ function Headline({ value, label }: { value: React.ReactNode; label: string }) {
   );
 }
 
-/**
- * The card's own route out, kept as the shipped card draws it.
- *
- * It is a real link to the real application, the same as every sidebar
- * destination in this mockup: the person record belongs to Mission 5 and is not
- * one of the surfaces here, so pointing it at anything inside the mockup would
- * be a lie about where it goes. Following it leaves the mockup and asks for a
- * login.
- */
-function PersonAction() {
-  return (
-    <Tooltip
-      title="Leaves the mockup for the real application — Mission 5 owns this record"
-      placement="left"
-    >
-      <Button
-        size="small"
-        href="/operate/people"
-        sx={{ color: "common.white", textTransform: "none", fontWeight: 600 }}
-      >
-        Open the person record →
-      </Button>
-    </Tooltip>
+function Answered({ value }: { value: string | null }) {
+  return value === null ? (
+    <NotRecorded word="not answered" />
+  ) : (
+    <Typography variant="body2">{value}</Typography>
   );
 }
 
-function Answer({ label, value }: { label: string; value: string | null }) {
-  return (
-    <Row label={label}>
-      {value === null ? (
-        <NotRecorded word="not answered" />
-      ) : (
-        <Typography variant="body2">{value}</Typography>
-      )}
-    </Row>
-  );
+/** The dates a questionnaire went out, under the Yes or No it produced. */
+function sentNote(dates: readonly string[]): string {
+  if (dates.length === 0) return "Never sent.";
+  if (dates.length === 1) return `Sent ${dates[0]}.`;
+  return `Sent ${dates.join(", ")}.`;
 }
 
 function Plain({ value }: { value: string | null }) {
@@ -726,25 +652,5 @@ function Plain({ value }: { value: string | null }) {
     </Typography>
   ) : (
     <Typography variant="body2">{value}</Typography>
-  );
-}
-
-/** The quiet line at the foot of a card listing the dates a questionnaire went out. */
-function SendLine({ label, dates }: { label: string; dates: readonly string[] }) {
-  return (
-    <Box sx={{ borderTop: 1, borderColor: "divider", py: 1 }}>
-      <Typography variant="body2" sx={{ color: "text.secondary" }}>
-        <Box component="span" sx={{ fontWeight: 700 }}>
-          {label}:
-        </Box>{" "}
-        {dates.length === 0 ? (
-          <Box component="span" sx={{ fontStyle: "italic", color: "text.disabled" }}>
-            not sent
-          </Box>
-        ) : (
-          dates.join(", ")
-        )}
-      </Typography>
-    </Box>
   );
 }

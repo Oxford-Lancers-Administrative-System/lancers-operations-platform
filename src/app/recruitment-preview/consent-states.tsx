@@ -14,7 +14,7 @@ import TableCell from "@mui/material/TableCell";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
-import { Aside, RecruitFrame, Scaffold, StatusChip } from "./chrome";
+import { RecruitFrame, Scaffold, StatusChip } from "./chrome";
 import {
   CONSENT_EFFECT,
   CONSENT_LABELS,
@@ -155,13 +155,6 @@ export default function ConsentStates({ store }: { store: RecruitmentStore }) {
         </Table>
       </Paper>
 
-      <Aside>
-        The last column is live: change somebody&rsquo;s consent on their record and they move rows
-        here. <code>asked</code> permits sending because the ask itself is a send — the one template
-        carrying the form. Nothing beyond that one template goes out until the form comes back
-        ticked.
-      </Aside>
-
       {/* -------------------------------------------------- The opt-out ------ */}
       <Box>
         <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700, mb: 1 }}>
@@ -236,12 +229,6 @@ export default function ConsentStates({ store }: { store: RecruitmentStore }) {
             </Stack>
           ) : null}
         </RecruitFrame>
-
-        <Aside>
-          Nothing here asks for a reason, and nothing here offers to reduce the frequency instead.
-          That is the never-harsh rule reaching the last surface a recruit will ever see: somebody
-          leaving should be able to leave in two taps without a negotiation.
-        </Aside>
       </Box>
 
       {/* -------------------------------------------- What the club sees ----- */}
@@ -296,12 +283,6 @@ export default function ConsentStates({ store }: { store: RecruitmentStore }) {
           without being asked again. At the next season boundary it lapses and every one of these
           people is back at <strong>Never asked</strong> until they say yes again.
         </Typography>
-        <Aside>
-          That boundary is Mission 11&rsquo;s machinery and this mission performs no rollover. What
-          this mission states is the rule: a season&rsquo;s consent is that season&rsquo;s, and
-          nothing carries silently across one. What re-asking actually looks like — a message, a
-          form, a first-login prompt — is not drawn, because nobody has decided it.
-        </Aside>
       </Scaffold>
     </Stack>
   );

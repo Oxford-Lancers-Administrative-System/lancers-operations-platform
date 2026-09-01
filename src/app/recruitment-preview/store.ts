@@ -46,11 +46,6 @@ export interface RecruitmentStore {
   readonly audit: readonly PreviewAuditEntry[];
   readonly find: (id: string) => Recruit | undefined;
   readonly setStatus: (id: string, status: ProspectStatus, reason: string | null) => void;
-  readonly setRecruitmentField: (
-    id: string,
-    key: "source" | "firstContactOn",
-    value: string,
-  ) => void;
   readonly addNote: (id: string, body: string) => void;
   readonly setConsent: (id: string, consent: ConsentState, on: string | null) => void;
   readonly markQuestionnaireSent: (id: string, which: "A" | "B") => void;
@@ -137,27 +132,6 @@ export function useRecruitmentStore(): RecruitmentStore {
         (recruit) => ({
           what: `${recruit.displayName} · ${recruit.status} → ${status}`,
           detail: reason === null ? "No reason asked" : `Reason: ${reason}`,
-        }),
-      );
-    },
-    [patch],
-  );
-
-  const setRecruitmentField = useCallback(
-    (id: string, key: "source" | "firstContactOn", value: string) => {
-      patch(
-        id,
-        (recruit) => ({
-          ...recruit,
-          [key]: value,
-          audit: [
-            { summary: `${key} changed to ${value}`, detail: `${TODAY} · ${OPERATOR_NAME}` },
-            ...recruit.audit,
-          ],
-        }),
-        (recruit) => ({
-          what: `${recruit.displayName} · ${key}`,
-          detail: `${recruit[key]} → ${value}`,
         }),
       );
     },
@@ -296,7 +270,6 @@ export function useRecruitmentStore(): RecruitmentStore {
       audit,
       find,
       setStatus,
-      setRecruitmentField,
       addNote,
       setConsent,
       markQuestionnaireSent,
@@ -312,7 +285,6 @@ export function useRecruitmentStore(): RecruitmentStore {
       audit,
       find,
       setStatus,
-      setRecruitmentField,
       addNote,
       setConsent,
       markQuestionnaireSent,

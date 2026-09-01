@@ -27,12 +27,12 @@ import TableSortLabel from "@mui/material/TableSortLabel";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { Aside, Scaffold, StatusChip } from "./chrome";
+import { Scaffold, StatusChip } from "./chrome";
 import {
   BAND_LABEL_INSET_PX,
   BAND_ROW_HEIGHT,
+  NOT_ANSWERED,
   RECRUIT_COLUMN_WIDTH,
-  askedLabel,
   bandColoursOf,
   buildColumns,
   NOT_RECORDED,
@@ -137,14 +137,12 @@ export default function RecruitBoard({
         if (!haystack.includes(needle)) return false;
       }
       if (filters.status && recruit.status !== filters.status) return false;
-      if (filters.source && !recruit.source.startsWith(filters.source)) return false;
-      if (filters.asked && askedLabel(recruit) !== filters.asked) return false;
       if (filters.attended) {
         const attended = recruit.events.some((entry) => entry.attendance !== null);
         if ((filters.attended === "Yes") !== attended) return false;
       }
       for (const [key, value] of Object.entries(filters)) {
-        if (["status", "source", "asked", "attended"].includes(key)) continue;
+        if (["status", "attended"].includes(key)) continue;
         if (value === "") continue;
         if (valueOf(recruit, key) !== value) return false;
       }
@@ -244,19 +242,12 @@ export default function RecruitBoard({
         options={[...PROSPECT_STATUSES]}
         onChange={(value) => setFilter("status", value)}
       />
-      <PinnedSelect
-        label="Source"
-        value={filters.source ?? ""}
-        options={["QR", "Walk-up", "Operator"]}
-        onChange={(value) => setFilter("source", value)}
-      />
-      <PinnedSelect
-        label="Ask outstanding"
-        value={filters.asked ?? ""}
-        options={["Not sent", "Outstanding", "Answered"]}
-        onChange={(value) => setFilter("asked", value)}
-        minWidth={210}
-      />
+      {/*
+        There is deliberately no Source control here and no funnel on the Source
+        column — Brian, 2026-09-01: "Source doesn't need a filter." A pinned
+        control and its column header are one filter with two controls, so
+        removing it means removing both.
+      */}
       <PinnedSelect
         label="Attended any event"
         value={filters.attended ?? ""}
@@ -349,20 +340,6 @@ export default function RecruitBoard({
           No recruitment events yet
         </Button>
       </Stack>
-      <Aside>
-        Two exceptions `W1` names. With no recruits the board tells an operator how somebody gets
-        onto it rather than saying &ldquo;no results&rdquo;. With no events the Events band is
-        <strong> absent rather than empty</strong>, because a band header over no columns is noise.
-      </Aside>
-      <Aside>
-        <strong>Open, and found by building this.</strong> `W13` and `W14` both say a recruit who
-        declines or joins is <em>off the board</em>, and the packet makes that &ldquo;a display rule
-        read off this one field&rdquo;. But the approved `W1-01` and `W13-01` frames keep{" "}
-        <code>declined</code> and <code>disengaged</code> rows on it, and that is what Brian looked
-        at. This board follows the frames — everybody is shown, ladder order sinks the exits to the
-        bottom, and the Status filter takes them off — so the two readings are visible side by side
-        rather than one of them quietly winning. Which it is needs his word.
-      </Aside>
     </Scaffold>
   );
 
@@ -617,13 +594,6 @@ export default function RecruitBoard({
                     onOpen={() => setEditing({ id: recruit.id, key: column.key })}
                     onClose={() => setEditing(null)}
                     onCommitStatus={(next) => commitStatus(recruit, next)}
-                    onCommitText={(value) =>
-                      store.setRecruitmentField(
-                        recruit.id,
-                        column.key === "source" ? "source" : "firstContactOn",
-                        value,
-                      )
-                    }
                     onOpenRecruit={() => onOpenRecruit(recruit.id)}
                   />
                 ))}
@@ -763,12 +733,6 @@ export default function RecruitBoard({
             ))}
           </Stack>
         )}
-        <Aside>
-          In the real implementation this goes onto the recruit&rsquo;s own status history, so a
-          change made on the board is answerable in the same place as one made on the record. The
-          dashed panel exists because &ldquo;every commit writes an audit event&rdquo; is otherwise
-          an invisible claim.
-        </Aside>
       </Scaffold>
 
       {switches}
@@ -817,11 +781,6 @@ function FlipDialog({
             value="Flipped by Caspian Hallowfield, Secretary · audited"
           />
         </Box>
-        <Aside>
-          Missing information never blocks this. Whatever was not collected becomes
-          onboarding&rsquo;s work, and there is deliberately no duplicate check here — the person
-          has existed for weeks.
-        </Aside>
       </DialogContent>
       <DialogActions>
         <Button onClick={onCancel}>Cancel</Button>
@@ -905,12 +864,7 @@ function ExitDialog({
             />
           ) : null}
         </Box>
-        {status === "declined" ? (
-          <Aside>
-            No reason is asked for. They gave one, and the club writes down what they were told
-            rather than asking the operator to justify it.
-          </Aside>
-        ) : (
+        {status === "declined" ? null : (
           <TextField
             label={reasonRequired ? "Reason (required)" : "Reason (recommended)"}
             value={reason}
@@ -926,14 +880,6 @@ function ExitDialog({
             }
           />
         )}
-        {status === "void" ? (
-          <Aside>
-            <strong>Still open.</strong> `void` is drawn here as a seventh status value because that
-            is what the schema has. `W13` recommends the opposite — a separate marker, leaving six
-            values that are all about the person — so that a record marked committed by mistake
-            keeps the status it had, and so un-voiding is trivial. That needs Brian&rsquo;s word.
-          </Aside>
-        ) : null}
       </DialogContent>
       <DialogActions>
         <Button onClick={onCancel}>Cancel</Button>
@@ -957,7 +903,6 @@ function Cell({
   onOpen,
   onClose,
   onCommitStatus,
-  onCommitText,
   onOpenRecruit,
 }: {
   recruit: Recruit;
@@ -967,7 +912,6 @@ function Cell({
   onOpen: () => void;
   onClose: () => void;
   onCommitStatus: (next: ProspectStatus) => void;
-  onCommitText: (value: string) => void;
   onOpenRecruit: () => void;
 }) {
   const colours = bandColoursOf(column);
@@ -1010,28 +954,15 @@ function Cell({
     );
   }
 
-  if (editing && column.edit === "text") {
-    return (
-      <TableCell sx={shell}>
-        <TextField
-          size="small"
-          autoFocus
-          defaultValue={valueOf(recruit, column.key)}
-          onBlur={(event) => {
-            onCommitText(event.target.value);
-            onClose();
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") (event.target as HTMLInputElement).blur();
-            if (event.key === "Escape") onClose();
-          }}
-          sx={{ width: Math.max(column.width - 24, 64) }}
-        />
-      </TableCell>
-    );
-  }
-
-  const editable = column.edit === "select" || column.edit === "text";
+  /**
+   * Status is the only cell on this board that writes.
+   *
+   * Source and First contact used to edit as text and no longer do — Brian,
+   * 2026-09-01: "source should not be an editable field… I shouldn't be able to
+   * edit that thing." The recruit's own answers never edited: they are what the
+   * club was told, attributed to the person who said it.
+   */
+  const editable = column.edit === "select";
 
   return (
     <TableCell
@@ -1080,6 +1011,7 @@ function CellValue({
   }
 
   const text = valueOf(recruit, column.key);
+  const empty = text === NOT_RECORDED || text === NOT_ANSWERED;
 
   if (column.edit === "record") {
     return (
@@ -1095,8 +1027,8 @@ function CellValue({
             p: 0,
             font: "inherit",
             cursor: "pointer",
-            color: text === NOT_RECORDED ? "text.disabled" : "text.primary",
-            textDecoration: text === NOT_RECORDED ? "none" : "underline dotted",
+            color: empty ? "text.disabled" : "text.primary",
+            textDecoration: empty ? "none" : "underline dotted",
             textUnderlineOffset: 3,
           }}
         >
@@ -1106,28 +1038,17 @@ function CellValue({
     );
   }
 
-  if (column.key === "notes") {
-    return (
-      <Typography
-        variant="body2"
-        sx={{
-          color: text === NOT_RECORDED ? "text.disabled" : "text.primary",
-          maxWidth: column.width,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
-      >
-        {text}
-      </Typography>
-    );
-  }
-
+  // The recruit's own free text can be long, so it is clipped in the cell and
+  // read in full on the record rather than making one row three lines tall.
   return (
     <Typography
       variant="body2"
       sx={{
-        color: text === NOT_RECORDED ? "text.disabled" : "text.primary",
-        fontStyle: text === NOT_RECORDED ? "italic" : "normal",
+        color: empty ? "text.disabled" : "text.primary",
+        fontStyle: empty ? "italic" : "normal",
+        maxWidth: column.width,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
       }}
     >
       {text}
@@ -1173,13 +1094,23 @@ function ColumnCaption({ column, filtered }: { column: ColumnDef; filtered?: str
       </Typography>
     );
   }
-  if (column.edit === "select" || column.edit === "text") {
+  if (column.edit === "select") {
     return (
       <Typography
         variant="caption"
         sx={{ display: "block", color: "text.disabled", lineHeight: 1.3 }}
       >
         edit here
+      </Typography>
+    );
+  }
+  if (ANSWER_COLUMNS.has(column.key)) {
+    return (
+      <Typography
+        variant="caption"
+        sx={{ display: "block", color: "text.disabled", lineHeight: 1.3 }}
+      >
+        their own words
       </Typography>
     );
   }
@@ -1219,6 +1150,20 @@ function PinnedSelect({
     </FormControl>
   );
 }
+
+/**
+ * The six columns carrying what the recruit told the club rather than what the
+ * club recorded about them. They are captioned so an operator can tell at a
+ * glance which half of the Recruitment band is theirs and which is the club's.
+ */
+const ANSWER_COLUMNS: ReadonlySet<string> = new Set([
+  "playedBefore",
+  "watchedBefore",
+  "positionInterest",
+  "gearOwned",
+  "heardVia",
+  "anythingElse",
+]);
 
 /** The funnel, in a bordered button — the shape Brian chose on 2026-08-28 from four options. */
 function FilterButton({
@@ -1277,7 +1222,6 @@ function FilterButton({
 // ---------------------------------------------------------------------------
 
 function labelForKey(columns: readonly ColumnDef[], key: string): string {
-  if (key === "asked") return "Ask";
   if (key === "attended") return "Attended";
   return columns.find((column) => column.key === key)?.label ?? key;
 }

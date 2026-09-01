@@ -254,13 +254,23 @@ export interface AuditEntry {
   readonly detail: string;
 }
 
-/** Questionnaire A — who you are. Folded into the sign-up form by the consent model. */
+/**
+ * Questionnaire A — who you are. Folded into the sign-up form by the consent
+ * model.
+ *
+ * `knownAs` rather than a preferred name: `main` has `person_aliases`, an
+ * `Aliases` row on the record, "Search name or alias" on both boards and
+ * "Known as" on the returner intake — and no preferred-name field anywhere.
+ * The answer writes an alias.
+ */
 export interface QuestionnaireAAnswers {
-  readonly preferredName: string | null;
+  readonly knownAs: string | null;
   readonly mobile: string | null;
   readonly email: string | null;
   readonly college: string | null;
-  readonly year: string | null;
+  readonly matriculationYear: string | null;
+  readonly expectedGraduationYear: string | null;
+  readonly degreeField: string | null;
 }
 
 /** Questionnaire B — how you came to football. `W4`'s six, as Brian amended them. */
@@ -309,11 +319,13 @@ export interface Recruit {
 }
 
 const EMPTY_A: QuestionnaireAAnswers = Object.freeze({
-  preferredName: null,
+  knownAs: null,
   mobile: null,
   email: null,
   college: null,
-  year: null,
+  matriculationYear: null,
+  expectedGraduationYear: null,
+  degreeField: null,
 });
 
 /**
@@ -336,7 +348,9 @@ export const RECRUITS: readonly Recruit[] = Object.freeze([
     givenName: "Rosalind",
     familyName: "Penhaligon",
     displayName: "Rosalind Penhaligon",
-    aliases: Object.freeze([]),
+    // She answered "Roz" on the sign-up form. That writes an alias, which is
+    // the field `main` actually has, and the board's search box finds her by it.
+    aliases: Object.freeze(["Roz"]),
     college: "Dunsfold",
     matriculationYear: 2026,
     expectedGraduationYear: 2029,
@@ -357,13 +371,18 @@ export const RECRUITS: readonly Recruit[] = Object.freeze([
     ]),
     consent: "granted" as ConsentState,
     consentOn: "28 April 2026",
-    questionnaireASentOn: Object.freeze([]),
+    // The QR put the personal questionnaire in front of her at the stand. No
+    // template was sent — she scanned it — but she went through the form and
+    // gave consent on it, which is the only place consent is ever given.
+    questionnaireASentOn: Object.freeze(["28 April 2026"]),
     questionnaireAAnswers: Object.freeze({
-      preferredName: "Roz",
+      knownAs: "Roz",
       mobile: "07700 900318",
       email: null,
       college: "Dunsfold",
-      year: "First year",
+      matriculationYear: "2026",
+      expectedGraduationYear: "2029",
+      degreeField: "Human Sciences",
     }),
     questionnaireBSentOn: Object.freeze([]),
     questionnaireBAnswers: null,
@@ -412,18 +431,20 @@ export const RECRUITS: readonly Recruit[] = Object.freeze([
     consentOn: "3 May 2026",
     questionnaireASentOn: Object.freeze(["3 May 2026"]),
     questionnaireAAnswers: Object.freeze({
-      preferredName: "Toby",
+      knownAs: "Toby",
       mobile: "07700 900412",
       email: "t.wrenfield@example.ac.uk",
       college: "Marlbrook",
-      year: "Second year",
+      matriculationYear: "2025",
+      expectedGraduationYear: "2028",
+      degreeField: "Engineering Science",
     }),
     questionnaireBSentOn: Object.freeze(["6 May 2026", "9 May 2026"]),
     questionnaireBAnswers: Object.freeze({
       playedBefore: "No",
       watchedBefore: "Yes",
-      positionInterest: "Wide receiver",
-      gearOwned: "Boots only",
+      positionInterest: "WR · Wide Receiver, TE · Tight End",
+      gearOwned: "Boots, Mouthguard",
       heardVia: "A friend or teammate",
       anythingElse: "Played a lot of basketball at school. Free most Sundays after week 4.",
     }),
@@ -588,11 +609,13 @@ export const RECRUITS: readonly Recruit[] = Object.freeze([
     consentOn: "12 May 2026",
     questionnaireASentOn: Object.freeze(["30 April 2026"]),
     questionnaireAAnswers: Object.freeze({
-      preferredName: null,
+      knownAs: null,
       mobile: null,
       email: "c.varrow@example.ac.uk",
       college: "Harewell",
-      year: "First year",
+      matriculationYear: "2026",
+      expectedGraduationYear: "2029",
+      degreeField: "History",
     }),
     questionnaireBSentOn: Object.freeze([]),
     questionnaireBAnswers: null,
@@ -694,6 +717,8 @@ export { EMPTY_A };
 export interface SheetPlayer {
   readonly key: string;
   readonly displayName: string;
+  /** Coaches and other people on the team sit with the players who said no. */
+  readonly role: "player" | "coach";
   readonly rsvp: Rsvp;
   readonly attendance: Attendance;
 }
@@ -710,32 +735,53 @@ export const SHEET_PLAYERS: readonly SheetPlayer[] = Object.freeze([
   Object.freeze({
     key: "pl-alaric",
     displayName: "Alaric Brindlewood",
+    role: "player" as const,
     rsvp: "yes" as Rsvp,
     attendance: "present" as Attendance,
   }),
   Object.freeze({
     key: "pl-corwin",
     displayName: "Corwin Vellacott",
+    role: "player" as const,
     rsvp: "yes" as Rsvp,
     attendance: null,
   }),
   Object.freeze({
+    key: "pl-osgood",
+    displayName: "Osgood Lanthorne",
+    role: "player" as const,
+    rsvp: "yes" as Rsvp,
+    attendance: "late" as Attendance,
+  }),
+  Object.freeze({
     key: "pl-emrys",
     displayName: "Emrys Netherby",
+    role: "player" as const,
     rsvp: "no" as Rsvp,
     attendance: null,
   }),
   Object.freeze({
     key: "pl-kestrel",
     displayName: "Kestrel Hawksmoor",
+    role: "player" as const,
+    rsvp: null,
+    attendance: null,
+  }),
+  // Coaches and anyone else on the team, so "everyone else" is somebody on the
+  // screen rather than a description of who would be there.
+  Object.freeze({
+    key: "co-hollis",
+    displayName: "Hollis Winterbourne",
+    role: "coach" as const,
     rsvp: null,
     attendance: null,
   }),
   Object.freeze({
-    key: "pl-osgood",
-    displayName: "Osgood Lanthorne",
-    rsvp: "yes" as Rsvp,
-    attendance: "late" as Attendance,
+    key: "co-fen",
+    displayName: "Fen Ravensmere",
+    role: "coach" as const,
+    rsvp: null,
+    attendance: null,
   }),
 ]);
 
@@ -828,6 +874,78 @@ export const RECRUIT_LADDER: readonly LadderStep[] = Object.freeze([
     fires: "2 days later, once, only if no answer",
     lands: "The same two pages",
   }),
+]);
+
+// ---------------------------------------------------------------------------
+// What Questionnaire B offers — the season's own vocabulary, and the kit list
+// ---------------------------------------------------------------------------
+
+/**
+ * The club's real position list, copied from `scripts/seed-local.mjs`'s
+ * `VOCAB_2026` — the OULAFC list of the term-card era. Twenty-two positions in
+ * three sections, and **not** invented here: `position_vocabularies` is a table
+ * and invariant S3 makes a position a foreign key to the season's own list, so
+ * a real implementation reads these per season rather than hard-coding them.
+ *
+ * Brian, 2026-09-01: "all the positions we have available in the roster right
+ * now, grouped by sections in the drop-down itself."
+ */
+export const POSITION_GROUPS: readonly {
+  readonly label: string;
+  readonly positions: readonly { readonly code: string; readonly label: string }[];
+}[] = Object.freeze([
+  Object.freeze({
+    label: "Offence",
+    positions: Object.freeze([
+      { code: "QB", label: "Quarterback" },
+      { code: "RB", label: "Running Back" },
+      { code: "FB", label: "Full Back" },
+      { code: "WB", label: "Wing Back" },
+      { code: "WR", label: "Wide Receiver" },
+      { code: "TE", label: "Tight End" },
+      { code: "T", label: "Tackle" },
+      { code: "G", label: "Guard" },
+      { code: "C", label: "Centre" },
+    ]),
+  }),
+  Object.freeze({
+    label: "Defence",
+    positions: Object.freeze([
+      { code: "DE", label: "Defensive End" },
+      { code: "DT", label: "Defensive Tackle" },
+      { code: "NT", label: "Nose Tackle" },
+      { code: "MLB", label: "Mike Linebacker" },
+      { code: "WLB", label: "Will Linebacker" },
+      { code: "SLB", label: "Sam Linebacker" },
+      { code: "CB", label: "Cornerback" },
+      { code: "FS", label: "Free Safety" },
+      { code: "SS", label: "Strong Safety" },
+    ]),
+  }),
+  Object.freeze({
+    label: "Special teams",
+    positions: Object.freeze([
+      { code: "KO", label: "Kickoff" },
+      { code: "KR", label: "Kick Return" },
+      { code: "PUNT", label: "Punt" },
+      { code: "FG", label: "Field Goal" },
+    ]),
+  }),
+]);
+
+/**
+ * Kit, one item at a time — Brian, 2026-09-01: "Gear should also be a
+ * multi-select section where it doesn't have combinations." The old list
+ * offered "Boots only" and "Boots and gloves", which made somebody with boots
+ * and a helmet pick the nearest wrong answer.
+ */
+export const GEAR_ITEMS: readonly string[] = Object.freeze([
+  "Boots",
+  "Gloves",
+  "Mouthguard",
+  "Helmet",
+  "Shoulder pads",
+  "Padded trousers",
 ]);
 
 /** The one template Meta has approved today. The other four are an owner gate. */

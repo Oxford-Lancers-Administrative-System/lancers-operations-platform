@@ -1,4 +1,4 @@
-import { EVENTS, type Recruit } from "./fixtures";
+import { CONSENT_LABELS, EVENTS, type Recruit } from "./fixtures";
 
 /**
  * The recruit board's column model — LAN-200, `W1`.
@@ -103,99 +103,92 @@ export interface ColumnDef {
  * happened.
  */
 export function buildColumns(): readonly ColumnDef[] {
-  const person: ColumnDef[] = [
-    {
-      key: "college",
-      label: "College",
-      band: "person",
-      bandKey: "person",
-      bandLabel: PERSON_BAND.label,
-      edit: "record",
-      width: 148,
-      sortable: true,
-      filterable: true,
-    },
-    {
-      key: "matriculation",
-      label: "Matric",
-      band: "person",
-      bandKey: "person",
-      bandLabel: PERSON_BAND.label,
-      edit: "record",
-      width: 104,
-      sortable: true,
-      filterable: true,
-    },
-    {
-      key: "contactable",
-      label: "Contactable",
-      band: "person",
-      bandKey: "person",
-      bandLabel: PERSON_BAND.label,
-      edit: "none",
-      width: 156,
-      sortable: true,
-      filterable: true,
-    },
-  ];
+  const person = (
+    [
+      { key: "college", label: "College", edit: "record", width: 148 },
+      { key: "matriculation", label: "Matric", edit: "record", width: 104 },
+      // Brian, 2026-09-01. The person set the board carries and the set the
+      // record carries are the same set, so the two surfaces cannot disagree
+      // about what the club knows.
+      { key: "graduation", label: "Grad", edit: "record", width: 100 },
+      { key: "degreeField", label: "Degree field", edit: "record", width: 172 },
+      { key: "contactable", label: "Contactable", edit: "none", width: 156 },
+      /*
+       * Two fields that are deliberately **not** here.
+       *
+       * `Year` is gone: matriculated 2026 means first year in 2026-27, so it
+       * said the same thing as Matric twice — and it is the half that goes
+       * stale, because "First year" is wrong the moment the next season opens
+       * and nothing recomputes it. Brian, 2026-09-01. The questionnaire still
+       * asks; the club records the matriculation year it implies.
+       *
+       * `Preferred name` never existed. This mockup invented it. `main` has
+       * `person_aliases`, an `Aliases` row on the record, "Search name or
+       * alias" on both boards and "Known as" on the returner intake — and no
+       * preferred-name field anywhere (every `isPreferred` in the tree is about
+       * which contact to use, not what to call somebody). An alias is also
+       * never a column: `board-columns.ts` carries it unconditionally for
+       * search precisely because it is identity data rather than a restricted
+       * field, and this board does the same.
+       */
+    ] as const
+  ).map((column) => ({
+    ...column,
+    band: "person" as const,
+    bandKey: "person",
+    bandLabel: PERSON_BAND.label,
+    sortable: true,
+    filterable: true,
+  }));
 
-  const recruitment: ColumnDef[] = [
-    {
-      key: "status",
-      label: "Status",
-      band: "recruitment",
-      bandKey: "recruitment",
-      bandLabel: RECRUITMENT_BAND.label,
-      edit: "select",
-      width: 136,
-      sortable: true,
-      filterable: true,
-    },
-    {
-      key: "source",
-      label: "Source",
-      band: "recruitment",
-      bandKey: "recruitment",
-      bandLabel: RECRUITMENT_BAND.label,
-      edit: "text",
-      width: 200,
-      sortable: true,
-      filterable: true,
-    },
-    {
-      key: "firstContact",
-      label: "First contact",
-      band: "recruitment",
-      bandKey: "recruitment",
-      bandLabel: RECRUITMENT_BAND.label,
-      edit: "text",
-      width: 140,
-      sortable: true,
-      filterable: true,
-    },
-    {
-      key: "asked",
-      label: "Asked",
-      band: "recruitment",
-      bandKey: "recruitment",
-      bandLabel: RECRUITMENT_BAND.label,
-      edit: "none",
-      width: 132,
-      sortable: true,
-      filterable: true,
-    },
-    {
-      key: "notes",
-      label: "Notes",
-      band: "recruitment",
-      bandKey: "recruitment",
-      bandLabel: RECRUITMENT_BAND.label,
-      edit: "none",
-      width: 260,
-      sortable: false,
-      filterable: false,
-    },
-  ];
+  const recruitment = (
+    [
+      { key: "status", label: "Status", edit: "select", width: 136, filterable: true },
+      /**
+       * Read-only, and it is the door — Brian, 2026-09-01: "source should not be
+       * an editable field. That doesn't make sense… I shouldn't be able to edit
+       * that thing." It records which of the three doors created this recruit
+       * and where that happened, set once at capture.
+       *
+       * It carries no filter either, on his instruction: "Source doesn't need a
+       * filter." Both the column funnel and the pinned control are gone.
+       */
+      { key: "source", label: "Source", edit: "none", width: 200, filterable: false },
+      { key: "firstContact", label: "First contact", edit: "none", width: 140, filterable: true },
+      /**
+       * "Were they sent the questionnaire? Yes or no?" and "Were they sent the
+       * personal questionnaire? Yes or no?" — Brian, 2026-09-01, at the top
+       * level and on the record. These replace the `Asked` column, which he
+       * struck: "'Ask' doesn't make sense as a field. I don't know what that's
+       * saying."
+       */
+      { key: "personalSent", label: "Personal sent", edit: "none", width: 140, filterable: true },
+      { key: "recruitSent", label: "Recruitment sent", edit: "none", width: 168, filterable: true },
+      /**
+       * Consent keeps its five words rather than reducing to Yes/No — Brian,
+       * 2026-09-01. `Never asked`, `Refused` and `Withdrawn` gate the same thing
+       * today and are three different facts about a person; a boolean would
+       * collapse them on the one surface an operator scans.
+       */
+      { key: "consent", label: "Consent", edit: "none", width: 148, filterable: true },
+      // The recruit-stage answers, in `W4`'s order. Read-only everywhere: they
+      // are the recruit's own words, attributed to them, and an operator typing
+      // over them would misattribute what the club was told.
+      { key: "playedBefore", label: "Played before", edit: "none", width: 140 },
+      { key: "watchedBefore", label: "Watched before", edit: "none", width: 148 },
+      { key: "positionInterest", label: "Position interest", edit: "none", width: 168 },
+      { key: "gearOwned", label: "Gear owned", edit: "none", width: 160 },
+      { key: "heardVia", label: "How they heard", edit: "none", width: 180 },
+      { key: "anythingElse", label: "Anything else", edit: "none", width: 260 },
+    ] as const
+  ).map((column) => ({
+    ...column,
+    band: "recruitment" as const,
+    bandKey: "recruitment",
+    bandLabel: RECRUITMENT_BAND.label,
+    sortable: true,
+    filterable: "filterable" in column ? column.filterable : true,
+  }));
 
   /**
    * One band per event, over **two columns side by side** — Brian, 2026-08-31:
@@ -233,7 +226,7 @@ export function buildColumns(): readonly ColumnDef[] {
     },
   ]);
 
-  return Object.freeze([...person, ...recruitment, ...events]);
+  return Object.freeze([...person, ...recruitment, ...events]) as readonly ColumnDef[];
 }
 
 export function bandColoursOf(column: ColumnDef): BandDef {
@@ -251,6 +244,7 @@ export const NOT_RECORDED = "Not recorded";
  * the board, the sorter and the filter list.
  */
 export function valueOf(recruit: Recruit, key: string): string {
+  const answersB = recruit.questionnaireBAnswers;
   switch (key) {
     case "college":
       return recruit.college ?? NOT_RECORDED;
@@ -260,16 +254,36 @@ export function valueOf(recruit: Recruit, key: string): string {
       return [recruit.mobile ? "Mobile" : null, recruit.email ? "Email" : null]
         .filter(Boolean)
         .join(" · ");
+    case "graduation":
+      return recruit.expectedGraduationYear === null
+        ? NOT_RECORDED
+        : String(recruit.expectedGraduationYear);
+    case "degreeField":
+      return recruit.degreeField ?? NOT_RECORDED;
     case "status":
       return recruit.status;
     case "source":
       return recruit.source;
     case "firstContact":
       return recruit.firstContactOn;
-    case "asked":
-      return askedLabel(recruit);
-    case "notes":
-      return recruit.notes[0]?.body ?? NOT_RECORDED;
+    case "personalSent":
+      return recruit.questionnaireASentOn.length > 0 ? "Yes" : "No";
+    case "recruitSent":
+      return recruit.questionnaireBSentOn.length > 0 ? "Yes" : "No";
+    case "consent":
+      return CONSENT_LABELS[recruit.consent];
+    case "playedBefore":
+      return answersB?.playedBefore ?? NOT_ANSWERED;
+    case "watchedBefore":
+      return answersB?.watchedBefore ?? NOT_ANSWERED;
+    case "positionInterest":
+      return answersB?.positionInterest ?? NOT_ANSWERED;
+    case "gearOwned":
+      return answersB?.gearOwned ?? NOT_ANSWERED;
+    case "heardVia":
+      return answersB?.heardVia ?? NOT_ANSWERED;
+    case "anythingElse":
+      return answersB?.anythingElse ?? NOT_ANSWERED;
     default:
       break;
   }
@@ -285,13 +299,9 @@ export function valueOf(recruit: Recruit, key: string): string {
 }
 
 /**
- * `Asked` — whether the recruit-stage form is open, answered, or never sent.
- *
- * `W1` records this as the one recruitment column Brian has not spoken to
- * either way, so it is here and marked open rather than quietly dropped.
+ * The greys are two different words on purpose. A field nobody has recorded
+ * reads `Not recorded`; a question the recruit was asked and did not answer
+ * reads `Not answered`, because those are different facts and the second one is
+ * the recruit's own silence rather than the club's omission.
  */
-export function askedLabel(recruit: Recruit): string {
-  if (recruit.questionnaireBAnswers !== null) return "Answered";
-  if (recruit.questionnaireBSentOn.length > 0) return "Outstanding";
-  return "Not sent";
-}
+export const NOT_ANSWERED = "Not answered";

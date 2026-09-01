@@ -11,13 +11,15 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { Aside, Scaffold } from "./chrome";
+import { Scaffold } from "./chrome";
 import {
   ATTENDANCE_COLOUR,
   ATTENDANCE_LABEL,
   EVENTS,
+  SEASON_LABEL,
   type Attendance,
   type Recruit,
+  type Rsvp,
   SHEET_PLAYERS,
   type SheetPlayer,
 } from "./fixtures";
@@ -87,6 +89,8 @@ type Row =
     }
   | {
       kind: "player";
+      /** Coaches and other people on the team sit with the players who said no. */
+      role: SheetPlayer["role"];
       key: string;
       name: string;
       rsvp: SheetPlayer["rsvp"];
@@ -107,15 +111,39 @@ export default function AttendanceSheet({
   const [capturing, setCapturing] = useState(openCaptureFirst);
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [open, setOpen] = useState({ recruits: true, everyone: true, walkUps: true });
+  // Recruits open because they are the point of a recruitment event; Attending
+  // open because it is the list you work through; Everyone else closed, as the
+  // shipped sheet already has it — a place to go when somebody turns up who
+  // should not have.
+  const [open, setOpen] = useState({
+    recruits: true,
+    attending: true,
+    everyone: false,
+    walkUps: true,
+  });
   const [players, setPlayers] = useState<readonly SheetPlayer[]>(SHEET_PLAYERS);
   const [walkUps, setWalkUps] = useState<readonly string[]>([]);
 
   const needle = search.trim().toLowerCase();
   const matches = (name: string) => needle === "" || name.toLowerCase().includes(needle);
 
-  const invitedRecruits: Row[] = store.recruits
-    .filter((recruit) => recruit.events.some((entry) => entry.eventId === eventId))
+  /**
+   * **Every recruit on the board, automatically** — Brian, 2026-09-01: "if a
+   * recruit is already in our system and we're at a recruitment event, all
+   * recruits should already be on the page for the event. If they happen to
+   * show up, I'll mark them as present, even if they didn't RSVP."
+   *
+   * So there is no invitation filter here, and there deliberately cannot be
+   * one. The shipped sheet derives its roster from memberships, which is why a
+   * recruit does not appear on it at all; `W12` builds the recruit half, and
+   * this is what that half is for. It also means the walk-up form is for a
+   * genuinely new person and nobody else — an existing recruit is already on
+   * this page, waiting to be marked.
+   *
+   * An exit status is not a gate on the door: somebody who declined can still
+   * turn up, and the club records that they did.
+   */
+  const recruitRows: Row[] = store.recruits
     .filter((recruit) => !walkUps.includes(recruit.id))
     .filter((recruit) => matches(recruit.displayName))
     .map((recruit) => {
@@ -128,7 +156,14 @@ export default function AttendanceSheet({
         attendance: entry?.attendance ?? null,
         isWalkUp: false,
       };
-    });
+    })
+    // Yes, then No, then no answer — Brian, 2026-09-01. The recorder works down
+    // from the people who said they were coming, which is the direction the
+    // sheet's own two player groups already read in.
+    .sort(
+      (left, right) =>
+        byRsvp(left.rsvp) - byRsvp(right.rsvp) || left.name.localeCompare(right.name),
+    );
 
   const walkUpRows: Row[] = store.recruits
     .filter((recruit) => walkUps.includes(recruit.id))
@@ -149,11 +184,21 @@ export default function AttendanceSheet({
     .filter((player) => matches(player.displayName))
     .map((player) => ({
       kind: "player" as const,
+      role: player.role,
       key: player.key,
       name: player.displayName,
       rsvp: player.rsvp,
       attendance: player.attendance,
     }));
+
+  /**
+   * The shipped sheet's own two groups, unchanged, below the recruits — Brian,
+   * 2026-09-01: "If a player RSVPed yes, they're at the top, and then everyone
+   * else goes at the bottom of the list: all the players who said no, coaches,
+   * and other people who are on the team."
+   */
+  const attendingRows = playerRows.filter((row) => row.rsvp === "yes");
+  const everyoneElseRows = playerRows.filter((row) => row.rsvp !== "yes");
 
   function setRowAttendance(row: Row, attendance: Attendance) {
     if (row.kind === "recruit") {
@@ -165,15 +210,31 @@ export default function AttendanceSheet({
     );
   }
 
-  const showed = [...invitedRecruits, ...walkUpRows, ...playerRows].filter(
+  const showed = [...recruitRows, ...walkUpRows, ...playerRows].filter(
     (row) => row.attendance !== null && row.attendance !== "absent",
   ).length;
-  const invited = invitedRecruits.length + playerRows.length;
+  const onTheSheet = recruitRows.length + playerRows.length;
 
   if (capturing) {
     return (
       <WalkUpForm
-        eventName={event.name}
+        candidatesFor={(givenName, familyName, phone) =>
+          store.recruits.filter((recruit) => {
+            const last3 = (value: string | null) => (value ?? "").replace(/\D/g, "").slice(-3);
+            return (
+              recruit.givenName.toLowerCase() === givenName.toLowerCase() ||
+              recruit.familyName.toLowerCase() === familyName.toLowerCase() ||
+              (last3(phone) !== "" && last3(recruit.mobile) === last3(phone))
+            );
+          })
+        }
+        onLinkExisting={(id) => {
+          // "This is them" writes attendance and creates nothing — the whole
+          // point of checking before minting.
+          store.setAttendance(id, eventId, "present");
+          setJustAdded(store.find(id)?.displayName ?? null);
+          setCapturing(false);
+        }}
         onCancel={() => setCapturing(false)}
         onSave={(displayName) => {
           const [givenName, ...rest] = displayName.split(" ");
@@ -247,14 +308,12 @@ export default function AttendanceSheet({
       </Stack>
 
       <Stack direction="row" spacing={4} sx={{ flexWrap: "wrap", gap: 3 }}>
-        <Headline value={String(invited)} label="Invited" />
+        <Headline value={String(onTheSheet)} label="On the sheet" />
         <Headline
-          value={String(
-            [...invitedRecruits, ...playerRows].filter((row) => row.rsvp === "yes").length,
-          )}
+          value={String([...recruitRows, ...playerRows].filter((row) => row.rsvp === "yes").length)}
           label="Said yes"
         />
-        <Headline value={`${showed} / ${invited}`} label="Showed" />
+        <Headline value={`${showed} / ${onTheSheet}`} label="Showed" />
       </Stack>
 
       <Typography variant="body2" color="text.secondary">
@@ -288,20 +347,29 @@ export default function AttendanceSheet({
         */}
         <Group
           label="Recruits"
-          detail="Invited from their recruitment record, not from a membership"
-          count={invitedRecruits.length}
+          detail="Every recruit on the board this season, the ones who said yes first."
+          count={recruitRows.length}
           open={open.recruits}
           onToggle={() => setOpen((prev) => ({ ...prev, recruits: !prev.recruits }))}
-          rows={invitedRecruits}
+          rows={recruitRows}
+          onSet={setRowAttendance}
+        />
+        <Group
+          label="Attending"
+          detail="Said yes to this event"
+          count={attendingRows.length}
+          open={open.attending}
+          onToggle={() => setOpen((prev) => ({ ...prev, attending: !prev.attending }))}
+          rows={attendingRows}
           onSet={setRowAttendance}
         />
         <Group
           label="Everyone else"
-          detail="Players on this season's roster"
-          count={playerRows.length}
+          detail="Said no or have not answered, coaches, and anyone else on the team"
+          count={everyoneElseRows.length}
           open={open.everyone}
           onToggle={() => setOpen((prev) => ({ ...prev, everyone: !prev.everyone }))}
-          rows={playerRows}
+          rows={everyoneElseRows}
           onSet={setRowAttendance}
         />
         <Group
@@ -358,11 +426,13 @@ export default function AttendanceSheet({
  * his word either way.
  */
 function WalkUpForm({
-  eventName,
+  candidatesFor,
+  onLinkExisting,
   onCancel,
   onSave,
 }: {
-  eventName: string;
+  candidatesFor: (givenName: string, familyName: string, phone: string) => readonly Recruit[];
+  onLinkExisting: (id: string) => void;
   onCancel: () => void;
   onSave: (displayName: string) => void;
 }) {
@@ -370,8 +440,33 @@ function WalkUpForm({
   const [family, setFamily] = useState("Fennimore");
   const [phone, setPhone] = useState("07700 900102");
   const [email, setEmail] = useState("");
+  /** `null` until the check has run. Empty once it has run and matched nobody. */
+  const [candidates, setCandidates] = useState<readonly Recruit[] | null>(null);
 
   const ready = given.trim() !== "" && family.trim() !== "" && phone.trim() !== "";
+
+  /**
+   * The check runs **before** anything is written, on every save, at this door
+   * too — Brian, 2026-09-01.
+   *
+   * It reverses his own 2026-08-28 removal of the roster-match path ("they know
+   * who's on their roster, there are only 40 people"), which is why the shipped
+   * `mintWalkUpProspect` goes straight to `insert into public.people` with no
+   * lookup at all. It also makes true the condition he attached to approving
+   * `W5`: that the check before a walk-up match what the club does elsewhere.
+   *
+   * It matches nobody and saves straight through in the common case, so the
+   * touchline cost is one press. It only ever interrupts when there is
+   * something to say.
+   */
+  function check() {
+    const found = candidatesFor(given.trim(), family.trim(), phone.trim());
+    if (found.length === 0) {
+      onSave(`${given.trim()} ${family.trim()}`);
+      return;
+    }
+    setCandidates(found);
+  }
 
   return (
     <Box sx={{ maxWidth: 560 }}>
@@ -384,6 +479,69 @@ function WalkUpForm({
             Somebody who turned up and is not on the roster.
           </Typography>
         </Box>
+
+        {candidates !== null && candidates.length > 0 ? (
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Stack spacing={2}>
+              <Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  Already in the club
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {candidates.length === 1
+                    ? "One record looks like this person. Nothing has been written yet."
+                    : `${candidates.length} records look like this person. Nothing has been written yet.`}
+                </Typography>
+              </Box>
+              {candidates.map((candidate) => (
+                <Paper key={candidate.id} variant="outlined" sx={{ p: 1.5 }}>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1.5}
+                    sx={{ justifyContent: "space-between", alignItems: { sm: "center" } }}
+                  >
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                        {candidate.displayName}
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: "primary.main" }}>
+                        {`Recruit · ${candidate.status} · ${SEASON_LABEL}`}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {candidate.mobile
+                          ? `Mobile ending ${candidate.mobile.replace(/\D/g, "").slice(-3)}`
+                          : "No mobile recorded"}
+                      </Typography>
+                    </Box>
+                    <Button
+                      variant="outlined"
+                      onClick={() => onLinkExisting(candidate.id)}
+                      sx={{ minHeight: 44, flexShrink: 0 }}
+                    >
+                      This is them
+                    </Button>
+                  </Stack>
+                </Paper>
+              ))}
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+                <Button
+                  variant="contained"
+                  onClick={() => onSave(`${given.trim()} ${family.trim()}`)}
+                  sx={{ minHeight: 44 }}
+                >
+                  This is somebody new
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => setCandidates(null)}
+                  sx={{ minHeight: 44 }}
+                >
+                  Go back and change the details
+                </Button>
+              </Stack>
+            </Stack>
+          </Paper>
+        ) : null}
 
         <Alert severity="warning">
           <Typography variant="body2">{WALK_UP_RECONCILIATION_NOTE}</Typography>
@@ -428,22 +586,13 @@ function WalkUpForm({
         </Typography>
 
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-          <Button
-            variant="contained"
-            disabled={!ready}
-            onClick={() => onSave(`${given.trim()} ${family.trim()}`)}
-            sx={{ minHeight: 44 }}
-          >
+          <Button variant="contained" disabled={!ready} onClick={check} sx={{ minHeight: 44 }}>
             {WALK_UP_SUBMIT}
           </Button>
           <Button variant="outlined" onClick={onCancel} sx={{ minHeight: 44 }}>
             Cancel
           </Button>
         </Stack>
-
-        <Aside>
-          {`Saving does four things at once, from the operator's point of view one: the person is minted, a recruit record is opened at identified, they are recorded present at ${eventName}, and the sign-up form goes out. No mobile means no capture — an owner-accepted limitation, stated knowingly: "a walk-up we can't reach isn't in the pipeline."`}
-        </Aside>
       </Stack>
     </Box>
   );
@@ -529,6 +678,11 @@ function Group({
   );
 }
 
+/** Yes, then No, then no answer. */
+function byRsvp(rsvp: Rsvp): number {
+  return rsvp === "yes" ? 0 : rsvp === "no" ? 1 : 2;
+}
+
 const PRESENCES: readonly NonNullable<Attendance>[] = ["present", "late", "excused", "absent"];
 
 function SheetRow({ row, onSet }: { row: Row; onSet: (attendance: Attendance) => void }) {
@@ -551,13 +705,15 @@ function SheetRow({ row, onSet }: { row: Row; onSet: (attendance: Attendance) =>
           {row.name}
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          {row.kind === "recruit" && row.isWalkUp
-            ? "Walk-up · never invited"
-            : row.rsvp === "yes"
-              ? "RSVP: Attending"
-              : row.rsvp === "no"
-                ? "RSVP: Not attending"
-                : "RSVP: No response"}
+          {row.kind === "player" && row.role === "coach"
+            ? "Coach"
+            : row.kind === "recruit" && row.isWalkUp
+              ? "Walk-up · never invited"
+              : row.rsvp === "yes"
+                ? "RSVP: Attending"
+                : row.rsvp === "no"
+                  ? "RSVP: Not attending"
+                  : "RSVP: No response"}
         </Typography>
         {row.kind === "recruit" && row.isWalkUp ? (
           <Chip size="small" color="warning" label={WALK_UP_CHIP} sx={{ mt: 0.5 }} />

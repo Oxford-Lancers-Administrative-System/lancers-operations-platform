@@ -76,10 +76,10 @@ Now you can click all of it.
 
 | Surface                                     | Workflows              | What to look at                                                                |
 | ------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------ |
-| **The recruit board**                       | `W1` `W13` `W14`       | In-cell status editing, and the four values that interrupt                     |
-| **One recruit's record**                    | `W2`                   | Six shipped cards with their content replaced; the refusal stated three times  |
+| **The recruit board**                       | `W1` `W13` `W14`       | Every question as a column; status is the one cell that writes                 |
+| **One recruit's record**                    | `W2`                   | Five shipped cards with their content replaced; the refusal stated three times |
 | **Walk-up capture**                         | `W5`                   | The shipped form, the corrected word, and the sentence about what saving sends |
-| **Add a recruit, and the duplicate check**  | `W6` `W8`              | The check at the door, with each candidate's identity on it                    |
+| **Add a recruit, and the duplicate check**  | `W6` `W8`              | The check answers above the form, with each candidate's identity on it         |
 | **The sign-up form, the consent gate**      | `W7` + Questionnaire A | Both entry paths; the group link appears in exactly one of four outcomes       |
 | **The season QR page**                      | `W1-04` `W10`          | Minting, where it points, deactivating a live code, reminting                  |
 | **Questionnaire B**                         | `W4`                   | The six fields, and three link states including the uniform invalid page       |
@@ -201,16 +201,29 @@ rather than reproducing it. Worth settling when the board is built.
 
 ## Deviations from the approved screens, and why
 
-| Change                                                                | Reason                                                                                                                                                               |
-| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **The sign-up form carries Questionnaire A and the consent tick**     | The consent model of 2026-08-31, which supersedes `W7`. The approved `W7-01` frame shows four fields and no tick                                                     |
-| **The saved page reveals the group link only when the box is ticked** | Same. `W7-03` shows the group button unconditionally, because it predates the gate                                                                                   |
-| **`recruit_details_ask` is struck**                                   | Same. It appears live in `W11`'s approved ladder table                                                                                                               |
-| **A fifth pinned filter, `Attended any event`**                       | `W1`'s required action 3 asks for it in words; no approved frame shows it                                                                                            |
-| **`Notes` is a board column**                                         | `W1`'s column table lists it. Brian has said notes "should be in the membership" and the placement is recorded as open — the column is drawn where the table puts it |
-| **Consent is a row on the record and a value in the headline**        | New. No approved screen carries consent anywhere                                                                                                                     |
-| **The opt-out is three screens**                                      | New. `W10` requires that somebody can withdraw; nobody has drawn how                                                                                                 |
-| **A `Reset the data` control**                                        | Scaffolding. There is no such thing in the product                                                                                                                   |
+| Change                                                                 | Reason                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **The sign-up form carries Questionnaire A and the consent tick**      | The consent model of 2026-08-31, which supersedes `W7`. The approved `W7-01` frame shows four fields and no tick                                                                                                                                                                                                                                                                                                                 |
+| **The saved page reveals the group link only when the box is ticked**  | Same. `W7-03` shows the group button unconditionally, because it predates the gate                                                                                                                                                                                                                                                                                                                                               |
+| **`recruit_details_ask` is struck**                                    | Same. It appears live in `W11`'s approved ladder table                                                                                                                                                                                                                                                                                                                                                                           |
+| **A pinned filter, `Attended any event`**                              | `W1`'s required action 3 asks for it in words; no approved frame shows it                                                                                                                                                                                                                                                                                                                                                        |
+| **Every recruitment answer is a board column**                         | Brian, 2026-09-01: the recruitment questions belong on the board. `W1`'s approved column table has none of them                                                                                                                                                                                                                                                                                                                  |
+| **Mobile and email are not columns**                                   | The personal questionnaire asks for both, and no board, list or queue in this product carries a raw contact value — Task 08 §5 and `W1`'s own safety section. Brian kept the rule on 2026-09-01; the values are read on the record and `Contactable` carries the pills                                                                                                                                                           |
+| **`Aliases` is not a column either**                                   | For the shipped board's own reason: `board-columns.ts` carries aliases unconditionally so search finds somebody by one whatever columns their viewer's role grants — an alias is identity data, not a restricted field, and never a column                                                                                                                                                                                       |
+| **The board and the record carry the same person set**                 | `Grad` and `Degree field` were record rows with no column; `Preferred name` and `Year` were columns with no row. Brian found the disagreement on 2026-09-01. The first two became columns; the second two went — see the next two rows                                                                                                                                                                                           |
+| **No `Year` field anywhere**                                           | Matriculated 2026 means first year in 2026-27, so it said the same thing as Matric twice — and it is the half that goes stale, because "First year" is wrong the moment the next season opens and nothing recomputes it. Brian, 2026-09-01. The questionnaire still asks; the club records the matriculation year it implies                                                                                                     |
+| **No `Preferred name` field — the questionnaire writes an alias**      | This mockup invented the field. `main` has `person_aliases`, an `Aliases` row on the record, "Search name or alias" on both boards and "Known as" on the returner intake, and no preferred-name field at all — every `isPreferred` in the tree is about which _contact_ to use. Brian caught it: "this is old information." The sign-up form now asks "Known as", the answer writes an alias, and searching `Roz` finds Rosalind |
+| **`Personal sent` and `Recruitment sent` replace `Asked`**             | Brian, 2026-09-01: "'Ask' doesn't make sense as a field", and "Were they sent the questionnaire? Yes or no?"                                                                                                                                                                                                                                                                                                                     |
+| **`Consent` is a board column, carrying its word**                     | Brian, 2026-09-01 asked for consent at the top level too, and chose to keep its five states rather than reduce to Yes/No: `Never asked`, `Refused` and `Withdrawn` are three different facts                                                                                                                                                                                                                                     |
+| **`Source` and `First contact` are read-only, `Source` has no filter** | Brian, 2026-09-01: "source should not be an editable field… I shouldn't be able to edit that thing", and "Source doesn't need a filter". The pinned Source control went with the column funnel — one filter with two controls                                                                                                                                                                                                    |
+| **`Notes` is not a board column**                                      | Brian, 2026-09-01: "Note should just be removed from the top-level recruitment page… It should just be on the lower-end page." `W1`'s column table lists it                                                                                                                                                                                                                                                                      |
+| **Each `sent` row sits with the questions it asked**                   | Brian, 2026-09-01: "The personnel questions sent should be with the personnel questions. The recruitment questions should be with the recruitment questions." Personal questionnaire sent is on the PERSON card; Recruitment questionnaire sent is on the Recruitment card, each beside what it collects                                                                                                                         |
+| **Recruitment and the recruitment questionnaire are one card**         | Brian, 2026-09-01: "Recruitment and recruitment questions are one thing." `W2` approved them as two cards, teal and blue                                                                                                                                                                                                                                                                                                         |
+| **The Person card has no `Open the person record →`**                  | Brian, 2026-09-01: "that shouldn't be something that they do here." The shipped card the record clones carries one                                                                                                                                                                                                                                                                                                               |
+| **The duplicate check answers above the form**                         | Brian, 2026-09-01: "the duplicate check if it finds something needs to go at the top, not the bottom." The shipped `/operate/people/new` puts its answer below the fields                                                                                                                                                                                                                                                        |
+| **Consent is a row on the record and a value in the headline**         | New. No approved screen carries consent anywhere                                                                                                                                                                                                                                                                                                                                                                                 |
+| **The opt-out is three screens**                                       | New. `W10` requires that somebody can withdraw; nobody has drawn how                                                                                                                                                                                                                                                                                                                                                             |
+| **A `Reset the data` control**                                         | Scaffolding. There is no such thing in the product                                                                                                                                                                                                                                                                                                                                                                               |
 
 ---
 
@@ -218,50 +231,63 @@ rather than reproducing it. Worth settling when the board is built.
 
 Each of these is Brian's, and each is marked on the screen where it bites.
 
-1. **Is `declined` the same fact as "said no to WhatsApp"?** Today the mission
+1. **Is consent really optional?** Brian, 2026-09-01: "As part of the personal
+   page, they have to consent to getting WhatsApp messages in order to get the
+   sign-up. If they come through any gate and they give us personal information,
+   they have to say yes. Refused should be a very weird edge case here, because
+   nothing else works if we can't get WhatsApp messaging." The form currently
+   lets somebody submit without ticking, and `Refused` is drawn as an ordinary
+   state beside the other four. He explicitly did **not** ask for the states to
+   change — "I don't think we need to fix the statuses, that's just a comment" —
+   so nothing here is built to that comment. But if consent is a condition of
+   signing up rather than a question on the form, the gate is a different
+   control and `Refused` stops being reachable through this door at all.
+2. **Who owns the stop message, and what does Meta require on it?** Brian,
+   2026-09-01, thinking aloud and reaching no decision: "if we have a stop
+   message or whatever… That should probably be in privacy and consent for
+   mission 8, on how we handle that, but I don't know if we're going to append
+   that to any of the messages. I don't know how this should be handled with
+   Meta. I'm not sure if I should handle it here." The opt-out surface is drawn
+   on the consent surface and the withdrawal path works; **whether an opt-out
+   line rides on every template, and whose mission words it, is undecided.**
+3. **Is `declined` the same fact as "said no to WhatsApp"?** Today the mission
    records only the first, so a recruit who is keen but will not take WhatsApp
    messages has nowhere to be recorded, and one who declined the club is assumed
    to refuse contact too. They come apart in practice: "not this term, ask me in
    Hilary" refuses no contact at all. The banner is built to carry either cause,
    so nothing has to change if the answer is that they are separate — but
    **whether to record the second fact is unanswered.**
-2. **Where do the two send buttons go?** `W2` was approved with an explicit
+4. **Where do the two send buttons go?** `W2` was approved with an explicit
    reservation: Brian intends to change their placement and accepted the current
    one to stop spending time. Do not defend it.
-3. **Is `void` a status or a marker?** See above.
-4. **Is the Recruitment band teal?** `#00695c` is proposed, not locked. If the
+5. **Is `void` a status or a marker?** See above.
+6. **Is the Recruitment band teal?** `#00695c` is proposed, not locked. If the
    recruitment band should reuse the Season blue and the event columns take the
    new colour, that is two hex values in `columns.ts`.
-5. **The events card is violet here and the board's event bands are blue.** The
+7. **The events card is violet here and the board's event bands are blue.** The
    card takes the shipped `ATTENDANCE` colour; `W1`'s approved event bands are
    `#0b3d91`. Making them consistent changes approved work.
-6. **Does channel presence render on a recruit's record at all?** Two sources say
+8. **Does channel presence render on a recruit's record at all?** Two sources say
    it does; `On WhatsApp` was struck from the board as not a recruit field, and
    neither approved screen carries such a row. Nothing is drawn for it here.
-7. **Is `committed_on` also stamped at `committed`?** It marks reaching `joined`,
+9. **Is `committed_on` also stamped at `committed`?** It marks reaching `joined`,
    settled. Whether it is _also_ set earlier is explicitly unsettled, so the
    mockup stamps it only at `joined`.
-8. **Does `Asked` stay a board column?** The one recruitment column Brian has not
-   spoken to either way.
-9. **What does turning a cycle step off look like?** `W10` requires that an
-   operator can decide whether a step runs at all, and the shipped `schedule-row`
-   has no such control. No toggle was drawn, here or in the intake.
-10. **Who mints next season's code?** "Once per season" needs something to do the
+10. **What does turning a cycle step off look like?** `W10` requires that an
+    operator can decide whether a step runs at all, and the shipped `schedule-row`
+    has no such control. No toggle was drawn, here or in the intake.
+11. **Who mints next season's code?** "Once per season" needs something to do the
     minting. Automatically at rollover or by a button somebody presses is
     undecided, and Mission 11 owns the season boundary.
-11. **When do the two questionnaires go out, and are they ever combined?**
+12. **When do the two questionnaires go out, and are they ever combined?**
     Explicitly Brian's — "I'm doing that." The consent model has already combined
     one of them with the sign-up form.
-12. **Does a recruit who declines or joins stay on the board?** `W13` and `W14`
+13. **Does a recruit who declines or joins stay on the board?** `W13` and `W14`
     both say they are off it, and the packet makes that a display rule read off
     the one status field. The approved `W1-01` and `W13-01` frames keep
     `declined` and `disengaged` rows on the board, and that is what Brian looked
     at. This mockup follows the frames and shows both readings at once — ladder
     order sinks the exits to the bottom, and the Status filter takes them off.
-13. **Does the walk-up door get a duplicate check?** `W5` was approved on the
-    condition that its check match the operator-add door's. It does not, because
-    Brian removed that path himself. Making them the same would reverse his own
-    decision. It needs his word either way.
 
 ---
 
@@ -302,11 +328,19 @@ found on the rendered page rather than in the code.
 4. **The board showed the pinned filters _and_ the Filters button on a phone**,
    which is five stacked selects above a button that opens five more. The shipped
    roster board shows the pinned set from `md` up and the button below it.
-5. **`W1-02` and `W2-01` disagree** about Peregrine Oakhollow at Taster 2 — one
+5. **The board and the record disagreed about what the club knows.** `Grad` and
+   `Degree field` were rows with no column; `Preferred name` and `Year` were
+   columns with no row. Brian found it by opening one and then the other, which
+   is the one comparison a set of photographs cannot make.
+6. **`Preferred name` was a field this mockup invented.** `main` has
+   `person_aliases` and nothing else. It survived being written, reviewed and
+   screenshotted because nobody checked it against the shipped schema until
+   Brian said "this is old information."
+7. **`W1-02` and `W2-01` disagree** about Peregrine Oakhollow at Taster 2 — one
    frame records `Present`, the other calls the event `Upcoming`. See the
    deviations table.
-6. **`W13`/`W14` and the approved frames disagree** about whether a recruit who
-   declines or joins stays on the board. See open question 12.
+8. **`W13`/`W14` and the approved frames disagree** about whether a recruit who
+   declines or joins stays on the board. See open question 11.
 
 ## File map
 

@@ -14,7 +14,7 @@ import TableCell from "@mui/material/TableCell";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
-import { Aside, RecruitFrame, Scaffold } from "./chrome";
+import { RecruitFrame, Scaffold } from "./chrome";
 import { EVENTS, RECRUIT_LADDER, SIGN_UP_URL, TEMPLATES_APPROVED_IN_META } from "./fixtures";
 
 /**
@@ -104,13 +104,6 @@ export default function EventFlow() {
             Two days later, no answer
           </Button>
         </Stack>
-        <Aside>
-          The follow-up fires <strong>once</strong>, two days later, and only if there is no answer.
-          Nothing follows it. A recruit is never escalated to the President, never chased about an
-          unanswered event, and never sent a second reminder — which is why the recruits&rsquo;
-          group on the messaging schedule has no President field at all, rather than a President
-          field holding a discouraging number.
-        </Aside>
       </Box>
 
       {/* ------------------------------------------------------- 2. Landing -- */}
@@ -156,13 +149,6 @@ export default function EventFlow() {
             </Stack>
           </RecruitFrame>
         )}
-        <Aside>
-          Both answers land on the same shipped page, and it is the whole of what a recruit sees.
-          Note what is <strong>not</strong> here: no venue, no response deadline, no event
-          description, no list of who else was invited or answered, and no way into anything else. A
-          recruit sees an event&rsquo;s public details and nothing else — never attendance, never
-          roster or member data.
-        </Aside>
       </Box>
 
       {/* --------------------------------------------------- 3. The No path -- */}
@@ -257,11 +243,6 @@ export default function EventFlow() {
                       Academic conflict
                     </Typography>
                   </Paper>
-                  <Typography sx={{ fontSize: 14, color: "text.secondary", fontStyle: "italic" }}>
-                    A recruit never reaches this screen. It is a member obligation, and demanding
-                    one of somebody who has not joined is the harshness this mission exists to keep
-                    out.
-                  </Typography>
                 </Stack>
               </RecruitFrame>
             ) : null}
@@ -330,11 +311,6 @@ export default function EventFlow() {
           them. A template is created in Meta&rsquo;s own tooling; this product only names one when
           it sends, which is why there is no template screen anywhere.
         </Alert>
-        <Aside>
-          <strong>Never sent:</strong> anything at all to a recruit who declined; a second reminder;
-          an escalation to the President; a chase for an unanswered event; free text of any kind. A
-          QR recruit skips the welcome — they joined the group themselves at the stand.
-        </Aside>
       </Box>
 
       <Scaffold title="What is drawn and what is photographed">
@@ -344,12 +320,6 @@ export default function EventFlow() {
           identical apart from one word. The WhatsApp thread is drawn, because WhatsApp is not ours
           to render.
         </Typography>
-        <Aside>
-          <strong>Later, and not drawn:</strong> Brian&rsquo;s own copy for the declined page —
-          &ldquo;We&rsquo;ll miss seeing you. If you want to change, go back here.&rdquo; The
-          shipped words stand until that flow is designed, so the No page above says exactly what
-          the Yes page says.
-        </Aside>
       </Scaffold>
     </Stack>
   );
@@ -427,7 +397,11 @@ function WhatsAppThread({
           Oxford Lancers
         </Typography>
         <Typography variant="body2">
-          {`Hi Rosalind — ${eventName} is on ${startsAt.replace(", ", " ")}, at ${venue}. Are you coming?`}
+          {`${eventName}`}
+          <br />
+          {`${startsAt}, ${venue}.`}
+          <br />
+          Please let us know whether you can attend.
         </Typography>
         <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 0.5 }}>
           event_invitation · 12:00
@@ -467,7 +441,10 @@ function WhatsAppThread({
             Oxford Lancers
           </Typography>
           <Typography variant="body2">
-            {`Still hoping to see you at ${eventName}. No need to reply if it is not for you.`}
+            {`A reminder about ${eventName} on ${startsAt}.`}
+            <br />
+            Please let us know whether you can attend. We will not message you about this event
+            again.
           </Typography>
           <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 0.5 }}>
             The event follow-up · two days later · 12:00

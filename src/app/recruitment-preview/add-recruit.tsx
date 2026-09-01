@@ -9,7 +9,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { Aside, Scaffold, StatusChip } from "./chrome";
+import { Scaffold, StatusChip } from "./chrome";
 import { SEASON_LABEL, type Recruit } from "./fixtures";
 import type { RecruitmentStore } from "./store";
 
@@ -228,6 +228,85 @@ export default function AddRecruit({
         </Stack>
       </Stack>
 
+      {/*
+        The answer goes **above the form** — Brian, 2026-09-01: "the duplicate
+        check if it finds something needs to go at the top, not the bottom."
+        The shipped `/operate/people/new` puts it below the fields, which means
+        an operator who has just filled in a long form has to scroll past what
+        they typed to find out the club already has this person. This is the one
+        place this door departs from the form it clones.
+      */}
+      {checked ? (
+        <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
+          <Stack spacing={2}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+              Already in the club
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Two records look like this person. Nothing has been written yet.
+            </Typography>
+            {CANDIDATES.map((candidate) => (
+              <Paper key={candidate.name} variant="outlined" sx={{ p: 2 }}>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={2}
+                  sx={{ justifyContent: "space-between", alignItems: { sm: "center" } }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                      {candidate.name}
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: "primary.main" }}>
+                      {candidate.identity}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {candidate.contact}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {candidate.matched}
+                    </Typography>
+                  </Box>
+                  <Button
+                    variant="outlined"
+                    onClick={() => {
+                      const existing = store.recruits.find(
+                        (recruit) => recruit.displayName === candidate.name,
+                      );
+                      if (existing) onOpenRecruit(existing.id);
+                      else onCancel();
+                    }}
+                    sx={{ minHeight: 44, flexShrink: 0 }}
+                  >
+                    This is them
+                  </Button>
+                </Stack>
+                {candidate.status === "player" ? (
+                  <Alert severity="warning" sx={{ mt: 2 }}>
+                    They already hold a membership this season. A player is not a recruit — this
+                    door says so and refuses, rather than creating a prospect beside a membership.
+                  </Alert>
+                ) : null}
+                {candidate.status === "recruit" ? (
+                  <Alert severity="info" sx={{ mt: 2 }}>
+                    They are already a recruit this season. The unique constraint on{" "}
+                    <code>(person_id, season_id)</code> refuses a second one, so this offers their
+                    record instead of an error.
+                  </Alert>
+                ) : null}
+              </Paper>
+            ))}
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              <Button variant="contained" onClick={create} sx={{ minHeight: 44 }}>
+                This is somebody new
+              </Button>
+              <Button variant="outlined" onClick={() => setChecked(false)} sx={{ minHeight: 44 }}>
+                Go back and change the details
+              </Button>
+            </Stack>
+          </Stack>
+        </Paper>
+      ) : null}
+
       <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
         <Stack spacing={3}>
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
@@ -309,82 +388,6 @@ export default function AddRecruit({
         </Stack>
       </Paper>
 
-      {checked ? (
-        <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
-          <Stack spacing={2}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-              Already in the club
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Two records look like this person. Nothing has been written yet.
-            </Typography>
-            {CANDIDATES.map((candidate) => (
-              <Paper key={candidate.name} variant="outlined" sx={{ p: 2 }}>
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  spacing={2}
-                  sx={{ justifyContent: "space-between", alignItems: { sm: "center" } }}
-                >
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography variant="body1" sx={{ fontWeight: 700 }}>
-                      {candidate.name}
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: "primary.main" }}>
-                      {candidate.identity}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {candidate.contact}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {candidate.matched}
-                    </Typography>
-                  </Box>
-                  <Button
-                    variant="outlined"
-                    onClick={() => {
-                      const existing = store.recruits.find(
-                        (recruit) => recruit.displayName === candidate.name,
-                      );
-                      if (existing) onOpenRecruit(existing.id);
-                      else onCancel();
-                    }}
-                    sx={{ minHeight: 44, flexShrink: 0 }}
-                  >
-                    This is them
-                  </Button>
-                </Stack>
-                {candidate.status === "player" ? (
-                  <Alert severity="warning" sx={{ mt: 2 }}>
-                    They already hold a membership this season. A player is not a recruit — this
-                    door says so and refuses, rather than creating a prospect beside a membership.
-                  </Alert>
-                ) : null}
-                {candidate.status === "recruit" ? (
-                  <Alert severity="info" sx={{ mt: 2 }}>
-                    They are already a recruit this season. The unique constraint on{" "}
-                    <code>(person_id, season_id)</code> refuses a second one, so this offers their
-                    record instead of an error.
-                  </Alert>
-                ) : null}
-              </Paper>
-            ))}
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-              <Button variant="contained" onClick={create} sx={{ minHeight: 44 }}>
-                This is somebody new
-              </Button>
-              <Button variant="outlined" onClick={() => setChecked(false)} sx={{ minHeight: 44 }}>
-                Go back and change the details
-              </Button>
-            </Stack>
-            <Aside>
-              Nothing is created and nothing is messaged until a human decides. That is the locked
-              rule at the centre of this mission, and it is why an existing member never receives a
-              &ldquo;welcome to the club&rdquo; message.
-            </Aside>
-          </Stack>
-        </Paper>
-      ) : null}
-
       <Scaffold title="Three doors, three deliberate postures">
         <Box component="ul" sx={{ m: 0, pl: 3, color: "text.secondary" }}>
           <li>
@@ -400,11 +403,6 @@ export default function AddRecruit({
             is the one who knows.
           </li>
         </Box>
-        <Aside>
-          They look like an inconsistency and are not. Whatever still slips through goes to the
-          people table&rsquo;s own merge, which already ships and belongs to Mission 5 — this
-          mission does not own merging.
-        </Aside>
       </Scaffold>
     </Stack>
   );

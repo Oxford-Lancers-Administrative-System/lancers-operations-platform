@@ -7,8 +7,11 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { Aside, RecruitFrame, Scaffold } from "./chrome";
-import { SIGN_UP_URL } from "./fixtures";
+import Checkbox from "@mui/material/Checkbox";
+import ListItemText from "@mui/material/ListItemText";
+import ListSubheader from "@mui/material/ListSubheader";
+import { RecruitFrame, Scaffold } from "./chrome";
+import { GEAR_ITEMS, POSITION_GROUPS, SIGN_UP_URL } from "./fixtures";
 
 /**
  * `W4`, Questionnaire B — how you came to football.
@@ -40,20 +43,6 @@ import { SIGN_UP_URL } from "./fixtures";
 
 type State = "form" | "saved" | "already" | "invalid";
 
-const POSITIONS = [
-  "No preference",
-  "Quarterback",
-  "Running back",
-  "Wide receiver",
-  "Offensive line",
-  "Defensive line",
-  "Linebacker",
-  "Defensive back",
-  "Kicker",
-];
-
-const GEAR = ["None", "Boots only", "Boots and gloves", "Full pads", "Something else"];
-
 const HEARD = [
   "Freshers' Fair",
   "A friend or teammate",
@@ -66,8 +55,8 @@ export default function QuestionnaireB() {
   const [state, setState] = useState<State>("form");
   const [played, setPlayed] = useState("");
   const [watched, setWatched] = useState("");
-  const [position, setPosition] = useState("");
-  const [gear, setGear] = useState("");
+  const [position, setPosition] = useState<string[]>([]);
+  const [gear, setGear] = useState<string[]>([]);
   const [heard, setHeard] = useState("");
   const [anything, setAnything] = useState("");
 
@@ -108,12 +97,6 @@ export default function QuestionnaireB() {
           another person, never anything about the club&rsquo;s other recruits. There is no login,
           by Task 08 § 3&rsquo;s decision that there are no player logins in Release One.
         </Typography>
-        <Aside>
-          The expired state is the <strong>uniform invalid page</strong>, and it is the same page
-          for expired, revoked and never-existed. It says nothing about whether the token was ever
-          real, which is the whole point: a page that distinguishes them is a page that answers
-          questions for somebody guessing tokens.
-        </Aside>
       </Scaffold>
 
       <RecruitFrame url={state === "invalid" ? `${domain}/a/expired…` : `${domain}/a/7b21f4e9c…`}>
@@ -126,11 +109,10 @@ export default function QuestionnaireB() {
             </Typography>
             <Box>
               <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-                About your football experience
+                Football background
               </Typography>
               <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 1 }}>
-                So the coaches know where to start with you. There are no wrong answers and nothing
-                here decides whether you can play. Every question is optional.
+                For the coaching staff. Every question is optional.
               </Typography>
             </Box>
 
@@ -158,34 +140,72 @@ export default function QuestionnaireB() {
               <MenuItem value="No">No</MenuItem>
             </TextField>
 
+            {/*
+              Multi-select, over the season's own vocabulary, grouped by section
+              — Brian, 2026-09-01. A recruit is allowed to be interested in more
+              than one thing, and picking a side is not the question.
+            */}
             <TextField
               select
-              label="Which position interests you?"
+              label="Which positions interest you?"
               value={position}
-              onChange={(e) => setPosition(e.target.value)}
+              onChange={(e) =>
+                setPosition(
+                  typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value,
+                )
+              }
               fullWidth
-              helperText="Nothing binding — a conversation opener for a coach."
+              slotProps={{
+                select: {
+                  multiple: true,
+                  renderValue: (selected) => (selected as string[]).join(", ") || "",
+                  MenuProps: { slotProps: { paper: { sx: { maxHeight: 360 } } } },
+                },
+              }}
             >
-              <MenuItem value="">(no answer)</MenuItem>
-              {POSITIONS.map((option) => (
-                <MenuItem key={option} value={option}>
-                  {option}
-                </MenuItem>
-              ))}
+              {POSITION_GROUPS.flatMap((group) => [
+                <ListSubheader key={group.label} sx={{ fontWeight: 700 }}>
+                  {group.label}
+                </ListSubheader>,
+                ...group.positions.map((entry) => (
+                  <MenuItem key={entry.code} value={`${entry.code} · ${entry.label}`}>
+                    <Checkbox
+                      size="small"
+                      sx={{ p: 0, mr: 1 }}
+                      checked={position.includes(`${entry.code} · ${entry.label}`)}
+                    />
+                    <ListItemText primary={`${entry.code} · ${entry.label}`} />
+                  </MenuItem>
+                )),
+              ])}
             </TextField>
 
+            {/*
+              One item at a time, not combinations — Brian, 2026-09-01. "Boots
+              only" and "Boots and gloves" made somebody with boots and a helmet
+              pick the nearest wrong answer.
+            */}
             <TextField
               select
               label="What playing gear do you already have?"
               value={gear}
-              onChange={(e) => setGear(e.target.value)}
+              onChange={(e) =>
+                setGear(
+                  typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value,
+                )
+              }
               fullWidth
-              helperText="So we know whether you need kit to turn up at all."
+              slotProps={{
+                select: {
+                  multiple: true,
+                  renderValue: (selected) => (selected as string[]).join(", ") || "",
+                },
+              }}
             >
-              <MenuItem value="">(no answer)</MenuItem>
-              {GEAR.map((option) => (
-                <MenuItem key={option} value={option}>
-                  {option}
+              {GEAR_ITEMS.map((item) => (
+                <MenuItem key={item} value={item}>
+                  <Checkbox size="small" sx={{ p: 0, mr: 1 }} checked={gear.includes(item)} />
+                  <ListItemText primary={item} />
                 </MenuItem>
               ))}
             </TextField>
@@ -206,7 +226,7 @@ export default function QuestionnaireB() {
             </TextField>
 
             <TextField
-              label="Anything else you would like us to know?"
+              label="Anything else"
               value={anything}
               onChange={(e) => setAnything(e.target.value)}
               fullWidth
@@ -216,64 +236,46 @@ export default function QuestionnaireB() {
             />
 
             <Button variant="contained" onClick={() => setState("saved")} sx={{ minHeight: 48 }}>
-              Send my answers
+              Submit
             </Button>
-
-            <Typography sx={{ fontSize: 14, color: "text.secondary", fontStyle: "italic" }}>
-              Nothing here gates anything: missing answers never block a capture and never block the
-              flip. One polite reminder follows if it goes unanswered, and then nothing.
-            </Typography>
           </Stack>
         ) : null}
 
         {state === "saved" ? (
           <Stack spacing={3}>
             <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-              Thank you — that is with us
+              Answers received
             </Typography>
             <Typography sx={{ fontSize: 15, color: "text.secondary" }}>
-              A coach will have a look before the next session. You do not need to do anything else.
+              Nothing further is needed.
             </Typography>
             <Button variant="text" onClick={() => setState("form")} sx={{ minHeight: 48 }}>
               Change an answer
             </Button>
-            <Typography sx={{ fontSize: 14, color: "text.secondary", fontStyle: "italic" }}>
-              Answering is an interaction, so it moves <code>identified → engaged</code> where the
-              recruit is not already there. Nothing else moves. If they answer twice the later
-              answer supersedes and the earlier one is kept.
-            </Typography>
           </Stack>
         ) : null}
 
         {state === "already" ? (
           <Stack spacing={3}>
             <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-              You have already answered this
+              Already completed
             </Typography>
             <Typography sx={{ fontSize: 15, color: "text.secondary" }}>
-              Nothing has changed and nothing needs doing. You can change an answer if you want to.
+              You can change any answer.
             </Typography>
             <Button variant="contained" onClick={() => setState("form")} sx={{ minHeight: 48 }}>
               Change an answer
             </Button>
-            <Typography sx={{ fontSize: 14, color: "text.secondary", fontStyle: "italic" }}>
-              A friendly page saying so, changing nothing. This is not an error and must not read as
-              one.
-            </Typography>
           </Stack>
         ) : null}
 
         {state === "invalid" ? (
           <Stack spacing={3}>
             <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-              This link is not available
+              This link is no longer valid
             </Typography>
             <Typography sx={{ fontSize: 15, color: "text.secondary" }}>
-              If somebody at the club sent it to you, ask them to send it again.
-            </Typography>
-            <Typography sx={{ fontSize: 14, color: "text.secondary", fontStyle: "italic" }}>
-              The same page for expired, revoked and never-existed. No information leakage, per the
-              uniform-invalid precedent — it does not say whether the token was ever real.
+              Contact the club for a new one.
             </Typography>
           </Stack>
         ) : null}
@@ -286,13 +288,6 @@ export default function QuestionnaireB() {
           approved the workflow — &ldquo;W4 seems fine. Approved.&rdquo; — but the set itself is
           still open, and <code>Anything else</code> is retained without being confirmed.
         </Typography>
-        <Aside>
-          Also open, and explicitly his:{" "}
-          <strong>when the two questionnaires go out, and whether they are ever combined.</strong>{" "}
-          &ldquo;We&rsquo;ll figure out when they get put together. I&rsquo;m doing that.&rdquo; The
-          consent model has already combined one of them with the sign-up form; whether this one
-          joins them is not decided here.
-        </Aside>
       </Scaffold>
     </Stack>
   );
