@@ -140,6 +140,22 @@ export async function readCurrentSeasonIn(tx: Tx): Promise<Season> {
   };
 }
 
+/**
+ * A season's own label, by id — `null` when the id no longer resolves.
+ *
+ * Deliberately not `readSeasonIn`'s full shape: every caller so far (LAN-202's
+ * opt-out page, naming the season it is stopping messages for) needs one
+ * string, and reading `status`/`starts_on`/`ends_on` it never displays would
+ * be a second, unused read on a public, unauthenticated page.
+ */
+export async function readSeasonLabelIn(tx: Tx, seasonId: string): Promise<string | null> {
+  const result = await tx.query<{ label: string }>(
+    `select label from public.seasons where id = $1::uuid`,
+    [seasonId],
+  );
+  return result.rows[0]?.label ?? null;
+}
+
 interface TermRow {
   id: string;
   name: string;
