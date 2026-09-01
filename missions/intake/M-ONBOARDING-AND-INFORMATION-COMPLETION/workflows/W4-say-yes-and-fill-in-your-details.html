@@ -1,0 +1,1290 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W4 specification</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: #e7e9ee;
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: #212121;
+        color: #fff;
+        padding: 11px 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .layout {
+        display: flex;
+        gap: 26px;
+        max-width: 1220px;
+        margin: 26px auto 90px;
+        padding: 0 22px;
+        align-items: flex-start;
+      }
+      nav.toc {
+        position: sticky;
+        top: 68px;
+        flex: 0 0 252px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 16px 8px 16px 16px;
+        max-height: calc(100vh - 104px);
+        overflow: auto;
+      }
+      nav.toc h2 {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--sec);
+        margin: 0 0 10px;
+        border: 0;
+        padding: 0;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc > ol > li {
+        margin-bottom: 4px;
+      }
+      nav.toc a {
+        display: block;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13.5px;
+        padding: 4px 8px;
+        border-radius: 5px;
+      }
+      nav.toc a:hover {
+        background: var(--grey100);
+      }
+      nav.toc .sub {
+        padding-left: 11px;
+        margin-bottom: 6px;
+      }
+      nav.toc .sub a {
+        color: var(--sec);
+        font-size: 12.5px;
+        padding: 2px 8px;
+      }
+      main {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      section.doc {
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 4px 34px 30px;
+        margin-bottom: 22px;
+      }
+      section.doc > header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 16px 0 11px;
+        border-bottom: 1px solid var(--divider);
+      }
+      section.doc > header h2 {
+        font-size: 1.02rem;
+        margin: 0;
+        border: 0;
+        padding: 0;
+      }
+      section.doc > header .file {
+        font-size: 12px;
+        color: var(--sec);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        margin-left: auto;
+      }
+      h1 {
+        font-size: 1.45rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.1rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 0.98rem;
+        margin: 20px 0 6px;
+      }
+      h4 {
+        font-size: 0.92rem;
+        margin: 16px 0 4px;
+        color: var(--sec);
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul,
+      ol {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      .tablewrap {
+        overflow-x: auto;
+        margin: 14px 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+      }
+      a {
+        color: var(--primary);
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        margin: 22px 0;
+      }
+      .chip {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        padding: 2px 9px;
+        border-radius: 11px;
+        white-space: nowrap;
+      }
+      .chip.ok {
+        background: #edf7ed;
+        color: #1b5e20;
+      }
+      .chip.warn {
+        background: #fff4e5;
+        color: #663c00;
+      }
+      .chip.idle {
+        background: var(--grey100);
+        color: var(--sec);
+      }
+      @media (max-width: 900px) {
+        .layout {
+          display: block;
+          padding: 0 12px;
+        }
+        nav.toc {
+          position: static;
+          width: auto;
+          margin-bottom: 18px;
+          max-height: none;
+        }
+        section.doc {
+          padding: 4px 18px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        W4 — Say yes and fill in your details<span
+          >M-ONBOARDING-AND-INFORMATION-COMPLETION · main@332bc6b</span
+        >
+      </div>
+      <div>
+        <a href="../mockups/index.html">Index</a>
+        <a href="../specifications.html">All specifications</a>
+        <a href="../mockups/W4-say-yes-and-fill-in-your-details.html">Screens</a>
+      </div>
+    </div>
+    <div class="layout">
+      <nav class="toc">
+        <h2>On this page</h2>
+        <ol>
+          <li><a href="#s7-h2">What this workflow does not decide</a></li>
+          <li><a href="#s7-h3">Current main grounding</a></li>
+          <li><a href="#s7-h4">The link is already on main</a></li>
+          <li><a href="#s7-h5">What the substrate already gives us</a></li>
+          <li><a href="#s7-h6">The screen</a></li>
+          <li><a href="#s7-h8">Required actions</a></li>
+          <li><a href="#s7-h9">State transitions</a></li>
+          <li><a href="#s7-h10">Handoffs</a></li>
+          <li><a href="#s7-h11">Dependencies and mission boundaries</a></li>
+          <li><a href="#s7-h12">Exceptions and recovery</a></li>
+          <li><a href="#s7-h13">Safety, privacy, consent, and authority boundaries</a></li>
+          <li><a href="#s7-h14">Acceptance evidence</a></li>
+          <li><a href="#s7-h15">Core decisions</a></li>
+          <li><a href="#s7-h16">Owed, and not blocking</a></li>
+          <li><a href="#s7-h17">Brian approval</a></li>
+        </ol>
+      </nav>
+      <main>
+        <section class="doc">
+          <header>
+            <h2>W4 — Say yes and fill in your details</h2>
+            <span class="chip warn">draft, not approved</span>
+            <span class="file">workflows/W4-say-yes-and-fill-in-your-details.md</span>
+          </header>
+          <h1 id="s7-h1">W4 — Say yes and fill in your details</h1>
+          <ul>
+            <li>
+              Purpose/intended outcome: The player gets one message and one link, and behind that
+              link is
+              <strong
+                >one screen that is both the consent board and the personal-details check</strong
+              >. They tick their agreement to be messaged, confirm what the club already holds, and
+              fill what it doesn't. Afterwards their record is as complete as they can make it, and
+              the club may lawfully message them from here on.
+            </li>
+            <li>
+              Primary actor: <strong>The player.</strong> This is the mission's only workflow whose
+              actor is not an operator, and there is no login anywhere in it.
+            </li>
+            <li>
+              Trigger: <code>onboarding-opened</code>, fired by <code>W1</code>, <code>W2</code> or
+              <code>W3</code>, sends the welcome. Every later follow-up and operator nudge carries
+              <strong>the same link to the same page</strong> — they are re-entries, not new asks.
+            </li>
+            <li>
+              Entry point: The link in the welcome message. There is no other way in: no navigation,
+              no search, no login, no page on the operator side links here.
+            </li>
+            <li>
+              Route/placement: <strong><code>/me/[token]/details</code></strong> — a new page on the
+              player's existing season credential. See
+              <em>The link is already on <code>main</code></em> below; this is the one real owner
+              decision in the workflow.
+            </li>
+            <li>
+              Controlling source: <code>S7</code>, <code>S8</code>, <code>S9</code>,
+              <code>S10</code>; owned <code>R4-P</code>, <code>M2</code>,
+              <code>T11-one-request</code>, <code>T11-states</code>, <code>T11-consent-gate</code>,
+              <code>T11-streams-distinct</code>, <code>T11-A1</code>, <code>T11-A2</code>,
+              <code>D6</code>, <code>T07-enforce</code>, <code>T07-exception</code>,
+              <code>T07-season-scoped</code>, <code>T07-states</code>, <code>T07-permissions</code>,
+              <code>T07-A-2026-08-26</code>, <code>PR7-welcome-consent</code>,
+              <code>PR7-refuse-check</code>, <code>PR7-compiled-link</code>,
+              <code>OD7-same-message</code>, <code>OD7-form-is-consent-board</code>,
+              <code>OD7-oneway-tick</code>, <code>OD7-recheck-prefill</code>; shared
+              <code>S25</code>, <code>S43</code>, <code>S44</code>; cited <code>R2-V</code> (W6),
+              <code>R3-G</code> (W6), <code>R4-T</code> (W8),
+              <code>T07-merge-precedence</code> (W7). Content and order come from the
+              <strong>approved <code>item-and-ask-inventory.md</code></strong
+              >, which this workflow cites and does not re-decide.
+            </li>
+            <li>
+              User-visible result: A page that says what was saved and what is still outstanding,
+              and a record the club can now chase against.
+            </li>
+          </ul>
+          <h2 id="s7-h2">What this workflow does not decide</h2>
+          <p>
+            <code>item-and-ask-inventory.md</code> is approved. It already fixes
+            <strong>what the form asks and in what order</strong> — fifteen numbered asks, consent
+            first, first name, last name and mobile required. This specification cites that table.
+            It decides the <strong>screen</strong>: how the asks are grouped, how the page adapts to
+            what is already on record, what the states look like, and what happens on submit.
+          </p>
+          <h2 id="s7-h3">Current <code>main</code> grounding</h2>
+          <ul>
+            <li>
+              Baseline <code>main@332bc6b</code>.
+              <strong>No collection form of any kind exists.</strong> This is a new surface.
+            </li>
+            <li>
+              <strong>LAN-202 is not in the baseline.</strong> The handoff flagged this and it is
+              confirmed: there is no <code>/signup</code> route, no recruit form, nothing under
+              <code>src/app</code> that collects a person's own details. LAN-202 was marked Done
+              after <code>332bc6b</code> was cut, so Mission 6's form cannot be photographed or
+              reused, and nothing below assumes it.
+            </li>
+            <li>
+              <strong>Nearest implemented route and shell: <code>/a/[token]</code></strong
+              >, the answer link (LAN-172), with <code>/rsvp/[token]</code> (LAN-79) and
+              <code>/me/[token]</code> behind it. All three are player-facing, signed-link,
+              no-login, form-submitting pages, and they already establish every pattern this page
+              needs:
+            </li>
+          </ul>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>What W4 needs</th>
+                  <th>What ships at <code>/a/[token]</code> today</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>The shell</td>
+                  <td>
+                    <code>BANNER</code> = <code>LANCERS OPERATIONS</code>, grey ground, one
+                    <code>Paper</code> at <code>maxWidth: 720</code>, 48px controls
+                  </td>
+                </tr>
+                <tr>
+                  <td>A privacy line at collection</td>
+                  <td>
+                    <code>PRIVACY_NOTE</code>, rendered on the page itself — <code>S43</code>'s
+                    shipped precedent
+                  </td>
+                </tr>
+                <tr>
+                  <td>The uniform dead-link page</td>
+                  <td>
+                    <code>not-found.tsx</code>: <code>TERMINAL_HEADING</code>,
+                    <code>TERMINAL_PRIVACY_NOTE</code>, one <code>Close</code>, 404, no variant
+                  </td>
+                </tr>
+                <tr>
+                  <td>An already-recorded landing</td>
+                  <td>
+                    <code>ALREADY_RECORDED_HEADING</code> / <code>ALREADY_RECORDED_NOTE</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Throttling and uniform timing</td>
+                  <td>
+                    <code>allowPlayerAnswerRequest</code>, <code>withUniformTerminalTiming</code>,
+                    <code>clientKeyFrom</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Field rendering</td>
+                  <td>
+                    <code>QuestionField</code>, already reused across <code>/a</code> and
+                    <code>/me</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>A busy failure that isn't a lie</td>
+                  <td><code>BUSY_ERROR</code> / <code>BUSY_MESSAGE</code></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <ul>
+            <li>
+              Reused patterns, and the departures: this page reuses all of the above verbatim. It
+              departs in exactly one way — it is <strong>long</strong>, where every shipped player
+              page is short. Fifteen asks do not fit the single-decision shape of an RSVP. That is
+              the only new interaction problem this workflow poses, and <code>R4-P</code>'s &quot;a
+              minimal checklist at the top, then the form&quot; is the answer to it.
+            </li>
+            <li>
+              Desktop and 375px evidence: both sides of every screen photographed at a measured 1280
+              and 375 against the running application. Recorded in <code>acceptance/W4.md</code>.
+            </li>
+          </ul>
+          <h2 id="s7-h4">The link is already on <code>main</code></h2>
+          <p>
+            The handoff expected the signed link to be Mission 6's substrate extended here
+            (<code>T11-A3</code>). On the baseline it is better than that:
+            <strong
+              ><code>person_access_tokens</code> already ships exactly the credential this workflow
+              needs</strong
+            >, built for Mission 4's chase
+            (<code>20260825120000_messaging_schedule_and_chase.sql</code>) and resolved today by
+            <code>/me/[token]</code> through <code>resolvePersonTokenIn</code>.
+          </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th><code>T11-one-request</code> asks for</th>
+                  <th><code>person_access_tokens</code> already has</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>One open ask per person, <strong>ever</strong></td>
+                  <td>
+                    <code>person_access_tokens_one_live_per_person_season</code> — a partial unique
+                    index
+                  </td>
+                </tr>
+                <tr>
+                  <td>Season-scoped, dying with its season</td>
+                  <td>
+                    <code>season_id</code> mandatory; the resolver requires an unclosed season
+                  </td>
+                </tr>
+                <tr>
+                  <td>Revocable per person, reissue after</td>
+                  <td>
+                    <code>revoked_at</code> with a mandatory explained reason; revoking makes room
+                    for the reissue
+                  </td>
+                </tr>
+                <tr>
+                  <td>No credential recoverable from the store</td>
+                  <td>digest-only, with a constraint refusing anything that is not a SHA-256</td>
+                </tr>
+                <tr>
+                  <td>Usable repeatedly, not burned on first use</td>
+                  <td>
+                    <code>single_use = false</code>, <code>use_count</code>,
+                    <code>last_used_at</code>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            So <strong>the compiled ask is not a new token type.</strong> One live durable
+            credential per person per season already <em>is</em> &quot;one open ask, ever&quot;,
+            enforced by a database index rather than by service code. The follow-up, the nudge and
+            the welcome all carry the same URL, which is why new outstanding facts join the open ask
+            instead of starting a second one: there is nothing to start.
+          </p>
+          <p>
+            <strong>Recommended route: <code>/me/[token]/details</code>.</strong> The player's one
+            credential, two pages: <code>/me/[token]</code> is their RSVP home, which ships;
+            <code>/me/[token]/details</code> is their record. <code>T11-streams-distinct</code> is
+            satisfied where it is actually written —
+            <strong
+              >a collection message never carries an RSVP ask and an RSVP message never carries a
+              collection ask.</strong
+            >
+            Each message links to its own page. The credential underneath is shared because the club
+            issues one credential per person per season and the database permits exactly one.
+          </p>
+          <p>
+            The alternative is a separate top-level route with its own token table. It costs a
+            migration, a second resolver, a second revocation path, and a second live link in the
+            player's WhatsApp thread — and it would let a person hold two live links, which is the
+            thing <code>T11-one-request</code> exists to prevent.
+            <strong>This is the workflow's one decision proposed for owner approval</strong>;
+            everything else here follows from approved sources.
+          </p>
+          <h2 id="s7-h5">What the substrate already gives us</h2>
+          <p>
+            Every fact the form asks for has a column on <code>main</code>. Nothing in the fifteen
+            asks requires inventing a place to put an answer.
+          </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Ask</th>
+                  <th>Where it lands on <code>main</code></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Consent to be messaged</td>
+                  <td>
+                    <code>season_messaging_consents</code> — one row per person per season, five
+                    states
+                  </td>
+                </tr>
+                <tr>
+                  <td>First name, last name, preferred name</td>
+                  <td>
+                    <code>people.given_name</code>, <code>family_name</code>, <code>known_as</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Mobile, personal email</td>
+                  <td>
+                    <code>contact_points</code>, <code>kind</code> +
+                    <code>scope = 'personal'</code>, <code>is_preferred</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    College, matriculation year, expected graduation, degree field, date of birth
+                  </td>
+                  <td><code>people</code>, all five added by the person substrate</td>
+                </tr>
+                <tr>
+                  <td>Emergency contact</td>
+                  <td>
+                    <code>person_emergency_contacts</code>, one per person, structurally locked down
+                  </td>
+                </tr>
+                <tr>
+                  <td>The checklist strip</td>
+                  <td><code>onboarding_items</code> → <code>onboarding_item_types</code></td>
+                </tr>
+                <tr>
+                  <td>The under-18 flag</td>
+                  <td>
+                    derived in the person substrate; <strong>never the date itself</strong> on any
+                    list
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <strong>What has no substrate, and is therefore this mission's to add:</strong> the
+            <code>claimed</code> item state, per-item history and provenance, the versioned wording
+            slot the Code of Conduct and photo release are read from, and the ask's own state (<code
+              >invited · opened · submitted · …</code
+            >). The first three are owned by <code>W6</code> and <code>W11</code>; the ask's state
+            is owned here. The mockups mark what is proposed rather than drawing it as if it
+            shipped.
+          </p>
+          <h2 id="s7-h6">The screen</h2>
+          <p>
+            <code>R4-P</code>: <strong>a minimal checklist at the top, then the form.</strong> One
+            page, one submit.
+          </p>
+          <p>
+            <strong>1 — The strip.</strong> A short line of what is outstanding, with the count. Not
+            the full checklist, not per-item history — that is <code>W6</code>'s record, on the
+            operator side. Its job is to answer &quot;why am I here and how much is this&quot;
+            before the player scrolls.
+          </p>
+          <p>
+            <strong>2 — Consent, as step one.</strong> A single tick, with the privacy line beside
+            it and the season named. <code>OD7-form-is-consent-board</code>: the form
+            <em>is</em> the consent board, so this is not a preamble to the form, it is the form's
+            first field.
+          </p>
+          <p>
+            <strong>3 — The fifteen asks, in the approved order</strong>, grouped as the inventory
+            groups them: who you are (name, mobile, email); where you study (college, matriculation,
+            graduation, degree); the two restricted facts (date of birth, emergency contact); the
+            two you read and agree to (Code of Conduct, photo release); the two you go and do (BUCS
+            Play, Hudl).
+          </p>
+          <p>
+            <strong>4 — Confirm, don't retype.</strong> <code>OD7-recheck-prefill</code>: every
+            value the club already holds arrives in the field, and the ask is to confirm it. A
+            person with a complete record ticks their way down the page. A person with gaps sees the
+            gaps.
+          </p>
+          <p>
+            <strong>5 — One submit</strong>, and a result page that says what was saved and what
+            remains.
+          </p>
+          <h3 id="s7-h7">How the page adapts</h3>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Who opens it</th>
+                  <th>What is different</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>An imported returner (<code>W1</code>)</td>
+                  <td>
+                    Name and whatever the CSV carried are pre-filled. Consent is step one and
+                    unticked.
+                  </td>
+                </tr>
+                <tr>
+                  <td>A hand-added player (<code>W2</code>)</td>
+                  <td>
+                    The three required fields are pre-filled; everything else is blank. Consent is
+                    step one and unticked.
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>A flipped recruit (<code>W3</code>)</strong></td>
+                  <td>
+                    Pre-filled from the recruit door and questionnaire A.
+                    <strong>Consent is absent</strong> — they granted it at the door this season and
+                    <code>season_messaging_consents</code> is unique per person per season, so there
+                    is nothing to ask. The four recruitment never asks — expected graduation, degree
+                    field, date of birth, emergency contact — are the visible gaps.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Someone with nothing left</td>
+                  <td>The already-complete state. No form.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <strong
+              >The flipped recruit's missing first step is the single most important thing the
+              mockups have to show</strong
+            >, because it is the one place where the three doors produce visibly different screens,
+            and <code>W3</code> settled it without rendering it.
+          </p>
+          <h2 id="s7-h8">Required actions</h2>
+          <ol>
+            <li>
+              <strong>Open the link.</strong> A side-effect-free GET. The ask moves
+              <code>invited → opened</code>; nothing else is written, following
+              <code>/a/[token]</code>'s Q-11 rule exactly.
+            </li>
+            <li>
+              <strong>Tick consent</strong> — where it is asked. One-way: the control that grants it
+              offers no way to remove it (<code>OD7-oneway-tick</code>).
+            </li>
+            <li>
+              <strong>Confirm or correct each pre-filled value; fill each gap.</strong> Read-back
+              applies on the mobile, as it does on every mobile-capture path in the mission.
+            </li>
+            <li>
+              <strong>Read and confirm the Code of Conduct; read and sign the photo release</strong>
+              — each a page of wording from a versioned slot, then a dated confirmation stored as
+              theirs.
+            </li>
+            <li>
+              <strong>Answer the two off-system asks</strong> — BUCS Play and Hudl — as &quot;have
+              you done it?&quot;, which records <code>claimed</code>, not
+              <code>complete</code> (<code>R2-V</code>, owned by <code>W6</code>).
+            </li>
+            <li><strong>Submit once.</strong> The ask moves to <code>submitted</code>.</li>
+          </ol>
+          <p>
+            <strong>Nothing here is required to proceed.</strong> <code>R3-G</code> governs: nothing
+            gates, ever. A player may submit with every optional field blank and the page accepts
+            it; the gaps simply stay outstanding and stay chased. The three required fields are
+            required to be <em>asked for</em> and to be <em>chased</em>, not to be a barrier.
+          </p>
+          <h2 id="s7-h9">State transitions</h2>
+          <p>
+            <strong>The ask</strong> (<code>T11-states</code>, owned here, exercised by
+            <code>W5</code> and <code>W8</code>):
+          </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>On</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>—</td>
+                  <td><code>invited</code></td>
+                  <td>The welcome, or any follow-up or nudge, is dispatched</td>
+                </tr>
+                <tr>
+                  <td><code>invited</code></td>
+                  <td><code>opened</code></td>
+                  <td>The link is opened. GET only, writes nothing else</td>
+                </tr>
+                <tr>
+                  <td><code>opened</code></td>
+                  <td><code>submitted</code></td>
+                  <td>The player submits</td>
+                </tr>
+                <tr>
+                  <td><code>submitted</code></td>
+                  <td><code>opened</code></td>
+                  <td>
+                    They return through the same link — <strong><code>W5</code>'s workflow</strong>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>opened</code></td>
+                  <td><code>corrected</code></td>
+                  <td>
+                    A later change to an already-confirmed value — <strong><code>W5</code></strong>
+                  </td>
+                </tr>
+                <tr>
+                  <td>any</td>
+                  <td><code>already-complete</code></td>
+                  <td>Nothing is outstanding when the link is opened</td>
+                </tr>
+                <tr>
+                  <td>any</td>
+                  <td><code>expired/revoked</code></td>
+                  <td>The season closed, or the credential was revoked</td>
+                </tr>
+                <tr>
+                  <td>any</td>
+                  <td><code>error</code></td>
+                  <td>The submit could not be saved</td>
+                </tr>
+                <tr>
+                  <td>per fact</td>
+                  <td><code>refused</code></td>
+                  <td>
+                    They decline to give one value — <strong><code>W5</code></strong>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <strong>Consent</strong> (<code>T07-states</code>, as shipped):
+            <code>never_asked → asked</code> when the welcome goes out;
+            <code>asked → granted</code> on the tick, <code>source = 'qr_self_entry'</code>'s
+            sibling for a self-served page; <code>granted → withdrawn</code>
+            <strong>only by an operator</strong>, never by this page. Season-scoped throughout
+            (<code>T07-season-scoped</code>): every new season re-asks.
+          </p>
+          <p>
+            <strong>Checklist items</strong>: the derived contact-and-academic item (inventory item
+            9) completes when every required field is present. The Code of Conduct and photo release
+            complete on the player's confirmation. BUCS Play and Hudl go to <code>claimed</code>.
+            All of that is <code>W6</code>'s machinery; this workflow supplies the input.
+          </p>
+          <h2 id="s7-h10">Handoffs</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>To</th>
+                  <th>What crosses</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W5</code></td>
+                  <td>
+                    The same page, opened outside the welcome moment. <code>corrected</code> and
+                    <code>refused</code> are W5's states
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W6</code></td>
+                  <td>
+                    Every value submitted, with player provenance, into the record and the activity
+                    log
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W7</code></td>
+                  <td>
+                    A submitted value that contradicts an operator-confirmed, verified or derived
+                    one → <code>disputed</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W8</code></td>
+                  <td>
+                    What is still outstanding after submit is what the queue ranks and the chase
+                    asks for next
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W11</code></td>
+                  <td>
+                    Which items exist, their labels and their verification class, all read rather
+                    than decided here
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W12</code></td>
+                  <td>The cadence the follow-ups run to</td>
+                </tr>
+                <tr>
+                  <td>Mission 4</td>
+                  <td>
+                    The welcome and every follow-up ride the pipeline, template-only. Nothing here
+                    sends anything by hand
+                  </td>
+                </tr>
+                <tr>
+                  <td>Mission 8</td>
+                  <td>The wording in the consent, Code of Conduct and photo-release slots</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <strong>The dispute rule belongs to <code>W7</code>, not here.</strong> This page never
+            silently overwrites a value the club confirmed; it raises
+            <code>disputed — awaiting verification</code>. What that looks like to the player is one
+            line saying the club will check — the resolution surface is <code>W7</code>'s.
+          </p>
+          <h2 id="s7-h11">Dependencies and mission boundaries</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Seam</th>
+                  <th>This mission's side</th>
+                  <th>The other side</th>
+                  <th>Blocking?</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Mission 4 · Communications</td>
+                  <td>
+                    The welcome and follow-up message class; the refuse-without-basis check and its
+                    exception
+                  </td>
+                  <td>Transport, templates, delivery states, the scheduler</td>
+                  <td>Independently walkable — the page works without a message sent</td>
+                </tr>
+                <tr>
+                  <td>Mission 5 · People &amp; Roster</td>
+                  <td>The values this page writes</td>
+                  <td>
+                    <code>people</code>, <code>contact_points</code>,
+                    <code>person_emergency_contacts</code>, the queue
+                  </td>
+                  <td>Not blocking; all shipped</td>
+                </tr>
+                <tr>
+                  <td>Mission 6 · Recruitment</td>
+                  <td>Reads what the recruit door captured</td>
+                  <td>The door, the questionnaires, the consent grant</td>
+                  <td>Not blocking; substrate is on <code>main</code>, surfaces are not needed</td>
+                </tr>
+                <tr>
+                  <td><strong>Mission 8 · Consent</strong></td>
+                  <td>
+                    Capture mechanics: the tick, its states, the season re-ask, the
+                    point-of-collection slot
+                  </td>
+                  <td><strong>The words in the slot</strong></td>
+                  <td><strong>Provisional, and it does not block</strong> — see below</td>
+                </tr>
+                <tr>
+                  <td>Mission 3 · App Shell</td>
+                  <td>Requiring the policy at the point of collection</td>
+                  <td>The shell</td>
+                  <td>Not blocking; <code>/a/[token]</code> already ships the pattern</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <strong
+              >The one provisional handoff, restated at the workflow that actually renders
+              it.</strong
+            >
+            This page is where the boundary's Mission 8 seam becomes visible: consent wording, the
+            Code of Conduct and the photo release are all Clint's words through Task 07. This
+            workflow owns the <strong>slot</strong> — versioned, dated, stored as theirs — and walks
+            with placeholder wording in a real slot. No Mission 8 decision changes a state, a
+            transition, a control or an acceptance here; it changes the text inside three boxes. If
+            that stops being true, it returns to Brian.
+          </p>
+          <h2 id="s7-h12">Exceptions and recovery</h2>
+          <ul>
+            <li>
+              <strong>Expired or revoked link, and an unknown token.</strong> All three render one
+              page — the shape that ships at <code>/a/[token]/not-found.tsx</code>: same 404, same
+              heading, same &quot;for privacy, we can't provide more information about this
+              link&quot;, one <code>Close</code>, and no variant that could let the three diverge.
+              Nothing leaks about why. <strong>One shipped sentence does not come across.</strong>
+              <code>TERMINAL_BODY</code> reads &quot;If the event has already started, response
+              changes are closed&quot;, which is the answer link's business and untrue of a
+              collection link; <code>W4-05</code> photographs that single substitution and changes
+              nothing else.
+            </li>
+            <li>
+              <strong>The season closed.</strong> The resolver already refuses; it renders as the
+              same uniform page.
+            </li>
+            <li>
+              <strong>Already complete.</strong> Nothing outstanding, so no form — the shipped
+              <code>ALREADY_RECORDED</code> pattern, saying so plainly and pointing at their most
+              recent message from the club.
+            </li>
+            <li>
+              <strong>The submit fails.</strong> <code>BUSY_MESSAGE</code>'s shipped wording, the
+              entered values retained, nothing recorded, the ask left at <code>opened</code>.
+              <code>error</code> is a state of the ask, not of the record.
+            </li>
+            <li>
+              <strong>The player is under 18.</strong> The derived flag stops the chase entirely: a
+              flagged person is <strong>not messaged at all</strong> until a fresh owner decision
+              defines under-18 handling. The date lands on the record; the flag stops the machine.
+              Owned as a shared boundary with Mission 8 (<code>S44</code>).
+            </li>
+            <li>
+              <strong>No consent, or consent withdrawn.</strong> The person is
+              <code>unmessageable</code>. The link they already hold keeps working — a person who
+              withheld consent may still fix their phone number — but nothing further is sent to
+              them. The welcome is the single exception the refuse-without-basis check permits
+              (<code>T07-exception</code>, <code>T11-consent-gate</code>), and it is permitted
+              precisely because its purpose is to obtain the basis.
+            </li>
+            <li>
+              <strong>Two people merge.</strong> Which consent row wins is <code>W7</code>'s open
+              item (<code>T07-merge-precedence</code>), cited here because this page is what created
+              both rows.
+            </li>
+          </ul>
+          <h2 id="s7-h13">Safety, privacy, consent, and authority boundaries</h2>
+          <ul>
+            <li>
+              <strong>No login, ever.</strong> One signed, revocable, season-scoped credential per
+              person, carrying no session and exposing nobody else's information.
+            </li>
+            <li>
+              <strong>The page shows one person and only that person.</strong> No squad list, no
+              counts, no other name.
+            </li>
+            <li>
+              <strong>Date of birth is restricted.</strong> It is collected here and never appears
+              on a list, board or queue; only the derived under-18 flag does.
+            </li>
+            <li>
+              <strong>The privacy policy sits at the point of collection</strong>, on this page, as
+              <code>/a/[token]</code> already does with <code>PRIVACY_NOTE</code>.
+            </li>
+            <li>
+              <strong>Consent is one-way on the player's side.</strong> The form cannot untick it —
+              nobody switches off their own consent while updating a phone number. An operator can
+              switch it off at any point on request, on the person's status, which is
+              <code>W6</code>'s surface (<code>OD7-oneway-tick</code>).
+            </li>
+            <li>
+              <strong>Throttling and uniform timing</strong> as shipped, so a terminal response
+              cannot be distinguished by how long it took.
+            </li>
+            <li>
+              <strong>Free text is restricted.</strong> Anything a player types in a reason or a
+              note is four-role-group only and never reaches a report verbatim.
+            </li>
+          </ul>
+          <h2 id="s7-h14">Acceptance evidence</h2>
+          <p>
+            Five screens, each photographed on both sides at a measured 1280 and 375 against the
+            running application on the mission slot. Both sides of every screen come from the same
+            producer.
+          </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Screen</th>
+                  <th>What it proves</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W4-01</code></td>
+                  <td>
+                    The form as an imported returner opens it: the strip, consent as step one, the
+                    gaps
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W4-02</code></td>
+                  <td>
+                    The same page for a <strong>flipped recruit</strong>: pre-filled, and
+                    <strong>no consent step</strong>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W4-03</code></td>
+                  <td>Submitted — what was saved, what is still outstanding</td>
+                </tr>
+                <tr>
+                  <td><code>W4-04</code></td>
+                  <td>Already-complete — the link opened with nothing left to give</td>
+                </tr>
+                <tr>
+                  <td><code>W4-05</code></td>
+                  <td>
+                    Expired or revoked — the uniform page, and the one sentence that had to change
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <code>W4-01</code>, <code>W4-03</code>, <code>W4-04</code> and <code>W4-05</code> are
+            built on the <code>/a/[token]</code> shell, which is a real implemented route: the
+            current side photographs that page as it ships, and the proposed side photographs the
+            same page transformed. <code>W4-02</code> needs the locally seeded flipped recruit from
+            <code>evidence/W3-local-walk-data.md</code>, which must be re-run after any
+            <code>db:reset</code>.
+          </p>
+          <p>Grounding: <strong>screenshots</strong>.</p>
+          <h2 id="s7-h15">Core decisions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Decision</th>
+                  <th>Classification</th>
+                  <th>Governing evidence or recommended default</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    The form is the consent board; the tick is its first field, not a preamble
+                  </td>
+                  <td>locked</td>
+                  <td><code>OD7-form-is-consent-board</code>, boundary item 6</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Consent is one-way on the player's side; an operator switches it off</td>
+                  <td>locked</td>
+                  <td><code>OD7-oneway-tick</code>, Brian 2026-09-01</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>A flipped recruit sees no consent step this season</td>
+                  <td>locked</td>
+                  <td>
+                    <code>season_messaging_consents</code> unique per person per season;
+                    <code>W3</code> acceptance
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>What is asked, and in what order</td>
+                  <td>locked</td>
+                  <td>Approved <code>item-and-ask-inventory.md</code>; cited, not re-decided</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>First name, last name and mobile are the required set</td>
+                  <td>locked</td>
+                  <td>
+                    Brian 2026-09-01, and <code>person-required.ts</code> on <code>main</code>
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Nothing gates: a player may submit with every optional field blank</td>
+                  <td>locked</td>
+                  <td><code>R3-G</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>One welcome template for every door</td>
+                  <td>locked</td>
+                  <td><code>OD7-same-message</code>, <code>M2</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The welcome is the single message permitted before consent exists</td>
+                  <td>locked</td>
+                  <td>
+                    <code>T07-exception</code>, <code>T07-enforce</code>,
+                    <code>T11-consent-gate</code>
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>A minimal checklist strip at the top, then the form</td>
+                  <td>locked</td>
+                  <td><code>R4-P</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    The dead-link page reuses the shipped one — 404, heading, privacy line, one
+                    <code>Close</code>
+                  </td>
+                  <td>locked</td>
+                  <td>
+                    <code>not-found.tsx</code> on <code>main</code>. Its body sentence is replaced
+                    because the shipped one talks about events; nothing else changes
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Values arrive pre-filled and are confirmed rather than retyped</td>
+                  <td>locked</td>
+                  <td><code>OD7-recheck-prefill</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    A player's answer never silently overwrites a confirmed value; it raises
+                    <code>disputed</code>
+                  </td>
+                  <td>locked</td>
+                  <td>Boundary item 14; resolution is <code>W7</code>'s</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The ask's state model, <code>invited</code> through <code>error</code></td>
+                  <td>locked</td>
+                  <td>
+                    <code>T11-states</code>; <code>corrected</code> and <code>refused</code> are
+                    exercised by <code>W5</code>
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong
+                      >The link is the shipped <code>person_access_tokens</code> credential, at
+                      <code>/me/[token]/details</code></strong
+                    >
+                  </td>
+                  <td><strong>proposed for owner approval</strong></td>
+                  <td>
+                    One live durable credential per person per season already enforces &quot;one
+                    open ask, ever&quot;. A separate token table costs a migration and permits two
+                    live links. <strong>Recommended.</strong>
+                  </td>
+                  <td><strong>open</strong></td>
+                </tr>
+                <tr>
+                  <td>
+                    BUCS Play and Hudl answers record <code>claimed</code>, not
+                    <code>complete</code>
+                  </td>
+                  <td>locked</td>
+                  <td><code>R2-V</code>, owned by <code>W6</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Read-back applies to the mobile captured here</td>
+                  <td>locked</td>
+                  <td>Overview invariant</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Under-18: the date is stored, the flag stops the chase entirely</td>
+                  <td>locked</td>
+                  <td>Overview invariant, <code>S44</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    A person without consent keeps a working link but receives nothing further
+                  </td>
+                  <td>locked</td>
+                  <td><code>T07-enforce</code>; the link is a credential, not a message</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>How the fifteen asks are grouped into sections on the page</td>
+                  <td>delegated to Mission Lead</td>
+                  <td>The inventory fixes content and order; grouping is presentation</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    Whether the Code of Conduct and photo release open in place or on their own
+                    sub-page
+                  </td>
+                  <td>delegated to Mission Lead</td>
+                  <td>Either satisfies &quot;a page they read, then confirm&quot;</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    Field-level validation and error wording beyond the shipped
+                    <code>BUSY_MESSAGE</code>
+                  </td>
+                  <td>delegated to Mission Lead</td>
+                  <td>No approved source constrains it; nothing gates regardless</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    The exact <code>messaging_consent_source</code> value for a self-served page
+                  </td>
+                  <td>delegated to Mission Lead</td>
+                  <td>The enum ships with three values; the shape is a source, not a policy</td>
+                  <td>settled</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s7-h16">Owed, and not blocking</h2>
+          <p>
+            <strong>BUCS Play and Hudl instruction copy.</strong> Task 10 defers both to Task 11,
+            which is this mission, and nobody has drafted either. They block no build and no walk —
+            the mockups carry a marked placeholder — but they block a real send. Carried forward
+            from <code>HANDOFF.md</code>; not an owner action under the five-condition test, because
+            Brian can resolve it inside normal intake whenever he chooses to write it.
+          </p>
+          <h2 id="s7-h17">Brian approval</h2>
+          <ul>
+            <li>Exact words:</li>
+            <li>Date:</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

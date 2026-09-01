@@ -112,10 +112,11 @@
     {
       "id": "W4",
       "name": "Say yes and fill in your details",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {},
+      "spec": "workflows/W4-say-yes-and-fill-in-your-details.md"
     },
     {
       "id": "W5",
@@ -327,7 +328,9 @@
         "disposition": "workflow",
         "reason": "The twelve-item inventory is what an operator configures for a season.",
         "workflow": "W11",
-        "also_referenced_by": ["W6"]
+        "also_referenced_by": [
+          "W6"
+        ]
       },
       {
         "id": "R1a",
@@ -349,7 +352,9 @@
         "disposition": "workflow",
         "reason": "Item owners (Kit Manager, compliance owner, GM, Media Secretary, four-role) are per-item configuration.",
         "workflow": "W11",
-        "also_referenced_by": ["W6"]
+        "also_referenced_by": [
+          "W6"
+        ]
       },
       {
         "id": "R2-E",
@@ -357,7 +362,9 @@
         "disposition": "workflow",
         "reason": "No mid-season expiry; items reset only at the season boundary, and a lapse is a manual reopen.",
         "workflow": "W11",
-        "also_referenced_by": ["W6"]
+        "also_referenced_by": [
+          "W6"
+        ]
       },
       {
         "id": "R2-R",
@@ -372,7 +379,10 @@
         "disposition": "workflow",
         "reason": "Trust completes on the player's word with provenance; verify shows claimed until a named human confirms.",
         "workflow": "W6",
-        "also_referenced_by": ["W4", "W11"]
+        "also_referenced_by": [
+          "W4",
+          "W11"
+        ]
       },
       {
         "id": "R2-V2",
@@ -401,7 +411,11 @@
         "disposition": "workflow",
         "reason": "Nothing gates, ever — the mission's governing principle, enforced where items are resolved.",
         "workflow": "W6",
-        "also_referenced_by": ["W4", "W10", "W11"]
+        "also_referenced_by": [
+          "W4",
+          "W10",
+          "W11"
+        ]
       },
       {
         "id": "R4",
@@ -424,7 +438,11 @@
         "disposition": "workflow",
         "reason": "The trigger set handed to Task 11: onboarding-open, operator nudge, standing condition, and reopen never auto-firing.",
         "workflow": "W8",
-        "also_referenced_by": ["W3", "W4", "W6"]
+        "also_referenced_by": [
+          "W3",
+          "W4",
+          "W6"
+        ]
       },
       {
         "id": "R5",
@@ -464,7 +482,10 @@
         "source_id": "SRC-task-10",
         "disposition": "shared_cross_mission",
         "reason": "The rollup's required set is named and already shipped in Mission 5's required-field service; this mission asks for what is missing.",
-        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
+        "shared_owners": [
+          "M-PEOPLE-AND-ROSTER",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
+        ],
         "evidence": "Task 10 amendment 3 names the required set by status; person-required.ts implements it at main@332bc6b."
       },
       {
@@ -527,7 +548,11 @@
         "disposition": "workflow",
         "reason": "Onboarding-opened fires the welcome carrying the sign-up ask — one message class, no separate blast.",
         "workflow": "W4",
-        "also_referenced_by": ["W1", "W2", "W3"]
+        "also_referenced_by": [
+          "W1",
+          "W2",
+          "W3"
+        ]
       },
       {
         "id": "M3",
@@ -556,7 +581,9 @@
         "disposition": "workflow",
         "reason": "The disputed-value targeted request: a signed-link ask for exactly one fact.",
         "workflow": "W5",
-        "also_referenced_by": ["W7"]
+        "also_referenced_by": [
+          "W7"
+        ]
       },
       {
         "id": "T11-one-request",
@@ -585,7 +612,9 @@
         "disposition": "workflow",
         "reason": "The cap counts only notifications known to have arrived; failures route to the failure path and consume nothing.",
         "workflow": "W12",
-        "also_referenced_by": ["W8"]
+        "also_referenced_by": [
+          "W8"
+        ]
       },
       {
         "id": "T11-suppression",
@@ -614,7 +643,9 @@
         "disposition": "workflow",
         "reason": "Per-fact refused: the chase for that fact stops and stops counting, and reopening is a human act.",
         "workflow": "W5",
-        "also_referenced_by": ["W8"]
+        "also_referenced_by": [
+          "W8"
+        ]
       },
       {
         "id": "T11-states",
@@ -622,7 +653,9 @@
         "disposition": "workflow",
         "reason": "The request-experience states from invited through submitted, corrected, already-complete, expired and error.",
         "workflow": "W4",
-        "also_referenced_by": ["W5"]
+        "also_referenced_by": [
+          "W5"
+        ]
       },
       {
         "id": "T11-provenance",
@@ -630,7 +663,9 @@
         "disposition": "workflow",
         "reason": "Provenance-ranked resolution: a submission never silently overwrites a confirmed, verified or derived value.",
         "workflow": "W5",
-        "also_referenced_by": ["W7"]
+        "also_referenced_by": [
+          "W7"
+        ]
       },
       {
         "id": "T11-escalation-target",
@@ -644,7 +679,10 @@
         "source_id": "SRC-task-11",
         "disposition": "shared_cross_mission",
         "reason": "The Secretary owns the weekly queue review; the queue is Mission 5's surface and the chase acting on it is this mission's.",
-        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
+        "shared_owners": [
+          "M-PEOPLE-AND-ROSTER",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
+        ],
         "evidence": "Task 11 §7's role table assigns the weekly review to the Secretary, with the practical cadence delegated to them."
       },
       {
@@ -714,7 +752,10 @@
         "source_id": "SRC-task-11",
         "disposition": "shared_cross_mission",
         "reason": "The compiled signed-link form is Mission 6's substrate extended here with the onboarding field set — one artifact, one open request.",
-        "shared_owners": ["M-RECRUITMENT", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
+        "shared_owners": [
+          "M-RECRUITMENT",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
+        ],
         "evidence": "Task 11 amendment 3, 2026-08-26, names the shared substrate explicitly."
       },
       {
@@ -737,7 +778,9 @@
         "disposition": "workflow",
         "reason": "The pipeline refuses to create or dispatch without a recorded basis, visible as an onboarding gap rather than a failure.",
         "workflow": "W4",
-        "also_referenced_by": ["W8"]
+        "also_referenced_by": [
+          "W8"
+        ]
       },
       {
         "id": "T07-exception",
@@ -745,7 +788,9 @@
         "disposition": "workflow",
         "reason": "The onboarding/consent-flow message class is the single permitted pre-approval message.",
         "workflow": "W4",
-        "also_referenced_by": ["W3"]
+        "also_referenced_by": [
+          "W3"
+        ]
       },
       {
         "id": "T07-season-scoped",
@@ -802,7 +847,10 @@
         "source_id": "SRC-task-07",
         "disposition": "shared_cross_mission",
         "reason": "The correction workflow is operator-executable on Mission 5's surfaces; the player-side correction is this mission's.",
-        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
+        "shared_owners": [
+          "M-PEOPLE-AND-ROSTER",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
+        ],
         "evidence": "Task 07 §3's correction steps run on the existing person and membership surfaces, which Mission 5 shipped."
       },
       {
@@ -855,7 +903,9 @@
         "disposition": "workflow",
         "reason": "Consent-record precedence on person merge is an open item this intake claims, since consent is one row per person per season.",
         "workflow": "W7",
-        "also_referenced_by": ["W4"]
+        "also_referenced_by": [
+          "W4"
+        ]
       },
       {
         "id": "T07-restores",
@@ -879,7 +929,9 @@
         "disposition": "workflow",
         "reason": "Players self-serve through signed links with no login; the four-role group records and updates basis records.",
         "workflow": "W4",
-        "also_referenced_by": ["W6"]
+        "also_referenced_by": [
+          "W6"
+        ]
       },
       {
         "id": "T07-A-2026-08-26",
@@ -908,7 +960,9 @@
         "disposition": "workflow",
         "reason": "The twelve-item checklist with verification classes.",
         "workflow": "W11",
-        "also_referenced_by": ["W6"]
+        "also_referenced_by": [
+          "W6"
+        ]
       },
       {
         "id": "PR7-compiled-link",
@@ -923,7 +977,10 @@
         "disposition": "workflow",
         "reason": "Nudges and the bounded chase ending in exhausted — human follow-up.",
         "workflow": "W12",
-        "also_referenced_by": ["W8", "W9"]
+        "also_referenced_by": [
+          "W8",
+          "W9"
+        ]
       },
       {
         "id": "PR7-activation",
@@ -959,7 +1016,10 @@
         "source_id": "SRC-portfolio-row-7",
         "disposition": "shared_cross_mission",
         "reason": "The operator message-and-flag direction: Mission 6 builds it for recruits, this mission extends it for members.",
-        "shared_owners": ["M-RECRUITMENT", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
+        "shared_owners": [
+          "M-RECRUITMENT",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
+        ],
         "evidence": "The Authority Manifest §5 records it as awaiting definition with this mission as candidate home; Brian settled the seam 2026-08-31."
       },
       {
@@ -983,7 +1043,9 @@
         "disposition": "workflow",
         "reason": "The import always writes into the season the roster is in; it never asks and never creates one.",
         "workflow": "W1",
-        "also_referenced_by": ["W2"]
+        "also_referenced_by": [
+          "W2"
+        ]
       },
       {
         "id": "OD7-two-doors-lens",
@@ -991,7 +1053,9 @@
         "disposition": "workflow",
         "reason": "The two lenses — a flipped recruit and a returning player — reach the same place by the same message.",
         "workflow": "W3",
-        "also_referenced_by": ["W1"]
+        "also_referenced_by": [
+          "W1"
+        ]
       },
       {
         "id": "OD7-same-message",
@@ -1013,7 +1077,9 @@
         "disposition": "workflow",
         "reason": "A player cannot untick consent on their own form; an operator can switch it off at any point on request.",
         "workflow": "W4",
-        "also_referenced_by": ["W6"]
+        "also_referenced_by": [
+          "W6"
+        ]
       },
       {
         "id": "OD7-recheck-prefill",
@@ -1021,7 +1087,9 @@
         "disposition": "workflow",
         "reason": "Everyone rechecks their details; a recruit's answers arrive pre-filled and are not asked again.",
         "workflow": "W4",
-        "also_referenced_by": ["W3"]
+        "also_referenced_by": [
+          "W3"
+        ]
       },
       {
         "id": "OD7-import-like-events",
@@ -1291,7 +1359,10 @@
         "name": "Derived completeness and who is ready to activate",
         "belongs": "Task 10 §5 and §6: the roster shows readiness; the signal is the checklist's.",
         "disposition": "shared_cross_mission",
-        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
+        "shared_owners": [
+          "M-PEOPLE-AND-ROSTER",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
+        ],
         "workflow": "W6",
         "current_side": "This mission derives completeness and readiness from item state and keeps it display-only, flipping nothing on its own.",
         "seam": "Mission 5 owns the roster and player-record surfaces that render it, delivered at main@332bc6b.",
@@ -1303,7 +1374,10 @@
         "name": "Roster filtering by item status, and the status colours",
         "belongs": "Task 08's surface map commits filtering by item status; Task 10 records onboarding yellow and active green.",
         "disposition": "shared_cross_mission",
-        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
+        "shared_owners": [
+          "M-PEOPLE-AND-ROSTER",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
+        ],
         "workflow": "W6",
         "current_side": "This mission owns the item states filtered on and the completeness they roll up to.",
         "seam": "Mission 5 owns the board and its rendering, already shipped.",
@@ -1357,7 +1431,10 @@
         "name": "The chase-and-flag surface",
         "belongs": "The Authority Manifest §5 recorded the operator message-and-flag direction; Brian settled the seam on 2026-08-31 and confirmed this mission's half on 2026-09-01.",
         "disposition": "shared_cross_mission",
-        "shared_owners": ["M-RECRUITMENT", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
+        "shared_owners": [
+          "M-RECRUITMENT",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
+        ],
         "workflow": "W8",
         "current_side": "This mission builds the member-facing half — chasing somebody for personal details or onboarding items as one action in one place.",
         "seam": "Mission 6 builds it first for recruits at its W9; this extends rather than replaces it.",
@@ -1424,7 +1501,10 @@
         "name": "Which consent record wins on a person merge",
         "belongs": "Task 07 §2's amendment records consent-record precedence on merge as an open item, assigned to nobody.",
         "disposition": "shared_cross_mission",
-        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
+        "shared_owners": [
+          "M-PEOPLE-AND-ROSTER",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION"
+        ],
         "workflow": "W7",
         "current_side": "This mission owns the precedence rule, since consent is one row per person per season under a unique constraint and a merge collides two of them.",
         "seam": "Mission 5 owns the merge surface that executes it; Mission 8 owns any policy framing of the outcome.",
@@ -1633,5 +1713,5 @@
     ],
     "approval": null
   },
-  "next_action": "Begin W4 — Say yes and fill in your details: the mission largest workflow, 22 owned decisions"
+  "next_action": "W4 — Say yes and fill in your details: specification drafted and five screens shot on the /a/[token] shell; awaiting Brian on the route decision and the spec."
 }

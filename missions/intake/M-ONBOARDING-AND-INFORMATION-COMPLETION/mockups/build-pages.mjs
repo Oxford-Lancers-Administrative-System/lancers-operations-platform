@@ -203,6 +203,95 @@ const WORKFLOWS = [
       ),
     ],
   },
+  {
+    id: "W4",
+    slug: "say-yes-and-fill-in-your-details",
+    name: "Say yes and fill in your details",
+    grounding: "photograph",
+    lede: `The player gets one message and one link, and behind that link is one screen that is both
+      the consent board and the personal-details check. They tick their agreement to be messaged,
+      confirm what the club already holds, and fill what it doesn't. This is the mission's largest
+      workflow and its only one whose actor is not an operator.`,
+    legend: [
+      "<strong>W4's surface does not exist on <code>main</code>.</strong> Every screen here is shot on <code>/a/[token]</code>, the answer link — the nearest implemented player-facing, no-login, signed-link form. The current side is that page as it ships; the proposed side is the same running page transformed. Neither side is a drawing. <strong>LAN-202's sign-up form is not in the baseline</strong>, so nothing here reuses or assumes it",
+      "<strong>The link is already on <code>main</code>, and it is not new.</strong> <code>person_access_tokens</code> ships one live durable credential per person per season, enforced by a partial unique index — which is <em>exactly</em> <code>T11-one-request</code>'s \"one open ask, ever\". The welcome, every follow-up and every nudge carry the same URL. <strong>The one decision for you is below</strong>",
+      "<strong>The form is the consent board.</strong> The tick is its first field, not a preamble, and it is one-way on the player's side: this form offers no way to untick it, while an operator can switch it off at any point on request",
+      "<strong>Nothing gates.</strong> A player may submit with every optional field blank and the page takes it. The gaps simply stay outstanding and stay chased. First name, last name and mobile are required to be <em>asked for</em>, never to be a barrier",
+      "<strong>What it asks, and in what order, is already approved.</strong> <code>item-and-ask-inventory.md</code> fixes the fifteen asks; this workflow decides the screen, not the content",
+      "<strong>Three doors, one page — with one visible difference.</strong> A flipped recruit sees no consent step, because <code>season_messaging_consents</code> is unique per person per season and theirs already says granted. W4-02 is that difference",
+    ],
+    screens: [
+      P(
+        "W4-01",
+        "The form, as an imported returner opens it",
+        `Merrick Thornbury arrived in this season's import. His record really does hold his name,
+         mobile, personal email and an emergency contact, and really is missing college,
+         matriculation year, expected graduation, degree field and date of birth — so the mix of
+         confirm-this and fill-this on screen is his actual record, not a story about one.`,
+        [
+          "<strong>The minimal checklist strip</strong> — <code>R4-P</code>, \"a minimal checklist at the top, then the form\". Only what this page can move. Subscriptions, kit, the squad photo and the comms groups are the club's to tick on the roster board and never appear here",
+          "<strong>Consent, and it is step one.</strong> Unticked, because this is the moment it is asked. The note says the one-way rule in the player's own terms",
+          "<strong>What the club already holds arrives filled in.</strong> The ask is to confirm it, never to retype it",
+          "<strong>What it does not hold is blank</strong> — and is exactly what the chase asks this person for next week",
+          "<strong>Date of birth</strong> is collected here and never appears on any list, board or queue. Only the derived under-18 flag leaves this page",
+          "<strong>BUCS Play and Hudl.</strong> The two asks whose instruction copy this mission owes and <strong>nobody has written</strong>. They block no build and no walk; they block a real send",
+        ],
+        "oxfordlancers.example/me/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ/details",
+      ),
+      P(
+        "W4-02",
+        "The same page for a flipped recruit, and the one visible difference",
+        `Rosalind Penhaligon is the seed's own prospect, flipped to <code>joined</code> with a
+         membership at <code>onboarding</code> and a consent row granted at the door on 14 August —
+         the same person W3 photographed. <strong>Consent is absent from this page</strong>, and that
+         absence is the whole point of the screen.`,
+        [
+          "<strong>Consent was given at the door</strong>, and the strip says when and where. The row is unique per person per season, so there is nothing left to ask",
+          "<strong>Where W4-01 opens with the tick, this page opens with a sentence saying why it is not asking.</strong> No tick anywhere, and no way to reach one. Next season she is asked again, like everybody",
+          "<strong>What the recruit door and questionnaire A already collected</strong> — confirmed here, never asked a second time",
+          "<strong>The four facts recruitment never asks anybody for</strong>: expected graduation, degree field, date of birth, emergency contact. They are asked fresh at onboarding, of everyone, whichever door they came through",
+        ],
+        "oxfordlancers.example/me/y.3ec61c6f-87cc-4c28-ba8d-46eb7d6f593a.qV_K8zqHkiwe8BrLDqCw52Cvl2UaEPL_57hWIEH3-gE/details",
+      ),
+      P(
+        "W4-03",
+        "Submitted — what was saved, and what is still outstanding",
+        `The ask moves <code>opened → submitted</code>. The page does not pretend the record is
+         finished: Merrick left two things blank, which <code>R3-G</code> expressly permits, so it
+         says what the club now holds and what it will still ask for.`,
+        [
+          "<strong>What moved, and what did not.</strong> A partial submit is a normal outcome, not a failure state",
+          "<strong>The same link, still open.</strong> Anything still outstanding is asked for on this URL. A second ask is never created alongside it — <code>person_access_tokens</code>' own index makes that impossible",
+        ],
+        "oxfordlancers.example/me/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ/details",
+      ),
+      P(
+        "W4-04",
+        "Already complete — the link opened with nothing left to give",
+        `The shipped answer link already has this state and its own words for it. This reuses that
+         shape rather than inventing a second way to say the same thing: the heading states the
+         fact, one line says what to do if something changes, and there is no form.`,
+        [
+          "<strong>Everything the player themselves owns is done</strong>, and the page says so rather than showing an empty form",
+          "<strong>The club still has items outstanding against this person.</strong> None of them is the player's, so none of them appears on the player's page — the operator-owned half of the checklist lives on W6's record",
+        ],
+        "oxfordlancers.example/me/y.3ec61c6f-87cc-4c28-ba8d-46eb7d6f593a.qV_K8zqHkiwe8BrLDqCw52Cvl2UaEPL_57hWIEH3-gE/details",
+      ),
+      P(
+        "W4-05",
+        "Expired, revoked, or never real — the one uniform page",
+        `<code>/a/[token]/not-found.tsx</code> already renders one response for every unusable link:
+         unknown, revoked and expired alike, at 404, with identical copy and no variant that could
+         let them diverge. W4 keeps that page. <strong>One sentence cannot come across</strong>, and
+         finding that is why this screen exists.`,
+        [
+          "<strong>The one sentence that changes.</strong> The shipped body says \"If the event has already started, response changes are closed\" — the answer link's business, and untrue of a collection link. This is the whole change on this screen",
+          "<strong>And what must not change.</strong> It never says which of unknown, expired or revoked this link is, and it is the same page, at the same status code, for all three",
+        ],
+        "oxfordlancers.example/me/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ/details",
+      ),
+    ],
+  },
 ];
 
 const SHOTS = JSON.parse(readFileSync(path.join(OUT, "shots", "shots.json"), "utf8"));
