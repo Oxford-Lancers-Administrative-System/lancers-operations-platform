@@ -1,9 +1,9 @@
 import "server-only";
 
-import { ConstraintViolated, type Tx } from "@/lib/db";
+import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
 import { grantSeasonMessagingConsentIn } from "./messaging-consent";
-import { findPersonDuplicates } from "./person-duplicate";
+import { findPersonMatchingGivenNameAndPhoneIn } from "./person-duplicate";
 import { recordRecruitmentSignupCodeUseIn } from "./recruitment-signup-codes";
 
 /**
@@ -124,13 +124,11 @@ function validateSignupSubmission(submission: SignupSubmission): {
 // ---------------------------------------------------------------------------
 
 export interface SignupDuplicateProbe {
-  /** Never a name, an email or a phone number — only whether one matched. */
+  /** Never a name, an email, a phone number, or a database identifier — only whether one matched. */
   readonly found: boolean;
-  /** Opaque; carried back only as a hidden field between the two steps of the QR door's own form. */
-  readonly matchedPersonId: string | null;
 }
 
-const NO_MATCH: SignupDuplicateProbe = { found: false, matchedPersonId: null };
+const NO_MATCH: SignupDuplicateProbe = { found: false };
 
 /** A phone number too short to mean anything is not run through the check at all. */
 const PLAUSIBLE_MOBILE_MIN_DIGITS = 7;
@@ -140,10 +138,22 @@ const PLAUSIBLE_MOBILE_MIN_DIGITS = 7;
  * first name they typed and the last three digits of the number they typed.
  * Nothing is revealed that they did not already know" (`W7`, "The one thing
  * this screen must not become"). This function is the mechanism that makes
- * that true: it returns a bare boolean and an opaque id, never a name, a
- * masked contact value, or anything else `findPersonDuplicates` knows about
- * the candidate. The caller echoes the visitor's *own* typed input back to
- * them; it never reads anything from this result to render.
+ * that true: it returns a bare boolean, never a name, a masked contact value,
+ * a database identifier, or anything else about the candidate. The caller
+ * echoes the visitor's *own* typed input back to them; it never reads
+ * anything from this result to render.
+ *
+ * LAN-208: uses {@link findPersonMatchingGivenNameAndPhoneIn}, not
+ * `findPersonDuplicates` — that function ORs given-name/family-name/alias/
+ * email/phone across the whole candidate row, so a candidate's own phone
+ * alone would set `found: true` regardless of the name typed, for anyone in
+ * `public.people`, not just recruits. This requires the given name (or an
+ * alias) **and** the phone together, on the *same* row.
+ *
+ * There is no identifier in {@link SignupDuplicateProbe} to link at write
+ * time — see {@link probeExistingRecruitForQrSignup}'s doc comment. The write
+ * path re-runs this same match itself, from the visitor's own resubmitted
+ * name and mobile, rather than trusting an id echoed back from this read.
  *
  * Runs only when a mobile number was actually supplied — `W7`'s privacy
  * reasoning is stated in terms of *a name and a phone number together*, and a
@@ -159,12 +169,10 @@ export async function probeExistingRecruitForQrSignup(
   if (!trimmedGiven || !trimmedMobile) return NO_MATCH;
   if (trimmedMobile.replace(/\D/g, "").length < PLAUSIBLE_MOBILE_MIN_DIGITS) return NO_MATCH;
 
-  const candidates = await findPersonDuplicates({
-    givenName: trimmedGiven,
-    phones: [trimmedMobile],
-  });
-  const phoneMatch = candidates.find((candidate) => candidate.matchedOn.includes("phone")) ?? null;
-  return phoneMatch ? { found: true, matchedPersonId: phoneMatch.personId } : NO_MATCH;
+  const match = await withTransaction((tx) =>
+    findPersonMatchingGivenNameAndPhoneIn(tx, trimmedGiven, trimmedMobile),
+  );
+  return match ? { found: true } : NO_MATCH;
 }
 
 // ---------------------------------------------------------------------------
@@ -365,6 +373,14 @@ const SELF_ENTRY_SOURCE = "qr_self_entry";
  * already takes): a stale or merged-away id falls back to creating a new
  * person rather than failing the whole submission, matching `W7`'s "refuses
  * nobody and blocks on nothing."
+ *
+ * LAN-208: nothing upstream of this parameter ever hands an anonymous caller
+ * a person id to echo back. The QR door's own action
+ * (`src/app/join/[code]/actions.ts`'s `submitQrSignup`) derives whatever it
+ * passes here itself, inside its own transaction, by re-running the same
+ * strict given-name-and-phone match against the recruit's resubmitted
+ * `givenName`/`mobile` — this parameter's contract (re-checked, falls back
+ * gracefully) is what makes that safe to do unconditionally.
  */
 export async function signUpAnonymouslyIn(
   tx: Tx,

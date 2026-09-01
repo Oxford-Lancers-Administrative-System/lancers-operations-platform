@@ -51,13 +51,26 @@ missing — standards rule 4.
 
 `W7`'s "have you signed up with us before?" step
 (`probeExistingRecruitForQrSignup`, `src/lib/services/recruitment-signup.ts`)
-runs only when a mobile number was supplied, and matches on an **exact** phone
-value — never on name alone. The confirmation screen echoes back only what the
-visitor themselves typed (their own given name, the last three digits of their
-own mobile), never a stored value, per `W7`'s "the one thing this screen must
-not become." Confirming "Yes, that's me" links the existing person; "No, I'm
-new" and a blank mobile both go straight to creating a new person. Neither
-branch is ever refused.
+runs only when a mobile number was supplied, and requires an exact phone match
+**and** a given-name-or-alias match, on the same person row — corrected by
+LAN-208, which found the shipped query treating the two as alternatives
+(`OR`), so a fabricated name plus a real phone number confirmed a match for
+anyone in `public.people`, not just recruits. The probe itself is also gated
+by `code` resolving to a live, non-deactivated season, the same as the write
+below — otherwise it stays reachable indefinitely once any `/join/[code]` page
+has loaded.
+
+The confirmation screen echoes back only what the visitor themselves typed
+(their own given name, the last three digits of their own mobile), never a
+stored value, per `W7`'s "the one thing this screen must not become." The
+probe's own response to the browser carries no database identifier either
+(LAN-208) — a bare `found: boolean`, nothing a client could hold and later use
+to address that person. Confirming "Yes, that's me" sends back only that same
+boolean; the write path (`submitQrSignup`) re-runs the identical strict match
+itself, from the name and mobile the recruit has typed at that moment, to
+decide who to link. "No, I'm new" and a blank mobile both go straight to
+creating a new person. Neither branch is ever refused. LAN-144, not this
+package, decides whether either endpoint is rate-limited.
 
 ## Consent
 
