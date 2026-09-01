@@ -28,6 +28,11 @@
       "date": "2026-09-01",
       "by": "Brian Schuster",
       "count": 12
+    },
+    "item_and_ask_inventory": {
+      "words": "Okay, cool. Let's close this out, and I'm going to restart your session.",
+      "date": "2026-09-01",
+      "by": "Brian Schuster"
     }
   },
   "workflows": [
@@ -1658,5 +1663,5 @@
     ],
     "approval": null
   },
-  "next_action": "Approve item-and-ask-inventory.md, then begin W1"
+  "next_action": "Begin W1 \u2014 Bring last season's squad in: specification, then mockups"
 }

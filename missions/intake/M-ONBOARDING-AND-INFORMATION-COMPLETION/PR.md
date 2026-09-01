@@ -1,22 +1,21 @@
-# Title
+# Intake artifacts — M-ONBOARDING-AND-INFORMATION-COMPLETION
 
-Prepare <mission-id> mission packet
+Portfolio mission **7**, Onboarding. Intake in progress; this PR is not open yet
+and will carry only this mission's `missions/intake/**` and `missions/packets/**`
+artifacts.
 
-# Body
+## Where the ledger stands
 
-## Packet summary
+Stage `workflows`. Boundary, overview, the twelve-workflow inventory and the
+item-and-ask inventory are approved with Brian's exact words. Subject coverage
+maps 53 areas; decision coverage maps 99 controlling decisions across Tasks 07,
+10 and 11, portfolio row 7 and Brian's 2026-09-01 direction. No workflow
+specification or mockup exists yet.
 
-## Ledger
+## Not ready
 
-The completed intake ledger travels with the packet in this one merge:
-`missions/intake/<mission-id>/**` and `missions/packets/<mission-id>/**`, and
-nothing else.
-
-## Validation
-
-- `npm run intake -- check <mission-id>`
-- `npm run intake -- pr-paths <mission-id> --diff main`
-- `npm run mission -- validate --packet missions/packets/<mission-id>/packet.json --inventory missions/intake/<mission-id>/02-workflows.md`
+The packet cannot be assembled until the twelve workflow specifications and
+their mockups are drafted, shown and approved. Nothing here is executable.
 
 ## Production handoff
 
@@ -24,5 +23,7 @@ nothing else.
 - Compatibility and deployment order: None
 - Pilot setup required: No
 - Pilot cleanup required: No
-- Other Brian action: Merge this intake-artifacts-only PR to approve the packet
-- Verification after Brian acts: Confirm the merged packet SHA on `main`
+- Other Brian action: Approve each workflow in turn; approve the four-item
+  amendment batch before any product record is edited
+- Verification after Brian acts: `npm run intake -- status` prints the expected
+  stage and the approvals carry his words

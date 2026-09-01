@@ -114,5 +114,5 @@ Nothing. All four are settled; the last of them, the flag, was dropped on
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- Exact words: "Okay, cool. Let's close this out, and I'm going to restart your session."
+- Date: 2026-09-01

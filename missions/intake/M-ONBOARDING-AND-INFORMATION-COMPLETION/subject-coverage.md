@@ -75,6 +75,11 @@ The map proves dispositions; Brian's approvals judge subject completeness.
 
 ## Batched append-only amendment plan
 
-No cross-record amendments discovered.
+| ID   | Target                                                        | Proposed append-only change                                                                                                                                                                                                                                                          | Status     |
+| ---- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `A1` | Task 10 brief (Player Onboarding & Completion), decision R3-G | Append a dated note recording that the flagged/unflagged tracking distinction is dropped: every onboarding item counts equally and the queue ranks by everything outstanding, with subs paid carried by due-timing instead. R3-G's governing half, that nothing gates, is untouched. | `proposed` |
+| `A2` | Release One Mission Portfolio v2, row 7                       | Remove the role-appropriate coach and committee welcome flow from this row's scope; coaches and committee get their own flows in their own missions.                                                                                                                                 | `proposed` |
+| `A3` | Task 10 brief, item 5 (BPS)                                   | Append a dated note that BPS leaves the onboarding checklist and becomes a yes/no attribute on the roster, added by this mission.                                                                                                                                                    | `proposed` |
+| `A4` | Task 10 brief, item 11 (photo release) and item 3 (kit)       | Append a dated note that the photo release is seasonal, asked of everyone every season, with its returner carve-out removed as kit's already was.                                                                                                                                    | `proposed` |
 
 Collected-plan approval — not yet requested.
