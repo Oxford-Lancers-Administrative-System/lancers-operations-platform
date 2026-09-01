@@ -20,7 +20,7 @@ own inheritance, and thin:**
   `is_subscription`, `sort_order`) and `onboarding_items`
   (`supabase/migrations/20260810120500_domain_squad.sql`).
 - `onboarding_item_status` is **`pending → invited → complete | waived |
-  not_applicable`**. There is **no `claimed` state**, no per-item history, no
+not_applicable`**. There is **no `claimed` state**, no per-item history, no
   provenance, and no verification class anywhere in the schema.
 - `onboarding_items` stores current state only, plus `completed_on`,
   `waived_reason`, `waived_by_person_id` — and a constraint
@@ -63,7 +63,7 @@ delivery states, `/api/scheduler/messaging`, `/api/webhooks/whatsapp`.
 collection form of any kind exists**, and there are no player logins by design.
 
 **Two absences that shape this boundary:** `src/lib/services/seasons.ts` only
-*reads* a current season and its terms — **nothing anywhere creates a season**.
+_reads_ a current season and its terms — **nothing anywhere creates a season**.
 And a general CSV dialect module (`src/lib/services/csv.ts`, from the event
 import) already exists and is reusable for a person import.
 
@@ -92,7 +92,7 @@ the season question.
    person with gaps fills them. Defining this is a principal job of the
    mission.
 6. **Seasonal consent, re-ticked by everyone, every season.** The personal-
-   information form *is* the consent board. Step one is the tick; a recruit who
+   information form _is_ the consent board. Step one is the tick; a recruit who
    consented at last season's door ticks again this season. Within a season the
    recruit-door grant still carries, so nobody is asked twice in the same year.
 7. **Consent is one-way on the player's side, and an operator can switch it
@@ -100,8 +100,8 @@ the season question.
    untick — nobody switches off their own consent while updating a phone
    number. When somebody asks the club to stop, an operator flips it off as
    part of the person's status, at any point, on request. Owner decision,
-   2026-09-01: *"the player can't untick on their face"* and *"they should be
-   able to go and flip it off at any point."*
+   2026-09-01: _"the player can't untick on their face"_ and _"they should be
+   able to go and flip it off at any point."_
 8. **The twelve-item checklist** — the Task 10 §3 inventory, regenerating in
    full for everyone every season.
 9. **`claimed`, provenance, per-item history, and reason-free waive and
@@ -118,7 +118,7 @@ the season question.
     count and a link, never names.
 14. **A player's answer never silently overwrites** an operator-confirmed,
     externally verified or derived value; it raises `disputed — awaiting
-    verification` into Mission 5's queue instead.
+verification` into Mission 5's queue instead.
 15. **A person fixing their own details** through the same signed link — the
     club's whole answer to self-service, since there are no player logins.
 16. **Activation flips them to active.** A human declaration by the core four,
@@ -152,22 +152,22 @@ the season question.
 
 ## Shared coverage and adjacent-mission seams
 
-| Seam | This mission's side | The other side |
-| --- | --- | --- |
-| **Mission 5 · People & Roster** | The item states, request state, activity log and chase this mission produces | The missing/disputed queue, the required set, the person record and roster surfaces that display them, roster filtering by item status, person merge |
-| **Mission 6 · Recruitment** | Extends the compiled signed-link substrate with the onboarding field set; inherits the operator message-and-flag surface built at its W9 | The recruit ladder, the recruit-door consent grant that carries through the season, the parked-capture queue, the substrate itself |
-| **Mission 4 · Communications** | The onboarding/consent message class, its cadence, caps and escalation content | Transport verbatim: five delivery states, template-only production sends, retry, the scheduler, the shared chase list |
-| **Mission 8 · Consent, Privacy & Data Rights** | **Capture mechanics only** — states, timing, the record, the per-season re-ask, showing the policy at the point of collection | Policy, wording, versioning, retention, correction policy, subject-access export, under-18 handling |
-| **Mission 9 · Football Assignments** | The item machinery, available to reuse | **All coach onboarding**, welcome flow included (2026-09-01) |
-| **Mission 10 · Leadership Reporting** | The queue content and exhausted-chase exceptions | Their Monday-review surfacing |
-| **Mission 11 · Season Lifecycle** | Import and carry-forward as the interim arrival path | Rollover, which supersedes it; the season-boundary checklist reset |
-| **Mission 3 · App Shell** | Requiring the privacy policy at every point of collection | The rendering surface itself |
+| Seam                                           | This mission's side                                                                                                                      | The other side                                                                                                                                       |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Mission 5 · People & Roster**                | The item states, request state, activity log and chase this mission produces                                                             | The missing/disputed queue, the required set, the person record and roster surfaces that display them, roster filtering by item status, person merge |
+| **Mission 6 · Recruitment**                    | Extends the compiled signed-link substrate with the onboarding field set; inherits the operator message-and-flag surface built at its W9 | The recruit ladder, the recruit-door consent grant that carries through the season, the parked-capture queue, the substrate itself                   |
+| **Mission 4 · Communications**                 | The onboarding/consent message class, its cadence, caps and escalation content                                                           | Transport verbatim: five delivery states, template-only production sends, retry, the scheduler, the shared chase list                                |
+| **Mission 8 · Consent, Privacy & Data Rights** | **Capture mechanics only** — states, timing, the record, the per-season re-ask, showing the policy at the point of collection            | Policy, wording, versioning, retention, correction policy, subject-access export, under-18 handling                                                  |
+| **Mission 9 · Football Assignments**           | The item machinery, available to reuse                                                                                                   | **All coach onboarding**, welcome flow included (2026-09-01)                                                                                         |
+| **Mission 10 · Leadership Reporting**          | The queue content and exhausted-chase exceptions                                                                                         | Their Monday-review surfacing                                                                                                                        |
+| **Mission 11 · Season Lifecycle**              | Import and carry-forward as the interim arrival path                                                                                     | Rollover, which supersedes it; the season-boundary checklist reset                                                                                   |
+| **Mission 3 · App Shell**                      | Requiring the privacy policy at every point of collection                                                                                | The rendering surface itself                                                                                                                         |
 
 **The one provisional handoff, and why it does not block.** Mission 8 has no
 packet, and this mission captures consent under Mission 8's policy. This
 mission stays independently walkable because it owns the whole mechanism — the
 consent record, its states and sources, the season re-ask, the enforcement
-check, and the point-of-collection policy slot — while the *words* in that slot
+check, and the point-of-collection policy slot — while the _words_ in that slot
 are a versioned template value supplied by Clint through Task 07. Brian can
 walk every workflow end to end with placeholder wording in a real versioned
 slot; no Mission 8 decision changes a state, a transition, a surface or an
