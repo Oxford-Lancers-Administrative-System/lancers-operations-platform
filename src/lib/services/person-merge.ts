@@ -51,12 +51,16 @@ import { personDisplayNameSql } from "./sql-text";
  * kinds of exception, each named where it is excluded or special-cased:
  * `people.merged_*_person_id` (the merge event's own columns),
  * `operator_accounts.person_id` (a login/seat — Mission 1's, and the reason
- * the active-seat refusal exists at all), and the five tables whose *shape*
- * the merge changes rather than a plain re-point: `contact_points`,
- * `person_aliases`, `person_emergency_contacts`, `recruitment_prospects`, and
+ * the active-seat refusal exists at all), and the tables whose *shape* the
+ * merge changes rather than a plain re-point: `contact_points`,
+ * `person_aliases`, `person_emergency_contacts`, `recruitment_prospects`,
  * `season_memberships` — the last since `Q-16` (correction round 2), which
  * excludes one specific membership (the overlap season the operator archived
- * to clear the refusal) rather than every row on the loser.
+ * to clear the refusal) rather than every row on the loser — and
+ * `season_messaging_consents` (LAN-201), keyed `(person_id, season_id)` the
+ * same way `recruitment_prospects` is but without that table's combination
+ * logic yet; a merge where both identities hold a consent row for the same
+ * season is a known, tracked limitation rather than a silent re-point.
  * `tests/person-merge-reference-catalogue.test.ts` asks `pg_constraint` for
  * the real, current list and fails if this module's declared set has drifted
  * from it — "ask the catalogue, not the migrations."
@@ -365,13 +369,19 @@ function currentPreferred(record: PersonRecord, kind: MergeContactKind): PersonC
   );
 }
 
+// LAN-201: `converted` -> `joined`, `lapsed` -> `disengaged`. `void` ranks
+// below everything else — it marks a record as wrong rather than as a stage,
+// so it never wins a merge combination over a status that says something real
+// about the person; a legitimate rank on the other side survives, and two
+// `void` sides tie exactly as before.
 const PROSPECT_STATUS_RANK: Readonly<Record<string, number>> = Object.freeze({
+  void: -1,
   declined: 0,
   identified: 1,
-  lapsed: 1,
+  disengaged: 1,
   engaged: 2,
   committed: 3,
-  converted: 4,
+  joined: 4,
 });
 
 async function readProspectCombinations(
@@ -408,7 +418,7 @@ async function readProspectCombinations(
     const loserRank = PROSPECT_STATUS_RANK[row.loser_status ?? ""] ?? 0;
     const survivorWins = survivorRank >= loserRank;
     const combinedStatus = survivorWins ? row.survivor_status! : row.loser_status!;
-    // `recruitment_prospects_commitment_is_dated`: `committed`/`converted`
+    // `recruitment_prospects_commitment_is_dated`: `committed`/`joined`
     // need a `committed_on`. Taken from whichever side's status is winning —
     // the one side that could actually have set it truthfully.
     const combinedCommittedOn = survivorWins ? row.survivor_committed_on : row.loser_committed_on;
@@ -640,6 +650,13 @@ export const PERSON_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: st
   { table: "person_access_tokens", column: "person_id" },
   { table: "person_emergency_contacts", column: "recorded_by_person_id" },
   { table: "position_assignments", column: "recorded_by_person_id" },
+  // LAN-201 (WP-recruitment-schema). Each is an actor/author column with no
+  // per-season uniqueness to collide on — the same shape
+  // `season_membership_status_events.actor_person_id` already re-points blindly.
+  { table: "recruitment_prospect_notes", column: "author_person_id" },
+  { table: "recruitment_prospect_status_events", column: "actor_person_id" },
+  { table: "recruitment_signup_codes", column: "deactivated_by_person_id" },
+  { table: "recruitment_signup_codes", column: "minted_by_person_id" },
   { table: "role_assignments", column: "appointed_by_person_id" },
   { table: "role_assignments", column: "person_id" },
   { table: "rsvp_access_tokens", column: "issued_by_person_id" },
@@ -647,6 +664,9 @@ export const PERSON_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: st
   { table: "schedule_changes", column: "approved_by_person_id" },
   { table: "schedule_changes", column: "recorded_by_person_id" },
   { table: "season_membership_status_events", column: "actor_person_id" },
+  // The actor, not the subject — `season_messaging_consents.person_id` is
+  // excluded below for the same reason `recruitment_prospects.person_id` is.
+  { table: "season_messaging_consents", column: "recorded_by_person_id" },
   { table: "seasons", column: "closed_by_person_id" },
   { table: "seasons", column: "opened_by_person_id" },
   { table: "staging.legacy_roster_rows", column: "matched_person_id" },
@@ -690,6 +710,14 @@ export const PERSON_REFERENCE_COLUMNS_EXCLUDED: ReadonlyArray<{
     table: "recruitment_prospects",
     column: "person_id",
     reason: "combined per season before re-pointing",
+  },
+  {
+    table: "season_messaging_consents",
+    column: "person_id",
+    reason:
+      "keyed (person_id, season_id) like recruitment_prospects, but LAN-201 does not yet combine " +
+      "two identities' consent for the same season before re-pointing — known limitation, left " +
+      "for the package that builds consent behaviour on this table",
   },
   {
     table: "season_memberships",
@@ -804,14 +832,14 @@ async function repointProspects(
   combinations: readonly MergeProspectCombination[],
 ): Promise<void> {
   for (const combo of combinations) {
-    // A converted prospect carries `converted_membership_id`, tied to a real
+    // A joined prospect carries `converted_membership_id`, tied to a real
     // season membership — combining it here would either drop that link or
-    // claim a conversion the survivor's own row never had. Left alone: the
+    // claim a membership the survivor's own row never had. Left alone: the
     // blind re-point below then meets
     // `recruitment_prospects_one_per_person_per_season` for this one season
     // and refuses the whole merge cleanly, rather than this module silently
-    // deciding what a conversion record should say.
-    if (combo.combinedStatus === "converted") continue;
+    // deciding what a joined record should say.
+    if (combo.combinedStatus === "joined") continue;
     await tx.query(
       `update public.recruitment_prospects
           set status = $3::public.prospect_status,
@@ -846,7 +874,7 @@ async function repointProspects(
  * re-pointing it here would violate `season_memberships_one_per_person_per_
  * season` and re-break the very thing archiving cleared. Excluded
  * deliberately, the same shape `repointProspects()` already uses for a
- * converted prospect it also declines to re-point. Everything else the loser
+ * joined prospect it also declines to re-point. Everything else the loser
  * holds — a season with no survivor counterpart — is a plain re-point, safe
  * because the excluded row is the only one that could collide.
  */

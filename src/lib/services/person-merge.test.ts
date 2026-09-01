@@ -80,9 +80,9 @@ async function insertProspect(
   status: string,
   firstContactOn: string,
 ): Promise<void> {
-  // `recruitment_prospects_commitment_is_dated`: 'committed' and 'converted'
+  // `recruitment_prospects_commitment_is_dated`: 'committed' and 'joined'
   // require `committed_on`.
-  const committedOn = status === "committed" || status === "converted" ? firstContactOn : null;
+  const committedOn = status === "committed" || status === "joined" ? firstContactOn : null;
   await observer.query(
     `insert into public.recruitment_prospects (person_id, season_id, status, first_contact_on, committed_on)
      values ($1::uuid, $2::uuid, $3::public.prospect_status, $4::date, $5::date)`,

@@ -1152,7 +1152,7 @@ export function buildPlan({
       { source: "LAN-124 — fictional recruitment prospect" },
     );
 
-    add(
+    const prospectId = add(
       "public.recruitment_prospects",
       {
         id: id("recruitment_prospects", labels.currentSeason, prospect.key),
@@ -1162,7 +1162,19 @@ export function buildPlan({
         source: prospect.via,
         first_contact_on: addDays(anchor, -14 + index * 3),
         committed_on: prospect.status === "committed" ? addDays(anchor, -3) : null,
-        notes: prospect.notes,
+      },
+      "illustrative",
+      { source: "LAN-124 — fictional recruitment prospect" },
+    );
+
+    // LAN-201: notes live on their own attributed, dated table now.
+    add(
+      "public.recruitment_prospect_notes",
+      {
+        id: id("recruitment_prospect_notes", labels.currentSeason, prospect.key),
+        prospect_id: prospectId,
+        note: prospect.notes,
+        author_label: "LAN-124 — fictional recruitment prospect",
       },
       "illustrative",
       { source: "LAN-124 — fictional recruitment prospect" },

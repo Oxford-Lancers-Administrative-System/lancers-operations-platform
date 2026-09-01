@@ -1749,6 +1749,8 @@ export type Database = {
           escalation_hours: number
           event_type: Database["public"]["Enums"]["event_type"]
           invitation_lead_days: number
+          recruit_follow_up_cadence_hours: number | null
+          recruit_invitation_lead_days: number | null
           reminder_cadence_hours: number
           rsvp_by_days: number
           updated_at: string
@@ -1759,6 +1761,8 @@ export type Database = {
           escalation_hours?: number
           event_type: Database["public"]["Enums"]["event_type"]
           invitation_lead_days: number
+          recruit_follow_up_cadence_hours?: number | null
+          recruit_invitation_lead_days?: number | null
           reminder_cadence_hours?: number
           rsvp_by_days: number
           updated_at?: string
@@ -1769,6 +1773,8 @@ export type Database = {
           escalation_hours?: number
           event_type?: Database["public"]["Enums"]["event_type"]
           invitation_lead_days?: number
+          recruit_follow_up_cadence_hours?: number | null
+          recruit_invitation_lead_days?: number | null
           reminder_cadence_hours?: number
           rsvp_by_days?: number
           updated_at?: string
@@ -2652,6 +2658,110 @@ export type Database = {
           },
         ]
       }
+      recruitment_prospect_notes: {
+        Row: {
+          author_label: string | null
+          author_person_id: string | null
+          created_at: string
+          id: string
+          note: string
+          prospect_id: string
+        }
+        Insert: {
+          author_label?: string | null
+          author_person_id?: string | null
+          created_at?: string
+          id?: string
+          note: string
+          prospect_id: string
+        }
+        Update: {
+          author_label?: string | null
+          author_person_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string
+          prospect_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_prospect_notes_author_person_id_fkey"
+            columns: ["author_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recruitment_prospect_notes_author_person_id_fkey"
+            columns: ["author_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "recruitment_prospect_notes_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruitment_prospect_status_events: {
+        Row: {
+          actor_label: string | null
+          actor_person_id: string | null
+          from_status: Database["public"]["Enums"]["prospect_status"] | null
+          id: string
+          occurred_at: string
+          prospect_id: string
+          reason: string | null
+          to_status: Database["public"]["Enums"]["prospect_status"]
+        }
+        Insert: {
+          actor_label?: string | null
+          actor_person_id?: string | null
+          from_status?: Database["public"]["Enums"]["prospect_status"] | null
+          id?: string
+          occurred_at?: string
+          prospect_id: string
+          reason?: string | null
+          to_status: Database["public"]["Enums"]["prospect_status"]
+        }
+        Update: {
+          actor_label?: string | null
+          actor_person_id?: string | null
+          from_status?: Database["public"]["Enums"]["prospect_status"] | null
+          id?: string
+          occurred_at?: string
+          prospect_id?: string
+          reason?: string | null
+          to_status?: Database["public"]["Enums"]["prospect_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_prospect_status_events_actor_person_id_fkey"
+            columns: ["actor_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recruitment_prospect_status_events_actor_person_id_fkey"
+            columns: ["actor_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "recruitment_prospect_status_events_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recruitment_prospects: {
         Row: {
           committed_on: string | null
@@ -2659,7 +2769,6 @@ export type Database = {
           created_at: string
           first_contact_on: string | null
           id: string
-          notes: string | null
           person_id: string
           season_id: string
           source: string | null
@@ -2672,7 +2781,6 @@ export type Database = {
           created_at?: string
           first_contact_on?: string | null
           id?: string
-          notes?: string | null
           person_id: string
           season_id: string
           source?: string | null
@@ -2685,7 +2793,6 @@ export type Database = {
           created_at?: string
           first_contact_on?: string | null
           id?: string
-          notes?: string | null
           person_id?: string
           season_id?: string
           source?: string | null
@@ -2737,6 +2844,128 @@ export type Database = {
           },
           {
             foreignKeyName: "recruitment_prospects_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruitment_questionnaire_responses: {
+        Row: {
+          answer_boolean: boolean | null
+          answer_choice: string | null
+          answer_text: string | null
+          created_at: string
+          id: string
+          prospect_id: string
+          question_code: string
+          questionnaire: Database["public"]["Enums"]["recruitment_questionnaire"]
+          responded_at: string
+          superseded_at: string | null
+        }
+        Insert: {
+          answer_boolean?: boolean | null
+          answer_choice?: string | null
+          answer_text?: string | null
+          created_at?: string
+          id?: string
+          prospect_id: string
+          question_code: string
+          questionnaire: Database["public"]["Enums"]["recruitment_questionnaire"]
+          responded_at?: string
+          superseded_at?: string | null
+        }
+        Update: {
+          answer_boolean?: boolean | null
+          answer_choice?: string | null
+          answer_text?: string | null
+          created_at?: string
+          id?: string
+          prospect_id?: string
+          question_code?: string
+          questionnaire?: Database["public"]["Enums"]["recruitment_questionnaire"]
+          responded_at?: string
+          superseded_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_questionnaire_responses_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruitment_signup_codes: {
+        Row: {
+          code: string
+          created_at: string
+          deactivated_at: string | null
+          deactivated_by_person_id: string | null
+          deactivated_reason: string | null
+          id: string
+          minted_at: string
+          minted_by_person_id: string | null
+          season_id: string
+          sign_in_count: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          deactivated_at?: string | null
+          deactivated_by_person_id?: string | null
+          deactivated_reason?: string | null
+          id?: string
+          minted_at?: string
+          minted_by_person_id?: string | null
+          season_id: string
+          sign_in_count?: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          deactivated_at?: string | null
+          deactivated_by_person_id?: string | null
+          deactivated_reason?: string | null
+          id?: string
+          minted_at?: string
+          minted_by_person_id?: string | null
+          season_id?: string
+          sign_in_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_signup_codes_deactivated_by_person_id_fkey"
+            columns: ["deactivated_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recruitment_signup_codes_deactivated_by_person_id_fkey"
+            columns: ["deactivated_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "recruitment_signup_codes_minted_by_person_id_fkey"
+            columns: ["minted_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recruitment_signup_codes_minted_by_person_id_fkey"
+            columns: ["minted_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "recruitment_signup_codes_season_id_fkey"
             columns: ["season_id"]
             isOneToOne: false
             referencedRelation: "seasons"
@@ -3379,6 +3608,79 @@ export type Database = {
           },
           {
             foreignKeyName: "season_memberships_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      season_messaging_consents: {
+        Row: {
+          changed_at: string
+          created_at: string
+          id: string
+          person_id: string
+          recorded_by_person_id: string | null
+          season_id: string
+          source: Database["public"]["Enums"]["messaging_consent_source"] | null
+          state: Database["public"]["Enums"]["messaging_consent_state"]
+        }
+        Insert: {
+          changed_at?: string
+          created_at?: string
+          id?: string
+          person_id: string
+          recorded_by_person_id?: string | null
+          season_id: string
+          source?:
+            | Database["public"]["Enums"]["messaging_consent_source"]
+            | null
+          state?: Database["public"]["Enums"]["messaging_consent_state"]
+        }
+        Update: {
+          changed_at?: string
+          created_at?: string
+          id?: string
+          person_id?: string
+          recorded_by_person_id?: string | null
+          season_id?: string
+          source?:
+            | Database["public"]["Enums"]["messaging_consent_source"]
+            | null
+          state?: Database["public"]["Enums"]["messaging_consent_state"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "season_messaging_consents_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "season_messaging_consents_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "season_messaging_consents_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "season_messaging_consents_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "season_messaging_consents_season_id_fkey"
             columns: ["season_id"]
             isOneToOne: false
             referencedRelation: "seasons"
@@ -4106,6 +4408,16 @@ export type Database = {
         | "inactive"
         | "departed"
         | "archived"
+      messaging_consent_source:
+        | "qr_self_entry"
+        | "walk_up_read_back"
+        | "operator_recorded"
+      messaging_consent_state:
+        | "never_asked"
+        | "asked"
+        | "granted"
+        | "refused"
+        | "withdrawn"
       nonresponse_threshold: "escalation"
       notification_channel: "whatsapp" | "email" | "sms" | "manual"
       notification_job_status:
@@ -4140,10 +4452,12 @@ export type Database = {
         | "identified"
         | "engaged"
         | "committed"
-        | "converted"
-        | "lapsed"
+        | "joined"
         | "declined"
+        | "disengaged"
+        | "void"
       question_answer_type: "text" | "boolean" | "choice"
+      recruitment_questionnaire: "personal_details" | "football_background"
       role_scope: "committee_year" | "season"
       rsvp_source: "signed_link" | "operator" | "channel_reply" | "import"
       rsvp_value: "yes" | "no"
@@ -4343,6 +4657,18 @@ export const Constants = {
         "departed",
         "archived",
       ],
+      messaging_consent_source: [
+        "qr_self_entry",
+        "walk_up_read_back",
+        "operator_recorded",
+      ],
+      messaging_consent_state: [
+        "never_asked",
+        "asked",
+        "granted",
+        "refused",
+        "withdrawn",
+      ],
       nonresponse_threshold: ["escalation"],
       notification_channel: ["whatsapp", "email", "sms", "manual"],
       notification_job_status: [
@@ -4381,11 +4707,13 @@ export const Constants = {
         "identified",
         "engaged",
         "committed",
-        "converted",
-        "lapsed",
+        "joined",
         "declined",
+        "disengaged",
+        "void",
       ],
       question_answer_type: ["text", "boolean", "choice"],
+      recruitment_questionnaire: ["personal_details", "football_background"],
       role_scope: ["committee_year", "season"],
       rsvp_source: ["signed_link", "operator", "channel_reply", "import"],
       rsvp_value: ["yes", "no"],
