@@ -1629,5 +1629,5 @@
     "items": [],
     "approval": null
   },
-  "next_action": "Draft and approve the item-and-ask inventory, then begin W1"
+  "next_action": "Settle the four open items in item-and-ask-inventory.md, approve it, then begin W1"
 }
