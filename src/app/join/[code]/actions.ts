@@ -78,8 +78,8 @@ export async function submitQrSignup(
         throw new Error("This code is no longer live. Refresh the page and try again.");
       }
       const linkExistingPersonId = values.confirmedExistingMatch
-        ? (await findPersonMatchingGivenNameAndPhoneIn(tx, values.givenName, values.mobile))
-            ?.personId ?? null
+        ? ((await findPersonMatchingGivenNameAndPhoneIn(tx, values.givenName, values.mobile))
+            ?.personId ?? null)
         : null;
       await signUpAnonymouslyIn(tx, {
         seasonId: resolved.seasonId,
