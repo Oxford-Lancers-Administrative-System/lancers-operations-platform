@@ -5,13 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { appendEvent, nextActions, replayState } from "../scripts/mission/lib/state.mjs";
-import {
-  buildMissionReceipt,
-  deriveGitVisualFiles,
-  evaluateProspectiveMissionGate,
-  journalConjuncts,
-  loadRules,
-} from "../scripts/mission/merge-gate.mjs";
+import { evaluateDraftLift, journalConjuncts, loadRules } from "../scripts/mission/merge-gate.mjs";
 import { withReviewInvocations } from "./helpers/mission-invocations";
 
 const CLI = path.join(__dirname, "..", "scripts", "mission", "cli.mjs");
@@ -163,21 +157,20 @@ const pullRequest = (head: string) => ({
   state: "OPEN",
   baseRefName: "main",
   isCrossRepository: false,
-  labels: [],
-  mergeable: "MERGEABLE",
+  isDraft: true,
   headRefOid: head,
-  body: "Synthetic mission package.",
+  title: "Synthetic mission package.",
 });
 
 describe("representative mission rehearsals", () => {
-  it("takes one package from approved packet through the guarded merge", async () => {
+  it("takes one package from approved packet to a liftable draft and a merge", async () => {
     const m = mission();
     await synced(m);
     await implementedAt(m, HEAD);
     await reviewedAndApproved(m, HEAD);
     const state = replayState(m.repo, MISSION, m.env);
     expect(journalConjuncts(state, PACKAGE, HEAD)).toEqual([]);
-    const gate = evaluateProspectiveMissionGate({
+    const gate = evaluateDraftLift({
       state,
       packageId: PACKAGE,
       pullRequest: pullRequest(HEAD),
@@ -185,12 +178,7 @@ describe("representative mission rehearsals", () => {
       files: [{ status: "M", path: "src/app/events/page.tsx" }],
       rules,
     });
-    expect(gate).toMatchObject({
-      merge: true,
-      journal_reasons: [],
-      evidence_reasons: [],
-      receipt: buildMissionReceipt(state, PACKAGE, HEAD),
-    });
+    expect(gate).toMatchObject({ lift: true, journal_reasons: [], evidence_reasons: [] });
     const merged = await m.append({
       type: "merge-recorded",
       package_id: PACKAGE,
@@ -245,16 +233,14 @@ describe("representative mission rehearsals", () => {
     });
     expect(carried.packages[PACKAGE].visual_approved).toBe(true);
     expect(
-      evaluateProspectiveMissionGate({
+      evaluateDraftLift({
         state: replayState(m.repo, MISSION, m.env),
         packageId: PACKAGE,
         pullRequest: pullRequest(comment),
         checkRuns: checks(comment),
         files: [{ status: "M", path: "src/lib/events/service.ts" }],
         rules,
-        deriveVisualFiles: (from: string, to: string, current: string) =>
-          deriveGitVisualFiles(m.repo, from, to, current),
-      }).merge,
+      }).lift,
     ).toBe(true);
 
     const presentation = commit(

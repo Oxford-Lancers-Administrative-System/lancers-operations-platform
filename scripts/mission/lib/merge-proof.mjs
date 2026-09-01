@@ -1,12 +1,12 @@
 /**
  * Prove from the repository that a package's pull request really merged.
  *
- * Never from the pull-request body and never from the Linear state: the
- * `mission-merge` lane merges without a human, so "Brian merged it" is not a
- * fact anyone may infer.
+ * Never from the pull-request body and never from the Linear state: GitHub's
+ * auto-merge lands work without a human once the draft is lifted, so "Brian
+ * merged it" is not a fact anyone may infer.
  *
  * The subtlety that matters is *how* it merged. This repository squash-merges
- * (`gh pr merge --squash --delete-branch` in `.github/workflows/mission-merge.yml`,
+ * (`gh pr merge --auto --squash --delete-branch` in `.github/workflows/merge.yml`,
  * and by hand for everything else), and a squash merge produces a brand-new
  * commit — the branch head is never an ancestor of `main` afterwards. Proving
  * the merge by ancestry alone therefore reports every merged package as

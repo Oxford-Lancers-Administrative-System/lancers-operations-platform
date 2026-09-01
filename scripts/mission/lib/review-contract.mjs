@@ -11,7 +11,7 @@
  *
  * The contract is derived here instead — from durable mission state, the packet,
  * and the exact-head diff run through the checked-in classifiers in
- * `.github/mission-merge-rules.json`. `scripts/mission/lib/state.mjs` re-derives
+ * `.github/merge-rules.json`. `scripts/mission/lib/state.mjs` re-derives
  * it when the request event is appended and refuses any contract that differs,
  * exactly as it re-derives the merge receipt. That is what makes "the Lead may
  * add a diagnostic question but cannot remove a generated requirement" a fact
@@ -24,7 +24,7 @@
 
 import crypto from "node:crypto";
 
-import { globToRegExp } from "../../fast-lane/classify.mjs";
+import { globToRegExp } from "../../merge/paths.mjs";
 import { loadRules } from "../merge-gate.mjs";
 
 /**
@@ -87,9 +87,9 @@ function intersect(files, globs) {
 /**
  * What this diff touches, in the five terms the contract is built from.
  *
- * `sensitive` also folds in the merge gate's own prohibited and owner-approval
- * surfaces: a path the lane will not merge autonomously is, by construction, a
- * path a reviewer has to look at.
+ * `sensitive` also folds in the merge rule's own prohibited surfaces: a path
+ * whose draft is never lifted automatically is, by construction, a path a
+ * reviewer has to look at.
  */
 /**
  * @typedef {{ status?: string, path?: string, previousPath?: string }} ChangedFile
@@ -127,15 +127,15 @@ export function unknownClassification() {
 /** @param {ChangedFile[]} files @param {Record<string, any>} [rules] */
 export function classifyReviewSurfaces(files, rules = loadRules()) {
   const contractRules = rules.reviewContract ?? {};
+  // LAN-209 deleted the `ownerApprovalSurfaces` block. The auth and delivery
+  // paths it named are still reached here through `sensitiveSurfaces` and
+  // `transportSurfaces`, which is also where the owner-checkpoint conjunct in
+  // scripts/mission/merge-gate.mjs now reads them from.
   const sensitive = new Set([
     ...intersect(files, contractRules.sensitiveSurfaces),
     ...intersect(
       files,
       (rules.prohibited ?? []).map((rule) => rule.path),
-    ),
-    ...intersect(
-      files,
-      (rules.ownerApprovalSurfaces ?? []).map((rule) => rule.path),
     ),
   ]);
   return {
@@ -230,7 +230,7 @@ function packageJobs({ pkg, packet, classification, capabilities, findingIds }) 
     jobs.push(
       job({
         id: `RJ-sensitive-${file}`,
-        source: "mission-merge-rules reviewContract.sensitiveSurfaces",
+        source: "merge-rules reviewContract.sensitiveSurfaces",
         assertions: [
           `${file} keeps its authorization, privacy, integrity and production boundary intact.`,
         ],
@@ -245,7 +245,7 @@ function packageJobs({ pkg, packet, classification, capabilities, findingIds }) 
     jobs.push(
       job({
         id: `RJ-evidence-${file}`,
-        source: "mission-merge-rules reviewContract.evidenceSurfaces",
+        source: "merge-rules reviewContract.evidenceSurfaces",
         assertions: [
           `The states ${file} produces are present and are the states later proof is measured against.`,
         ],
@@ -284,7 +284,7 @@ function packageJobs({ pkg, packet, classification, capabilities, findingIds }) 
     jobs.push(
       job({
         id: "RJ-public-answer",
-        source: "mission-merge-rules reviewContract.publicSurfaces",
+        source: "merge-rules reviewContract.publicSurfaces",
         actor: "public",
         assertions: ["A valid public link answers exactly once, without a session."],
         actions: ["Open the public link in a credential-free context and answer."],
@@ -293,7 +293,7 @@ function packageJobs({ pkg, packet, classification, capabilities, findingIds }) 
       }),
       job({
         id: "RJ-public-scanner",
-        source: "mission-merge-rules reviewContract.publicSurfaces",
+        source: "merge-rules reviewContract.publicSurfaces",
         actor: "public",
         assertions: ["A link-scanner style prefetch does not consume or alter the answer."],
         actions: ["Issue an unauthenticated prefetch of the public link and re-read the state."],
@@ -302,7 +302,7 @@ function packageJobs({ pkg, packet, classification, capabilities, findingIds }) 
       }),
       job({
         id: "RJ-public-reload",
-        source: "mission-merge-rules reviewContract.publicSurfaces",
+        source: "merge-rules reviewContract.publicSurfaces",
         actor: "public",
         assertions: ["Reloading an answered link neither errors nor double-answers."],
         actions: ["Reload the answered public link and observe the recorded state."],
@@ -316,7 +316,7 @@ function packageJobs({ pkg, packet, classification, capabilities, findingIds }) 
     jobs.push(
       job({
         id: "RJ-transport-seam",
-        source: "mission-merge-rules reviewContract.transportSurfaces",
+        source: "merge-rules reviewContract.transportSurfaces",
         assertions: ["Delivery crosses the local transport seam and records what it sent."],
         actions: ["Send through the local transport and read the recorded delivery rows."],
         required_capabilities: ["application", "database", "transport-seam"],

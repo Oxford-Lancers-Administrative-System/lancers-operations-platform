@@ -55,26 +55,25 @@ if migrations changed. "Should pass" is not verification.
 - **Advisories:** None / stable finding IDs and summary
 - **Result:** Not required / clear / blocked / requirement-adjudication-required / budget-exhausted
 
-## Fast lane
+## Merge
 
 <!--
-Answer the first line for every pull request. If it is "No", write "No — normal
-lane" and delete nothing else; the rest of this block is then not applicable and
-saying so is the answer.
+One rule, and it applies to every pull request here (AGENTS.md, ADR 0038).
+A pull request leaves draft exactly once, as the last act of the work, and that
+act is the authorization to merge it. Only `/start-issue` and `/run-mission` may
+lift a draft, and only when the diff touches no prohibited path, review is clear
+at the exact current head, and — for visual work — Brian's approval is recorded
+against that same head. Otherwise the draft stays and Brian merges.
 
-The eligibility rules are `.github/fast-lane-rules.json`, and the merge workflow
-recomputes them from the diff. Nothing written here grants eligibility — a
-classification that disagrees with the diff is simply refused, on the pull
-request, with the reason. See docs/fast-lane.md.
+The prohibited paths are `.github/merge-rules.json`, and the merge workflow
+recomputes them from the real diff. Nothing written here changes that answer.
 -->
 
-- **Classification:** No — normal lane / `documentation` / `test` /
-  `agent-instruction` — and why:
-- **Included Linear issues:** <!-- `Closes LAN-nn` for every one, so they close on merge -->
-- **Verification run locally:** <!-- the exact commands the rules require for these classes, and their result -->
+- **Prohibited paths touched:** None / the exact paths, and why Brian merges this
+- **Linear issues delivered:** <!-- `Closes LAN-nn` for every one, so they close on merge -->
 - **Required checks (CI result):** <!-- both ci.yml jobs, and their conclusion -->
-- **Merge result:** <!-- filled in by the workflow's comment after it merges; "pending" until then -->
-- **Exclusions:** <!-- work that was separated out because it was ineligible, and where it went. "None" if the batch was eligible whole -->
+- **Draft state:** Still a draft — Brian merges / Lifted at <exact SHA>, after
+  review cleared at that head <!-- and visual approval recorded at it, if visual -->
 
 ## Production handoff
 
@@ -118,4 +117,4 @@ handoff, three times.
 - [ ] Migrations (if any) apply cleanly from empty and their generated types are committed alongside.
 - [ ] `docs/architecture/data-model.md` updated if `supabase/migrations/` changed.
 - [ ] A new constraint on future work is recorded as an ADR.
-- [ ] This pull request is a **draft** unless Brian said otherwise. No agent merges, un-drafts, deploys or applies a migration.
+- [ ] This pull request is a **draft** unless every condition of the merge rule is met. No agent merges, deploys or applies a migration.

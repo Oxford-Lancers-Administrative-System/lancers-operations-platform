@@ -62,8 +62,9 @@ fresh exact-head environment used by the reviewer and later by Brian.
 
 Commit with an imperative subject and explanatory body, push, and open or update
 one normal draft PR against `main`. Fill every Production handoff line. Inspect
-CI conclusions at the exact head. Never merge, un-draft, label for merge, deploy,
-or perform hosted, production, or real-data actions.
+CI conclusions at the exact head. Never merge and never lift a draft — you open it,
+and the Lead lifts it after review clears. Never deploy or perform hosted,
+production, or real-data actions.
 
 Batch independent commands. Keep long logs out of context and return only useful
 tails. Inspect `git diff --stat` before a full diff.

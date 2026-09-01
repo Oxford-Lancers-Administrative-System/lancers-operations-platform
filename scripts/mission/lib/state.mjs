@@ -33,13 +33,8 @@ import {
   jobResultDefects,
 } from "./review-contract.mjs";
 import { RUNTIME_STATES, healthDefects, reclamationDefects } from "./runtime-broker.mjs";
-import { parseNameStatus } from "../../fast-lane/classify.mjs";
-import {
-  buildMissionReceipt,
-  classifyVisualDelta,
-  deriveChangedFiles,
-  loadRules,
-} from "../merge-gate.mjs";
+import { parseNameStatus } from "../../merge/paths.mjs";
+import { classifyVisualDelta, deriveChangedFiles, loadRules } from "../merge-gate.mjs";
 
 export const MAX_ACTIVE_WORKERS = 2;
 export const LEAD_TTL_MS = 120_000;
@@ -626,20 +621,26 @@ function schedulingRefusals(state, pkg, packageId, { correction = false } = {}) 
 }
 
 /**
- * Why this package may not travel the guarded lane, from mission state alone.
+ * Why this package's draft may not be lifted, from mission state alone.
+ *
+ * LAN-209 gave the one act that authorizes a merge a single owner: the Lead
+ * lifts the draft, exactly once, as the last act of the work. "Route
+ * guarded-auto" therefore now means GitHub's own auto-merge took it after that
+ * act, and "route owner" means the draft stayed and Brian merged it. These are
+ * the mission-state conditions for the first of those.
  *
  * LAN-148 §F separates three things the harness used to conflate. Review grade
  * says how rigorously a change is reviewed. Merge route is decided by the
  * protected surface the diff actually touches plus the evidence — which the
- * workflow re-derives from the real diff, and which no receipt can talk its way
- * past. Dispatch state is a third thing again.
+ * merge workflow re-derives from the real diff, and which nothing written in a
+ * pull request can talk its way past. Dispatch state is a third thing again.
  *
  * The blanket "highest risk never auto-merges" made the checkpoint-approval
  * tier unreachable for exactly the work it was designed for: authorization
  * rules are graded Highest, so the tier Brian approved on 2026-08-18 could
- * never fire. Highest-risk work now travels the lane only when an answered
- * owner checkpoint names the package — he still hears about it before it
- * merges — while migrations, and every path in the prohibited list, stay his.
+ * never fire. Highest-risk work now leaves draft only when an answered owner
+ * checkpoint names the package — he still hears about it before it merges —
+ * while migrations, and every path in the prohibited list, stay his.
  */
 export function guardedLaneRefusals(state, packageId, sha) {
   const pkg = state.packages[packageId];
@@ -1748,10 +1749,11 @@ export function validateEvent(event, state) {
       if (!/^[0-9a-f]{40}$/.test(event.head_sha ?? "") || event.head_sha !== pkg.head_sha) {
         errors.push("A gate pass records the package's exact current 40-character head SHA.");
       }
-      const expected = buildMissionReceipt(state, event.package_id, event.head_sha);
-      if (JSON.stringify(event.receipt) !== JSON.stringify(expected)) {
-        errors.push("A gate pass records the exact receipt derived from current mission state.");
-      }
+      // LAN-209. A gate pass used to carry a receipt, because a workflow that
+      // could not see this journal had to be told what it said. It is now the
+      // durable record that the Lead may lift this package's draft, and the
+      // conditions are re-derived here rather than restated in the event.
+      errors.push(...guardedLaneRefusals(state, event.package_id, event.head_sha));
       break;
     }
 
@@ -1792,7 +1794,7 @@ export function validateEvent(event, state) {
         const qualified = guardedLaneRefusals(state, event.package_id, event.sha).length === 0;
         if (qualified && !isNonEmptyString(event.owner_route_reason)) {
           errors.push(
-            `${event.package_id} qualified for the guarded lane; routing it to Brian anyway records why, and is counted as a harness defect.`,
+            `${event.package_id} qualified to leave draft; routing it to Brian anyway records why, and is counted as a harness defect.`,
           );
         }
       }

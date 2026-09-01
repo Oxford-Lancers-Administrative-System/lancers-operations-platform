@@ -1,10 +1,9 @@
 {
   "version": 1,
-  "_purpose": "The checked-in rules for the guarded autonomous mission merge. The mission-merge workflow reads THIS file and scripts/mission/merge-gate.mjs from the base branch — never from the pull request under evaluation — and re-derives every server-verifiable conjunct from evidence: base branch, fork, mergeability, the prohibited-path scan of the real diff, required checks green at the exact head SHA, and the coherence of the Mission Lead's published receipt. Auto-merge is the DEFAULT (Brian, 2026-09-01): every pull request is evaluated, and refusal must be earned from evidence. Unlike the fast lane, src/** application work is allowed — that is this lane's purpose (docs/adr/0027) — but the surfaces below can never travel it, so the lane cannot widen itself and owner-gated classes cannot pass.",
+  "_purpose": "The checked-in rules for the one universal merge rule (LAN-209). A pull request leaves draft exactly once, as the last act of the work, and that act is the authorization to merge it. `.github/workflows/merge.yml` reads THIS file and `scripts/merge/gate.mjs` from the BASE branch — never from the pull request under evaluation — and re-derives the one rule with teeth from evidence: the prohibited-path scan of the real diff. A prohibited path means Brian merges it by hand; anything else gets GitHub's own auto-merge enabled, and GitHub merges it when the required checks are green. There are no lanes, no labels, no eligibility classes and no receipt. Draft state is the readiness gate, and no workflow lifts a draft.",
   "baseBranch": "main",
-  "optInLabel": "mission-merge",
   "requiredChecks": ["Format, lint, typecheck, test, build", "Container builds and serves"],
-  "receiptBlockInfo": "mission-merge-receipt",
+  "_requiredChecksNote": "The job `name:` values in .github/workflows/ci.yml. GitHub's branch protection is what actually holds auto-merge until these are green; this list is a second, independently checked-in copy, used by the Mission Lead before it lifts a draft and by tests, so that renaming a job in ci.yml without updating branch protection fails a test instead of silently emptying the gate.",
   "prohibited": [
     {
       "path": "supabase/**",
@@ -23,8 +22,8 @@
       "reason": "The mission control plane cannot merge changes to itself."
     },
     {
-      "path": "scripts/fast-lane/**",
-      "reason": "The fast-lane classifier and gate cannot merge changes to themselves."
+      "path": "scripts/merge/**",
+      "reason": "The merge gate cannot merge changes to itself."
     },
     {
       "path": "scripts/intake/**",
@@ -75,8 +74,8 @@
       "reason": "The harness constitution proves the lane's boundaries."
     },
     {
-      "path": "tests/fast-lane-*.test.ts",
-      "reason": "The fast-lane proofs are protected governance."
+      "path": "tests/merge-*.test.ts",
+      "reason": "The proofs that the merge rule behaves as written are protected governance."
     },
     {
       "path": "tests/mission-*.test.ts",
@@ -123,17 +122,7 @@
       "reason": "The approved packet itself. Brian's merge of a packet PR IS the approval of that exact packet version; no automatic lane may perform it. Mission prose and walkthrough records beside it are ordinary documentation and merge normally."
     }
   ],
-  "ownerApprovalSurfaces": [
-    {
-      "path": "src/lib/auth/**",
-      "reason": "The service-layer authorization boundary (capabilities, guards, operator resolution, recovery). Changeable by workers, mergeable autonomously — but never silently: an answered owner question naming the package must exist, and the receipt must cite it."
-    },
-    {
-      "path": "src/lib/delivery/**",
-      "reason": "WhatsApp provider, configuration, and the recipient allowlist. Same checkpoint-approval rule: Brian hears about it at the hourly checkpoint before it can merge. Revisit this tier once the allowlist becomes database records (Brian, 2026-08-18)."
-    }
-  ],
-  "_ownerApprovalSurfacesNote": "The middle tier (Brian, 2026-08-18; widened by LAN-148 §F): these surfaces may auto-merge ONLY when the receipt carries an owner_decision citing an answered owner question for the package. Detection is evidence-derived from the real diff; the ask cannot be skipped, only affirmatively falsified — a durable, auditable lie in mission state. LAN-148 applies the same requirement to any package graded highest risk, whatever it touches: review grade decides how rigorously a change is reviewed, and this citation decides whether Brian has heard about it. What stays owner-merged regardless is decided by the prohibited list below, from the diff, and no receipt can talk its way past it.",
+  "_prohibitedNote": "The only rule with teeth, and it does not expand (LAN-209). Every path here is judged from the real diff — a rename on both its names — and a match means the pull request never gets auto-merge enabled at all. An empty diff is refused: there is nothing to merge, so nothing merges.",
   "visualSurfaces": [
     "src/app/**/*.tsx",
     "src/app/**/*.ts",
@@ -181,11 +170,5 @@
       "docs/showcase/**"
     ],
     "_evidenceSurfacesNote": "Seed and fixture sources. A change here alters what every later proof is measured against, so it is review-affecting even when no component changed; deterministic clearance is refused."
-  },
-  "standardRoute": {
-    "_purpose": "The default route (Brian, 2026-09-01). A pull request with no mission receipt still merges when it touches no prohibited surface, every required check is green at the exact head, and it names a Linear issue. This exists because the receipt route only ever served work packages — 30 of 122 merged pull requests — leaving corrections, seed fixes, documentation and ordinary visual work permanently owner-merged regardless of how safe the diff was.",
-    "requireLinearIssue": true,
-    "issuePattern": "LAN-\\d+",
-    "_ownerApprovalNote": "ownerApprovalSurfaces above require a receipt citing an answered owner question. A pull request with no receipt cannot cite one, so on this route those surfaces are refused outright."
   }
 }
