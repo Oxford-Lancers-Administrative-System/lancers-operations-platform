@@ -2,19 +2,19 @@
   "packet_version": 1,
   "mission_id": "M-RECRUITMENT",
   "status": "approved",
-  "title": "Recruitment \u2014 the funnel from first contact to the flip",
-  "objective": "The club can run a recruitment season out of the application instead of out of one person's head and a WhatsApp group. An operator holding the core four authority can capture a recruit at any of the four doors without creating a duplicate; read every recruit on one board as one line with the signals the platform can honestly observe; keep notes and see who wrote them; ask a recruit for their details and their football background and record what they choose to answer; schedule a recruitment event, invite recruits and players together, and take attendance on the day; and \u2014 when leadership decides somebody is in \u2014 flip them onto the roster with one audited action that creates the season membership and opens onboarding. Mission 5 gives recruitment the person; Mission 7 takes the member; everything between first contact and the flip is this mission's, including the administration of it.",
+  "title": "Recruitment — the funnel from first contact to the flip",
+  "objective": "The club can run a recruitment season out of the application instead of out of one person's head and a WhatsApp group. An operator holding the core four authority can capture a recruit at any of the four doors without creating a duplicate; read every recruit on one board as one line with the signals the platform can honestly observe; keep notes and see who wrote them; ask a recruit for their details and their football background and record what they choose to answer; schedule a recruitment event, invite recruits and players together, and take attendance on the day; and — when leadership decides somebody is in — flip them onto the roster with one audited action that creates the season membership and opens onboarding. Mission 5 gives recruitment the person; Mission 7 takes the member; everything between first contact and the flip is this mission's, including the administration of it.",
   "why_now": "Recruitment is the only Release One subject with no home in the application at all: the walk-up door is the sole part that exists on main, and it mints a prospect as a side effect of attendance with nowhere to read the result. Freshers' Fair is the club's single largest intake moment of the year and it is run on paper and memory. Two defects in the shipped event machinery also make the gap actively harmful rather than merely absent: scheduleEventLadder chases a recruit with the player escalation, and countByCapacity omits recruits from the approval summary, so an operator approves a recruitment event without being told how many recruits it reaches.",
   "non_goals": [
-    "Everything after the flip \u2014 the onboarding checklist, activation, the chase, the collection request, CSV import and carry-forward, and the LAN-85 intake-at-scale composition. Mission 7's.",
+    "Everything after the flip — the onboarding checklist, activation, the chase, the collection request, CSV import and carry-forward, and the LAN-85 intake-at-scale composition. Mission 7's.",
     "The person record and the People and Roster surfaces themselves. Mission 5's; this mission layers onto them and invents none of them.",
-    "Consent policy, wording, lawful basis and retention rules. Mission 8's \u2014 recruitment records the evidence, Mission 8 says what it must mean.",
+    "Consent policy, wording, lawful basis and retention rules. Mission 8's — recruitment records the evidence, Mission 8 says what it must mean.",
     "Erasure. Removing a person is Mission 8's and never recruitment's; leaving the board is a status change and nothing more (owner decision 2026-08-25).",
     "Transport, scheduler and template machinery. Mission 4's, used verbatim.",
     "The Monday report and the export machinery. Mission 10's.",
     "Season creation and rollover. Mission 11's.",
     "Event and calendar machinery. Mission 2's.",
-    "Club roles and the capability catalogue. Mission 1's \u2014 no new capability is minted for recruitment.",
+    "Club roles and the capability catalogue. Mission 1's — no new capability is minted for recruitment.",
     "Any WhatsApp composer, free-text send, or two-way chat. src/lib/delivery/config.ts permits nothing but approved templates in production.",
     "Real recruit data and real sends. LAN-86 and LAN-101 remain gates outside this mission.",
     "Mission Lead decomposition, work packages or sequencing. Not in this packet, and no execution before Brian merges it."
@@ -109,7 +109,7 @@
     },
     {
       "id": "REQ-core-four",
-      "text": "Recruitment is operated by the core four roles only \u2014 President, Vice President, Secretary and General Manager. The board, the record, the notes, the doors and the flip are theirs. No new capability is minted. The one carve-out is the coach at the touchline, who records a walk-up as attendance and never sees the board. Prospect records, signals and notes are never player-visible.",
+      "text": "Recruitment is operated by the core four roles only — President, Vice President, Secretary and General Manager. The board, the record, the notes, the doors and the flip are theirs. No new capability is minted. The one carve-out is the coach at the touchline, who records a walk-up as attendance and never sees the board. Prospect records, signals and notes are never player-visible.",
       "source_id": "SRC-owner-2026-08-28"
     },
     {
@@ -119,7 +119,7 @@
     },
     {
       "id": "REQ-two-ladders",
-      "text": "The player chase stops reaching recruits, and recruitment's own ladder is built beside it: an invitation and at most one polite follow-up, then silence. The two ladders are configured on the messaging schedule's Recruitment event row as two named groups \u2014 Regular players keeping the shipped six-field chase that ends with the President, and Recruits carrying a first invitation and one follow-up with no escalation field at all.",
+      "text": "The player chase stops reaching recruits, and recruitment's own ladder is built beside it: an invitation and at most one polite follow-up, then silence. The two ladders are configured on the messaging schedule's Recruitment event row as two named groups — Regular players keeping the shipped six-field chase that ends with the President, and Recruits carrying a first invitation and one follow-up with no escalation field at all.",
       "source_id": "SRC-owner-2026-08-31"
     },
     {
@@ -144,7 +144,7 @@
     },
     {
       "id": "REQ-recruit-sees-public-only",
-      "text": "A recruit sees only an event's public details \u2014 never attendance, never who else was invited or answered, never roster or member data. A recruit invited to an event answers in WhatsApp and lands on the shipped /rsvp/[token] saved page, yes or no. There is no event page for a recruit.",
+      "text": "A recruit sees only an event's public details — never attendance, never who else was invited or answered, never roster or member data. A recruit invited to an event answers in WhatsApp and lands on the shipped /rsvp/[token] saved page, yes or no. There is no event page for a recruit.",
       "source_id": "SRC-owner-2026-08-31"
     },
     {
@@ -169,12 +169,14 @@
     },
     {
       "id": "REQ-duplicate-queue",
-      "text": "A capture the system could not safely resolve is parked rather than silently created, merged or messaged, and waits in an operator review queue at /operate/recruitment/review until one of the core four decides it is the existing person or a new one.",
-      "source_id": "SRC-task-09-brief"
+      "text": "The duplicate check runs as a step inside whichever door is open, on that door's own surface, and never as a page an operator visits. It shows each candidate saying who it is — membership status, season, or recruit rung — and the operator either links to the person already there or creates a new one, on the spot. Nothing is parked and there is no review queue. A duplicate that still gets through is resolved by the people record's own merge at /operate/people/[personId]/merge, which already ships and belongs to Mission 5. The walk-up door at the touchline deliberately runs no check at all.",
+      "source_id": "SRC-task-09-brief",
+      "superseded_by": "AMD-2",
+      "original_text": "A capture the system could not safely resolve is parked rather than silently created, merged or messaged, and waits in an operator review queue at /operate/recruitment/review until one of the core four decides it is the existing person or a new one."
     },
     {
       "id": "REQ-flip",
-      "text": "The flip to joined is the four roles only and is one audited action. It interrupts with a confirmation over the surface where the decision is made, naming what it will create \u2014 the season membership, the roster place, onboarding \u2014 and what it will not do: make the person active. Cancelling writes nothing. One membership per person per season is the only guard at the flip; there is no duplicate check there.",
+      "text": "The flip to joined is the four roles only and is one audited action. It interrupts with a confirmation over the surface where the decision is made, naming what it will create — the season membership, the roster place, onboarding — and what it will not do: make the person active. Cancelling writes nothing. One membership per person per season is the only guard at the flip; there is no duplicate check there.",
       "source_id": "SRC-task-09-brief"
     },
     {
@@ -184,7 +186,7 @@
     },
     {
       "id": "REQ-qr-per-season",
-      "text": "One sign-up QR code exists per season, minted once, on its own page reached by a QR CODE button on the recruit board. It points at the club's own page on the club's own domain \u2014 a recruit signing in to the club's application, not into a form elsewhere.",
+      "text": "One sign-up QR code exists per season, minted once, on its own page reached by a QR CODE button on the recruit board. It points at the club's own page on the club's own domain — a recruit signing in to the club's application, not into a form elsewhere.",
       "source_id": "SRC-owner-2026-08-31"
     },
     {
@@ -206,7 +208,7 @@
     },
     {
       "id": "DEC-subject-not-bullets",
-      "text": "The approved boundary is the recruitment subject, not the portfolio row's bullet list \u2014 Brian's direction of 2026-08-28 read under portfolio rule 1. The 43-item inventory in 00-boundary.md governs.",
+      "text": "The approved boundary is the recruitment subject, not the portfolio row's bullet list — Brian's direction of 2026-08-28 read under portfolio rule 1. The 43-item inventory in 00-boundary.md governs.",
       "source": "SRC-owner-2026-08-28"
     },
     {
@@ -251,7 +253,7 @@
     },
     {
       "id": "DEC-w9-folded",
-      "text": "W9 is folded rather than renumbered. Three of its four screens had already been built into W2 and the fourth \u2014 the refusal \u2014 became W2-04. Its three decisions moved to W10 and W2.",
+      "text": "W9 is folded rather than renumbered. Three of its four screens had already been built into W2 and the fourth — the refusal — became W2-04. Its three decisions moved to W10 and W2.",
       "source": "SRC-owner-2026-08-31"
     },
     {
@@ -281,7 +283,7 @@
     },
     {
       "id": "DEC-split-on-the-schedule",
-      "text": "The two ladders are split in the body of the messaging schedule's Recruitment event row rather than as a second row, so that one row per event type and one save per row \u2014 both laws of that page \u2014 survive.",
+      "text": "The two ladders are split in the body of the messaging schedule's Recruitment event row rather than as a second row, so that one row per event type and one save per row — both laws of that page — survive.",
       "source": "SRC-owner-2026-08-31"
     },
     {
@@ -325,9 +327,7 @@
       "The club's own domain must serve the QR sign-up page before a QR is printed for a real recruiting moment.",
       "Brian merges this packet. No execution is authorized before that merge."
     ],
-    "external": [
-      "Meta WhatsApp template review \u2014 externally timed and outside the club's control."
-    ]
+    "external": ["Meta WhatsApp template review — externally timed and outside the club's control."]
   },
   "merge_envelope": {
     "auto_merge_classes": ["standard-application"],
@@ -379,7 +379,7 @@
     },
     {
       "id": "W3",
-      "title": "Removed \u2014 not a workflow",
+      "title": "Removed — not a workflow",
       "actor": "None",
       "trigger": "None",
       "entry_point": "None",
@@ -408,7 +408,7 @@
     {
       "id": "W5",
       "title": "Capture a walk-up as a recruit",
-      "actor": "Whoever is taking attendance \u2014 an operator, or a coach holding one of the ten fixed coaching roles",
+      "actor": "Whoever is taking attendance — an operator, or a coach holding one of the ten fixed coaching roles",
       "trigger": "A person nobody expected is standing there",
       "entry_point": "The attendance sheet for any event, of any type",
       "placement": "/operate/events/[id]/attendance",
@@ -451,19 +451,20 @@
       "id": "W8",
       "title": "Resolve a possible duplicate",
       "actor": "An operator holding the core four authority",
-      "trigger": "Any door parked a capture",
-      "entry_point": "A count on the recruit board, and an item in the Administration review queue",
-      "placement": "/operate/recruitment/review",
+      "trigger": "An operator is adding somebody at a door that runs the check",
+      "entry_point": "None of its own; the check is a step inside whichever door is open",
+      "placement": "None of its own; it renders on the door's own surface",
       "actions": [
-        "Read the parked capture beside its candidate matches",
-        "Decide it is the existing person, or a new one",
-        "Confirm, knowing nothing was silently created, merged, or messaged while it waited"
+        "Type the name and contact details into the door already open",
+        "Press the form's own check and read each candidate, which says who it is",
+        "Link to the person already there, or create a new one"
       ],
-      "user_visible_result": "The parked capture becomes the existing person or a new one, audited, with nothing sent in the meantime"
+      "user_visible_result": "The operator links to the existing person or creates a new one, on the spot, with nothing silently created, merged or messaged",
+      "amended_by": "AMD-2"
     },
     {
       "id": "W9",
-      "title": "Folded \u2014 not a workflow",
+      "title": "Folded — not a workflow",
       "actor": "None",
       "trigger": "None",
       "entry_point": "None",
@@ -479,11 +480,11 @@
       "title": "Administer recruitment's messages, cycles and QR",
       "actor": "An operator holding the core four authority",
       "trigger": "A new term, a new push, a changed group link, or a poster going out",
-      "entry_point": "Administration \u2192 Messaging schedule, in the left navigation",
+      "entry_point": "Administration → Messaging schedule, in the left navigation",
       "placement": "/operate/admin/messaging",
       "actions": [
         "Read the page as three sections: Recruitment, Event messaging, and Onboarding, which is Mission 7's and is deliberately not built",
-        "Set the recruitment cycle's timings \u2014 the welcome, the personal-details ask and its reminder, the recruitment questionnaire and its reminder",
+        "Set the recruitment cycle's timings — the welcome, the personal-details ask and its reminder, the recruitment questionnaire and its reminder",
         "Set the Recruitment event row's two audiences: Regular players keeping the shipped six-field chase to the President, and Recruits carrying a first invitation and one follow-up with no escalation field",
         "Save each row on its own"
       ],
@@ -525,7 +526,7 @@
       "actor": "An operator holding the core four authority",
       "trigger": "They said no, they went quiet, or the record should never have existed",
       "entry_point": "The status control on W1, or the status on W2",
-      "placement": "No route of its own \u2014 a status change on a surface that already exists",
+      "placement": "No route of its own — a status change on a surface that already exists",
       "actions": [
         "Change the status to an exit value",
         "Change it back: disengaged is explicitly recoverable and people resurface in Hilary"
@@ -540,7 +541,7 @@
       "entry_point": "The status control on W1, or the status on W2",
       "placement": "An interruption on the surface where the decision is made",
       "actions": [
-        "Read the confirmation naming what it will create \u2014 the season membership, the roster place, onboarding \u2014 and what it will not do: make them active",
+        "Read the confirmation naming what it will create — the season membership, the roster place, onboarding — and what it will not do: make them active",
         "Confirm, in one audited action, or cancel and write nothing",
         "Be refused by the one-membership-per-season invariant if they already hold one"
       ],
@@ -559,7 +560,7 @@
   "nonblocking_unknowns": [
     {
       "unknown": "Only event_invitation exists in Meta. The four recruitment templates and the recruit event follow-up have not been submitted.",
-      "handling": "Build the cycle and the sends against the template contract and prove them locally against the seeded synthetic universe. Do not invent a fallback channel and never fall back to free text or manual distribution \u2014 LAN-90 and LAN-92 are binding. Report the template gate precisely and leave it with Brian."
+      "handling": "Build the cycle and the sends against the template contract and prove them locally against the seeded synthetic universe. Do not invent a fallback channel and never fall back to free text or manual distribution — LAN-90 and LAN-92 are binding. Report the template gate precisely and leave it with Brian."
     },
     {
       "unknown": "The WhatsApp community door's mechanism is unsettled, because the platform probably cannot observe group membership.",
@@ -599,7 +600,7 @@
     "Canonical packet validation passes and the approved packet version is merged by Brian before execution.",
     "All fourteen frozen workflows carry an acceptance record with Brian's exact approval words and date, at missions/intake/M-RECRUITMENT/acceptance/.",
     "Every approved screen is a photograph of the running application at a browser-measured 1280px and a browser-measured 375px, on both the current and the proposed side, with its provenance recorded in mockups/shots/shots.json.",
-    "A recruit captured at each implemented door appears on the recruit board with no duplicate created, and a parked capture waits in the review queue rather than being silently created.",
+    "A recruit captured at each implemented door appears on the recruit board with no duplicate created, and the door's own duplicate check offers its candidates rather than silently creating a second record.",
     "A recruitment event approved with both audiences plans two ladders: the players' rungs ending with the President escalation, and the recruits' rungs ending after one follow-up with no escalation job created.",
     "countByCapacity reports recruits in the approval summary, and scheduleEventLadder creates no escalation job for a recruit invitation.",
     "A recruit declining an event writes an rsvp_responses row with a system-supplied reason, without the recruit being asked for one, and the rsvp_responses_no_requires_a_reason constraint is unchanged.",
@@ -614,5 +615,25 @@
     "approved_by": "Brian Schuster",
     "date": "2026-08-31",
     "evidence": "Stage approvals recorded in missions/intake/M-RECRUITMENT/state.json: boundary \"You're approved\" (2026-08-28), overview \"Close stage one.\" (2026-08-28), inventory \"I approve of everything else. Let's move on to the next stage.\" (2026-08-31). All fourteen workflows approved in Brian's own words on 2026-08-31, one at a time and recorded per workflow in missions/intake/M-RECRUITMENT/acceptance/, closing with \"W11 is approved. Everything else is approved.\" Packet assembly authorized in the same message: \"We're done. Package this up.\" Brian's merge of this packet's pull request is the packet approval; nothing executes before it."
-  }
+  },
+  "owner_amendments": [
+    {
+      "id": "AMD-1",
+      "date": "2026-08-31",
+      "approved_by": "Brian Schuster",
+      "title": "The sign-up form is the single consent gate; consent is season-scoped",
+      "text": "The sign-up form is the mission's single consent gate and is the same surface as Questionnaire A. Every door leads to it: the QR points straight at it, and the walk-up and operator-add doors send one template carrying a signed prefilled link to it. No WhatsApp message ever asks permission to send WhatsApp messages. Consent is season-scoped, keyed (person_id, season_id), and gates every send in that season; granted, it carries from recruit through onboarding to player with no second ask, and each new season is re-approved. First and last name are the only required fields. recruit_details_ask is withdrawn because the welcome carries the form and is itself the ask. An opt-out honoured across channels is required by Meta and is built in this mission, so Channel Presence arrives early as a deliberate data-model amendment.",
+      "supersedes": ["W4", "W5", "W6", "W7", "W10"],
+      "recorded_as": "Mission journal M-RECRUITMENT, owner question Q-1"
+    },
+    {
+      "id": "AMD-2",
+      "date": "2026-09-01",
+      "approved_by": "Brian Schuster",
+      "title": "There is no parked-capture review queue",
+      "text": "Brian, 2026-09-01: \"If I go and do the normal check duplicate, I just check for a normal duplicate. If my record's already there, I just click, 'Oh, that's my record,' and it just goes through the normal thing. I'm not making new rules here... that's a normal merge record that is handled on the people record.\" This confirms the deletion already recorded in W8 on 2026-08-31. REQ-duplicate-queue as written at approval is superseded; no new duplicate policy is created by this amendment, which describes behaviour the application already has.",
+      "supersedes": ["REQ-duplicate-queue", "W8"],
+      "recorded_as": "Mission journal M-RECRUITMENT, owner question Q-3 and journal annotation on event 31"
+    }
+  ]
 }

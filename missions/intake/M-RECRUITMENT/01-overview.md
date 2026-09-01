@@ -81,8 +81,8 @@ bullet list — Brian's direction of 2026-08-28, read under portfolio rule 1. Th
      posted link back to door 1 rather than an observed join. Settled by the
      Stage 2 observability research, then designed.
      Plus the administration of the doors themselves: who mints and revokes a QR,
-     which roles may capture at which door, the operator-review queue that catches a
-     possible duplicate, and what the walk-up path at the touchline really does.
+     which roles may capture at which door, the duplicate check each door does or
+     does not run, and what the walk-up path at the touchline really does.
 - **The board** — recruitment's own page, built **like the Roster board** and
   copying it where copying works, because a surface the club already reads is
   worth more than a new idea. Its columns differ: **person details** first, then
@@ -254,7 +254,8 @@ lapsed, declined`. Three changes: `converted` becomes `joined`, `lapsed`
 - **Safety, consent and recovery:** the welcome never fires from a door without
   recorded opt-in evidence for that door. A failed message never blocks a
   capture. A possible duplicate is never silently created and never silently
-  merged — it parks for a human. Consent wording and lawful basis are Clint's
+  merged — the door's check shows the operator the candidates and they decide,
+  and a duplicate that still gets through is merged on the people record. Consent wording and lawful basis are Clint's
   through Mission 8; recruitment stores the evidence and enforces the gate. No
   real contact data in any environment before LAN-86, and no real sends before
   LAN-101.
