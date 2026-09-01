@@ -153,35 +153,35 @@ function cycleStep(
 ): RecruitmentCycleStep {
   return {
     step,
-    enabled: true,
     offsetHours: 0,
     updatedAt: new Date("2026-08-01T00:00:00Z"),
     ...overrides,
   };
 }
 
+// No `enabled` field — Brian, 2026-09-01: "the toggles were completely
+// invented… Remove the toggles." The database column survives untouched;
+// these fixtures simply no longer carry it.
 const CYCLE_STEPS: RecruitmentCycleStep[] = [
   cycleStep("welcome", { offsetHours: 0 }),
   cycleStep("details_reminder", { offsetHours: 96 }),
   cycleStep("interest_ask", { offsetHours: 72 }),
-  cycleStep("interest_reminder", { enabled: false, offsetHours: 144 }),
+  cycleStep("interest_reminder", { offsetHours: 144 }),
 ];
 
-/** One cycle row's own form: a hidden `steps` field plus each named step's two fields. */
+/** One cycle row's own form: a hidden `steps` field plus each named step's offset field. */
 function cycleForm(
   steps: readonly RecruitmentCycleStep["step"][],
-  overrides: Partial<Record<string, { enabled?: boolean; offsetHours?: number }>> = {},
+  overrides: Partial<Record<string, { offsetHours?: number }>> = {},
 ): FormData {
   const data = new FormData();
   data.set("steps", steps.join(","));
   for (const step of steps) {
     const current = CYCLE_STEPS.find((row) => row.step === step)!;
     const change = {
-      enabled: current.enabled,
       offsetHours: current.offsetHours,
       ...overrides[step],
     };
-    if (change.enabled) data.set(`step_${step}_enabled`, "on");
     data.set(`step_${step}_offsetHours`, String(change.offsetHours));
   }
   return data;
@@ -341,7 +341,7 @@ describe("updateRecruitmentCycleStepsAction, holding delivery_administration", (
 
     const state = await updateRecruitmentCycleStepsAction(
       EMPTY_ADMIN_ACTION_STATE,
-      cycleForm(["welcome"], { welcome: { enabled: true, offsetHours: 1 } }),
+      cycleForm(["welcome"], { welcome: { offsetHours: 1 } }),
     );
 
     expect(state.refusal).toBeNull();
@@ -352,7 +352,7 @@ describe("updateRecruitmentCycleStepsAction, holding delivery_administration", (
       expect.anything(),
       operator.personId,
       "welcome",
-      { enabled: true, offsetHours: 1 },
+      { offsetHours: 1 },
     );
     expect(revalidatePath).toHaveBeenCalledWith("/operate/admin/messaging");
   });
@@ -363,7 +363,7 @@ describe("updateRecruitmentCycleStepsAction, holding delivery_administration", (
     const state = await updateRecruitmentCycleStepsAction(
       EMPTY_ADMIN_ACTION_STATE,
       cycleForm(["interest_ask", "interest_reminder"], {
-        interest_reminder: { enabled: true, offsetHours: 150 },
+        interest_reminder: { offsetHours: 150 },
       }),
     );
 
@@ -373,7 +373,7 @@ describe("updateRecruitmentCycleStepsAction, holding delivery_administration", (
       expect.anything(),
       expect.anything(),
       "interest_reminder",
-      { enabled: true, offsetHours: 150 },
+      { offsetHours: 150 },
     );
     // `interest_ask` is unchanged from its current stored value, so it is
     // never written — the same "only the row that actually changed" rule
@@ -382,6 +382,35 @@ describe("updateRecruitmentCycleStepsAction, holding delivery_administration", (
       expect.anything(),
       expect.anything(),
       "interest_ask",
+      expect.anything(),
+    );
+  });
+
+  it("writes both steps of the merged Welcome row in one submission, atomically — Brian, 2026-09-01", async () => {
+    givenSession({ state: "active", operator: actor(["president"]) });
+
+    const state = await updateRecruitmentCycleStepsAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      cycleForm(["welcome", "details_reminder"], {
+        details_reminder: { offsetHours: 100 },
+      }),
+    );
+
+    expect(state.error).toBeNull();
+    expect(updateRecruitmentCycleStepIn).toHaveBeenCalledTimes(1);
+    expect(updateRecruitmentCycleStepIn).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "details_reminder",
+      { offsetHours: 100 },
+    );
+    // `welcome` is unchanged from its current stored value, so it is never
+    // written on its own — the same "only the row that actually changed"
+    // rule every other row here keeps.
+    expect(updateRecruitmentCycleStepIn).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "welcome",
       expect.anything(),
     );
   });
@@ -398,11 +427,10 @@ describe("updateRecruitmentCycleStepsAction, holding delivery_administration", (
     expect(updateRecruitmentCycleStepIn).not.toHaveBeenCalled();
   });
 
-  it("reads an unchecked switch as disabled — the checkbox is absent from the form, not false", async () => {
+  it("never reads or writes an enabled field — the toggle is gone (Brian, 2026-09-01)", async () => {
     givenSession({ state: "active", operator: actor(["president"]) });
 
-    const form = cycleForm(["interest_ask"]);
-    form.delete("step_interest_ask_enabled");
+    const form = cycleForm(["interest_ask"], { interest_ask: { offsetHours: 80 } });
 
     const state = await updateRecruitmentCycleStepsAction(EMPTY_ADMIN_ACTION_STATE, form);
 
@@ -411,8 +439,10 @@ describe("updateRecruitmentCycleStepsAction, holding delivery_administration", (
       expect.anything(),
       expect.anything(),
       "interest_ask",
-      expect.objectContaining({ enabled: false }),
+      { offsetHours: 80 },
     );
+    const call = vi.mocked(updateRecruitmentCycleStepIn).mock.calls[0];
+    expect(call[3]).not.toHaveProperty("enabled");
   });
 
   it("refuses a malformed timing field before it reaches the database, naming the step", async () => {

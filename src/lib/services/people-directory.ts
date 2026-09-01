@@ -360,6 +360,10 @@ export const PEOPLE_LIST_SORT_COLUMNS: readonly string[] = Object.freeze([
   "club",
   "contactable",
   "missing",
+  // Finding 8, Brian 2026-09-01. A binary collapse of the six-rung status
+  // ladder — recruit, or everyone else — never a second ranking of the same
+  // field `status` already sorts.
+  "type",
 ]);
 export const DEFAULT_PEOPLE_SORT = "name";
 
@@ -374,6 +378,13 @@ function compareBy(sort: string, direction: "asc" | "desc") {
       case "status":
         cmp = statusRank(a.status) - statusRank(b.status);
         break;
+      case "type": {
+        // Recruit first, ascending — the one grouping a fan-out across five
+        // player statuses cannot give on its own (finding 8).
+        const rank = (status: PersonListEntry["status"]) => (status === "recruit" ? 0 : 1);
+        cmp = rank(a.status) - rank(b.status);
+        break;
+      }
       case "club":
         cmp = (a.clubRoleSummary ?? "").localeCompare(b.clubRoleSummary ?? "");
         break;

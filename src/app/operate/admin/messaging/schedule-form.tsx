@@ -5,11 +5,9 @@ import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
-import FormControlLabel from "@mui/material/FormControlLabel";
 import InputAdornment from "@mui/material/InputAdornment";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import type { RecruitmentCycleStep } from "@/lib/services/recruitment-cycle";
@@ -18,7 +16,6 @@ import AdminOutcome from "../outcome";
 import { updateOneMessagingScheduleAction, updateRecruitmentCycleStepsAction } from "./actions";
 import { CYCLE_STEP_FIELDS, CYCLE_STEP_LABELS } from "./cycle-validation";
 import {
-  CYCLE_STEP_ENABLED_LABEL,
   CYCLE_STEP_TIMING_UNIT,
   EVENT_MESSAGING_SECTION_HEADING,
   EVENT_MESSAGING_SECTION_INTRO,
@@ -101,18 +98,11 @@ export default function MessagingScheduleForm({
     <Stack spacing={5}>
       <Stack spacing={1.5} data-testid="recruitment-cycle-section">
         <SectionHeading title={RECRUITMENT_SECTION_HEADING} note={RECRUITMENT_SECTION_INTRO} />
-        {welcome ? (
+        {welcome && detailsReminder ? (
           <CycleStepRow
-            steps={[welcome]}
+            steps={[welcome, detailsReminder]}
             rowLabel={CYCLE_STEP_LABELS.welcome}
             saveLabel="SAVE WELCOME"
-          />
-        ) : null}
-        {detailsReminder ? (
-          <CycleStepRow
-            steps={[detailsReminder]}
-            rowLabel={CYCLE_STEP_LABELS.details_reminder}
-            saveLabel="SAVE DETAILS REMINDER"
           />
         ) : null}
         {interestAsk && interestReminder ? (
@@ -179,14 +169,17 @@ function SectionHeading({ title, note }: { title: string; note: string | null })
 }
 
 /**
- * One recruitment cycle row — one, or two, `recruitment_cycle_steps` rows,
- * one form, one SAVE. `steps.length === 2` exactly for "Recruitment
- * questionnaire", which covers the ask and its own reminder.
+ * One recruitment cycle row — always two `recruitment_cycle_steps` rows, one
+ * form, one SAVE: Welcome covers `welcome` and its own `details_reminder`
+ * ("the top two bars here should be made as one", Brian, 2026-09-01);
+ * Recruitment questionnaire covers `interest_ask` and its own
+ * `interest_reminder`, unchanged. Two offset fields, two rows, one save —
+ * never two cards, never two saves.
  *
- * Not the shipped `schedule-row-toggle` — that name belongs to the "Show an
- * example" disclosure, unrelated to this switch. W10's own gap: the shipped
- * page has no precedent for "whether a step runs at all," so this control is
- * this package's own, drawn once here.
+ * No per-step on/off control — Brian, 2026-09-01: "the toggles were
+ * completely invented… Remove the toggles." `recruitment_cycle_steps.enabled`
+ * still exists in the database (no migration); this page simply no longer
+ * draws or submits it, so every step now sends on its own offset alone.
  */
 function CycleStepRow({
   steps,
@@ -229,13 +222,6 @@ function CycleStepRow({
                 sx={{ alignItems: "center" }}
                 data-field={step.step}
               >
-                <FormControlLabel
-                  control={
-                    <Switch name={`step_${step.step}_enabled`} defaultChecked={step.enabled} />
-                  }
-                  label={steps.length > 1 ? CYCLE_STEP_LABELS[step.step] : CYCLE_STEP_ENABLED_LABEL}
-                  sx={{ whiteSpace: "nowrap" }}
-                />
                 <TextField
                   name={`step_${step.step}_offsetHours`}
                   id={`${step.step}.offsetHours`}
@@ -243,7 +229,7 @@ function CycleStepRow({
                   type="number"
                   size="small"
                   defaultValue={step.offsetHours}
-                  sx={{ width: 180 }}
+                  sx={{ width: 220 }}
                   slotProps={{
                     htmlInput: { min: bound.min, max: bound.max, step: 1 },
                     input: {

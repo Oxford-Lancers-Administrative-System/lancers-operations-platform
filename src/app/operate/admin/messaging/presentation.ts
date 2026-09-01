@@ -52,7 +52,6 @@ export const EVENT_MESSAGING_SECTION_INTRO =
 export const ONBOARDING_SECTION_HEADING = "Onboarding";
 export const ONBOARDING_SECTION_NOTE = "Not built yet.";
 
-export const CYCLE_STEP_ENABLED_LABEL = "Sends";
 export const CYCLE_STEP_TIMING_UNIT = "h";
 
 export function cycleStepSavedNotice(label: string): string {

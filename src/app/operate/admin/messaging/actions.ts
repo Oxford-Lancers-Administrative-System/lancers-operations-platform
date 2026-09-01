@@ -104,13 +104,15 @@ export async function updateOneMessagingScheduleAction(
 /**
  * Saving one row of the recruitment cycle — LAN-203, `REQ-recruitment-cycle`.
  *
- * Two of the cycle's three rows cover exactly one `recruitment_cycle_steps`
- * row; the third — Recruitment questionnaire — covers two (the ask and its
- * own reminder), on the same "one row, one form, one SAVE" law
+ * Both of the cycle's two page rows cover two `recruitment_cycle_steps`
+ * rows each — Welcome covers `welcome` and its own `details_reminder`
+ * (Brian, 2026-09-01: "the top two bars here should be made as one"),
+ * Recruitment questionnaire covers `interest_ask` and its own
+ * `interest_reminder` — on the same "one row, one form, one SAVE" law
  * `updateOneMessagingScheduleAction` already keeps for the Recruitment event
  * type's six fields. `steps` names which database rows this particular
- * form's fields cover; every one of them is written in the same transaction,
- * so a row that covers two steps either saves both or saves neither.
+ * form's fields cover; both are written in the same transaction, so a row
+ * either saves both steps or saves neither.
  */
 export async function updateRecruitmentCycleStepsAction(
   _previous: AdminActionState,
@@ -144,8 +146,7 @@ export async function updateRecruitmentCycleStepsAction(
       let anyChanged = false;
       for (const [step, change] of validated.changes) {
         const before = currentByStep.get(step);
-        const changed =
-          !before || before.enabled !== change.enabled || before.offsetHours !== change.offsetHours;
+        const changed = !before || before.offsetHours !== change.offsetHours;
         if (!changed) continue;
         anyChanged = true;
         await updateRecruitmentCycleStepIn(tx, operator.personId, step, change);

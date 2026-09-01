@@ -22,11 +22,13 @@ const MARKER = "LAN202QrActionSuite";
 let observer: Client;
 let seasonId: string;
 
+// Mobile is required (Brian, 2026-09-01, finding 1) — every fixture below
+// carries a valid one by default; a test about mobile itself overrides it.
 function values(overrides: Partial<SignupFieldValues> = {}): SignupFieldValues {
   return {
     givenName: MARKER,
     familyName: "Recruit",
-    mobile: "",
+    mobile: "07700 900555",
     email: "",
     knownAs: "",
     college: "",

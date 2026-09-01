@@ -12,15 +12,25 @@ import type {
  * ## Why a form can cover more than one step
  *
  * `messaging_schedules_and_chase`'s law is one row, one form, one SAVE — and
- * the cycle's own three rows (W10) keep it: **Welcome** and **Details
- * reminder** are each exactly one `recruitment_cycle_steps` row, but
- * **Recruitment questionnaire** is one row *of the page* covering two
- * database rows, `interest_ask` and its own `interest_reminder` — the same
- * "several columns, one row, one save" shape the Recruitment event type's
- * six fields already use. `readCycleStepsChange` is therefore given the list
- * of step names one submission covers, and reads each one's own two fields
- * out of the same `FormData` by a `step_<name>_` prefix, rather than being
- * called once per database row.
+ * the cycle's own two rows (Brian, 2026-09-01) keep it: **Welcome** is one
+ * page row *of the page* covering two database rows, `welcome` and its own
+ * `details_reminder` — "the top two bars here should be made as one… the
+ * first message gets sent out 0 hours after, and then the second one" — and
+ * **Recruitment questionnaire** is the same shape, covering `interest_ask`
+ * and its own `interest_reminder`. Both are the same "several columns, one
+ * row, one save" idiom the Recruitment event type's six fields already use.
+ * `readCycleStepsChange` is therefore given the list of step names one
+ * submission covers, and reads each one's own field out of the same
+ * `FormData` by a `step_<name>_` prefix, rather than being called once per
+ * database row.
+ *
+ * ## No `enabled` — superseded, Brian, 2026-09-01
+ *
+ * `REQ-recruitment-cycle`'s per-step toggle is gone: "the toggles were
+ * completely invented… Remove the toggles." This module reads and validates
+ * only each step's timing field now; `recruitment-cycle.ts`'s own module note
+ * explains why the database column survives untouched while the application
+ * stops reading and writing it.
  */
 
 export interface CycleStepFieldBounds {
@@ -38,15 +48,15 @@ export interface CycleStepFieldBounds {
  * "a whole day"), so every step reads the same way rather than switching
  * units row to row.
  *
- * `interest_reminder`'s field reads "hours after capture", the same as
- * `interest_ask`'s — not "hours after the ask" — because a step's own timing
- * has to stay meaningful on its own when the step it would otherwise be
- * measured from is switched off (`REQ-recruitment-cycle`'s "each of which
- * can be turned off, per cycle").
+ * `details_reminder` and `interest_reminder` both read "hours after
+ * capture", not "hours after" the message before them — a step's own timing
+ * has to stay meaningful on its own, the same reasoning that named
+ * `interest_reminder`'s field before it, extended to `details_reminder` now
+ * that the two are shown on one row (Brian, 2026-09-01).
  */
 export const CYCLE_STEP_FIELDS: readonly CycleStepFieldBounds[] = Object.freeze([
-  { step: "welcome", label: "After capture", min: 0, max: 2160 },
-  { step: "details_reminder", label: "After capture", min: 0, max: 2160 },
+  { step: "welcome", label: "First message after capture", min: 0, max: 2160 },
+  { step: "details_reminder", label: "Second message after capture", min: 0, max: 2160 },
   { step: "interest_ask", label: "Ask after capture", min: 0, max: 2160 },
   { step: "interest_reminder", label: "Reminder after capture", min: 0, max: 2160 },
 ]);
@@ -73,12 +83,10 @@ export type CycleStepsValidation =
 /**
  * Reads and checks every step named in `steps`, from one row's own form.
  *
- * `enabled` is read from a checkbox — present in `formData` only when
- * ticked, which is the HTML form contract every checkbox in this
- * application already follows (`docs/ux/standards.md`'s own convention).
- * `offsetHours` follows `SCHEDULE_FIELDS`' own reading: blank, non-integer
- * and out-of-bounds are each refused by name before anything reaches the
- * database.
+ * No `enabled` field — Brian, 2026-09-01: "the toggles were completely
+ * invented… Remove the toggles." `offsetHours` follows `SCHEDULE_FIELDS`'
+ * own reading: blank, non-integer and out-of-bounds are each refused by
+ * name before anything reaches the database.
  */
 export function readCycleStepsChange(
   steps: readonly RecruitmentCycleStepName[],
@@ -92,7 +100,6 @@ export function readCycleStepsChange(
       return { ok: false, message: `${step} is not a recruitment cycle step.` };
     }
     const label = CYCLE_STEP_LABELS[step];
-    const enabled = formData.get(`step_${step}_enabled`) !== null;
 
     const raw = formData.get(`step_${step}_offsetHours`);
     if (typeof raw !== "string" || raw.trim() === "") {
@@ -109,7 +116,7 @@ export function readCycleStepsChange(
       };
     }
 
-    changes.set(step, { enabled, offsetHours });
+    changes.set(step, { offsetHours });
   }
 
   return { ok: true, changes };

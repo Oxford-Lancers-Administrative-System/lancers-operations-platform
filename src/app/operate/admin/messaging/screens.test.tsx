@@ -152,25 +152,27 @@ function rows(): MessagingScheduleWithPreview[] {
   });
 }
 
-/** The four cycle steps, seeded as LAN-199/the migration ship them. */
+/**
+ * The four cycle steps, seeded as LAN-199/the migration ship them. No
+ * `enabled` field — Brian, 2026-09-01: "the toggles were completely
+ * invented… Remove the toggles." The database column survives untouched;
+ * `RecruitmentCycleStep` simply no longer carries it.
+ */
 function cycleSteps(): RecruitmentCycleStep[] {
   return [
-    { step: "welcome", enabled: true, offsetHours: 0, updatedAt: new Date("2026-08-25T00:00:00Z") },
+    { step: "welcome", offsetHours: 0, updatedAt: new Date("2026-08-25T00:00:00Z") },
     {
       step: "details_reminder",
-      enabled: true,
       offsetHours: 96,
       updatedAt: new Date("2026-08-25T00:00:00Z"),
     },
     {
       step: "interest_ask",
-      enabled: true,
       offsetHours: 72,
       updatedAt: new Date("2026-08-25T00:00:00Z"),
     },
     {
       step: "interest_reminder",
-      enabled: false,
       offsetHours: 144,
       updatedAt: new Date("2026-08-25T00:00:00Z"),
     },
@@ -351,14 +353,15 @@ describe("one save button per row — OWNER-LAN171-04", () => {
   it("gives every row its own form and its own save button, not one for the page", async () => {
     const { container } = render(await MessagingSchedulePage());
 
-    // Seven event types, plus LAN-203's three recruitment cycle rows
-    // (`cycle-step-row`) — each is its own form on the same one-row-one-save
-    // law, so the total grows with the cycle rather than staying fixed at
-    // seven.
+    // Seven event types, plus LAN-203's two recruitment cycle rows
+    // (`cycle-step-row`, Brian 2026-09-01: Welcome and its details reminder
+    // collapsed onto one row) — each is its own form on the same
+    // one-row-one-save law, so the total grows with the cycle rather than
+    // staying fixed at seven.
     const forms = container.querySelectorAll("form");
-    expect(forms).toHaveLength(10);
+    expect(forms).toHaveLength(9);
     const cycleRows = screen.getAllByTestId("cycle-step-row");
-    expect(cycleRows).toHaveLength(3);
+    expect(cycleRows).toHaveLength(2);
     for (const row of cycleRows) expect(row.tagName).toBe("FORM");
 
     const rowsFound = screen.getAllByTestId("schedule-row");
@@ -409,40 +412,41 @@ describe("the page's three sections — W10, Brian 2026-08-31", () => {
 });
 
 describe("the recruitment cycle section — REQ-recruitment-cycle", () => {
-  it("draws exactly three rows: Welcome, Details reminder, Recruitment questionnaire", async () => {
+  // Brian, 2026-09-01: "the top two bars here should be made as one" —
+  // Welcome now draws exactly two rows: Welcome (covering `welcome` and its
+  // own `details_reminder`) and Recruitment questionnaire.
+  it("draws exactly two rows: Welcome, Recruitment questionnaire", async () => {
     render(await MessagingSchedulePage());
 
     const labels = screen.getAllByTestId("cycle-step-row-label").map((node) => node.textContent);
-    expect(labels).toEqual(["Welcome", "Details reminder", "Recruitment questionnaire"]);
+    expect(labels).toEqual(["Welcome", "Recruitment questionnaire"]);
   });
 
-  it("shows Welcome firing immediately on capture, and on by default", async () => {
+  it("never draws a per-step on/off control — the toggles were invented and removed (Brian, 2026-09-01)", async () => {
+    const { container } = render(await MessagingSchedulePage());
+
+    expect(container.querySelector('input[type="checkbox"]')).toBeNull();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("shows Welcome as one card, two offsets — the first message at 0h, the second (details reminder) after N hours", async () => {
     render(await MessagingSchedulePage());
 
     const welcomeRow = screen.getAllByTestId("cycle-step-row")[0];
-    const toggle = welcomeRow.querySelector(
-      'input[name="step_welcome_enabled"]',
-    ) as HTMLInputElement;
-    expect(toggle.checked).toBe(true);
-    const field = welcomeRow.querySelector(
+    const firstField = welcomeRow.querySelector(
       'input[name="step_welcome_offsetHours"]',
     ) as HTMLInputElement;
-    expect(field.value).toBe("0");
+    const secondField = welcomeRow.querySelector(
+      'input[name="step_details_reminder_offsetHours"]',
+    ) as HTMLInputElement;
+    expect(firstField.value).toBe("0");
+    expect(secondField.value).toBe("96");
   });
 
-  it("shows the Recruitment questionnaire row carrying both the ask and its reminder, the reminder off by default — LAN-199", async () => {
+  it("shows the Recruitment questionnaire row carrying both the ask and its reminder — LAN-199", async () => {
     render(await MessagingSchedulePage());
 
-    const questionnaireRow = screen.getAllByTestId("cycle-step-row")[2];
-    const askToggle = questionnaireRow.querySelector(
-      'input[name="step_interest_ask_enabled"]',
-    ) as HTMLInputElement;
-    const reminderToggle = questionnaireRow.querySelector(
-      'input[name="step_interest_reminder_enabled"]',
-    ) as HTMLInputElement;
-    expect(askToggle.checked).toBe(true);
-    expect(reminderToggle.checked).toBe(false);
-
+    const questionnaireRow = screen.getAllByTestId("cycle-step-row")[1];
     const askField = questionnaireRow.querySelector(
       'input[name="step_interest_ask_offsetHours"]',
     ) as HTMLInputElement;
@@ -459,7 +463,7 @@ describe("the recruitment cycle section — REQ-recruitment-cycle", () => {
     const hidden = Array.from(container.querySelectorAll('input[name="steps"]')).map(
       (input) => (input as HTMLInputElement).value,
     );
-    expect(hidden).toEqual(["welcome", "details_reminder", "interest_ask,interest_reminder"]);
+    expect(hidden).toEqual(["welcome,details_reminder", "interest_ask,interest_reminder"]);
   });
 });
 

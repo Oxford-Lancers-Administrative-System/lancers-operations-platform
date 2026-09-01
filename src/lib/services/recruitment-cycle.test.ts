@@ -54,13 +54,15 @@ describe("listRecruitmentCycleStepsIn", () => {
     ]);
   });
 
-  it("seeds welcome, details_reminder and interest_ask on, and interest_reminder off — LAN-199", async () => {
+  // Brian, 2026-09-01: "the toggles were completely invented… Remove the
+  // toggles." REQ-recruitment-cycle's per-step `enabled` is superseded — the
+  // column stays in the database (no migration) but `RecruitmentCycleStep`
+  // carries no `enabled` field any more, so there is nothing here to read.
+  it("carries no enabled field — the per-step toggle is superseded (Brian, 2026-09-01)", async () => {
     const steps = await withTransaction((tx) => listRecruitmentCycleStepsIn(tx));
-    const byStep = Object.fromEntries(steps.map((step) => [step.step, step]));
-    expect(byStep.welcome.enabled).toBe(true);
-    expect(byStep.details_reminder.enabled).toBe(true);
-    expect(byStep.interest_ask.enabled).toBe(true);
-    expect(byStep.interest_reminder.enabled).toBe(false);
+    for (const step of steps) {
+      expect(step).not.toHaveProperty("enabled");
+    }
   });
 
   it("fires welcome immediately on capture — offset zero", async () => {
@@ -80,16 +82,14 @@ describe("updateRecruitmentCycleStepIn", () => {
       try {
         const updated = await withTransaction((tx) =>
           updateRecruitmentCycleStepIn(tx, actorPersonId, "interest_ask", {
-            enabled: false,
             offsetHours: 96,
           }),
         );
-        expect(updated.enabled).toBe(false);
         expect(updated.offsetHours).toBe(96);
+        expect(updated).not.toHaveProperty("enabled");
 
         const reread = await withTransaction((tx) => listRecruitmentCycleStepsIn(tx));
         const rereadInterestAsk = reread.find((step) => step.step === "interest_ask");
-        expect(rereadInterestAsk?.enabled).toBe(false);
         expect(rereadInterestAsk?.offsetHours).toBe(96);
 
         const auditRow = await withTransaction(async (tx) => {
@@ -99,8 +99,8 @@ describe("updateRecruitmentCycleStepIn", () => {
             entity_table: string;
             entity_id: string;
             context: {
-              before: { enabled: boolean; offsetHours: number };
-              after: { enabled: boolean; offsetHours: number };
+              before: { offsetHours: number };
+              after: { offsetHours: number };
             };
           }>(
             `select actor_person_id, action, entity_table, entity_id, context
@@ -118,18 +118,52 @@ describe("updateRecruitmentCycleStepIn", () => {
         expect(auditRow.entity_id).toBe(
           deriveEntityIdFromNaturalKey("recruitment_cycle_steps", "interest_ask"),
         );
-        expect(auditRow.context.before.enabled).toBe(beforeInterestAsk.enabled);
-        expect(auditRow.context.after.enabled).toBe(false);
+        expect(auditRow.context.before.offsetHours).toBe(beforeInterestAsk.offsetHours);
         expect(auditRow.context.after.offsetHours).toBe(96);
       } finally {
         // Leave the club's configuration exactly as this suite found it.
         await withTransaction((tx) =>
           updateRecruitmentCycleStepIn(tx, actorPersonId, "interest_ask", {
-            enabled: beforeInterestAsk.enabled,
             offsetHours: beforeInterestAsk.offsetHours,
           }),
         );
       }
+    });
+  });
+
+  // Brian, 2026-09-01: the `enabled` column itself is left exactly as the
+  // migration seeded it — this update never writes it — proving the
+  // supersession is presentation-only, not a schema change.
+  it("never writes the enabled column — it stays exactly as seeded", async () => {
+    await withAuditActor(async (actorPersonId) => {
+      const before = await withTransaction(async (tx) => {
+        const result = await tx.query<{ enabled: boolean }>(
+          `select enabled from public.recruitment_cycle_steps where step = 'interest_reminder'`,
+        );
+        return result.rows[0].enabled;
+      });
+      expect(before).toBe(false); // LAN-199's own seeded default, unchanged.
+
+      await withTransaction((tx) =>
+        updateRecruitmentCycleStepIn(tx, actorPersonId, "interest_reminder", {
+          offsetHours: 150,
+        }),
+      );
+
+      const after = await withTransaction(async (tx) => {
+        const result = await tx.query<{ enabled: boolean }>(
+          `select enabled from public.recruitment_cycle_steps where step = 'interest_reminder'`,
+        );
+        return result.rows[0].enabled;
+      });
+      expect(after).toBe(false); // Still false — this update never touched it.
+
+      // Leave the club's configuration exactly as this suite found it.
+      await withTransaction((tx) =>
+        updateRecruitmentCycleStepIn(tx, actorPersonId, "interest_reminder", {
+          offsetHours: 144,
+        }),
+      );
     });
   });
 
@@ -138,7 +172,6 @@ describe("updateRecruitmentCycleStepIn", () => {
       const before = await withTransaction((tx) => listRecruitmentCycleStepsIn(tx));
       await withTransaction((tx) =>
         updateRecruitmentCycleStepIn(tx, actorPersonId, "welcome", {
-          enabled: true,
           offsetHours: 0,
         }),
       );
