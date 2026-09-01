@@ -650,13 +650,9 @@ export const PERSON_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: st
   { table: "person_access_tokens", column: "person_id" },
   { table: "person_emergency_contacts", column: "recorded_by_person_id" },
   { table: "position_assignments", column: "recorded_by_person_id" },
-  // LAN-201 (WP-recruitment-schema). Each is either an actor/author column or
-  // a subject column with no per-season uniqueness to collide on — the same
-  // shape `event_audience_members.person_id` and `role_assignments.person_id`
-  // already re-point blindly.
-  { table: "recruitment_parked_capture_candidates", column: "candidate_person_id" },
-  { table: "recruitment_parked_captures", column: "resolved_by_person_id" },
-  { table: "recruitment_parked_captures", column: "resolved_person_id" },
+  // LAN-201 (WP-recruitment-schema). Each is an actor/author column with no
+  // per-season uniqueness to collide on — the same shape
+  // `season_membership_status_events.actor_person_id` already re-points blindly.
   { table: "recruitment_prospect_notes", column: "author_person_id" },
   { table: "recruitment_prospect_status_events", column: "actor_person_id" },
   { table: "recruitment_signup_codes", column: "deactivated_by_person_id" },

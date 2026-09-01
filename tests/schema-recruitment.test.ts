@@ -310,63 +310,6 @@ describe("recruitment_questionnaire_responses", () => {
   });
 });
 
-describe("recruitment_parked_captures", () => {
-  it("requires a resolution and its actor to arrive together", async () => {
-    const parked = await one<{ id: string }>(
-      client,
-      `insert into public.recruitment_parked_captures (season_id, source, given_name, mobile)
-       values ($1, 'qr_self_entry', 'Rosalind', '07700900123') returning id`,
-      [base.seasonId],
-    );
-    await expectRejected(
-      client,
-      "update public.recruitment_parked_captures set resolution = 'created' where id = $1",
-      [parked.id],
-      "recruitment_parked_captures_resolution_is_dated",
-    );
-    await expectRejected(
-      client,
-      `update public.recruitment_parked_captures
-          set resolution = 'created', resolved_at = now(), resolved_person_id = $2
-        where id = $1`,
-      [parked.id, base.personId],
-      "recruitment_parked_captures_resolution_names_a_resolver",
-    );
-    await expectAccepted(
-      client,
-      `update public.recruitment_parked_captures
-          set resolution = 'created', resolved_at = now(),
-              resolved_person_id = $2, resolved_by_person_id = $2
-        where id = $1`,
-      [parked.id, base.personId],
-    );
-  });
-
-  it("snapshots candidate matches beside the parked capture", async () => {
-    const parked = await one<{ id: string }>(
-      client,
-      `insert into public.recruitment_parked_captures (season_id, source, given_name)
-       values ($1, 'operator_add', 'Ambrose') returning id`,
-      [base.seasonId],
-    );
-    await expectAccepted(
-      client,
-      `insert into public.recruitment_parked_capture_candidates
-         (parked_capture_id, candidate_person_id, match_basis)
-       values ($1, $2, 'mobile')`,
-      [parked.id, base.personId],
-    );
-    await expectRejected(
-      client,
-      `insert into public.recruitment_parked_capture_candidates
-         (parked_capture_id, candidate_person_id, match_basis)
-       values ($1, $2, 'name')`,
-      [parked.id, base.personId],
-      "recruitment_parked_capture_candidates_one_per_person",
-    );
-  });
-});
-
 describe("recruitment_signup_codes", () => {
   it("permits only one live code per season", async () => {
     await expectAccepted(
@@ -485,8 +428,6 @@ describe("row level security", () => {
     const tables = [
       "recruitment_prospect_notes",
       "recruitment_prospect_status_events",
-      "recruitment_parked_captures",
-      "recruitment_parked_capture_candidates",
       "recruitment_questionnaire_responses",
       "recruitment_signup_codes",
       "season_messaging_consents",

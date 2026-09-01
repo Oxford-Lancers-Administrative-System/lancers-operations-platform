@@ -12,33 +12,33 @@ model wins and the difference is a defect here.
 
 **Migration terminology**, stated once because the numbers are easy to confuse:
 
-| Term                                                   | Count                                                                                                                                                                                   |
-| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Domain migration files                                 | 14                                                                                                                                                                                      |
-| — the baseline set                                     | 13 files, organised as 12 logical parts (part 12 splits into `12a` staging and `12b` views)                                                                                             |
-| — the correction pass                                  | 1 file, part 13                                                                                                                                                                         |
-| Scaffold `init` migration, predating the domain schema | 1                                                                                                                                                                                       |
-| Identity-join migration, added after the baseline      | 1 — `operator_accounts` (LAN-71)                                                                                                                                                        |
-| Delivery-machinery migration                           | 1 — RSVP tokens, attempts and callbacks (LAN-78)                                                                                                                                        |
-| View-correction migration                              | 1 — the mismatch view sees walk-ups (LAN-81)                                                                                                                                            |
-| Role-catalogue migrations                              | 2 — structure, then the twenty approved seats (LAN-128)                                                                                                                                 |
-| Invitation-state migration                             | 1 — invitation state on `operator_accounts` (LAN-131)                                                                                                                                   |
-| Email re-home migration                                | 1 — `email_rehome_pending_at` on `operator_accounts` (LAN-132)                                                                                                                          |
-| Events target-state migration                          | 1 — the seven-type model, templates and the club link (LAN-151)                                                                                                                         |
-| Attendance-survives-cancellation migration             | 1 — attendance outlives a cancelled event (LAN-159)                                                                                                                                     |
-| Messaging schedule and chase migration                 | 1 — the schedule, the frozen plan, person tokens and flags (LAN-169)                                                                                                                    |
-| Person substrate migration                             | 1 — the five-value membership ladder, `known_as` retired, person facts (LAN-182)                                                                                                        |
-| Recruitment schema migration                           | 1 — the seven-value prospect ladder, consent, notes, history, the parked-capture queue, questionnaire answers, the season QR, and the recruit ladder on `messaging_schedules` (LAN-201) |
-| **Files applied by a rebuild from empty**              | **27**                                                                                                                                                                                  |
+| Term                                                   | Count                                                                                                                                                         |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Domain migration files                                 | 14                                                                                                                                                            |
+| — the baseline set                                     | 13 files, organised as 12 logical parts (part 12 splits into `12a` staging and `12b` views)                                                                   |
+| — the correction pass                                  | 1 file, part 13                                                                                                                                               |
+| Scaffold `init` migration, predating the domain schema | 1                                                                                                                                                             |
+| Identity-join migration, added after the baseline      | 1 — `operator_accounts` (LAN-71)                                                                                                                              |
+| Delivery-machinery migration                           | 1 — RSVP tokens, attempts and callbacks (LAN-78)                                                                                                              |
+| View-correction migration                              | 1 — the mismatch view sees walk-ups (LAN-81)                                                                                                                  |
+| Role-catalogue migrations                              | 2 — structure, then the twenty approved seats (LAN-128)                                                                                                       |
+| Invitation-state migration                             | 1 — invitation state on `operator_accounts` (LAN-131)                                                                                                         |
+| Email re-home migration                                | 1 — `email_rehome_pending_at` on `operator_accounts` (LAN-132)                                                                                                |
+| Events target-state migration                          | 1 — the seven-type model, templates and the club link (LAN-151)                                                                                               |
+| Attendance-survives-cancellation migration             | 1 — attendance outlives a cancelled event (LAN-159)                                                                                                           |
+| Messaging schedule and chase migration                 | 1 — the schedule, the frozen plan, person tokens and flags (LAN-169)                                                                                          |
+| Person substrate migration                             | 1 — the five-value membership ladder, `known_as` retired, person facts (LAN-182)                                                                              |
+| Recruitment schema migration                           | 1 — the seven-value prospect ladder, consent, notes, history, questionnaire answers, the season QR, and the recruit ladder on `messaging_schedules` (LAN-201) |
+| **Files applied by a rebuild from empty**              | **27**                                                                                                                                                        |
 
-The schema is **60 tables, 10 views and 40 enum types** in `public`, plus **3
+The schema is **58 tables, 10 views and 38 enum types** in `public`, plus **3
 tables** in the unexposed `staging` schema. Counted from the catalogue rather
 than from the migrations, because hand-listing has been wrong here twice: the
 totals were last left at 40 tables and 22 files while three later migrations had
 already landed, and the three rows above are restored along with the count.
 Re-counted directly against the catalogue for LAN-201 rather than derived from
 the rows above, which is why the total moves by more than this migration's own
-seven tables and five enum types — the person-substrate migration above added
+five tables and three enum types — the person-substrate migration above added
 tables and enum types this table never itemised, and the correction is folded
 into the total here rather than reconstructed retroactively row by row.
 Constraint, foreign-key and index
@@ -141,12 +141,10 @@ erDiagram
     PEOPLE ||--o| PEOPLE : "merged into"
     PEOPLE ||--o| OPERATOR_ACCOUNTS : "signs in as"
     PEOPLE ||--o{ SEASON_MESSAGING_CONSENTS : holds
-    PEOPLE ||--o{ RECRUITMENT_PARKED_CAPTURE_CANDIDATES : "candidate for"
 
     RECRUITMENT_PROSPECTS ||--o{ RECRUITMENT_PROSPECT_NOTES : "written about"
     RECRUITMENT_PROSPECTS ||--o{ RECRUITMENT_PROSPECT_STATUS_EVENTS : "history of"
     RECRUITMENT_PROSPECTS ||--o{ RECRUITMENT_QUESTIONNAIRE_RESPONSES : "answered by"
-    RECRUITMENT_PARKED_CAPTURES ||--o{ RECRUITMENT_PARKED_CAPTURE_CANDIDATES : "matched against"
 
     SEASONS ||--o{ SEASON_MEMBERSHIPS : scopes
     SEASONS ||--o{ EVENT_SERIES : schedules
@@ -155,7 +153,6 @@ erDiagram
     SEASONS ||--o{ ONBOARDING_ITEM_TYPES : configures
     SEASONS ||--o{ ROLE_ASSIGNMENTS : "scopes (coaching)"
     SEASONS }o--|| POSITION_VOCABULARIES : "draws positions from"
-    SEASONS ||--o{ RECRUITMENT_PARKED_CAPTURES : scopes
     SEASONS ||--o{ RECRUITMENT_SIGNUP_CODES : scopes
     SEASONS ||--o{ SEASON_MESSAGING_CONSENTS : scopes
     COMMITTEE_YEARS ||--o{ ROLE_ASSIGNMENTS : "scopes (committee)"
@@ -264,40 +261,38 @@ structurally present — see [Scope](#release-one-versus-structurally-present).
 
 These are physical necessities, not new product scope.
 
-| Table                                   | Why it exists                                                                                                                                                                                                                                                                                                                                              |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `position_vocabularies`, `positions`    | Frozen model §1.2 calls the position list "a versioned reference list". Making it data is what lets invariant S3 be a foreign key.                                                                                                                                                                                                                         |
-| `onboarding_item_types`                 | The model says item types are season-configurable. A per-season type table is how "configurable" is expressed without schema changes.                                                                                                                                                                                                                      |
-| `alternative_groups`                    | Register D6's alternative group. Invariant E3's unique index keyed on it until LAN-151 retired both; the table remains and nothing in the application writes it.                                                                                                                                                                                           |
-| `role_aliases`, `person_aliases`        | The model names alias support on Role and Person; a repeating attribute is a table.                                                                                                                                                                                                                                                                        |
-| `role_groups`                           | The approved catalogue "appears in that group order", which is a fact about the catalogue rather than about a page. Three rows, ordered. See [below](#the-role-catalogue).                                                                                                                                                                                 |
-| `season_membership_status_events`       | Register D1 makes per-stint reporting a query over status history, which needs a typed home.                                                                                                                                                                                                                                                               |
-| `person_emergency_contacts`             | Third-party personal data about somebody who never agreed to be in this system. A table of its own is the lockdown: not a `people` row, not a `contact_point`, joined to one person and nothing else, and in no view — so no audience, messaging or export path can reach it (REQ-restricted-fields, LAN-182).                                             |
-| `coach_group_assignments`               | Which coaching group a player trains with this season. One row per membership; Mission 9 owns the vocabulary, so `coach_group` is free text rather than a closed enum nobody has written down yet.                                                                                                                                                         |
-| `formalwear_records`                    | Tie, bowtie and socks, reasked every season (2026-08-26) rather than carried. `ownership` is text and not a boolean because "Yes (paid)" is a real answer the club records and prices the subscription invoice against.                                                                                                                                    |
-| `blues_awards`                          | Half and Full Blues, recorded on the season they were awarded in. The running total the club looks at is derived across seasons by `person_blues_totals` and stored nowhere.                                                                                                                                                                               |
-| `staging.*`                             | Architecture cheat sheet §1: legacy files land in staging, are validated, and only then promote.                                                                                                                                                                                                                                                           |
-| `event_audience_members`                | The frozen model gives Event an _audience definition_, and invariant P7 needs `never-invited` to be reportable. A repeating attribute is a table; without it the database cannot name anyone the approver confirmed.                                                                                                                                       |
-| `operator_accounts`                     | An **identity join**, not a new club concept: one auth user to one Person, so a session can name the actor an audited write records (M2). No role column. See [below](#operator-accounts).                                                                                                                                                                 |
-| `rsvp_access_tokens`                    | The unguessable RSVP link, stored only as a SHA-256 digest. Not a club concept — the frozen model's Invitation is the fact; this is how its holder reaches it without a login. See [below](#rsvp-links-and-delivery-machinery).                                                                                                                            |
-| `delivery_attempts`                     | One outbound attempt and the provider's message identifier, recorded **before** the provider answers so an asynchronous callback can be matched to a job. `delivery_results` remains the authoritative outcome (M4).                                                                                                                                       |
-| `delivery_callbacks`                    | Every inbound provider callback whose signature verified, deduplicated by the provider's own event identifier. Append-only.                                                                                                                                                                                                                                |
-| `event_type_settings`                   | Per-type configuration LAN-151 stores and **Mission 4** consumes: the chase thresholds D75 and D77 name. One row per event type, created by the migration; an operator never creates or deletes one. Not on the template — W8 is explicit that a template says what an event arrives looking like, and a chase threshold is not part of what an event is.  |
-| `event_templates`                       | D40's one template per type, seven of them. Every field optional, so a field the template does not decide simply arrives empty on a new event (D41, D47). Created by the migration and never created or deleted by an operator.                                                                                                                            |
-| `event_template_questions`              | D42's default questions. Copied onto a new event and marked `from_template`, so removing one per event never touches the template.                                                                                                                                                                                                                         |
-| `event_template_audience_groups`        | D47's default audience, stored as **groups** rather than people — a group is a way of selecting people, and the resolved list stays `event_audience_members`. D46 keeps `recruits` to the Recruitment type, as a check.                                                                                                                                    |
-| `club_link_tokens`                      | D2's signed club link: one event's participation table, for coaches who hold no operator account. A separate table from `rsvp_access_tokens` because that token names one **invitation** and this one names one **event**; stored as a digest, same shape check.                                                                                           |
-| `messaging_schedules`                   | The club's messaging policy, one row per `event_type`: RSVP-by days, invitation lead, reminder cadence, rung counts and escalation hours. Reference data, complete with **no default arm**, created by migration and never created or deleted by an operator. See [below](#the-messaging-schedule-and-the-chase).                                          |
-| `event_messaging_plans`                 | That policy frozen onto one event at approval, because a schedule change is never retroactive. A **copy** of what was decided, never a place to decide something different.                                                                                                                                                                                |
-| `person_access_tokens`                  | The player's season-scoped credential for their own page, on the `club_link_tokens` pattern: digest only, revocable per person without waiting for a season close. Not a club concept — the mechanism that reaches one.                                                                                                                                    |
-| `nonresponse_flags`                     | One flag per invitation per crossed chase threshold, so the same exception is never raised twice however often the scheduler reruns. The typed home invariant P7's exception stream needed once something began chasing.                                                                                                                                   |
-| `recruitment_prospect_notes`            | LAN-201. `recruitment_prospects.notes` was one unattributed prose column; W2 needs a note's author and date, which is a repeating attribute and therefore a table. Migrated the prior column's content rather than dropping it silently. Append-only.                                                                                                      |
-| `recruitment_prospect_status_events`    | LAN-201. How a recruit reached its current rung (W2), and proof that an exit changed only the status (REQ-exit-is-a-status-change, W13) — the `season_membership_status_events` shape, including its has-an-actor check. `void` must be explained (Addendum A); nothing else need be.                                                                      |
-| `recruitment_questionnaire_responses`   | LAN-201, REQ-two-questionnaires. Generic over `question_code` rather than a fixed field list, because W4's own field enumeration is still `proposed for owner approval`. Carries yes/no, a fixed-set chooser or open text, the `question_responses` shape; a later, corrected answer supersedes rather than overwrites, on the `rsvp_access_tokens` idiom. |
-| `recruitment_parked_captures`           | LAN-201, REQ-duplicate-queue. A capture the system could not safely resolve, waiting for one of the core four to decide it is the existing person (linked) or a new one (created) — never survivor/loser, because nothing has been written yet.                                                                                                            |
-| `recruitment_parked_capture_candidates` | LAN-201. The candidate matches shown beside one parked capture, snapshotted when it was parked, so the queue still shows what an operator saw even if a candidate's own record changes later.                                                                                                                                                              |
-| `recruitment_signup_codes`              | LAN-201, REQ-qr-per-season. One live sign-up code per season, mintable, deactivatable and re-mintable. Stores the plaintext code rather than a digest, deliberately: unlike a personal invite link this is a shared, printable code the operator's page has to redisplay indefinitely, and knowing it opens only the public sign-up form.                  |
-| `season_messaging_consents`             | LAN-201, packet amendment 1. The season-scoped consent gate every send checks, keyed `(person_id, season_id)`. This is Channel Presence's early, partial landing out of the frozen model's §1.2 deferral — see [below](#release-one-versus-structurally-present) — authorised by Brian's 2026-08-31 owner amendment, not a quiet migration.                |
+| Table                                 | Why it exists                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `position_vocabularies`, `positions`  | Frozen model §1.2 calls the position list "a versioned reference list". Making it data is what lets invariant S3 be a foreign key.                                                                                                                                                                                                                         |
+| `onboarding_item_types`               | The model says item types are season-configurable. A per-season type table is how "configurable" is expressed without schema changes.                                                                                                                                                                                                                      |
+| `alternative_groups`                  | Register D6's alternative group. Invariant E3's unique index keyed on it until LAN-151 retired both; the table remains and nothing in the application writes it.                                                                                                                                                                                           |
+| `role_aliases`, `person_aliases`      | The model names alias support on Role and Person; a repeating attribute is a table.                                                                                                                                                                                                                                                                        |
+| `role_groups`                         | The approved catalogue "appears in that group order", which is a fact about the catalogue rather than about a page. Three rows, ordered. See [below](#the-role-catalogue).                                                                                                                                                                                 |
+| `season_membership_status_events`     | Register D1 makes per-stint reporting a query over status history, which needs a typed home.                                                                                                                                                                                                                                                               |
+| `person_emergency_contacts`           | Third-party personal data about somebody who never agreed to be in this system. A table of its own is the lockdown: not a `people` row, not a `contact_point`, joined to one person and nothing else, and in no view — so no audience, messaging or export path can reach it (REQ-restricted-fields, LAN-182).                                             |
+| `coach_group_assignments`             | Which coaching group a player trains with this season. One row per membership; Mission 9 owns the vocabulary, so `coach_group` is free text rather than a closed enum nobody has written down yet.                                                                                                                                                         |
+| `formalwear_records`                  | Tie, bowtie and socks, reasked every season (2026-08-26) rather than carried. `ownership` is text and not a boolean because "Yes (paid)" is a real answer the club records and prices the subscription invoice against.                                                                                                                                    |
+| `blues_awards`                        | Half and Full Blues, recorded on the season they were awarded in. The running total the club looks at is derived across seasons by `person_blues_totals` and stored nowhere.                                                                                                                                                                               |
+| `staging.*`                           | Architecture cheat sheet §1: legacy files land in staging, are validated, and only then promote.                                                                                                                                                                                                                                                           |
+| `event_audience_members`              | The frozen model gives Event an _audience definition_, and invariant P7 needs `never-invited` to be reportable. A repeating attribute is a table; without it the database cannot name anyone the approver confirmed.                                                                                                                                       |
+| `operator_accounts`                   | An **identity join**, not a new club concept: one auth user to one Person, so a session can name the actor an audited write records (M2). No role column. See [below](#operator-accounts).                                                                                                                                                                 |
+| `rsvp_access_tokens`                  | The unguessable RSVP link, stored only as a SHA-256 digest. Not a club concept — the frozen model's Invitation is the fact; this is how its holder reaches it without a login. See [below](#rsvp-links-and-delivery-machinery).                                                                                                                            |
+| `delivery_attempts`                   | One outbound attempt and the provider's message identifier, recorded **before** the provider answers so an asynchronous callback can be matched to a job. `delivery_results` remains the authoritative outcome (M4).                                                                                                                                       |
+| `delivery_callbacks`                  | Every inbound provider callback whose signature verified, deduplicated by the provider's own event identifier. Append-only.                                                                                                                                                                                                                                |
+| `event_type_settings`                 | Per-type configuration LAN-151 stores and **Mission 4** consumes: the chase thresholds D75 and D77 name. One row per event type, created by the migration; an operator never creates or deletes one. Not on the template — W8 is explicit that a template says what an event arrives looking like, and a chase threshold is not part of what an event is.  |
+| `event_templates`                     | D40's one template per type, seven of them. Every field optional, so a field the template does not decide simply arrives empty on a new event (D41, D47). Created by the migration and never created or deleted by an operator.                                                                                                                            |
+| `event_template_questions`            | D42's default questions. Copied onto a new event and marked `from_template`, so removing one per event never touches the template.                                                                                                                                                                                                                         |
+| `event_template_audience_groups`      | D47's default audience, stored as **groups** rather than people — a group is a way of selecting people, and the resolved list stays `event_audience_members`. D46 keeps `recruits` to the Recruitment type, as a check.                                                                                                                                    |
+| `club_link_tokens`                    | D2's signed club link: one event's participation table, for coaches who hold no operator account. A separate table from `rsvp_access_tokens` because that token names one **invitation** and this one names one **event**; stored as a digest, same shape check.                                                                                           |
+| `messaging_schedules`                 | The club's messaging policy, one row per `event_type`: RSVP-by days, invitation lead, reminder cadence, rung counts and escalation hours. Reference data, complete with **no default arm**, created by migration and never created or deleted by an operator. See [below](#the-messaging-schedule-and-the-chase).                                          |
+| `event_messaging_plans`               | That policy frozen onto one event at approval, because a schedule change is never retroactive. A **copy** of what was decided, never a place to decide something different.                                                                                                                                                                                |
+| `person_access_tokens`                | The player's season-scoped credential for their own page, on the `club_link_tokens` pattern: digest only, revocable per person without waiting for a season close. Not a club concept — the mechanism that reaches one.                                                                                                                                    |
+| `nonresponse_flags`                   | One flag per invitation per crossed chase threshold, so the same exception is never raised twice however often the scheduler reruns. The typed home invariant P7's exception stream needed once something began chasing.                                                                                                                                   |
+| `recruitment_prospect_notes`          | LAN-201. `recruitment_prospects.notes` was one unattributed prose column; W2 needs a note's author and date, which is a repeating attribute and therefore a table. Migrated the prior column's content rather than dropping it silently. Append-only.                                                                                                      |
+| `recruitment_prospect_status_events`  | LAN-201. How a recruit reached its current rung (W2), and proof that an exit changed only the status (REQ-exit-is-a-status-change, W13) — the `season_membership_status_events` shape, including its has-an-actor check. `void` must be explained (Addendum A); nothing else need be.                                                                      |
+| `recruitment_questionnaire_responses` | LAN-201, REQ-two-questionnaires. Generic over `question_code` rather than a fixed field list, because W4's own field enumeration is still `proposed for owner approval`. Carries yes/no, a fixed-set chooser or open text, the `question_responses` shape; a later, corrected answer supersedes rather than overwrites, on the `rsvp_access_tokens` idiom. |
+| `recruitment_signup_codes`            | LAN-201, REQ-qr-per-season. One live sign-up code per season, mintable, deactivatable and re-mintable. Stores the plaintext code rather than a digest, deliberately: unlike a personal invite link this is a shared, printable code the operator's page has to redisplay indefinitely, and knowing it opens only the public sign-up form.                  |
+| `season_messaging_consents`           | LAN-201, packet amendment 1. The season-scoped consent gate every send checks, keyed `(person_id, season_id)`. This is Channel Presence's early, partial landing out of the frozen model's §1.2 deferral — see [below](#release-one-versus-structurally-present) — authorised by Brian's 2026-08-31 owner amendment, not a quiet migration.                |
 
 #### The role catalogue
 
@@ -570,7 +565,7 @@ without joining to `delivery_attempts` and taking a maximum.
 
 #### Recruitment (LAN-201)
 
-`WP-recruitment-schema`, mission `M-RECRUITMENT`. Seven changes, one migration.
+`WP-recruitment-schema`, mission `M-RECRUITMENT`. Six changes, one migration.
 
 - **The status ladder gained a rung, and lost two names.** `prospect_status`
   was `identified, engaged, committed, converted, lapsed, declined`; it is now
@@ -596,15 +591,16 @@ without joining to `delivery_attempts` and taking a maximum.
 - **Status history** — `recruitment_prospect_status_events` — is the same
   shape again, so `W2` can render how a recruit reached its current rung and
   `W13` can prove an exit changed only the status.
-- **The parked-capture queue** — `recruitment_parked_captures` and
-  `recruitment_parked_capture_candidates` — holds a capture the system could
-  not safely resolve, waiting for one of the core four to decide it is the
-  existing person (linked) or a new one (created); candidates are a snapshot
-  taken when the capture was parked. Built at the Mission Lead's explicit
-  direction in this package's brief and the LAN-201 issue body despite `W8`'s
-  own later amendment describing the operator-facing review queue as deleted
-  for the doors it re-examined — the two sources disagree, and the schema
-  follows the brief; see the package receipt for the recorded conflict.
+- **No duplicate-capture queue.** The packet's `REQ-duplicate-queue` and an
+  earlier revision of this migration built one (`recruitment_parked_captures`
+  and its candidate matches), over the conflict this document then recorded
+  against `W8`'s own post-approval amendment describing the operator-facing
+  review queue as deleted. Brian adjudicated the conflict on 2026-09-01: "there
+  is no queue for duplicates, he just gets handled through the normal merge
+  process." `W8` governs; `REQ-duplicate-queue` is stale and superseded, and
+  this package does not implement it. A capture that slips through goes to the
+  people table's own merge at `/operate/people/[personId]/merge` (Mission 5's,
+  already shipped).
 - **Questionnaire answers** — `recruitment_questionnaire_responses` — carry
   either send's yes/no, fixed-set chooser or open-text answer, generic over a
   free-text `question_code` because the exact field lists for both
@@ -890,12 +886,17 @@ what the issue estimated. `person_blues_totals` is new.
 mission `M-RECRUITMENT`). Summarised in full under
 [Recruitment (LAN-201)](#recruitment-lan-201) above; the headline changes are
 `prospect_status`'s seven-value ladder (`converted → joined`,
-`lapsed → disengaged`, `void` added), six new tables
+`lapsed → disengaged`, `void` added), four new tables
 (`recruitment_prospect_notes`, `recruitment_prospect_status_events`,
-`recruitment_questionnaire_responses`, `recruitment_parked_captures`,
-`recruitment_parked_capture_candidates`, `recruitment_signup_codes`), one new
+`recruitment_questionnaire_responses`, `recruitment_signup_codes`), one new
 Channel-Presence table (`season_messaging_consents`), and two new columns on
-`messaging_schedules` for the Recruitment row's Recruits audience.
+`messaging_schedules` for the Recruitment row's Recruits audience. **Edited the
+same day**, before this migration was ever applied anywhere: the packet's
+`REQ-duplicate-queue` and this migration's first revision built a
+duplicate-capture queue (`recruitment_parked_captures` and its candidate
+matches) against `W8`'s own recorded conflict; Brian adjudicated on 2026-09-01
+that `W8` governs and there is no review queue, so the queue was removed from
+this same file rather than dropped by a second migration.
 
 ## Known deviations from the frozen model
 

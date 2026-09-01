@@ -5,10 +5,25 @@
 -- this applies from empty.
 --
 -- Authority: missions/packets/M-RECRUITMENT/packet.json (REQ-status-ladder,
--- REQ-recruit-record, REQ-duplicate-queue, REQ-qr-per-season,
--- REQ-two-questionnaires, REQ-two-ladders, REQ-rls-and-grants),
+-- REQ-recruit-record, REQ-qr-per-season, REQ-two-questionnaires,
+-- REQ-two-ladders, REQ-rls-and-grants),
 -- missions/intake/M-RECRUITMENT/workflows/{W1,W2,W4,W7,W8,W10,W13,W14}.md, and
 -- the LAN-201 issue body's Addendum A, approved by Brian 2026-08-31.
+--
+-- ## Owner correction, 2026-09-01 — there is no duplicate-capture queue
+--
+-- The packet's `REQ-duplicate-queue` and this migration's own first draft
+-- built a parked-capture queue (`recruitment_parked_captures` and its
+-- candidate matches) at the Mission Lead's direction, over the conflict the
+-- first version of this file recorded against `W8`'s own post-approval
+-- amendment ("The queue is deleted"). Brian adjudicated the conflict directly
+-- on 2026-09-01: "there is no queue for duplicates, he just gets handled
+-- through the normal merge process." `W8` governs; `REQ-duplicate-queue` is
+-- stale and superseded, and this package does not implement it. A capture
+-- that slips through goes to the people table's own merge at
+-- `/operate/people/[personId]/merge` (Mission 5's, already shipped) —
+-- nothing here duplicates it. Edited in place rather than layered under a
+-- second migration, because this file had not been applied anywhere.
 --
 -- ## Packet amendment 1 (owner question Q-1), in force here
 --
@@ -21,7 +36,7 @@
 -- this amendment wins; the conflict is recorded in the package receipt rather
 -- than reconciled in those documents.
 --
--- ## What this migration does, in eight parts
+-- ## What this migration does, in seven parts
 --
 --   1. The seven-value status ladder: `converted` -> `joined`,
 --      `lapsed` -> `disengaged`, `void` added. Existing constraints re-added
@@ -31,17 +46,15 @@
 --   3. Status history — `recruitment_prospect_status_events` — so W2 can show
 --      how a recruit reached its current rung and W13 can prove an exit
 --      changed only the status.
---   4. The parked-capture queue — `recruitment_parked_captures` and its
---      candidate matches — behind `/operate/recruitment/review`.
---   5. Questionnaire answers — `recruitment_questionnaire_responses` — for
+--   4. Questionnaire answers — `recruitment_questionnaire_responses` — for
 --      both questionnaires, on the `/a/[token]` substrate `person_access_tokens`
 --      already provides.
---   6. The season sign-up QR — `recruitment_signup_codes` — one live code per
+--   5. The season sign-up QR — `recruitment_signup_codes` — one live code per
 --      season, mintable, deactivatable and re-mintable.
---   7. Season-scoped messaging consent — `season_messaging_consents` — the
+--   6. Season-scoped messaging consent — `season_messaging_consents` — the
 --      table every send checks, and Channel Presence's early, partial landing
 --      out of the frozen model's §1.2 deferral.
---   8. The recruit ladder on `messaging_schedules`: two new columns on the
+--   7. The recruit ladder on `messaging_schedules`: two new columns on the
 --      `recruitment` row's own body (DEC-split-on-the-schedule), never a
 --      second row.
 --
@@ -59,6 +72,10 @@
 -- record reads as "this row is wrong", not as a claim about the person.
 --
 -- ## What this migration deliberately does NOT add
+--
+-- No duplicate-capture queue. See the owner correction above — `W8` governs
+-- and there is no review queue; a slipped-through duplicate is the people
+-- table's own merge, not a table here.
 --
 -- No membership status. `season_memberships` and `membership_status` are
 -- untouched; `joined` continues to mean the existing `converted_membership_id`
@@ -227,86 +244,7 @@ comment on table public.recruitment_prospect_status_events is
   'W2 / W13 / REQ-exit-is-a-status-change: how a recruit reached its current rung. Append-only by privilege, on the season_membership_status_events pattern.';
 
 -- ---------------------------------------------------------------------------
--- Part 4 — the parked-capture queue
--- ---------------------------------------------------------------------------
-
--- REQ-duplicate-queue, LAN-201 item 4/5: "A capture the system could not
--- safely resolve is parked, never silently created, merged or messaged, and
--- waits for one of the core four to decide it is the existing person or a new
--- one." Built here at the Lead's explicit, later direction (this package's
--- brief and the LAN-201 issue body) despite W8's own post-approval amendment
--- describing the operator-facing review queue as deleted for the doors it
--- re-examined — recorded as a conflict in the package receipt rather than
--- silently reconciled.
-create type public.recruitment_capture_source as enum (
-  'walk_up', 'operator_add', 'qr_self_entry', 'whatsapp_community'
-);
-
-create type public.recruitment_capture_resolution as enum ('linked', 'created');
-
-create table public.recruitment_parked_captures (
-  id uuid primary key default gen_random_uuid(),
-  season_id uuid not null references public.seasons (id) on delete restrict,
-
-  source public.recruitment_capture_source not null,
-  given_name text not null,
-  family_name text,
-  mobile text,
-  email text,
-
-  parked_at timestamptz not null default now(),
-
-  -- The two outcomes W8 settled on: this is them (linked, nothing created) or
-  -- this is somebody new (created). Never survivor/loser — nothing has been
-  -- written yet, so there is nothing to merge.
-  resolution public.recruitment_capture_resolution,
-  resolved_at timestamptz,
-  resolved_by_person_id uuid references public.people (id) on delete restrict,
-  resolved_person_id uuid references public.people (id) on delete restrict,
-  resolution_reason text,
-
-  created_at timestamptz not null default now(),
-
-  constraint recruitment_parked_captures_given_name_present check (btrim(given_name) <> ''),
-  constraint recruitment_parked_captures_resolution_is_dated check (
-    (resolution is not null) = (resolved_at is not null)),
-  constraint recruitment_parked_captures_resolution_names_a_person check (
-    resolution is null or resolved_person_id is not null),
-  constraint recruitment_parked_captures_resolution_names_a_resolver check (
-    resolution is null or resolved_by_person_id is not null)
-);
-
-create index recruitment_parked_captures_open_idx
-  on public.recruitment_parked_captures (season_id, parked_at)
-  where resolution is null;
-
-comment on table public.recruitment_parked_captures is
-  'REQ-duplicate-queue. A capture the system could not safely resolve, waiting for one of the core four to decide it is the existing person (linked) or a new one (created). Nothing is created, merged or messaged while a row here is open.';
-
--- The candidate matches shown beside a parked capture, snapshotted at the
--- moment it was parked (W8: "each candidate now carries its identity") so the
--- queue still shows what an operator saw even if a candidate's own record
--- changes later.
-create table public.recruitment_parked_capture_candidates (
-  id uuid primary key default gen_random_uuid(),
-  parked_capture_id uuid not null
-    references public.recruitment_parked_captures (id) on delete cascade,
-  candidate_person_id uuid not null references public.people (id) on delete restrict,
-  match_basis text not null,
-
-  created_at timestamptz not null default now(),
-
-  constraint recruitment_parked_capture_candidates_one_per_person
-    unique (parked_capture_id, candidate_person_id),
-  constraint recruitment_parked_capture_candidates_match_basis_present check (
-    btrim(match_basis) <> '')
-);
-
-comment on table public.recruitment_parked_capture_candidates is
-  'The candidate matches offered beside one parked capture, snapshotted when it was parked. `on delete cascade` from the parent only — a candidate row has no meaning of its own.';
-
--- ---------------------------------------------------------------------------
--- Part 5 — questionnaire answers
+-- Part 4 — questionnaire answers
 -- ---------------------------------------------------------------------------
 
 -- REQ-two-questionnaires, DEC-two-questionnaires: two separate sends, on the
@@ -357,7 +295,7 @@ comment on table public.recruitment_questionnaire_responses is
   'REQ-two-questionnaires. What a recruit chose to answer on either send, attributed to the recruit and never to the club (Addendum A). A missing question_code is what "left blank" looks like.';
 
 -- ---------------------------------------------------------------------------
--- Part 6 — the season sign-up QR
+-- Part 5 — the season sign-up QR
 -- ---------------------------------------------------------------------------
 
 -- REQ-qr-per-season, DEC-one-qr-per-season, Addendum A: one live code per
@@ -402,7 +340,7 @@ comment on table public.recruitment_signup_codes is
   'REQ-qr-per-season. One live sign-up code per season, mintable, deactivatable and re-mintable (Addendum A). Points at the club''s own public page (W7) — never an external form.';
 
 -- ---------------------------------------------------------------------------
--- Part 7 — season-scoped messaging consent (Channel Presence's early landing)
+-- Part 6 — season-scoped messaging consent (Channel Presence's early landing)
 -- ---------------------------------------------------------------------------
 
 -- Packet amendment 1: consent is keyed (person_id, season_id), unique per
@@ -449,7 +387,7 @@ comment on table public.season_messaging_consents is
   'Packet amendment 1 (Brian, 2026-08-31): the season-scoped consent gate every send checks. Granted, it carries a person from recruit through onboarding to player with no second ask; each new season is re-approved. Channel Presence''s early, partial landing out of the frozen model''s §1.2 deferral.';
 
 -- ---------------------------------------------------------------------------
--- Part 8 — the recruit ladder on the messaging schedule
+-- Part 7 — the recruit ladder on the messaging schedule
 -- ---------------------------------------------------------------------------
 
 -- REQ-two-ladders, DEC-split-on-the-schedule: the two ladders split in the
@@ -492,8 +430,6 @@ comment on column public.messaging_schedules.recruit_follow_up_cadence_hours is
 
 alter table public.recruitment_prospect_notes enable row level security;
 alter table public.recruitment_prospect_status_events enable row level security;
-alter table public.recruitment_parked_captures enable row level security;
-alter table public.recruitment_parked_capture_candidates enable row level security;
 alter table public.recruitment_questionnaire_responses enable row level security;
 alter table public.recruitment_signup_codes enable row level security;
 alter table public.season_messaging_consents enable row level security;
@@ -501,8 +437,6 @@ alter table public.season_messaging_consents enable row level security;
 revoke all on table
   public.recruitment_prospect_notes,
   public.recruitment_prospect_status_events,
-  public.recruitment_parked_captures,
-  public.recruitment_parked_capture_candidates,
   public.recruitment_questionnaire_responses,
   public.recruitment_signup_codes,
   public.season_messaging_consents
@@ -514,11 +448,6 @@ grant select, insert on table
   public.recruitment_prospect_notes,
   public.recruitment_prospect_status_events
   to service_role;
-
--- Resolved in place; never deleted, so a discarded or resolved capture stays
--- readable in history. Candidates are written once, alongside the parent.
-grant select, insert, update on table public.recruitment_parked_captures to service_role;
-grant select, insert on table public.recruitment_parked_capture_candidates to service_role;
 
 -- A later, corrected answer supersedes in place (`superseded_at`), so update
 -- is needed alongside insert; never delete.

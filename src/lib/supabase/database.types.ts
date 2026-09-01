@@ -2658,145 +2658,6 @@ export type Database = {
           },
         ]
       }
-      recruitment_parked_capture_candidates: {
-        Row: {
-          candidate_person_id: string
-          created_at: string
-          id: string
-          match_basis: string
-          parked_capture_id: string
-        }
-        Insert: {
-          candidate_person_id: string
-          created_at?: string
-          id?: string
-          match_basis: string
-          parked_capture_id: string
-        }
-        Update: {
-          candidate_person_id?: string
-          created_at?: string
-          id?: string
-          match_basis?: string
-          parked_capture_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "recruitment_parked_capture_candidates_candidate_person_id_fkey"
-            columns: ["candidate_person_id"]
-            isOneToOne: false
-            referencedRelation: "people"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "recruitment_parked_capture_candidates_candidate_person_id_fkey"
-            columns: ["candidate_person_id"]
-            isOneToOne: false
-            referencedRelation: "person_standing"
-            referencedColumns: ["person_id"]
-          },
-          {
-            foreignKeyName: "recruitment_parked_capture_candidates_parked_capture_id_fkey"
-            columns: ["parked_capture_id"]
-            isOneToOne: false
-            referencedRelation: "recruitment_parked_captures"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      recruitment_parked_captures: {
-        Row: {
-          created_at: string
-          email: string | null
-          family_name: string | null
-          given_name: string
-          id: string
-          mobile: string | null
-          parked_at: string
-          resolution:
-            | Database["public"]["Enums"]["recruitment_capture_resolution"]
-            | null
-          resolution_reason: string | null
-          resolved_at: string | null
-          resolved_by_person_id: string | null
-          resolved_person_id: string | null
-          season_id: string
-          source: Database["public"]["Enums"]["recruitment_capture_source"]
-        }
-        Insert: {
-          created_at?: string
-          email?: string | null
-          family_name?: string | null
-          given_name: string
-          id?: string
-          mobile?: string | null
-          parked_at?: string
-          resolution?:
-            | Database["public"]["Enums"]["recruitment_capture_resolution"]
-            | null
-          resolution_reason?: string | null
-          resolved_at?: string | null
-          resolved_by_person_id?: string | null
-          resolved_person_id?: string | null
-          season_id: string
-          source: Database["public"]["Enums"]["recruitment_capture_source"]
-        }
-        Update: {
-          created_at?: string
-          email?: string | null
-          family_name?: string | null
-          given_name?: string
-          id?: string
-          mobile?: string | null
-          parked_at?: string
-          resolution?:
-            | Database["public"]["Enums"]["recruitment_capture_resolution"]
-            | null
-          resolution_reason?: string | null
-          resolved_at?: string | null
-          resolved_by_person_id?: string | null
-          resolved_person_id?: string | null
-          season_id?: string
-          source?: Database["public"]["Enums"]["recruitment_capture_source"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "recruitment_parked_captures_resolved_by_person_id_fkey"
-            columns: ["resolved_by_person_id"]
-            isOneToOne: false
-            referencedRelation: "people"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "recruitment_parked_captures_resolved_by_person_id_fkey"
-            columns: ["resolved_by_person_id"]
-            isOneToOne: false
-            referencedRelation: "person_standing"
-            referencedColumns: ["person_id"]
-          },
-          {
-            foreignKeyName: "recruitment_parked_captures_resolved_person_id_fkey"
-            columns: ["resolved_person_id"]
-            isOneToOne: false
-            referencedRelation: "people"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "recruitment_parked_captures_resolved_person_id_fkey"
-            columns: ["resolved_person_id"]
-            isOneToOne: false
-            referencedRelation: "person_standing"
-            referencedColumns: ["person_id"]
-          },
-          {
-            foreignKeyName: "recruitment_parked_captures_season_id_fkey"
-            columns: ["season_id"]
-            isOneToOne: false
-            referencedRelation: "seasons"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       recruitment_prospect_notes: {
         Row: {
           author_label: string | null
@@ -4596,12 +4457,6 @@ export type Database = {
         | "disengaged"
         | "void"
       question_answer_type: "text" | "boolean" | "choice"
-      recruitment_capture_resolution: "linked" | "created"
-      recruitment_capture_source:
-        | "walk_up"
-        | "operator_add"
-        | "qr_self_entry"
-        | "whatsapp_community"
       recruitment_questionnaire: "personal_details" | "football_background"
       role_scope: "committee_year" | "season"
       rsvp_source: "signed_link" | "operator" | "channel_reply" | "import"
@@ -4858,13 +4713,6 @@ export const Constants = {
         "void",
       ],
       question_answer_type: ["text", "boolean", "choice"],
-      recruitment_capture_resolution: ["linked", "created"],
-      recruitment_capture_source: [
-        "walk_up",
-        "operator_add",
-        "qr_self_entry",
-        "whatsapp_community",
-      ],
       recruitment_questionnaire: ["personal_details", "football_background"],
       role_scope: ["committee_year", "season"],
       rsvp_source: ["signed_link", "operator", "channel_reply", "import"],
