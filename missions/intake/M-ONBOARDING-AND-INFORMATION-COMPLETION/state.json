@@ -39,10 +39,26 @@
     {
       "id": "W1",
       "name": "Bring last season's squad in",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {},
+      "approvals": {
+        "spec": {
+          "words": "Workflow 1 approved. Move on to the next one.",
+          "date": "2026-09-01",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "Workflow 1 approved. Move on to the next one.",
+          "date": "2026-09-01",
+          "by": "Brian Schuster"
+        },
+        "acceptance": {
+          "words": "Workflow 1 approved. Move on to the next one.",
+          "date": "2026-09-01",
+          "by": "Brian Schuster"
+        }
+      },
       "spec": "workflows/W1-bring-last-seasons-squad-in.md"
     },
     {
@@ -1585,5 +1601,5 @@
     ],
     "approval": null
   },
-  "next_action": "W1 — specification and four screens drafted, awaiting Brian: five proposed decisions"
+  "next_action": "Begin W2 — Add one player by hand: specification, then mockups"
 }
