@@ -236,7 +236,7 @@ const WORKFLOWS = [
           "<strong>Date of birth</strong> is collected here and never appears on any list, board or queue. Only the derived under-18 flag leaves this page",
           "<strong>BUCS Play and Hudl.</strong> The two asks whose instruction copy this mission owes and <strong>nobody has written</strong>. They block no build and no walk; they block a real send",
         ],
-        "oxfordlancers.example/me/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ/details",
+        "oxfordlancers.example/me/[token]/details",
       ),
       P(
         "W4-02",
@@ -251,7 +251,7 @@ const WORKFLOWS = [
           "<strong>What the recruit door and questionnaire A already collected</strong> — confirmed here, never asked a second time",
           "<strong>The four facts recruitment never asks anybody for</strong>: expected graduation, degree field, date of birth, emergency contact. They are asked fresh at onboarding, of everyone, whichever door they came through",
         ],
-        "oxfordlancers.example/me/y.3ec61c6f-87cc-4c28-ba8d-46eb7d6f593a.qV_K8zqHkiwe8BrLDqCw52Cvl2UaEPL_57hWIEH3-gE/details",
+        "oxfordlancers.example/me/[token]/details",
       ),
       P(
         "W4-03",
@@ -263,7 +263,7 @@ const WORKFLOWS = [
           "<strong>What moved, and what did not.</strong> A partial submit is a normal outcome, not a failure state",
           "<strong>The same link, still open.</strong> Anything still outstanding is asked for on this URL. A second ask is never created alongside it — <code>person_access_tokens</code>' own index makes that impossible",
         ],
-        "oxfordlancers.example/me/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ/details",
+        "oxfordlancers.example/me/[token]/details",
       ),
       P(
         "W4-04",
@@ -275,7 +275,7 @@ const WORKFLOWS = [
           "<strong>Everything the player themselves owns is done</strong>, and the page says so rather than showing an empty form",
           "<strong>The club still has items outstanding against this person.</strong> None of them is the player's, so none of them appears on the player's page — the operator-owned half of the checklist lives on W6's record",
         ],
-        "oxfordlancers.example/me/y.3ec61c6f-87cc-4c28-ba8d-46eb7d6f593a.qV_K8zqHkiwe8BrLDqCw52Cvl2UaEPL_57hWIEH3-gE/details",
+        "oxfordlancers.example/me/[token]/details",
       ),
       P(
         "W4-05",
@@ -288,7 +288,7 @@ const WORKFLOWS = [
           "<strong>The one sentence that changes.</strong> The shipped body says \"If the event has already started, response changes are closed\" — the answer link's business, and untrue of a collection link. This is the whole change on this screen",
           "<strong>And what must not change.</strong> It never says which of unknown, expired or revoked this link is, and it is the same page, at the same status code, for all three",
         ],
-        "oxfordlancers.example/me/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ/details",
+        "oxfordlancers.example/me/[token]/details",
       ),
     ],
   },
