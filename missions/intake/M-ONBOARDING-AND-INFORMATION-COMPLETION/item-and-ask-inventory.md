@@ -24,7 +24,7 @@ tracks nothing differently, and hides nothing.
 | 2   | Subscription paid           | operator              | The operator records payment. Never gates anything; not chased until terms 2–3.                                                                                                    | no      |
 | 3   | Kit sorted                  | operator              | Has this person been given their kit? Binary, ticked by whoever handed it over.                                                                                                    | yes     |
 | 4   | BUCS Play                   | player → operator     | The player downloads the app, registers with their Oxford email and selects Oxford Lancers. Their yes shows as `claimed` until the compliance owner confirms. Re-registered yearly. | yes     |
-| 6   | Hudl access                 | operator → player     | The club's Hudl admin either adds their email, and they accept the invite, or hands them a team code to join with. Hudl's own roster reads `Pending Invite` in between.             | no      |
+| 6   | Hudl access                 | operator → player     | **Two parts, like comms group.** Have they been invited, and have they gone and done it? Assume the email-invite method (Brian, 2026-09-01: "doesn't really matter for my purposes"); Hudl's own roster reads `Pending Invite` in between. A candidate for a real integration later. | no      |
 | 7   | Squad photo                 | operator              | The Media Secretary ticks it. No photo is ever stored here.                                                                                                                        | no      |
 | 8   | Comms group                 | operator ×2           | **Two columns.** Have they been assigned to a group? Have they been invited and are they actually in? Both yes before it completes.                                                | yes     |
 | 9   | Contact & academic details  | derived               | Completes when every required field on their record is present. This item **is** the form, and its missing pieces **are** the queue.                                               | open    |
@@ -40,8 +40,9 @@ something a player completes. On a checklist that regenerates for everyone every
 season it would show outstanding against players who were never in the scheme.
 It becomes a plain yes/no on the roster with the other player attributes.
 
-**Open seam:** that column is a football-selection fact, so whether this mission
-adds it or Mission 9 does is not assumed here.
+**Settled 2026-09-01:** the column is added here, on the roster, by this
+mission. Brian: "it's not a fucking mission change. We are going to add it here
+into the roster for the BPS column."
 
 ## Why the roster board carries most of it
 
@@ -104,15 +105,18 @@ onboarding, of everyone, whichever door they came through.
 
 ## Open
 
-1. **Which Hudl method does the club use** — email invite or team code. The
-   instructions differ, so the copy cannot be written until this is settled.
-   Access persists until revoked, with no seasonal expiry, which is why Hudl
-   keeps a returner carve-out where kit and the photo release lost theirs.
-2. **Is the flagged distinction wanted, and is its set right** — today contact
-   and academic details are unflagged, so somebody who has told the club nothing
-   about themselves ranks below somebody who has not collected their kit.
-3. **Is item 12 flagged** — Task 10's flagged list predates it being added.
-4. **Where the BPS yes/no column lives** — this mission or Mission 9.
+1. **Does the flagged distinction survive at all?** Everything the flag does,
+   in full: it decides whether an item counts toward a player's outstanding
+   total, and whether it pushes them up the Monday queue's ranking. It gates
+   nothing, hides nothing and appears nowhere else in the application. Its one
+   useful effect is keeping subs paid from nagging people early, which is
+   better expressed as *not due until terms 2–3* — a due-date the chase already
+   has to understand — than as a permanent priority tier configured per item.
+
+   Recommendation: **drop it**, rank by everything outstanding, and carry
+   due-timing instead. This contradicts Task 10 R3-G, which kept "required"
+   alive as a tracking flag, so it needs Brian's word rather than a quiet
+   change. Item 12's flag question dissolves with it.
 
 ## Brian approval
 
