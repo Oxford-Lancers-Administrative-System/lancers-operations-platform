@@ -240,13 +240,7 @@ const rendered = sections.map((section, index) => {
   return { ...section, id: `sec${index}`, html, headings };
 });
 
-const page = `<!doctype html>
-<html lang="en-GB">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${STATE.mission_id} · specifications</title>
-    <style>
+const STYLE = `    <style>
       :root {
         --primary: #0b3d91;
         --text: rgba(0, 0, 0, 0.87);
@@ -409,7 +403,15 @@ const page = `<!doctype html>
         nav.toc { position: static; width: auto; margin-bottom: 18px; max-height: none; }
         section.doc { padding: 4px 18px 24px; }
       }
-    </style>
+    </style>`;
+
+const page = `<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${STATE.mission_id} · specifications</title>
+    ${STYLE}
   </head>
   <body>
     <div class="bar">
@@ -462,3 +464,60 @@ writeFileSync(
   await format(page, { ...(await resolveConfig(target)), parser: "html", filepath: target }),
 );
 console.log(`built specifications.html from ${rendered.length} ledger documents`);
+
+// One rendered page per workflow, so the hub's "specification" link opens
+// something readable rather than raw markdown. Same stylesheet, same status
+// chip, and a bar back to the index and to the full ledger.
+for (const section of rendered.filter((s) => s.workflow)) {
+  const slug = path.basename(section.file, ".md");
+  const workflowPage = `<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${section.workflow} specification</title>
+    ${STYLE}
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        ${esc(section.title)}<span>${STATE.mission_id} · main@${STATE.baseline.commit.slice(0, 7)}</span>
+      </div>
+      <div>
+        <a href="../mockups/index.html">Index</a>
+        <a href="../specifications.html">All specifications</a>
+        <a href="../mockups/${slug}.html">Screens</a>
+      </div>
+    </div>
+    <div class="layout">
+      <nav class="toc">
+        <h2>On this page</h2>
+        <ol>
+${section.headings.map((h) => `          <li><a href="#${h.id}">${esc(h.text)}</a></li>`).join("\n")}
+        </ol>
+      </nav>
+      <main>
+        <section class="doc">
+          <header>
+            <h2>${esc(section.title)}</h2>
+            ${statusChip(section)}
+            <span class="file">${esc(section.file)}</span>
+          </header>
+${section.html}
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
+`;
+  const workflowTarget = path.join(ROOT, "workflows", `${slug}.html`);
+  writeFileSync(
+    workflowTarget,
+    await format(workflowPage, {
+      ...(await resolveConfig(workflowTarget)),
+      parser: "html",
+      filepath: workflowTarget,
+    }),
+  );
+  console.log(`built ${path.posix.join("workflows", `${slug}.html`)}`);
+}

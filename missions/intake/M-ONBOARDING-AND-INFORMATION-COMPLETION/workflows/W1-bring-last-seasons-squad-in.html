@@ -1,0 +1,880 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W1 specification</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: #e7e9ee;
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: #212121;
+        color: #fff;
+        padding: 11px 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .layout {
+        display: flex;
+        gap: 26px;
+        max-width: 1220px;
+        margin: 26px auto 90px;
+        padding: 0 22px;
+        align-items: flex-start;
+      }
+      nav.toc {
+        position: sticky;
+        top: 68px;
+        flex: 0 0 252px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 16px 8px 16px 16px;
+        max-height: calc(100vh - 104px);
+        overflow: auto;
+      }
+      nav.toc h2 {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--sec);
+        margin: 0 0 10px;
+        border: 0;
+        padding: 0;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc > ol > li {
+        margin-bottom: 4px;
+      }
+      nav.toc a {
+        display: block;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13.5px;
+        padding: 4px 8px;
+        border-radius: 5px;
+      }
+      nav.toc a:hover {
+        background: var(--grey100);
+      }
+      nav.toc .sub {
+        padding-left: 11px;
+        margin-bottom: 6px;
+      }
+      nav.toc .sub a {
+        color: var(--sec);
+        font-size: 12.5px;
+        padding: 2px 8px;
+      }
+      main {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      section.doc {
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 4px 34px 30px;
+        margin-bottom: 22px;
+      }
+      section.doc > header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 16px 0 11px;
+        border-bottom: 1px solid var(--divider);
+      }
+      section.doc > header h2 {
+        font-size: 1.02rem;
+        margin: 0;
+        border: 0;
+        padding: 0;
+      }
+      section.doc > header .file {
+        font-size: 12px;
+        color: var(--sec);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        margin-left: auto;
+      }
+      h1 {
+        font-size: 1.45rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.1rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 0.98rem;
+        margin: 20px 0 6px;
+      }
+      h4 {
+        font-size: 0.92rem;
+        margin: 16px 0 4px;
+        color: var(--sec);
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul,
+      ol {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      .tablewrap {
+        overflow-x: auto;
+        margin: 14px 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+      }
+      a {
+        color: var(--primary);
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        margin: 22px 0;
+      }
+      .chip {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        padding: 2px 9px;
+        border-radius: 11px;
+        white-space: nowrap;
+      }
+      .chip.ok {
+        background: #edf7ed;
+        color: #1b5e20;
+      }
+      .chip.warn {
+        background: #fff4e5;
+        color: #663c00;
+      }
+      .chip.idle {
+        background: var(--grey100);
+        color: var(--sec);
+      }
+      @media (max-width: 900px) {
+        .layout {
+          display: block;
+          padding: 0 12px;
+        }
+        nav.toc {
+          position: static;
+          width: auto;
+          margin-bottom: 18px;
+          max-height: none;
+        }
+        section.doc {
+          padding: 4px 18px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        W1 — Bring last season's squad in<span
+          >M-ONBOARDING-AND-INFORMATION-COMPLETION · main@332bc6b</span
+        >
+      </div>
+      <div>
+        <a href="../mockups/index.html">Index</a>
+        <a href="../specifications.html">All specifications</a>
+        <a href="../mockups/W1-bring-last-seasons-squad-in.html">Screens</a>
+      </div>
+    </div>
+    <div class="layout">
+      <nav class="toc">
+        <h2>On this page</h2>
+        <ol>
+          <li><a href="#s4-h2">Current main grounding</a></li>
+          <li><a href="#s4-h3">Required actions</a></li>
+          <li><a href="#s4-h4">State transitions</a></li>
+          <li><a href="#s4-h5">Handoffs</a></li>
+          <li><a href="#s4-h6">Dependencies and mission boundaries</a></li>
+          <li><a href="#s4-h7">Exceptions and recovery</a></li>
+          <li><a href="#s4-h8">Safety, privacy, consent, and authority boundaries</a></li>
+          <li><a href="#s4-h9">Acceptance evidence</a></li>
+          <li><a href="#s4-h10">Core decisions</a></li>
+          <li><a href="#s4-h11">Brian approval</a></li>
+        </ol>
+      </nav>
+      <main>
+        <section class="doc">
+          <header>
+            <h2>W1 — Bring last season's squad in</h2>
+            <span class="chip warn">draft, not approved</span>
+            <span class="file">workflows/W1-bring-last-seasons-squad-in.md</span>
+          </header>
+          <h1 id="s4-h1">W1 — Bring last season's squad in</h1>
+          <ul>
+            <li>
+              Purpose/intended outcome: The club has a spreadsheet of the squad and no way to get it
+              into the application. One operator turns that file into this season's roster in a
+              single sitting, sees exactly who is about to be added before anything is written, and
+              every one of them lands in onboarding with a checklist and a welcome on its way.
+            </li>
+            <li>Primary actor: A four-role operator (President, Secretary, GM, Treasurer).</li>
+            <li>Trigger: The season has turned over and the squad needs to exist on the roster.</li>
+            <li>Entry point: The roster board — the surface an operator already works from.</li>
+            <li>
+              Route/placement: <code>/operate/roster/import</code>, reached from an
+              <strong>Add players</strong> menu on the roster board. The Events page already carries
+              a menu of exactly this shape (<code>src/app/operate/events/create-menu.tsx</code>),
+              added by LAN-155 so that bulk import could sit beside the single-record path without
+              displacing it.
+            </li>
+            <li>
+              Controlling source: <code>PR7-csv-carryforward</code>,
+              <code>PR7-import-at-scale</code>, <code>OD7-season-inherit</code>,
+              <code>OD7-import-like-events</code>, <code>OD7-dup-preview</code>; subject areas
+              <code>S1</code>, <code>S5</code>, <code>S6</code>.
+            </li>
+            <li>
+              User-visible result: The named people are on this season's roster with status
+              <code>onboarding</code>, each holding a full generated checklist, each with a welcome
+              queued; the operator is told how many arrived, how many were already there, and which
+              rows were refused and why.
+            </li>
+          </ul>
+          <h2 id="s4-h2">Current <code>main</code> grounding</h2>
+          <ul>
+            <li>
+              Locally rendered route or nearest implemented analogue:
+              <strong><code>/operate/events/import</code></strong> — the club's only import, built
+              by LAN-155 for Mission 2's <code>W3</code>. It is the analogue in full: the same
+              three-state screen, the same proposal-before-write contract, the same confirmation
+              table, the same partial-apply behaviour. Brian settled on 2026-09-01 that the roster
+              import follows it rather than inventing a shape (<code>OD7-import-like-events</code>).
+            </li>
+            <li>
+              Reused component, language, interaction, and permission patterns:
+              <ul>
+                <li>
+                  <strong>The three states of one screen</strong> — choose a file, read the
+                  proposal, confirm — held in one client component with one server action carrying
+                  an <code>intent</code>, exactly as <code>import-screen.tsx</code> and
+                  <code>actions.ts</code> do. Not three routes:
+                  <code>REQ-import-confirmation</code>'s reason applies unchanged, and a person
+                  staging table would be a record of people the club never agreed to hold.
+                </li>
+                <li>
+                  <strong>The proposal travels in the form and is never stored.</strong> The file's
+                  text goes back to the browser and returns with the confirmation; the plan is
+                  rebuilt inside the apply transaction and refused unless the digest still matches
+                  (<code>event-import.ts</code>, <code>IMPORT_PLAN_MOVED_RULE</code>). Abandoning
+                  leaves nothing behind because there was never anything to leave.
+                </li>
+                <li>
+                  <strong>The outcome vocabulary and its colours</strong> —
+                  <code>presentation.ts</code>'s <code>OUTCOME_LABELS</code> and
+                  <code>outcomeColour</code>, with colour never the only carrier and every chip
+                  stating its outcome in words.
+                </li>
+                <li>
+                  <strong>The em dash for an empty cell</strong> and the highlighted cell as the
+                  statement of change, both settled with Brian on 2026-08-21.
+                </li>
+                <li>
+                  <strong>The duplicate question is Mission 5's, already shipped.</strong>
+                  <code>src/lib/services/person-duplicate.ts</code> answers &quot;who might this
+                  already be&quot; across first name, last name, aliases, every email and every
+                  phone, and never offers a merged-away record. This workflow calls it; it does not
+                  write a fourth implementation of the question.
+                </li>
+                <li>
+                  <strong>The person write is Mission 5's too.</strong>
+                  <code>enterReturningPlayer</code> in
+                  <code>src/lib/services/roster.ts</code> already mints a person, their contact
+                  points and a season membership from the returner-intake path.
+                </li>
+                <li>
+                  Permission: the surrounding roster surfaces admit any linked, active operator who
+                  is not a coaching assignment (<code>requireGeneralOperator</code>). This workflow
+                  narrows that — see <strong>Safety</strong> below.
+                </li>
+              </ul>
+            </li>
+            <li>
+              Desktop and 375px evidence: both sides photographed from the running application; the
+              current side is <code>/operate/events/import</code> at the same widths, because a
+              roster import does not exist on <code>main</code>.
+            </li>
+            <li>
+              Reason for any departure from the implemented application: one, and it is the reason
+              this workflow exists. The event import has no duplicate section, because two events
+              with the same name on the same day are a refusal (<code>event-csv.ts</code> line 500)
+              rather than a question for a human. Two people with the same name are a question,
+              always. The confirmation therefore grows a section the event import has no need of.
+            </li>
+          </ul>
+          <h2 id="s4-h3">Required actions</h2>
+          <ol>
+            <li>
+              <strong>Open the import.</strong> From the roster board's
+              <strong>Add players</strong> menu. The screen states the season it will write into, by
+              name, before a file is chosen — the import inherits it and never asks
+              (<code>OD7-season-inherit</code>).
+            </li>
+            <li>
+              <strong>Download the template.</strong> The event import ships a prompt and a
+              versioned template (<code>IMPORT_PROMPT</code>, <code>IMPORT_PROMPT_VERSION</code>)
+              and an export route that round-trips. This one ships a header row for the columns
+              below.
+            </li>
+            <li>
+              <strong>Choose a file.</strong> Refused whole, before any row is read, if it is over
+              the size limit or its header is not one this importer recognises.
+            </li>
+            <li>
+              <strong>Read the proposal.</strong> One table, one row per line of the file, each row
+              carrying its outcome: <strong>New</strong>, <strong>Carried forward</strong>,
+              <strong>Unchanged</strong>, or <strong>Refused</strong> with the reason in words.
+              Underneath it, the <strong>possible duplicates</strong> section: each incoming row
+              that matched an existing person, shown beside the candidate and what matched, with the
+              operator's answer required — <em>same person</em> or <em>different person</em>.
+            </li>
+            <li>
+              <strong>Confirm.</strong> One action. Everything that can apply applies; refused rows
+              are reported and change nothing.
+            </li>
+            <li>
+              <strong>Read what happened.</strong> Counts by outcome, the names that arrived, the
+              rows that did not and why, and how many welcomes were queued.
+            </li>
+            <li><strong>Abandon</strong>, at any point before confirming. Nothing is written.</li>
+          </ol>
+          <h2 id="s4-h4">State transitions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Row outcome</th>
+                  <th>What it means</th>
+                  <th>What is written</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>New</strong></td>
+                  <td>Nobody on record is this person.</td>
+                  <td>
+                    A person, their contact points, a season membership at <code>onboarding</code>,
+                    a full checklist from this season's item types, a welcome queued.
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Carried forward</strong></td>
+                  <td>A person on record, with no membership this season.</td>
+                  <td>
+                    A season membership at <code>onboarding</code>, a full checklist, a welcome
+                    queued. <strong>The person's own facts are not touched</strong> — see the
+                    decisions.
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Unchanged</strong></td>
+                  <td>Already on this season's roster.</td>
+                  <td>Nothing. No second checklist, no second welcome.</td>
+                </tr>
+                <tr>
+                  <td><strong>Refused</strong></td>
+                  <td>The row cannot be read as a person, or an unanswered duplicate blocks it.</td>
+                  <td>Nothing.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Membership status on arrival is <code>onboarding</code> for every row that writes one.
+            Nothing else in the ladder is reachable from here: activation is <code>W10</code>.
+          </p>
+          <h2 id="s4-h5">Handoffs</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>To</th>
+                  <th>What is handed over</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W4</code></td>
+                  <td>
+                    Every new membership's welcome, carrying the signed link. <code>W1</code> ends
+                    when the welcome is queued; <code>W4</code> is what the player does with it.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W6</code></td>
+                  <td>
+                    Every generated checklist. <code>W1</code> generates it; <code>W6</code> is
+                    where an operator works it.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W8</code></td>
+                  <td>
+                    Everyone imported joins the outstanding population the Monday queue ranks.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W11</code></td>
+                  <td>
+                    The item types that generate. <code>W1</code> does not choose them; it
+                    instantiates whatever the season's checklist says.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Mission 5</td>
+                  <td>The board the operator returns to, now holding the imported squad.</td>
+                </tr>
+                <tr>
+                  <td>Mission 4</td>
+                  <td>The queued welcomes. This workflow never dispatches; the scheduler does.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s4-h6">Dependencies and mission boundaries</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Seam</th>
+                  <th>This mission's side</th>
+                  <th>The other side</th>
+                  <th>Blocking?</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Mission 5 · duplicate check</td>
+                  <td>Calling it, and showing its answer as a question for the operator</td>
+                  <td><code>person-duplicate.ts</code>, shipped</td>
+                  <td>
+                    <strong>Independently walkable</strong> — it is on <code>main</code> today
+                  </td>
+                </tr>
+                <tr>
+                  <td>Mission 5 · minting a person and a membership</td>
+                  <td>The import's bulk caller</td>
+                  <td><code>roster.ts</code>, shipped</td>
+                  <td><strong>Independently walkable</strong></td>
+                </tr>
+                <tr>
+                  <td>Mission 5 · the roster board</td>
+                  <td>
+                    The <strong>Add players</strong> menu entry and the arrival of the imported
+                    squad
+                  </td>
+                  <td>The board itself, shipped</td>
+                  <td><strong>Independently walkable</strong></td>
+                </tr>
+                <tr>
+                  <td>Mission 4 · dispatch</td>
+                  <td>Enqueuing <code>onboarding-opened</code> per new membership</td>
+                  <td>The scheduler, transport, delivery states, retry</td>
+                  <td><strong>Independently walkable</strong> — shipped and in use</td>
+                </tr>
+                <tr>
+                  <td>Mission 11 · seasons</td>
+                  <td>Inheriting the roster's current season</td>
+                  <td>Creating one, rollover, the season-boundary reset</td>
+                  <td>
+                    <strong>Not blocking, but a walk needs a seeded season</strong> —
+                    <code>readCurrentSeason</code> throws with none, a precondition the roster
+                    already carries
+                  </td>
+                </tr>
+                <tr>
+                  <td>Mission 8 · consent wording</td>
+                  <td>The point-of-collection policy slot on the welcome's landing</td>
+                  <td>The words in it</td>
+                  <td>
+                    <strong>Independently walkable</strong> with a placeholder in a real versioned
+                    slot
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s4-h7">Exceptions and recovery</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>What goes wrong</th>
+                  <th>What the operator sees</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>No file chosen</td>
+                  <td>One sentence, the shipped <code>NO_FILE_CHOSEN_MESSAGE</code> pattern.</td>
+                </tr>
+                <tr>
+                  <td>File too large</td>
+                  <td>Refused whole before any row is read, with the limit stated.</td>
+                </tr>
+                <tr>
+                  <td>Header not recognised</td>
+                  <td>Refused whole, naming the columns it expected.</td>
+                </tr>
+                <tr>
+                  <td>A row is missing a required column</td>
+                  <td>
+                    That row is <strong>Refused</strong> with the missing field named. The rest
+                    still apply (<code>S6</code>).
+                  </td>
+                </tr>
+                <tr>
+                  <td>A row's mobile is unreadable</td>
+                  <td>
+                    <strong>Refused</strong> — a welcome that cannot be delivered is a person who
+                    never hears from the club.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Two rows in the file are the same person</td>
+                  <td>
+                    The second is <strong>Refused</strong>, naming the first line. The event
+                    importer refuses both in the equivalent case; here the first is a usable person
+                    and the second adds nothing.
+                  </td>
+                </tr>
+                <tr>
+                  <td>A possible duplicate is unanswered</td>
+                  <td>
+                    The row is <strong>Refused</strong> and the confirmation says so. The operator
+                    answers it and confirms again.
+                  </td>
+                </tr>
+                <tr>
+                  <td>The roster moved between proposal and confirm</td>
+                  <td>
+                    The apply refuses whole, on the shipped digest rule, and the operator re-reads a
+                    fresh proposal.
+                  </td>
+                </tr>
+                <tr>
+                  <td>The operator abandons</td>
+                  <td>Nothing is written, anywhere. The file was never stored.</td>
+                </tr>
+                <tr>
+                  <td>The apply fails partway</td>
+                  <td>One transaction. Either the whole apply committed or none of it did.</td>
+                </tr>
+                <tr>
+                  <td>No season exists</td>
+                  <td>
+                    The screen is unavailable, with the reason, and the operator is sent to make a
+                    season — which is Mission 11's.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s4-h8">Safety, privacy, consent, and authority boundaries</h2>
+          <ul>
+            <li>
+              <strong
+                >This is the largest single write of personal data the application offers.</strong
+              >
+              It creates dozens of people who have not yet heard from the club. It is therefore
+              <strong>four-role</strong>, not the general-operator floor the surrounding roster
+              surfaces use, and the guard is enforced twice — at the page and again in the service —
+              as <code>/operate/events/import</code> does.
+            </li>
+            <li>
+              <strong>The file is never stored.</strong> It exists as form text between the proposal
+              and the confirmation and nowhere else. No staging table, because a staging table is a
+              record of people the club has not decided to hold.
+            </li>
+            <li>
+              <strong>The welcome is the one message the club may send without consent</strong>, and
+              its purpose is to obtain it. <code>W1</code> queues it and nothing else. No other
+              message reaches an imported person until they tick.
+            </li>
+            <li>
+              <strong>No date of birth in an import.</strong> DOB is restricted, never appears on a
+              list, board or queue, and is asked of the player at onboarding. A column for it here
+              would put it in a spreadsheet on somebody's laptop.
+            </li>
+            <li>
+              <strong>Every arrival is audited</strong> — who imported, when, from which file name,
+              and which rows. The append-only audit substrate is shipped.
+            </li>
+            <li>
+              <strong>Nothing gates.</strong> An imported player is a full member of the squad from
+              the moment they land, invitable to events, with an empty checklist behind them.
+            </li>
+          </ul>
+          <h2 id="s4-h9">Acceptance evidence</h2>
+          <ul>
+            <li>
+              A walk on a fresh local stack with a seeded season: a file of ~50 synthetic players
+              imports, the proposal names each outcome correctly, one deliberate duplicate appears
+              in its section and blocks its row until answered, one malformed row is refused while
+              the rest apply, and the board afterwards holds exactly the expected squad at
+              <code>onboarding</code> with full checklists.
+            </li>
+            <li>
+              The same file imported twice: the second run is every row <strong>Unchanged</strong>,
+              no second checklist and no second welcome.
+            </li>
+            <li>
+              Abandoning at the proposal writes nothing — proven by the roster being unchanged and
+              no staging row existing to find.
+            </li>
+            <li>A non-four-role operator is refused at the page and at the service.</li>
+            <li>Welcomes appear as queued dispatches, not as sends.</li>
+            <li>Desktop and 375px screens for the three states, both sides.</li>
+            <li><code>grounding: application-walked</code>.</li>
+          </ul>
+          <h2 id="s4-h10">Core decisions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Decision</th>
+                  <th>Classification</th>
+                  <th>Governing evidence or recommended default</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    The import writes into the roster's current season, never asks, never creates
+                    one
+                  </td>
+                  <td>locked</td>
+                  <td><code>OD7-season-inherit</code>, Brian 2026-09-01</td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>
+                    The import follows <code>/operate/events/import</code>'s shape rather than
+                    inventing one
+                  </td>
+                  <td>locked</td>
+                  <td><code>OD7-import-like-events</code>, Brian 2026-09-01</td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>
+                    A confirmation page showing who is about to be added, with possible duplicates
+                    underneath
+                  </td>
+                  <td>locked</td>
+                  <td><code>OD7-dup-preview</code>, Brian 2026-09-01</td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>Everyone imported gets the same welcome as every other door</td>
+                  <td>locked</td>
+                  <td>Boundary §2, Brian 2026-09-01</td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong
+                      >The file carries first name, last name and mobile — required — plus personal
+                      email, college and matriculation year, optional.</strong
+                    >
+                    Nothing else.
+                  </td>
+                  <td>proposed for owner approval</td>
+                  <td>
+                    Those three are the required set at every tier and are what a welcome needs to
+                    arrive. The other three are things a club spreadsheet genuinely holds and that
+                    save the player retyping. Everything else onboarding asks for — DOB, emergency
+                    contact, degree, graduation — comes from nowhere on <code>main</code>, is asked
+                    of everyone anyway, and does not belong in a file on a laptop.
+                  </td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong
+                      >A carried-forward person's own facts are never overwritten by the
+                      file.</strong
+                    >
+                    A difference becomes something the player confirms on the form, not a silent
+                    update.
+                  </td>
+                  <td>proposed for owner approval</td>
+                  <td>
+                    The mission's standing rule that nothing a person says silently overwrites a
+                    confirmed value (<code>W5</code>) reads the same way pointed at a spreadsheet.
+                    The alternative — last-file-wins over a value a human confirmed — is the failure
+                    mode the whole provenance design exists to prevent. Recommended.
+                  </td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>An unanswered duplicate refuses its own row and nothing else.</strong>
+                  </td>
+                  <td>proposed for owner approval</td>
+                  <td>
+                    The two alternatives are worse: blocking the whole import makes one ambiguous
+                    name hold up fifty people, and defaulting to <em>create</em> mints a second
+                    record of a real human silently. Refusing one row is visible, recoverable and
+                    costs one more pass. Recommended.
+                  </td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td><strong>Confirming queues the welcomes; it never sends them.</strong></td>
+                  <td>proposed for owner approval</td>
+                  <td>
+                    The invariant that nothing is ever sent by hand, and the mission rides Mission
+                    4's scheduler verbatim (<code>PR7-rides-m4</code>). The operator is told
+                    &quot;42 welcomes queued&quot;. Recommended.
+                  </td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>
+                    Four-role, not the general-operator floor the surrounding roster surfaces use
+                  </td>
+                  <td>proposed for owner approval</td>
+                  <td>
+                    Every other bulk or consequential write in the application narrows. This one
+                    creates dozens of people. Recommended.
+                  </td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>
+                    Column order, the exact header names, the size limit, and the template's wording
+                  </td>
+                  <td>delegated to Mission Lead</td>
+                  <td>Mechanical; the event import's own constants are the precedent</td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>
+                    Whether the export route that round-trips the template ships with this workflow
+                  </td>
+                  <td>delegated to Mission Lead</td>
+                  <td>
+                    The event import has one; it changes no state, authority or acceptance here
+                  </td>
+                  <td>open</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s4-h11">Brian approval</h2>
+          <ul>
+            <li>Exact words:</li>
+            <li>Date:</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
