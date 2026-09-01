@@ -1626,8 +1626,37 @@
     ]
   },
   "amendment_plan": {
-    "items": [],
+    "items": [
+      {
+        "id": "A1",
+        "target": "Task 10 brief (Player Onboarding & Completion), decision R3-G",
+        "change": "Append a dated note recording that the flagged/unflagged tracking distinction is dropped: every onboarding item counts equally and the queue ranks by everything outstanding, with subs paid carried by due-timing instead. R3-G's governing half, that nothing gates, is untouched.",
+        "reason": "The flag's only observable effects were the outstanding total and the queue ranking. Brian dropped it on 2026-09-01 rather than keep a per-item configuration nobody could describe the purpose of.",
+        "status": "proposed"
+      },
+      {
+        "id": "A2",
+        "target": "Release One Mission Portfolio v2, row 7",
+        "change": "Remove the role-appropriate coach and committee welcome flow from this row's scope; coaches and committee get their own flows in their own missions.",
+        "reason": "Brian, 2026-09-01: onboarding is onboarding a player onto the team, and a coach is not on the roster. The row names the coach welcome flow as built here, so it drifts from the approved boundary until amended.",
+        "status": "proposed"
+      },
+      {
+        "id": "A3",
+        "target": "Task 10 brief, item 5 (BPS)",
+        "change": "Append a dated note that BPS leaves the onboarding checklist and becomes a yes/no attribute on the roster, added by this mission.",
+        "reason": "A scout found no player-facing step for BPS anywhere; it is a coaching selection decision, and on a checklist that regenerates for everyone it would show outstanding against players never in the scheme.",
+        "status": "proposed"
+      },
+      {
+        "id": "A4",
+        "target": "Task 10 brief, item 11 (photo release) and item 3 (kit)",
+        "change": "Append a dated note that the photo release is seasonal, asked of everyone every season, with its returner carve-out removed as kit's already was.",
+        "reason": "Brian, 2026-09-01. Hudl keeps its carve-out because Hudl access persists until revoked, which is a different underlying fact rather than an inconsistency.",
+        "status": "proposed"
+      }
+    ],
     "approval": null
   },
-  "next_action": "Settle the four open items in item-and-ask-inventory.md, approve it, then begin W1"
+  "next_action": "Approve item-and-ask-inventory.md, then begin W1"
 }

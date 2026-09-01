@@ -14,23 +14,28 @@ documentation), and Brian's corrections of 2026-09-01.
 `player` the player acts through their signed link · `derived` it completes
 itself from other recorded facts.
 
-**Flagged** decides one thing only: whether the item counts toward the
-outstanding total that ranks a person in the Monday queue. It blocks nothing,
-tracks nothing differently, and hides nothing.
+**There is no flagged/unflagged distinction.** Brian dropped it on 2026-09-01:
+_"Yes, drop the flag/not flag distinction, please."_ Every item counts the same,
+and the Monday queue ranks a person by everything outstanding. The flag's one
+useful effect — keeping subs paid from nagging people in Michaelmas — is carried
+instead by **due-timing**, which the chase already has to understand.
 
-| #   | Item                        | Who                   | What actually happens                                                                                                                                                            | Flagged |
-| --- | --------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| 1   | Subscription invoiced       | operator              | Did we send it out? An operator goes down the roster ticking. Not a claim anybody makes about themselves.                                                                          | yes     |
-| 2   | Subscription paid           | operator              | The operator records payment. Never gates anything; not chased until terms 2–3.                                                                                                    | no      |
-| 3   | Kit sorted                  | operator              | Has this person been given their kit? Binary, ticked by whoever handed it over.                                                                                                    | yes     |
-| 4   | BUCS Play                   | player → operator     | The player downloads the app, registers with their Oxford email and selects Oxford Lancers. Their yes shows as `claimed` until the compliance owner confirms. Re-registered yearly. | yes     |
-| 6   | Hudl access                 | operator → player     | **Two parts, like comms group.** Have they been invited, and have they gone and done it? Assume the email-invite method (Brian, 2026-09-01: "doesn't really matter for my purposes"); Hudl's own roster reads `Pending Invite` in between. A candidate for a real integration later. | no      |
-| 7   | Squad photo                 | operator              | The Media Secretary ticks it. No photo is ever stored here.                                                                                                                        | no      |
-| 8   | Comms group                 | operator ×2           | **Two columns.** Have they been assigned to a group? Have they been invited and are they actually in? Both yes before it completes.                                                | yes     |
-| 9   | Contact & academic details  | derived               | Completes when every required field on their record is present. This item **is** the form, and its missing pieces **are** the queue.                                               | open    |
-| 10  | Code of Conduct             | player                | Reads the Code of Conduct on a page, then confirms they have read and understood it. Dated, stored as theirs.                                                                      | yes     |
-| 11  | Photo release               | player                | Reads the release on a page and signs it. **Seasonal** — asked of everyone every season (Brian, 2026-09-01).                                                                        | no      |
-| 12  | Season welcome & consent    | derived               | **Two things**: has the welcome gone out, and have they approved? Approval is what completes it.                                                                                    | open    |
+This supersedes Task 10 R3-G's retention of "required" as a display flag. The
+governing half of R3-G is untouched: nothing gates, ever.
+
+| #   | Item                        | Who                   | What actually happens                                                                                                                                                            |
+| --- | --------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Subscription invoiced       | operator              | Did we send it out? An operator goes down the roster ticking. Not a claim anybody makes about themselves.                                                                          |
+| 2   | Subscription paid           | operator              | The operator records payment. Never gates anything. **Not due until terms 2–3**, so it does not rank anybody until then.                                                                                                    |
+| 3   | Kit sorted                  | operator              | Has this person been given their kit? Binary, ticked by whoever handed it over.                                                                                                    |
+| 4   | BUCS Play                   | player → operator     | The player downloads the app, registers with their Oxford email and selects Oxford Lancers. Their yes shows as `claimed` until the compliance owner confirms. Re-registered yearly. |
+| 6   | Hudl access                 | operator → player     | **Two parts, like comms group.** Have they been invited, and have they gone and done it? Assume the email-invite method (Brian, 2026-09-01: "doesn't really matter for my purposes"); Hudl's own roster reads `Pending Invite` in between. A candidate for a real integration later. |
+| 7   | Squad photo                 | operator              | The Media Secretary ticks it. No photo is ever stored here.                                                                                                                        |
+| 8   | Comms group                 | operator ×2           | **Two columns.** Have they been assigned to a group? Have they been invited and are they actually in? Both yes before it completes.                                                |
+| 9   | Contact & academic details  | derived               | Completes when every required field on their record is present. This item **is** the form, and its missing pieces **are** the queue.                                               |
+| 10  | Code of Conduct             | player                | Reads the Code of Conduct on a page, then confirms they have read and understood it. Dated, stored as theirs.                                                                      |
+| 11  | Photo release               | player                | Reads the release on a page and signs it. **Seasonal** — asked of everyone every season (Brian, 2026-09-01).                                                                        |
+| 12  | Season welcome & consent    | derived               | **Two things**: has the welcome gone out, and have they approved? Approval is what completes it.                                                                                    |
 
 ### Item 5 — BPS — leaves the checklist
 
@@ -71,8 +76,7 @@ recorded confirms rather than retypes.
     from a versioned slot.
 13. **Photo release** — a page they read, then sign.
 14. **BUCS Play** — instructions, then "have you done it?"
-15. **Hudl** — instructions, then "are you in?" Blocked on which method the club
-    uses.
+15. **Hudl** — instructions, then "are you in?" Email-invite method assumed.
 
 ## What each ask says
 
@@ -105,18 +109,8 @@ onboarding, of everyone, whichever door they came through.
 
 ## Open
 
-1. **Does the flagged distinction survive at all?** Everything the flag does,
-   in full: it decides whether an item counts toward a player's outstanding
-   total, and whether it pushes them up the Monday queue's ranking. It gates
-   nothing, hides nothing and appears nowhere else in the application. Its one
-   useful effect is keeping subs paid from nagging people early, which is
-   better expressed as *not due until terms 2–3* — a due-date the chase already
-   has to understand — than as a permanent priority tier configured per item.
-
-   Recommendation: **drop it**, rank by everything outstanding, and carry
-   due-timing instead. This contradicts Task 10 R3-G, which kept "required"
-   alive as a tracking flag, so it needs Brian's word rather than a quiet
-   change. Item 12's flag question dissolves with it.
+Nothing. All four are settled; the last of them, the flag, was dropped on
+2026-09-01.
 
 ## Brian approval
 
