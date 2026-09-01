@@ -353,12 +353,27 @@ stops automated correction and returns to Brian for adjudication.
 
 There are three tiers, decided by Brian on 2026-08-18:
 
-**Merges by itself.** Standard application work whose exact package head has
-clear required security coverage, Brian's issue approval (or is genuinely
-nonvisual), no open owner question, and green required checks at that exact
-commit merges through the checked-in `mission-merge` workflow
-after the Mission Lead publishes its receipt and applies the `mission-merge`
-label. The workflow re-derives everything server-verifiable from evidence
+**Merges by itself, by default.** Auto-merge is the default disposition
+(Brian, 2026-09-01), and a refusal must be earned from evidence. Every pull
+request is evaluated by the checked-in `mission-merge` workflow; the
+`mission-merge` label no longer gates the lane and only asks for a refusal
+comment.
+
+There are two routes. On the **standard route** a pull request with no
+receipt merges when it touches no prohibited surface, names a Linear issue,
+and has every required check green at the exact head. On the **package
+route** a pull request carrying the Mission Lead's receipt additionally
+proves clear required security coverage, Brian's visual approval where the
+work is rendered, a reviewed head equal to the current head, and a cited
+owner decision for any checkpoint-approval surface.
+
+The standard route exists because the receipt route could only ever serve
+work packages — 30 of the first 122 merged pull requests. Corrections, seed
+fixes, documentation and ordinary visual work were permanently owner-merged
+however safe the diff was, and walk findings become corrective issues rather
+than packages by design, so reviewing carefully guaranteed more hand merges.
+
+The workflow re-derives everything server-verifiable from evidence
 and fails closed; a refusal is posted on the pull request. A review-blocked
 rendered correction clears the applicable visual evidence — Brian approved
 what he saw, not whatever came later.
@@ -457,7 +472,8 @@ a re-scoping tool.
 
 Agents cannot change live GitHub settings, so Brian performs these once:
 
-1. Create the `mission-merge` label in the repository (Issues → Labels).
+1. Create the `mission-merge` label in the repository (Issues → Labels). It
+   no longer gates the lane; it only requests a refusal comment.
 2. Confirm Actions workflow permissions allow workflows the write access the
    fast lane already uses (Settings → Actions → General → Workflow
    permissions: read and write). `mission-merge.yml` narrows its own token

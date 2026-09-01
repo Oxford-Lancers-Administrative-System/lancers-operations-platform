@@ -469,6 +469,21 @@ export function renderReceiptBlock(receipt, rules) {
  * @param {{ pullRequest: object|null, checkRuns: object[], files: Array<{status: string, path: string, previousPath?: string}>, rules: object, deriveVisualFiles?: (fromSha: string, toSha: string, currentHead: string) => Array<{status: string, path: string, previousPath?: string}> }} input
  * @returns {{ merge: boolean, reasons: string[], receipt: Record<string, any>|null }}
  */
+/**
+ * The Linear issue a pull request names, from its title, body or branch. The
+ * standard route's one traceability requirement: AGENTS.md already says every
+ * change traces to an issue, so this asserts what the working agreement asks
+ * for rather than inventing a new obligation.
+ */
+export function linkedIssue(pr, rules) {
+  const pattern = new RegExp(rules.standardRoute?.issuePattern ?? "LAN-\\d+");
+  for (const field of [pr?.title, pr?.body, pr?.headRefName]) {
+    const found = pattern.exec(field ?? "");
+    if (found) return found[0];
+  }
+  return null;
+}
+
 export function evaluateMissionGate({
   pullRequest: pr,
   checkRuns,
@@ -488,12 +503,6 @@ export function evaluateMissionGate({
   if (pr.isCrossRepository) {
     reasons.push("Pull request comes from a fork. Mission merges are same-repository only.");
   }
-  const labels = (pr.labels ?? []).map((label) => (typeof label === "string" ? label : label.name));
-  if (!labels.includes(rules.optInLabel)) {
-    reasons.push(
-      `Pull request is not labelled \`${rules.optInLabel}\`, so no Mission Lead asked for this merge.`,
-    );
-  }
   if ((pr.mergeable ?? "").toUpperCase() !== "MERGEABLE") {
     reasons.push(`GitHub reports mergeable=${pr.mergeable ?? "UNKNOWN"}. Only MERGEABLE proceeds.`);
   }
@@ -503,40 +512,57 @@ export function evaluateMissionGate({
 
   reasons.push(...prohibitedPaths(files, rules));
 
+  // TWO ROUTES (Brian, 2026-09-01). Auto-merge is the default; a refusal must
+  // be earned from evidence. A pull request carrying a Mission Lead's receipt
+  // takes the package route and every receipt conjunct below still applies. A
+  // pull request without one is not therefore suspect — it is ordinary work,
+  // and it merges on the same prohibited-path scan and the same required
+  // checks, plus the traceability AGENTS.md already demands.
   const receipt = extractReceipt(pr.body, rules);
-  const defects = receiptDefects(receipt);
-  reasons.push(...defects);
 
-  if (defects.length === 0) {
-    if (receipt.reviewed_head_sha !== pr.headRefOid) {
+  if (!receipt) {
+    if (rules.standardRoute?.requireLinearIssue && !linkedIssue(pr, rules)) {
       reasons.push(
-        `Receipt reviewed_head_sha ${receipt.reviewed_head_sha} does not match the current head ${pr.headRefOid}. The head moved after review; the review is stale.`,
+        "Pull request names no Linear issue in its title, body or branch. Every change traces to an issue (AGENTS.md).",
       );
     }
-    // The coherence tripwire: the visual claim is checked against the diff,
-    // not taken on trust. Mislabelling UI work "nonvisual" is the likely
-    // honest failure, and it is caught here mechanically.
-    if (receipt.visual === "nonvisual" && touchesVisualSurface(files, rules)) {
-      reasons.push(
-        "Receipt claims nonvisual work, but the diff touches a visual surface. Visual work merges only with Brian's recorded approval.",
-      );
-    }
-    if (receipt.visual === "approved") {
-      reasons.push(
-        ...visualCarryForwardDefects(
-          receipt.visual_evidence,
-          pr.headRefOid,
-          rules,
-          deriveVisualFiles,
-        ),
-      );
-    }
-    // The checkpoint-approval tier: an auth or delivery diff is detected from
-    // evidence, and merges only with a cited, answered owner question. The
-    // ask happens at Brian's hourly checkpoint; it cannot be skipped, only
-    // affirmatively falsified — a durable, auditable lie in mission state.
+    // The middle tier is a citation requirement, and a citation lives in a
+    // receipt. With no receipt there is nothing to cite, so these surfaces
+    // are refused outright rather than waved through.
     if (touchesOwnerApprovalSurface(files, rules)) {
-      if (!ownerDecisionCited(receipt)) {
+      reasons.push(
+        "The diff touches a checkpoint-approval surface (auth or delivery). Those merge only on the package route, whose receipt cites the answered owner question.",
+      );
+    }
+  } else {
+    const defects = receiptDefects(receipt);
+    reasons.push(...defects);
+
+    if (defects.length === 0) {
+      if (receipt.reviewed_head_sha !== pr.headRefOid) {
+        reasons.push(
+          `Receipt reviewed_head_sha ${receipt.reviewed_head_sha} does not match the current head ${pr.headRefOid}. The head moved after review; the review is stale.`,
+        );
+      }
+      // The coherence tripwire: a receipt's own claim is checked against the
+      // diff. This is not caution about visual work — it is refusing to let a
+      // receipt say something the diff contradicts.
+      if (receipt.visual === "nonvisual" && touchesVisualSurface(files, rules)) {
+        reasons.push(
+          "Receipt claims nonvisual work, but the diff touches a visual surface. A receipt may not contradict its own diff.",
+        );
+      }
+      if (receipt.visual === "approved") {
+        reasons.push(
+          ...visualCarryForwardDefects(
+            receipt.visual_evidence,
+            pr.headRefOid,
+            rules,
+            deriveVisualFiles,
+          ),
+        );
+      }
+      if (touchesOwnerApprovalSurface(files, rules) && !ownerDecisionCited(receipt)) {
         reasons.push(
           "The diff touches a checkpoint-approval surface (auth or delivery). The receipt must cite the answered owner question (owner_decision: question_id, answered_by, date) recorded at Brian's checkpoint before this can merge.",
         );

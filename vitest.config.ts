@@ -41,6 +41,9 @@ loadEnv({ path: path.resolve(import.meta.dirname, ".env.local"), quiet: true });
  */
 export const DATABASE_TEST_SUITES: readonly string[] = [
   "src/app/api/webhooks/whatsapp/route.test.ts",
+  "src/app/join/[code]/actions.test.ts",
+  "src/app/me/join/[token]/actions.test.ts",
+  "src/app/me/stop/[token]/actions.test.ts",
   "src/app/operate/admin/permissions.test.ts",
   "src/app/operate/people/[personId]/edit/actions.test.ts",
   "src/app/operate/people/[personId]/merge/actions.test.ts",
@@ -58,6 +61,7 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "src/lib/services/events.test.ts",
   "src/lib/services/follow-ups.test.ts",
   "src/lib/services/membership.test.ts",
+  "src/lib/services/messaging-consent.test.ts",
   "src/lib/services/messaging-schedule.test.ts",
   "src/lib/services/messaging-scheduler.test.ts",
   "src/lib/services/operator-administration.test.ts",
@@ -73,6 +77,8 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "src/lib/services/player-home.test.ts",
   "src/lib/services/player-record.test.ts",
   "src/lib/services/recruitment-cycle.test.ts",
+  "src/lib/services/recruitment-signup-codes.test.ts",
+  "src/lib/services/recruitment-signup.test.ts",
   "src/lib/services/roster-board.test.ts",
   "src/lib/services/roster.test.ts",
   "src/lib/services/rsvp-tokens.test.ts",
