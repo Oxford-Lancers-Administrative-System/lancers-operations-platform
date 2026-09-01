@@ -1,7 +1,7 @@
 {
   "mission_id": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
   "ledger_version": 3,
-  "stage": "overview",
+  "stage": "inventory",
   "baseline": {
     "branch": "main",
     "commit": "332bc6b3ba3028f1b79d99fc59dc1417791c2d81"
@@ -11,6 +11,17 @@
       "words": "All right, cool. I think the boundary makes sense here. Let's go to the next stage.",
       "date": "2026-09-01",
       "by": "Brian Schuster"
+    },
+    "overview": {
+      "words": "This mission seems roughly correct. I still want to get into the weeds about how the exact onboarding works, but as long as we understand this is about: how we intake players, how we get them through onboarding, what happens after they onboard, what's the gate to go and manage the team. I think we're good. So, as long as we think that's handled, I'm good to continue.",
+      "date": "2026-09-01",
+      "by": "Brian Schuster"
+    },
+    "boundary_amendment": {
+      "words": "Part of the inflow port flow should do the check for them to see who the people are that are there... This collection loop has to deal with the player roster onboarding... This is just for players.",
+      "date": "2026-09-01",
+      "by": "Brian Schuster",
+      "change": "Three doors named, not one: the recruit flip, the import, and adding by hand. The recruit's answers and this-season consent carry into onboarding and their open link is superseded. The import follows the event-import shape with a preview page and a potential-duplicates section. Leaving mid-onboarding stops the ask and leaves records alone. Onboarding's own chase-and-flag surface is retained, extending Mission 6's. The collection loop is players only; coaches and committee leave entirely for their own missions."
     }
   },
   "workflows": [],
@@ -26,5 +37,5 @@
     "items": [],
     "approval": null
   },
-  "next_action": "Complete and approve 01-overview.md"
+  "next_action": "Draft the workflow inventory and subject coverage together for 02-workflows.md"
 }
