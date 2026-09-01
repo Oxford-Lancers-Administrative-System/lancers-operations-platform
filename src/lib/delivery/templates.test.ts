@@ -295,6 +295,25 @@ describe("the recruit event follow-up", () => {
     ]);
   });
 
+  it("carries both answer links in the email body, not just the WhatsApp buttons", () => {
+    // Correction B1: buildEmailBody (src/lib/delivery/email.ts) renders only
+    // template.body(message) — it never reads buttonUrls. Every other
+    // template with buttonUrls repeats those URLs as text inside body() for
+    // exactly this reason; this template must too, or an email recipient
+    // whose WhatsApp job fell back to email (the reachable path is an
+    // unconvertible or unallowlisted number, see delivery.ts's unconditional
+    // scheduleWhatsAppFallbackIn) has no way to answer at all.
+    const body = MESSAGE_TEMPLATES.recruit_event_followup
+      .body(message({ kind: "recruit_event_followup" }))
+      .join("\n");
+    expect(body).toContain(
+      "Yes I can come: https://lancers.example/a/y.11111111-1111-1111-1111-111111111111.abc",
+    );
+    expect(body).toContain(
+      "No thanks: https://lancers.example/a/n.11111111-1111-1111-1111-111111111111.xyz",
+    );
+  });
+
   it("never carries a count, and never implies obligation", () => {
     // REQ-never-harsh: no message tells a recruit they are required to be
     // anywhere and nothing here carries a count of anyone.

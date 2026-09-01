@@ -372,6 +372,8 @@ const RECRUIT_EVENT_FOLLOWUP: MessageTemplate = {
     message.whenLabel,
     recruitEventVenueLine(message),
     "Come along if you can. No need to decide in advance.",
+    `${RECRUIT_YES_LABEL}: ${message.yesUrl}`,
+    `${RECRUIT_NO_LABEL}: ${message.noUrl}`,
   ],
   buttonUrls: answerButtonUrls,
 };

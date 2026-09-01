@@ -15,7 +15,7 @@
 -- needs the recruits' rungs frozen on that same row, not recomputed from
 -- `messaging_schedules` at render time — that table exists precisely so an
 -- operator shortening the cadence on Tuesday cannot retroactively change what
--- Monday's already-approved event does (`REQ-schedule-not-retroactive`). Six
+-- Monday's already-approved event does (`REQ-schedule-not-retroactive`). Five
 -- columns below carry the recruit ladder's own anchor, cadence and resolved
 -- instants, on the exact "copy, not a reference" idiom the player columns
 -- already use.
@@ -66,7 +66,7 @@ begin;
 -- resolved once, at approval, from `messaging_schedules.recruit_*` and the
 -- event's own start, and never recomputed.
 --
--- All six are nullable together, because most approved events carry no
+-- All five are nullable together, because most approved events carry no
 -- recruit audience at all — `event_messaging_plans` has one row per
 -- *approved event*, not per Recruitment-typed event, and a practice or a game
 -- has nothing to put here. `recruit_invitation_at` is the discriminator: null
