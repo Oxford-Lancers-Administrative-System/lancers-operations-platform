@@ -127,15 +127,15 @@ export function unknownClassification() {
 /** @param {ChangedFile[]} files @param {Record<string, any>} [rules] */
 export function classifyReviewSurfaces(files, rules = loadRules()) {
   const contractRules = rules.reviewContract ?? {};
+  // LAN-209 deleted the `ownerApprovalSurfaces` block. The auth and delivery
+  // paths it named are still reached here through `sensitiveSurfaces` and
+  // `transportSurfaces`, which is also where the owner-checkpoint conjunct in
+  // scripts/mission/merge-gate.mjs now reads them from.
   const sensitive = new Set([
     ...intersect(files, contractRules.sensitiveSurfaces),
     ...intersect(
       files,
       (rules.prohibited ?? []).map((rule) => rule.path),
-    ),
-    ...intersect(
-      files,
-      (rules.ownerApprovalSurfaces ?? []).map((rule) => rule.path),
     ),
   ]);
   return {

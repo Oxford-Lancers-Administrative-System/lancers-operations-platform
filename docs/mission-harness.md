@@ -375,8 +375,11 @@ prohibited-path scan rather than from a risk label.
 
 Highest risk is **not** on that list any more. A grade says how rigorously a
 change is reviewed; it does not decide the route. Highest-risk work leaves draft
-only when an answered owner checkpoint names the package, so Brian hears about
-it before it merges — see
+only when an answered owner checkpoint names the package, and so does any work
+touching a checkpoint surface — auth, the remaining database routing, the public
+answer-token surface, delivery, or the provider webhook — whatever its grade. A
+declared grade cannot stand in for the paths a package turns out to touch. Brian
+hears about all of it before it merges — see
 [ADR 0033](adr/0033-harness-after-the-first-live-mission.md) §4.
 
 **A mission merge does not deploy** — decided deliberately. `main` moves
@@ -419,7 +422,8 @@ every read.
 
 `mission gate` answers one question: may the Lead lift this package's draft? It
 joins the journal conjuncts — clear review at the exact head, recorded visual
-approval for visual work, no open owner question, no stop, no drift — with the
+approval for visual work, an answered owner question for a checkpoint surface,
+no open owner question, no stop, no drift — with the
 prohibited-path scan of the real diff and the required checks green at that same
 head. A pass records `gate-passed` at the exact head, and only then does the
 Lead run `gh pr ready`. Re-running a now-failing gate invalidates that

@@ -64,6 +64,29 @@ describe("merge authority", () => {
     }
   });
 
+  // Acceptance criterion 3 is "receives ONE comment saying so", and two triggers
+  // can reach the same pull request while a prohibited path never resolves
+  // itself. The dedup is the only part of that criterion expressible statically.
+  it("says the prohibited-path refusal exactly once", () => {
+    const step = /- name: Say once that Brian merges this\n([\s\S]*?)\n {6}- name: /.exec(
+      workflow,
+    )?.[1];
+    expect(step).toBeTruthy();
+    expect(step).toContain("MARKER:");
+    expect(step).toContain("<!-- merge-rule:prohibited -->");
+    // It reads the existing comments, compares against the marker, and leaves
+    // without posting when it has already spoken.
+    expect(step).toMatch(/gh pr view "\$PR" --repo "\$REPO" --json comments/);
+    expect(step).toMatch(/if \[ "\$SAID" != "0" \]; then[\s\S]*?exit 0/);
+    // The marker is written into the body it posts, or the next run cannot find it.
+    expect(step).toMatch(/echo "\$MARKER"/);
+    expect(step).toContain("if: steps.gate.outputs.prohibited == 'true'");
+    expect(step).toMatch(/gh pr comment "\$PR"/);
+    expect(step, "the refusal comment must never merge or un-draft").not.toMatch(
+      /gh pr (merge|ready)/,
+    );
+  });
+
   it("cannot rewrite the repository protection it depends on", () => {
     for (const forbidden of [
       "gh repo edit",

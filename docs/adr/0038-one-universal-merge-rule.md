@@ -110,6 +110,19 @@ exists. Two protections follow their code: `scripts/fast-lane/**` becomes
 publish a receipt" to "may the Lead lift the draft" — same conditions, new
 consumer — and `mission gate` is what asks it.
 
+One of those conditions needed a new source. The auth-and-delivery checkpoint
+recorded in [ADR 0033](0033-harness-after-the-first-live-mission.md) §4 — Brian
+hears about that work before it merges — used to be expressed as a receipt
+citing an answered owner question, against the `ownerApprovalSurfaces` block.
+The receipt and the block are both deleted, but the requirement is not: it is
+ADR 0033's, and LAN-209 amends 0033 on routing without touching it. The
+conjunct therefore survives in `journalConjuncts` and reads the surviving
+`reviewContract.sensitiveSurfaces` and `transportSurfaces` lists instead. That
+is deliberately not the declared `risk_class`: the grade is a plan attribute,
+and nothing forces it to follow the paths a package turns out to touch, so
+resting the checkpoint on it alone would have let a "normal"-graded package
+change authorization code with no owner question at all.
+
 ## Consequences
 
 - **`docs/adr/**` becomes auto-mergeable.** It was protected by the fast lane's
@@ -124,3 +137,10 @@ consumer — and `mission gate` is what asks it.
   of production until Brian deploys.
 - **Draft state now carries real weight.** Anything left as a draft is
   unmergeable by every automated path in this repository, which is the point.
+- **The owner checkpoint reaches slightly further than the deleted block did.**
+  `ownerApprovalSurfaces` named auth and delivery. The `reviewContract` lists
+  that replace it also reach the remaining database routing, the public
+  answer-token surface and the provider webhook. Everything else they name is
+  already on the prohibited list, where no draft is lifted at all. Each of these
+  already forces a fresh reviewer, so "this needs an independent look" and
+  "Brian should have heard about it" are now the same judgment.

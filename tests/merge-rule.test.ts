@@ -7,7 +7,11 @@ import {
   prohibitedPaths,
   touchesVisualSurface,
 } from "../scripts/merge/gate.mjs";
-import { evaluateDraftLift, journalConjuncts } from "../scripts/mission/merge-gate.mjs";
+import {
+  evaluateDraftLift,
+  journalConjuncts,
+  touchesCheckpointSurface,
+} from "../scripts/mission/merge-gate.mjs";
 import { reduce } from "../scripts/mission/lib/state.mjs";
 
 const rules = loadRules();
@@ -311,6 +315,74 @@ describe("the conditions for lifting a draft", () => {
     expect(journalConjuncts(unapproved, "WP-events-filter", HEAD).join("\n")).toMatch(
       /visual work without Brian's recorded visual approval/,
     );
+  });
+
+  // LAN-209 deleted the receipt that used to CITE an answered owner question for
+  // auth and delivery work. It did not delete the requirement — the issue keeps
+  // journalConjuncts on the same conditions, and ADR 0033 §4 is what records
+  // them. This is the conjunct a declared risk grade cannot stand in for: the
+  // grade is a plan attribute, and nothing forces it to follow the paths a
+  // package turns out to touch.
+  it("requires an answered owner question for a checkpoint surface, whatever the risk grade", () => {
+    const opts = (path: string) => ({ files: [{ status: "M", path }], rules });
+    const CHECKPOINT = [
+      "src/lib/auth/capabilities.ts",
+      "src/lib/delivery/allowlist.ts",
+      "src/lib/db/pool.ts",
+      "src/lib/services/player-answer-tokens.ts",
+      "src/app/api/webhooks/whatsapp/route.ts",
+    ];
+    for (const file of CHECKPOINT) {
+      expect(touchesCheckpointSurface([{ status: "M", path: file }], rules), file).toBe(true);
+      // Normal risk, cleanly reviewed, visually approved — and still refused.
+      expect(
+        journalConjuncts(base(), "WP-events-filter", HEAD, opts(file)).join("\n"),
+        file,
+      ).toMatch(/touches a checkpoint surface .* and no answered owner question names it/);
+    }
+
+    const answered = base([
+      {
+        type: "owner-question",
+        at: "t",
+        id: "Q-allowlist",
+        classification: "hourly",
+        text: "Synthetic: this package touches the recipient allowlist — proceed?",
+        source: "checkpoint queue",
+        affected_packages: ["WP-events-filter"],
+      },
+      {
+        type: "owner-answer",
+        at: "t",
+        question_id: "Q-allowlist",
+        answer: "Yes, proceed.",
+        answered_by: "Brian",
+        reusable: false,
+      },
+    ]);
+    for (const file of CHECKPOINT) {
+      expect(journalConjuncts(answered, "WP-events-filter", HEAD, opts(file)), file).toEqual([]);
+    }
+
+    // Ordinary application files need no owner answer, and a caller that
+    // supplies no diff is not silently treated as a clean one.
+    for (const file of ["src/lib/events/filters.ts", "src/app/events/page.tsx"]) {
+      expect(touchesCheckpointSurface([{ status: "M", path: file }], rules), file).toBe(false);
+      expect(journalConjuncts(base(), "WP-events-filter", HEAD, opts(file)), file).toEqual([]);
+    }
+  });
+
+  it("carries the checkpoint conjunct through evaluateDraftLift", () => {
+    const refused = evaluateDraftLift({
+      state: base(),
+      packageId: "WP-events-filter",
+      pullRequest: pullRequest({ isDraft: true }),
+      checkRuns: greenChecks(),
+      files: [{ status: "M", path: "src/lib/auth/capabilities.ts" }],
+      rules,
+    });
+    expect(refused.lift).toBe(false);
+    expect(refused.journal_reasons.join("\n")).toMatch(/checkpoint surface/);
   });
 
   it("joins the journal, the prohibited scan and the checks into one verdict", () => {

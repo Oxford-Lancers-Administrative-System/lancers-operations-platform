@@ -25,7 +25,7 @@
 
 import { execFileSync } from "node:child_process";
 
-import { parseNameStatus } from "../merge/paths.mjs";
+import { globToRegExp, parseNameStatus } from "../merge/paths.mjs";
 import { requiredChecksPassed } from "../merge/checks.mjs";
 import { loadRules, prohibitedPaths } from "../merge/gate.mjs";
 
@@ -83,6 +83,39 @@ export function deriveChangedFiles(repoPath, headSha, baseBranch = loadRules().b
   };
 }
 
+const matches = (glob, file) => globToRegExp(glob).test(file);
+
+/**
+ * The surfaces Brian hears about before a draft is lifted.
+ *
+ * LAN-209 deleted the `ownerApprovalSurfaces` data block along with the receipt
+ * that used to cite an answered owner question for it. The requirement it
+ * carried is not the receipt: ADR 0033 §4 records that auth and delivery work
+ * may travel the automatic path only once an answered owner checkpoint names
+ * the package, and LAN-209 keeps `journalConjuncts` on the same conditions with
+ * a new consumer. So the conjunct survives, and it reads the surviving
+ * `reviewContract` lists instead of the deleted block.
+ *
+ * Those lists are the right source rather than a convenient one: every path in
+ * them already forces a fresh reviewer or the transport seam, so "this needs an
+ * independent look" and "Brian should have heard about it" are the same
+ * judgment. Most of `sensitiveSurfaces` is also on the prohibited list, where a
+ * draft is never lifted at all, so what this actually reaches is auth, the
+ * remaining database routing, the public answer-token surface, delivery and the
+ * provider webhook.
+ */
+export function touchesCheckpointSurface(files, rules) {
+  const globs = [
+    ...(rules?.reviewContract?.sensitiveSurfaces ?? []),
+    ...(rules?.reviewContract?.transportSurfaces ?? []),
+  ];
+  return (files ?? []).some((entry) =>
+    [entry.previousPath, entry.path]
+      .filter(Boolean)
+      .some((candidate) => globs.some((glob) => matches(glob, candidate))),
+  );
+}
+
 const isNonEmptyString = (value) => typeof value === "string" && value.trim() !== "";
 
 const clearUxConformance = (review) =>
@@ -109,10 +142,23 @@ export function answeredQuestionNames(state, packageId) {
  * afterwards — lifting the draft — is the authorization the workflow then
  * honours without needing to re-derive any of it.
  */
-export function journalConjuncts(state, packageId, headSha) {
+export function journalConjuncts(state, packageId, headSha, options = {}) {
   const reasons = [];
   const pkg = state.packages?.[packageId];
   if (!pkg) return [`No planned package ${packageId} in mission state.`];
+
+  // When the caller supplies the real diff and rules (the local gate does), a
+  // checkpoint surface requires an ANSWERED owner question naming this package
+  // — the durable record that Brian heard about it at the hour. A declared
+  // `risk_class` cannot stand in for this: the grade is a plan attribute, and
+  // nothing forces it to follow the paths a package turns out to touch.
+  if (options.files && options.rules && touchesCheckpointSurface(options.files, options.rules)) {
+    if (!answeredQuestionNames(state, packageId)) {
+      reasons.push(
+        `${packageId} touches a checkpoint surface (auth, database routing, public answer tokens, delivery or the provider webhook) and no answered owner question names it. Queue the question for Brian's checkpoint; the answer is persisted before the draft is lifted.`,
+      );
+    }
+  }
 
   if (state.stopped) {
     reasons.push(`The mission is stopped (${state.stopped.reason}); no draft is lifted.`);
@@ -181,7 +227,7 @@ export function journalConjuncts(state, packageId, headSha) {
  */
 export function evaluateDraftLift({ state, packageId, pullRequest, checkRuns, files, rules }) {
   const headSha = pullRequest?.headRefOid;
-  const journalReasons = journalConjuncts(state, packageId, headSha);
+  const journalReasons = journalConjuncts(state, packageId, headSha, { files, rules });
   const evidenceReasons = [
     ...prohibitedPaths(files, rules),
     ...requiredChecksPassed(checkRuns, headSha, rules),

@@ -155,6 +155,35 @@ for path, old, _ in EDITS:
     print(f"  {path}")
     print(f"      {old.strip().splitlines()[0][:66]}...")
 
+# Nothing is written until every edit is known to apply. The permission this
+# grants is bounded only by the written rule in the role files, so granting it
+# while one of those files silently failed to take the rule is the one ordering
+# that must never happen.
+report("Checking")
+
+pending = []
+blocked = []
+for path, old, new in EDITS:
+    with open(path) as handle:
+        source = handle.read()
+    if new in source:
+        print(f"  {path}: already applied")
+        continue
+    if source.count(old) != 1:
+        blocked.append(f"{path}: expected text not found exactly once")
+        continue
+    pending.append((path, old, new))
+    print(f"  {path}: will change")
+
+if blocked:
+    report("Refusing — nothing was written")
+    for line in blocked:
+        print(f"  {line}")
+    print("\n  These files have drifted from what LAN-209 expected. Nothing was")
+    print("  guessed at, and no permission was granted. Report this rather than")
+    print("  editing by hand.")
+    sys.exit(1)
+
 report("Applying")
 
 settings_path = ".claude/settings.json"
@@ -180,27 +209,12 @@ if changed:
 else:
     print(f"  {settings_path}: already applied")
 
-failed = []
-for path, old, new in EDITS:
+for path, old, new in pending:
     with open(path) as handle:
         source = handle.read()
-    if new in source:
-        print(f"  {path}: already applied")
-        continue
-    if source.count(old) != 1:
-        failed.append(f"{path}: expected text not found exactly once")
-        continue
     with open(path, "w") as handle:
         handle.write(source.replace(old, new))
     print(f"  {path}: updated")
-
-if failed:
-    report("Incomplete")
-    for line in failed:
-        print(f"  {line}")
-    print("\n  These files have drifted from what LAN-209 expected. Nothing was")
-    print("  guessed at. Report this rather than editing by hand.")
-    sys.exit(1)
 
 report("Done")
 print("  Run `npm run verify` — tests/agent-harness.test.ts proves this landed.")
