@@ -411,9 +411,44 @@ ${s.deltas.map((d) => `            \`${esc(d)}\``).join(",\n")},
       .shotbox {
         max-height: 520px;
         overflow: auto;
-        overscroll-behavior: contain;
+        /* NOT \`contain\`. Scroll chaining is what lets the page keep moving once
+           a shot reaches its own end; \`contain\` froze the page wherever the
+           cursor sat over a frame, which on a five-screen review is almost
+           everywhere. Brian, 2026-09-01: "W403 through W405 are not on this
+           page." They were on it; they could not be reached. */
+        overscroll-behavior: auto;
         position: relative;
       }
+      /* And a way to reach any screen without scrolling to it at all. */
+      .screenindex {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: baseline;
+        margin: 22px 0 8px;
+        padding: 12px 14px;
+        background: #f4f7f6;
+        border-left: 3px solid #00695c;
+        border-radius: 0 4px 4px 0;
+        font-size: 12.5px;
+      }
+      .screenindex strong {
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 11px;
+        color: rgba(0, 0, 0, 0.55);
+        margin-right: 4px;
+      }
+      .screenindex a {
+        color: #00695c;
+        text-decoration: none;
+        border: 1px solid rgba(0, 105, 92, 0.35);
+        border-radius: 4px;
+        padding: 3px 9px;
+        background: #fff;
+      }
+      .screenindex a:hover { background: #00695c; color: #fff; }
+      section.screen { scroll-margin-top: 12px; }
       .frame.phone .shotbox { max-height: 620px; }
       .shotbox img { display: block; }
       .scrollnote {
@@ -553,6 +588,33 @@ ${s.deltas.map((d) => `            \`${esc(d)}\``).join(",\n")},
   out = out.replace(
     'const CLOCK = "Now: Monday, 26 October 2026, 09:15";',
     'const CLOCK = "Baseline: main@332bc6b · seeded synthetic data";',
+  );
+
+  // An index built from whatever actually rendered, so it can never list a
+  // screen the page does not have.
+  out = out.replace(
+    "</body>",
+    `    <script>
+      (function () {
+        var host = document.getElementById("screens");
+        if (!host) return;
+        var sections = [].slice.call(host.querySelectorAll("section.screen"));
+        if (!sections.length) return;
+        var nav = document.createElement("nav");
+        nav.className = "screenindex";
+        var parts = ["<strong>Screens<\\/strong>"];
+        sections.forEach(function (section) {
+          var tab = section.querySelector(".tab");
+          var id = (tab ? tab.textContent : "").trim();
+          if (!id) return;
+          if (!section.id) section.id = id;
+          parts.push('<a href="#' + id + '">' + id + '<\\/a>');
+        });
+        nav.innerHTML = parts.join("");
+        host.parentNode.insertBefore(nav, host);
+      })();
+    <\/script>
+  </body>`,
   );
 
   // Formatted on the way out, for the same reason build-proposals.mjs is.
