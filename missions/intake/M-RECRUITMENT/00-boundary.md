@@ -11,7 +11,8 @@
   invitations and the recruits-on-top attendance sheet; the flip by
   President/VP/Secretary/GM. Builds the shared **signed-link → form substrate**
   with the recruit-stage field set (enumerated at intake); Missions 7/8 extend it"
-  — quoted from the portfolio row.
+  — quoted from the portfolio row. Its operator-review queue was deleted by the
+  owner on 2026-08-31; the check runs at the door.
 - Portfolio row URL and observed version:
   [Lancers Current Project Status](https://app.notion.com/p/3bb488886d578126a88cdd747f590a01),
   Release One Mission Portfolio **v2**, restructure approved by Brian Schuster
@@ -284,10 +285,11 @@ mission owns, not something that happens outside the system.
     onboarding-like in shape, holding the recruits, their signals and their
     notes. This supersedes the plainer reading of row item 5; the board is the
     mission's primary surface.
-34. `[owner]` **Notes people take.** First-class on the board: an operator opens
-    a recruit, reads what is known, and writes notes. Attribution, dating,
-    editing and who may read them are details Brian has flagged for thinking
-    through.
+34. `[owner]` **Notes people take.** First-class on the record: an operator opens
+    a recruit, reads what is known, and writes notes. Not a board column — Brian,
+    2026-09-01: "Note should just be removed from the top-level recruitment page…
+    It should just be on the lower-end page." Attribution, dating, editing and
+    who may read them are details Brian has flagged for thinking through.
 35. `[owner]` **Layering onto Mission 5's in-flight surfaces as its own section.**
     Mission 5 is being built now; this mission layers onto whatever it lands.
     The layering itself is scope — a named section of the mission, not an

@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_CALLING_CODE,
+  validateAcademicYear,
   validateEmailAddress,
   validatePhoneNumber,
 } from "./person-validation";
@@ -119,5 +120,42 @@ describe("validatePhoneNumber — the negative cases are their own acceptance cr
     const result = validatePhoneNumber("+44 7700 900123 900123 900123");
     expect(result.valid).toBe(false);
     expect(result.rule).toBe("phone_wrong_length");
+  });
+});
+
+// LAN-203, finding 3, Brian 2026-09-01: matriculation year and expected
+// graduation were "parsed leniently; unparsable input is simply not
+// recorded" -- this validates instead, on the same per-field, named-rule
+// shape every other function in this module returns.
+describe("validateAcademicYear", () => {
+  it("accepts a plain four-digit year", () => {
+    const result = validateAcademicYear("2024", "Matriculation year");
+    expect(result.valid).toBe(true);
+  });
+
+  it("refuses a blank value, naming the field's own label", () => {
+    const result = validateAcademicYear("   ", "Matriculation year");
+    expect(result.valid).toBe(false);
+    expect(result.rule).toBe("year_blank");
+    expect(result.message).toContain("Matriculation year");
+  });
+
+  it("refuses non-numeric text instead of silently discarding it", () => {
+    const result = validateAcademicYear("twenty-twenty-four", "Expected graduation");
+    expect(result.valid).toBe(false);
+    expect(result.rule).toBe("year_not_numeric");
+    expect(result.message).toContain("Expected graduation");
+  });
+
+  it("refuses a year far outside any plausible range", () => {
+    const result = validateAcademicYear("3050", "Expected graduation");
+    expect(result.valid).toBe(false);
+    expect(result.rule).toBe("year_out_of_range");
+  });
+
+  it("refuses a negative number written with a leading minus", () => {
+    const result = validateAcademicYear("-2024", "Matriculation year");
+    expect(result.valid).toBe(false);
+    expect(result.rule).toBe("year_not_numeric");
   });
 });

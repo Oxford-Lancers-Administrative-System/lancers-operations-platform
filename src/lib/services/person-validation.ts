@@ -194,3 +194,46 @@ export function validatePhoneNumber(
     e164: digits,
   };
 }
+
+/**
+ * The reasonable range for a year the club records — matriculation and
+ * expected graduation alike. LAN-203, Brian 2026-09-01: the sign-up form
+ * "parsed leniently; unparsable input is simply not recorded" today, so a
+ * typo is silently discarded rather than shown as an error. This validates
+ * instead of swallowing, on the same per-field, named-rule shape every other
+ * function in this module returns.
+ */
+const YEAR_MIN = 1900;
+const YEAR_MAX = 2200;
+
+/**
+ * Validates one academic year field, named for the caller's own label so the
+ * message reads "Matriculation year" or "Expected graduation" rather than a
+ * generic "year".
+ */
+export function validateAcademicYear(raw: string, label: string): ContactValidation {
+  const trimmed = raw.trim();
+
+  if (trimmed === "") {
+    return { valid: false, rule: "year_blank", message: `${label} is required.` };
+  }
+
+  if (!/^\d+$/.test(trimmed)) {
+    return {
+      valid: false,
+      rule: "year_not_numeric",
+      message: `${label} has to be a whole number, like 2024 — "${trimmed}" is not.`,
+    };
+  }
+
+  const year = Number.parseInt(trimmed, 10);
+  if (year < YEAR_MIN || year > YEAR_MAX) {
+    return {
+      valid: false,
+      rule: "year_out_of_range",
+      message: `${label} has to be between ${YEAR_MIN} and ${YEAR_MAX} — "${trimmed}" is not.`,
+    };
+  }
+
+  return { valid: true, rule: "year_well_formed", message: `${label} is a valid year.` };
+}

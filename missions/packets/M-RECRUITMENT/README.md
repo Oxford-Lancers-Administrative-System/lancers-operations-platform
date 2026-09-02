@@ -61,18 +61,18 @@ they approve.
 
 ## Application surfaces
 
-| Surface                             | What it is                                                                           |
-| ----------------------------------- | ------------------------------------------------------------------------------------ |
-| `/operate/recruitment`              | The recruit board. A top-level destination under Roster, not an Administration entry |
-| `/operate/recruitment/[prospectId]` | One recruit's record                                                                 |
-| `/operate/recruitment/new`          | Add a recruit by hand                                                                |
-| `/operate/recruitment/review`       | The parked-capture queue                                                             |
-| `/operate/recruitment/qr`           | The season's sign-up QR, minted once                                                 |
-| `/operate/admin/messaging`          | The recruitment cycle and both event ladders                                         |
-| `/operate/events/[id]/attendance`   | Walk-up capture, and recruits first on a recruitment event                           |
-| `/a/[token]`                        | Both questionnaires, on the shared signed-link substrate                             |
-| `/rsvp/[token]`                     | What a recruit lands on after answering in WhatsApp                                  |
-| the club's own domain               | The public sign-up page a QR points at                                               |
+| Surface                                       | What it is                                                                           |
+| --------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `/operate/recruitment`                        | The recruit board. A top-level destination under Roster, not an Administration entry |
+| `/operate/recruitment/[prospectId]`           | One recruit's record                                                                 |
+| `/operate/recruitment/new`                    | Add a recruit by hand                                                                |
+| _(none — the check renders inside each door)_ | The duplicate check, wherever the operator already is                                |
+| `/operate/recruitment/qr`                     | The season's sign-up QR, minted once                                                 |
+| `/operate/admin/messaging`                    | The recruitment cycle and both event ladders                                         |
+| `/operate/events/[id]/attendance`             | Walk-up capture, and recruits first on a recruitment event                           |
+| `/a/[token]`                                  | Both questionnaires, on the shared signed-link substrate                             |
+| `/rsvp/[token]`                               | What a recruit lands on after answering in WhatsApp                                  |
+| the club's own domain                         | The public sign-up page a QR points at                                               |
 
 ## Frozen workflow inventory
 
@@ -97,9 +97,10 @@ exactly, in order, and the validator enforces it.
 ## Gates that remain with Brian
 
 1. **Four WhatsApp templates must clear Meta** before the recruitment cycle can run:
-   `recruit_welcome`, `recruit_details_ask`, `recruit_details_reminder`,
-   `recruit_interest_ask`, plus the recruit event follow-up. Only `event_invitation` exists
-   in Meta today. Externally timed, and outside the club's control.
+   `recruit_welcome`, `recruit_details_reminder`, `recruit_interest_ask` and the recruit
+   event follow-up, plus a fifth optional one. `recruit_details_ask` is withdrawn (AMD-1;
+   LAN-199) — the welcome carries the form and is itself the ask. Only `event_invitation`
+   exists in Meta today. Externally timed, and outside the club's control.
 2. **LAN-86 and LAN-101** stay open: no real recruit data and no real sends.
 3. **The club's own domain** must serve the sign-up page before a QR is printed for a real
    recruiting moment.

@@ -88,6 +88,13 @@ export interface MessagingSchedule {
   readonly emailReminderCount: number;
   /** Hours after the RSVP deadline before the President is told. Zero is legal. */
   readonly escalationHours: number;
+  /**
+   * The Recruits audience's own first-invitation lead (`DEC-split-on-the-
+   * schedule`, LAN-201). Null for every event type but `recruitment`.
+   */
+  readonly recruitInvitationLeadDays: number | null;
+  /** Hours after the recruit invitation before the one permitted follow-up. Null likewise. */
+  readonly recruitFollowUpCadenceHours: number | null;
   readonly updatedAt: Date;
 }
 
@@ -103,6 +110,8 @@ const SCHEDULE_COLUMNS = `
   whatsapp_reminder_count,
   email_reminder_count,
   escalation_hours,
+  recruit_invitation_lead_days,
+  recruit_follow_up_cadence_hours,
   updated_at`;
 
 interface ScheduleRow {
@@ -113,6 +122,8 @@ interface ScheduleRow {
   whatsapp_reminder_count: number;
   email_reminder_count: number;
   escalation_hours: number;
+  recruit_invitation_lead_days: number | null;
+  recruit_follow_up_cadence_hours: number | null;
   updated_at: Date;
 }
 
@@ -125,6 +136,8 @@ function toSchedule(row: ScheduleRow): MessagingSchedule {
     whatsappReminderCount: row.whatsapp_reminder_count,
     emailReminderCount: row.email_reminder_count,
     escalationHours: row.escalation_hours,
+    recruitInvitationLeadDays: row.recruit_invitation_lead_days,
+    recruitFollowUpCadenceHours: row.recruit_follow_up_cadence_hours,
     updatedAt: row.updated_at,
   };
 }
@@ -247,6 +260,15 @@ export interface MessagingScheduleChange {
   readonly whatsappReminderCount: number;
   readonly emailReminderCount: number;
   readonly escalationHours: number;
+  /**
+   * The Recruits audience's own two fields (LAN-203) — present only when the
+   * caller is saving the Recruitment row's Recruits group. `undefined` on
+   * every other event type's save, which leaves the column untouched rather
+   * than writing a value the database would refuse
+   * (`messaging_schedules_recruit_fields_are_recruitment_only`).
+   */
+  readonly recruitInvitationLeadDays?: number;
+  readonly recruitFollowUpCadenceHours?: number;
 }
 
 export async function updateMessagingScheduleIn(
@@ -265,6 +287,8 @@ export async function updateMessagingScheduleIn(
             whatsapp_reminder_count = $5,
             email_reminder_count = $6,
             escalation_hours = $7,
+            recruit_invitation_lead_days = coalesce($8::smallint, recruit_invitation_lead_days),
+            recruit_follow_up_cadence_hours = coalesce($9::smallint, recruit_follow_up_cadence_hours),
             updated_at = now()
       where event_type = $1
      returning ${SCHEDULE_COLUMNS}`,
@@ -276,6 +300,8 @@ export async function updateMessagingScheduleIn(
       change.whatsappReminderCount,
       change.emailReminderCount,
       change.escalationHours,
+      change.recruitInvitationLeadDays ?? null,
+      change.recruitFollowUpCadenceHours ?? null,
     ],
   );
 
@@ -318,6 +344,27 @@ export interface LadderRung {
   readonly at: Date;
 }
 
+/**
+ * The recruit ladder — REQ-two-ladders. One invitation and at most one polite
+ * follow-up, and nothing else: no escalation, and never a second reminder
+ * (`REQ-never-harsh`). Present only when {@link MessagingSchedule.recruitInvitationLeadDays}
+ * is configured, which today is exactly the Recruitment event type — computed
+ * unconditionally there, independent of whether this particular event's
+ * audience actually carries a recruit, on the same footing the player ladder
+ * is computed independent of whether any player was invited.
+ */
+export interface RecruitMessagingLadder {
+  /** When the recruit invitation dispatches: `max(now, event start − recruit lead)`. */
+  readonly invitationAt: Date;
+  readonly configuredInvitationAt: Date;
+  readonly dispatchesImmediately: boolean;
+  /**
+   * When the one permitted follow-up fires, or `null` where the shared
+   * response deadline left no runway for it. Never a second one.
+   */
+  readonly followUpAt: Date | null;
+}
+
 export interface MessagingPlan {
   readonly eventType: string;
   readonly schedule: MessagingSchedule;
@@ -352,6 +399,11 @@ export interface MessagingPlan {
   readonly rungs: readonly LadderRung[];
   /** When the President is told, or null where this event will never escalate. */
   readonly escalationAt: Date | null;
+  /**
+   * REQ-approval-shows-both-ladders. `null` on every event type but
+   * `recruitment` — see {@link RecruitMessagingLadder}.
+   */
+  readonly recruitLadder: RecruitMessagingLadder | null;
 }
 
 /** The subset of an event this module needs. Deliberately not the whole record. */
@@ -471,11 +523,15 @@ export async function resolveMessagingPlanIn(
     event_starts_at: Date;
     configured_deadline_at: Date;
     configured_invitation_at: Date;
+    configured_recruit_invitation_at: Date | null;
     as_of: Date;
   }>(
     `select ($1::date + $2::time) at time zone $5 as event_starts_at,
             (($1::date - $3::integer) + $2::time) at time zone $5 as configured_deadline_at,
             (($1::date - $4::integer) + $2::time) at time zone $5 as configured_invitation_at,
+            case when $7::integer is not null
+                 then (($1::date - $7::integer) + $2::time) at time zone $5
+            end as configured_recruit_invitation_at,
             coalesce($6::timestamptz, now()) as as_of`,
     [
       event.scheduledOn,
@@ -484,6 +540,7 @@ export async function resolveMessagingPlanIn(
       schedule.invitationLeadDays,
       CLUB_TIME_ZONE,
       asOf ?? null,
+      schedule.recruitInvitationLeadDays,
     ],
   );
 
@@ -546,6 +603,45 @@ export async function resolveMessagingPlanIn(
     ? null
     : new Date(responseDeadlineAt.getTime() + schedule.escalationHours * HOUR_MS);
 
+  // REQ-two-ladders. Computed whenever the schedule carries recruit config —
+  // today exactly the Recruitment event type — independent of whether this
+  // particular event's confirmed audience actually includes a recruit,
+  // exactly as the player ladder above is computed independent of whether
+  // any player was invited. Never escalates and never carries more than one
+  // follow-up (`REQ-never-harsh`): there is no late-approval concession to
+  // make, because this ladder was WhatsApp-only and un-escalated from the
+  // start.
+  let recruitLadder: RecruitMessagingLadder | null = null;
+  if (
+    schedule.recruitFollowUpCadenceHours !== null &&
+    row.configured_recruit_invitation_at !== null
+  ) {
+    const configuredRecruitInvitationAt = row.configured_recruit_invitation_at;
+    const recruitDispatchesImmediately = configuredRecruitInvitationAt.getTime() <= now.getTime();
+    const recruitInvitationAt = recruitDispatchesImmediately ? now : configuredRecruitInvitationAt;
+    const candidateFollowUpAt = new Date(
+      recruitInvitationAt.getTime() + schedule.recruitFollowUpCadenceHours * HOUR_MS,
+    );
+    // The same "chasing nothing after the deadline" reasoning the player
+    // ladder's own `available = floor(runway / cadence)` arithmetic uses, at
+    // a cap of one rung — including its boundary: `available` counts a rung
+    // landing exactly on the deadline as fitting (a runway of exactly two
+    // cadence periods schedules two rungs, the second at the deadline
+    // itself), so this is `<=`, not `<`. With the shipped defaults
+    // (`recruit_invitation_lead_days = 5`, `recruit_follow_up_cadence_hours =
+    // 72`, the Recruitment row's own `rsvp_by_days = 2`) the follow-up lands
+    // exactly at the shared deadline — five days minus three days is two —
+    // and a strict `<` would silently never schedule it under the defaults
+    // this table ships with.
+    recruitLadder = {
+      invitationAt: recruitInvitationAt,
+      configuredInvitationAt: configuredRecruitInvitationAt,
+      dispatchesImmediately: recruitDispatchesImmediately,
+      followUpAt:
+        candidateFollowUpAt.getTime() <= responseDeadlineAt.getTime() ? candidateFollowUpAt : null,
+    };
+  }
+
   return {
     eventType: event.eventType,
     schedule,
@@ -559,12 +655,20 @@ export async function resolveMessagingPlanIn(
     lateApproval,
     rungs,
     escalationAt,
+    recruitLadder,
   };
 }
 
 // ---------------------------------------------------------------------------
 // Freezing the plan
 // ---------------------------------------------------------------------------
+
+/** The recruit ladder as it was frozen, read back from `event_messaging_plans`. */
+export interface FrozenRecruitLadder {
+  readonly invitationAt: Date;
+  readonly dispatchesImmediately: boolean;
+  readonly followUpAt: Date | null;
+}
 
 /** The plan as it was frozen, read back from `event_messaging_plans`. */
 export interface FrozenMessagingPlan {
@@ -578,6 +682,8 @@ export interface FrozenMessagingPlan {
   readonly whatsappRemindersScheduled: number;
   readonly emailRemindersScheduled: number;
   readonly frozenAt: Date;
+  /** REQ-approval-shows-both-ladders. `null` where this event's frozen plan carries no recruit ladder. */
+  readonly recruitLadder: FrozenRecruitLadder | null;
 }
 
 function countReminders(plan: MessagingPlan, channel: "whatsapp" | "email"): number {
@@ -611,8 +717,10 @@ export async function freezeMessagingPlanIn(
         whatsapp_reminder_count, email_reminder_count, escalation_hours,
         response_deadline_at, invitation_at, escalation_at,
         dispatches_immediately, late_approval,
-        whatsapp_reminders_scheduled, email_reminders_scheduled, frozen_by_person_id)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        whatsapp_reminders_scheduled, email_reminders_scheduled, frozen_by_person_id,
+        recruit_invitation_lead_days, recruit_follow_up_cadence_hours,
+        recruit_invitation_at, recruit_dispatches_immediately, recruit_follow_up_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
      on conflict (event_id) do update
         set rsvp_by_days = excluded.rsvp_by_days,
             invitation_lead_days = excluded.invitation_lead_days,
@@ -626,7 +734,12 @@ export async function freezeMessagingPlanIn(
             dispatches_immediately = excluded.dispatches_immediately,
             late_approval = excluded.late_approval,
             whatsapp_reminders_scheduled = excluded.whatsapp_reminders_scheduled,
-            email_reminders_scheduled = excluded.email_reminders_scheduled`,
+            email_reminders_scheduled = excluded.email_reminders_scheduled,
+            recruit_invitation_lead_days = excluded.recruit_invitation_lead_days,
+            recruit_follow_up_cadence_hours = excluded.recruit_follow_up_cadence_hours,
+            recruit_invitation_at = excluded.recruit_invitation_at,
+            recruit_dispatches_immediately = excluded.recruit_dispatches_immediately,
+            recruit_follow_up_at = excluded.recruit_follow_up_at`,
     [
       eventId,
       plan.schedule.rsvpByDays,
@@ -643,6 +756,11 @@ export async function freezeMessagingPlanIn(
       countReminders(plan, "whatsapp"),
       countReminders(plan, "email"),
       actorPersonId,
+      plan.recruitLadder ? plan.schedule.recruitInvitationLeadDays : null,
+      plan.recruitLadder ? plan.schedule.recruitFollowUpCadenceHours : null,
+      plan.recruitLadder?.invitationAt ?? null,
+      plan.recruitLadder?.dispatchesImmediately ?? null,
+      plan.recruitLadder?.followUpAt ?? null,
     ],
   );
 }
@@ -668,13 +786,20 @@ export async function readFrozenPlanIn(
     whatsapp_reminders_scheduled: number;
     email_reminders_scheduled: number;
     frozen_at: Date;
+    recruit_invitation_lead_days: number | null;
+    recruit_follow_up_cadence_hours: number | null;
+    recruit_invitation_at: Date | null;
+    recruit_dispatches_immediately: boolean | null;
+    recruit_follow_up_at: Date | null;
   }>(
     `select p.event_id, e.event_type::text as event_type,
             p.rsvp_by_days, p.invitation_lead_days, p.reminder_cadence_hours,
             p.whatsapp_reminder_count, p.email_reminder_count, p.escalation_hours,
             p.response_deadline_at, p.invitation_at, p.escalation_at,
             p.dispatches_immediately, p.late_approval,
-            p.whatsapp_reminders_scheduled, p.email_reminders_scheduled, p.frozen_at
+            p.whatsapp_reminders_scheduled, p.email_reminders_scheduled, p.frozen_at,
+            p.recruit_invitation_lead_days, p.recruit_follow_up_cadence_hours,
+            p.recruit_invitation_at, p.recruit_dispatches_immediately, p.recruit_follow_up_at
        from public.event_messaging_plans p
        join public.events e on e.id = p.event_id
       where p.event_id = $1`,
@@ -694,6 +819,8 @@ export async function readFrozenPlanIn(
       whatsappReminderCount: row.whatsapp_reminder_count,
       emailReminderCount: row.email_reminder_count,
       escalationHours: row.escalation_hours,
+      recruitInvitationLeadDays: row.recruit_invitation_lead_days,
+      recruitFollowUpCadenceHours: row.recruit_follow_up_cadence_hours,
       updatedAt: row.frozen_at,
     },
     responseDeadlineAt: row.response_deadline_at,
@@ -704,6 +831,14 @@ export async function readFrozenPlanIn(
     whatsappRemindersScheduled: row.whatsapp_reminders_scheduled,
     emailRemindersScheduled: row.email_reminders_scheduled,
     frozenAt: row.frozen_at,
+    recruitLadder:
+      row.recruit_invitation_at !== null
+        ? {
+            invitationAt: row.recruit_invitation_at,
+            dispatchesImmediately: row.recruit_dispatches_immediately ?? false,
+            followUpAt: row.recruit_follow_up_at,
+          }
+        : null,
   };
 }
 

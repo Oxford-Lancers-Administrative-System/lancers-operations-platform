@@ -94,7 +94,7 @@ inside WhatsApp, which this product does not render, and the questionnaire is
 
 - **A proposed read-back step on `W5-02`** — an addition to a shipped form, and
   the thing Brian named directly.
-- **A duplicate-check screen** — `W8` owns duplicates.
+- **A duplicate-check screen** — this door deliberately runs none.
 - **A "refused: no mobile" screen** — an edge case is not a step in a flow.
 - **A relabelled control** — an earlier draft renamed `ADD WALK-UP` to
   `ADD A WALK-ON`. The flow is identical to what ships, so the control is too.
@@ -133,7 +133,8 @@ present. `W3` fires. All four are one action from the operator's point of view.
 ## Handoffs
 
 - To `W3` on save — the welcome and the group invite.
-- To `W8` when the duplicate cannot be resolved at the touchline.
+- To Mission 5's people merge when a walk-up later turns out to be somebody the
+  club already has. Nothing is parked at the touchline.
 - To `W1` and `W2`, where the recruit appears.
 - To Mission 2's attendance machinery, which owns the sheet itself.
 
@@ -156,8 +157,9 @@ present. `W3` fires. All four are one action from the operator's point of view.
   pipeline."_ Do not soften it into an optional field without a new decision.
 - **A rostered member mis-added as a walk-up.** The match check runs before any
   message sends, so a current member never receives a welcome.
-- **A likely duplicate, no time to resolve.** Park it for `W8`; capture the
-  attendance regardless. Attendance always stands.
+- **A likely duplicate, no time to resolve.** Capture it anyway; attendance
+  always stands. Nothing is parked and nothing waits — if it really is somebody
+  the club already has, the two records are merged later on the people record.
 - **Delivery down.** Capture stands; the welcome queues.
 - **The coach path.** A coach captures and the message fires identically — a
   system action tied to the save, not a coach permission. No new authority.
@@ -215,7 +217,7 @@ reason is a decision of his own.
 
 So the asymmetry is deliberate: a walk-up is written down on a phone at the side
 of a pitch, where a duplicate check would be an interruption, and reconciliation
-happens afterwards in `W8`.
+happens afterwards on the people record's own merge.
 
 **Making the two the same would reverse that decision**, and would put a check
 back into the one flow he explicitly stripped it from. Recorded rather than acted

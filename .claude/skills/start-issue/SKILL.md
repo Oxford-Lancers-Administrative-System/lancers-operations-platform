@@ -71,8 +71,8 @@ Write the ignored evidence, start the supervised environment, confirm
 `visual:status`, and require `db:review-ready` before involving Brian.
 
 Commit and push, then open/update one normal draft PR against `main`; fill every
-Production handoff line. Never fast-lane, merge, un-draft, deploy, or apply a
-hosted migration. Inspect actual CI conclusions at the current head.
+Production handoff line. Never merge, deploy, or apply a hosted migration.
+Inspect actual CI conclusions at the current head.
 
 ### Visual checkpoint
 
@@ -115,7 +115,13 @@ Brian's next action, draft PR, exact full/correction/current SHAs, findings by
 consequence and disposition, automated/visual/CI evidence, migration/production
 actions, limitations, and explicit `None` answers.
 
-Add the PR link and exactly one final evidence comment to Linear. Leave the draft
-PR, branch, worktree, lease, and review environment recoverable. Never set Done,
-release the lease as a finishing move, remove the worktree, or merge; those are
-`/finish-issue LAN-###`.
+Lifting the draft is the last act of the work and the authorization to merge
+it (AGENTS.md, "Merging"). Lift it only when the diff touches no prohibited
+path, review is clear at the exact current head, and, for visual work,
+Brian's visual approval is recorded against that same head. Otherwise leave
+the draft and Brian merges. Never merge.
+
+Add the PR link and exactly one final evidence comment to Linear. Leave the
+draft PR, branch, worktree, lease, and review environment recoverable. Never set
+Done, release the lease as a finishing move, remove the worktree, or merge; those
+are `/finish-issue LAN-###`.

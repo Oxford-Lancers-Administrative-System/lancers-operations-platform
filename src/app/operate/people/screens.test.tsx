@@ -85,7 +85,7 @@ describe("an operator outside the four offices", () => {
 });
 
 describe("the People list, for an authorized operator", () => {
-  it("renders the five approved columns and the season subline", async () => {
+  it("renders the six approved columns and the season subline", async () => {
     signedInAs(["secretary"]);
     vi.mocked(listPeople).mockResolvedValue({
       season: SEASON,
@@ -113,10 +113,51 @@ describe("the People list, for an authorized operator", () => {
     expect(screen.getByRole("columnheader", { name: /To the club/ })).toBeVisible();
     expect(screen.getByRole("columnheader", { name: /Contactable/ })).toBeVisible();
     expect(screen.getByRole("columnheader", { name: /Missing/ })).toBeVisible();
+    // Finding 8, Brian 2026-09-01, on the right — the sortable Player/Recruit column.
+    expect(screen.getByRole("columnheader", { name: /Type/ })).toBeVisible();
     expect(screen.getByRole("link", { name: "Fenwick Gorsemoor" })).toHaveAttribute(
       "href",
       "/operate/people/p1",
     );
+  });
+
+  it("draws a Player chip for a player and a Recruit chip for a recruit, sortable by Type — finding 8", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(listPeople).mockResolvedValue({
+      season: SEASON,
+      scope: "in_season",
+      entries: [
+        {
+          personId: "p1",
+          displayName: "Fenwick Gorsemoor",
+          matchedAlias: null,
+          status: "active",
+          clubRoleSummary: null,
+          hasMobile: true,
+          hasPersonalEmail: true,
+          missingRequiredFields: [],
+        },
+        {
+          personId: "p2",
+          displayName: "Rosalind Penhaligon",
+          matchedAlias: null,
+          status: "recruit",
+          clubRoleSummary: null,
+          hasMobile: true,
+          hasPersonalEmail: false,
+          missingRequiredFields: [],
+        },
+      ],
+      totalInScope: 2,
+    });
+
+    render(await PeoplePage(pageProps()));
+
+    const chips = screen.getAllByTestId("person-type-chip");
+    expect(chips.map((chip) => chip.textContent)).toEqual(["Player", "Recruit"]);
+
+    const typeHeader = screen.getByRole("columnheader", { name: /Type/ });
+    expect(typeHeader.querySelector("a, button, [role='button']")).not.toBeNull();
   });
 
   it("shows which alias a search matched, distinct from the display name", async () => {

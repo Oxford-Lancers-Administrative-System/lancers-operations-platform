@@ -38,6 +38,36 @@ export const SHOW_EXAMPLE = "Show an example";
 export const HIDE_EXAMPLE = "Hide an example";
 export const NO_SCHEDULE_CHANGES_NOTICE = "Nothing had changed, so there was nothing to save.";
 
+// ---------------------------------------------------------------------------
+// LAN-203 — the page's three sections (W10, Brian 2026-08-31)
+// ---------------------------------------------------------------------------
+
+export const RECRUITMENT_SECTION_HEADING = "Recruitment";
+export const RECRUITMENT_SECTION_INTRO = "What the club sends after somebody is captured.";
+
+export const EVENT_MESSAGING_SECTION_HEADING = "Event messaging";
+export const EVENT_MESSAGING_SECTION_INTRO =
+  "What an event sends, and how it chases, by event type.";
+
+export const ONBOARDING_SECTION_HEADING = "Onboarding";
+export const ONBOARDING_SECTION_NOTE = "Not built yet.";
+
+export const CYCLE_STEP_TIMING_UNIT = "h";
+
+export function cycleStepSavedNotice(label: string): string {
+  return `${label} was updated.`;
+}
+
+export function cycleStepSaveFailedNotice(label: string): string {
+  return (
+    `${label} could not be saved as submitted. Nothing was changed. If this keeps happening, ` +
+    "this needs a developer."
+  );
+}
+
+export const REGULAR_PLAYERS_GROUP_HEADING = "Regular players";
+export const RECRUITS_GROUP_HEADING = "Recruits";
+
 /**
  * One save button per event type (OWNER-LAN171-04) — Brian: "I think there
  * should be a save button per event. Having one group save at the top

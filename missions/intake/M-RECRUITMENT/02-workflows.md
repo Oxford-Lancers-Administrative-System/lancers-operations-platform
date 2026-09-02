@@ -47,9 +47,11 @@ mission and its shape depends on what everything before it became.
 7. `W7` — **Sign yourself in**: a recruit scans the QR at Freshers' Fair or a
    taster → they fill the club's own form on the club's own domain, and submitting
    it lands them in the community group.
-8. `W8` — **Resolve a possible duplicate**: an operator opens the review queue →
-   the parked capture is either the existing person or a new one, and nothing was
-   silently created, merged, or messaged.
+8. `W8` — **Resolve a possible duplicate**: the door's own check answers while
+   the operator is adding somebody → they link to the person already there or
+   create a new one, and nothing was silently created, merged, or messaged.
+   There is no review queue; a real duplicate is resolved by the people
+   record's own merge.
 9. `W9` — **FOLDED, 2026-08-31.** Not a workflow. Brian: _"W9 feels like it's
    already been done in part... Fold it."_ Three of its four screens had already
    been built into `W2`, and the fourth — the refusal — became `W2-04`. Its three
@@ -66,8 +68,9 @@ mission and its shape depends on what everything before it became.
     the sheet → recruits at the top, everyone else below, walk-ups captured into
     the flow, and who showed up reads back onto the recruit's row.
 13. `W13` — **Take a recruit off the board**: an operator changes a recruit's
-    status to an exit value → the recruit leaves the board, the board resorts, the
-    record and its history stay intact, and nothing further is sent.
+    status to an exit value → the board resorts, the recruit sinks to the bottom
+    rather than leaving it, the record and its history stay intact, and nothing
+    further is sent.
 14. `W14` — **Flip a recruit to joined**: one of the core four decides a recruit is
     in → a confirmation interrupts, the season membership exists, the roster shows
     them joined this season, and onboarding opens.

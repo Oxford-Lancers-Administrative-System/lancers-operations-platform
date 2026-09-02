@@ -60,7 +60,6 @@ To see the application actually do something, follow
 | [docs/pilot-data-runbook.md](docs/pilot-data-runbook.md)           | **Testing a feature against hosted Supabase** — pilot identities, synthetic scenarios, retention |
 | [docs/pilot-data-manifest.md](docs/pilot-data-manifest.md)         | What is currently in the hosted database that is not schema                                      |
 | [docs/deployment.md](docs/deployment.md)                           | Cloud Run deploy, secrets, cost controls, **rollback**                                           |
-| [docs/fast-lane.md](docs/fast-lane.md)                             | The batched, automatically merged lane for low-risk work — and its owner actions                 |
 | [docs/adr/](docs/adr/)                                             | Architecture decision records                                                                    |
 | [AGENTS.md](AGENTS.md)                                             | **Canonical working agreement** — commands, conventions, hard rules                              |
 | [CLAUDE.md](CLAUDE.md)                                             | Claude Code entry point; imports `AGENTS.md`                                                     |
@@ -83,16 +82,17 @@ administrators. All changes go through a pull request with CI green.
 > GitHub organization access exists.
 > See [ADR 0006](docs/adr/0006-solo-developer-branch-protection.md).
 
-**One narrow exception: the fast lane.** Documentation-only and qualifying
-test-only work can be batched into a single pull request and merged
-automatically by
-[`.github/workflows/fast-lane-merge.yml`](.github/workflows/fast-lane-merge.yml)
-once every required check has passed. The workflow re-derives eligibility from
-the diff itself — a label never grants it — and application code, schema,
-dependencies, workflows and the rules governing the lane can never enter it.
-Everything else stays a draft pull request that Brian merges. See
-[docs/fast-lane.md](docs/fast-lane.md) and
-[ADR 0017](docs/adr/0017-batched-fast-lane.md).
+**Draft state is the readiness gate.** A pull request leaves draft exactly once,
+as the last act of the work, and that act is the authorization to merge it.
+[`.github/workflows/merge.yml`](.github/workflows/merge.yml) neither merges nor
+un-drafts: it enables GitHub's own auto-merge on a non-draft pull request whose
+diff touches no prohibited path in
+[`.github/merge-rules.json`](.github/merge-rules.json), and GitHub merges it once
+every required check is green. A prohibited path — schema, workflows, agent
+roles, production procedures, auth and trust boundaries — gets one comment and
+stays Brian's. The scan is recomputed from the real diff, so nothing written in a
+pull request grants it. See
+[ADR 0038](docs/adr/0038-one-universal-merge-rule.md).
 
 ## Security
 

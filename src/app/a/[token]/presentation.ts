@@ -92,6 +92,22 @@ export const GIVE_REASON_AND_CONTINUE = "Give a reason and continue";
  */
 export const PLANS_CHANGED = "Plans changed? You can change your answer.";
 
+// ---------------------------------------------------------------------------
+// LAN-203 — a recruit's own reduced confirm screen
+// ---------------------------------------------------------------------------
+//
+// REQ-recruit-sees-public-only, REQ-no-reason-asked, REQ-never-harsh. A
+// recruit reaches this exact route through `recruit_event_followup`'s own
+// yes/no buttons (the invitation itself reuses `event_invitation`
+// unchanged), and needs distinct copy in three places: the player's page
+// name and event questions are never asked of them, a No is never asked
+// for a reason, and "Go see other events" presumes an app account they do
+// not have.
+
+export const RECRUIT_YES_HEADING = "You're attending";
+export const RECRUIT_NO_HEADING = "Not attending";
+export const RECRUIT_CONFIRM_LABEL = "Confirm";
+
 export function attendingSentence(count: number): string | null {
   if (count <= 0) return null;
   return count === 1

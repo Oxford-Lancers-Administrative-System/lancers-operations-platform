@@ -1,5 +1,5 @@
 import { TYPE_LABELS } from "@/lib/services/event-vocabulary";
-import type { MessagingScheduleChange } from "@/lib/services/messaging-schedule";
+import type { MessagingSchedule, MessagingScheduleChange } from "@/lib/services/messaging-schedule";
 
 /**
  * Reading and checking one row's form before it reaches the database — W7,
@@ -16,8 +16,20 @@ import type { MessagingScheduleChange } from "@/lib/services/messaging-schedule"
 /** The seven event types, in the order `messaging_schedules` declares them. */
 export const SCHEDULE_EVENT_TYPES: readonly string[] = Object.freeze(Object.keys(TYPE_LABELS));
 
-export interface ScheduleFieldBounds {
-  readonly field: keyof MessagingScheduleChange;
+/**
+ * The six fields every event type's row carries. LAN-203 added two more to
+ * `MessagingScheduleChange` for the Recruitment row's Recruits group alone —
+ * see {@link RECRUIT_SCHEDULE_FIELDS} and {@link RecruitScheduleFieldBounds} —
+ * so this excludes them rather than widening `SCHEDULE_FIELDS` to a shape
+ * only one of the seven rows has.
+ */
+type CoreScheduleField = Exclude<
+  keyof MessagingScheduleChange,
+  "recruitInvitationLeadDays" | "recruitFollowUpCadenceHours"
+>;
+
+/** Exported for `ScheduleField` — the one rendering component both `ScheduleFieldBounds` and `RecruitScheduleFieldBounds` share. */
+export interface FieldBoundsShape {
   /** The `<input>` name within one row's own form. */
   readonly key: string;
   /** The settings grid's own short label (Brian's chosen shape): "RSVP by", not "Player RSVP by". */
@@ -39,6 +51,15 @@ export interface ScheduleFieldBounds {
   readonly fullLabel: string;
   readonly min: number;
   readonly max: number;
+}
+
+export interface ScheduleFieldBounds extends FieldBoundsShape {
+  readonly field: CoreScheduleField;
+}
+
+/** The Recruits group's own two fields — see {@link RECRUIT_SCHEDULE_FIELDS}. */
+export interface RecruitScheduleFieldBounds extends FieldBoundsShape {
+  readonly field: "recruitInvitationLeadDays" | "recruitFollowUpCadenceHours";
 }
 
 /** One row per editable column — the same six `messaging_schedules` carries. */
@@ -106,6 +127,36 @@ export const SCHEDULE_FIELDS: readonly ScheduleFieldBounds[] = Object.freeze([
   },
 ]);
 
+/**
+ * The Recruits group's own two fields (LAN-203, `DEC-split-on-the-schedule`)
+ * — present in the Recruitment row's body alone, beside the six above, which
+ * stay the Regular players group's unchanged. One row, one form, one SAVE
+ * (W10, OWNER-LAN171-04's law): these are read by the same
+ * `readOneScheduleChange` call the six core fields are, not a second action.
+ */
+export const RECRUIT_SCHEDULE_FIELDS: readonly RecruitScheduleFieldBounds[] = Object.freeze([
+  {
+    field: "recruitInvitationLeadDays",
+    key: "recruitInvitationLeadDays",
+    label: "First inv.",
+    unit: "days",
+    fullLabel: "Recruits' first invitation",
+    helperText: "The invitation, on the recruitment template.",
+    min: 0,
+    max: 120,
+  },
+  {
+    field: "recruitFollowUpCadenceHours",
+    key: "recruitFollowUpCadenceHours",
+    label: "One follow-up",
+    unit: "h",
+    fullLabel: "Recruits' one follow-up",
+    helperText: "The only chase. Recruits are never escalated.",
+    min: 1,
+    max: 720,
+  },
+]);
+
 export type ScheduleValidation =
   | { readonly ok: true; readonly change: MessagingScheduleChange }
   | { readonly ok: false; readonly message: string };
@@ -164,6 +215,39 @@ export function readOneScheduleChange(eventType: string, formData: FormData): Sc
     };
   }
 
+  // LAN-203, DEC-split-on-the-schedule. One row, one form, one SAVE: the
+  // Recruits group's two fields are read from the same form the six core
+  // ones just were, not a second submission — present in the markup, and
+  // therefore in `formData`, only on the Recruitment row.
+  const recruitValues: Partial<
+    Record<"recruitInvitationLeadDays" | "recruitFollowUpCadenceHours", number>
+  > = {};
+  if (eventType === "recruitment") {
+    for (const bound of RECRUIT_SCHEDULE_FIELDS) {
+      const raw = formData.get(bound.key);
+      if (typeof raw !== "string" || raw.trim() === "") {
+        return {
+          ok: false,
+          message: `${label}: ${bound.fullLabel.toLowerCase()} cannot be left blank.`,
+        };
+      }
+      const value = Number(raw);
+      if (!Number.isInteger(value)) {
+        return {
+          ok: false,
+          message: `${label}: ${bound.fullLabel.toLowerCase()} has to be a whole number.`,
+        };
+      }
+      if (value < bound.min || value > bound.max) {
+        return {
+          ok: false,
+          message: `${label}: ${bound.fullLabel.toLowerCase()} has to be between ${bound.min} and ${bound.max}.`,
+        };
+      }
+      recruitValues[bound.field] = value;
+    }
+  }
+
   return {
     ok: true,
     change: {
@@ -173,13 +257,24 @@ export function readOneScheduleChange(eventType: string, formData: FormData): Sc
       whatsappReminderCount: change.whatsappReminderCount,
       emailReminderCount: change.emailReminderCount,
       escalationHours: change.escalationHours,
+      recruitInvitationLeadDays: recruitValues.recruitInvitationLeadDays,
+      recruitFollowUpCadenceHours: recruitValues.recruitFollowUpCadenceHours,
     },
   };
 }
 
-/** Whether a proposed change differs from what is currently stored. */
+/**
+ * Whether a proposed change differs from what is currently stored.
+ *
+ * `current` is a full `MessagingSchedule` — what `readMessagingScheduleIn`
+ * actually returns — rather than `MessagingScheduleChange`: the two recruit
+ * fields are `number | null` there (every row has a real, stored value,
+ * `null` on six of the seven) and `number | undefined` on `proposed` (unset
+ * on every row but Recruitment's own submit). The two never need to agree in
+ * type, only in value.
+ */
 export function scheduleChanged(
-  current: MessagingScheduleChange,
+  current: MessagingSchedule,
   proposed: MessagingScheduleChange,
 ): boolean {
   return (
@@ -188,6 +283,11 @@ export function scheduleChanged(
     current.reminderCadenceHours !== proposed.reminderCadenceHours ||
     current.whatsappReminderCount !== proposed.whatsappReminderCount ||
     current.emailReminderCount !== proposed.emailReminderCount ||
-    current.escalationHours !== proposed.escalationHours
+    current.escalationHours !== proposed.escalationHours ||
+    // Both undefined on every row but Recruitment, so this never fires there.
+    (proposed.recruitInvitationLeadDays !== undefined &&
+      current.recruitInvitationLeadDays !== proposed.recruitInvitationLeadDays) ||
+    (proposed.recruitFollowUpCadenceHours !== undefined &&
+      current.recruitFollowUpCadenceHours !== proposed.recruitFollowUpCadenceHours)
   );
 }

@@ -916,6 +916,11 @@ export type Database = {
           invitation_at: string
           invitation_lead_days: number
           late_approval: boolean
+          recruit_dispatches_immediately: boolean | null
+          recruit_follow_up_at: string | null
+          recruit_follow_up_cadence_hours: number | null
+          recruit_invitation_at: string | null
+          recruit_invitation_lead_days: number | null
           reminder_cadence_hours: number
           response_deadline_at: string
           rsvp_by_days: number
@@ -935,6 +940,11 @@ export type Database = {
           invitation_at: string
           invitation_lead_days: number
           late_approval: boolean
+          recruit_dispatches_immediately?: boolean | null
+          recruit_follow_up_at?: string | null
+          recruit_follow_up_cadence_hours?: number | null
+          recruit_invitation_at?: string | null
+          recruit_invitation_lead_days?: number | null
           reminder_cadence_hours: number
           response_deadline_at: string
           rsvp_by_days: number
@@ -954,6 +964,11 @@ export type Database = {
           invitation_at?: string
           invitation_lead_days?: number
           late_approval?: boolean
+          recruit_dispatches_immediately?: boolean | null
+          recruit_follow_up_at?: string | null
+          recruit_follow_up_cadence_hours?: number | null
+          recruit_invitation_at?: string | null
+          recruit_invitation_lead_days?: number | null
           reminder_cadence_hours?: number
           response_deadline_at?: string
           rsvp_by_days?: number
@@ -2657,6 +2672,27 @@ export type Database = {
             referencedColumns: ["id", "event_id"]
           },
         ]
+      }
+      recruitment_cycle_steps: {
+        Row: {
+          enabled: boolean
+          offset_hours: number
+          step: Database["public"]["Enums"]["recruitment_cycle_step"]
+          updated_at: string
+        }
+        Insert: {
+          enabled: boolean
+          offset_hours: number
+          step: Database["public"]["Enums"]["recruitment_cycle_step"]
+          updated_at?: string
+        }
+        Update: {
+          enabled?: boolean
+          offset_hours?: number
+          step?: Database["public"]["Enums"]["recruitment_cycle_step"]
+          updated_at?: string
+        }
+        Relationships: []
       }
       recruitment_prospect_notes: {
         Row: {
@@ -4457,6 +4493,11 @@ export type Database = {
         | "disengaged"
         | "void"
       question_answer_type: "text" | "boolean" | "choice"
+      recruitment_cycle_step:
+        | "welcome"
+        | "details_reminder"
+        | "interest_ask"
+        | "interest_reminder"
       recruitment_questionnaire: "personal_details" | "football_background"
       role_scope: "committee_year" | "season"
       rsvp_source: "signed_link" | "operator" | "channel_reply" | "import"
@@ -4713,6 +4754,12 @@ export const Constants = {
         "void",
       ],
       question_answer_type: ["text", "boolean", "choice"],
+      recruitment_cycle_step: [
+        "welcome",
+        "details_reminder",
+        "interest_ask",
+        "interest_reminder",
+      ],
       recruitment_questionnaire: ["personal_details", "football_background"],
       role_scope: ["committee_year", "season"],
       rsvp_source: ["signed_link", "operator", "channel_reply", "import"],

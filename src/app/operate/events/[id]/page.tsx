@@ -615,7 +615,12 @@ function ApprovalReview({
         {plan ? (
           <MessagingPlanDisclosure
             display={planForDisplay(plan)}
-            audienceSize={audience.length}
+            // REQ-approval-shows-both-ladders. Once there is a recruit
+            // ladder, `audienceSize` is the ladder it is paired with in the
+            // disclosure — everyone the player ladder actually reaches,
+            // never including the recruits shown in their own block below.
+            audienceSize={audience.filter((member) => member.capacity !== "recruit").length}
+            recruitAudienceSize={audience.filter((member) => member.capacity === "recruit").length}
             approved={false}
           />
         ) : null}
@@ -1112,7 +1117,8 @@ function EventDetailView({
       {frozenPlan ? (
         <MessagingPlanDisclosure
           display={frozenPlanForDisplay(frozenPlan)}
-          audienceSize={event.audienceCount}
+          audienceSize={audience.filter((member) => member.capacity !== "recruit").length}
+          recruitAudienceSize={audience.filter((member) => member.capacity === "recruit").length}
           approved
         />
       ) : event.status === "approved" ? (

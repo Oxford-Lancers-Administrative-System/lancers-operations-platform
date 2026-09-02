@@ -8,7 +8,6 @@ import Checkbox from "@mui/material/Checkbox";
 import Chip from "@mui/material/Chip";
 import ListItemText from "@mui/material/ListItemText";
 import MenuItem from "@mui/material/MenuItem";
-import Paper from "@mui/material/Paper";
 import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
@@ -48,6 +47,7 @@ import {
   type BandDef,
 } from "../board-columns";
 import JerseyPicker from "../jersey-picker";
+import { NOT_RECORDED, NotRecorded, RecordField, Row, Section } from "../../record-shell";
 import AttendanceSection from "./attendance-section";
 import {
   ENTRY_LABELS,
@@ -316,7 +316,7 @@ export default function PlayerRecordView({
 
       {/* ------------------------------------------------------------ Person -- */}
       <Section
-        band="person"
+        colours={sectionColours("person")}
         title="Person"
         testId="person"
         action={
@@ -367,7 +367,7 @@ export default function PlayerRecordView({
       </Section>
 
       {/* -------------------------------------------------------- Onboarding -- */}
-      <Section band="onboarding" title="Onboarding" testId="onboarding">
+      <Section colours={sectionColours("onboarding")} title="Onboarding" testId="onboarding">
         {record.onboardingItems.length === 0 ? (
           <Typography color="text.secondary" sx={{ py: 2 }} data-testid="onboarding-empty">
             This season has no onboarding items configured, so this membership has none.
@@ -399,7 +399,11 @@ export default function PlayerRecordView({
       </Section>
 
       {/* ------------------------------------------------------------ Season -- */}
-      <Section band="season" title={`Season · ${record.seasonLabel}`} testId="season">
+      <Section
+        colours={sectionColours("season")}
+        title={`Season · ${record.seasonLabel}`}
+        testId="season"
+      >
         <RecordField
           label="Status"
           value={labelFor(MEMBERSHIP_STATUS_LABELS, record.status)}
@@ -574,18 +578,22 @@ export default function PlayerRecordView({
       </Section>
 
       {/* ----------------------------------------------------- Attendance -- */}
-      <Section band="attendance" title="Attendance" testId="attendance">
+      <Section colours={sectionColours("attendance")} title="Attendance" testId="attendance">
         <AttendanceSection events={record.attendance} />
       </Section>
 
       {/* ---------------------------------------------------- Other seasons -- */}
-      <Section band="person" title="Their other seasons" testId="other-seasons">
+      <Section
+        colours={sectionColours("person")}
+        title="Their other seasons"
+        testId="other-seasons"
+      >
         <OtherSeasons seasons={record.otherSeasons} />
       </Section>
 
       {/* --------------------------------------------------------- History -- */}
       <Section
-        band="person"
+        colours={sectionColours("person")}
         title="Status history"
         testId="status-history"
         action={
@@ -664,160 +672,15 @@ const ATTENDANCE_BAND: Pick<BandDef, "header" | "tint"> = Object.freeze({
 });
 
 /**
- * One banded section — the board's own three groups and colours (`bandOf`),
- * plus Attendance's own (`ATTENDANCE_BAND`, above) — so every surface reads
- * as one product.
+ * Resolves a band's colours for `../../record-shell.tsx`'s `Section` — the
+ * board's own three groups (`bandOf`), plus Attendance's own
+ * (`ATTENDANCE_BAND`, above), so every surface reads as one product.
  */
-function Section({
-  band,
-  title,
-  action,
-  children,
-  testId,
-}: {
-  band: "person" | "onboarding" | "season" | "attendance";
-  title: string;
-  action?: ReactNode;
-  children: ReactNode;
-  /** Distinguishes sections that share a band — "person" covers three panels. */
-  testId: string;
-}) {
-  const colours = band === "attendance" ? ATTENDANCE_BAND : bandOf(band);
-  return (
-    <Paper variant="outlined" sx={{ overflow: "hidden" }} data-testid={`section-${testId}`}>
-      <Stack
-        direction="row"
-        sx={{
-          bgcolor: colours.header,
-          color: "common.white",
-          px: 2,
-          py: 0.75,
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 2,
-          flexWrap: "wrap",
-        }}
-      >
-        <Typography variant="overline" sx={{ fontWeight: 700 }} component="h2">
-          {title}
-        </Typography>
-        {action ?? null}
-      </Stack>
-      <Box sx={{ bgcolor: colours.tint, px: 2, py: 0.5 }}>{children}</Box>
-    </Paper>
-  );
-}
-
-const NOT_RECORDED = "not recorded";
-
-function NotRecorded() {
-  return (
-    <Typography variant="body2" sx={{ color: "text.disabled", fontStyle: "italic" }}>
-      {NOT_RECORDED}
-    </Typography>
-  );
-}
-
-/** A read-only or dropdown-editable label/value row — the board's own in-cell interaction, restyled for a list. */
-function RecordField({
-  label,
-  value,
-  note,
-  chip,
-  readOnly,
-  options,
-  optionLabels,
-  editing,
-  error,
-  rawValue,
-  onOpen,
-  onClose,
-  onCommit,
-}: {
-  label: string;
-  value: string | null;
-  note?: string;
-  chip?: "default" | "info" | "success" | "warning";
-  readOnly?: boolean;
-  options?: readonly string[];
-  optionLabels?: Readonly<Record<string, string>>;
-  editing?: boolean;
-  error?: string | null;
-  /** The stored value, when it differs from the display label — feeds the open `Select`. */
-  rawValue?: string | null;
-  onOpen?: () => void;
-  onClose?: () => void;
-  onCommit?: (next: string) => void;
-}) {
-  const editable = !readOnly && options !== undefined && onOpen !== undefined;
-
-  return (
-    <Row label={label}>
-      {editing && options ? (
-        <Select
-          size="small"
-          open
-          autoFocus
-          value={rawValue ?? ""}
-          onClose={onClose}
-          onChange={(event) => {
-            onCommit?.(event.target.value);
-          }}
-          sx={{ minWidth: 220 }}
-          MenuProps={{ slotProps: { paper: { sx: { maxHeight: 360 } } } }}
-        >
-          <MenuItem value="">
-            <em>{NOT_RECORDED}</em>
-          </MenuItem>
-          {options.map((option) => (
-            <MenuItem key={option} value={option}>
-              {optionLabels?.[option] ?? option}
-            </MenuItem>
-          ))}
-        </Select>
-      ) : (
-        <Box
-          onClick={editable ? onOpen : undefined}
-          data-testid={editable ? "editable-field" : undefined}
-          sx={{
-            display: "inline-block",
-            cursor: editable ? "pointer" : "default",
-            borderRadius: 0.5,
-            px: editable ? 0.5 : 0,
-            mx: editable ? -0.5 : 0,
-            "&:hover": editable ? { bgcolor: "action.hover" } : undefined,
-          }}
-        >
-          {value === null || value === "" ? (
-            <NotRecorded />
-          ) : chip ? (
-            <Chip size="small" color={chip} label={value} />
-          ) : (
-            <Typography
-              variant="body2"
-              sx={{
-                textDecoration: editable ? "underline" : "none",
-                textUnderlineOffset: 3,
-                textDecorationColor: "rgba(0,0,0,0.25)",
-              }}
-            >
-              {value}
-            </Typography>
-          )}
-        </Box>
-      )}
-      {note ? (
-        <Typography variant="caption" sx={{ display: "block", color: "text.disabled", mt: 0.25 }}>
-          {note}
-        </Typography>
-      ) : null}
-      {error ? (
-        <Typography variant="caption" color="error" sx={{ display: "block", mt: 0.25 }}>
-          {error}
-        </Typography>
-      ) : null}
-    </Row>
-  );
+function sectionColours(band: "person" | "onboarding" | "season" | "attendance"): {
+  header: string;
+  tint: string;
+} {
+  return band === "attendance" ? ATTENDANCE_BAND : bandOf(band);
 }
 
 /** A position column, with the code-and-name open list the board's own walkthrough asked for. */
@@ -1268,38 +1131,6 @@ function StatusHistory({ history }: { history: readonly MembershipStatusEvent[] 
           </Box>
         );
       })}
-    </Stack>
-  );
-}
-
-function Row({ label, note, children }: { label: string; note?: string; children: ReactNode }) {
-  return (
-    <Stack
-      direction={{ xs: "column", sm: "row" }}
-      spacing={{ xs: 0.25, sm: 2 }}
-      sx={{
-        py: 1,
-        borderTop: 1,
-        borderColor: "divider",
-        alignItems: { sm: "baseline" },
-        "&:first-of-type": { borderTop: "none" },
-      }}
-      data-testid="record-row"
-      data-label={label}
-    >
-      <Box sx={{ minWidth: { sm: 200 }, flexShrink: 0 }}>
-        <Typography variant="body2" color="text.secondary">
-          {label}
-        </Typography>
-      </Box>
-      <Box sx={{ minWidth: 0, flexGrow: 1 }}>
-        {children}
-        {note ? (
-          <Typography variant="caption" sx={{ display: "block", color: "text.disabled", mt: 0.25 }}>
-            {note}
-          </Typography>
-        ) : null}
-      </Box>
     </Stack>
   );
 }

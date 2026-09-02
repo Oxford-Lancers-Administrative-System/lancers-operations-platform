@@ -1,0 +1,626 @@
+import "server-only";
+
+import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
+import { recordAudit } from "./audit";
+import { grantSeasonMessagingConsentIn } from "./messaging-consent";
+import { findPersonMatchingGivenNameAndPhoneIn } from "./person-duplicate";
+import {
+  validateAcademicYear,
+  validateEmailAddress,
+  validatePhoneNumber,
+} from "./person-validation";
+import { recordRecruitmentSignupCodeUseIn } from "./recruitment-signup-codes";
+
+/**
+ * The sign-up gate's one write — LAN-202. **The single consent gate**, and the
+ * same surface as Questionnaire A, reached through two doors:
+ *
+ *   - {@link signUpAnonymouslyIn} — the QR door (`W7`). Nothing is known in
+ *     advance; a person is minted unless the recruit confirms an existing one.
+ *   - {@link signUpWithTokenIn} — the tokenised, prefilled door, for somebody
+ *     the club already has. Never creates a second person or a second
+ *     `recruitment_prospects` row for the same (person, season).
+ *
+ * ## No operator, on purpose
+ *
+ * Every write in this module runs unauthenticated. There is no
+ * `actorPersonId` parameter anywhere here, unlike the rest of the service
+ * layer's own README rule — the same departure `player-answer-tokens.ts`'s
+ * `consumeAnswerTokenIn` already takes, and for the same reason: the credential
+ * (a code that is not a secret, or a person token that is) is the whole of the
+ * authorization, and `recordAudit`'s `actorLabel` names the mechanism honestly
+ * instead of a person who was never there.
+ *
+ * ## First name, last name, mobile, the tick — nothing else blocks
+ *
+ * Superseded, Brian, 2026-09-01: "Mobile is required no matter what… Missing
+ * never blocks except for phone. I'm fine not getting email, but we also need
+ * to get the phone number. That is how we communicate with them. Nothing else
+ * works if we don't have a phone number." The required set is now first name,
+ * last name, mobile and the consent tick — mobile joins the set this same
+ * module's header once called complete at three. {@link validateSignupSubmission}
+ * is the one place that is enforced, for both doors, before anything is
+ * written, and it is also where a supplied mobile is validated and
+ * normalised to E.164 (`person-validation.ts`'s `validatePhoneNumber`,
+ * LAN-183 — reused rather than re-derived; see that module's own note on why
+ * it is not `src/lib/delivery/phone.ts`'s `toE164` directly). Email, and the
+ * two academic years, are validated the same way when supplied and stay
+ * optional (`REQ-missing-never-blocks`) — a blank optional field never
+ * blocks the save; a **malformed** one now does, where blank previously
+ * discarded it silently (finding 3).
+ *
+ * ## Questionnaire A lands on the person record, not a response table
+ *
+ * `W4`'s own core-decisions table: "The page also asks Questionnaire A, on the
+ * same surface as the consent gate" is `locked`, and Questionnaire A's fields
+ * (Known as, mobile, email, college, matriculation year, expected graduation,
+ * degree) are Mission 5's own person-record columns — never
+ * `recruitment_questionnaire_responses`, which this package leaves alone.
+ * That table's generic `question_code` shape exists for Questionnaire B
+ * (football background), whose own six-field set is still "proposed for owner
+ * approval" and which this sign-up form does not ask.
+ *
+ * ## Filling, never silently overwriting
+ *
+ * A field already carrying a value is left alone here — an unauthenticated
+ * public form has no actor and no reason to attach to a correction, which is
+ * exactly what `person-write.ts`'s `updatePersonField`/`supersedeContactPoint`
+ * require for every value that is not empty. A blank field is filled outright,
+ * matching that same module's own rule that filling an empty value needs no
+ * reason. The one exception is `given_name`/`family_name` on the **tokenised**
+ * door: the credential already acts as this exact person (Task 08 §3), so
+ * "check it, change anything that is wrong" (`W4`) is taken at face value
+ * there, and only there.
+ */
+
+export interface SignupSubmission {
+  readonly givenName: string;
+  readonly familyName: string;
+  /** Required, Brian 2026-09-01 (finding 1) — validated and normalised to E.164 by `validateSignupSubmission`. */
+  readonly mobile?: string | null;
+  /** Optional; validated for shape when supplied (finding 3), never silently discarded. */
+  readonly email?: string | null;
+  readonly knownAs?: string | null;
+  readonly college?: string | null;
+  /** Raw text, as typed. Optional; validated as a year when supplied (finding 3), never silently discarded. */
+  readonly matriculationYear?: string | null;
+  readonly expectedGraduationYear?: string | null;
+  readonly degreeField?: string | null;
+  readonly consent: boolean;
+}
+
+export interface SignupResult {
+  readonly personId: string;
+  readonly personCreated: boolean;
+  readonly prospectId: string;
+  readonly prospectCreated: boolean;
+}
+
+export const SIGNUP_REQUIRES_FIRST_NAME_RULE = "recruitment_signup_requires_a_first_name";
+export const SIGNUP_REQUIRES_LAST_NAME_RULE = "recruitment_signup_requires_a_last_name";
+export const SIGNUP_REQUIRES_CONSENT_RULE = "recruitment_signup_requires_consent";
+/** Brian, 2026-09-01: mobile joins the required set. Finding 1. */
+export const SIGNUP_REQUIRES_MOBILE_RULE = "recruitment_signup_requires_a_mobile_number";
+/** `person-validation.ts`'s own per-field rule, surfaced here rather than re-derived. Finding 2. */
+export const SIGNUP_INVALID_MOBILE_RULE = "recruitment_signup_invalid_mobile_number";
+/** Finding 3 — optional, but validated when supplied rather than silently discarded. */
+export const SIGNUP_INVALID_EMAIL_RULE = "recruitment_signup_invalid_email_address";
+export const SIGNUP_INVALID_MATRICULATION_YEAR_RULE =
+  "recruitment_signup_invalid_matriculation_year";
+export const SIGNUP_INVALID_EXPECTED_GRADUATION_YEAR_RULE =
+  "recruitment_signup_invalid_expected_graduation_year";
+
+function trimmedOrNull(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+/**
+ * `W7`/`W4`, Brian 2026-09-01 (superseded the same day — see the module
+ * note). Throws before anything is written — never a raw database
+ * constraint — naming exactly which required thing is missing or which
+ * supplied field is malformed. First name, last name, mobile and consent are
+ * required; email, matriculation year and expected graduation are optional
+ * but validated when supplied, never silently discarded (finding 3).
+ *
+ * Returns the mobile's own E.164 digits alongside the two trimmed names —
+ * `mobileE164` is what every caller now writes as this contact point's
+ * `normalised_value`, computed once here rather than re-derived at the
+ * write site or left for a later delivery-time guess.
+ */
+function validateSignupSubmission(submission: SignupSubmission): {
+  givenName: string;
+  familyName: string;
+  mobileE164: string;
+} {
+  const givenName = trimmedOrNull(submission.givenName);
+  if (!givenName) {
+    throw new ConstraintViolated("A first name is required.", {
+      rule: SIGNUP_REQUIRES_FIRST_NAME_RULE,
+    });
+  }
+  const familyName = trimmedOrNull(submission.familyName);
+  if (!familyName) {
+    throw new ConstraintViolated("A last name is required.", {
+      rule: SIGNUP_REQUIRES_LAST_NAME_RULE,
+    });
+  }
+
+  const mobileRaw = trimmedOrNull(submission.mobile);
+  if (!mobileRaw) {
+    throw new ConstraintViolated("A mobile number is required — it is how the club reaches you.", {
+      rule: SIGNUP_REQUIRES_MOBILE_RULE,
+    });
+  }
+  const mobileValidation = validatePhoneNumber(mobileRaw);
+  if (!mobileValidation.valid || !mobileValidation.e164) {
+    throw new ConstraintViolated(mobileValidation.message, { rule: SIGNUP_INVALID_MOBILE_RULE });
+  }
+
+  const emailRaw = trimmedOrNull(submission.email);
+  if (emailRaw) {
+    const emailValidation = validateEmailAddress(emailRaw);
+    if (!emailValidation.valid) {
+      throw new ConstraintViolated(emailValidation.message, { rule: SIGNUP_INVALID_EMAIL_RULE });
+    }
+  }
+
+  const matriculationRaw = trimmedOrNull(submission.matriculationYear);
+  if (matriculationRaw) {
+    const yearValidation = validateAcademicYear(matriculationRaw, "Matriculation year");
+    if (!yearValidation.valid) {
+      throw new ConstraintViolated(yearValidation.message, {
+        rule: SIGNUP_INVALID_MATRICULATION_YEAR_RULE,
+      });
+    }
+  }
+
+  const graduationRaw = trimmedOrNull(submission.expectedGraduationYear);
+  if (graduationRaw) {
+    const yearValidation = validateAcademicYear(graduationRaw, "Expected graduation");
+    if (!yearValidation.valid) {
+      throw new ConstraintViolated(yearValidation.message, {
+        rule: SIGNUP_INVALID_EXPECTED_GRADUATION_YEAR_RULE,
+      });
+    }
+  }
+
+  if (submission.consent !== true) {
+    throw new ConstraintViolated(
+      "Tick the consent box to save this form — it cannot be saved without it.",
+      { rule: SIGNUP_REQUIRES_CONSENT_RULE },
+    );
+  }
+  return { givenName, familyName, mobileE164: mobileValidation.e164 };
+}
+
+// ---------------------------------------------------------------------------
+// The privacy-safe duplicate probe — W7's "have you signed up with us before?"
+// ---------------------------------------------------------------------------
+
+export interface SignupDuplicateProbe {
+  /** Never a name, an email, a phone number, or a database identifier — only whether one matched. */
+  readonly found: boolean;
+}
+
+const NO_MATCH: SignupDuplicateProbe = { found: false };
+
+/** A phone number too short to mean anything is not run through the check at all. */
+const PLAUSIBLE_MOBILE_MIN_DIGITS = 7;
+
+/**
+ * "The match is confirmed only in terms the visitor already supplied — a
+ * first name they typed and the last three digits of the number they typed.
+ * Nothing is revealed that they did not already know" (`W7`, "The one thing
+ * this screen must not become"). This function is the mechanism that makes
+ * that true: it returns a bare boolean, never a name, a masked contact value,
+ * a database identifier, or anything else about the candidate. The caller
+ * echoes the visitor's *own* typed input back to them; it never reads
+ * anything from this result to render.
+ *
+ * LAN-208: uses {@link findPersonMatchingGivenNameAndPhoneIn}, not
+ * `findPersonDuplicates` — that function ORs given-name/family-name/alias/
+ * email/phone across the whole candidate row, so a candidate's own phone
+ * alone would set `found: true` regardless of the name typed, for anyone in
+ * `public.people`, not just recruits. This requires the given name (or an
+ * alias) **and** the phone together, on the *same* row.
+ *
+ * There is no identifier in {@link SignupDuplicateProbe} to link at write
+ * time — see {@link probeExistingRecruitForQrSignup}'s doc comment. The write
+ * path re-runs this same match itself, from the visitor's own resubmitted
+ * name and mobile, rather than trusting an id echoed back from this read.
+ *
+ * Runs only when a mobile number was actually supplied — `W7`'s privacy
+ * reasoning is stated in terms of *a name and a phone number together*, and a
+ * name-only match would surface a false positive for every other Alex on the
+ * mailing list. No mobile, no probe: the QR door goes straight to creation.
+ */
+export async function probeExistingRecruitForQrSignup(
+  givenName: string,
+  mobile: string | null | undefined,
+): Promise<SignupDuplicateProbe> {
+  const trimmedGiven = trimmedOrNull(givenName);
+  const trimmedMobile = trimmedOrNull(mobile);
+  if (!trimmedGiven || !trimmedMobile) return NO_MATCH;
+  if (trimmedMobile.replace(/\D/g, "").length < PLAUSIBLE_MOBILE_MIN_DIGITS) return NO_MATCH;
+
+  const match = await withTransaction((tx) =>
+    findPersonMatchingGivenNameAndPhoneIn(tx, trimmedGiven, trimmedMobile),
+  );
+  return match ? { found: true } : NO_MATCH;
+}
+
+// ---------------------------------------------------------------------------
+// Questionnaire A — filled onto the person record, never overwritten
+// ---------------------------------------------------------------------------
+
+const TEXT_FIELD_COLUMNS = {
+  college: "college",
+  degreeField: "degree_field",
+} as const;
+
+async function fillPersonTextFieldIfBlankIn(
+  tx: Tx,
+  personId: string,
+  column: (typeof TEXT_FIELD_COLUMNS)[keyof typeof TEXT_FIELD_COLUMNS],
+  value: string | null | undefined,
+): Promise<void> {
+  const trimmed = trimmedOrNull(value);
+  if (!trimmed) return;
+  await tx.query(
+    `update public.people set ${column} = $2, updated_at = now() where id = $1::uuid and ${column} is null`,
+    [personId, trimmed],
+  );
+}
+
+const YEAR_FIELD_COLUMNS = {
+  matriculationYear: "matriculation_year",
+  expectedGraduationYear: "expected_graduation_year",
+} as const;
+
+/**
+ * Superseded, Brian, 2026-09-01 (finding 3): `W7`'s "recruitment is not a
+ * validation exercise" no longer governs matriculation year and expected
+ * graduation specifically — `validateSignupSubmission` already refuses a
+ * malformed value before this is ever reached, so the bounds check below is
+ * now a defensive backstop rather than the actual validation; a value that
+ * fails it here would already have thrown upstream.
+ */
+async function fillPersonYearFieldIfBlankIn(
+  tx: Tx,
+  personId: string,
+  column: (typeof YEAR_FIELD_COLUMNS)[keyof typeof YEAR_FIELD_COLUMNS],
+  value: string | null | undefined,
+): Promise<void> {
+  const trimmed = trimmedOrNull(value);
+  if (!trimmed) return;
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isInteger(parsed) || parsed < 1900 || parsed > 2200) return;
+  await tx.query(
+    `update public.people set ${column} = $2, updated_at = now() where id = $1::uuid and ${column} is null`,
+    [personId, parsed],
+  );
+}
+
+/**
+ * Adds a contact value only when this person currently holds none of that
+ * kind and scope — never supersedes an existing one, which
+ * `supersedeContactPoint` reserves for an authenticated correction with a
+ * reason this public form has neither of.
+ */
+async function fillContactIfNoneIn(
+  tx: Tx,
+  personId: string,
+  kind: "phone" | "email",
+  scope: "personal" | null,
+  rawValue: string | null | undefined,
+  normalisedValue: string | null = null,
+): Promise<void> {
+  const trimmed = trimmedOrNull(rawValue);
+  if (!trimmed) return;
+
+  const current = await tx.query(
+    `select 1 from public.contact_points
+      where person_id = $1::uuid and kind = $2::public.contact_point_kind
+        and scope is not distinct from $3::public.contact_point_scope
+        and valid_until is null and is_preferred`,
+    [personId, kind, scope],
+  );
+  if (current.rows.length > 0) return;
+
+  await tx.query(
+    `insert into public.contact_points
+       (person_id, kind, scope, raw_value, normalised_value, is_preferred, source)
+     values ($1::uuid, $2::public.contact_point_kind, $3::public.contact_point_scope, $4, $5, true, $6)`,
+    [personId, kind, scope, trimmed, normalisedValue, "recruitment sign-up (LAN-202)"],
+  );
+}
+
+/**
+ * "Known as" writes a `person_aliases` row and nothing else — there is no
+ * preferred-name field (Brian, 2026-09-01). Only when it differs from the
+ * given name: a "Known as" that repeats the first name is not a name form,
+ * the same guard `person_substrate`'s own `known_as` migration already
+ * applies.
+ */
+async function recordKnownAsIn(
+  tx: Tx,
+  personId: string,
+  givenName: string,
+  knownAs: string | null | undefined,
+): Promise<void> {
+  const trimmed = trimmedOrNull(knownAs);
+  if (!trimmed) return;
+  if (trimmed.toLowerCase() === givenName.trim().toLowerCase()) return;
+
+  await tx.query(
+    `update public.person_aliases set is_display_name = false
+      where person_id = $1::uuid and is_display_name and alias <> $2`,
+    [personId, trimmed],
+  );
+  await tx.query(
+    `insert into public.person_aliases (person_id, alias, source, is_display_name)
+     values ($1::uuid, $2, $3, true)
+     on conflict (person_id, alias) do update set is_display_name = true`,
+    [personId, trimmed, "recruitment sign-up (LAN-202)"],
+  );
+}
+
+async function applyQuestionnaireAAnswersIn(
+  tx: Tx,
+  personId: string,
+  givenName: string,
+  submission: SignupSubmission,
+  mobileE164: string,
+): Promise<void> {
+  await recordKnownAsIn(tx, personId, givenName, submission.knownAs);
+  await fillPersonTextFieldIfBlankIn(tx, personId, TEXT_FIELD_COLUMNS.college, submission.college);
+  await fillPersonTextFieldIfBlankIn(
+    tx,
+    personId,
+    TEXT_FIELD_COLUMNS.degreeField,
+    submission.degreeField,
+  );
+  await fillPersonYearFieldIfBlankIn(
+    tx,
+    personId,
+    YEAR_FIELD_COLUMNS.matriculationYear,
+    submission.matriculationYear,
+  );
+  await fillPersonYearFieldIfBlankIn(
+    tx,
+    personId,
+    YEAR_FIELD_COLUMNS.expectedGraduationYear,
+    submission.expectedGraduationYear,
+  );
+  // The mobile's own raw text is stored as typed (contact_points.raw_value
+  // is deliberately unvalidated); mobileE164 is the same value's already-
+  // validated E.164 digits, stored as normalised_value so selectMobileNumber
+  // (src/lib/delivery/phone.ts) never has to guess at send time.
+  await fillContactIfNoneIn(tx, personId, "phone", null, submission.mobile, mobileE164);
+  await fillContactIfNoneIn(tx, personId, "email", "personal", submission.email);
+}
+
+// ---------------------------------------------------------------------------
+// The prospect row — one per (person, season), never a second
+// ---------------------------------------------------------------------------
+
+interface EnsuredProspect {
+  readonly id: string;
+  readonly created: boolean;
+}
+
+/**
+ * `recruitment_prospects_one_per_person_per_season` is the schema's own
+ * guarantee; this is `on conflict … do nothing` plus a read, which is what
+ * makes "completing it creates no duplicate person and no second recruit
+ * row" (LAN-202 "Done when") true under a retried or double submit, not just
+ * under normal use.
+ */
+async function ensureProspectIn(
+  tx: Tx,
+  personId: string,
+  seasonId: string,
+  source: string,
+): Promise<EnsuredProspect> {
+  const inserted = await tx.query<{ id: string }>(
+    `insert into public.recruitment_prospects (person_id, season_id, source)
+     values ($1::uuid, $2::uuid, $3)
+     on conflict (person_id, season_id) do nothing
+     returning id`,
+    [personId, seasonId, source],
+  );
+  if (inserted.rows[0]) return { id: inserted.rows[0].id, created: true };
+
+  const existing = await tx.query<{ id: string }>(
+    `select id from public.recruitment_prospects where person_id = $1::uuid and season_id = $2::uuid`,
+    [personId, seasonId],
+  );
+  return { id: existing.rows[0].id, created: false };
+}
+
+async function insertPersonIn(tx: Tx, givenName: string, familyName: string): Promise<string> {
+  const result = await tx.query<{ id: string }>(
+    `insert into public.people (given_name, family_name) values ($1, $2) returning id`,
+    [givenName, familyName],
+  );
+  return result.rows[0].id;
+}
+
+// ---------------------------------------------------------------------------
+// The two doors
+// ---------------------------------------------------------------------------
+
+/** The one `season_messaging_consent_source` this form ever writes — see the module note. */
+const SELF_ENTRY_SOURCE = "qr_self_entry";
+
+/**
+ * The QR (anonymous) door. `linkExistingPersonId` is set only when the
+ * recruit answered "Yes, that's me" to {@link probeExistingRecruitForQrSignup}'s
+ * own question — re-checked here, inside the transaction, never trusted from
+ * the client (the same posture `createPerson`'s `link_existing` branch
+ * already takes): a stale or merged-away id falls back to creating a new
+ * person rather than failing the whole submission, matching `W7`'s "refuses
+ * nobody and blocks on nothing."
+ *
+ * LAN-208: nothing upstream of this parameter ever hands an anonymous caller
+ * a person id to echo back. The QR door's own action
+ * (`src/app/join/[code]/actions.ts`'s `submitQrSignup`) derives whatever it
+ * passes here itself, inside its own transaction, by re-running the same
+ * strict given-name-and-phone match against the recruit's resubmitted
+ * `givenName`/`mobile` — this parameter's contract (re-checked, falls back
+ * gracefully) is what makes that safe to do unconditionally.
+ */
+export async function signUpAnonymouslyIn(
+  tx: Tx,
+  params: {
+    seasonId: string;
+    code: string;
+    submission: SignupSubmission;
+    linkExistingPersonId?: string | null;
+  },
+): Promise<SignupResult> {
+  const { givenName, familyName, mobileE164 } = validateSignupSubmission(params.submission);
+
+  let personId: string;
+  let personCreated: boolean;
+
+  if (params.linkExistingPersonId) {
+    const existing = await tx.query<{ id: string; merged_into_person_id: string | null }>(
+      `select id, merged_into_person_id from public.people where id = $1::uuid for update`,
+      [params.linkExistingPersonId],
+    );
+    const row = existing.rows[0];
+    if (row && !row.merged_into_person_id) {
+      personId = row.id;
+      personCreated = false;
+    } else {
+      personId = await insertPersonIn(tx, givenName, familyName);
+      personCreated = true;
+    }
+  } else {
+    personId = await insertPersonIn(tx, givenName, familyName);
+    personCreated = true;
+  }
+
+  await applyQuestionnaireAAnswersIn(tx, personId, givenName, params.submission, mobileE164);
+  const prospect = await ensureProspectIn(tx, personId, params.seasonId, SELF_ENTRY_SOURCE);
+  await grantSeasonMessagingConsentIn(tx, personId, params.seasonId);
+  await recordRecruitmentSignupCodeUseIn(tx, params.code);
+
+  await recordAudit(tx, {
+    actorLabel: personCreated
+      ? "recruit: QR sign-up form (new person)"
+      : "recruit: QR sign-up form (self-identified as an existing record)",
+    action: personCreated ? "person_created" : "recruitment_prospect_self_identified",
+    entityTable: "people",
+    entityId: personId,
+    context: { issue: "LAN-202", door: SELF_ENTRY_SOURCE, season_id: params.seasonId },
+  });
+
+  return { personId, personCreated, prospectId: prospect.id, prospectCreated: prospect.created };
+}
+
+/**
+ * The tokenised, prefilled door — for somebody the club already has. The
+ * caller resolves the `person_access_tokens` credential (see
+ * `player-answer-tokens.ts`'s `resolvePersonTokenIn`) before ever reaching
+ * this function; `personId` and `seasonId` are exactly what that credential
+ * names. Never creates a second person, and `ensureProspectIn` never creates a
+ * second `recruitment_prospects` row for a (person, season) that already has
+ * one.
+ */
+export async function signUpWithTokenIn(
+  tx: Tx,
+  params: {
+    personId: string;
+    seasonId: string;
+    submission: SignupSubmission;
+  },
+): Promise<SignupResult> {
+  const { givenName, familyName, mobileE164 } = validateSignupSubmission(params.submission);
+
+  // The credential already acts as this exact person (Task 08 §3), so their
+  // own correction to their own name is taken at face value here — unlike
+  // every other field, which is only ever filled when currently blank.
+  await tx.query(
+    `update public.people set given_name = $2, family_name = $3, updated_at = now() where id = $1::uuid`,
+    [params.personId, givenName, familyName],
+  );
+
+  await applyQuestionnaireAAnswersIn(tx, params.personId, givenName, params.submission, mobileE164);
+  const prospect = await ensureProspectIn(tx, params.personId, params.seasonId, SELF_ENTRY_SOURCE);
+  await grantSeasonMessagingConsentIn(tx, params.personId, params.seasonId);
+
+  await recordAudit(tx, {
+    actorLabel: "recruit: WhatsApp sign-up link",
+    action: "recruitment_prospect_self_completed",
+    entityTable: "people",
+    entityId: params.personId,
+    context: { issue: "LAN-202", door: SELF_ENTRY_SOURCE, season_id: params.seasonId },
+  });
+
+  return {
+    personId: params.personId,
+    personCreated: false,
+    prospectId: prospect.id,
+    prospectCreated: prospect.created,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Prefill — the tokenised door's own read, minimal by design
+// ---------------------------------------------------------------------------
+
+export interface SignupPrefill {
+  readonly givenName: string;
+  readonly familyName: string | null;
+  readonly mobile: string | null;
+  readonly email: string | null;
+  readonly college: string | null;
+  readonly matriculationYear: number | null;
+  readonly expectedGraduationYear: number | null;
+  readonly degreeField: string | null;
+}
+
+/**
+ * Exactly what the tokenised door's form needs to prefill, and nothing this
+ * public page does not already show back to its own credential holder. Not
+ * `readPersonRecordIn` — that assembles provenance, emergency-contact and
+ * blues-count detail no sign-up form has any business reading.
+ */
+export async function readSignupPrefillIn(tx: Tx, personId: string): Promise<SignupPrefill> {
+  const person = await tx.query<{
+    given_name: string;
+    family_name: string | null;
+    college: string | null;
+    matriculation_year: number | null;
+    expected_graduation_year: number | null;
+    degree_field: string | null;
+  }>(
+    `select given_name, family_name, college, matriculation_year, expected_graduation_year, degree_field
+       from public.people where id = $1::uuid`,
+    [personId],
+  );
+  const row = person.rows[0];
+
+  const contacts = await tx.query<{ kind: "phone" | "email"; raw_value: string }>(
+    `select kind::text as kind, raw_value from public.contact_points
+      where person_id = $1::uuid and valid_until is null and is_preferred`,
+    [personId],
+  );
+  const mobile = contacts.rows.find((c) => c.kind === "phone")?.raw_value ?? null;
+  const email = contacts.rows.find((c) => c.kind === "email")?.raw_value ?? null;
+
+  return {
+    givenName: row?.given_name ?? "",
+    familyName: row?.family_name ?? null,
+    mobile,
+    email,
+    college: row?.college ?? null,
+    matriculationYear: row?.matriculation_year ?? null,
+    expectedGraduationYear: row?.expected_graduation_year ?? null,
+    degreeField: row?.degree_field ?? null,
+  };
+}

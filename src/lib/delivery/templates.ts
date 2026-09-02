@@ -70,6 +70,16 @@ export const TEMPLATE_NAMES: Readonly<Record<MessageKind, string>> = Object.free
   change_notice: "lancers_event_change_notice",
   cancellation: "lancers_event_cancellation",
   escalation: "lancers_nonresponse_escalation",
+  // LAN-199's own manifest names these four (plus the fifth, off-by-default
+  // one) exactly, with the `_v1` suffix — the club's real submission to Meta,
+  // not a name this module assembles. Unlike the six above, there is no
+  // club-prefixed default to fall back to if the override is unset: LAN-199's
+  // names ARE the default.
+  recruit_event_followup: "recruit_event_followup_v1",
+  recruit_welcome: "recruit_welcome_v1",
+  recruit_details_reminder: "recruit_details_reminder_v1",
+  recruit_interest_ask: "recruit_interest_ask_v1",
+  recruit_interest_reminder: "recruit_interest_reminder_v1",
 });
 
 /**
@@ -89,6 +99,19 @@ export function templateNameVariable(kind: MessageKind): string {
 /** Brian's amended button labels. Alphanumerics and spaces only — no em dashes. */
 export const YES_BUTTON_LABEL = "Yes view details";
 export const NO_BUTTON_LABEL = "No give reason";
+
+/**
+ * LAN-199's own recruit button labels, verbatim — alphanumerics and spaces
+ * only, no em dashes (Q-10, carried from LAN-168). `recruit_event_followup`'s
+ * yes/no pair reads differently from the player ladder's own
+ * (`YES_BUTTON_LABEL`/`NO_BUTTON_LABEL`) because it is a different template a
+ * recruit reads, never asking them to "give a reason" — `REQ-no-reason-asked`.
+ */
+export const RECRUIT_FILL_IN_DETAILS_LABEL = "Fill in your details";
+export const RECRUIT_STOP_MESSAGES_LABEL = "Stop messages";
+export const RECRUIT_ANSWER_QUESTIONS_LABEL = "Answer a few questions";
+export const RECRUIT_YES_LABEL = "Yes I can come";
+export const RECRUIT_NO_LABEL = "No thanks";
 
 /** One kind's declaration: what WhatsApp sends, and what the email says. */
 export interface MessageTemplate {
@@ -313,6 +336,120 @@ const ESCALATION: MessageTemplate = {
   },
 };
 
+/**
+ * LAN-199, LAN-203. `recruit_event_followup_v1` — the single polite follow-up
+ * after a recruitment event invitation. The invitation itself reuses
+ * `INVITATION` above unchanged (`event_invitation` is already Meta-approved
+ * and is the same message for every audience); this is only the one-and-only
+ * follow-up recruits get instead of the player ladder's chase.
+ *
+ * `REQ-no-reason-asked`: the two URL buttons are the whole of the recruit's
+ * answer, and neither carries the word "reason" — a No is a No, taken to the
+ * shipped `/rsvp/[token]` saved page exactly as a Yes is.
+ */
+function recruitEventVenueLine(message: OutboundMessage): string {
+  const venue = (message.venue ?? "").trim();
+  // Meta's positional parameters cannot skip a slot, and this template has no
+  // conditional third line the way `whereAndWhen`'s two-or-three-line body
+  // does for the player ladder — LAN-199's copy is fixed at three lines. A
+  // recruitment event without a venue on file still sends; the line simply
+  // repeats the date and time rather than leaving the parameter blank, which
+  // is what an unset value would otherwise send to Meta as literal text.
+  return venue === "" ? required(message.whenLabel, "date and time") : venue;
+}
+
+const RECRUIT_EVENT_FOLLOWUP: MessageTemplate = {
+  kind: "recruit_event_followup",
+  parameterNames: ["eventName", "whenLabel", "venue"],
+  parameters: (message) => [
+    required(message.eventName, "event name"),
+    required(message.whenLabel, "date and time"),
+    recruitEventVenueLine(message),
+  ],
+  subject: (message) => `${message.eventName} is still coming up`,
+  body: (message) => [
+    `${message.eventName} is still coming up`,
+    message.whenLabel,
+    recruitEventVenueLine(message),
+    "Come along if you can. No need to decide in advance.",
+    `${RECRUIT_YES_LABEL}: ${message.yesUrl}`,
+    `${RECRUIT_NO_LABEL}: ${message.noUrl}`,
+  ],
+  buttonUrls: answerButtonUrls,
+};
+
+/**
+ * The two URL buttons every recruit cycle template but the event follow-up
+ * carries — the form link and the opt-out, on the "at most two URL buttons"
+ * limit LAN-199 already spent on `recruit_event_followup`'s yes/no pair.
+ */
+function recruitFormButtonUrls(message: OutboundMessage): readonly [string, string] {
+  return [required(message.formUrl, "form link"), required(message.stopUrl, "opt-out link")];
+}
+
+/**
+ * LAN-199. Carries the signed link to the sign-up form. The one template a
+ * door's opt-in authorises on its own — sent only on walk-up capture and
+ * operator add, never to a QR arrival, who has already filled the form in
+ * (W10's own door table).
+ */
+const RECRUIT_WELCOME: MessageTemplate = {
+  kind: "recruit_welcome",
+  parameterNames: ["inviteeName"],
+  parameters: (message) => [required(message.inviteeName, "name")],
+  subject: () => "Thanks for your interest in Oxford Lancers",
+  body: (message) => [
+    `Thanks for your interest in Oxford Lancers, ${message.inviteeName}`,
+    "We would love to tell you more about training and how to get started.",
+    "When you have a moment, fill in a few details. It takes a minute, and almost all of it is optional.",
+    `${RECRUIT_FILL_IN_DETAILS_LABEL}: ${required(message.formUrl, "form link")}`,
+  ],
+  buttonUrls: recruitFormButtonUrls,
+};
+
+/** LAN-199. One nudge to finish the sign-up form. Sent once, ever. No variables. */
+const RECRUIT_DETAILS_REMINDER: MessageTemplate = {
+  kind: "recruit_details_reminder",
+  parameterNames: [],
+  parameters: () => [],
+  subject: () => "Still interested in Oxford Lancers?",
+  body: (message) => [
+    "Still interested in Oxford Lancers?",
+    "You have not filled in your details yet. It takes a minute, and you can leave anything blank.",
+    `${RECRUIT_FILL_IN_DETAILS_LABEL}: ${required(message.formUrl, "form link")}`,
+  ],
+  buttonUrls: recruitFormButtonUrls,
+};
+
+/** LAN-199. The football-background questionnaire. Sent only where consent is granted. */
+const RECRUIT_INTEREST_ASK: MessageTemplate = {
+  kind: "recruit_interest_ask",
+  parameterNames: ["inviteeName"],
+  parameters: (message) => [required(message.inviteeName, "name")],
+  subject: (message) => `One more thing, ${message.inviteeName}`,
+  body: (message) => [
+    `One more thing, ${message.inviteeName}`,
+    "Tell us how you came to American football, whether you have played, watched, or neither. " +
+      "There are no wrong answers, and you can skip anything.",
+    `${RECRUIT_ANSWER_QUESTIONS_LABEL}: ${required(message.formUrl, "form link")}`,
+  ],
+  buttonUrls: recruitFormButtonUrls,
+};
+
+/** LAN-199. Off by default (`recruitment_cycle_steps`). Submitted anyway per LAN-199. */
+const RECRUIT_INTEREST_REMINDER: MessageTemplate = {
+  kind: "recruit_interest_reminder",
+  parameterNames: ["inviteeName"],
+  parameters: (message) => [required(message.inviteeName, "name")],
+  subject: (message) => `No rush, ${message.inviteeName}`,
+  body: (message) => [
+    `No rush, ${message.inviteeName}`,
+    "We still have a few questions about your football background, whenever you have a moment.",
+    `${RECRUIT_ANSWER_QUESTIONS_LABEL}: ${required(message.formUrl, "form link")}`,
+  ],
+  buttonUrls: recruitFormButtonUrls,
+};
+
 export const MESSAGE_TEMPLATES: Readonly<Record<MessageKind, MessageTemplate>> = Object.freeze({
   invitation: INVITATION,
   reminder: REMINDER,
@@ -320,6 +457,11 @@ export const MESSAGE_TEMPLATES: Readonly<Record<MessageKind, MessageTemplate>> =
   change_notice: CHANGE_NOTICE,
   cancellation: CANCELLATION,
   escalation: ESCALATION,
+  recruit_event_followup: RECRUIT_EVENT_FOLLOWUP,
+  recruit_welcome: RECRUIT_WELCOME,
+  recruit_details_reminder: RECRUIT_DETAILS_REMINDER,
+  recruit_interest_ask: RECRUIT_INTEREST_ASK,
+  recruit_interest_reminder: RECRUIT_INTEREST_REMINDER,
 });
 
 /** Every kind, in ladder order. The manifest LAN-168 generates walks this. */
@@ -330,6 +472,11 @@ export const MESSAGE_KINDS: readonly MessageKind[] = Object.freeze([
   "change_notice",
   "cancellation",
   "escalation",
+  "recruit_event_followup",
+  "recruit_welcome",
+  "recruit_details_reminder",
+  "recruit_interest_ask",
+  "recruit_interest_reminder",
 ] as const);
 
 /**

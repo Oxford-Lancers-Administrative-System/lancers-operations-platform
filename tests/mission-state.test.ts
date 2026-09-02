@@ -18,7 +18,6 @@ import {
   replayState,
   validateEvent,
 } from "../scripts/mission/lib/state.mjs";
-import { buildMissionReceipt } from "../scripts/mission/merge-gate.mjs";
 import {
   AUTO_MERGE_CLASSES,
   COLLISION_DOMAINS,
@@ -1295,19 +1294,19 @@ describe("guarded merge recording", () => {
     });
     const built = replayState(m.repo, MISSION, m.env);
     expect(packageLifecycle(built, built.packages["WP-events-filter"])).toBe("built");
+    // LAN-209: a gate pass is the durable record that this package's draft may
+    // be lifted. It records no receipt; the conditions are re-derived here.
     await expect(
       m.append({
         type: "package-gate-passed",
         package_id: "WP-events-filter",
-        head_sha: SHA,
-        receipt: { invented: true },
+        head_sha: "c".repeat(40),
       }),
-    ).rejects.toThrow(/exact receipt/);
+    ).rejects.toThrow(/exact current 40-character head SHA/);
     const gated = await m.append({
       type: "package-gate-passed",
       package_id: "WP-events-filter",
       head_sha: SHA,
-      receipt: buildMissionReceipt(built, "WP-events-filter", SHA),
     });
     expect(packageLifecycle(gated, gated.packages["WP-events-filter"])).toBe("gate-passed");
     expect(nextActions(gated)).toContainEqual(
@@ -1324,7 +1323,6 @@ describe("guarded merge recording", () => {
       type: "package-gate-passed",
       package_id: "WP-events-filter",
       head_sha: SHA,
-      receipt: buildMissionReceipt(invalidated, "WP-events-filter", SHA),
     });
     await expect(
       m.append({
@@ -1748,7 +1746,7 @@ describe("guarded merge recording", () => {
         sha: SHA,
         route: "owner",
       }),
-    ).rejects.toThrow(/qualified for the guarded lane; routing it to Brian anyway records why/);
+    ).rejects.toThrow(/qualified to leave draft; routing it to Brian anyway records why/);
 
     const state = await m.append({
       type: "merge-recorded",

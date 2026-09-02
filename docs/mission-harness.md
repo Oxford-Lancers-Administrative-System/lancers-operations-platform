@@ -4,7 +4,7 @@ The owner's guide to Mission Harness v1: what Brian does, what the Mission
 Lead does, and how to recover. The decision is
 [`docs/adr/0027-mission-harness.md`](adr/0027-mission-harness.md); the
 machine-readable merge rules are
-[`.github/mission-merge-rules.json`](../.github/mission-merge-rules.json).
+[`.github/merge-rules.json`](../.github/merge-rules.json).
 If this page and those files disagree, the checked-in rules and tests win.
 
 ## The one entry point
@@ -104,7 +104,7 @@ review verdict.
 `mission review request` reads the package's own diff from the repository —
 `<base>...<head>`, so the package's changes and not everything that landed on the
 base branch since — and classifies it through the checked-in `reviewContract`
-rules in `.github/mission-merge-rules.json`. The capabilities and the job set
+rules in `.github/merge-rules.json`. The capabilities and the job set
 come from that plus durable state: the package's `requirement_ids` against the
 packet, the sensitive-path intersection, the rendered classifier, the
 public-token surfaces, the transport seam, and any changed seed or fixture
@@ -218,7 +218,7 @@ run an exit step.
 It reclaims **per package**: a package's worktree, branch and attachment to the
 mission stack are released the moment its pull request merges, proved from the
 repository and never from the pull-request body or the Linear state — the
-`mission-merge` lane merges without a human, so nobody may infer that Brian did.
+merge workflow enables GitHub's auto-merge, so nobody may infer that Brian did.
 
 The proof is the **merge commit**, not the branch head. This repository squash-
 merges, and a squash produces a new commit, so the head is never an ancestor of
@@ -351,47 +351,35 @@ stops automated correction and returns to Brian for adjudication.
 
 ## What merges by itself, and what never does
 
-There are three tiers, decided by Brian on 2026-08-18:
+**Draft state is the readiness gate (Brian, 2026-09-01; ADR 0038).** A pull
+request leaves draft exactly once, as the last act of the work, and that act is
+the authorization to merge it. The Mission Lead may lift a package's draft only
+when the diff touches no prohibited path, review is clear at the pull request's
+exact current head, and — for visual work — Brian's visual approval is recorded
+against that same head. Otherwise the draft stays and Brian merges. The Lead
+never merges, and neither does the workflow.
 
-**Merges by itself.** Standard application work whose exact package head has
-clear required security coverage, Brian's issue approval (or is genuinely
-nonvisual), no open owner question, and green required checks at that exact
-commit merges through the checked-in `mission-merge` workflow
-after the Mission Lead publishes its receipt and applies the `mission-merge`
-label. The workflow re-derives everything server-verifiable from evidence
-and fails closed; a refusal is posted on the pull request. A review-blocked
-rendered correction clears the applicable visual evidence — Brian approved
-what he saw, not whatever came later.
-
-Merging is where a package's lifecycle ends. A worker or review receipt that
-arrives after the merge is refused, and a journal that somehow contains one
-still replays to `merged`: the receipt is kept as evidence, but a finished
-package never walks backwards into review or re-dispatch.
-
-**Merges by itself only after Brian heard about it** — the
-checkpoint-approval surfaces (`src/lib/auth/**`, `src/lib/delivery/**`).
-Workers may change them freely, but the diff-derived scan detects them and
-the merge is refused unless an **answered owner question** naming the
-package exists in mission state and the receipt cites it. In practice: the
-Lead raises it in the "Need from Brian" queue — "this package changes the
-recipient allowlist, OK?" — Brian answers at the checkpoint, the answer is
-persisted, and the merge proceeds. The ask cannot be skipped, only
-affirmatively falsified, which is a durable, auditable lie. The delivery
-entry is expected to loosen once the recipient allowlist becomes database
-records.
+`.github/workflows/merge.yml` enables GitHub's own auto-merge on a non-draft
+pull request whose diff touches no prohibited path; GitHub merges it once every
+required check is green. There are no lanes, no labels, no eligibility classes
+and no receipt: the receipt existed only because a workflow that could not see
+the mission journal had to be told what it said, and it no longer needs telling.
 
 **Always Brian's, never autonomous:** schema and migrations; RLS and the
 authentication routes; the public RSVP token surfaces (`src/lib/rsvp/**`);
 mission packets (`missions/**` — the packet PR _is_ the approval); secrets
 and credentials; deployment and production data; and visual work without
 recorded approval. These arrive as ordinary draft PRs for Brian to merge, and
-each is decided from the diff by the prohibited-path scan rather than from a
-risk label.
+each stays a draft, and each is decided from the real diff by the
+prohibited-path scan rather than from a risk label.
 
 Highest risk is **not** on that list any more. A grade says how rigorously a
-change is reviewed; it does not decide the route. Highest-risk work may use the
-lane only when an answered owner checkpoint names the package, so Brian hears
-about it before it merges — see
+change is reviewed; it does not decide the route. Highest-risk work leaves draft
+only when an answered owner checkpoint names the package, and so does any work
+touching a checkpoint surface — auth, the remaining database routing, the public
+answer-token surface, delivery, or the provider webhook — whatever its grade. A
+declared grade cannot stand in for the paths a package turns out to touch. Brian
+hears about all of it before it merges — see
 [ADR 0033](adr/0033-harness-after-the-first-live-mission.md) §4.
 
 **A mission merge does not deploy** — decided deliberately. `main` moves
@@ -432,9 +420,14 @@ every read.
   executable frontier without changing anything. Detailed journal mechanics
   remain in plain NDJSON and are safe to read.
 
-A passing `mission gate` records `gate-passed` at the exact head. Re-running a
-now-failing gate invalidates that milestone, so volatile GitHub evidence cannot
-leave status falsely green.
+`mission gate` answers one question: may the Lead lift this package's draft? It
+joins the journal conjuncts — clear review at the exact head, recorded visual
+approval for visual work, an answered owner question for a checkpoint surface,
+no open owner question, no stop, no drift — with the
+prohibited-path scan of the real diff and the required checks green at that same
+head. A pass records `gate-passed` at the exact head, and only then does the
+Lead run `gh pr ready`. Re-running a now-failing gate invalidates that
+milestone, so volatile GitHub evidence cannot leave status falsely green.
 
 Workers can validate a completed receipt before filing it:
 
@@ -457,13 +450,14 @@ a re-scoping tool.
 
 Agents cannot change live GitHub settings, so Brian performs these once:
 
-1. Create the `mission-merge` label in the repository (Issues → Labels).
-2. Confirm Actions workflow permissions allow workflows the write access the
-   fast lane already uses (Settings → Actions → General → Workflow
-   permissions: read and write). `mission-merge.yml` narrows its own token
-   from there and never uses `--admin`.
-3. Nothing else: no secrets, no rulesets, no new services. Branch protection
-   on `main` stays exactly as it is — it is the gate both lanes depend on.
+1. Run `scripts/production/github-merge-protection.sh`. It sets the ruleset on
+   `main`, turns repository auto-merge on, and forbids Actions from approving
+   pull requests. `merge.yml` cannot enable auto-merge without it.
+2. Confirm Actions workflow permissions allow workflows write access
+   (Settings → Actions → General → Workflow permissions: read and write).
+   `merge.yml` narrows its own token from there and never uses `--admin`.
+3. Nothing else: no secrets, no labels, no new services. Branch protection on
+   `main` is the gate the merge rule depends on.
 
 ## Readiness and its evidence
 
@@ -485,7 +479,7 @@ no real worker, and no real merge. Reproduce the evidence any time with:
 npx vitest run tests/mission-rehearsals.test.ts
 ```
 
-Real Linear writes, real workers, and a real guarded merge are the pilot's
+Real Linear writes, real workers, and a real automatic merge are the pilot's
 evidence, produced with Brian watching. The pilot recommendation and the
 harness verdict live in the Mission Harness v1 pull request's implementation
 report. **Declaring not ready** is always a legitimate outcome, at every

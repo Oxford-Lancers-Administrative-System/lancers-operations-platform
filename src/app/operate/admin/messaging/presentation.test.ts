@@ -10,6 +10,8 @@ const SCHEDULE: MessagingSchedule = {
   whatsappReminderCount: 2,
   emailReminderCount: 1,
   escalationHours: 12,
+  recruitInvitationLeadDays: null,
+  recruitFollowUpCadenceHours: null,
   updatedAt: new Date("2026-08-25T00:00:00Z"),
 };
 
@@ -34,6 +36,7 @@ function planForSchedule(overrides: Partial<MessagingPlan> = {}): MessagingPlan 
       { rung: 3, kind: "reminder", channel: "email", at: new Date("2026-09-18T19:00:00Z") },
     ],
     escalationAt: new Date("2026-09-21T07:00:00Z"),
+    recruitLadder: null,
     ...overrides,
   };
 }

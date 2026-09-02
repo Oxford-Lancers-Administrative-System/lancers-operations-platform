@@ -118,7 +118,6 @@ describe("protected authority", () => {
     expect(deny).toContain("Bash(gh pr merge *)");
     expect(deny).toEqual(
       expect.arrayContaining([
-        "Bash(gh pr ready *)",
         "Bash(git push * main)",
         "Bash(git push --force*)",
         "Bash(gh workflow run *)",
@@ -133,7 +132,7 @@ describe("protected authority", () => {
     );
   });
 
-  it("allows only the narrow GitHub reads and mission-label ask", () => {
+  it("allows only the narrow GitHub reads and the readiness signal", () => {
     expect(settings.permissions.allow).toEqual(
       expect.arrayContaining([
         "Bash(gh pr edit * --add-label *)",
@@ -143,6 +142,75 @@ describe("protected authority", () => {
         "Bash(gh run view *)",
       ]),
     );
+    // LAN-209, deliberately. Lifting the draft is the last act of the work and
+    // the authorization to merge it, so the agent that did the work performs
+    // it. Merge authority stays with GitHub: `gh pr merge` is still denied.
+    expect(settings.permissions.allow).toContain("Bash(gh pr ready *)");
+    expect(deny).not.toContain("Bash(gh pr ready *)");
+  });
+});
+
+// LAN-209. `settings.json` permissions are session-wide, so the restriction of
+// un-drafting to two roles cannot be enforced mechanically. It is enforced by
+// the written rule, and this is what makes the written rule binding.
+describe("the merge rule is written into every role", () => {
+  const MAY_LIFT = ["start-issue", "run-mission"] as const;
+
+  it("states the rule exactly once, in AGENTS.md", () => {
+    const agents = read("AGENTS.md");
+    expect((agents.match(/A pull request leaves draft exactly once/g) ?? []).length).toBe(1);
+    expect(agents).toMatch(/No agent merges, ever\./);
+    expect(agents).toMatch(/Only `\/start-issue` and `\/run-mission` may lift a draft/);
+    for (const file of Object.values({ ...skillFiles, ...agentFiles })) {
+      expect(
+        (read(file).match(/A pull request leaves draft exactly once/g) ?? []).length,
+        file,
+      ).toBe(0);
+    }
+  });
+
+  it("gives the two lifting roles the three conditions", () => {
+    for (const name of MAY_LIFT) {
+      const source = read(skillFiles[name]);
+      expect(source, name).toMatch(/Lifting the draft is the last act of the work/);
+      expect(source, name).toMatch(/no prohibited\s+path/);
+      expect(source, name).toMatch(/review is clear at the exact current head/);
+      expect(source, name).toMatch(/visual approval is recorded against that same head/);
+      expect(source, name).toMatch(/Never merge\./);
+    }
+  });
+
+  it("forbids every other role from lifting one", () => {
+    const others = { ...skillFiles, ...agentFiles };
+    for (const name of MAY_LIFT) delete (others as Record<string, string>)[name];
+    expect(Object.keys(others).sort()).toEqual(
+      [
+        "code-reviewer",
+        "finish-issue",
+        "finish-mission",
+        "implementation-worker",
+        "mission-intake",
+        "scout",
+      ].sort(),
+    );
+    for (const [name, file] of Object.entries(others)) {
+      const source = read(file);
+      expect(source, name).toMatch(/never lift a draft/);
+      expect(source, name).not.toMatch(/Lifting the draft is the last act/);
+    }
+  });
+
+  it("leaves no label, no receipt and no fast lane anywhere in the instruction surface", () => {
+    for (const file of [
+      "AGENTS.md",
+      "CLAUDE.md",
+      ...Object.values({ ...skillFiles, ...agentFiles }),
+    ]) {
+      const source = read(file);
+      for (const gone of ["fast-lane", "fast lane", "mission-merge"]) {
+        expect(source.toLowerCase(), `${file}: ${gone}`).not.toContain(gone);
+      }
+    }
   });
 });
 

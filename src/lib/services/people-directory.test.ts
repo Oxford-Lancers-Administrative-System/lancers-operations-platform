@@ -398,6 +398,25 @@ describe("listPeople — season scoping", () => {
     expect(almostIndex).toBeGreaterThanOrEqual(0);
     expect(bertramIndex).toBeLessThan(almostIndex);
   });
+
+  // Finding 8, Brian 2026-09-01: "I should be able to sort by player or
+  // recruit". A binary collapse of the six-rung status ladder, not a second
+  // ranking of the ladder itself.
+  it("sorts recruits ahead of players by type, ascending", async () => {
+    const recruit = await insertPerson({ givenName: unique("Recruity") });
+    await insertProspect(recruit, seasonId);
+    const player = await insertPerson({ givenName: unique("Playery") });
+    await insertMembership(player, seasonId, "active");
+
+    const list = await listPeople({ scope: "in_season", sort: "type", direction: "asc" });
+    const recruitIndex = list.entries.findIndex((e) => e.personId === recruit);
+    const playerIndex = list.entries.findIndex((e) => e.personId === player);
+    expect(recruitIndex).toBeGreaterThanOrEqual(0);
+    expect(playerIndex).toBeGreaterThanOrEqual(0);
+    expect(recruitIndex).toBeLessThan(playerIndex);
+    expect(list.entries[recruitIndex].status).toBe("recruit");
+    expect(list.entries[playerIndex].status).not.toBe("recruit");
+  });
 });
 
 describe("listMissingDataQueue — W7", () => {

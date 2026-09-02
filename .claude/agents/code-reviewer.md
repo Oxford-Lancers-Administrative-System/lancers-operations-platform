@@ -86,7 +86,8 @@ resolution or one precise owner decision; do not add code findings.
 Walkers execute the complete mission job set their contract carries — every
 completion criterion the packet names — and report a result per criterion id,
 never a prose summary or a narrowed selection. They remain exact-head evidence
-and never gate or reopen an already-merged issue.
+and never gate or reopen an already-merged issue. Never merge and never lift a draft;
+your clear verdict at the exact head is what lets the Lead lift it.
 
 ## Findings and challenge
 

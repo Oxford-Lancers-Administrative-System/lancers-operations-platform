@@ -318,7 +318,7 @@ describe("no automated path can invoke the production procedure", () => {
   const AUTOMATED = [
     ".github/workflows/ci.yml",
     ".github/workflows/deploy.yml",
-    ".github/workflows/fast-lane-merge.yml",
+    ".github/workflows/merge.yml",
     "Dockerfile",
     "package.json",
     "scripts/seed-local.mjs",

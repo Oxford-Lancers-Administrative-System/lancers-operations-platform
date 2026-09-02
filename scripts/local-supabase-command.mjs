@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import {
+  assertMigrationsApplied,
   markConfigApplied,
   prepareRuntime,
   readSession,
@@ -11,6 +12,7 @@ import {
 } from "./lib/local-supabase-coordinator.mjs";
 import { ensureLocalReviewAccount, readLocalReviewAccount } from "./lib/local-review-account.mjs";
 import { ensureLocalClubLinkSecret } from "./lib/local-club-link-secret.mjs";
+import { connectLocal } from "./lib/local-db.mjs";
 
 const repoPath = process.cwd();
 const operation = process.argv[2];
@@ -89,6 +91,31 @@ function provisionReviewState(lease, account) {
     run(process.execPath, [script], env);
 }
 
+/**
+ * LAN-212: `supabase db reset` and `supabase start` both claim the stack is at
+ * the tracked schema and can be wrong about it. Prove it against
+ * `supabase_migrations.schema_migrations` before anything downstream (seeding,
+ * a reviewer, an application boot) trusts that claim.
+ */
+async function assertStackAtTrackedMigrations(lease) {
+  await assertMigrationsApplied({
+    repoPath,
+    queryAppliedVersions: async () => {
+      const client = await connectLocal(
+        `postgresql://postgres:postgres@127.0.0.1:${lease.ports.db}/postgres`,
+      );
+      try {
+        const result = await client.query(
+          "select version from supabase_migrations.schema_migrations order by version",
+        );
+        return result.rows.map((row) => row.version);
+      } finally {
+        await client.end();
+      }
+    },
+  });
+}
+
 try {
   const session = readSession(repoPath);
   const lease = await updateLease({ repoPath, token: session.token });
@@ -152,6 +179,9 @@ try {
     const fingerprint = await applyRenderedConfig();
     run(cli, cliArgs("start"), cliEnv, false);
     await markConfigApplied({ repoPath, token: session.token, fingerprint });
+    // LAN-212: a fresh volume applies every tracked migration on `start`, the
+    // same way `reset` does, and can skip one just as silently.
+    await assertStackAtTrackedMigrations(lease);
     const raw = run(cli, cliArgs("status", ["-o", "json"]), cliEnv, false);
     const status = JSON.parse(raw);
     const envFile = [
@@ -182,6 +212,10 @@ try {
       await markConfigApplied({ repoPath, token: session.token, fingerprint });
     }
     run(cli, cliArgs("db", ["reset", "--local", "--yes"]), cliEnv);
+    // LAN-212: `db reset` reported success on a local machine having applied
+    // only 27 of 28 tracked migrations. Prove the applied set matches the
+    // directory before seeding a schema that might not be what it claims.
+    await assertStackAtTrackedMigrations(lease);
     provisionReviewState(lease, reviewAccount);
   } else if (operation === "status") {
     const raw = run(cli, cliArgs("status", ["-o", "json"]), cliEnv, false);

@@ -175,6 +175,42 @@ describe("the mapper degrades safely", () => {
   });
 });
 
+// LAN-204, item 5 (Brian, 2026-09-02: "What rules? I made all the rules, so I
+// don't even know what rule I'm breaking."). The service layer satisfies both
+// of these on the write for every reachable path (`updateRecruitmentProspectStatusIn`,
+// `flipRecruitmentProspectToJoinedIn`) — this is the backstop for a caller
+// that reaches the raw constraint anyway, and it must name the club's rule
+// rather than the generic "breaks one of the club's recorded rules" sentence.
+describe("the two recruitment status constraints name themselves (LAN-204)", () => {
+  it("recruitment_prospects_commitment_is_dated", () => {
+    const mapped = mapDatabaseError({
+      code: "23514",
+      constraint: "recruitment_prospects_commitment_is_dated",
+      table: "recruitment_prospects",
+    });
+    expect(mapped).toBeInstanceOf(ConstraintViolated);
+    expect(mapped.message).toMatch(/committed date/i);
+    expect(mapped.message).not.toBe(
+      "The database refused this change because it breaks one of the club's recorded rules. " +
+        "Nothing was saved.",
+    );
+  });
+
+  it("recruitment_prospects_conversion_matches_status", () => {
+    const mapped = mapDatabaseError({
+      code: "23514",
+      constraint: "recruitment_prospects_conversion_matches_status",
+      table: "recruitment_prospects",
+    });
+    expect(mapped).toBeInstanceOf(ConstraintViolated);
+    expect(mapped.message).toMatch(/joined status/i);
+    expect(mapped.message).not.toBe(
+      "The database refused this change because it breaks one of the club's recorded rules. " +
+        "Nothing was saved.",
+    );
+  });
+});
+
 describe("nothing sensitive is copied out of the driver's error", () => {
   /**
    * A realistic `pg` error. `message`, `detail`, `hint` and `where` are the
