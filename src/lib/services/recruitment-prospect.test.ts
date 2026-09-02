@@ -440,21 +440,58 @@ describe("sendRecruitmentQuestionnaireIn and the sweep — the 2026-09-01 amendm
 
       // The mobile arrives after declaration — `dispatchRecruitmentCycleJob`
       // needs a real recipient at claim time; declaration itself never did.
+      const recruitPhone = uniquePhone();
       await withTransaction((tx) =>
         tx.query(
           `insert into public.contact_points (person_id, kind, scope, raw_value, is_preferred, source, valid_from)
            values ($1::uuid, 'phone', null, $2, true, 'other', current_date)`,
-          [personId, uniquePhone()],
+          [personId, recruitPhone],
         ),
       );
 
       const { sent, transport } = acceptingTransport();
-      const summary = await runMessagingSweep({ source: CONFIGURED, transport });
+      // F-LAN204-007 (correction round 1). `runMessagingSweep`'s default
+      // batch (`SWEEP_BATCH_LIMIT`, 50) is a real production concern —
+      // `messaging-scheduler.ts`, out of this package's hands (LAN-205) —
+      // but it makes this test order-dependent on a database it does not
+      // control: a freshly `db:reset`-and-seeded local stack carries several
+      // hundred already-due `reminder`/`invitation` jobs from the synthetic
+      // season's own history (confirmed directly: 481 on this run, none of
+      // them this test's own), all sorted ahead of this job in
+      // `readDueJobs`'s oldest-first order because they were backdated by
+      // the seed and this job's own `scheduled_for` (offset zero from
+      // `created_at`) is the newest timestamp in the table. A bare call
+      // starves this job out of every batch before the sweep ever reaches
+      // it — reproduced deterministically, in isolation, against two
+      // independently provisioned local databases (this one and the
+      // package-gate review's own broker), which is what F-LAN204-007
+      // originally flagged as an unresolved discrepancy against a green
+      // exact-head CI. A generous explicit `limit` makes the sweep walk the
+      // whole due backlog in one call, exactly as a real ticker eventually
+      // would across enough ticks: every one of those other jobs is
+      // `refused` before any transport call (their recipients are real
+      // synthetic numbers, never on `CONFIGURED`'s allowlist), so `sent`
+      // still holds only this job's own message, in ordinary FIFO order.
+      const summary = await runMessagingSweep({ source: CONFIGURED, transport, limit: 5_000 });
       expect(summary.accepted).toBeGreaterThan(0);
       expect(sent.length).toBeGreaterThan(0);
-      // The welcome template, the one due at offset zero.
-      const payload = sent[0].body as { template: { name: string } };
+      // The welcome template, the one due at offset zero — found by name
+      // rather than assumed to be `sent[0]`: the backlog above is refused
+      // before any transport call (none of its real synthetic numbers are
+      // on `CONFIGURED`'s allowlist), so nothing else in this run reaches
+      // `sent` at all, but asserting on the one template this test can ever
+      // cause is a direct claim rather than one resting on queue order.
+      const own = sent.find(
+        (message) => (message.body as { template?: { name?: string } }).template?.name === "recruit_welcome_v1",
+      );
+      expect(own).toBeDefined();
+      const payload = own!.body as { to: string; template: { name: string } };
       expect(payload.template.name).toBe("recruit_welcome_v1");
+      // The allowlisted number this test itself inserted, WhatsApp's own
+      // E.164-without-plus shape (`recipientPermitted`'s normalisation) —
+      // proof this message really is the one this test's own job caused,
+      // not merely a same-named template from an unrelated row.
+      expect(payload.to.endsWith(recruitPhone.replace(/\D/g, "").replace(/^0/, ""))).toBe(true);
 
       const sinkAttempts = await observer.query(
         "select accepted_at from public.delivery_attempts da join public.notification_jobs nj on nj.id = da.notification_job_id where nj.person_id = $1::uuid",
@@ -466,6 +503,12 @@ describe("sendRecruitmentQuestionnaireIn and the sweep — the 2026-09-01 amendm
       expect(after?.personal.lastSentAt).not.toBeNull();
       expect(after?.recruitment.lastSentAt).toBeNull();
     },
+    // The generous `limit` above (F-LAN204-007) means this sweep walks the
+    // whole local synthetic season's own due backlog, not just this test's
+    // one job — hundreds of `refused` claims, each its own transaction, on
+    // a freshly `db:reset`-and-seeded stack. The default 5s test timeout is
+    // sized for one job, not that.
+    30_000,
   );
 
   it("never creates a third message for one track — pressing send again after both slots exist is a no-op", async () => {
