@@ -92,13 +92,13 @@ See the package receipt for what is and is not proved about it.
 banded-card shell (`LAN-187`), gated the same way. Every card is a shipped
 card with its content replaced, per `W2`'s own table:
 
-| Card                    | Colour  | Holds                                                                                                                                            |
-| ----------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Person**               | slate   | Person facts, read-only, no "open the person record" link — Brian, 2026-09-01. The personal questionnaire's send line sits here.                  |
-| **Recruitment**          | teal    | Status, source, first contact, committed on, consent, and all six recruitment-questionnaire answers — one merged card, not two (Brian, 2026-09-01). The recruitment questionnaire's send line sits here. |
-| **Recruitment events**   | blue    | The shipped attendance table, reused whole: Event, Date, RSVP, Attendance, **Event status** (`Mandatory` dropped — a recruit has no mandatory events). |
-| **Notes**                | slate   | Prose, attributed and dated, with a place to write the next one.                                                                                    |
-| **Status history**       | slate   | Recruitment's own status changes, not membership's.                                                                                                 |
+| Card                   | Colour | Holds                                                                                                                                                                                                    |
+| ---------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Person**             | slate  | Person facts, read-only, no "open the person record" link — Brian, 2026-09-01. The personal questionnaire's send line sits here.                                                                         |
+| **Recruitment**        | teal   | Status, source, first contact, committed on, consent, and all six recruitment-questionnaire answers — one merged card, not two (Brian, 2026-09-01). The recruitment questionnaire's send line sits here. |
+| **Recruitment events** | blue   | The shipped attendance table, reused whole: Event, Date, RSVP, Attendance, **Event status** (`Mandatory` dropped — a recruit has no mandatory events).                                                   |
+| **Notes**              | slate  | Prose, attributed and dated, with a place to write the next one.                                                                                                                                         |
+| **Status history**     | slate  | Recruitment's own status changes, not membership's.                                                                                                                                                      |
 
 **SEND / RESEND**, one button per questionnaire, each opening a dialog naming
 the last-sent date or that it has never been sent — see "The send machinery."
