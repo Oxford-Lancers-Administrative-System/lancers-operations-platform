@@ -174,6 +174,13 @@ export async function mayReceiveWelcomeContactIn(
  * recruitment/Questionnaire-B track. That track waits until the recruit has
  * completed the sign-up form themselves and their consent reads `granted`
  * with `source: 'qr_self_entry'` specifically, which is what this checks.
+ *
+ * This is deliberately just as true of `operator_recorded`: an operator
+ * typing consent in on somebody's behalf is not the recruit completing the
+ * form, so it does not unlock this track either, for the identical reason a
+ * read-back does not — not an oversight, and not a case this function is
+ * expected to widen later without a new owner decision naming it.
+ *
  * `requireGrantedSeasonMessagingConsentIn`/`hasGrantedSeasonMessagingConsentIn`
  * are unaffected — every ordinary send still only cares that the state is
  * `granted`, regardless of source; this is the one track that also cares
