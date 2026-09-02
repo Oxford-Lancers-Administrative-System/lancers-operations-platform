@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireCapability, requireRole } from "@/lib/auth/guards";
+import { FLIP_ROLE_CODES, FLIP_ROLE_RULE } from "@/lib/auth/recruitment-flip-authority";
 import { isServiceError } from "@/lib/db";
 import {
   flipRecruitmentProspectToJoined,
@@ -19,21 +20,14 @@ import type { RecruitmentActionState } from "./action-state";
  * (LAN-124: the administrative seat holds every capability in the file), and
  * unaffected by this file's other correction.
  *
- * `flipRecruitmentProspectAction` is narrower. `W14` (locked) names exactly
- * "President, Vice President, Secretary and General Manager, and nobody
- * else, ever" for the mission's one irreversible action, and `REQ-core-four`
- * is explicit that recruitment mints no new capability — so this is not
- * `person_record_authority` (which admits `it_officer`, LAN-124's standing
- * administrative exception, correct for every other surface in this package
- * but not for this one) and it is not a new entry in `capabilities.ts`
- * either. `requireRole()` (LAN-73) is the mechanism built for exactly this:
- * a literal role-code check against the verified session, independent of the
- * capability map — found by review after `board-actions.test.ts` proved an
- * IT-Officer-only operator could reach the flip through
- * `person_record_authority` (F-LAN204-001).
+ * `flipRecruitmentProspectAction` is narrower — `FLIP_ROLE_CODES`
+ * (`@/lib/auth/recruitment-flip-authority`) is the full reasoning, kept in
+ * its own module rather than here so this file stays inside
+ * `tests/capability-map-single-source.test.ts`'s row-8 scan: correction
+ * round 1 first put this whole file in that scan's allow-list, and the
+ * reviewer proved the cost (F-LAN204-CORR1-008) by slipping an unrelated
+ * role literal in here and watching the invariant pass anyway.
  */
-const FLIP_ROLE_CODES = ["president", "vice_president", "secretary", "general_manager"] as const;
-const FLIP_ROLE_RULE = "recruitment_flip_core_four_only";
 
 function refresh(prospectId?: string): void {
   revalidatePath("/operate/recruitment");

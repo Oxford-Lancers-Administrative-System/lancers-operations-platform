@@ -49,28 +49,37 @@ const ROLE_CODES = [
   "special_teams_coach",
 ];
 
-/** The one module permitted to name a role code, and the tests that check it. */
+/** The modules permitted to name a role code, and the tests that check it. */
 const ALLOWED = [
   join("src", "lib", "auth", "capabilities.ts"),
-  // LAN-204, `board-actions.ts`'s own `flipRecruitmentProspectAction`
-  // (F-LAN204-001, correction round 1) — `REQ-core-four` and `W14` (locked):
-  // "President, Vice President, Secretary and General Manager, and nobody
-  // else, ever" for the mission's one irreversible action, with the explicit
-  // instruction to mint no new capability for it. Every capability this map
-  // holds that ever named that same four-office set has since had
-  // `it_officer` added to it under LAN-124's own standing precedent
-  // ("the administrative seat holds every capability in this file") — see
-  // `membership_activation` and `event_calendar_management` above, both
-  // widened exactly that way. A new map entry for the flip would be the
-  // identical shape and, on that same precedent, an equally reasonable
-  // target for the next widening — which is precisely what "and nobody
-  // else, ever" forbids for this one action. `requireRole()` (`guards.ts`,
-  // LAN-73's own second guard, built for this and until now never called in
-  // production) is the deliberate escape from that drift: a literal,
-  // narrower-than-the-map check, independent of `capabilityRoleCodes` and
-  // everything that widens through it. `board-actions.test.ts` proves the
-  // fifth role (`it_officer` included) is refused.
-  join("src", "app", "operate", "recruitment", "board-actions.ts"),
+  // LAN-204, `flipRecruitmentProspectAction`'s role gate (F-LAN204-001,
+  // correction round 1; narrowed to this one file by F-LAN204-CORR1-008)
+  // — `REQ-core-four` and `W14` (locked): "President, Vice President,
+  // Secretary and General Manager, and nobody else, ever" for the mission's
+  // one irreversible action, with the explicit instruction to mint no new
+  // capability for it. Every capability the map above holds that ever named
+  // that same four-office set has since had `it_officer` added to it under
+  // LAN-124's own standing precedent ("the administrative seat holds every
+  // capability in this file") — see `membership_activation` and
+  // `event_calendar_management` there, both widened exactly that way. A new
+  // map entry for the flip would be the identical shape and, on that same
+  // precedent, an equally reasonable target for the next widening — which
+  // is precisely what "and nobody else, ever" forbids for this one action.
+  // `requireRole()` (`guards.ts`, LAN-73's own second guard, built for this
+  // and until this PR never called in production) is the deliberate escape
+  // from that drift: a literal, narrower-than-the-map check, independent of
+  // `capabilityRoleCodes` and everything that widens through it.
+  //
+  // This is the constant alone (`FLIP_ROLE_CODES`,
+  // `src/lib/auth/recruitment-flip-authority.ts`), not the server action
+  // file that uses it: the first cut of this correction allow-listed the
+  // whole of `board-actions.ts`, and the reviewer proved the cost by
+  // injecting an unrelated `"treasurer"` literal into that file — the scan
+  // passed, silently, because the entire file was exempt. Isolating the
+  // constant to its own single-purpose module means `board-actions.ts`
+  // itself stays under this scan, and `board-actions.test.ts` still proves
+  // the fifth role (`it_officer` included) is refused at the gate.
+  join("src", "lib", "auth", "recruitment-flip-authority.ts"),
 ];
 
 function sourceFiles(directory: string): string[] {
