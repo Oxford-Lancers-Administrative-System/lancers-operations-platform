@@ -124,10 +124,15 @@ export default function StatusCell({
             display: "inline-block",
             cursor: pending ? "default" : "pointer",
             borderRadius: 0.5,
-            "&:hover": pending ? undefined : { outline: "1px solid", outlineColor: "primary.light" },
+            "&:hover": pending
+              ? undefined
+              : { outline: "1px solid", outlineColor: "primary.light" },
           }}
         >
-          <StatusPill color={STATUS_COLOUR_FOR_PILL[status]} label={PROSPECT_STATUS_LABELS[status]} />
+          <StatusPill
+            color={STATUS_COLOUR_FOR_PILL[status]}
+            label={PROSPECT_STATUS_LABELS[status]}
+          />
         </Box>
       )}
       {error ? (

@@ -15,7 +15,10 @@ import type { ProspectStatus } from "@/lib/services/recruitment-vocabulary";
  * status is never a different colour depending which surface shows it.
  */
 export const STATUS_COLOUR_FOR_PILL: Readonly<
-  Record<ProspectStatus, "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning">
+  Record<
+    ProspectStatus,
+    "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning"
+  >
 > = Object.freeze({
   identified: "default",
   engaged: "info",

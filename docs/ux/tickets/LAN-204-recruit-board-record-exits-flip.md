@@ -14,6 +14,19 @@ repository contract. This records what was built from them and from `W1`,
 `W2`, `W13` and `W14`, so a later package (`LAN-206`, the messaging schedule,
 Mission 5's roster) does not have to re-derive it.
 
+**2026-09-02 correction.** Brian's walkthrough rejected the surfaces this
+contract first described: "The UI here is completely different from how
+it's done for the events and how it's done for roster… it reinvented the
+shit." The board and record were rebuilt on the roster board's and player
+record's own shared controls rather than lookalikes of them — extracted to
+`src/app/operate/board-filter-controls.tsx` (the status-pill formula, the
+column-header sort/filter funnel, the banded-header grouping) and
+`src/app/operate/record-shell.tsx` (the banded `Section`/`Row`/`RecordField`
+shell) so the roster imports the identical code, not a copy that could
+drift. The same walkthrough surfaced a real design defect — the consent
+deadlock, item 9 below — fixed in the same round. What follows describes the
+corrected surfaces; the departures section names what changed and why.
+
 Sources, in `slice-ux.md` §1's authority order:
 
 - `LAN-204` in Linear, its amendment, and the answered owner decisions it
@@ -52,9 +65,15 @@ heard · Anything else · one RSVP/Attendance pair per event.
   (College, Matric, Grad, Degree field) and `edit: "none"` (Contactable).
 - **Source carries no filter and is never edited in the cell** — Brian,
   2026-09-01.
-- **Status is a free select in every cell except reaching `joined`**, which
-  the same control intercepts into `W14`'s confirmation (below) rather than
-  writing it directly.
+- **Status is the roster's own status-pill formula** — a colour-coded pill by
+  default (`StatusPill`, `board-filter-controls.tsx`; recruitment's own seven
+  colours, one MUI semantic keyword per ladder value), click-to-edit opening
+  the same generic `Select` every in-place edit uses. The one item the
+  2026-09-02 walkthrough named directly: "Today the board renders a bare MUI
+  dropdown in the cell — that is the reinvention." Every value is always
+  offered and no transition through this control is ever refused
+  (`Q-every-status-reachable`); reaching `joined` is intercepted into `W14`'s
+  confirmation rather than written directly.
 - **"Personal sent" / "Recruitment sent" read `delivery_attempts.accepted_at`**
   for that track's jobs, never `notification_jobs.status` alone and never an
   optimistic field this package writes — see "The send machinery" below.
@@ -62,11 +81,22 @@ heard · Anything else · one RSVP/Attendance pair per event.
   own rule, and what sinks the three exits toward the bottom without ever
   removing them from the board (superseding `W13`'s and `W14`'s earlier
   "off-the-board" language, per the approved `W1-01`/`W13-01` frames).
+  Every sortable column carries the roster's own `TableSortLabel` indicator.
 - **Search** matches name and alias, identically to the roster board.
-- **Filters**: status, consent, personal sent, recruitment sent, and whether
-  the recruit attended any event — combinable, immediate, client-side over the
-  one dataset the page reads. No season picker; the board reads the one open
-  season.
+- **Filters are the roster's own two-part mechanism**, not a bespoke row:
+  a pinned control (Search plus five `PinnedSelect`s — Status, WhatsApp
+  consent, Personal sent, Recruitment sent, Attended an event) always
+  reachable, plus the identical `FilterButton`-and-menu funnel every
+  filterable column header carries on desktop, both writing the one
+  `filters` object — the same "one filter, two controls" relationship the
+  roster board's own pinned selects and column funnels have. A phone
+  `Filters` button opens the pinned controls in a bottom drawer, matching
+  the roster board's own mobile affordance. Status, WhatsApp consent,
+  Personal sent and Recruitment sent are combinable, immediate, and
+  client-side over the one dataset the page reads; Attended an event has no
+  column of its own (no single column names it) and is pinned-only, the one
+  place this board's filter set cannot be a literal column-for-column copy
+  of the roster's. No season picker; the board reads the one open season.
 - **Empty state** names the doors (QR, walk-up, operator add) rather than
   saying "no results" — `W1`'s own exception.
 - **`ADD RECRUIT`** (contained) points at `/operate/recruitment/new`, a
@@ -90,19 +120,28 @@ See the package receipt for what is and is not proved about it.
 ## The record (`W2`)
 
 `/operate/recruitment/[prospectId]`, on the shipped player record's own
-banded-card shell (`LAN-187`), gated the same way. Every card is a shipped
-card with its content replaced, per `W2`'s own table:
+banded-card shell — `record-shell.tsx`'s `Section`/`Row`/`RecordField`,
+extracted from `../roster/[membershipId]/record-view.tsx` (LAN-187) rather
+than a lookalike `Card`/`CardHeader` layout (the 2026-09-02 correction; the
+first shipped version built its own cards). Every card is a shipped card
+with its content replaced, per `W2`'s own table:
 
-| Card                   | Colour | Holds                                                                                                                                                                                                    |
-| ---------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Person**             | slate  | Person facts, read-only, no "open the person record" link — Brian, 2026-09-01. The personal questionnaire's send line sits here.                                                                         |
-| **Recruitment**        | teal   | Status, source, first contact, committed on, consent, and all six recruitment-questionnaire answers — one merged card, not two (Brian, 2026-09-01). The recruitment questionnaire's send line sits here. |
-| **Recruitment events** | blue   | The shipped attendance table, reused whole: Event, Date, RSVP, Attendance, **Event status** (`Mandatory` dropped — a recruit has no mandatory events).                                                   |
-| **Notes**              | slate  | Prose, attributed and dated, with a place to write the next one.                                                                                                                                         |
-| **Status history**     | slate  | Recruitment's own status changes, not membership's.                                                                                                                                                      |
+| Card                   | Colour | Holds                                                                                                                                                                                                                                       |
+| ---------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Person**             | slate  | Person facts, read-only, no "open the person record" link — Brian, 2026-09-01. The personal questionnaire's send line sits here.                                                                                                            |
+| **Recruitment**        | teal   | Status (the roster's own click-to-edit status pill, `StatusCell`), source, first contact, committed on, WhatsApp consent, and all six recruitment-questionnaire answers — one merged card, not two (Brian, 2026-09-01). The recruitment questionnaire's send line sits here. |
+| **Recruitment events** | blue   | The shipped attendance table's own shape, reused: Event, Date, RSVP, Attendance, **Event status** (`Mandatory` dropped — a recruit has no mandatory events).                                                                                |
+| **Notes**              | slate  | Prose, attributed and dated, with a place to write the next one.                                                                                                                                                                             |
+| **Status history**     | slate  | Recruitment's own status changes, not membership's.                                                                                                                                                                                          |
+
+The header keeps a glance-only status pill beside the recruit's name — the
+same read-only-summary-plus-editable-Section-field duality the roster
+record's own `Headline` and Season section carry — so the actual control
+lives in exactly one place, the Recruitment card.
 
 **SEND / RESEND**, one button per questionnaire, each opening a dialog naming
 the last-sent date or that it has never been sent — see "The send machinery."
+Whether either button is reachable now differs by track — see item 9 below.
 
 ## The exits (`W13`)
 
@@ -140,12 +179,56 @@ is the record's SEND/RESEND action. It calls `declareRecruitmentCycleJobsIn`
 and is proved end to end: the job is created, the real sweep
 (`runMessagingSweep`) claims it, the dispatcher renders the recruit-cycle
 template, and the local delivery sink accepts the Meta-shaped payload
-(`recruitment-prospect.test.ts`'s own suite). Consent, prospect status and the
-two-ask cap are all honoured by the function being called, not re-implemented:
-no granted consent or an ineligible status means nothing is declared; the
-cap is structural (one ask, one reminder, never a third slot to schedule
-into). "Last sent" always reads `delivery_attempts.accepted_at`, never a field
-this package writes optimistically.
+(`recruitment-prospect.test.ts`'s own suite). Prospect status and the
+two-ask cap are honoured by the function being called, not re-implemented:
+an ineligible status means nothing is declared for either track; the cap is
+structural (one ask, one reminder, never a third slot to schedule into).
+Consent is honoured **per track** — see item 9 below, the 2026-09-02
+correction. "Last sent" always reads `delivery_attempts.accepted_at`, never a
+field this package writes optimistically.
+
+## The consent deadlock — item 9, and its fix (2026-09-02 correction)
+
+Brian, walking a recruit with no consent: "The personal questionnaire is how
+we get consent. If consent is not given, sending the personal questionnaire
+is how we get it… The fucking app is deadlocked now." Both cycle tracks had
+shipped behind one gate, `hasGrantedSeasonMessagingConsentIn` — including the
+welcome track, whose own message carries the link to the sign-up form. An
+unconsented recruit could therefore never receive the one message that would
+let them grant consent.
+
+The fix splits the gate by track, in `recruitment-cycle.ts`'s
+`declareRecruitmentCycleJobsIn` and `messaging-scheduler.ts`'s
+`dispatchRecruitmentCycleJob` re-check alike:
+
+- **Welcome track** (`welcome` + `details_reminder`, the personal
+  questionnaire) — `messaging-consent.ts`'s new `mayReceiveWelcomeContactIn`:
+  allowed for every consent state except an explicit `refused` or
+  `withdrawn`. This is the one channel in the whole codebase allowed to
+  establish consent rather than require it; every other send, including the
+  interest track below, is unaffected.
+- **Interest track** (`interest_ask` + `interest_reminder`, Questionnaire B)
+  — `hasGrantedViaSignupFormIn`, narrower than a bare granted check:
+  `Q-read-back-authorises-how-much` (Brian, 2026-09-02, answered narrow) —
+  the state must be `granted` **and** the source must be `qr_self_entry`
+  specifically. A touchline `walk_up_read_back` grant, or an
+  `operator_recorded` one, authorises the welcome track alone; neither is the
+  recruit completing the sign-up form themselves, which is what unlocks this
+  track. `requireGrantedSeasonMessagingConsentIn`/
+  `hasGrantedSeasonMessagingConsentIn` — every ordinary send elsewhere in the
+  codebase — are unchanged.
+
+The record's own SEND buttons tell the same story: `RecruitmentProspectRecord`
+now carries `consentSource`, and the recruitment-questionnaire button's own
+disabled reason names the reason precisely ("recorded another way, not
+through the sign-up form") rather than the generic "not granted" text the
+personal button still uses for its own, differently-shaped refusal.
+
+A recruit who has explicitly `refused` or `withdrawn` still receives nothing
+at all, on either track — `mayReceiveWelcomeContactIn` refuses both states
+outright, and `hasGrantedViaSignupFormIn` requires `granted`, which neither
+state ever is. `declined` status blocks both tracks even earlier, at the
+eligibility check, before either consent gate is ever read.
 
 ## Departures from the mockups, and why they are decidable rather than escalated
 
@@ -181,12 +264,15 @@ this package writes optimistically.
 
 ## Visual evidence
 
-The board, the record (the `W2-02` "something on it" case — Tobias
-Wrenfield, engaged, notes present) and the QR page were proved at desktop
-(1440px) and a Playwright-measured 375px via `npm run visual:preflight`, real
-login through the shared review account, at this package's exact head SHA.
-The flip's confirmation is a client-side dialog on the board/record route
-rather than a route of its own, so it was exercised functionally
-(`recruitment-prospect.test.ts`'s flip suite) rather than screenshotted as a
-separate state. See the package receipt for the exact commands and the
+The board (with the seeded twelve recruits present — item 6, spread across
+all seven ladder values and all four capture sources, three of them carrying
+real event RSVP/attendance rows), the record (the `W2-02` "something on it"
+case — Tobias Wrenfield, engaged, notes present) and the QR page were proved
+at desktop (1440px) and a Playwright-measured 375px via
+`npm run visual:preflight`, real login through the shared review account, at
+this package's exact head SHA. The flip's confirmation is a client-side
+dialog on the board/record route rather than a route of its own, so it was
+exercised functionally (`recruitment-prospect.test.ts`'s flip suite) rather
+than screenshotted as a separate state. See the package receipt for the exact
+commands and the
 gitignored evidence path.

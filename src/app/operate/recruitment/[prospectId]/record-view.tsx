@@ -76,7 +76,8 @@ export default function RecruitmentRecordView({
   // it will do.
   const blockedByStatus = record.status === "declined";
   const blockedByRefusal = record.consent === "refused" || record.consent === "withdrawn";
-  const grantedViaSignupForm = record.consent === "granted" && record.consentSource === "qr_self_entry";
+  const grantedViaSignupForm =
+    record.consent === "granted" && record.consentSource === "qr_self_entry";
   const canSendPersonal = !blockedByStatus && !blockedByRefusal;
   const canSendRecruitment = !blockedByStatus && grantedViaSignupForm;
 
@@ -175,7 +176,11 @@ export default function RecruitmentRecordView({
                 canSend={canSendPersonal}
                 disabledReason={personalDisabledReason}
               />
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: "block", mt: 0.5 }}
+              >
                 {record.personal.lastSentAt
                   ? `Last sent ${formatWhen(new Date(record.personal.lastSentAt))}`
                   : "Not sent"}
@@ -187,7 +192,12 @@ export default function RecruitmentRecordView({
         {/* ------------------------------------------------------- Recruitment -- */}
         <Grid size={{ xs: 12, md: 6 }}>
           <Section colours={BAND_COLOURS.recruitment} title="Recruitment" testId="recruitment">
-            <StatusRow status={record.status} prospectId={record.prospectId} displayName={record.displayName} seasonLabel={record.seasonLabel} />
+            <StatusRow
+              status={record.status}
+              prospectId={record.prospectId}
+              displayName={record.displayName}
+              seasonLabel={record.seasonLabel}
+            />
             <RecordField label="Source" value={record.source} readOnly />
             <RecordField
               label="First contact"
@@ -199,11 +209,7 @@ export default function RecruitmentRecordView({
               value={record.committedOn ? formatDay(record.committedOn) : null}
               readOnly
             />
-            <RecordField
-              label="WhatsApp consent"
-              value={CONSENT_LABELS[record.consent]}
-              readOnly
-            />
+            <RecordField label="WhatsApp consent" value={CONSENT_LABELS[record.consent]} readOnly />
             <RecordField
               label="Played before"
               value={record.answers.playedBefore ? RSVP_LABEL[record.answers.playedBefore] : null}
@@ -214,7 +220,11 @@ export default function RecruitmentRecordView({
               value={record.answers.watchedBefore ? RSVP_LABEL[record.answers.watchedBefore] : null}
               readOnly
             />
-            <RecordField label="Position interest" value={record.answers.positionInterest} readOnly />
+            <RecordField
+              label="Position interest"
+              value={record.answers.positionInterest}
+              readOnly
+            />
             <RecordField label="Gear owned" value={record.answers.gearOwned} readOnly />
             <RecordField label="How they heard" value={record.answers.howTheyHeard} readOnly />
             <RecordField label="Anything else" value={record.answers.anythingElse} readOnly />
@@ -227,7 +237,11 @@ export default function RecruitmentRecordView({
                 canSend={canSendRecruitment}
                 disabledReason={recruitmentDisabledReason}
               />
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: "block", mt: 0.5 }}
+              >
                 {record.recruitment.lastSentAt
                   ? `Last sent ${formatWhen(new Date(record.recruitment.lastSentAt))}`
                   : "Not sent"}

@@ -607,14 +607,17 @@ describe("LAN-204 — the consent deadlock, and its fix", () => {
 
     const sinkRecords: SinkRecord[] = [];
     const sink = createDeliverySink(CONFIGURED, { write: (record) => sinkRecords.push(record) });
-    const outcome = await dispatchRecruitmentCycleJob(jobId, { source: CONFIGURED, transport: sink });
+    const outcome = await dispatchRecruitmentCycleJob(jobId, {
+      source: CONFIGURED,
+      transport: sink,
+    });
 
     expect(outcome).toBe("accepted");
     expect(sinkRecords).toHaveLength(1);
     expect(sinkRecords[0].channel).toBe("whatsapp");
-    expect(
-      (sinkRecords[0].payload as { template: { name: string } }).template.name,
-    ).toBe(TEMPLATE_NAMES.recruit_welcome);
+    expect((sinkRecords[0].payload as { template: { name: string } }).template.name).toBe(
+      TEMPLATE_NAMES.recruit_welcome,
+    );
 
     const job = await withTransaction((tx) =>
       tx.query<{ status: string }>(

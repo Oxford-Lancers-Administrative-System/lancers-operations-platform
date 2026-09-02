@@ -81,7 +81,10 @@ describe("the top-of-record banner — one of W2-04's three redundant places", (
 
   it("names the recruit and the reason when consent was withdrawn", () => {
     render(
-      <RecruitmentRecordView record={{ ...BASE_RECORD, consent: "withdrawn" }} person={NO_PERSON} />,
+      <RecruitmentRecordView
+        record={{ ...BASE_RECORD, consent: "withdrawn" }}
+        person={NO_PERSON}
+      />,
     );
     const banner = screen.getByTestId("recruitment-cannot-message-banner");
     expect(banner.textContent).toContain("Ambrose Kittiwake");

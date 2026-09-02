@@ -129,13 +129,7 @@ export function Row({
 }
 
 export type RecordFieldChipColour =
-  | "default"
-  | "primary"
-  | "secondary"
-  | "error"
-  | "info"
-  | "success"
-  | "warning";
+  "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning";
 
 /**
  * A read-only or dropdown-editable label/value row — the board's own in-cell

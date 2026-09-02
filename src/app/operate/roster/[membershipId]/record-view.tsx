@@ -399,7 +399,11 @@ export default function PlayerRecordView({
       </Section>
 
       {/* ------------------------------------------------------------ Season -- */}
-      <Section colours={sectionColours("season")} title={`Season · ${record.seasonLabel}`} testId="season">
+      <Section
+        colours={sectionColours("season")}
+        title={`Season · ${record.seasonLabel}`}
+        testId="season"
+      >
         <RecordField
           label="Status"
           value={labelFor(MEMBERSHIP_STATUS_LABELS, record.status)}
@@ -579,7 +583,11 @@ export default function PlayerRecordView({
       </Section>
 
       {/* ---------------------------------------------------- Other seasons -- */}
-      <Section colours={sectionColours("person")} title="Their other seasons" testId="other-seasons">
+      <Section
+        colours={sectionColours("person")}
+        title="Their other seasons"
+        testId="other-seasons"
+      >
         <OtherSeasons seasons={record.otherSeasons} />
       </Section>
 
@@ -668,12 +676,12 @@ const ATTENDANCE_BAND: Pick<BandDef, "header" | "tint"> = Object.freeze({
  * board's own three groups (`bandOf`), plus Attendance's own
  * (`ATTENDANCE_BAND`, above), so every surface reads as one product.
  */
-function sectionColours(
-  band: "person" | "onboarding" | "season" | "attendance",
-): { header: string; tint: string } {
+function sectionColours(band: "person" | "onboarding" | "season" | "attendance"): {
+  header: string;
+  tint: string;
+} {
   return band === "attendance" ? ATTENDANCE_BAND : bandOf(band);
 }
-
 
 /** A position column, with the code-and-name open list the board's own walkthrough asked for. */
 function PositionField({

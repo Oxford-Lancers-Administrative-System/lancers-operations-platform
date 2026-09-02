@@ -99,9 +99,10 @@ export default function RecruitmentBoardView({
   const [phoneFilters, setPhoneFilters] = useState(false);
 
   const columns = useMemo(() => [...RECRUITMENT_COLUMNS, ...eventColumns(events)], [events]);
-  const eventByBand = useMemo(() => new Map(events.map((event) => [event.eventId, event])), [
-    events,
-  ]);
+  const eventByBand = useMemo(
+    () => new Map(events.map((event) => [event.eventId, event])),
+    [events],
+  );
   const bandBoundaries = useMemo(() => bandBoundaryKeys(columns), [columns]);
 
   const visibleRows = useMemo(
@@ -172,7 +173,9 @@ export default function RecruitmentBoardView({
         label="Status"
         value={filters.status ?? ""}
         options={filterOptions({ key: "status" })}
-        optionLabel={(value) => PROSPECT_STATUS_LABELS[value as keyof typeof PROSPECT_STATUS_LABELS]}
+        optionLabel={(value) =>
+          PROSPECT_STATUS_LABELS[value as keyof typeof PROSPECT_STATUS_LABELS]
+        }
         onChange={(value) => setFilter("status", value)}
         testId="recruitment-filter-status"
       />
@@ -500,14 +503,22 @@ export default function RecruitmentBoardView({
                 {visibleRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={columns.length + 1}>
-                      <Typography color="text.secondary" sx={{ py: 3 }} data-testid="recruitment-filter-empty">
+                      <Typography
+                        color="text.secondary"
+                        sx={{ py: 3 }}
+                        data-testid="recruitment-filter-empty"
+                      >
                         No recruits match the current search and filters.
                       </Typography>
                     </TableCell>
                   </TableRow>
                 ) : (
                   visibleRows.map((row) => (
-                    <TableRow key={row.prospectId} hover data-testid={`recruitment-row-${row.prospectId}`}>
+                    <TableRow
+                      key={row.prospectId}
+                      hover
+                      data-testid={`recruitment-row-${row.prospectId}`}
+                    >
                       <TableCell
                         sx={{
                           position: "sticky",
@@ -683,7 +694,10 @@ function RecruitCell({
 
   return (
     <TableCell sx={shell}>
-      <Typography variant="body2" color={displayText(row, column) === NOT_RECORDED ? "text.disabled" : "text.primary"}>
+      <Typography
+        variant="body2"
+        color={displayText(row, column) === NOT_RECORDED ? "text.disabled" : "text.primary"}
+      >
         {displayText(row, column)}
       </Typography>
     </TableCell>
