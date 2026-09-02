@@ -182,12 +182,18 @@ export default function RecruitmentRecordView({
         />
         <Headline value={CONSENT_LABELS[record.consent]} label="WhatsApp consent" />
         <Headline
-          value={record.personal.lastSentAt ? "Sent" : record.personal.queuedFor ? "Queued" : "Not sent"}
+          value={
+            record.personal.lastSentAt ? "Sent" : record.personal.queuedFor ? "Queued" : "Not sent"
+          }
           label="Personal questionnaire"
         />
         <Headline
           value={
-            record.recruitment.lastSentAt ? "Sent" : record.recruitment.queuedFor ? "Queued" : "Not sent"
+            record.recruitment.lastSentAt
+              ? "Sent"
+              : record.recruitment.queuedFor
+                ? "Queued"
+                : "Not sent"
           }
           label="Recruitment questionnaire"
         />

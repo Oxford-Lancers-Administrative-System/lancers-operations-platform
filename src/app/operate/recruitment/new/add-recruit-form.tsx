@@ -114,11 +114,11 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
 
   const formatInvalid = Boolean(
     mobileFormatError ||
-      emailFormatError ||
-      matricFormatError ||
-      gradFormatError ||
-      emergencyPhoneFormatError ||
-      emergencyEmailFormatError,
+    emailFormatError ||
+    matricFormatError ||
+    gradFormatError ||
+    emergencyPhoneFormatError ||
+    emergencyEmailFormatError,
   );
 
   const requiredCount = Object.keys(errors).length;
@@ -183,7 +183,11 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
           </Stack>
         </Stack>
         {formatInvalid ? (
-          <Typography variant="caption" color="text.secondary" data-testid="add-recruit-format-invalid">
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            data-testid="add-recruit-format-invalid"
+          >
             Correct the field marked in red to enable Check for duplicates / Create.
           </Typography>
         ) : null}

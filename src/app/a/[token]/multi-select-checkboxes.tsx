@@ -46,7 +46,9 @@ export function MultiSelectField({
   options: readonly string[];
   selected: ReadonlySet<string>;
 }) {
-  const [value, setValue] = useState<string[]>(() => options.filter((option) => selected.has(option)));
+  const [value, setValue] = useState<string[]>(() =>
+    options.filter((option) => selected.has(option)),
+  );
   return (
     <TextField
       select

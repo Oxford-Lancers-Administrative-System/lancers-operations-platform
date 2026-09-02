@@ -43,7 +43,9 @@ describe("MultiSelectField", () => {
 
     await user.click(screen.getByLabelText("What playing gear do you already have?"));
     const listbox = screen.getByRole("listbox");
-    const bootsOption = within(listbox).getByText("Boots").closest('[role="option"]') as HTMLElement;
+    const bootsOption = within(listbox)
+      .getByText("Boots")
+      .closest('[role="option"]') as HTMLElement;
     expect(within(bootsOption).getByRole("checkbox")).toHaveProperty("checked", true);
 
     await user.click(within(listbox).getByText("Mouthguard"));

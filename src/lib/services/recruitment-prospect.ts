@@ -200,9 +200,7 @@ async function readSendStateIn(
     queuedByStep.set(step, row.scheduled_for);
   }
   const soonestQueued = (steps: readonly string[]): string | null => {
-    const dates = steps
-      .map((step) => queuedByStep.get(step))
-      .filter((d): d is Date => Boolean(d));
+    const dates = steps.map((step) => queuedByStep.get(step)).filter((d): d is Date => Boolean(d));
     if (dates.length === 0) return null;
     return new Date(Math.min(...dates.map((d) => d.getTime()))).toISOString();
   };

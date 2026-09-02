@@ -120,7 +120,10 @@ export async function submitAddRecruit(
       // is not an error to report, it is the one clean confirmation screen
       // below, and everything else this action would otherwise return is
       // dropped in favour of it.
-      if (isServiceError(error) && error.rule === "recruitment_add_existing_member_is_not_a_recruit") {
+      if (
+        isServiceError(error) &&
+        error.rule === "recruitment_add_existing_member_is_not_a_recruit"
+      ) {
         const candidate = previous.candidates?.find((c) => c.personId === personId) ?? null;
         const identity = candidate?.identity;
         return {
@@ -130,8 +133,10 @@ export async function submitAddRecruit(
           exactMatch: null,
           alreadyMember: {
             displayName: candidate?.displayName ?? "This person",
-            membershipStatus: identity && identity.kind === "player" ? identity.membershipStatus : "active",
-            seasonLabel: identity && identity.kind === "player" ? identity.seasonLabel : "this season",
+            membershipStatus:
+              identity && identity.kind === "player" ? identity.membershipStatus : "active",
+            seasonLabel:
+              identity && identity.kind === "player" ? identity.seasonLabel : "this season",
           },
         };
       }
