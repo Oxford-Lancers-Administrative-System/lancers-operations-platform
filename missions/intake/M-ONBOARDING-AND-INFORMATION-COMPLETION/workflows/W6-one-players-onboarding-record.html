@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W6 specification</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: #e7e9ee;
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: #212121;
+        color: #fff;
+        padding: 11px 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .layout {
+        display: flex;
+        gap: 26px;
+        max-width: 1220px;
+        margin: 26px auto 90px;
+        padding: 0 22px;
+        align-items: flex-start;
+      }
+      nav.toc {
+        position: sticky;
+        top: 68px;
+        flex: 0 0 252px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 16px 8px 16px 16px;
+        max-height: calc(100vh - 104px);
+        overflow: auto;
+      }
+      nav.toc h2 {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--sec);
+        margin: 0 0 10px;
+        border: 0;
+        padding: 0;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc > ol > li {
+        margin-bottom: 4px;
+      }
+      nav.toc a {
+        display: block;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13.5px;
+        padding: 4px 8px;
+        border-radius: 5px;
+      }
+      nav.toc a:hover {
+        background: var(--grey100);
+      }
+      nav.toc .sub {
+        padding-left: 11px;
+        margin-bottom: 6px;
+      }
+      nav.toc .sub a {
+        color: var(--sec);
+        font-size: 12.5px;
+        padding: 2px 8px;
+      }
+      main {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      section.doc {
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 4px 34px 30px;
+        margin-bottom: 22px;
+      }
+      section.doc > header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 16px 0 11px;
+        border-bottom: 1px solid var(--divider);
+      }
+      section.doc > header h2 {
+        font-size: 1.02rem;
+        margin: 0;
+        border: 0;
+        padding: 0;
+      }
+      section.doc > header .file {
+        font-size: 12px;
+        color: var(--sec);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        margin-left: auto;
+      }
+      h1 {
+        font-size: 1.45rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.1rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 0.98rem;
+        margin: 20px 0 6px;
+      }
+      h4 {
+        font-size: 0.92rem;
+        margin: 16px 0 4px;
+        color: var(--sec);
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul,
+      ol {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      .tablewrap {
+        overflow-x: auto;
+        margin: 14px 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+      }
+      a {
+        color: var(--primary);
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        margin: 22px 0;
+      }
+      .chip {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        padding: 2px 9px;
+        border-radius: 11px;
+        white-space: nowrap;
+      }
+      .chip.ok {
+        background: #edf7ed;
+        color: #1b5e20;
+      }
+      .chip.warn {
+        background: #fff4e5;
+        color: #663c00;
+      }
+      .chip.idle {
+        background: var(--grey100);
+        color: var(--sec);
+      }
+      @media (max-width: 900px) {
+        .layout {
+          display: block;
+          padding: 0 12px;
+        }
+        nav.toc {
+          position: static;
+          width: auto;
+          margin-bottom: 18px;
+          max-height: none;
+        }
+        section.doc {
+          padding: 4px 18px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        W6 — One player's onboarding record<span
+          >M-ONBOARDING-AND-INFORMATION-COMPLETION · main@332bc6b</span
+        >
+      </div>
+      <div>
+        <a href="../mockups/index.html">Index</a>
+        <a href="../specifications.html">All specifications</a>
+        <a href="../mockups/W6-one-players-onboarding-record.html">Screens</a>
+      </div>
+    </div>
+    <div class="layout">
+      <nav class="toc">
+        <h2>On this page</h2>
+        <ol>
+          <li><a href="#s9-h2">Current main grounding</a></li>
+          <li><a href="#s9-h4">What the record has to answer</a></li>
+          <li><a href="#s9-h5">Resolution</a></li>
+          <li><a href="#s9-h6">Handoffs</a></li>
+          <li><a href="#s9-h7">Dependencies and mission boundaries</a></li>
+          <li><a href="#s9-h8">Exceptions and recovery</a></li>
+          <li><a href="#s9-h9">Safety, privacy, consent, and authority boundaries</a></li>
+          <li><a href="#s9-h10">Acceptance evidence</a></li>
+          <li><a href="#s9-h11">Core decisions</a></li>
+          <li><a href="#s9-h12">Brian approval</a></li>
+        </ol>
+      </nav>
+      <main>
+        <section class="doc">
+          <header>
+            <h2>W6 — One player's onboarding record</h2>
+            <span class="chip ok">spec approved</span>
+            <span class="file">workflows/W6-one-players-onboarding-record.md</span>
+          </header>
+          <h1 id="s9-h1">W6 — One player's onboarding record</h1>
+          <ul>
+            <li>
+              Purpose/intended outcome: An operator opens one player and sees the whole truth about
+              them: every checklist item, <strong>who said it and when</strong>, everything the club
+              has ever asked them counted by section, and one place to complete, waive, mark not
+              applicable or reopen any item.
+            </li>
+            <li>
+              Primary actor: A four-role operator (President, Vice President, Secretary, General
+              Manager).
+            </li>
+            <li>
+              Trigger: they open a player — from the roster board, the missing-data queue, or the
+              Monday chase list.
+            </li>
+            <li>
+              Entry point / route: <strong><code>/operate/roster/[membershipId]</code></strong
+              >, which ships. This workflow adds no new surface; it deepens the Onboarding section
+              that is already there.
+            </li>
+            <li>
+              Controlling source: <code>S16</code>, <code>S17</code>, <code>S18</code>,
+              <code>S23</code>, <code>S24</code>, <code>S32</code>; owned <code>R2-R</code>,
+              <code>R2-V</code>, <code>R3-C</code>, <code>R3-G</code>,
+              <code>T10-activity-log</code>, <code>PR7-activity-log</code>,
+              <code>OD7-log-by-section</code>; cited <code>R1</code>, <code>R2</code>,
+              <code>R2-E</code>, <code>PR7-checklist</code> (<code>W11</code>),
+              <code>R4-T</code> (<code>W8</code>), <code>T07-permissions</code> and
+              <code>OD7-oneway-tick</code> (<code>W4</code>).
+            </li>
+            <li>
+              User-visible result: the record answers &quot;where is this person up to, who said so,
+              and how often have we chased them about it&quot; — and any item can be resolved from
+              it.
+            </li>
+          </ul>
+          <h2 id="s9-h2">Current <code>main</code> grounding</h2>
+          <p>
+            The record ships and is good. What it does <strong>not</strong> carry is this workflow.
+          </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>What ships at <code>/operate/roster/[membershipId]</code></th>
+                  <th>What is missing</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    An <strong>Onboarding</strong> section, one <code>OnboardingRow</code> per item
+                  </td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td><code>Required</code> and <code>Never blocks activation</code> chips</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>A resolve control offering complete, waived, not applicable</td>
+                  <td><strong>reopen</strong>, and <code>claimed</code></td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>provenanceNote</code>: <code>Waived by X — reason</code>, or
+                    <code>Completed &lt;day&gt;</code>
+                  </td>
+                  <td>
+                    <strong>who</strong> completed it; anything at all before the current state
+                  </td>
+                </tr>
+                <tr>
+                  <td>An alert naming the required items still outstanding</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>onboarding_item_status</code>:
+                    <code>pending → invited → complete | waived | not_applicable</code>
+                  </td>
+                  <td>
+                    <strong><code>claimed</code></strong>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p><strong>Three things are genuinely absent and are this workflow's:</strong></p>
+          <ol>
+            <li>
+              <strong><code>claimed</code></strong> — &quot;the player says done, awaiting
+              confirmation&quot; — is not in the enum. <code>R2-V</code>: a trust-class item
+              completes on the player's word carrying player-claimed provenance; a verify-class item
+              shows <code>claimed</code> until a named human confirms it.
+            </li>
+            <li>
+              <strong>Per-item history.</strong> <code>onboarding_items</code> stores current state
+              only. The record can say an item is complete; it cannot say it was complete, reopened
+              in November and completed again.
+            </li>
+            <li>
+              <strong>The sectioned activity log.</strong> <code>PR7-activity-log</code>,
+              <code>T10-activity-log</code>, <code>OD7-log-by-section</code>. LAN-105, its old
+              Post-MVP home, is Canceled, so this is its only home.
+            </li>
+          </ol>
+          <h3 id="s9-h3">The shipped constraint this workflow must unwind</h3>
+          <p>
+            <code>R2-R</code> says reopen and waive are four-role actions with
+            <strong>no mandatory reason</strong>, audited. The database currently refuses that:
+          </p>
+          <pre><code>constraint onboarding_items_waiver_is_justified check (
+  status &lt;&gt; 'waived'
+  or (waived_by_person_id is not null and btrim(coalesce(waived_reason, '')) &lt;&gt; ''))</code></pre>
+          <p>
+            A live constraint contradicting an approved owner decision. It is named here so the
+            Mission Lead does not discover it at implementation time; unwinding it is a forward-only
+            migration, and the author stays mandatory while the reason stops being.
+          </p>
+          <h2 id="s9-h4">What the record has to answer</h2>
+          <p>Three questions, in this order. They are what the section is for.</p>
+          <ol>
+            <li>
+              <strong>Where is this person up to?</strong> Every item, its state, and the derived
+              completeness <code>R3-C</code> defines.
+            </li>
+            <li>
+              <strong>Who said so?</strong> Per item: who put it in that state, when, and — for a
+              <code>claimed</code> item — that it was the player who said it and nobody has
+              confirmed.
+            </li>
+            <li>
+              <strong>How often have we chased them about this, and what came back?</strong> The
+              activity log — <strong>grouped by section, one entry per event</strong>.
+            </li>
+          </ol>
+          <p>
+            <code>OD7-log-by-section</code> is the whole point of the third: &quot;how many times
+            have we asked him about this&quot; is a question about a section, not about a mailbox.
+          </p>
+          <p>
+            <strong>It is entries, not counts.</strong> The first draft rendered one summary line
+            per section — <em>asked 4 times · answered twice</em> — and Brian rejected it on
+            2026-09-02: &quot;that is just not useful… I want to see the individual items that come
+            underneath, when it was asked versus when it was received.&quot; So every ask and every
+            answer is its own dated entry, and the section is what groups them.
+          </p>
+          <p>
+            <strong>It reuses the record's own history component.</strong>
+            <code>StatusHistory</code> already renders exactly this shape on this page — a bordered
+            entry carrying a bold label, a line saying what happened, and a caption of when and who.
+            The log is that markup with different entries, not a new component.
+          </p>
+          <h2 id="s9-h5">Resolution</h2>
+          <p>
+            Four resolutions, all four-role, all audited,
+            <strong>none of them requiring a reason</strong> (<code>R2-R</code>):
+          </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Resolution</th>
+                  <th>What it means</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>complete</code></td>
+                  <td>Done. Dated, and attributed to whoever recorded it</td>
+                </tr>
+                <tr>
+                  <td><code>waived</code></td>
+                  <td>This person does not have to. Author recorded; reason optional</td>
+                </tr>
+                <tr>
+                  <td><code>not_applicable</code></td>
+                  <td>This item never applied to this person</td>
+                </tr>
+                <tr>
+                  <td><code>reopen</code></td>
+                  <td>
+                    Back to outstanding from any terminal state. <strong>Never automatic</strong>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <code>R4-T</code>, owned by <code>W8</code>, is explicit that
+            <strong>reopen never auto-fires</strong>. A human reopens; the machine never does, and
+            neither does a new season on its own (<code>R2-E</code>: items reset only at the season
+            boundary, and a lapse is a manual reopen).
+          </p>
+          <p>
+            <strong>Nothing gates.</strong> <code>R3-G</code> is enforced here, where items are
+            resolved: no item blocks any action anywhere, and an active player with an unfinished
+            checklist is the normal case, not an exception. Derived onboarding-completeness is
+            <strong>display-only and never flips membership status on its own</strong>
+            (<code>R3-C</code>) — activation is a human declaration and is <code>W10</code>'s.
+          </p>
+          <h2 id="s9-h6">Handoffs</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>To / from</th>
+                  <th>What crosses</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W4</code>, <code>W5</code></td>
+                  <td>Everything a player submits or changes lands here, with player provenance</td>
+                </tr>
+                <tr>
+                  <td><code>W7</code></td>
+                  <td>A disputed fact is resolved there, and its resolution shows here</td>
+                </tr>
+                <tr>
+                  <td><code>W8</code></td>
+                  <td>
+                    The queue reads what is outstanding; every ask it sends appears in this log
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W10</code></td>
+                  <td>
+                    &quot;Who is ready to activate&quot; is derived from this and consumed there
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W11</code></td>
+                  <td>Which items exist, their labels and their verification class</td>
+                </tr>
+                <tr>
+                  <td>Mission 5</td>
+                  <td>
+                    The record, the roster board, its filtering and its status colours
+                    (<code>S24</code>)
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s9-h7">Dependencies and mission boundaries</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Seam</th>
+                  <th>This mission's side</th>
+                  <th>The other side</th>
+                  <th>Blocking?</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Mission 5 · People &amp; Roster</td>
+                  <td>
+                    <code>claimed</code>, per-item history, the log, reason-free waive and reopen
+                  </td>
+                  <td>The record and roster surfaces that show them</td>
+                  <td>Not blocking; shipped</td>
+                </tr>
+                <tr>
+                  <td>Mission 4 · Communications</td>
+                  <td>What the log counts</td>
+                  <td>The sends themselves and their delivery states</td>
+                  <td>Not blocking</td>
+                </tr>
+                <tr>
+                  <td><code>W11</code></td>
+                  <td>Reading the configuration</td>
+                  <td>Setting it</td>
+                  <td>Not blocking</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s9-h8">Exceptions and recovery</h2>
+          <ul>
+            <li>
+              <strong>An empty item configuration</strong> reads as &quot;this season has no
+              onboarding items configured&quot;, which ships — never as &quot;everyone is
+              complete&quot;.
+            </li>
+            <li>
+              <strong>An item type added mid-season</strong> backfills as <code>pending</code> onto
+              everybody.
+            </li>
+            <li><strong>A closed season</strong> is read-only, which ships.</li>
+            <li>
+              <strong>An active player with an unfinished checklist</strong> is normal and is not
+              flagged as an error anywhere.
+            </li>
+            <li>
+              <strong>A <code>claimed</code> item nobody ever confirms</strong> stays
+              <code>claimed</code>. It is visible, and it is the compliance owner's to close — no
+              timeout resolves it.
+            </li>
+          </ul>
+          <h2 id="s9-h9">Safety, privacy, consent, and authority boundaries</h2>
+          <ul>
+            <li>
+              <strong>Four-role only</strong> for resolution. Coaches and players never see another
+              person's record (<code>T07-permissions</code>).
+            </li>
+            <li>
+              <strong>Date of birth is never on this surface as a date</strong> — only the derived
+              under-18 flag, per the overview invariant.
+            </li>
+            <li>
+              <strong>Free text is restricted</strong>: waiver reasons and refusal notes are
+              four-role only and never reach a report verbatim.
+            </li>
+            <li>
+              <strong>Consent appears here as a status an operator can switch off</strong>
+              (<code>OD7-oneway-tick</code>), and nowhere else.
+            </li>
+            <li>
+              <strong>History is append-only.</strong> A superseded value is retained, never
+              overwritten.
+            </li>
+          </ul>
+          <h2 id="s9-h10">Acceptance evidence</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Screen</th>
+                  <th>What it proves</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W6-01</code></td>
+                  <td>
+                    The checklist with real provenance: state, who said it, when — and
+                    <code>claimed</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W6-02</code></td>
+                  <td>Resolving one item: four resolutions, four-role, and no reason demanded</td>
+                </tr>
+                <tr>
+                  <td><code>W6-03</code></td>
+                  <td>The activity log, counted by section rather than listed as sends</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Shot on <code>/operate/roster/[membershipId]</code>, a real implemented route, both
+            sides, measured 1280 and 375.
+          </p>
+          <p>Grounding: <strong>screenshots</strong>.</p>
+          <h2 id="s9-h11">Core decisions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Decision</th>
+                  <th>Classification</th>
+                  <th>Governing evidence or recommended default</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>This deepens the shipped record; it is not a new surface</td>
+                  <td>locked</td>
+                  <td>
+                    <code>/operate/roster/[membershipId]</code> ships and is the surface an operator
+                    already works from
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td><code>claimed</code> is added to <code>onboarding_item_status</code></td>
+                  <td>locked</td>
+                  <td><code>R2-V</code>; the enum has no such value today</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Trust-class items complete on the player's word, with provenance</td>
+                  <td>locked</td>
+                  <td><code>R2-V</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Per-item history is append-only and never overwrites</td>
+                  <td>locked</td>
+                  <td>Overview audit posture; <code>S17</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Waive and reopen are four-role and demand no reason</td>
+                  <td>locked</td>
+                  <td>
+                    <code>R2-R</code>.
+                    <strong
+                      >Requires unwinding <code>onboarding_items_waiver_is_justified</code></strong
+                    >
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Reopen is never automatic</td>
+                  <td>locked</td>
+                  <td><code>R4-T</code>, <code>R2-E</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Onboarding-completeness is derived and display-only</td>
+                  <td>locked</td>
+                  <td><code>R3-C</code>; activation is <code>W10</code>'s human declaration</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Nothing gates, enforced here</td>
+                  <td>locked</td>
+                  <td><code>R3-G</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The activity log is counted by section</td>
+                  <td>locked</td>
+                  <td><code>OD7-log-by-section</code>, Brian 2026-09-01</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    The log carries asks and answers alike, one entry each, grouped by section
+                  </td>
+                  <td>locked</td>
+                  <td>Owner direction, 2026-09-02: counts alone are &quot;just not useful&quot;</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The log reuses the record's shipped <code>StatusHistory</code> markup</td>
+                  <td>locked</td>
+                  <td>
+                    Owner direction, 2026-09-02, on inventing UI the app does not use elsewhere
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Item status renders as the record already renders it</td>
+                  <td>locked</td>
+                  <td>
+                    Plain underlined <code>body2</code>, no colour and no chip. The state name
+                    changes; its styling does not
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    Resolution uses the row's own <code>Select</code>, with
+                    <code>Reopen</code> added to it
+                  </td>
+                  <td>locked</td>
+                  <td>
+                    The control ships; <code>R2-R</code> adds one option to it rather than a new
+                    control
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>How far back the log reaches on first render</td>
+                  <td>delegated to Mission Lead</td>
+                  <td>Presentation; the data is append-only either way</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Where <code>claimed</code> sits visually against complete</td>
+                  <td>delegated to Mission Lead</td>
+                  <td>The state is what matters; its colour is presentation</td>
+                  <td>settled</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s9-h12">Brian approval</h2>
+          <ul>
+            <li>Exact words:</li>
+            <li>Date:</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

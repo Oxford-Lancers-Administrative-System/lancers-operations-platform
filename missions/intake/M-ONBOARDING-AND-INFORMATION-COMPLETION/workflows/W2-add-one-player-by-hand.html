@@ -1,0 +1,770 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W2 specification</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: #e7e9ee;
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: #212121;
+        color: #fff;
+        padding: 11px 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .layout {
+        display: flex;
+        gap: 26px;
+        max-width: 1220px;
+        margin: 26px auto 90px;
+        padding: 0 22px;
+        align-items: flex-start;
+      }
+      nav.toc {
+        position: sticky;
+        top: 68px;
+        flex: 0 0 252px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 16px 8px 16px 16px;
+        max-height: calc(100vh - 104px);
+        overflow: auto;
+      }
+      nav.toc h2 {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--sec);
+        margin: 0 0 10px;
+        border: 0;
+        padding: 0;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc > ol > li {
+        margin-bottom: 4px;
+      }
+      nav.toc a {
+        display: block;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13.5px;
+        padding: 4px 8px;
+        border-radius: 5px;
+      }
+      nav.toc a:hover {
+        background: var(--grey100);
+      }
+      nav.toc .sub {
+        padding-left: 11px;
+        margin-bottom: 6px;
+      }
+      nav.toc .sub a {
+        color: var(--sec);
+        font-size: 12.5px;
+        padding: 2px 8px;
+      }
+      main {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      section.doc {
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 4px 34px 30px;
+        margin-bottom: 22px;
+      }
+      section.doc > header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 16px 0 11px;
+        border-bottom: 1px solid var(--divider);
+      }
+      section.doc > header h2 {
+        font-size: 1.02rem;
+        margin: 0;
+        border: 0;
+        padding: 0;
+      }
+      section.doc > header .file {
+        font-size: 12px;
+        color: var(--sec);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        margin-left: auto;
+      }
+      h1 {
+        font-size: 1.45rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.1rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 0.98rem;
+        margin: 20px 0 6px;
+      }
+      h4 {
+        font-size: 0.92rem;
+        margin: 16px 0 4px;
+        color: var(--sec);
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul,
+      ol {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      .tablewrap {
+        overflow-x: auto;
+        margin: 14px 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+      }
+      a {
+        color: var(--primary);
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        margin: 22px 0;
+      }
+      .chip {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        padding: 2px 9px;
+        border-radius: 11px;
+        white-space: nowrap;
+      }
+      .chip.ok {
+        background: #edf7ed;
+        color: #1b5e20;
+      }
+      .chip.warn {
+        background: #fff4e5;
+        color: #663c00;
+      }
+      .chip.idle {
+        background: var(--grey100);
+        color: var(--sec);
+      }
+      @media (max-width: 900px) {
+        .layout {
+          display: block;
+          padding: 0 12px;
+        }
+        nav.toc {
+          position: static;
+          width: auto;
+          margin-bottom: 18px;
+          max-height: none;
+        }
+        section.doc {
+          padding: 4px 18px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        W2 — Add one player by hand<span
+          >M-ONBOARDING-AND-INFORMATION-COMPLETION · main@332bc6b</span
+        >
+      </div>
+      <div>
+        <a href="../mockups/index.html">Index</a>
+        <a href="../specifications.html">All specifications</a>
+        <a href="../mockups/W2-add-one-player-by-hand.html">Screens</a>
+      </div>
+    </div>
+    <div class="layout">
+      <nav class="toc">
+        <h2>On this page</h2>
+        <ol>
+          <li><a href="#s5-h2">What already works, and must not be rebuilt</a></li>
+          <li><a href="#s5-h3">Current main grounding</a></li>
+          <li><a href="#s5-h4">Required actions</a></li>
+          <li><a href="#s5-h5">State transitions</a></li>
+          <li><a href="#s5-h6">Handoffs</a></li>
+          <li><a href="#s5-h7">Dependencies and mission boundaries</a></li>
+          <li><a href="#s5-h8">Exceptions and recovery</a></li>
+          <li><a href="#s5-h9">Safety, privacy, consent, and authority boundaries</a></li>
+          <li><a href="#s5-h10">Acceptance evidence</a></li>
+          <li><a href="#s5-h11">Core decisions</a></li>
+          <li><a href="#s5-h12">Brian approval</a></li>
+        </ol>
+      </nav>
+      <main>
+        <section class="doc">
+          <header>
+            <h2>W2 — Add one player by hand</h2>
+            <span class="chip ok">spec approved</span>
+            <span class="file">workflows/W2-add-one-player-by-hand.md</span>
+          </header>
+          <h1 id="s5-h1">W2 — Add one player by hand</h1>
+          <ul>
+            <li>
+              Purpose/intended outcome: One person turns up who was not in the file. An operator
+              enters them and they arrive exactly where an imported player arrives — on this
+              season's roster in onboarding, with the same checklist and the same welcome. No second
+              door, no second shape.
+            </li>
+            <li>
+              Primary actor: An operator (any linked, active operator who is not a coaching
+              assignment) — see the decisions.
+            </li>
+            <li>
+              Trigger: A player the club does not yet hold this season needs to be on the roster,
+              and there is no file to import.
+            </li>
+            <li>
+              Entry point: The roster board's <strong>Add players</strong> menu,
+              <strong>Add one player</strong>.
+            </li>
+            <li>
+              Route/placement: <code>/operate/roster/new</code> —
+              <strong>it already exists</strong>, built by LAN-74 as the returner intake. This
+              workflow does not create a surface.
+            </li>
+            <li>
+              Controlling source: subject area <code>S2</code>; <code>M2</code> (onboarding-opened
+              fires the welcome carrying the sign-up ask); <code>OD7-season-inherit</code>; the
+              approved item-and-ask inventory.
+            </li>
+            <li>
+              User-visible result: The person is on the roster at <code>onboarding</code>, their
+              checklist generated, their welcome queued, and the operator is on their record.
+            </li>
+          </ul>
+          <h2 id="s5-h2">What already works, and must not be rebuilt</h2>
+          <p>
+            This is the shortest workflow in the mission, because <code>main</code> already does
+            most of it. <code>enterReturningPlayer</code> in
+            <code>src/lib/services/roster.ts</code>, in one transaction, already:
+          </p>
+          <ul>
+            <li>
+              mints the person and records their contact points, or reuses the person the operator
+              picked;
+            </li>
+            <li>
+              creates the season membership <strong>at <code>onboarding</code></strong> — the status
+              is not the operator's to choose (<code>roster.ts</code>: &quot;A membership now begins
+              at <code>onboarding</code>&quot;);
+            </li>
+            <li>
+              writes the <code>null → onboarding</code> transition into
+              <code>season_membership_status_events</code>;
+            </li>
+            <li>
+              <strong>generates the season's onboarding items</strong> —
+              <code>generateOnboardingItems</code>, in the same transaction, idempotent, so a season
+              with no configured types is a no-op rather than a failure; and
+            </li>
+            <li>
+              records <code>person_created</code> and
+              <code>returner_membership_confirmed</code> audit rows.
+            </li>
+          </ul>
+          <p>
+            The three-step screen is shipped too: <strong>details</strong>, then
+            <strong>candidates</strong> — the duplicate check, which never writes — then a
+            <strong>membership refused</strong> step when the person the operator picked already
+            holds a membership this season.
+          </p>
+          <p>
+            <strong>So the checklist is not this mission's to build here.</strong> Subject area
+            <code>S2</code> says <code>/operate/roster/new</code> &quot;exists but opens
+            nothing&quot;, and read against the code that means one precise thing:
+            <strong>nothing is sent.</strong> There is no welcome, no signed link, and therefore no
+            way for the person to answer. That is the whole of what W2 adds.
+          </p>
+          <h2 id="s5-h3">Current <code>main</code> grounding</h2>
+          <ul>
+            <li>
+              Locally rendered route: <strong><code>/operate/roster/new</code></strong
+              >, photographed as it runs. Unlike W1, this workflow's route exists, so both sides are
+              the same page.
+            </li>
+            <li>
+              Reused component, language, interaction, and permission patterns: all of them. The
+              form, its field order, its error sentences, the candidate cards, the already-a-member
+              refusal and the redirect to <code>/operate/roster/[membershipId]?created=1</code> are
+              kept exactly as shipped.
+            </li>
+            <li>Desktop and 375px evidence: both sides photographed at a measured 1280 and 375.</li>
+            <li>
+              Reason for any departure: two, and only two — the required set, and the welcome. Both
+              are below.
+            </li>
+            <li>
+              <strong>No new UX element.</strong> Brian, 2026-09-01: &quot;So long as we're not
+              inventing new UX elements here.&quot; Two were removed on that instruction. What the
+              form does on confirming is said in the page's own subtitle rather than a new banner
+              underneath it; and the record's confirmation is the shipped
+              <code>created-summary</code> sentence rewritten, not a new card. An earlier draft
+              added a &quot;What the club has said&quot; card, which was wrong twice over: it
+              invented an element, and the per-player activity log is <strong>W6's</strong> —
+              <code>S32</code>, <code>T10-activity-log</code>, <code>PR7-activity-log</code> and
+              <code>OD7-log-by-section</code> all name W6 as its owner. Where a queued welcome shows
+              on the record is W6's question, not this workflow's.
+            </li>
+          </ul>
+          <h2 id="s5-h4">Required actions</h2>
+          <ol>
+            <li>
+              <strong>Open the form</strong> from <strong>Add players → Add one player</strong>.
+            </li>
+            <li>
+              <strong>Enter first name, last name and mobile.</strong> All three are required;
+              personal email is optional here and is one of the things the welcome link collects.
+            </li>
+            <li>
+              <strong>Check for matches.</strong> The shipped step, unchanged: it never writes, and
+              an empty candidate list is still the operator's call rather than an automatic create.
+            </li>
+            <li>
+              <strong>Choose</strong> — use the person the club already holds, or confirm this is
+              somebody new.
+            </li>
+            <li>
+              <strong>Read what happened.</strong> The person's record, with their generated
+              checklist and their welcome shown as queued.
+            </li>
+          </ol>
+          <h2 id="s5-h5">State transitions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>From</th>
+                  <th>To</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>No membership this season</td>
+                  <td>
+                    <code>onboarding</code>, checklist generated, welcome queued. One transaction;
+                    the welcome enqueues in it.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Already holds a membership</td>
+                  <td>
+                    Nothing. The shipped refusal names the person and their season and offers their
+                    record instead.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Operator abandons at any step</td>
+                  <td>Nothing is written. <code>check</code> never writes.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s5-h6">Handoffs</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>To</th>
+                  <th>What is handed over</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W4</code></td>
+                  <td>
+                    The welcome and its signed link — identical to the one an imported player
+                    receives.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W6</code></td>
+                  <td>The generated checklist, on the record the operator lands on.</td>
+                </tr>
+                <tr>
+                  <td><code>W8</code></td>
+                  <td>The new person joins the outstanding population the Monday queue ranks.</td>
+                </tr>
+                <tr>
+                  <td>Mission 4</td>
+                  <td>The queued welcome. This workflow never dispatches.</td>
+                </tr>
+                <tr>
+                  <td>Mission 5</td>
+                  <td>
+                    The person, the contact points, the membership, the duplicate check and the
+                    record — all shipped.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s5-h7">Dependencies and mission boundaries</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Seam</th>
+                  <th>This mission's side</th>
+                  <th>The other side</th>
+                  <th>Blocking?</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Mission 5 · returner intake</td>
+                  <td>Requiring last name and mobile; queuing the welcome</td>
+                  <td>The whole surface and its transaction, shipped</td>
+                  <td><strong>Independently walkable</strong></td>
+                </tr>
+                <tr>
+                  <td>Mission 5 · duplicate check</td>
+                  <td>Nothing — it is consumed unchanged</td>
+                  <td><code>findPersonCandidates</code>, shipped</td>
+                  <td><strong>Independently walkable</strong></td>
+                </tr>
+                <tr>
+                  <td>Mission 4 · dispatch</td>
+                  <td>Enqueuing <code>onboarding-opened</code></td>
+                  <td>Scheduler, transport, delivery states</td>
+                  <td><strong>Independently walkable</strong></td>
+                </tr>
+                <tr>
+                  <td>Mission 11 · seasons</td>
+                  <td>Inheriting the roster's current season</td>
+                  <td>Creating one</td>
+                  <td>Not blocking; a walk needs a seeded season</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s5-h8">Exceptions and recovery</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>What goes wrong</th>
+                  <th>What the operator sees</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>First name, last name or mobile missing</td>
+                  <td>
+                    The field's own sentence, in the shipped style.
+                    <strong>Last name and mobile are new refusals</strong> — see the decisions.
+                  </td>
+                </tr>
+                <tr>
+                  <td>The mobile is not a phone number</td>
+                  <td>The shipped <code>PHONE_SHAPE</code> sentence.</td>
+                </tr>
+                <tr>
+                  <td>The email is not an email</td>
+                  <td>
+                    The shipped <code>EMAIL_SHAPE</code> sentence. Optional, so blank is fine.
+                  </td>
+                </tr>
+                <tr>
+                  <td>The person already holds a membership this season</td>
+                  <td>
+                    The shipped <code>membership_refused</code> step, naming them and their season,
+                    with a link to their record.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Nothing matched</td>
+                  <td>
+                    Still the operator's call. There is deliberately no path where an empty
+                    candidate list creates a person.
+                  </td>
+                </tr>
+                <tr>
+                  <td>The welcome cannot be queued</td>
+                  <td>
+                    The whole transaction rolls back. A person on the roster who was never told is
+                    the failure this avoids.
+                  </td>
+                </tr>
+                <tr>
+                  <td>No season exists</td>
+                  <td>The shipped unavailable screen. Season creation is Mission 11's.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s5-h9">Safety, privacy, consent, and authority boundaries</h2>
+          <ul>
+            <li>
+              <strong>The welcome is the one message the club may send without consent</strong>, and
+              its purpose is to obtain it. Queued, never sent by hand.
+            </li>
+            <li>
+              <strong>One transaction.</strong> The membership, the checklist and the queued welcome
+              commit together or not at all.
+            </li>
+            <li>
+              <strong>No date of birth here.</strong> It is restricted, and it is asked of the
+              player at onboarding through their own link.
+            </li>
+            <li>
+              <strong>Every arrival is audited</strong> — the shipped
+              <code>person_created</code> and <code>returner_membership_confirmed</code> rows,
+              unchanged.
+            </li>
+            <li>
+              <strong>Nothing gates.</strong> The player is a full member of the squad from the
+              moment they land.
+            </li>
+          </ul>
+          <h2 id="s5-h10">Acceptance evidence</h2>
+          <ul>
+            <li>
+              A walk on a fresh local stack: entering a new person creates them at
+              <code>onboarding</code> with the full checklist and one queued welcome; the operator
+              lands on their record and can see both.
+            </li>
+            <li>
+              Submitting without a last name, and without a mobile, is refused with the field's own
+              sentence.
+            </li>
+            <li>
+              Entering somebody who already holds a membership this season reaches the shipped
+              refusal and writes nothing.
+            </li>
+            <li>
+              The welcome is the same template an imported player receives — proven by importing one
+              and adding one and comparing the queued rows.
+            </li>
+            <li>Desktop and 375px screens for the three states, both sides.</li>
+            <li><code>grounding: application-walked</code>.</li>
+          </ul>
+          <h2 id="s5-h11">Core decisions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Decision</th>
+                  <th>Classification</th>
+                  <th>Governing evidence or recommended default</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    The route, the three steps, the duplicate flow, the refusal and the redirect are
+                    kept exactly as shipped
+                  </td>
+                  <td>locked</td>
+                  <td>
+                    <code>S2</code> — the surface exists; this mission brings it onto the one path
+                    rather than replacing it
+                  </td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>
+                    The membership begins at <code>onboarding</code> and the checklist generates in
+                    the same transaction
+                  </td>
+                  <td>locked</td>
+                  <td>
+                    Already true on <code>main</code>; <code>roster.ts</code> and
+                    <code>generateOnboardingItems</code>
+                  </td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>
+                    The welcome is queued on confirmation — the same template, and the only thing
+                    this workflow adds
+                  </td>
+                  <td>locked</td>
+                  <td>
+                    <code>M2</code>, boundary §2, and W1's approved decision that confirming queues
+                    rather than sends
+                  </td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td><strong>Last name and mobile become required, joining first name</strong></td>
+                  <td>locked</td>
+                  <td>
+                    The approved item-and-ask inventory (Brian, 2026-09-01), and
+                    <code>person-required.ts</code>, which already requires last name at every tier.
+                    The form is behind the required set it feeds; today only first name is enforced
+                  </td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong
+                      >Authority stays at the shipped general-operator floor, rather than the
+                      four-role W1 uses</strong
+                    >
+                  </td>
+                  <td>proposed for owner approval</td>
+                  <td>
+                    W1 narrowed because it writes dozens of people at once. This is the everyday
+                    single-record path, already open to any linked active operator who is not a
+                    coach, and narrowing it would take a surface away from people who use it today.
+                    Recommended: leave it as shipped
+                  </td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>Whether personal email stays optional here</td>
+                  <td>proposed for owner approval</td>
+                  <td>
+                    Recommended: yes. The welcome travels by mobile, and email is one of the things
+                    the player's own link collects. Requiring it here would block an operator who
+                    genuinely does not have it
+                  </td>
+                  <td>open</td>
+                </tr>
+                <tr>
+                  <td>
+                    Field order, the exact new error sentences, and where the &quot;welcome
+                    queued&quot; line sits on the record
+                  </td>
+                  <td>delegated to Mission Lead</td>
+                  <td>Mechanical; the shipped sentences are the precedent</td>
+                  <td>open</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s5-h12">Brian approval</h2>
+          <ul>
+            <li>
+              Exact words: &quot;Last name and mobile are absolutely required. That's what I'm
+              telling all my bots at this point, and W2 is fucking approved. So long as we're not
+              inventing new UX elements here&quot;
+            </li>
+            <li>Date: 2026-09-01</li>
+            <li>
+              Condition, and how it was met: the approval is conditional on inventing no new UX
+              element. Two were found and removed before it was recorded — the info banner on the
+              form, and the &quot;What the club has said&quot; card on the record. Both are now
+              shipped elements with rewritten text.
+            </li>
+            <li>
+              The two open decisions resolved as recommended, and both mean
+              <em>leave it as shipped</em>: authority stays at the general-operator floor, and
+              personal email stays optional.
+            </li>
+          </ul>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

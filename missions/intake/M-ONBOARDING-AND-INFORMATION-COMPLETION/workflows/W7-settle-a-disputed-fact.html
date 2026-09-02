@@ -1,0 +1,721 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W7 specification</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: #e7e9ee;
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: #212121;
+        color: #fff;
+        padding: 11px 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .layout {
+        display: flex;
+        gap: 26px;
+        max-width: 1220px;
+        margin: 26px auto 90px;
+        padding: 0 22px;
+        align-items: flex-start;
+      }
+      nav.toc {
+        position: sticky;
+        top: 68px;
+        flex: 0 0 252px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 16px 8px 16px 16px;
+        max-height: calc(100vh - 104px);
+        overflow: auto;
+      }
+      nav.toc h2 {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--sec);
+        margin: 0 0 10px;
+        border: 0;
+        padding: 0;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc > ol > li {
+        margin-bottom: 4px;
+      }
+      nav.toc a {
+        display: block;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13.5px;
+        padding: 4px 8px;
+        border-radius: 5px;
+      }
+      nav.toc a:hover {
+        background: var(--grey100);
+      }
+      nav.toc .sub {
+        padding-left: 11px;
+        margin-bottom: 6px;
+      }
+      nav.toc .sub a {
+        color: var(--sec);
+        font-size: 12.5px;
+        padding: 2px 8px;
+      }
+      main {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      section.doc {
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 4px 34px 30px;
+        margin-bottom: 22px;
+      }
+      section.doc > header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 16px 0 11px;
+        border-bottom: 1px solid var(--divider);
+      }
+      section.doc > header h2 {
+        font-size: 1.02rem;
+        margin: 0;
+        border: 0;
+        padding: 0;
+      }
+      section.doc > header .file {
+        font-size: 12px;
+        color: var(--sec);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        margin-left: auto;
+      }
+      h1 {
+        font-size: 1.45rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.1rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 0.98rem;
+        margin: 20px 0 6px;
+      }
+      h4 {
+        font-size: 0.92rem;
+        margin: 16px 0 4px;
+        color: var(--sec);
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul,
+      ol {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      .tablewrap {
+        overflow-x: auto;
+        margin: 14px 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+      }
+      a {
+        color: var(--primary);
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        margin: 22px 0;
+      }
+      .chip {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        padding: 2px 9px;
+        border-radius: 11px;
+        white-space: nowrap;
+      }
+      .chip.ok {
+        background: #edf7ed;
+        color: #1b5e20;
+      }
+      .chip.warn {
+        background: #fff4e5;
+        color: #663c00;
+      }
+      .chip.idle {
+        background: var(--grey100);
+        color: var(--sec);
+      }
+      @media (max-width: 900px) {
+        .layout {
+          display: block;
+          padding: 0 12px;
+        }
+        nav.toc {
+          position: static;
+          width: auto;
+          margin-bottom: 18px;
+          max-height: none;
+        }
+        section.doc {
+          padding: 4px 18px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        W7 — Settle a disputed fact<span
+          >M-ONBOARDING-AND-INFORMATION-COMPLETION · main@332bc6b</span
+        >
+      </div>
+      <div>
+        <a href="../mockups/index.html">Index</a>
+        <a href="../specifications.html">All specifications</a>
+        <a href="../mockups/W7-settle-a-disputed-fact.html">Screens</a>
+      </div>
+    </div>
+    <div class="layout">
+      <nav class="toc">
+        <h2>On this page</h2>
+        <ol>
+          <li><a href="#s10-h2">Where this sits</a></li>
+          <li><a href="#s10-h3">Current main grounding</a></li>
+          <li><a href="#s10-h4">What resolving means</a></li>
+          <li><a href="#s10-h5">Which consent record wins on a merge</a></li>
+          <li><a href="#s10-h6">Required actions</a></li>
+          <li><a href="#s10-h7">State transitions</a></li>
+          <li><a href="#s10-h8">Handoffs</a></li>
+          <li><a href="#s10-h9">Dependencies and mission boundaries</a></li>
+          <li><a href="#s10-h10">Exceptions and recovery</a></li>
+          <li><a href="#s10-h11">Safety, privacy, consent, and authority boundaries</a></li>
+          <li><a href="#s10-h12">Acceptance evidence</a></li>
+          <li><a href="#s10-h13">Core decisions</a></li>
+          <li><a href="#s10-h14">Brian approval</a></li>
+        </ol>
+      </nav>
+      <main>
+        <section class="doc">
+          <header>
+            <h2>W7 — Settle a disputed fact</h2>
+            <span class="chip ok">spec approved</span>
+            <span class="file">workflows/W7-settle-a-disputed-fact.md</span>
+          </header>
+          <h1 id="s10-h1">W7 — Settle a disputed fact</h1>
+          <ul>
+            <li>
+              Purpose/intended outcome: <code>W5</code> lets a player say the club is wrong without
+              overwriting it. <strong>This is the other half</strong>: an operator sees the club's
+              value, the player's answer and the whole history, and decides — leaving the flag, the
+              correction and the confirmation each attributable.
+            </li>
+            <li>Primary actor: A four-role operator.</li>
+            <li>
+              Trigger: a fact goes to <code>disputed — awaiting verification</code> when a player's
+              answer differs from an operator-recorded value (<code>W5</code>).
+            </li>
+            <li>
+              Entry point / route: <strong><code>/operate/people/[personId]</code></strong
+              >, the person record, which ships. Reached from the missing-data queue, the roster, or
+              a link in the chase.
+            </li>
+            <li>
+              Controlling source: <code>S35</code>, <code>S36</code>; owned
+              <code>T07-merge-precedence</code>; cited
+              <code>T11-provenance</code> (<code>W5</code>), and boundary item 14.
+            </li>
+            <li>
+              User-visible result: one value stands, the other is retained, and the record says who
+              decided and when.
+            </li>
+          </ul>
+          <h2 id="s10-h2">Where this sits</h2>
+          <p>
+            <code>W5</code> raises; <code>W7</code> settles. Nothing else raises a dispute and
+            nothing else settles one.
+          </p>
+          <p>
+            The surface is the person record, not the roster record: the facts a player can contest
+            — name, contact, college, course, date of birth — are <strong>person</strong> facts, and
+            <code>/operate/people/[personId]</code> is where they already render, each already
+            carrying who supplied it.
+          </p>
+          <h2 id="s10-h3">Current <code>main</code> grounding</h2>
+          <p>The person record is further along than the roster one for this purpose.</p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>What ships at <code>/operate/people/[personId]</code></th>
+                  <th>What is missing</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>A <code>Fact</code> row per person fact</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>By</code> / <code>DerivedBy</code> — a bordered caption naming who
+                    supplied the value
+                  </td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>
+                    A <strong>history section</strong>, expandable, filterable by field and by actor
+                  </td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>A missing-required banner</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>—</td>
+                  <td><strong>the disputed state itself</strong></td>
+                </tr>
+                <tr>
+                  <td>—</td>
+                  <td><strong>a second, contested value alongside the first</strong></td>
+                </tr>
+                <tr>
+                  <td>—</td>
+                  <td><strong>a resolve control</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Mission 5 was explicit that it shipped none of the last three
+            (<code>REQ-no-disputed</code>, <code>REQ-no-verification-mark</code>): &quot;There is no
+            contested-value field, no verification-mark field and no confidence class anywhere below
+            — not struck out, never added.&quot; That is the seam this workflow fills, and the
+            attribution badge it fills it with is already there.
+          </p>
+          <h2 id="s10-h4">What resolving means</h2>
+          <p>The operator sees three things, all of which the record can already express:</p>
+          <ol>
+            <li>
+              <strong>The club's value</strong>, with the <code>By</code> badge naming who recorded
+              it.
+            </li>
+            <li>
+              <strong>The player's answer</strong>, with its own badge naming them and the date.
+            </li>
+            <li><strong>The history</strong>, which already filters by field and by actor.</li>
+          </ol>
+          <p>
+            And chooses one. Whichever loses is <strong>retained, never deleted</strong> — the audit
+            posture is append-only and a superseded value survives.
+          </p>
+          <p>
+            <strong>Three things stay attributable afterwards</strong>, which is the whole
+            requirement of the inventory's own wording:
+          </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Event</th>
+                  <th>Attributed to</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>The flag</td>
+                  <td>The player, at the moment they submitted <code>W5</code></td>
+                </tr>
+                <tr>
+                  <td>The correction</td>
+                  <td>Whoever's value was wrong, and when it was set</td>
+                </tr>
+                <tr>
+                  <td>The confirmation</td>
+                  <td>The operator who resolved it, dated</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s10-h5">Which consent record wins on a merge</h2>
+          <p>
+            <code>T07-merge-precedence</code> is this workflow's own open item, and it is a rule
+            rather than a screen.
+          </p>
+          <p>
+            <code>season_messaging_consents</code> is
+            <strong>unique on <code>(person_id, season_id)</code></strong
+            >. A merge of two people who both hold a consent row for the same season therefore
+            cannot keep both, and the database will refuse the merge outright rather than choose.
+          </p>
+          <p>
+            <strong>Recommended: the most restrictive state wins, not the most recent.</strong> If
+            either record says <code>refused</code> or <code>withdrawn</code>, the surviving person
+            is <code>refused</code> or <code>withdrawn</code>. Consent is permission to contact
+            somebody; a merge is a record-keeping operation, and record-keeping should never be able
+            to manufacture permission that a person had actually declined. The losing row is
+            retained like any other merged-away value, so the decision is auditable and reversible.
+          </p>
+          <p>
+            This has <strong>no surface of its own</strong>. Mission 5's merge comparison already
+            lists what stays with the losing record, and this is one more line in it.
+          </p>
+          <h2 id="s10-h6">Required actions</h2>
+          <ol>
+            <li>Open a person with a disputed fact.</li>
+            <li>Read both values, both attributions, and the history.</li>
+            <li>Resolve: keep the club's value, or take the player's.</li>
+            <li>Optionally record why — free text, four-role only, never in a report.</li>
+          </ol>
+          <h2 id="s10-h7">State transitions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>On</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>a fact</td>
+                  <td><code>disputed</code></td>
+                  <td><code>W5</code>, never here</td>
+                </tr>
+                <tr>
+                  <td><code>disputed</code></td>
+                  <td>resolved to the club's value</td>
+                  <td>An operator keeps what the club had</td>
+                </tr>
+                <tr>
+                  <td><code>disputed</code></td>
+                  <td>resolved to the player's</td>
+                  <td>An operator takes the player's answer</td>
+                </tr>
+                <tr>
+                  <td>the losing value</td>
+                  <td>retained</td>
+                  <td>Always. Never deleted</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <strong>A disputed fact is not a gate.</strong> <code>R3-G</code> holds: it blocks
+            nothing, and a person can train, be selected and travel with a fact in dispute
+            indefinitely.
+          </p>
+          <h2 id="s10-h8">Handoffs</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>To / from</th>
+                  <th>What crosses</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W5</code></td>
+                  <td>The dispute, with both values and both sources</td>
+                </tr>
+                <tr>
+                  <td><code>W6</code></td>
+                  <td>The resolution, into the record and the activity log</td>
+                </tr>
+                <tr>
+                  <td><code>W8</code></td>
+                  <td>
+                    A disputed fact is <strong>not</strong> outstanding and is not chased — a person
+                    already answered
+                  </td>
+                </tr>
+                <tr>
+                  <td>Mission 5</td>
+                  <td>The person record, its history section, the merge, and the missing queue</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s10-h9">Dependencies and mission boundaries</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Seam</th>
+                  <th>This mission's side</th>
+                  <th>The other side</th>
+                  <th>Blocking?</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Mission 5 · People &amp; Roster</td>
+                  <td>The disputed state and its resolution</td>
+                  <td>The record, the history, the merge, the queue</td>
+                  <td>Not blocking; shipped</td>
+                </tr>
+                <tr>
+                  <td>Mission 8 · Consent/Privacy</td>
+                  <td>Consent precedence as a merge <strong>mechanism</strong></td>
+                  <td>Correction and retention <strong>policy</strong></td>
+                  <td>Not blocking</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s10-h10">Exceptions and recovery</h2>
+          <ul>
+            <li>
+              <strong>The player changes their answer again while it is disputed.</strong> The newer
+              answer supersedes the waiting one; never more than one pending answer.
+            </li>
+            <li>
+              <strong>Both values are wrong.</strong> The operator edits the field outright through
+              the shipped path; the dispute closes as resolved by correction.
+            </li>
+            <li>
+              <strong>A disputed person is merged.</strong> The dispute travels with the surviving
+              record, because the fact does.
+            </li>
+            <li>
+              <strong>Nobody ever resolves it.</strong> It stays disputed. No timeout decides it,
+              and it never blocks anything.
+            </li>
+          </ul>
+          <h2 id="s10-h11">Safety, privacy, consent, and authority boundaries</h2>
+          <ul>
+            <li><strong>Four-role only</strong> to resolve.</li>
+            <li>
+              The player is never told which officer recorded the value they contested, and never
+              sees the resolution note.
+            </li>
+            <li>
+              <strong>Date of birth</strong> is resolvable but never displayed on any list or queue.
+            </li>
+            <li>Free text is four-role only and never reaches a report verbatim.</li>
+            <li>A merge never manufactures consent that a person declined.</li>
+          </ul>
+          <h2 id="s10-h12">Acceptance evidence</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Screen</th>
+                  <th>What it proves</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W7-01</code></td>
+                  <td>
+                    A disputed fact on the person record: both values, both attributions, one
+                    control
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W7-02</code></td>
+                  <td>
+                    Afterwards — flag, correction and confirmation, each attributable, in the
+                    shipped history
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Shot on <code>/operate/people/[personId]</code>, a real implemented route, both sides,
+            measured 1280 and 375. <code>T07-merge-precedence</code> gets no screen: it is a
+            write-time rule, and its only surface is one more line in Mission 5's existing merge
+            comparison.
+          </p>
+          <p>Grounding: <strong>screenshots</strong>.</p>
+          <h2 id="s10-h13">Core decisions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Decision</th>
+                  <th>Classification</th>
+                  <th>Governing evidence or recommended default</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>The surface is the person record, not the roster record</td>
+                  <td>locked</td>
+                  <td>
+                    The contestable facts are person facts, and already render there with their
+                    attribution
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Both values are shown, with both attributions</td>
+                  <td>locked</td>
+                  <td>Boundary item 14; the <code>By</code> badge already ships</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The losing value is retained, never deleted</td>
+                  <td>locked</td>
+                  <td>Append-only audit posture</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Flag, correction and confirmation stay separately attributable</td>
+                  <td>locked</td>
+                  <td>The frozen inventory's own wording for this workflow</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>A disputed fact gates nothing and is never chased</td>
+                  <td>locked</td>
+                  <td><code>R3-G</code>; the person has already answered</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Resolution is four-role</td>
+                  <td>locked</td>
+                  <td><code>T07-permissions</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td><strong>On a merge, the most restrictive consent state wins</strong></td>
+                  <td><strong>proposed for owner approval</strong></td>
+                  <td>
+                    <code>season_messaging_consents</code> is unique per person per season, so a
+                    merge must choose. <strong>Recommended: restrictive, not recent</strong> —
+                    record-keeping must never manufacture permission a person declined
+                  </td>
+                  <td><strong>open</strong></td>
+                </tr>
+                <tr>
+                  <td>Whether resolving may carry a note</td>
+                  <td>delegated to Mission Lead</td>
+                  <td>Free text either way, restricted either way</td>
+                  <td>settled</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s10-h14">Brian approval</h2>
+          <ul>
+            <li>Exact words:</li>
+            <li>Date:</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W10 specification</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: #e7e9ee;
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: #212121;
+        color: #fff;
+        padding: 11px 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .layout {
+        display: flex;
+        gap: 26px;
+        max-width: 1220px;
+        margin: 26px auto 90px;
+        padding: 0 22px;
+        align-items: flex-start;
+      }
+      nav.toc {
+        position: sticky;
+        top: 68px;
+        flex: 0 0 252px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 16px 8px 16px 16px;
+        max-height: calc(100vh - 104px);
+        overflow: auto;
+      }
+      nav.toc h2 {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--sec);
+        margin: 0 0 10px;
+        border: 0;
+        padding: 0;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc > ol > li {
+        margin-bottom: 4px;
+      }
+      nav.toc a {
+        display: block;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13.5px;
+        padding: 4px 8px;
+        border-radius: 5px;
+      }
+      nav.toc a:hover {
+        background: var(--grey100);
+      }
+      nav.toc .sub {
+        padding-left: 11px;
+        margin-bottom: 6px;
+      }
+      nav.toc .sub a {
+        color: var(--sec);
+        font-size: 12.5px;
+        padding: 2px 8px;
+      }
+      main {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      section.doc {
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 4px 34px 30px;
+        margin-bottom: 22px;
+      }
+      section.doc > header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 16px 0 11px;
+        border-bottom: 1px solid var(--divider);
+      }
+      section.doc > header h2 {
+        font-size: 1.02rem;
+        margin: 0;
+        border: 0;
+        padding: 0;
+      }
+      section.doc > header .file {
+        font-size: 12px;
+        color: var(--sec);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        margin-left: auto;
+      }
+      h1 {
+        font-size: 1.45rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.1rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 0.98rem;
+        margin: 20px 0 6px;
+      }
+      h4 {
+        font-size: 0.92rem;
+        margin: 16px 0 4px;
+        color: var(--sec);
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul,
+      ol {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      .tablewrap {
+        overflow-x: auto;
+        margin: 14px 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+      }
+      a {
+        color: var(--primary);
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        margin: 22px 0;
+      }
+      .chip {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        padding: 2px 9px;
+        border-radius: 11px;
+        white-space: nowrap;
+      }
+      .chip.ok {
+        background: #edf7ed;
+        color: #1b5e20;
+      }
+      .chip.warn {
+        background: #fff4e5;
+        color: #663c00;
+      }
+      .chip.idle {
+        background: var(--grey100);
+        color: var(--sec);
+      }
+      @media (max-width: 900px) {
+        .layout {
+          display: block;
+          padding: 0 12px;
+        }
+        nav.toc {
+          position: static;
+          width: auto;
+          margin-bottom: 18px;
+          max-height: none;
+        }
+        section.doc {
+          padding: 4px 18px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        W10 — Activate a player<span>M-ONBOARDING-AND-INFORMATION-COMPLETION · main@332bc6b</span>
+      </div>
+      <div>
+        <a href="../mockups/index.html">Index</a>
+        <a href="../specifications.html">All specifications</a>
+        <a href="../mockups/W10-activate-a-player.html">Screens</a>
+      </div>
+    </div>
+    <div class="layout">
+      <nav class="toc">
+        <h2>On this page</h2>
+        <ol>
+          <li><a href="#s13-h2">This workflow is almost entirely already built</a></li>
+          <li>
+            <a href="#s13-h3">Where &quot;outstanding shown as context&quot; already comes from</a>
+          </li>
+          <li><a href="#s13-h4">What this workflow actually contributes</a></li>
+          <li><a href="#s13-h5">Required actions</a></li>
+          <li><a href="#s13-h6">State transitions</a></li>
+          <li><a href="#s13-h7">Handoffs</a></li>
+          <li><a href="#s13-h8">Dependencies and mission boundaries</a></li>
+          <li><a href="#s13-h9">Exceptions and recovery</a></li>
+          <li><a href="#s13-h10">Safety, privacy, consent, and authority boundaries</a></li>
+          <li><a href="#s13-h11">Acceptance evidence</a></li>
+          <li><a href="#s13-h12">Core decisions</a></li>
+          <li><a href="#s13-h13">Brian approval</a></li>
+        </ol>
+      </nav>
+      <main>
+        <section class="doc">
+          <header>
+            <h2>W10 — Activate a player</h2>
+            <span class="chip ok">spec approved</span>
+            <span class="file">workflows/W10-activate-a-player.md</span>
+          </header>
+          <h1 id="s13-h1">W10 — Activate a player</h1>
+          <ul>
+            <li>
+              Purpose/intended outcome: The committee decides somebody is properly part of the team.
+              An operator says so, and they become active. <strong>That is all it is.</strong>
+            </li>
+            <li>Primary actor: A four-role operator.</li>
+            <li>
+              Trigger: a human decision, taken off-system. Nothing schedules it and nothing derives
+              it.
+            </li>
+            <li>
+              Entry point / route: <strong><code>/operate/roster/[membershipId]</code></strong
+              >, the Season section's Status field, which ships and already works.
+            </li>
+            <li>
+              Controlling source: <code>S37</code>; owned <code>R3</code>,
+              <code>PR7-activation</code>, <code>OD7-activation-flips</code>; cited
+              <code>R3-C</code>, <code>R3-G</code> (<code>W6</code>),
+              <code>S23</code> (<code>W6</code>).
+            </li>
+            <li>
+              User-visible result: the membership reads <code>active</code>, and the person is
+              manageable as a full member of the squad.
+            </li>
+          </ul>
+          <h2 id="s13-h2">This workflow is almost entirely already built</h2>
+          <p>
+            The flip ships. <code>setMembershipStatus</code> exists, the Season section's Status
+            field is an editable select carrying all five statuses, and every flip is written to
+            <code>season_membership_status_events</code> append-only.
+          </p>
+          <p>
+            <strong
+              >And Mission 5 already considered the one thing this workflow might have added, and
+              withdrew it.</strong
+            >
+            From <code>membership.ts</code>'s own header:
+          </p>
+          <blockquote>
+            <p>
+              &quot;There is no transition table any more. <code>MEMBERSHIP_TRANSITIONS</code> and
+              <code>transitionIsLegal</code> were removed on Brian's explicit decision… recorded
+              verbatim as <code>Q-12</code>… 'Okay, then we just remove it. We can flip to whatever
+              status we want to go in.' … Nothing asks a reason and nothing confirms first (<strong
+                >a warn-only confirmation on <code>onboarding → active</code> was proposed and then
+                withdrawn in the same walkthrough</strong
+              >, journal event 132's correction).&quot;
+            </p>
+          </blockquote>
+          <p>That is this exact transition, and it was settled against adding ceremony to it.</p>
+          <p>
+            <strong>So W10 adds nothing to the flip.</strong> <code>OD7-activation-flips</code> —
+            &quot;activation just flips them to active&quot; — says the same thing from this
+            mission's side, and <code>R3</code> says an active player with an unfinished checklist
+            is the <strong>normal case</strong>, not an exception worth warning about.
+          </p>
+          <h2 id="s13-h3">Where &quot;outstanding shown as context&quot; already comes from</h2>
+          <p>
+            The frozen inventory says activation happens &quot;with whatever is still outstanding
+            shown as context&quot;. It already is: the
+            <strong
+              >Onboarding section sits directly above the Season section on the same page</strong
+            >, listing every item and its state, with the required-outstanding alert beneath it.
+          </p>
+          <p>
+            The context is the page. Re-presenting it inside the status control would be the
+            withdrawn confirmation wearing a different hat.
+          </p>
+          <h2 id="s13-h4">What this workflow actually contributes</h2>
+          <p>Three things, none of them a control:</p>
+          <ol>
+            <li>
+              <strong>A rule about what activation means</strong>: it is a human declaration, and
+              the only gate this mission has. Nothing derives it, nothing schedules it, and no
+              checklist state enables or prevents it.
+            </li>
+            <li>
+              <strong>A rule about what it does not mean</strong>: activation does not complete,
+              waive or close anything. Every outstanding item stays outstanding, stays chased by
+              <code>W8</code>, and stays on the record.
+            </li>
+            <li>
+              <strong>A signal, consumed not owned</strong>: &quot;who is ready to activate&quot; is
+              <code>W6</code>'s derived completeness (<code>S23</code>, <code>R3-C</code>), which is
+              <strong>display-only and never flips membership on its own</strong>.
+            </li>
+          </ol>
+          <h2 id="s13-h5">Required actions</h2>
+          <ol>
+            <li>Open the player.</li>
+            <li>Read the Onboarding section, if you want to. Nothing requires it.</li>
+            <li>Set Status to Active.</li>
+          </ol>
+          <h2 id="s13-h6">State transitions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>On</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>onboarding</code></td>
+                  <td><code>active</code></td>
+                  <td>An operator says so</td>
+                </tr>
+                <tr>
+                  <td>any</td>
+                  <td>any</td>
+                  <td>Also permitted — <code>Q-12</code> removed the transition table</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Every flip writes <code>season_membership_status_events</code>, which is what made
+            removing the transition table safe in the first place: &quot;We can still get an audit
+            history to know what happened, right?&quot;
+          </p>
+          <h2 id="s13-h7">Handoffs</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>To / from</th>
+                  <th>What crosses</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W6</code></td>
+                  <td>
+                    The derived &quot;ready to activate&quot; signal, and the checklist shown as
+                    context
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W8</code></td>
+                  <td>Nothing changes. An active player with outstanding items is still chased</td>
+                </tr>
+                <tr>
+                  <td>Mission 5</td>
+                  <td>The status field, the flip, and the audit trail — all shipped</td>
+                </tr>
+                <tr>
+                  <td><code>W11</code></td>
+                  <td>Which items exist at all</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s13-h8">Dependencies and mission boundaries</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Seam</th>
+                  <th>This mission's side</th>
+                  <th>The other side</th>
+                  <th>Blocking?</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Mission 5 · People &amp; Roster</td>
+                  <td>What activation means, and what it does not</td>
+                  <td>The status field, the flip, the audit trail</td>
+                  <td>Not blocking; shipped</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s13-h9">Exceptions and recovery</h2>
+          <ul>
+            <li>
+              <strong>Activating somebody with everything outstanding.</strong> Permitted, and
+              normal. <code>R3</code> is explicit that this is the ordinary case.
+            </li>
+            <li>
+              <strong>Activating somebody unmessageable, or under 18.</strong> Permitted. Activation
+              is about squad membership, not about contactability.
+            </li>
+            <li>
+              <strong>Un-activating.</strong> Any status may become any other; the audit trail
+              records it.
+            </li>
+            <li>
+              <strong>Activation while a fact is disputed.</strong> Permitted. <code>W7</code> is
+              unaffected.
+            </li>
+          </ul>
+          <h2 id="s13-h10">Safety, privacy, consent, and authority boundaries</h2>
+          <ul>
+            <li><strong>Four-role only</strong>, as the surrounding Season fields already are.</li>
+            <li>
+              <strong>Activation grants no login, no role and no operator seat.</strong> It is a
+              squad fact, not an access change.
+            </li>
+            <li>Every flip is attributable and append-only.</li>
+          </ul>
+          <h2 id="s13-h11">Acceptance evidence</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Screen</th>
+                  <th>What it proves</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W10-01</code></td>
+                  <td>
+                    The flip, on the shipped control, with the checklist above it as the only
+                    context
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W10-02</code></td>
+                  <td>
+                    Active with an unfinished checklist — the normal case, and nothing about it
+                    flagged
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Shot on <code>/operate/roster/[membershipId]</code>, a real implemented route, both
+            sides, measured 1280 and 375.
+          </p>
+          <p>Grounding: <strong>screenshots</strong>.</p>
+          <h2 id="s13-h12">Core decisions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Decision</th>
+                  <th>Classification</th>
+                  <th>Governing evidence or recommended default</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Activation is a human declaration on the shipped status field</td>
+                  <td>locked</td>
+                  <td><code>OD7-activation-flips</code>, <code>PR7-activation</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td><strong>No confirmation step is added</strong></td>
+                  <td>locked</td>
+                  <td>
+                    <code>Q-12</code> proposed and withdrew exactly that on this exact transition;
+                    <code>R3</code> makes it the normal case
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Outstanding items are context, and the context is the page</td>
+                  <td>locked</td>
+                  <td>The Onboarding section already sits directly above the Season section</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Activation completes, waives and closes nothing</td>
+                  <td>locked</td>
+                  <td><code>R3</code>; the chase continues unchanged</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Nothing derives or schedules activation</td>
+                  <td>locked</td>
+                  <td>
+                    <code>R3-C</code>: derived completeness is display-only and never flips
+                    membership
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    Activation is the only gate this mission has, and it gates squad membership only
+                  </td>
+                  <td>locked</td>
+                  <td>Boundary item 16; <code>R3-G</code> everywhere else</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    Whether the roster board surfaces &quot;ready to activate&quot; prominently
+                  </td>
+                  <td>delegated to Mission Lead</td>
+                  <td>
+                    The signal is <code>W6</code>'s and display-only; where it is shown is
+                    presentation
+                  </td>
+                  <td>settled</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <strong>No decision is open.</strong> This workflow's one candidate — a confirmation on
+            activation — was already raised and withdrawn by Brian in Mission 5, and re-opening it
+            here would be re-litigating a recorded decision.
+          </p>
+          <h2 id="s13-h13">Brian approval</h2>
+          <ul>
+            <li>Exact words:</li>
+            <li>Date:</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

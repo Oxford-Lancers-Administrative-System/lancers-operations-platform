@@ -1,0 +1,716 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W5 specification</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: #e7e9ee;
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: #212121;
+        color: #fff;
+        padding: 11px 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .layout {
+        display: flex;
+        gap: 26px;
+        max-width: 1220px;
+        margin: 26px auto 90px;
+        padding: 0 22px;
+        align-items: flex-start;
+      }
+      nav.toc {
+        position: sticky;
+        top: 68px;
+        flex: 0 0 252px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 16px 8px 16px 16px;
+        max-height: calc(100vh - 104px);
+        overflow: auto;
+      }
+      nav.toc h2 {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--sec);
+        margin: 0 0 10px;
+        border: 0;
+        padding: 0;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc > ol > li {
+        margin-bottom: 4px;
+      }
+      nav.toc a {
+        display: block;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13.5px;
+        padding: 4px 8px;
+        border-radius: 5px;
+      }
+      nav.toc a:hover {
+        background: var(--grey100);
+      }
+      nav.toc .sub {
+        padding-left: 11px;
+        margin-bottom: 6px;
+      }
+      nav.toc .sub a {
+        color: var(--sec);
+        font-size: 12.5px;
+        padding: 2px 8px;
+      }
+      main {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      section.doc {
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 4px 34px 30px;
+        margin-bottom: 22px;
+      }
+      section.doc > header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 16px 0 11px;
+        border-bottom: 1px solid var(--divider);
+      }
+      section.doc > header h2 {
+        font-size: 1.02rem;
+        margin: 0;
+        border: 0;
+        padding: 0;
+      }
+      section.doc > header .file {
+        font-size: 12px;
+        color: var(--sec);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        margin-left: auto;
+      }
+      h1 {
+        font-size: 1.45rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.1rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 0.98rem;
+        margin: 20px 0 6px;
+      }
+      h4 {
+        font-size: 0.92rem;
+        margin: 16px 0 4px;
+        color: var(--sec);
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul,
+      ol {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      .tablewrap {
+        overflow-x: auto;
+        margin: 14px 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+      }
+      a {
+        color: var(--primary);
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        margin: 22px 0;
+      }
+      .chip {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        padding: 2px 9px;
+        border-radius: 11px;
+        white-space: nowrap;
+      }
+      .chip.ok {
+        background: #edf7ed;
+        color: #1b5e20;
+      }
+      .chip.warn {
+        background: #fff4e5;
+        color: #663c00;
+      }
+      .chip.idle {
+        background: var(--grey100);
+        color: var(--sec);
+      }
+      @media (max-width: 900px) {
+        .layout {
+          display: block;
+          padding: 0 12px;
+        }
+        nav.toc {
+          position: static;
+          width: auto;
+          margin-bottom: 18px;
+          max-height: none;
+        }
+        section.doc {
+          padding: 4px 18px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        W5 — Fix something the club has wrong<span
+          >M-ONBOARDING-AND-INFORMATION-COMPLETION · main@332bc6b</span
+        >
+      </div>
+      <div>
+        <a href="../mockups/index.html">Index</a>
+        <a href="../specifications.html">All specifications</a>
+        <a href="../mockups/W5-fix-something-the-club-has-wrong.html">Screens</a>
+      </div>
+    </div>
+    <div class="layout">
+      <nav class="toc">
+        <h2>On this page</h2>
+        <ol>
+          <li><a href="#s8-h2">Where this sits in the application</a></li>
+          <li><a href="#s8-h3">What this workflow does not do — owner direction, 2026-09-02</a></li>
+          <li><a href="#s8-h4">Current main grounding</a></li>
+          <li><a href="#s8-h6">The one rule that survives</a></li>
+          <li><a href="#s8-h7">Required actions</a></li>
+          <li><a href="#s8-h8">State transitions</a></li>
+          <li><a href="#s8-h9">Handoffs</a></li>
+          <li><a href="#s8-h10">Dependencies and mission boundaries</a></li>
+          <li><a href="#s8-h11">Exceptions and recovery</a></li>
+          <li><a href="#s8-h12">Safety, privacy, consent, and authority boundaries</a></li>
+          <li><a href="#s8-h13">Acceptance evidence</a></li>
+          <li><a href="#s8-h14">Core decisions</a></li>
+          <li><a href="#s8-h15">Brian approval</a></li>
+        </ol>
+      </nav>
+      <main>
+        <section class="doc">
+          <header>
+            <h2>W5 — Fix something the club has wrong</h2>
+            <span class="chip ok">spec approved</span>
+            <span class="file">workflows/W5-fix-something-the-club-has-wrong.md</span>
+          </header>
+          <h1 id="s8-h1">W5 — Fix something the club has wrong</h1>
+          <ul>
+            <li>
+              Purpose/intended outcome: A player's details change during the season, or the club has
+              something wrong. They open the link they already hold and change it.
+              <strong>That is the whole workflow.</strong>
+            </li>
+            <li>Primary actor: The player, unprompted.</li>
+            <li>
+              Trigger: they open their link at any point after finishing <code>W4</code> — because
+              something changed, or because a follow-up message brought them back.
+            </li>
+            <li>Entry point: the same signed link. No login, no second credential, no new page.</li>
+            <li>
+              Route/placement: <code>/me/[token]/details</code>, the page <code>W4</code> built,
+              showing everything the club holds rather than only what is missing.
+            </li>
+            <li>
+              Controlling source: <code>S33</code>; owned <code>OD7-followup-is-the-form</code>,
+              <code>T11-provenance</code>; cited
+              <code>OD7-required-no-decline</code> (<code>W4</code>),
+              <code>OD7-no-targeted-ask</code> (<code>W8</code>),
+              <code>T11-states</code> (<code>W4</code>), and boundary item 14.
+            </li>
+            <li>
+              User-visible result: the record is what the player says it is — except where an
+              operator put the value there, in which case a person checks first.
+            </li>
+          </ul>
+          <h2 id="s8-h2">Where this sits in the application</h2>
+          <p>Worth stating plainly, because the first draft of this workflow buried it.</p>
+          <ul>
+            <li>
+              <strong><code>W4</code> is the form.</strong> A player gives their details once,
+              through their link.
+            </li>
+            <li>
+              <strong><code>W5</code> is that same form, still live in November.</strong> Not a
+              second surface and not a second link: the same page, showing everything rather than
+              only the gaps.
+            </li>
+            <li>
+              <strong
+                >Everything else the club needs to change, the club changes its own way</strong
+              >
+              — <code>/operate/people/[personId]/edit</code>, which ships today.
+            </li>
+          </ul>
+          <p>
+            It exists because there are <strong>no player logins</strong>, so the signed link is the
+            only route a player will ever have to their own data; and because Mission 5 shipped the
+            operator edit path and recorded in its own specification that this was the
+            <strong>interim</strong> answer until a person could fix their own record
+            (<code>OS-self-service-to-m7</code>). Its missing-data queue has, today, nothing acting
+            on it from the player's side.
+          </p>
+          <h2 id="s8-h3">What this workflow does not do — owner direction, 2026-09-02</h2>
+          <p>Three things the first draft had, which Brian removed:</p>
+          <ol>
+            <li>
+              <strong>No declining a fact.</strong> &quot;They have to give the date of birth and
+              information. They can't decline to give that information.&quot;
+              <code>T11-refused</code> is <strong>superseded</strong> by
+              <code>OD7-required-no-decline</code>. Nothing anywhere offers a player a way to refuse
+              a required fact.
+            </li>
+            <li>
+              <strong>No system-generated one-fact ask.</strong> &quot;I don't think the system
+              should ask it because I don't even know how this information gets to them.&quot;
+              <code>M6</code> is <strong>superseded</strong> by <code>OD7-no-targeted-ask</code>: a
+              person decides to chase, and what goes out is the compiled link the player already
+              holds. That is <code>W8</code>'s.
+            </li>
+            <li>
+              <strong>No explanation living inside the page.</strong> &quot;Too much UI narration…
+              too narrative in design.&quot; The screen is an ordinary form. What needs saying about
+              it is said beside it, on the review page, outside the frame.
+            </li>
+          </ol>
+          <h2 id="s8-h4">Current <code>main</code> grounding</h2>
+          <ul>
+            <li>
+              Baseline <code>main@332bc6b</code>. No player-facing correction path exists. The
+              operator one does, at <code>/operate/people/[personId]/edit</code>.
+            </li>
+            <li>Shell: <code>/a/[token]</code>, as for <code>W4</code>, for the same reasons.</li>
+          </ul>
+          <h3 id="s8-h5">Provenance already exists, and it is derived</h3>
+          <p>
+            <code>person-record.ts</code> already answers &quot;who supplied this value&quot; for
+            the seven fields that carry no <code>source</code> column, deriving it from
+            <code>audit_events</code> — Brian's own choice in the LAN-184 walkthrough rather than
+            adding columns. <code>&lt;field&gt;Source</code> returns a display name, or
+            <code>null</code> for a value never set through the application.
+            <code>contact_points.source</code> and
+            <code>person_emergency_contacts.recorded_by_person_id</code> cover the rest.
+          </p>
+          <p>
+            <strong>So this workflow adds no provenance columns.</strong> It adds the ranking, and
+            the <code>disputed</code> state Mission 5 deliberately did not ship
+            (<code>REQ-no-disputed</code>: &quot;There is no contested-value field, no
+            verification-mark field and no confidence class anywhere below — not struck out, never
+            added&quot;). That was a seam left here.
+          </p>
+          <h2 id="s8-h6">The one rule that survives</h2>
+          <p>
+            Boundary item 14, which is approved: a player's answer never
+            <strong>silently</strong> overwrites an operator-confirmed, externally verified or
+            derived value.
+          </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>What the current value is</th>
+                  <th>What a change does</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Supplied by the player themselves</td>
+                  <td><strong>Changes it.</strong> Their prerogative</td>
+                </tr>
+                <tr>
+                  <td>Supplied by an operator</td>
+                  <td>
+                    <strong>A person checks first.</strong> Both values kept;
+                    <code>W7</code> resolves
+                  </td>
+                </tr>
+                <tr>
+                  <td>Derived — the under-18 flag, a verify-class item</td>
+                  <td>Not editable here at all</td>
+                </tr>
+                <tr>
+                  <td>Unattributed — seeded or imported, <code>null</code> source</td>
+                  <td><strong>Changes it</strong>, recording the player as the source</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            On the screen this is one clause on the field's own source line, and nothing else. The
+            player is told <em>the club</em> recorded it, never which officer.
+          </p>
+          <p>
+            <strong>The last row is proposed rather than assumed.</strong>
+            <code>readFieldProvenanceIn</code> returns <code>null</code> for anything seeded or
+            imported. Nobody attributable asserted those values, and <code>W1</code> already refuses
+            to let the import file overwrite a person's own facts — so the recommendation is that
+            the player wins there.
+          </p>
+          <h2 id="s8-h7">Required actions</h2>
+          <ol>
+            <li>Open the link. Nothing is outstanding; this is not a chase.</li>
+            <li>Change whatever has changed.</li>
+            <li>
+              Save. Values the player owns are saved; a changed operator-recorded value waits for a
+              person, and the club's own value stands meanwhile.
+            </li>
+          </ol>
+          <p>Read-back applies to a changed mobile, as at first capture.</p>
+          <h2 id="s8-h8">State transitions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>On</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>submitted</code></td>
+                  <td><code>opened</code></td>
+                  <td>They return through the same link</td>
+                </tr>
+                <tr>
+                  <td><code>opened</code></td>
+                  <td><code>corrected</code></td>
+                  <td>They change an already-confirmed value and save</td>
+                </tr>
+                <tr>
+                  <td>a fact</td>
+                  <td><code>disputed</code></td>
+                  <td>Their value differs from an operator-recorded one</td>
+                </tr>
+                <tr>
+                  <td><code>disputed</code></td>
+                  <td>resolved</td>
+                  <td>
+                    <strong><code>W7</code></strong
+                    >, never here
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Consent is untouched: <code>OD7-oneway-tick</code> means this page cannot untick it.
+          </p>
+          <h2 id="s8-h9">Handoffs</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>To</th>
+                  <th>What crosses</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W7</code></td>
+                  <td>Every disputed fact, with both values, both sources and both dates</td>
+                </tr>
+                <tr>
+                  <td><code>W6</code></td>
+                  <td>Every change, into the record and the sectioned activity log</td>
+                </tr>
+                <tr>
+                  <td>Mission 5</td>
+                  <td>
+                    The corrected values, and its missing-data queue, which this finally feeds
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W4</code></td>
+                  <td>The page itself. This is its returning state, not a second surface</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s8-h10">Dependencies and mission boundaries</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Seam</th>
+                  <th>This mission's side</th>
+                  <th>The other side</th>
+                  <th>Blocking?</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Mission 5 · People &amp; Roster</td>
+                  <td>The <code>disputed</code> state, the ranking</td>
+                  <td>The record, the operator edit path, the queue</td>
+                  <td>Not blocking; shipped</td>
+                </tr>
+                <tr>
+                  <td>Mission 8 · Consent/Privacy</td>
+                  <td>The mechanism</td>
+                  <td>Correction <strong>policy</strong>, subject-access, erasure</td>
+                  <td>Not blocking</td>
+                </tr>
+                <tr>
+                  <td><code>W7</code></td>
+                  <td>Raising it, keeping both values</td>
+                  <td>Resolving it</td>
+                  <td>Independently walkable</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s8-h11">Exceptions and recovery</h2>
+          <ul>
+            <li>
+              <strong>Nothing changed.</strong> Nothing is recorded and no log noise is generated.
+            </li>
+            <li>
+              <strong>A fact already disputed is changed again.</strong> The newer answer supersedes
+              the waiting one; never more than one pending player answer per fact.
+            </li>
+            <li><strong>The link is dead.</strong> <code>W4</code>'s uniform page, unchanged.</li>
+            <li>
+              <strong>The player is under 18.</strong> The flag stops the club messaging them at
+              all; the link they hold still works.
+            </li>
+          </ul>
+          <h2 id="s8-h12">Safety, privacy, consent, and authority boundaries</h2>
+          <ul>
+            <li>No login, and no new credential.</li>
+            <li>A player never learns which officer recorded a value — only that the club did.</li>
+            <li>Date of birth stays restricted when changed, exactly as when captured.</li>
+            <li>Nothing here can grant, change or remove consent.</li>
+            <li>Free text, if any is ever added, is four-role-group only.</li>
+          </ul>
+          <h2 id="s8-h13">Acceptance evidence</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Screen</th>
+                  <th>What it proves</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W5-01</code></td>
+                  <td>
+                    The follow-up form: everything the club holds, editable, each value carrying
+                    where it came from — and the one clause that marks an operator-recorded value
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            One screen, both sides, measured 1280 and 375, on the <code>/a/[token]</code> shell.
+          </p>
+          <p>Grounding: <strong>screenshots</strong>.</p>
+          <h2 id="s8-h14">Core decisions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Decision</th>
+                  <th>Classification</th>
+                  <th>Governing evidence or recommended default</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>The follow-up is the same form, carrying everything, editable</td>
+                  <td>locked</td>
+                  <td><code>OD7-followup-is-the-form</code>, owner direction 2026-09-02</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Same page and same link as <code>W4</code>, in its returning state</td>
+                  <td>locked</td>
+                  <td>No player logins; one credential per person per season</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>No declining a required fact, anywhere</td>
+                  <td>locked</td>
+                  <td><code>OD7-required-no-decline</code>; supersedes <code>T11-refused</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The system never generates a one-fact ask</td>
+                  <td>locked</td>
+                  <td>
+                    <code>OD7-no-targeted-ask</code>; supersedes <code>M6</code>. A person chases,
+                    carrying the compiled link — <code>W8</code>'s
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Provenance is the derived one Mission 5 already built</td>
+                  <td>locked</td>
+                  <td><code>readFieldProvenanceIn</code>; Brian's LAN-184 walkthrough choice</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>A change to an operator-recorded value is checked by a person first</td>
+                  <td>locked</td>
+                  <td>Boundary item 14</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Both values are kept when a fact is disputed; <code>W7</code> resolves it</td>
+                  <td>locked</td>
+                  <td>Append-only audit posture</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The page carries no explanation of itself beyond field-level copy</td>
+                  <td>locked</td>
+                  <td>Owner direction 2026-09-02 on UI narration</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td><strong>An unattributed value can be replaced by the player</strong></td>
+                  <td><strong>proposed for owner approval</strong></td>
+                  <td>
+                    <code>readFieldProvenanceIn</code> returns <code>null</code> for seeded and
+                    imported values; nobody attributable asserted them, and <code>W1</code> already
+                    refuses to let the file overwrite a person's own facts.
+                    <strong>Recommended</strong>
+                  </td>
+                  <td><strong>open</strong></td>
+                </tr>
+                <tr>
+                  <td>Whether the source line shows a date as well as who</td>
+                  <td>delegated to Mission Lead</td>
+                  <td>Presentation; the data is there either way</td>
+                  <td>settled</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s8-h15">Brian approval</h2>
+          <ul>
+            <li>Exact words:</li>
+            <li>Date:</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

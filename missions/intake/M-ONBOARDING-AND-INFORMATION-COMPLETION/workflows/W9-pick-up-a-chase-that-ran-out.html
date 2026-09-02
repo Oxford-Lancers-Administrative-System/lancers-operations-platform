@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W9 specification</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: #e7e9ee;
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: #212121;
+        color: #fff;
+        padding: 11px 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .layout {
+        display: flex;
+        gap: 26px;
+        max-width: 1220px;
+        margin: 26px auto 90px;
+        padding: 0 22px;
+        align-items: flex-start;
+      }
+      nav.toc {
+        position: sticky;
+        top: 68px;
+        flex: 0 0 252px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 16px 8px 16px 16px;
+        max-height: calc(100vh - 104px);
+        overflow: auto;
+      }
+      nav.toc h2 {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--sec);
+        margin: 0 0 10px;
+        border: 0;
+        padding: 0;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc > ol > li {
+        margin-bottom: 4px;
+      }
+      nav.toc a {
+        display: block;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13.5px;
+        padding: 4px 8px;
+        border-radius: 5px;
+      }
+      nav.toc a:hover {
+        background: var(--grey100);
+      }
+      nav.toc .sub {
+        padding-left: 11px;
+        margin-bottom: 6px;
+      }
+      nav.toc .sub a {
+        color: var(--sec);
+        font-size: 12.5px;
+        padding: 2px 8px;
+      }
+      main {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      section.doc {
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 4px 34px 30px;
+        margin-bottom: 22px;
+      }
+      section.doc > header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 16px 0 11px;
+        border-bottom: 1px solid var(--divider);
+      }
+      section.doc > header h2 {
+        font-size: 1.02rem;
+        margin: 0;
+        border: 0;
+        padding: 0;
+      }
+      section.doc > header .file {
+        font-size: 12px;
+        color: var(--sec);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        margin-left: auto;
+      }
+      h1 {
+        font-size: 1.45rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.1rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 0.98rem;
+        margin: 20px 0 6px;
+      }
+      h4 {
+        font-size: 0.92rem;
+        margin: 16px 0 4px;
+        color: var(--sec);
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul,
+      ol {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      .tablewrap {
+        overflow-x: auto;
+        margin: 14px 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+      }
+      a {
+        color: var(--primary);
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        margin: 22px 0;
+      }
+      .chip {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        padding: 2px 9px;
+        border-radius: 11px;
+        white-space: nowrap;
+      }
+      .chip.ok {
+        background: #edf7ed;
+        color: #1b5e20;
+      }
+      .chip.warn {
+        background: #fff4e5;
+        color: #663c00;
+      }
+      .chip.idle {
+        background: var(--grey100);
+        color: var(--sec);
+      }
+      @media (max-width: 900px) {
+        .layout {
+          display: block;
+          padding: 0 12px;
+        }
+        nav.toc {
+          position: static;
+          width: auto;
+          margin-bottom: 18px;
+          max-height: none;
+        }
+        section.doc {
+          padding: 4px 18px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        W9 — Pick up a chase that ran out<span
+          >M-ONBOARDING-AND-INFORMATION-COMPLETION · main@332bc6b</span
+        >
+      </div>
+      <div>
+        <a href="../mockups/index.html">Index</a>
+        <a href="../specifications.html">All specifications</a>
+        <a href="../mockups/W9-pick-up-a-chase-that-ran-out.html">Screens</a>
+      </div>
+    </div>
+    <div class="layout">
+      <nav class="toc">
+        <h2>On this page</h2>
+        <ol>
+          <li><a href="#s12-h2">The shape of it</a></li>
+          <li><a href="#s12-h3">Why the message has no names, and no screen</a></li>
+          <li><a href="#s12-h4">Why an office, not a person</a></li>
+          <li><a href="#s12-h5">What &quot;exhausted&quot; means exactly</a></li>
+          <li><a href="#s12-h6">Required actions</a></li>
+          <li><a href="#s12-h7">State transitions</a></li>
+          <li><a href="#s12-h8">Handoffs</a></li>
+          <li><a href="#s12-h9">Dependencies and mission boundaries</a></li>
+          <li><a href="#s12-h10">Exceptions and recovery</a></li>
+          <li><a href="#s12-h11">Safety, privacy, consent, and authority boundaries</a></li>
+          <li><a href="#s12-h12">Acceptance evidence</a></li>
+          <li><a href="#s12-h13">Core decisions</a></li>
+          <li><a href="#s12-h14">Brian approval</a></li>
+        </ol>
+      </nav>
+      <main>
+        <section class="doc">
+          <header>
+            <h2>W9 — Pick up a chase that ran out</h2>
+            <span class="chip ok">spec approved</span>
+            <span class="file">workflows/W9-pick-up-a-chase-that-ran-out.md</span>
+          </header>
+          <h1 id="s12-h1">W9 — Pick up a chase that ran out</h1>
+          <ul>
+            <li>
+              Purpose/intended outcome: The machine has asked somebody as many times as it is
+              allowed to and got nothing back.
+              <strong>It stops, permanently, and tells a human</strong> — carrying a count and a
+              link but no names. That human contacts the person themselves, and records what
+              happened.
+            </li>
+            <li>
+              Primary actor: Whoever holds the <strong>configured escalation office</strong>,
+              initial value President.
+            </li>
+            <li>
+              Trigger: an automated chase exhausts — the configured number of messages
+              <em>that actually arrived</em> have gone out and nothing came back.
+            </li>
+            <li>
+              Entry point: a message to the configured office. From there,
+              <code>/operate/people/missing</code>, and then one person's record.
+            </li>
+            <li>
+              Controlling source: <code>S30</code>, <code>S31</code>; owned
+              <code>T11-escalation-target</code>, <code>T11-escalation-personal-data-free</code>;
+              cited <code>T11-cap-delivered</code>, <code>T11-visibility</code> (<code>W8</code>),
+              <code>T10-activity-log</code> (<code>W6</code>).
+            </li>
+            <li>
+              User-visible result: a person who stopped answering is picked up by a human, and what
+              that human did is on the record.
+            </li>
+          </ul>
+          <h2 id="s12-h2">The shape of it</h2>
+          <p>Three moments, and only two of them have a screen.</p>
+          <ol>
+            <li>
+              <strong>The escalation message.</strong> Sent to the configured office. It says a
+              chase has run out and how many people it concerns, and carries a link into the
+              operator area. <strong>It carries no names.</strong>
+            </li>
+            <li>
+              <strong>The list behind the link</strong> — <code>/operate/people/missing</code>,
+              scoped to the people whose chase has exhausted. This is where names appear, because
+              this is behind a login.
+            </li>
+            <li>
+              <strong>The record of what the human did.</strong> They rang, or caught them at
+              training, and that goes on the person's own log.
+            </li>
+          </ol>
+          <h2 id="s12-h3">Why the message has no names, and no screen</h2>
+          <p>
+            <code>T11-escalation-personal-data-free</code>. The escalation goes out over the same
+            transport as everything else — WhatsApp, or email — to whoever currently holds an
+            office. That is a channel the club does not control the endpoint of: an officer's
+            personal phone, a handset that may be shared, a mailbox that outlives their term.
+          </p>
+          <p>
+            So the message is deliberately worthless to anybody who is not already an operator:
+            <em>&quot;3 people have stopped answering. Open the queue.&quot;</em> The names sit
+            behind the login, where the four-role boundary already governs who sees them.
+          </p>
+          <p>
+            <strong>It gets no screen of its own</strong> because it is a message, not a page — and
+            drawing one would mean inventing a surface this application does not have. Its content
+            is specified here; the two screens are the two places an operator actually goes.
+          </p>
+          <h2 id="s12-h4">Why an office, not a person</h2>
+          <p>
+            <code>T11-escalation-target</code>: the target is a <strong>configured office</strong>,
+            initial value President, matching the pattern the club already uses. Presidents change
+            every year. An escalation addressed to a person stops working the day they hand over,
+            and does so silently — which is the worst possible failure for the one message that
+            exists to catch what everything else missed.
+          </p>
+          <p>
+            The office needs no configuring: <code>roles</code> on <code>main</code> already ships
+            <code>president</code> as a constitutional office, with
+            <code>role_assignments</code> naming whoever currently holds it. It is read, not set.
+          </p>
+          <h2 id="s12-h5">What &quot;exhausted&quot; means exactly</h2>
+          <p>
+            <code>T11-cap-delivered</code>: the cap counts messages
+            <strong>known to have arrived</strong>. A message that failed to deliver does not burn a
+            rung, and terminal delivery failure is a different state with a different escalation
+            (<code>W8-03</code>, <code>T11-terminal-failure</code>).
+          </p>
+          <ul>
+            <li>
+              The chase stops <strong>permanently</strong>. It never resumes on its own, and no new
+              season restarts it for that person.
+            </li>
+            <li>
+              <strong>Nothing is removed.</strong> <code>OD7-depart-stops</code> governs leaving;
+              exhaustion is not leaving. The person stays on the roster, their items stay
+              outstanding, and they remain entirely welcome.
+            </li>
+            <li>
+              <strong>Only a human restarts it</strong>, and the way they do that is
+              <code>W8</code>'s nudge, which is outside the cap.
+            </li>
+          </ul>
+          <h2 id="s12-h6">Required actions</h2>
+          <ol>
+            <li>The office receives the escalation and opens the link.</li>
+            <li>
+              They see the people whose chase has exhausted, with what each is missing and when each
+              was last contacted.
+            </li>
+            <li>They contact one of them <strong>themselves</strong> — in person, or by phone.</li>
+            <li>They record what happened on that person's log.</li>
+          </ol>
+          <p>
+            Step 3 is deliberately outside the system. This workflow's job is to get a name in front
+            of a human and to remember what the human then did; the club does not need software to
+            have a conversation.
+          </p>
+          <h2 id="s12-h7">State transitions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>On</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>open</code></td>
+                  <td><code>exhausted — human follow-up</code></td>
+                  <td>The last permitted delivered message goes unanswered</td>
+                </tr>
+                <tr>
+                  <td><code>exhausted — human follow-up</code></td>
+                  <td><code>open</code></td>
+                  <td><strong>An operator nudges</strong> (<code>W8</code>). Never automatic</td>
+                </tr>
+                <tr>
+                  <td>—</td>
+                  <td>logged</td>
+                  <td>The human's own contact, recorded on the person's log</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s12-h8">Handoffs</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>To / from</th>
+                  <th>What crosses</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W8</code></td>
+                  <td>The queue the link lands on, and the nudge that restarts a chase</td>
+                </tr>
+                <tr>
+                  <td><code>W6</code></td>
+                  <td>The recorded follow-up, onto the person's sectioned activity log</td>
+                </tr>
+                <tr>
+                  <td><code>W11</code></td>
+                  <td>The configured office, the cap, and the gap this workflow reports against</td>
+                </tr>
+                <tr>
+                  <td>Mission 4</td>
+                  <td>
+                    Transport for the escalation itself, and the delivery states behind the cap
+                  </td>
+                </tr>
+                <tr>
+                  <td>Mission 10</td>
+                  <td>The Monday report surfaces exhausted chases; it does not own them</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s12-h9">Dependencies and mission boundaries</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Seam</th>
+                  <th>This mission's side</th>
+                  <th>The other side</th>
+                  <th>Blocking?</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Mission 4 · Communications</td>
+                  <td>The escalation's content, its target, its timing</td>
+                  <td>Sending it, and the delivery callbacks</td>
+                  <td><strong>Depends on LAN-93</strong> for the cap</td>
+                </tr>
+                <tr>
+                  <td>Mission 10 · Reporting</td>
+                  <td>Exhaustion as a fact</td>
+                  <td>Its Monday surfacing</td>
+                  <td>Not blocking</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s12-h10">Exceptions and recovery</h2>
+          <ul>
+            <li>
+              <strong>Nobody holds the configured office.</strong> The escalation has nowhere to go.
+              It is retained and shown in the operator area rather than discarded — a message that
+              silently vanishes is worse than one nobody reads.
+            </li>
+            <li>
+              <strong>Several chases exhaust at once.</strong> One message with a count, not one
+              message per person. The count is the whole payload.
+            </li>
+            <li>
+              <strong>The person answers after exhaustion.</strong> The chase stays stopped; their
+              answer is recorded as normal, and whatever remains outstanding waits for a human.
+            </li>
+            <li>
+              <strong>The escalation itself fails to deliver.</strong> It is a message like any
+              other and is visible in the operator area regardless.
+            </li>
+          </ul>
+          <h2 id="s12-h11">Safety, privacy, consent, and authority boundaries</h2>
+          <ul>
+            <li>
+              <strong>No names, no counts per person, no item detail in the message.</strong> A
+              count and a link.
+            </li>
+            <li><strong>The link leads to a login</strong>, not to a page. It confers nothing.</li>
+            <li>
+              <strong>Free text an operator records</strong> about a conversation is four-role only
+              and never reaches a report verbatim.
+            </li>
+            <li>
+              <strong>Exhaustion is not a sanction.</strong> It changes nothing about the person's
+              standing, and nothing about it gates anything.
+            </li>
+          </ul>
+          <h2 id="s12-h12">Acceptance evidence</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Screen</th>
+                  <th>What it proves</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W9-01</code></td>
+                  <td>Where the link lands: the exhausted people, with names, behind the login</td>
+                </tr>
+                <tr>
+                  <td><code>W9-02</code></td>
+                  <td>What the human did, recorded on that person's own log</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            The escalation message itself has no screen: it is a message, and drawing one would
+            invent a surface the application does not have. Its exact content is in this
+            specification.
+          </p>
+          <p>
+            Shot on <code>/operate/people/missing</code> and
+            <code>/operate/roster/[membershipId]</code>, both real implemented routes, both sides,
+            measured 1280 and 375.
+          </p>
+          <p>Grounding: <strong>screenshots</strong>.</p>
+          <h2 id="s12-h13">Core decisions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Decision</th>
+                  <th>Classification</th>
+                  <th>Governing evidence or recommended default</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>The escalation carries a count and a link, never names</td>
+                  <td>locked</td>
+                  <td><code>T11-escalation-personal-data-free</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The target is a configured office, initial value President</td>
+                  <td>locked</td>
+                  <td>
+                    <code>T11-escalation-target</code>; presidents change and a person-addressed
+                    escalation fails silently
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The office is read from the club's roles, never configured</td>
+                  <td>locked</td>
+                  <td>
+                    <code>roles</code> ships <code>president</code>;
+                    <code>role_assignments</code> names its holder
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The chase stops permanently and only a human restarts it</td>
+                  <td>locked</td>
+                  <td>
+                    <code>R4-T</code>; the restart is <code>W8</code>'s nudge, outside the cap
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Exhaustion removes nobody and changes no standing</td>
+                  <td>locked</td>
+                  <td>
+                    <code>R3-G</code>; the boundary's &quot;no automated timeout ever removes
+                    anybody&quot;
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The human's own contact is recorded on the person's log</td>
+                  <td>locked</td>
+                  <td><code>S31</code>, <code>T10-activity-log</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>One message with a count, not one per person</td>
+                  <td>locked</td>
+                  <td><code>T11-escalation-personal-data-free</code>; the count is the payload</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td><strong>What happens when nobody holds the configured office</strong></td>
+                  <td><strong>proposed for owner approval</strong></td>
+                  <td>
+                    An escalation with no recipient must not vanish.
+                    <strong>Recommended: retain it and show it in the operator area</strong>, rather
+                    than falling back to a named person or dropping it
+                  </td>
+                  <td><strong>open</strong></td>
+                </tr>
+                <tr>
+                  <td>The exact wording of the escalation</td>
+                  <td>delegated to Mission Lead</td>
+                  <td>
+                    Its content is fixed — a count and a link, no names. The sentence around them is
+                    presentation
+                  </td>
+                  <td>settled</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s12-h14">Brian approval</h2>
+          <ul>
+            <li>Exact words:</li>
+            <li>Date:</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
