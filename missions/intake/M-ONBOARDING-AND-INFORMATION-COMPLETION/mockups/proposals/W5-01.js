@@ -781,69 +781,62 @@
     return box;
   };
 
-  // W5-01 — The record, opened later and unprompted.
+  // W5-01 — The follow-up form: everything the club holds, editable.
   //
-  // Nobody asked Merrick to come here. His number changed. This is the club's
-  // entire answer to self-service, because there are no player logins: the same
-  // link he already holds, every fact about him editable, and — the part that
-  // makes it safe — **who supplied each value, on the value.**
+  // Owner direction, 2026-09-02: "somebody gets a follow-up form. It should just
+  // be all the details they have in there. If they want to change it there,
+  // that's fine, right? That's their prerogative. Otherwise, we can have other
+  // means to be able to change it in the club."
   //
-  // The provenance under each field is not new substrate. `person-record.ts`
-  // already derives it from `audit_events` for the seven `people` columns, a
-  // choice Brian made in the LAN-184 walkthrough rather than adding source
-  // columns; `contact_points.source` and
-  // `person_emergency_contacts.recorded_by_person_id` cover the rest.
+  // So this is one screen and it is deliberately plain. The previous draft put
+  // paragraph-long explanations inside the page — Brian, same session: "too much
+  // UI narration... too narrative in design." Everything that needs saying about
+  // this screen is said in the numbered notes beside it, outside the frame.
+  //
+  // The only thing on the page that is not an ordinary form field is the small
+  // line under each value saying where it came from. That is not commentary: it
+  // is `readFieldProvenanceIn`, already on `main`, and it is what makes changing
+  // a club-recorded value different from changing your own.
   const s = answerShell();
 
   setChip(s.chip, "ONBOARDING · 2026–27");
   s.h1.textContent = "Your details";
-  setLead(s.lead, "Merrick Thornbury · change anything that is wrong");
+  setLead(s.lead, "Merrick Thornbury · change anything that has changed");
 
   dropEventLeftovers();
 
   mark(
     setFacts(s.dl, [
-      ["Everything the club asks for", "Complete", DONE],
-      ["Last changed", "By you, 2 September", DONE],
-      ["This link", "Yours for the season", DONE],
-      ["Nothing is outstanding", "You came here yourself", DONE],
+      ["Outstanding", "Nothing", DONE],
+      ["Last changed", "2 September, by you", DONE],
+      ["This link", "Yours until the season ends", DONE],
+      ["Previous values", "Kept", DONE],
     ]),
     1,
   );
 
   setPrivacy(
     s.privacy,
-    "This secure page shows only your own record. Changing something here never removes what the club had — the old value is kept, dated, and attributed.",
+    "This secure page shows only your own record. Changing something never deletes what was there before.",
   );
 
   const a = buildForm(s, [
-    {
-      kind: "note",
-      key: "why",
-      text: "Nothing here needs your attention. You can change any of it whenever you like, and you do not need to tell anybody first.",
-    },
-
     { kind: "heading", text: "Who you are" },
-    { label: "First name", value: "Merrick", required: true, source: "You gave this, 2 September" },
-    {
-      label: "Last name",
-      value: "Thornbury",
-      required: true,
-      source: "You gave this, 2 September",
-    },
+    { label: "First name", value: "Merrick", required: true, source: "You, 2 September" },
+    { label: "Last name", value: "Thornbury", required: true, source: "You, 2 September" },
     {
       key: "mine",
       label: "Mobile phone",
       value: "07700 900218",
       required: true,
-      source: "You gave this, 2 September",
-      help: "We will read a new number back to you before saving it.",
+      source: "You, 2 September",
+      help: "A new number is read back to you before it is saved.",
     },
     {
       label: "Personal email",
       value: "merrick.thornbury@farrowgate.ox.ac.example",
       required: true,
-      source: "You gave this, 2 September",
+      source: "You, 2 September",
     },
 
     { kind: "heading", text: "Where you study" },
@@ -852,54 +845,72 @@
       label: "College",
       value: "Farrowgate",
       required: true,
-      source: "The club recorded this, 28 August",
+      source: "The club, 28 August · a change here is checked by a person",
     },
     {
       label: "Matriculation year",
       value: "2024",
       required: true,
-      source: "The club recorded this, 28 August",
+      source: "The club, 28 August · a change here is checked by a person",
     },
-    {
-      label: "Expected graduation",
-      value: "2027",
-      required: true,
-      source: "You gave this, 2 September",
-    },
+    { label: "Expected graduation", value: "2027", required: true, source: "You, 2 September" },
     {
       label: "Degree field",
       value: "Engineering Science",
       required: true,
-      source: "You gave this, 2 September",
+      source: "You, 2 September",
     },
 
     { kind: "heading", text: "Kept private" },
     {
-      key: "unattributed",
+      key: "dob",
       label: "Date of birth",
       value: "14 March 2005",
       required: true,
-      source: "No record of who supplied this",
-      help: "Never appears on any list, board or queue. Only whether you are under 18 is derived from it.",
+      source: "You, 2 September",
+      help: "Never appears on any list, board or queue.",
+    },
+
+    { kind: "heading", text: "Emergency contact" },
+    {
+      label: "Emergency contact first name",
+      value: "Lucian",
+      required: true,
+      source: "You, 2 September",
+    },
+    {
+      label: "Emergency contact last name",
+      value: "Thornbury",
+      required: true,
+      source: "You, 2 September",
+    },
+    { label: "Relationship to you", value: "Partner", source: "You, 2 September" },
+    {
+      label: "Emergency contact phone",
+      value: "07700 900138",
+      required: true,
+      source: "You, 2 September",
+    },
+    {
+      label: "Emergency contact email",
+      value: "lucian.38@mail.example",
+      required: true,
+      source: "You, 2 September",
     },
   ]);
 
-  // 2 — why they are here, said plainly: nobody sent them.
-  mark(a.why, 2);
-  // 3 — a value they supplied themselves. Changing it just changes it.
-  mark(a.mine, 3);
-  // 4 — a value the club supplied. Changing this one goes to a human, and W5-02
-  //     is what they are told before they submit.
-  mark(a.theirs, 4);
-  // 5 — and a value nobody attributable ever asserted: seeded or imported.
-  //     readFieldProvenanceIn returns null here. The open decision is that the
-  //     player wins on this row.
-  mark(a.unattributed, 5);
+  // 1 — nothing is outstanding. This is not a chase, and the strip says so.
+  // 2 — a value they gave. Changing it changes it; that is their prerogative.
+  mark(a.mine, 2);
+  // 3 — a value an operator recorded. One clause on the source line, and nothing
+  //     else on the page, marks it: a change here is checked by a person before
+  //     it replaces theirs. W7 is where that happens.
+  mark(a.theirs, 3);
+  // 4 — required still means required, and there is no way to decline it.
+  mark(a.dob, 4);
 
   setSubmit(s.submit, "Save changes");
-  setSecondary(
-    "The club never loses what it had. Every previous value is kept, dated and attributed.",
-  );
+  setSecondary("Anything the club needs to change itself, it changes its own way.");
 
   await settle();
 })();

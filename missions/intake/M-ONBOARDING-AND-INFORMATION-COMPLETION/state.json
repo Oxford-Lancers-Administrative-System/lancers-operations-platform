@@ -336,6 +336,16 @@
           "OD7-flip-workflow",
           "OD7-players-only"
         ]
+      },
+      {
+        "id": "SRC-owner-2026-09-02",
+        "ref": "Brian Schuster, working session recorded in workflows/W5-fix-something-the-club-has-wrong.md",
+        "version": "2026-09-02",
+        "decision_ids": [
+          "OD7-required-no-decline",
+          "OD7-no-targeted-ask",
+          "OD7-followup-is-the-form"
+        ]
       }
     ],
     "decisions": [
@@ -595,12 +605,14 @@
       {
         "id": "M6",
         "source_id": "SRC-task-11",
-        "disposition": "workflow",
-        "reason": "The disputed-value targeted request: a signed-link ask for exactly one fact.",
-        "workflow": "W5",
-        "also_referenced_by": [
-          "W7"
-        ]
+        "disposition": "superseded",
+        "reason": "The system-generated one-fact ask is withdrawn. A person chases, and the message carries the compiled link rather than a single field.",
+        "superseded_by": "OD7-no-targeted-ask",
+        "approval": {
+          "words": "They have to give the date of birth and information. They can't decline to give that information. So W5-O4, or O3, I guess, is just unneeded. ... I don't think the system should ask it because I don't even know how this information gets to them.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        }
       },
       {
         "id": "T11-one-request",
@@ -657,12 +669,14 @@
       {
         "id": "T11-refused",
         "source_id": "SRC-task-11",
-        "disposition": "workflow",
-        "reason": "Per-fact refused: the chase for that fact stops and stops counting, and reopening is a human act.",
-        "workflow": "W5",
-        "also_referenced_by": [
-          "W8"
-        ]
+        "disposition": "superseded",
+        "reason": "Per-fact refusal is withdrawn. Required facts must be given, so nothing offers a player a way to decline one.",
+        "superseded_by": "OD7-required-no-decline",
+        "approval": {
+          "words": "They have to give the date of birth and information. They can't decline to give that information. So W5-O4, or O3, I guess, is just unneeded. ... I don't think the system should ask it because I don't even know how this information gets to them.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        }
       },
       {
         "id": "T11-states",
@@ -1164,6 +1178,33 @@
         "reason": "The collection loop is players only; coaches and committee get their own flows in their own missions.",
         "other_mission": "M-FOOTBALL-ASSIGNMENTS-AND-AVAILABILITY",
         "evidence": "Brian, 2026-09-01: this is just for players; somebody who is both a coach and a player is a player here."
+      },
+      {
+        "id": "OD7-required-no-decline",
+        "source_id": "SRC-owner-2026-09-02",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "A required fact must be given. Declining one is not offered anywhere, and the required set is the only answer to what a player must supply.",
+        "also_referenced_by": [
+          "W5"
+        ]
+      },
+      {
+        "id": "OD7-no-targeted-ask",
+        "source_id": "SRC-owner-2026-09-02",
+        "disposition": "workflow",
+        "workflow": "W8",
+        "reason": "The system never generates a one-fact ask of its own. A person decides to chase, and what goes out is the compiled link the player already holds.",
+        "also_referenced_by": [
+          "W5"
+        ]
+      },
+      {
+        "id": "OD7-followup-is-the-form",
+        "source_id": "SRC-owner-2026-09-02",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "The follow-up is the same form carrying everything the club holds, editable. Changing a value there is the player's prerogative; anything else the club changes by its own means."
       }
     ]
   },
