@@ -1898,7 +1898,7 @@
         "target": "Task 10 brief (Player Onboarding & Completion), decision R3-G",
         "change": "Append a dated note recording that the flagged/unflagged tracking distinction is dropped: every onboarding item counts equally and the queue ranks by everything outstanding, with subs paid carried by due-timing instead. R3-G's governing half, that nothing gates, is untouched.",
         "reason": "The flag's only observable effects were the outstanding total and the queue ranking. Brian dropped it on 2026-09-01 rather than keep a per-item configuration nobody could describe the purpose of.",
-        "status": "applied",
+        "status": "applied_verified",
         "applied_on": "2026-09-02"
       },
       {
@@ -1906,7 +1906,7 @@
         "target": "Release One Mission Portfolio v2, row 7",
         "change": "Remove the role-appropriate coach and committee welcome flow from this row's scope; coaches and committee get their own flows in their own missions.",
         "reason": "Brian, 2026-09-01: onboarding is onboarding a player onto the team, and a coach is not on the roster. The row names the coach welcome flow as built here, so it drifts from the approved boundary until amended.",
-        "status": "applied",
+        "status": "applied_verified",
         "applied_on": "2026-09-02"
       },
       {
@@ -1914,7 +1914,7 @@
         "target": "Task 10 brief, item 5 (BPS)",
         "change": "Append a dated note that BPS leaves the onboarding checklist and becomes a yes/no attribute on the roster, added by this mission.",
         "reason": "A scout found no player-facing step for BPS anywhere; it is a coaching selection decision, and on a checklist that regenerates for everyone it would show outstanding against players never in the scheme.",
-        "status": "applied",
+        "status": "applied_verified",
         "applied_on": "2026-09-02"
       },
       {
@@ -1922,7 +1922,7 @@
         "target": "Task 10 brief, item 11 (photo release) and item 3 (kit)",
         "change": "Append a dated note that the photo release is seasonal, asked of everyone every season, with its returner carve-out removed as kit's already was.",
         "reason": "Brian, 2026-09-01. Hudl keeps its carve-out because Hudl access persists until revoked, which is a different underlying fact rather than an inconsistency.",
-        "status": "applied",
+        "status": "applied_verified",
         "applied_on": "2026-09-02"
       },
       {
@@ -1930,7 +1930,7 @@
         "target": "Task 10 brief, decision R1",
         "change": "Record that the checklist is not configured per season; it is the approved item-and-ask inventory.",
         "reason": "Brian, 2026-09-02.",
-        "status": "applied",
+        "status": "applied_verified",
         "applied_on": "2026-09-02"
       },
       {
@@ -1938,7 +1938,7 @@
         "target": "Task 10 brief, decision R2",
         "change": "Record that there are no per-item owners; only the four-role group resolves anything.",
         "reason": "Brian, 2026-09-02.",
-        "status": "applied",
+        "status": "applied_verified",
         "applied_on": "2026-09-02"
       },
       {
@@ -1946,7 +1946,7 @@
         "target": "Task 10 brief, decision R2-V2",
         "change": "Record that verification class is a property of the item rather than per-season configuration; the behaviour survives.",
         "reason": "Brian, 2026-09-02.",
-        "status": "applied",
+        "status": "applied_verified",
         "applied_on": "2026-09-02"
       },
       {
@@ -1954,7 +1954,7 @@
         "target": "Task 11 brief, per-fact refused",
         "change": "Record that per-fact refusal is withdrawn; required facts must be given.",
         "reason": "Brian, 2026-09-02.",
-        "status": "applied",
+        "status": "applied_verified",
         "applied_on": "2026-09-02"
       },
       {
@@ -1962,7 +1962,7 @@
         "target": "Task 11 brief, M6 targeted ask, quiet hours, cadence, escalation office",
         "change": "Record that the system never generates a one-fact ask; there are no quiet hours; the cadence is three values with no separate give-up date; the escalation office is read from roles rather than configured.",
         "reason": "Brian, 2026-09-02.",
-        "status": "applied",
+        "status": "applied_verified",
         "applied_on": "2026-09-02"
       }
     ],
