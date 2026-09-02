@@ -1195,6 +1195,98 @@
         }
       ],
       "at": "2026-09-02T16:29:15.545Z"
+    },
+    {
+      "id": "W9-01",
+      "route": "/operate/people/missing",
+      "headSha": "f7d142dd1bcc0f94da6130fdce7c1518efc8fd2b",
+      "slot": "mission-m-onboarding-and-information-completion-3",
+      "proposal": {
+        "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W9-01.js",
+        "sha256": "c5c6a1712b1e7e0a32f185e6f9bff6132258eff2a3fb76f4c4ed8cf164483002",
+        "bytes": 29122
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W9-01-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W9-01-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W9-01-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W9-01-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-02T17:16:00.935Z"
+    },
+    {
+      "id": "W9-02",
+      "route": "/operate/roster/b7242a9d-07b8-4bab-8f3b-d0a16657d517",
+      "headSha": "f7d142dd1bcc0f94da6130fdce7c1518efc8fd2b",
+      "slot": "mission-m-onboarding-and-information-completion-3",
+      "proposal": {
+        "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W9-02.js",
+        "sha256": "68e5905be2a9bcd62fcd21bcbc3de5bd19f713597ea2ec9931abb6a792a0f17c",
+        "bytes": 29441
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W9-02-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W9-02-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W9-02-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W9-02-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-02T17:16:11.718Z"
     }
   ]
 }

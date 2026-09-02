@@ -212,19 +212,36 @@
     {
       "id": "W8",
       "name": "Work the queue and nudge",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {},
+      "approvals": {
+        "spec": {
+          "words": "That looks fucking awesome. I love it. Cleared.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "That looks fucking awesome. I love it. Cleared.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        },
+        "acceptance": {
+          "words": "That looks fucking awesome. I love it. Cleared.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        }
+      },
       "spec": "workflows/W8-work-the-queue-and-nudge.md"
     },
     {
       "id": "W9",
       "name": "Pick up a chase that ran out",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {},
+      "spec": "workflows/W9-pick-up-a-chase-that-ran-out.md"
     },
     {
       "id": "W10",
@@ -1822,5 +1839,5 @@
     ],
     "approval": null
   },
-  "next_action": "W8 — Work the queue and nudge: specification drafted and three screens shot on the shipped missing-data queue; one open decision on whether the queue defaults to onboarding players only."
+  "next_action": "W9 — Pick up a chase that ran out: specification drafted and two screens shot; one open decision on what happens to an escalation when nobody holds the configured office."
 }

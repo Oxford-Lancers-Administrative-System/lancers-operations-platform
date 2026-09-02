@@ -545,6 +545,52 @@ const WORKFLOWS = [
       ),
     ],
   },
+  {
+    id: "W9",
+    slug: "pick-up-a-chase-that-ran-out",
+    name: "Pick up a chase that ran out",
+    grounding: "photograph",
+    lede: `The machine has asked somebody as many times as it is allowed to and got nothing back. It
+      stops, permanently, and tells a human — carrying a count and a link but <strong>no
+      names</strong>. That human contacts the person themselves, and records what happened.`,
+    legend: [
+      "<strong>Three moments, and only two have a screen.</strong> The escalation message, the list behind its link, and the record of what the human did. The message gets no screen because it is a message — drawing one would invent a surface this application does not have",
+      "<strong>The message carries no names, deliberately.</strong> It travels over a channel the club does not control the endpoint of: an officer's personal phone, possibly shared, possibly outliving their term. So it is worthless to anyone who is not already an operator — <em>3 people have stopped answering, open the queue</em> — and the names sit behind the login",
+      "<strong>An office, not a person.</strong> Presidents change every year, and an escalation addressed to a person stops working the day they hand over — silently, which is the worst possible failure for the one message that exists to catch what everything else missed",
+      "<strong>Exhausted means five messages that arrived.</strong> <code>T11-cap-delivered</code>: the cap counts delivery, so a message that failed does not burn a rung. Failing to reach somebody is a different state with a different escalation, on W8-03",
+      "<strong>Exhaustion removes nobody.</strong> The chase stops; the person stays on the roster, their items stay outstanding, and they remain entirely welcome. Only a human restarts it, and the way they do that is W8's nudge, outside the cap",
+      "<strong>Step three is deliberately outside the system.</strong> Somebody rings the player or catches them at training. The club does not need software to have a conversation — it needs to remember the conversation happened",
+    ],
+    screens: [
+      P(
+        "W9-01",
+        "Where the link lands",
+        `The same queue W8 works, scoped to the people whose chase has run out. <strong>Names appear
+         here because here is behind a login</strong> — that contrast with the message is the whole
+         privacy design.`,
+        [
+          "<strong>The count the message carried was 3.</strong> This is the 3, and it is the first place they have names",
+          "<strong>Five delivered messages, none answered.</strong> Someone who received them and did not reply — not someone the club failed to reach, which is a different state entirely",
+          "<strong>And the one control that restarts it.</strong> Only a human, and outside the cap",
+        ],
+        "oxfordlancers.example/operate/people/missing",
+      ),
+      P(
+        "W9-02",
+        "What the human did, on the record",
+        `The record's own history markup — the same one W6's activity log uses — carrying the last
+         permitted message, the chase stopping itself, the conversation in the car park, and what
+         came of it.`,
+        [
+          "<strong>The last message the machine was allowed to send</strong>, and that it arrived",
+          "<strong>The chase stopping itself, and the escalation going out.</strong> The count is on the record even though it was never in the message",
+          "<strong>The part that happened in a car park.</strong> A human, a date, and what they did — the thing that would otherwise exist nowhere",
+          "<strong>And what came of it</strong>, which is the only reason any of this exists",
+        ],
+        "oxfordlancers.example/operate/roster/b7242a9d",
+      ),
+    ],
+  },
 ];
 
 const SHOTS = JSON.parse(readFileSync(path.join(OUT, "shots", "shots.json"), "utf8"));
