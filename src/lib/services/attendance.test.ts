@@ -1762,7 +1762,7 @@ describe("the walk-up door's own send — LAN-205 amendment", () => {
     expect(consent).toMatchObject({ state: "granted", source: "walk_up_read_back" });
   });
 
-  it("declares the recruitment cycle's jobs — the welcome track included, corrected by LAN-205", async () => {
+  it("declares the recruitment cycle's welcome track — the interest track waits for the sign-up form itself (LAN-204's Q-read-back-authorises-how-much)", async () => {
     const event = await recruitmentEvent();
     const saved = await recordWalkUpAttendance(actorPersonId, event.id, {
       givenName: "Fintan",
@@ -1773,18 +1773,19 @@ describe("the walk-up door's own send — LAN-205 amendment", () => {
     });
     const personId = saved.key.split(":")[1];
 
-    // All four: consent was granted via the read-back, never the sign-up
-    // form, so `welcomeStepComplete` reads false (LAN-205's own fix) and the
-    // welcome track is declared alongside the still-unanswered questionnaire
-    // track. Only `welcome` (offset zero) is due immediately — the rest are
-    // the standard cycle every consented recruit receives on its own
-    // schedule, not a second send this door itself makes.
+    // The welcome track only: consent was granted via the read-back, never
+    // the sign-up form, so `welcomeStepComplete` reads false (LAN-205's own
+    // fix) and the welcome track is declared. The interest/questionnaire
+    // track stays absent — a touchline read-back's grant authorises the
+    // welcome track alone (`Q-read-back-authorises-how-much`, Brian,
+    // 2026-09-02, answered narrow); it takes the recruit's own grant through
+    // the sign-up form, not merely any granted state, to reach that track.
+    // See `recruitment-cycle-dispatch.test.ts`'s own "LAN-204 — the consent
+    // deadlock" suite for the direct proof of that gate.
     const jobs = await jobsFor(personId);
     expect(jobs.map((job) => job.idempotency_key).sort()).toEqual(
       [
         `recruit-cycle:details_reminder:${personId}:${event.seasonId}`,
-        `recruit-cycle:interest_ask:${personId}:${event.seasonId}`,
-        `recruit-cycle:interest_reminder:${personId}:${event.seasonId}`,
         `recruit-cycle:welcome:${personId}:${event.seasonId}`,
       ].sort(),
     );

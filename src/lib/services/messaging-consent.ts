@@ -145,6 +145,57 @@ export async function requireGrantedSeasonMessagingConsent(
 }
 
 /**
+ * The one, narrow exception to {@link requireGrantedSeasonMessagingConsentIn}
+ * — LAN-204's own consent deadlock (Brian, 2026-09-02: "If consent is not
+ * given, sending the personal questionnaire is how we get it… deadlocked").
+ * The recruitment cycle's welcome track is the message that *carries the
+ * link to the sign-up form*, so it is the one send allowed to establish
+ * consent rather than require it already exist; every other send in this
+ * codebase — including the recruitment cycle's own interest/Questionnaire B
+ * track — keeps calling {@link requireGrantedSeasonMessagingConsentIn} or
+ * {@link hasGrantedSeasonMessagingConsentIn} exactly as shipped. This is
+ * never a general relaxation of the gate: `refused` and `withdrawn` are an
+ * explicit "no" and this still refuses both, terminally, on every channel.
+ */
+export async function mayReceiveWelcomeContactIn(
+  tx: Tx,
+  personId: string,
+  seasonId: string,
+): Promise<boolean> {
+  const consent = await readSeasonMessagingConsentIn(tx, personId, seasonId);
+  const state = consent?.state ?? "never_asked";
+  return state !== "refused" && state !== "withdrawn";
+}
+
+/**
+ * `Q-read-back-authorises-how-much` (Brian, 2026-09-02, answered narrow):
+ * a touchline `walk_up_read_back` grant authorises the welcome track alone
+ * (see {@link mayReceiveWelcomeContactIn}) — it does **not** unlock the
+ * recruitment/Questionnaire-B track. That track waits until the recruit has
+ * completed the sign-up form themselves and their consent reads `granted`
+ * with `source: 'qr_self_entry'` specifically, which is what this checks.
+ *
+ * This is deliberately just as true of `operator_recorded`: an operator
+ * typing consent in on somebody's behalf is not the recruit completing the
+ * form, so it does not unlock this track either, for the identical reason a
+ * read-back does not — not an oversight, and not a case this function is
+ * expected to widen later without a new owner decision naming it.
+ *
+ * `requireGrantedSeasonMessagingConsentIn`/`hasGrantedSeasonMessagingConsentIn`
+ * are unaffected — every ordinary send still only cares that the state is
+ * `granted`, regardless of source; this is the one track that also cares
+ * *how*.
+ */
+export async function hasGrantedViaSignupFormIn(
+  tx: Tx,
+  personId: string,
+  seasonId: string,
+): Promise<boolean> {
+  const consent = await readSeasonMessagingConsentIn(tx, personId, seasonId);
+  return consent?.state === "granted" && consent.source === SELF_SERVICE_SOURCE;
+}
+
+/**
  * Records consent granted by the person's own tick on the sign-up form —
  * `qr_self_entry`, whichever door reached the form. Upserts: re-granting an
  * already-granted or previously withdrawn/refused row for the same

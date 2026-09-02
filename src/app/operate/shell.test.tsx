@@ -438,6 +438,7 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     openNav();
 
     expect(screen.getByRole("link", { name: "Roster" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Recruitment" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Events" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Report" })).toBeVisible();
     // W5, LAN-171 and LAN-184: the Secretary holds `delivery_administration`
@@ -445,9 +446,10 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     // Missing data), and, like every seated operator, sees Follow-ups
     // (`capability: null`) — see "LAN-133 — Administration in the shell" below,
     // which is where that group's own membership is asserted in full. These
-    // four Administration entries are the fourth through seventh links here,
-    // not ordinary destinations of their own.
-    expect(screen.getAllByRole("link")).toHaveLength(7);
+    // four Administration entries are the fifth through eighth links here,
+    // not ordinary destinations of their own. LAN-204 adds Recruitment as a
+    // fourth ordinary destination, beneath Roster.
+    expect(screen.getAllByRole("link")).toHaveLength(8);
     expect(screen.queryByRole("link", { name: /home/i })).toBeNull();
   });
 
@@ -482,9 +484,11 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     render(await OperateLayout(layoutProps(null)));
     openNav();
 
-    // Navigation visibility is not authorization, in either direction. Four,
-    // not three, since W5: Follow-ups is `capability: null` too.
-    expect(screen.getAllByRole("link")).toHaveLength(4);
+    // Navigation visibility is not authorization, in either direction. Five,
+    // not three: W5's Follow-ups is `capability: null` too, and LAN-204's
+    // Recruitment is shown unconditionally exactly as Roster, Events and
+    // Report already are — the page it opens is what actually refuses.
+    expect(screen.getAllByRole("link")).toHaveLength(5);
   });
 
   it("names the signed-in operator, and lists none of their roles", async () => {
@@ -842,6 +846,7 @@ describe("row 17 — the drawer's open/closed state carries no hydration flash a
 
     for (const label of [
       "Roster",
+      "Recruitment",
       "Events",
       "Report",
       "Follow-ups",
@@ -939,7 +944,7 @@ describe("LAN-110 — the coach shell", () => {
     openNav();
 
     expect(screen.getByRole("link", { name: /Attendance/ })).toBeVisible();
-    for (const label of ["Roster", "Events", "Report"]) {
+    for (const label of ["Roster", "Recruitment", "Events", "Report"]) {
       expect(screen.queryByRole("link", { name: label }), label).toBeNull();
     }
   });
@@ -971,7 +976,7 @@ describe("LAN-110 — the coach shell", () => {
     render(await OperateLayout(layoutProps(<p>shell content</p>)));
     openNav();
 
-    for (const label of ["Roster", "Events", "Report"]) {
+    for (const label of ["Roster", "Recruitment", "Events", "Report"]) {
       expect(screen.getByRole("link", { name: label }), label).toBeVisible();
     }
   });
@@ -1275,7 +1280,7 @@ describe("LAN-133 — Administration in the shell", () => {
         "href",
         "/operate/admin/roles",
       );
-      expect(screen.getAllByRole("link")).toHaveLength(9);
+      expect(screen.getAllByRole("link")).toHaveLength(10);
     },
   );
 
@@ -1288,6 +1293,7 @@ describe("LAN-133 — Administration in the shell", () => {
     expect(container.textContent).toContain("Administration");
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
       "Roster",
+      "Recruitment",
       "Events",
       "Report",
       "Follow-ups",
@@ -1342,7 +1348,7 @@ describe("LAN-133 — Administration in the shell", () => {
       expect(screen.queryByRole("link", { name: "Operators" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Roles" })).toBeNull();
       expect(container.textContent).toContain("Administration");
-      expect(screen.getAllByRole("link")).toHaveLength(7);
+      expect(screen.getAllByRole("link")).toHaveLength(8);
     },
   );
 
@@ -1371,7 +1377,7 @@ describe("LAN-133 — Administration in the shell", () => {
       expect(screen.queryByRole("link", { name: "Messaging schedule" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Roles" })).toBeNull();
       expect(container.textContent).toContain("Administration");
-      expect(screen.getAllByRole("link")).toHaveLength(4);
+      expect(screen.getAllByRole("link")).toHaveLength(5);
     },
   );
 

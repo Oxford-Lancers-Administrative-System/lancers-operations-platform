@@ -16,6 +16,7 @@ import type { EnvironmentSource } from "@/lib/delivery/config";
 import { TEMPLATE_NAMES } from "@/lib/delivery/templates";
 
 import { closePool, withTransaction } from "@/lib/db";
+import { createDeliverySink, type SinkRecord } from "@/lib/delivery/local-sink";
 import {
   grantSeasonMessagingConsentIn,
   withdrawSeasonMessagingConsentIn,
@@ -25,6 +26,7 @@ import {
   QUESTIONNAIRE_B_COMPLETING_CODES,
   readRecruitmentCycleCompletionIn,
 } from "./recruitment-cycle";
+import { sendRecruitmentQuestionnaireIn } from "./recruitment-prospect";
 import { dispatchRecruitmentCycleJob, runMessagingSweep } from "./messaging-scheduler";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
@@ -32,6 +34,8 @@ const MARKER = "LAN203CycleSuite";
 
 let observer: Client;
 let seasonId: string;
+/** A real, seeded person — the actor for calls that need one, e.g. `sendRecruitmentQuestionnaireIn`. */
+let operatorPersonId: string;
 
 // Every test recruit's mobile is drawn from this fixed pool rather than a
 // generated one, so it is always inside CONFIGURED's own allowlist below —
@@ -95,6 +99,7 @@ beforeAll(async () => {
     [`${MARKER} season`, vocabulary.rows[0].id, anchor.rows[0].id],
   );
   seasonId = season.rows[0].id;
+  operatorPersonId = anchor.rows[0].id;
 });
 
 afterEach(async () => {
@@ -334,15 +339,29 @@ describe("readRecruitmentCycleCompletionIn", () => {
 });
 
 describe("declareRecruitmentCycleJobsIn", () => {
-  it("creates nothing for a recruit with no consent record at all", async () => {
+  it("creates the welcome track (not the interest track) for a recruit with no consent record at all — LAN-204's fix for the consent deadlock", async () => {
     const personId = await incompleteRecruit();
     const result = await withTransaction((tx) =>
       declareRecruitmentCycleJobsIn(tx, personId, seasonId),
     );
-    expect(result).toEqual({ created: [], reason: "not_consented" });
-    expect(await jobsFor(personId)).toHaveLength(0);
+    // Before LAN-204 this recruit could never receive the one message that
+    // lets them grant consent (Brian, 2026-09-02: "the fucking app is
+    // deadlocked"). The welcome track carries that link and is now the one
+    // exception — the interest track still needs consent already granted,
+    // so it stays absent here.
+    expect([...result.created].sort()).toEqual(["details_reminder", "welcome"]);
+    const jobs = await jobsFor(personId);
+    expect(jobs.map((j) => j.idempotency_key).sort()).toEqual(
+      [
+        `recruit-cycle:details_reminder:${personId}:${seasonId}`,
+        `recruit-cycle:welcome:${personId}:${seasonId}`,
+      ].sort(),
+    );
   });
 
+  // Also item 9's third negative — "a recruit whose status is declined
+  // receives nothing at all" — proved here in its strongest form: nothing is
+  // created even though consent is granted.
   it("creates nothing for a declined recruit, even with consent granted", async () => {
     const personId = await incompleteRecruit("declined");
     await grantConsent(personId);
@@ -383,17 +402,20 @@ describe("declareRecruitmentCycleJobsIn", () => {
     expect(await jobsFor(personId)).toHaveLength(2);
   });
 
-  it("creates all four jobs when both tracks are incomplete and consent is granted", async () => {
+  it("creates the welcome track only for a fresh recruit granted via an operator read-back — the interest track waits for the sign-up form itself", async () => {
     const personId = await incompleteRecruit();
     // An operator read-back grant — consent alone must not complete the
-    // welcome track, or this recruit would wrongly get only two jobs.
+    // welcome track, or this recruit would wrongly get nothing. It also must
+    // not reach the interest track: `Q-read-back-authorises-how-much`
+    // (Brian, 2026-09-02, answered narrow) — see the "LAN-204 — the consent
+    // deadlock" suite below for the direct proof of that narrower gate.
     await grantConsentViaWalkUp(personId);
 
     const result = await withTransaction((tx) =>
       declareRecruitmentCycleJobsIn(tx, personId, seasonId),
     );
-    expect(result.created).toHaveLength(4);
-    expect(await jobsFor(personId)).toHaveLength(4);
+    expect([...result.created].sort()).toEqual(["details_reminder", "welcome"]);
+    expect(await jobsFor(personId)).toHaveLength(2);
   });
 
   it("creates nothing once both tracks are already complete — completion stops the cycle (Brian, 2026-09-01)", async () => {
@@ -425,18 +447,21 @@ describe("declareRecruitmentCycleJobsIn", () => {
     );
   });
 
-  it("is idempotent — rerunning after a partial answer creates only what is still missing", async () => {
+  it("is idempotent — rerunning creates nothing new once every eligible track is already declared", async () => {
     const personId = await incompleteRecruit();
+    // An operator read-back grant reaches the welcome track only — see the
+    // sibling test above — so this recruit's own eligible total is two, not
+    // four.
     await grantConsentViaWalkUp(personId);
     await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
-    expect(await jobsFor(personId)).toHaveLength(4);
+    expect(await jobsFor(personId)).toHaveLength(2);
 
     // Rerunning declares nothing new — every idempotency key already exists.
     const second = await withTransaction((tx) =>
       declareRecruitmentCycleJobsIn(tx, personId, seasonId),
     );
     expect(second.created).toHaveLength(0);
-    expect(await jobsFor(personId)).toHaveLength(4);
+    expect(await jobsFor(personId)).toHaveLength(2);
   });
 });
 
@@ -556,32 +581,54 @@ describe("dispatchRecruitmentCycleJob", () => {
   });
 
   it("is claimed and dispatched by runMessagingSweep alongside every other job type", async () => {
-    // First-name-only, per firstNameOnlyRecruit's own comment: all four jobs
-    // must still be sendable after addMobile below, and the welcome track's
-    // completion re-check (LAN-203 fix) would otherwise stop the two welcome
-    // -track jobs the moment a mobile completed that track.
+    // First-name-only: `addMobile` below is what dispatch needs a real
+    // recipient for — completion no longer reads name or mobile at all
+    // (LAN-205), only the consent source, which the two declares below
+    // drive directly.
     const personId = await firstNameOnlyRecruit();
-    // An operator read-back grant, so the welcome track stays incomplete
-    // until `addMobile` below.
+    // An operator read-back grant reaches the welcome track alone
+    // (`Q-read-back-authorises-how-much`) — declared and swept here, first.
     await grantConsentViaWalkUp(personId);
     await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
     await addMobile(personId);
-    // Backdated far enough that this fixture's own four jobs always sort
-    // ahead of the seeded database's own genuinely-due ambient jobs
-    // (readDueJobs orders oldest-scheduled first, and the synthetic seed
-    // carries hundreds of its own due jobs) -- otherwise SWEEP_BATCH_LIMIT
-    // could fill with ambient rows before reaching this fixture's own.
-    await withTransaction((tx) =>
-      tx.query(
-        "update public.notification_jobs set scheduled_for = now() - interval '100 years' where person_id = $1::uuid",
-        [personId],
-      ),
-    );
+
+    async function backdate() {
+      // Backdated far enough that this fixture's own jobs always sort ahead
+      // of the seeded database's own genuinely-due ambient jobs
+      // (readDueJobs orders oldest-scheduled first, and the synthetic seed
+      // carries hundreds of its own due jobs) -- otherwise
+      // SWEEP_BATCH_LIMIT could fill with ambient rows before reaching this
+      // fixture's own.
+      await withTransaction((tx) =>
+        tx.query(
+          "update public.notification_jobs set scheduled_for = now() - interval '100 years' where person_id = $1::uuid and status = 'pending'",
+          [personId],
+        ),
+      );
+    }
+    await backdate();
 
     const { sent, transport } = acceptingTransport();
-    const summary = await runMessagingSweep({ source: CONFIGURED, transport });
+    const firstSweep = await runMessagingSweep({ source: CONFIGURED, transport });
+    expect(firstSweep.accepted).toBeGreaterThanOrEqual(2);
 
-    expect(summary.accepted).toBeGreaterThanOrEqual(4);
+    // The recruit then goes on to complete the sign-up form itself — the
+    // fact that reaches the interest track (`hasGrantedViaSignupFormIn`),
+    // declared and swept here, second, exactly as it would on the
+    // recruit's own next capture-time trigger in production. A separate
+    // declare and a separate sweep, not one of each, because a single
+    // declare can never complete the welcome track and pass the interest
+    // track's own gate together (the same source now decides both), and the
+    // welcome jobs this sweep already accepted are gone from `pending` by
+    // the time the second declare runs, so there is nothing left for the
+    // claim-time completion re-check (`completion stops the cycle`,
+    // Brian 2026-09-01) to fail them against.
+    await grantConsent(personId);
+    await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
+    await backdate();
+    const secondSweep = await runMessagingSweep({ source: CONFIGURED, transport });
+    expect(secondSweep.accepted).toBeGreaterThanOrEqual(2);
+
     const names = sent.map((s) => (s.body.template as { name: string }).name);
     expect(names).toEqual(
       expect.arrayContaining([
@@ -590,6 +637,143 @@ describe("dispatchRecruitmentCycleJob", () => {
         TEMPLATE_NAMES.recruit_interest_ask,
         TEMPLATE_NAMES.recruit_interest_reminder,
       ]),
+    );
+  });
+});
+
+/**
+ * LAN-204's own consent deadlock, and its fix. Brian, 2026-09-02: "The
+ * personal questionnaire is how we get consent. If consent is not given,
+ * sending the personal questionnaire is how we get it… the fucking app is
+ * deadlocked now." This suite is the end-to-end proof: the exact SEND action
+ * `W2`'s button calls, against a recruit with no consent record at all,
+ * dispatched through the real local delivery sink (`local-sink.ts`) rather
+ * than a bare accepting stub — and the two negatives that keep the gate real.
+ */
+describe("LAN-204 — the consent deadlock, and its fix", () => {
+  it("sends the personal questionnaire end to end for a never-asked recruit — created, claimed, rendered, and accepted by the real local sink", async () => {
+    const personId = await firstNameOnlyRecruit();
+    const prospectId = await prospectIdFor(personId);
+
+    // `sendRecruitmentQuestionnaireIn` is `W2`'s own SEND action, called
+    // exactly as the record's SEND button calls it — no `grantConsent` here,
+    // deliberately: this recruit has never been asked, at any door.
+    const sent = await withTransaction((tx) =>
+      sendRecruitmentQuestionnaireIn(tx, operatorPersonId, prospectId, "personal"),
+    );
+    expect([...sent.created].sort()).toEqual(["details_reminder", "welcome"]);
+
+    // The welcome job was declared while no mobile was on file — see
+    // `firstNameOnlyRecruit`'s own comment for why a number arriving after
+    // declaration is what a real dispatch sends to without the completion
+    // re-check skipping it.
+    await addMobile(personId);
+    const jobId = (
+      await withTransaction((tx) =>
+        tx.query<{ id: string }>(
+          "select id from public.notification_jobs where idempotency_key = $1",
+          [`recruit-cycle:welcome:${personId}:${seasonId}`],
+        ),
+      )
+    ).rows[0].id;
+
+    const sinkRecords: SinkRecord[] = [];
+    const sink = createDeliverySink(CONFIGURED, { write: (record) => sinkRecords.push(record) });
+    const outcome = await dispatchRecruitmentCycleJob(jobId, {
+      source: CONFIGURED,
+      transport: sink,
+    });
+
+    expect(outcome).toBe("accepted");
+    expect(sinkRecords).toHaveLength(1);
+    expect(sinkRecords[0].channel).toBe("whatsapp");
+    expect((sinkRecords[0].payload as { template: { name: string } }).template.name).toBe(
+      TEMPLATE_NAMES.recruit_welcome,
+    );
+
+    const job = await withTransaction((tx) =>
+      tx.query<{ status: string }>(
+        "select status::text as status from public.notification_jobs where id = $1",
+        [jobId],
+      ),
+    );
+    expect(job.rows[0].status).toBe("processing");
+
+    const attempt = await withTransaction((tx) =>
+      tx.query<{ accepted_at: Date | null }>(
+        "select accepted_at from public.delivery_attempts where notification_job_id = $1",
+        [jobId],
+      ),
+    );
+    expect(attempt.rows[0].accepted_at).not.toBeNull();
+  });
+
+  it("negative 1 — refuses both tracks for a recruit who has explicitly refused consent", async () => {
+    const personId = await incompleteRecruit();
+    await withTransaction((tx) =>
+      tx.query(
+        `insert into public.season_messaging_consents (person_id, season_id, state, source)
+         values ($1::uuid, $2::uuid, 'refused', 'operator_recorded')`,
+        [personId, seasonId],
+      ),
+    );
+    const result = await withTransaction((tx) =>
+      declareRecruitmentCycleJobsIn(tx, personId, seasonId),
+    );
+    expect(result).toEqual({ created: [], reason: "not_consented" });
+    expect(await jobsFor(personId)).toHaveLength(0);
+  });
+
+  it("negative 2 — refuses both tracks for a recruit who has withdrawn consent", async () => {
+    const personId = await incompleteRecruit();
+    await grantConsent(personId);
+    await withTransaction((tx) => withdrawSeasonMessagingConsentIn(tx, personId, seasonId));
+    const result = await withTransaction((tx) =>
+      declareRecruitmentCycleJobsIn(tx, personId, seasonId),
+    );
+    expect(result).toEqual({ created: [], reason: "not_consented" });
+    expect(await jobsFor(personId)).toHaveLength(0);
+  });
+
+  it("the strict interest-track gate is unchanged — welcome-track completion does not leak into it", async () => {
+    const personId = await completeWelcomeRecruit();
+    // Withdrawing after the sign-up form keeps the welcome track complete —
+    // its own completing fact is the consent *source*, which
+    // `withdrawSeasonMessagingConsentIn` leaves untouched at `qr_self_entry`
+    // (see its own module note) — while taking the *state* off `granted`,
+    // which is what the interest track's own strict gate
+    // (`hasGrantedViaSignupFormIn`) actually reads. A live `granted` grant
+    // through the sign-up form legitimately unlocks both tracks together
+    // (see "creates the questionnaire track only, for a recruit who already
+    // has the welcome completing set" above) — that is correct, not a leak;
+    // this isolates the gate once that grant is no longer standing.
+    await withTransaction((tx) => withdrawSeasonMessagingConsentIn(tx, personId, seasonId));
+    const result = await withTransaction((tx) =>
+      declareRecruitmentCycleJobsIn(tx, personId, seasonId),
+    );
+    expect(result).toEqual({ created: [], reason: "not_consented" });
+    expect(await jobsFor(personId)).toHaveLength(0);
+  });
+
+  // `Q-read-back-authorises-how-much` (Brian, 2026-09-02, answered narrow):
+  // a touchline read-back's grant authorises the welcome track alone — it
+  // must not reach the interest/Questionnaire-B track.
+  it("a walk-up read-back's grant does not reach the interest track, only the welcome track", async () => {
+    const personId = await incompleteRecruit();
+    await grantConsentViaWalkUp(personId);
+    const result = await withTransaction((tx) =>
+      declareRecruitmentCycleJobsIn(tx, personId, seasonId),
+    );
+    // The read-back grant reaches the welcome track (both steps) and
+    // nothing else — proving the negative on the one track that matters
+    // here, the interest/questionnaire track, which stays entirely absent.
+    expect([...result.created].sort()).toEqual(["details_reminder", "welcome"]);
+    const jobs = await jobsFor(personId);
+    expect(jobs.map((j) => j.idempotency_key).sort()).toEqual(
+      [
+        `recruit-cycle:details_reminder:${personId}:${seasonId}`,
+        `recruit-cycle:welcome:${personId}:${seasonId}`,
+      ].sort(),
     );
   });
 });
