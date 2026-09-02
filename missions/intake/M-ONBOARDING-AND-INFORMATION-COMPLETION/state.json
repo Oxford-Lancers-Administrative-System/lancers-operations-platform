@@ -1898,31 +1898,103 @@
         "target": "Task 10 brief (Player Onboarding & Completion), decision R3-G",
         "change": "Append a dated note recording that the flagged/unflagged tracking distinction is dropped: every onboarding item counts equally and the queue ranks by everything outstanding, with subs paid carried by due-timing instead. R3-G's governing half, that nothing gates, is untouched.",
         "reason": "The flag's only observable effects were the outstanding total and the queue ranking. Brian dropped it on 2026-09-01 rather than keep a per-item configuration nobody could describe the purpose of.",
-        "status": "proposed"
+        "status": "applied",
+        "applied_on": "2026-09-02"
       },
       {
         "id": "A2",
         "target": "Release One Mission Portfolio v2, row 7",
         "change": "Remove the role-appropriate coach and committee welcome flow from this row's scope; coaches and committee get their own flows in their own missions.",
         "reason": "Brian, 2026-09-01: onboarding is onboarding a player onto the team, and a coach is not on the roster. The row names the coach welcome flow as built here, so it drifts from the approved boundary until amended.",
-        "status": "proposed"
+        "status": "applied",
+        "applied_on": "2026-09-02"
       },
       {
         "id": "A3",
         "target": "Task 10 brief, item 5 (BPS)",
         "change": "Append a dated note that BPS leaves the onboarding checklist and becomes a yes/no attribute on the roster, added by this mission.",
         "reason": "A scout found no player-facing step for BPS anywhere; it is a coaching selection decision, and on a checklist that regenerates for everyone it would show outstanding against players never in the scheme.",
-        "status": "proposed"
+        "status": "applied",
+        "applied_on": "2026-09-02"
       },
       {
         "id": "A4",
         "target": "Task 10 brief, item 11 (photo release) and item 3 (kit)",
         "change": "Append a dated note that the photo release is seasonal, asked of everyone every season, with its returner carve-out removed as kit's already was.",
         "reason": "Brian, 2026-09-01. Hudl keeps its carve-out because Hudl access persists until revoked, which is a different underlying fact rather than an inconsistency.",
-        "status": "proposed"
+        "status": "applied",
+        "applied_on": "2026-09-02"
+      },
+      {
+        "id": "A5",
+        "target": "Task 10 brief, decision R1",
+        "change": "Record that the checklist is not configured per season; it is the approved item-and-ask inventory.",
+        "reason": "Brian, 2026-09-02.",
+        "status": "applied",
+        "applied_on": "2026-09-02"
+      },
+      {
+        "id": "A6",
+        "target": "Task 10 brief, decision R2",
+        "change": "Record that there are no per-item owners; only the four-role group resolves anything.",
+        "reason": "Brian, 2026-09-02.",
+        "status": "applied",
+        "applied_on": "2026-09-02"
+      },
+      {
+        "id": "A7",
+        "target": "Task 10 brief, decision R2-V2",
+        "change": "Record that verification class is a property of the item rather than per-season configuration; the behaviour survives.",
+        "reason": "Brian, 2026-09-02.",
+        "status": "applied",
+        "applied_on": "2026-09-02"
+      },
+      {
+        "id": "A8",
+        "target": "Task 11 brief, per-fact refused",
+        "change": "Record that per-fact refusal is withdrawn; required facts must be given.",
+        "reason": "Brian, 2026-09-02.",
+        "status": "applied",
+        "applied_on": "2026-09-02"
+      },
+      {
+        "id": "A9",
+        "target": "Task 11 brief, M6 targeted ask, quiet hours, cadence, escalation office",
+        "change": "Record that the system never generates a one-fact ask; there are no quiet hours; the cadence is three values with no separate give-up date; the escalation office is read from roles rather than configured.",
+        "reason": "Brian, 2026-09-02.",
+        "status": "applied",
+        "applied_on": "2026-09-02"
       }
     ],
-    "approval": null
+    "approval": {
+      "words": "Update these",
+      "date": "2026-09-02",
+      "by": "Brian Schuster",
+      "shown_as": "A nine-item batch presented in full before any edit: the four already queued plus five supersessions that arose during the workflow stage."
+    },
+    "proof": [
+      {
+        "target": "Task 10 brief",
+        "url": "https://app.notion.com/p/3bd488886d5781078f48f13a47c529c6",
+        "method": "dated callout appended, append-only",
+        "refetched_at": "2026-09-02T18:40:11Z",
+        "verified": "The 2026-09-02 owner-amendment callout is present with all six notes; nothing above it was rewritten."
+      },
+      {
+        "target": "Task 11 brief",
+        "url": "https://app.notion.com/p/3bd488886d578157b520db77cf5ca50c",
+        "method": "dated callout appended, append-only",
+        "refetched_at": "2026-09-02T18:40:31Z",
+        "verified": "The 2026-09-02 owner-amendment callout is present with all five notes; nothing above it was rewritten."
+      },
+      {
+        "target": "Release One Mission Portfolio v2, rows 7 and 9",
+        "url": "https://app.notion.com/p/3bb488886d578126a88cdd747f590a01",
+        "method": "two scope cells corrected with the old wording struck through, plus a dated callout appended",
+        "refetched_at": "2026-09-02T18:41:37Z",
+        "verified": "Row 7 no longer claims the coach welcome flow is built in this mission; row 9 now owns it. The dated note is present."
+      }
+    ]
   },
-  "next_action": "Packet assembled and validated. Remaining before the PR: show Brian the four-item amendment batch, and split scripts/intake/lib/hub.mjs onto its own branch so the PR carries only missions/intake/** and missions/packets/**."
+  "next_action": "Amendments applied and verified. Remaining before the PR: split scripts/intake/lib/hub.mjs onto its own branch, then open the intake-only draft PR."
 }
