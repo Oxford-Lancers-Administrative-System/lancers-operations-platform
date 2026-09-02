@@ -27,6 +27,17 @@ drift. The same walkthrough surfaced a real design defect — the consent
 deadlock, item 9 below — fixed in the same round. What follows describes the
 corrected surfaces; the departures section names what changed and why.
 
+**2026-09-02 correction, round 2.** Brian approved the corrected surfaces
+above subject to exactly two further fixes, both restoring the approved
+`W2-01`–`W2-04` and `W1` frames rather than departing from them: the record's
+Person and Recruitment cards now stack full width instead of sharing a
+two-column row ("The bands are side by side when really they should be
+layered on top of each other"), and the board's per-event RSVP and
+Attendance columns now sort through the same `TableSortLabel` idiom every
+other column already used ("RSVP in attendance should be sortable here").
+Nothing else changed in this round — see the "What is deliberately not here"
+section for the coverage findings Brian named and left alone.
+
 Sources, in `slice-ux.md` §1's authority order:
 
 - `LAN-204` in Linear, its amendment, and the answered owner decisions it
@@ -81,7 +92,10 @@ heard · Anything else · one RSVP/Attendance pair per event.
   own rule, and what sinks the three exits toward the bottom without ever
   removing them from the board (superseding `W13`'s and `W14`'s earlier
   "off-the-board" language, per the approved `W1-01`/`W13-01` frames).
-  Every sortable column carries the roster's own `TableSortLabel` indicator.
+  Every sortable column carries the roster's own `TableSortLabel` indicator —
+  **including each event's own RSVP and Attendance pair** (2026-09-02
+  correction, round 2; shipped non-sortable, against this rule, until
+  then).
 - **Search** matches name and alias, identically to the roster board.
 - **Filters are the roster's own two-part mechanism**, not a bespoke row:
   a pinned control (Search plus five `PinnedSelect`s — Status, WhatsApp
@@ -138,6 +152,15 @@ The header keeps a glance-only status pill beside the recruit's name — the
 same read-only-summary-plus-editable-Section-field duality the roster
 record's own `Headline` and Season section carry — so the actual control
 lives in exactly one place, the Recruitment card.
+
+**Every card is full width, stacked one above the other, in table order**
+(2026-09-02 correction, round 2, above) — the approved `W2-01`–`W2-04` frames
+always showed this; the shipped rebuild put Person and Recruitment in a
+two-column `Grid` instead, a defect Brian's second walkthrough caught: "The
+bands are side by side when really they should be layered on top of each
+other." Fixed without touching `record-shell.tsx` — the shared shell supplies
+`Section`/`Row`/`RecordField` only, never the page's own outer layout, so the
+player record (which was already correct) needed no change.
 
 **SEND / RESEND**, one button per questionnaire, each opening a dialog naming
 the last-sent date or that it has never been sent — see "The send machinery."
@@ -261,6 +284,12 @@ eligibility check, before either consent gate is ever read.
   explicitly reserves it for later: "I'm going to want to update the button
   placement... I can't spend any more time on this." Shipped as approved to
   date.
+- **Four coverage findings from round 2's review — `StatusPill`,
+  `FilterButton`, `Section` and `bandBoundaryKeys` can each be broken without
+  the roster's test suite noticing — are deliberately unaddressed.** Brian
+  was told directly and said "just change those two things" (the record's
+  card stacking and the event columns' sort); nothing else in this package's
+  round-2 correction touched them.
 
 ## Visual evidence
 
@@ -276,3 +305,11 @@ exercised functionally (`recruitment-prospect.test.ts`'s flip suite) rather
 than screenshotted as a separate state. See the package receipt for the exact
 commands and the
 gitignored evidence path.
+
+**Round 2** re-proved the record (Tobias Wrenfield again, at
+`/operate/recruitment/bdbf0f77-2bd2-4418-9bf5-dcb43d9b9879`) and the board at
+the same two viewports via the same command, at this correction's own exact
+head, and additionally rendered `/operate/roster` and
+`/operate/roster/[membershipId]` unchanged — the shared `record-shell.tsx` is
+what the record's own fix runs through, and the roster is Brian's live
+working surface, so both were re-confirmed rather than assumed.
