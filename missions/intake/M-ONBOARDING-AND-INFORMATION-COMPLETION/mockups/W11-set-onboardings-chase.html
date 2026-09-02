@@ -1360,13 +1360,14 @@
         <p>
           The onboarding checklist is one packet. This workflow says
           <strong
-            >how many times the club chases somebody about it, how often, and how long before the
-            chase gives up</strong
+            >how long after joining the club first chases somebody about it, how many times it asks,
+            and how far apart</strong
           >
-          — and nothing else. <strong>Every screen here is a photograph on both sides</strong> — the
-          same running page at <code>332bc6b</code>, differing only by the proposal evaluated into
-          it. Where a screen's own route does not exist yet, it is photographed on the shell it
-          reuses and its head says so; the URL bar always shows what was really photographed.
+          — in the grammar the messaging page already uses.
+          <strong>Every screen here is a photograph on both sides</strong> — the same running page
+          at <code>332bc6b</code>, differing only by the proposal evaluated into it. Where a
+          screen's own route does not exist yet, it is photographed on the shell it reuses and its
+          head says so; the URL bar always shows what was really photographed.
         </p>
         <p>
           <strong>Reading this review.</strong>
@@ -1381,39 +1382,34 @@
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
           <span
-            ><strong
-              >The previous draft of this workflow had the wrong target and was removed.</strong
-            >
-            Brian, 2026-09-02: "We're not taking the individual items and bringing them to
-            operators. Only the core four ever make changes in here… It should just define how many
-            times we are going to chase them, how often we are going to chase them, and how long
-            before the chase exhausts. That's it." The inventory went from twelve workflows to
-            eleven</span
+            ><strong>Three values, and no fourth.</strong> There is deliberately no “give up after”:
+            it is the count times the interval, and setting it separately invites the two to
+            disagree. The chase is over when the count runs out</span
           >
           <span
-            ><strong>The checklist is fixed.</strong> It is the approved item-and-ask inventory, and
-            nobody turns items on or off. <code>R1</code> and <code>R2-V2</code> are
-            superseded</span
+            ><strong>Nothing on this page escalates.</strong> The previous draft carried a “tell the
+            President” field borrowed from the event schedule's own <code>escalation_hours</code> —
+            that is the <em>event RSVP</em> escalation and does not belong here. When the count runs
+            out the chase is simply exhausted, and what happens next is W9's</span
           >
           <span
-            ><strong>Nobody is assigned an item.</strong> Only the four-role group resolves anything
-            — <code>R2</code> superseded. "If the kit operator needs to go off and do something with
-            a kit, they can go and run that on their own"</span
+            ><strong>Verified against <code>main</code>:</strong> no onboarding cadence exists
+            anywhere in <code>src/</code> — nothing reads, writes or renders one. The messaging page
+            renders one row per <code>event_type</code> and nothing else</span
           >
           <span
-            ><strong>Verification behaviour survives</strong> as a property of each item in the
-            approved inventory rather than a setting, so W6 stands as approved: BUCS Play is still
-            claimed then confirmed</span
+            ><strong>The count is spent on delivery.</strong> A message that failed consumes
+            nothing, which is what makes “exhausted” a fact rather than a guess — and why LAN-93 is
+            a dependency rather than an option</span
           >
           <span
-            ><strong>There are no quiet hours.</strong> Brian, 2026-09-02 — that half of
-            <code>T11-suppression</code> is out, and the shipped page already says so in its own
-            standing note</span
+            ><strong>There are no quiet hours</strong>, and the shipped page already says so in its
+            own standing note</span
           >
           <span
-            ><strong>The cap counts messages that arrived.</strong> A failure consumes nothing,
-            which is what makes “the chase is exhausted” a fact rather than a guess — and why LAN-93
-            is a dependency rather than an option</span
+            ><strong>The checklist itself is fixed</strong> — the approved item-and-ask inventory —
+            and nobody configures which items are on it or who owns one. <code>R1</code>,
+            <code>R2</code> and <code>R2-V2</code> are superseded</span
           >
         </div>
       </header>
@@ -1434,35 +1430,16 @@
       const SCREENS = [
         {
           id: "W11-01",
-          title: "Onboarding's chase, on the club's messaging schedule",
+          title: "Onboarding's chase, in the grammar the page already uses",
           disposition: "modified",
           drawn: false,
-          blurb: `Three numbers and an office. That is the entire configuration this mission has, now the
-         checklist itself is settled by the approved inventory.`,
+          blurb: `Every other row on this page is a lead time, a count and a cadence. This is the same three
+         things, measured from joining rather than from an event.`,
           deltas: [
-            `<strong>How many times.</strong> The cap, counted only when a message actually arrives`,
-            `<strong>How often, and how long before it gives up.</strong> Then it stops for good and a person takes over — which is W9`,
-            `<strong>The escalation office.</strong> W9 depends on this and nothing else sets it. An office rather than a person, because presidents change every year`,
-            `<strong>Beside the recruit ladder</strong>, which is Mission 6's and which this mission does not touch`,
-          ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/admin/messaging",
-          shotRoute: "/operate/admin/messaging",
-          proposedRoute: null,
-        },
-        {
-          id: "W11-02",
-          title: "Where this actually lives, and why that is a decision",
-          disposition: "modified",
-          drawn: false,
-          blurb: `<code>messaging_schedules</code> is keyed by <code>event_type</code>. Mission 6 added the
-         recruit ladder to it as two columns, and <strong>both are null on all five rows</strong>,
-         because recruitment's cadence has nothing to do with practices or games. This photographs
-         the table as it really is, so the shape question is visible rather than described.`,
-          deltas: [
-            `<strong>The grain.</strong> Every row is an event type, and the club's recruitment cadence is not a property of a practice`,
-            `<strong>The two columns Mission 6 added</strong>, null on all five rows because there is no event they belong to`,
-            `<strong>The same emptiness on every row.</strong> Four more columns for onboarding would repeat it five times over. <strong>Recommended: a small table of its own</strong> — one row of club policy, keyed by nothing`,
+            `<strong>How long after joining.</strong> The one value this page did not have and needs — a delay, so the chase never overtakes the welcome that carries the link`,
+            `<strong>How many times it asks</strong>, spent only when a message actually arrives`,
+            `<strong>And how far apart.</strong> Two numbers, and the chase is over when the count runs out — no third number to disagree with them`,
+            `<strong>The grammar it borrows.</strong> A lead time, a count, a cadence: how every other row on this page already reads`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/operate/admin/messaging",

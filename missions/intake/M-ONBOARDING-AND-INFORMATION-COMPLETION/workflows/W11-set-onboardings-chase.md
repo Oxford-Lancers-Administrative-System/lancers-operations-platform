@@ -6,7 +6,8 @@
 - Primary actor: A four-role operator.
 - Trigger: setting the club's policy, usually once a season.
 - Entry point / route: **`/operate/admin/messaging`**, the club's messaging
-  schedule, where onboarding gets its own entry beside the recruit ladder.
+  schedule, where onboarding gets its own entry in the same grammar every
+  other row on that page already uses.
 - Controlling source: `S26`, and `S14`, `S15`, `S19`, `S20` inherited from the
   workflow folded into this one; owned `M4`, `T11-cadence`, `T11-cap-delivered`,
   `T11-suppression`, `PR7-nudges-chase`, `OD7-own-cadence`,
@@ -36,46 +37,58 @@ So the only thing left to configure is the chase — and that is this workflow.
 
 ## The three numbers
 
-`OD7-cadence-is-the-config`:
+`OD7-cadence-is-the-config`, in the grammar the messaging page already uses — a
+lead time, a count and a cadence:
 
-| Setting            | What it means                                                        |
-| ------------------ | ---------------------------------------------------------------------- |
-| **How many times** | The cap. How many chases the club will send before it stops for good  |
-| **How often**      | The gap between them                                                  |
-| **Before it gives up** | How long the whole chase runs before it exhausts and a human takes over |
+| Setting                 | What it means                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------- |
+| **First chase after**   | Hours from joining. Long enough that the welcome carrying the link lands first       |
+| **Ask this many times** | The count. Spent only when a message actually arrives                               |
+| **Every**               | The gap between one chase and the next, in days                                     |
 
-Plus one more that has to live somewhere and belongs here: **the escalation
-office**, initial value President, which `W9` depends on.
+**There is no "give up after" value**, deliberately. Brian, 2026-09-02: *"'Give
+up after' is not a good number."* It is count × interval, and setting it
+separately invites the two to disagree. The chase is over when the count runs
+out.
 
-**The cap counts messages that arrived** (`T11-cap-delivered`). A message that
-failed to deliver consumes nothing and routes to the failure path instead —
-which is what makes "the chase is exhausted" a true statement, and why LAN-93 is
-a dependency rather than an option.
+**The count is spent on delivery** (`T11-cap-delivered`). A message that failed
+consumes nothing and routes to the failure path instead — which is what makes
+"the chase is exhausted" a fact rather than a guess, and why LAN-93 is a
+dependency rather than an option.
 
 **There are no quiet hours.** Brian, 2026-09-02. `T11-suppression` names them
-among its rules; that half is out. The rest of `T11-suppression` stands: an
-arriving submission clears pending follow-ups, and a partial submission resets
-the timer but never the cap.
+among its rules; that half is out, and the shipped page already says as much in
+its own standing note. The rest stands: an arriving submission clears pending
+follow-ups, and a partial submission resets the timer but never the count.
 
-## The table this has to go in, and why that is a decision
+**Nothing on this page escalates.** The previous draft carried a "tell the
+President" field. That was borrowed from the event schedule's own
+`escalation_hours` — *"hours after the RSVP deadline before the President is
+told"* — which is the **event RSVP escalation** and does not belong here. When
+the count runs out the chase is simply **exhausted**; what happens next is `W9`'s.
+
+## The table this has to go in
 
 `messaging_schedules` is keyed by **`event_type`** — one row each for practice,
-strength and conditioning, chalk, game, social. Mission 6 added the recruit
-ladder to it as **two columns**:
+strength and conditioning, chalk, game, social. Onboarding's chase is not a
+property of a practice or a game: it has a delay from joining, a count and an
+interval, and none of those varies by event type.
 
-```
-recruit_invitation_lead_days      null on all five rows
-recruit_follow_up_cadence_hours   null on all five rows
-```
+`OD7-own-cadence` settles the **surface** — onboarding gets its own entry on the
+messaging page, in the same grammar every other row uses. It does not settle the
+**shape** underneath, which is the open decision below.
 
-Both are null on every row, because recruitment's cadence has nothing to do with
-practices or games. **Onboarding fits that grain even less.** Its chase has a
-cap, a gap, an exhaustion point and an escalation office, and none of them is
-per-event-type.
+### Verified against `main`, 2026-09-02
 
-`OD7-own-cadence` says onboarding gets its own cadence "beside the recruit
-ladder on the messaging page". That settles the **surface**. It does not settle
-the **shape**, and the shape is the open decision below.
+The shape of this depends on what is actually built, so it was checked rather
+than assumed:
+
+- **No onboarding cadence exists anywhere in `src/`.** Nothing reads, writes or
+  renders one.
+- The messaging page renders **one row per `event_type`** and nothing else.
+- `escalation_hours` and its "President is told" label are the **event RSVP
+  escalation**, not an onboarding one.
+
 
 ## The checklist rules this workflow now carries
 
@@ -116,7 +129,6 @@ Folded in from the removed workflow, and unchanged by the fold:
 | Seam                        | This mission's side                        | The other side                                    | Blocking?                          |
 | --------------------------- | -------------------------------------------- | --------------------------------------------------- | ------------------------------------ |
 | Mission 4 · Communications  | Onboarding's own cadence, cap and office   | The schedule table, the pipeline, delivery states | **Depends on LAN-93** for the cap   |
-| Mission 6 · Recruitment     | Sitting beside the recruit ladder          | The recruit ladder itself                         | Not blocking; its columns ship      |
 | Mission 11 · Season Lifecycle | Reading the current season               | Creating one                                      | Inherited precondition              |
 
 ## Exceptions and recovery
@@ -144,8 +156,7 @@ Folded in from the removed workflow, and unchanged by the fold:
 
 | Screen   | What it proves                                                                  |
 | -------- | --------------------------------------------------------------------------------- |
-| `W11-01` | Onboarding's chase: how many times, how often, before it gives up, and the office |
-| `W11-02` | Where it sits — beside the recruit ladder, and the shape problem underneath it   |
+| `W11-01` | Onboarding's chase: the delay from joining, the count and the interval, in the page's own grammar |
 
 Shot on `/operate/admin/messaging`, a real implemented route, both sides,
 measured 1280 and 375.
@@ -159,15 +170,18 @@ Grounding: **screenshots**.
 | The checklist is the approved inventory, and nobody configures it    | locked                          | `OD7-checklist-is-fixed`, Brian 2026-09-02; supersedes `R1` and `R2-V2`                                                    | settled  |
 | There are no per-item owners; only the four-role group resolves      | locked                          | `OD7-four-role-only`, Brian 2026-09-02; supersedes `R2`                                                                   | settled  |
 | What is configured is how many times, how often, and when it gives up | locked                          | `OD7-cadence-is-the-config`, Brian 2026-09-02                                                                             | settled  |
-| The escalation office is configured here                             | locked                          | `T11-escalation-target`; `W9` depends on it and nothing else configures it                                                | settled  |
-| The cap counts messages that arrived                                 | locked                          | `T11-cap-delivered`; LAN-93 is a dependency                                                                               | settled  |
+| Nothing on this page escalates; the chase simply exhausts            | locked                          | Owner direction, 2026-09-02. The President field on this page is the event RSVP's escalation, not onboarding's             | settled  |
+| There is no "give up after" value; it is the count times the interval | locked                          | Owner direction, 2026-09-02: "'Give up after' is not a good number"                                                       | settled  |
+| A first-chase delay in hours, measured from joining                   | locked                          | Owner direction, 2026-09-02                                                                                               | settled  |
+| The count is spent on delivery, never on a failure                   | locked                          | `T11-cap-delivered`; LAN-93 is a dependency                                                                               | settled  |
 | **There are no quiet hours**                                         | locked                          | Brian, 2026-09-02. Supersedes that half of `T11-suppression`; the rest of it stands                                       | settled  |
 | An arriving submission clears pending follow-ups                     | locked                          | `T11-suppression`                                                                                                         | settled  |
 | A partial submission resets the timer but never the cap              | locked                          | `T11-suppression`                                                                                                         | settled  |
 | The full checklist regenerates for everyone every season             | locked                          | `R1b`                                                                                                                     | settled  |
 | No mid-season expiry; a lapse is a manual reopen                     | locked                          | `R2-E`                                                                                                                    | settled  |
 | An empty configuration never reads as "everybody is complete"        | locked                          | `T10-entry-guards`                                                                                                        | settled  |
-| **Where onboarding's chase actually lives in the schema**            | **proposed for owner approval** | `messaging_schedules` is keyed by `event_type`, and the recruit ladder is two columns on it that are null on all five rows. Onboarding fits that grain even less. **Recommended: a small table of its own, keyed by nothing** — one row of club policy — rather than four more null columns on an event table | **open** |
+| **Where the escalation office is configured, now it is not here**    | **proposed for owner approval** | `W9` is approved and says this surface configures it; it no longer does. **Recommended: it is not configuration at all** — the office is whoever currently holds it, read from the club's roles rather than typed into a box | **open** |
+| **Where onboarding's chase lives in the schema**                     | **proposed for owner approval** | `messaging_schedules` is keyed by `event_type`, and onboarding's chase is not a property of a practice. **Recommended: a small table of its own** — one row of club policy, keyed by nothing | **open** |
 | A cap of zero is legal                                               | delegated to Mission Lead       | It means "no automated chase"; the welcome is unaffected                                                                  | settled  |
 
 ## Brian approval
