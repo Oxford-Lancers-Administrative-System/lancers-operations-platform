@@ -92,10 +92,20 @@ export async function submitAddRecruit(
         const finished = await finishRecruitmentAddIn(tx, {
           actorPersonId: operator.personId,
           personId: result.personId,
+          givenName: values.givenName,
           seasonId: season.id,
           academic: {
             college: values.college,
             matriculationYear: values.matriculationYear,
+            knownAs: values.knownAs,
+            expectedGraduationYear: values.expectedGraduationYear,
+            degreeField: values.degreeField,
+            dateOfBirth: values.dateOfBirth,
+            emergencyGivenName: values.emergencyGivenName,
+            emergencyFamilyName: values.emergencyFamilyName,
+            emergencyRelationship: values.emergencyRelationship,
+            emergencyPhone: values.emergencyPhone,
+            emergencyEmail: values.emergencyEmail,
             optInEvidence: values.optInEvidence,
             optInNote: values.optInNote,
           },
@@ -103,6 +113,28 @@ export async function submitAddRecruit(
         return finished.prospectId;
       });
     } catch (error) {
+      // V-3 / V-4, correction round 2: a player match used to fall into the
+      // ordinary `formError` banner, stacked on the still-visible candidates
+      // panel and form beneath it — Brian's own "flurry of information."
+      // `refuseIfAlreadyAMemberIn`'s own rule names exactly this outcome; it
+      // is not an error to report, it is the one clean confirmation screen
+      // below, and everything else this action would otherwise return is
+      // dropped in favour of it.
+      if (isServiceError(error) && error.rule === "recruitment_add_existing_member_is_not_a_recruit") {
+        const candidate = previous.candidates?.find((c) => c.personId === personId) ?? null;
+        const identity = candidate?.identity;
+        return {
+          values,
+          errors: {},
+          candidates: null,
+          exactMatch: null,
+          alreadyMember: {
+            displayName: candidate?.displayName ?? "This person",
+            membershipStatus: identity && identity.kind === "player" ? identity.membershipStatus : "active",
+            seasonLabel: identity && identity.kind === "player" ? identity.seasonLabel : "this season",
+          },
+        };
+      }
       return {
         values,
         errors: {},
@@ -136,10 +168,20 @@ export async function submitAddRecruit(
         const finished = await finishRecruitmentAddIn(tx, {
           actorPersonId: operator.personId,
           personId: result.personId,
+          givenName: values.givenName,
           seasonId: season.id,
           academic: {
             college: values.college,
             matriculationYear: values.matriculationYear,
+            knownAs: values.knownAs,
+            expectedGraduationYear: values.expectedGraduationYear,
+            degreeField: values.degreeField,
+            dateOfBirth: values.dateOfBirth,
+            emergencyGivenName: values.emergencyGivenName,
+            emergencyFamilyName: values.emergencyFamilyName,
+            emergencyRelationship: values.emergencyRelationship,
+            emergencyPhone: values.emergencyPhone,
+            emergencyEmail: values.emergencyEmail,
             optInEvidence: values.optInEvidence,
             optInNote: values.optInNote,
           },

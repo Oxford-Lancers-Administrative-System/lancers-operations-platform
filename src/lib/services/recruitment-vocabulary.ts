@@ -110,13 +110,29 @@ export const RECRUITMENT_ADD_OPT_IN_OPTIONS: readonly { value: string; label: st
   ]);
 
 /**
- * `W6-01`'s companion free-text field, restored in correction round 1
- * (F-206-02) — the mockup's own "In your own words", beside the chooser
- * above: "Free text alone is unauditable and a tick alone records nothing,
- * so this door asks for both."
+ * V-10, correction round 2 — Brian could not tell what either field was for:
+ * "I don't know what the two are for... In your own words, what the fuck
+ * does that mean? Neither of those fields makes any sense to me." He then
+ * authorised the one explicit, scoped exception to the no-narrative-text
+ * rule on this surface: "You should explain why it's needed in the first
+ * place... why are you being added? Explain that, right? That's fine."
+ *
+ * These three strings are that exception, and only it — a short paragraph
+ * above the two fields (`RECRUITMENT_ADD_EXPLANATION`) plus the two field
+ * labels themselves in plain language, replacing "How we came by this
+ * number" and "In your own words". The machinery this explains is
+ * unchanged: without an answer here, the recruit is still created and
+ * nothing is ever sent (`finishRecruitmentAddIn`, `recruitment-add.ts`).
  */
+export const RECRUITMENT_ADD_EXPLANATION =
+  "Why we ask: added this way, this recruit did not hand over their own number through a form, so the club needs a record of how it reached you before messaging them. Answer below and the welcome message goes out; leave it blank and they are still added, but nothing is sent.";
+
+export const RECRUITMENT_ADD_OPT_IN_LABEL = "How did their contact details reach you?";
+
+export const RECRUITMENT_ADD_OPT_IN_NOTE_LABEL = "Describe how, in your own words (optional)";
+
 export const RECRUITMENT_ADD_OPT_IN_NOTE_HELPER =
-  "Free text alone is unauditable and a tick alone records nothing, so this door asks for both.";
+  "A word or two is enough — this is what the club could show them if they ever asked how it had their number.";
 
 /**
  * "Which positions interest you?" — `W4`'s Questionnaire B, correction round

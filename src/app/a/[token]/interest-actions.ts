@@ -7,6 +7,7 @@ import { withTransaction } from "@/lib/db";
 import { ANSWER_GATE_COOKIE } from "@/lib/rsvp/answer-gate";
 import { resolveRecruitmentInterestTokenIn } from "@/lib/services/recruitment-interest-tokens";
 import { submitQuestionnaireBAnswersIn } from "@/lib/services/recruitment-questionnaire";
+import { splitMultiAnswer } from "@/lib/services/recruitment-vocabulary";
 
 /**
  * Questionnaire B's one write — LAN-206, on the same cookie-gated posture
@@ -37,15 +38,21 @@ function textOrNull(value: FormDataEntryValue | null): string | null {
 }
 
 /**
- * F-206-02, correction round 1: "Which positions interest you?" and "What
- * playing gear do you already have?" are genuine multi-selects, each its own
- * checkbox per option under the same `name` — `getAll` returns every one
- * that was checked, in document order.
+ * F-206-02 / V-5, correction round 2: "Which positions interest you?" and
+ * "What playing gear do you already have?" are genuine multi-selects,
+ * `multi-select-checkboxes.tsx`'s own `TextField select` with
+ * `slotProps.select.multiple` — MUI's own hidden native input for a
+ * multi-select posts one field, its value the selection joined with a bare
+ * comma (`SelectInput.js`'s `value.join(',')`), never several same-`name`
+ * fields the way correction round 1's plain checkboxes did — so this reads
+ * `form.get`, not `getAll`, and splits with the same `splitMultiAnswer`
+ * this record's own read path already uses for its stored `", "`-joined
+ * answer (a bare `,` and a `", "` split identically once each piece is
+ * trimmed).
  */
 function multiOrEmpty(form: FormData, name: string): readonly string[] {
-  return form
-    .getAll(name)
-    .filter((value): value is string => typeof value === "string" && value.trim() !== "");
+  const value = form.get(name);
+  return splitMultiAnswer(typeof value === "string" ? value : null);
 }
 
 export async function submitInterestQuestionnaire(form: FormData): Promise<void> {

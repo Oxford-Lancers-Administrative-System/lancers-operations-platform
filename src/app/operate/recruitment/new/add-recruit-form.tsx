@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -13,8 +13,16 @@ import Typography from "@mui/material/Typography";
 
 import { MEMBERSHIP_STATUS_LABELS } from "@/app/operate/roster/presentation";
 import {
+  validateAcademicYear,
+  validateEmailAddress,
+  validatePhoneNumber,
+} from "@/lib/services/person-validation";
+import {
   PROSPECT_STATUS_LABELS,
+  RECRUITMENT_ADD_EXPLANATION,
+  RECRUITMENT_ADD_OPT_IN_LABEL,
   RECRUITMENT_ADD_OPT_IN_NOTE_HELPER,
+  RECRUITMENT_ADD_OPT_IN_NOTE_LABEL,
   RECRUITMENT_ADD_OPT_IN_OPTIONS,
   type ProspectStatus,
 } from "@/lib/services/recruitment-vocabulary";
@@ -42,15 +50,91 @@ const MIN_TOUCH_TARGET = 44;
  * its own two controls — "This is somebody new" (create) and "Go back and
  * change the details" (dismiss the panel, touching nothing) — inside the
  * candidates panel itself, exactly as the mockup shows.
+ *
+ * Correction round 2 widens this considerably — see each finding's own
+ * comment below (V-1, V-2, V-3/V-4, V-10) for what changed and why.
  */
 export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string }) {
   const [state, formAction, pending] = useActionState(submitAddRecruit, INITIAL_ADD_RECRUIT_STATE);
-  const { values, errors, candidates, exactMatch } = state;
+  const { values, errors, candidates, exactMatch, alreadyMember } = state;
+
+  // V-1, correction round 2 (blocking, Brian's own words: "a hard
+  // requirement") — inline, on-field validation for phone and email, using
+  // the shared validators the application already has
+  // (`person-validation.ts`) rather than a third copy, in the same idiom
+  // `signup-form.tsx` already established for the identical two fields:
+  // local state so a format error renders the moment it is typeable, not
+  // only after CHECK FOR DUPLICATES / a submit round-trip. `errors.mobile`
+  // (the server's own "Required" refusal for a blank field) and this
+  // client-only format check compose — a required-but-blank field shows the
+  // server's message; a filled-but-malformed one shows this one.
+  const [mobile, setMobile] = useState(values.mobile);
+  const [personalEmail, setPersonalEmail] = useState(values.personalEmail);
+  const [matriculationYear, setMatriculationYear] = useState(values.matriculationYear);
+  const [expectedGraduationYear, setExpectedGraduationYear] = useState(
+    values.expectedGraduationYear,
+  );
+  const [emergencyPhone, setEmergencyPhone] = useState(values.emergencyPhone);
+  const [emergencyEmail, setEmergencyEmail] = useState(values.emergencyEmail);
+
+  const mobileValidation = mobile.trim() === "" ? null : validatePhoneNumber(mobile);
+  const mobileFormatError =
+    mobileValidation && !mobileValidation.valid ? mobileValidation.message : null;
+
+  const emailValidation = personalEmail.trim() === "" ? null : validateEmailAddress(personalEmail);
+  const emailFormatError =
+    emailValidation && !emailValidation.valid ? emailValidation.message : null;
+
+  const matricValidation =
+    matriculationYear.trim() === ""
+      ? null
+      : validateAcademicYear(matriculationYear, "Matriculation year");
+  const matricFormatError =
+    matricValidation && !matricValidation.valid ? matricValidation.message : null;
+
+  const gradValidation =
+    expectedGraduationYear.trim() === ""
+      ? null
+      : validateAcademicYear(expectedGraduationYear, "Expected graduation");
+  const gradFormatError = gradValidation && !gradValidation.valid ? gradValidation.message : null;
+
+  const emergencyPhoneValidation =
+    emergencyPhone.trim() === "" ? null : validatePhoneNumber(emergencyPhone);
+  const emergencyPhoneFormatError =
+    emergencyPhoneValidation && !emergencyPhoneValidation.valid
+      ? emergencyPhoneValidation.message
+      : null;
+
+  const emergencyEmailValidation =
+    emergencyEmail.trim() === "" ? null : validateEmailAddress(emergencyEmail);
+  const emergencyEmailFormatError =
+    emergencyEmailValidation && !emergencyEmailValidation.valid
+      ? emergencyEmailValidation.message
+      : null;
+
+  const formatInvalid = Boolean(
+    mobileFormatError ||
+      emailFormatError ||
+      matricFormatError ||
+      gradFormatError ||
+      emergencyPhoneFormatError ||
+      emergencyEmailFormatError,
+  );
 
   const requiredCount = Object.keys(errors).length;
   const createLabel = exactMatch
     ? "Create anyway"
     : `Create ${values.givenName || "recruit"}${values.familyName ? ` ${values.familyName}` : ""}`;
+
+  // V-3 / V-4, correction round 2 — "This is them" on a current player
+  // resolves to this one clean confirmation screen, replacing the whole
+  // form rather than stacking a refusal onto it. Brian: "If I say 'This is
+  // them,' it should basically close… That's not an error state. That's
+  // just a normal thing… say, 'Okay, they're fine, no changes will be
+  // made,' and then go back to the recruits."
+  if (alreadyMember) {
+    return <AlreadyMemberScreen alreadyMember={alreadyMember} />;
+  }
 
   return (
     <Box component="form" action={formAction} sx={{ maxWidth: 880 }}>
@@ -90,7 +174,7 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
               name="intent"
               value="check"
               variant="contained"
-              disabled={pending}
+              disabled={pending || formatInvalid}
               sx={{ minHeight: MIN_TOUCH_TARGET }}
               data-testid="add-recruit-check"
             >
@@ -98,6 +182,11 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
             </Button>
           </Stack>
         </Stack>
+        {formatInvalid ? (
+          <Typography variant="caption" color="text.secondary" data-testid="add-recruit-format-invalid">
+            Correct the field marked in red to enable Check for duplicates / Create.
+          </Typography>
+        ) : null}
 
         {state.formError ? <Alert severity="warning">{state.formError}</Alert> : null}
 
@@ -129,7 +218,7 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
                 name="intent"
                 value="create"
                 variant="contained"
-                disabled={pending}
+                disabled={pending || formatInvalid}
                 sx={{ minHeight: MIN_TOUCH_TARGET }}
                 data-testid="add-recruit-create"
               >
@@ -188,35 +277,145 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
               name="mobile"
               label="Mobile phone"
               required
-              defaultValue={values.mobile}
-              error={Boolean(errors.mobile)}
-              helperText={errors.mobile}
+              value={mobile}
+              onChange={(event) => setMobile(event.target.value)}
+              error={Boolean(errors.mobile) || Boolean(mobileFormatError)}
+              helperText={errors.mobile ?? mobileFormatError ?? undefined}
               fullWidth
+              data-testid="mobile-field"
             />
             <TextField
               name="personalEmail"
               label="Personal email"
-              defaultValue={values.personalEmail}
-              error={Boolean(errors.personalEmail)}
-              helperText={errors.personalEmail}
+              value={personalEmail}
+              onChange={(event) => setPersonalEmail(event.target.value)}
+              error={Boolean(errors.personalEmail) || Boolean(emailFormatError)}
+              helperText={errors.personalEmail ?? emailFormatError ?? undefined}
+              fullWidth
+              data-testid="personal-email-field"
+            />
+            {/* V-2, correction round 2 — the shipped intake forms' own
+                "Known as" (`signup-form.tsx`). */}
+            <TextField
+              name="knownAs"
+              label="Known as"
+              defaultValue={values.knownAs}
+              helperText="Only if it differs from their first name."
               fullWidth
             />
           </Stack>
         </Section>
 
+        {/* V-2, correction round 2 — Brian: "The add-to form seems narrow…
+            We can use the forms from before to see which fields we're
+            asking for there." The shipped intake forms' own field set
+            (`signup-form.tsx`, `edit-person-form.tsx`), not one invented
+            here. Every field below is optional — `REQ-missing-never-blocks`
+            still names only first name, last name and mobile. */}
         <Section title="Academic">
           <Stack spacing={2}>
             <TextField name="college" label="College" defaultValue={values.college} fullWidth />
             <TextField
               name="matriculationYear"
               label="Matriculation year"
-              defaultValue={values.matriculationYear}
+              value={matriculationYear}
+              onChange={(event) => setMatriculationYear(event.target.value)}
+              error={Boolean(matricFormatError)}
+              helperText={matricFormatError ?? undefined}
               fullWidth
             />
             <TextField
+              name="expectedGraduationYear"
+              label="Expected graduation"
+              value={expectedGraduationYear}
+              onChange={(event) => setExpectedGraduationYear(event.target.value)}
+              error={Boolean(gradFormatError)}
+              helperText={gradFormatError ?? undefined}
+              fullWidth
+            />
+            <TextField
+              name="degreeField"
+              label="Degree field"
+              defaultValue={values.degreeField}
+              fullWidth
+            />
+          </Stack>
+        </Section>
+
+        {/* `edit-person-form.tsx`'s own "Restricted" grouping —
+            `REQ-restricted-fields`: date of birth and the emergency contact
+            are third-party / sensitive personal data, kept visually apart
+            from the ordinary academic facts above. */}
+        <Section title="Restricted">
+          <Stack spacing={2}>
+            <TextField
+              name="dateOfBirth"
+              label="Date of birth"
+              type="date"
+              defaultValue={values.dateOfBirth}
+              slotProps={{ inputLabel: { shrink: true } }}
+              fullWidth
+            />
+            <Subsection title="Emergency contact">
+              <Stack spacing={2}>
+                <TextField
+                  name="emergencyGivenName"
+                  label="First name"
+                  defaultValue={values.emergencyGivenName}
+                  fullWidth
+                />
+                <TextField
+                  name="emergencyFamilyName"
+                  label="Last name"
+                  defaultValue={values.emergencyFamilyName}
+                  fullWidth
+                />
+                <TextField
+                  name="emergencyRelationship"
+                  label="Relationship"
+                  defaultValue={values.emergencyRelationship}
+                  fullWidth
+                />
+                <TextField
+                  name="emergencyPhone"
+                  label="Phone"
+                  value={emergencyPhone}
+                  onChange={(event) => setEmergencyPhone(event.target.value)}
+                  error={Boolean(emergencyPhoneFormatError)}
+                  helperText={emergencyPhoneFormatError ?? undefined}
+                  fullWidth
+                />
+                <TextField
+                  name="emergencyEmail"
+                  label="Email"
+                  value={emergencyEmail}
+                  onChange={(event) => setEmergencyEmail(event.target.value)}
+                  error={Boolean(emergencyEmailFormatError)}
+                  helperText={emergencyEmailFormatError ?? undefined}
+                  fullWidth
+                />
+              </Stack>
+            </Subsection>
+          </Stack>
+        </Section>
+
+        <Section title="How we may contact them">
+          {/* V-10, correction round 2 — Brian's own authorised, scoped
+              exception to the no-narrative-text rule: this surface, and
+              only this surface, explains itself. */}
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ mb: 2 }}
+            data-testid="opt-in-explanation"
+          >
+            {RECRUITMENT_ADD_EXPLANATION}
+          </Typography>
+          <Stack spacing={2}>
+            <TextField
               select
               name="optInEvidence"
-              label="How we came by this number"
+              label={RECRUITMENT_ADD_OPT_IN_LABEL}
               defaultValue={values.optInEvidence}
               fullWidth
               data-testid="opt-in-evidence"
@@ -232,7 +431,7 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
             </TextField>
             <TextField
               name="optInNote"
-              label="In your own words"
+              label={RECRUITMENT_ADD_OPT_IN_NOTE_LABEL}
               defaultValue={values.optInNote}
               fullWidth
               multiline
@@ -251,6 +450,43 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
   );
 }
 
+/**
+ * V-3 / V-4, correction round 2 — the one screen "This is them" resolves to
+ * for a current player: plain confirmation, no warning styling, a single
+ * way back. Nothing here is a form; nothing here can write anything.
+ */
+function AlreadyMemberScreen({
+  alreadyMember,
+}: {
+  alreadyMember: { displayName: string; membershipStatus: string; seasonLabel: string };
+}) {
+  const statusLabel =
+    MEMBERSHIP_STATUS_LABELS[alreadyMember.membershipStatus as MembershipStatus] ??
+    alreadyMember.membershipStatus;
+  return (
+    <Stack spacing={3} sx={{ maxWidth: 720 }} data-testid="add-recruit-already-member">
+      <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
+        {`${alreadyMember.displayName} is already a member`}
+      </Typography>
+      <Paper variant="outlined" sx={{ p: 3 }}>
+        <Typography color="text.secondary">
+          {`They already hold a ${alreadyMember.seasonLabel} membership (${statusLabel}). A player is not a recruit, so no changes have been made.`}
+        </Typography>
+      </Paper>
+      <Box>
+        <Button
+          href="/operate/recruitment"
+          variant="contained"
+          sx={{ minHeight: MIN_TOUCH_TARGET }}
+          data-testid="add-recruit-already-member-back"
+        >
+          Back to recruitment
+        </Button>
+      </Box>
+    </Stack>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <Paper variant="outlined" sx={{ p: 3 }}>
@@ -259,6 +495,18 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       </Typography>
       {children}
     </Paper>
+  );
+}
+
+/** `edit-person-form.tsx`'s own grouping shape, for the emergency contact's five fields inside "Restricted". */
+function Subsection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 2 }}>
+      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
+        {title}
+      </Typography>
+      {children}
+    </Box>
   );
 }
 

@@ -799,6 +799,7 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
       finishRecruitmentAddIn(tx, {
         actorPersonId: operatorPersonId,
         personId: created.personId,
+        givenName: MARKER,
         seasonId,
         academic: { optInEvidence: "gave_it" },
       }),
@@ -843,6 +844,7 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
       finishRecruitmentAddIn(tx, {
         actorPersonId: operatorPersonId,
         personId: created.personId,
+        givenName: MARKER,
         seasonId,
         academic: {},
       }),

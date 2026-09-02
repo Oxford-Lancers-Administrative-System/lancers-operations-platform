@@ -67,6 +67,15 @@ export type RecruitmentQuestionnaireTrack = "personal" | "recruitment";
 
 export interface RecruitmentQuestionnaireSendState {
   readonly lastSentAt: string | null;
+  /**
+   * V-6, correction round 2 (Brian: "it should say that something was, at
+   * the very least, queued… it should be clear coded for this date, and
+   * then, when it actually goes out, it should send"). The soonest
+   * `scheduled_for` among this track's own job rows that has not yet been
+   * accepted by a delivery attempt — `null` once `lastSentAt` is set (there
+   * is nothing left to queue) or when no job for this track exists yet.
+   */
+  readonly queuedFor: string | null;
 }
 
 export interface RecruitmentProspectNote {
@@ -167,9 +176,46 @@ async function readSendStateIn(
     if (dates.length === 0) return null;
     return new Date(Math.max(...dates.map((d) => d.getTime()))).toISOString();
   };
+
+  // V-6, correction round 2: the soonest still-outstanding job's own
+  // `scheduled_for`, per track — a job counts only while it genuinely might
+  // still go out (`pending`/`ready`/`processing`) and has not already been
+  // accepted (an accepted job's step already shows in `acceptedByStep`
+  // above, which is what `lastSentAt` reads, so there is nothing left to
+  // queue for that step).
+  const queued = await tx.query<{ idempotency_key: string; scheduled_for: Date }>(
+    `select nj.idempotency_key, nj.scheduled_for
+       from public.notification_jobs nj
+      where nj.idempotency_key = any($1::text[])
+        and nj.status in ('pending', 'ready', 'processing')
+        and not exists (
+          select 1 from public.delivery_attempts da
+           where da.notification_job_id = nj.id and da.accepted_at is not null
+        )`,
+    [keys],
+  );
+  const queuedByStep = new Map<string, Date>();
+  for (const row of queued.rows) {
+    const step = row.idempotency_key.split(":")[1];
+    queuedByStep.set(step, row.scheduled_for);
+  }
+  const soonestQueued = (steps: readonly string[]): string | null => {
+    const dates = steps
+      .map((step) => queuedByStep.get(step))
+      .filter((d): d is Date => Boolean(d));
+    if (dates.length === 0) return null;
+    return new Date(Math.min(...dates.map((d) => d.getTime()))).toISOString();
+  };
+
   return {
-    personal: { lastSentAt: latest(SENT_STEP_KEYS.personal) },
-    recruitment: { lastSentAt: latest(SENT_STEP_KEYS.recruitment) },
+    personal: {
+      lastSentAt: latest(SENT_STEP_KEYS.personal),
+      queuedFor: soonestQueued(SENT_STEP_KEYS.personal),
+    },
+    recruitment: {
+      lastSentAt: latest(SENT_STEP_KEYS.recruitment),
+      queuedFor: soonestQueued(SENT_STEP_KEYS.recruitment),
+    },
   };
 }
 

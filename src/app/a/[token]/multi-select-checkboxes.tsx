@@ -1,73 +1,126 @@
 "use client";
 
-import Box from "@mui/material/Box";
+import { useState } from "react";
 import Checkbox from "@mui/material/Checkbox";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
+import ListItemText from "@mui/material/ListItemText";
+import ListSubheader from "@mui/material/ListSubheader";
+import MenuItem from "@mui/material/MenuItem";
+import TextField from "@mui/material/TextField";
 
 /**
- * The plain, native-checkbox multi-select `interest-questionnaire.tsx` uses
- * for "Which positions interest you?" and "What playing gear do you already
- * have?" — F-206-02, correction round 1. A dedicated client component:
- * `interest-questionnaire.tsx` itself stays a Server Component (it always
- * has), and MUI's `Checkbox` needs a client boundary of its own, the same
- * reason `audience-builder.tsx` — the shipped precedent this idiom is drawn
- * from — is `"use client"` in full rather than only the fragment that needs
- * it. Every box is its own uncontrolled, native form field
- * (`defaultChecked`, no local state): the plain server-action `<form>` this
- * page posts through collects every checked one via `formData.getAll(name)`,
- * with no client-side state to carry several selections at once.
+ * The outlined `TextField select` multi-choice `interest-questionnaire.tsx`
+ * uses for "Which positions interest you?" and "What playing gear do you
+ * already have?" — F-206-02 first shipped these as a bare inline checkbox
+ * list (correction round 1), which V-5 (correction round 2) named a
+ * regression: "The dropdown should have a multi-tick. It shouldn't just be
+ * up and about." (Brian). This is what
+ * `git show origin/chore/recruitment-fidelity-mockup:src/app/recruitment-preview/questionnaire-b.tsx`
+ * actually builds — a `TextField select` with `slotProps.select.multiple`,
+ * a `renderValue` joining the selection, and a `Checkbox` inside each
+ * `MenuItem` — the same outlined idiom the two yes/no questions and "How
+ * did you hear" already use on this form, not a control of its own.
+ *
+ * A dedicated client component for the same reason correction round 1's
+ * version was one: `interest-questionnaire.tsx` stays a Server Component,
+ * and MUI's `Select` needs a client boundary. Controlled (`useState`,
+ * seeded from `selected`) rather than uncontrolled — a `Select` has no
+ * native `defaultValue`-and-checkbox-per-option shape to collect via
+ * `formData.getAll` the way correction round 1's plain checkboxes did.
+ * MUI's own `Select` still posts through the plain server-action `<form>`
+ * this page uses without any client-side submit handling: given a `name`,
+ * it renders its own hidden `<input>` whose value is the array joined with
+ * a bare comma (`SelectInput.js`'s own `value.join(',')`), so the server
+ * action reads one field, not several — `splitMultiAnswer`
+ * (`recruitment-vocabulary.ts`) already splits and trims on `,`, which
+ * reads a bare-comma join exactly as it reads this record's own stored
+ * `", "`-joined answer.
  */
-export function MultiSelectCheckboxes({
+export function MultiSelectField({
   name,
+  label,
   options,
   selected,
 }: {
   name: string;
+  label: string;
   options: readonly string[];
   selected: ReadonlySet<string>;
 }) {
+  const [value, setValue] = useState<string[]>(() => options.filter((option) => selected.has(option)));
   return (
-    <Stack spacing={0.5}>
+    <TextField
+      select
+      name={name}
+      label={label}
+      value={value}
+      onChange={(event) => {
+        const next = event.target.value;
+        setValue(typeof next === "string" ? next.split(",") : next);
+      }}
+      fullWidth
+      slotProps={{
+        select: {
+          multiple: true,
+          renderValue: (selectedValues) => (selectedValues as string[]).join(", "),
+        },
+      }}
+    >
       {options.map((option) => (
-        <FormControlLabel
-          key={option}
-          sx={{ display: "flex", width: "100%", m: 0 }}
-          control={
-            <Checkbox
-              name={name}
-              value={option}
-              defaultChecked={selected.has(option)}
-              size="small"
-            />
-          }
-          label={option}
-        />
+        <MenuItem key={option} value={option}>
+          <Checkbox size="small" sx={{ p: 0, mr: 1 }} checked={value.includes(option)} />
+          <ListItemText primary={option} />
+        </MenuItem>
       ))}
-    </Stack>
+    </TextField>
   );
 }
 
-export function GroupedMultiSelectCheckboxes({
+/** The grouped form — Offence / Defence / Special teams, `ListSubheader` per group, the mockup's own shape. */
+export function GroupedMultiSelectField({
   name,
+  label,
   groups,
   selected,
 }: {
   name: string;
+  label: string;
   groups: readonly { readonly label: string; readonly options: readonly string[] }[];
   selected: ReadonlySet<string>;
 }) {
+  const allOptions = groups.flatMap((group) => group.options);
+  const [value, setValue] = useState<string[]>(() =>
+    allOptions.filter((option) => selected.has(option)),
+  );
   return (
-    <Stack spacing={1.5}>
-      {groups.map((group) => (
-        <Box key={group.label}>
-          <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary" }}>
-            {group.label}
-          </Typography>
-          <MultiSelectCheckboxes name={name} options={group.options} selected={selected} />
-        </Box>
-      ))}
-    </Stack>
+    <TextField
+      select
+      name={name}
+      label={label}
+      value={value}
+      onChange={(event) => {
+        const next = event.target.value;
+        setValue(typeof next === "string" ? next.split(",") : next);
+      }}
+      fullWidth
+      slotProps={{
+        select: {
+          multiple: true,
+          renderValue: (selectedValues) => (selectedValues as string[]).join(", "),
+          MenuProps: { slotProps: { paper: { sx: { maxHeight: 360 } } } },
+        },
+      }}
+    >
+      {groups.flatMap((group) => [
+        <ListSubheader key={group.label} sx={{ fontWeight: 700 }}>
+          {group.label}
+        </ListSubheader>,
+        ...group.options.map((option) => (
+          <MenuItem key={option} value={option}>
+            <Checkbox size="small" sx={{ p: 0, mr: 1 }} checked={value.includes(option)} />
+            <ListItemText primary={option} />
+          </MenuItem>
+        )),
+      ])}
+    </TextField>
   );
 }

@@ -129,6 +129,122 @@ describe("refuseIfAlreadyAMemberIn", () => {
 });
 
 describe("finishRecruitmentAddIn", () => {
+  // V-2, correction round 2 — Brian: "The add-to form seems narrow… We can
+  // use the forms from before to see which fields we're asking for there."
+  // Proves the six widened fields actually reach the person record and the
+  // emergency contact table, not merely the form.
+  it("V-2 — writes known-as, expected graduation, degree, date of birth and the emergency contact", async () => {
+    const created = await createPerson({
+      actorPersonId: operatorPersonId,
+      input: { givenName: MARKER, familyName: "Widened", mobile: uniquePhone() },
+      decision: { kind: "create_new" },
+    });
+
+    await withTransaction((tx) =>
+      finishRecruitmentAddIn(tx, {
+        actorPersonId: operatorPersonId,
+        personId: created.personId,
+        givenName: MARKER,
+        seasonId,
+        academic: {
+          knownAs: "Widey",
+          expectedGraduationYear: "2029",
+          degreeField: "Human Sciences",
+          dateOfBirth: "2006-04-12",
+          emergencyGivenName: "Rosalind",
+          emergencyFamilyName: "Widened",
+          emergencyRelationship: "Mother",
+          emergencyPhone: "07700 900555",
+          emergencyEmail: "rosalind@example.test",
+        },
+      }),
+    );
+
+    const person = await observer.query<{
+      expected_graduation_year: number;
+      degree_field: string;
+      date_of_birth: string;
+    }>(
+      "select expected_graduation_year, degree_field, date_of_birth::text as date_of_birth from public.people where id = $1::uuid",
+      [created.personId],
+    );
+    expect(person.rows[0].expected_graduation_year).toBe(2029);
+    expect(person.rows[0].degree_field).toBe("Human Sciences");
+    expect(person.rows[0].date_of_birth).toBe("2006-04-12");
+
+    const alias = await observer.query<{ alias: string; is_display_name: boolean }>(
+      "select alias, is_display_name from public.person_aliases where person_id = $1::uuid",
+      [created.personId],
+    );
+    expect(alias.rows).toEqual([{ alias: "Widey", is_display_name: true }]);
+
+    const contact = await observer.query<{
+      given_name: string;
+      family_name: string;
+      relationship: string;
+      phone: string;
+      email: string;
+    }>(
+      "select given_name, family_name, relationship, phone, email from public.person_emergency_contacts where person_id = $1::uuid",
+      [created.personId],
+    );
+    expect(contact.rows[0]).toEqual({
+      given_name: "Rosalind",
+      family_name: "Widened",
+      relationship: "Mother",
+      phone: "07700 900555",
+      email: "rosalind@example.test",
+    });
+  });
+
+  it("V-2 — a 'Known as' identical to the given name writes no alias at all", async () => {
+    const created = await createPerson({
+      actorPersonId: operatorPersonId,
+      input: { givenName: MARKER, familyName: "SameKnownAs", mobile: uniquePhone() },
+      decision: { kind: "create_new" },
+    });
+
+    await withTransaction((tx) =>
+      finishRecruitmentAddIn(tx, {
+        actorPersonId: operatorPersonId,
+        personId: created.personId,
+        givenName: MARKER,
+        seasonId,
+        academic: { knownAs: MARKER },
+      }),
+    );
+
+    const alias = await observer.query(
+      "select 1 from public.person_aliases where person_id = $1::uuid",
+      [created.personId],
+    );
+    expect(alias.rows).toHaveLength(0);
+  });
+
+  it("V-2 — no emergency contact is written without at least a first name", async () => {
+    const created = await createPerson({
+      actorPersonId: operatorPersonId,
+      input: { givenName: MARKER, familyName: "NoEmergencyName", mobile: uniquePhone() },
+      decision: { kind: "create_new" },
+    });
+
+    await withTransaction((tx) =>
+      finishRecruitmentAddIn(tx, {
+        actorPersonId: operatorPersonId,
+        personId: created.personId,
+        givenName: MARKER,
+        seasonId,
+        academic: { emergencyRelationship: "Mother", emergencyPhone: "07700 900555" },
+      }),
+    );
+
+    const contact = await observer.query(
+      "select 1 from public.person_emergency_contacts where person_id = $1::uuid",
+      [created.personId],
+    );
+    expect(contact.rows).toHaveLength(0);
+  });
+
   it("with no opt-in evidence: creates the prospect and declares no cycle jobs at all", async () => {
     const created = await createPerson({
       actorPersonId: operatorPersonId,
@@ -140,6 +256,7 @@ describe("finishRecruitmentAddIn", () => {
       finishRecruitmentAddIn(tx, {
         actorPersonId: operatorPersonId,
         personId: created.personId,
+        givenName: MARKER,
         seasonId,
         academic: {},
       }),
@@ -171,6 +288,7 @@ describe("finishRecruitmentAddIn", () => {
       finishRecruitmentAddIn(tx, {
         actorPersonId: operatorPersonId,
         personId: created.personId,
+        givenName: MARKER,
         seasonId,
         academic: {
           optInEvidence: "gave_it",
@@ -216,6 +334,7 @@ describe("finishRecruitmentAddIn", () => {
       finishRecruitmentAddIn(tx, {
         actorPersonId: operatorPersonId,
         personId: created.personId,
+        givenName: MARKER,
         seasonId,
         academic: {
           optInEvidence: "gave_it",
@@ -246,6 +365,7 @@ describe("finishRecruitmentAddIn", () => {
       finishRecruitmentAddIn(tx, {
         actorPersonId: operatorPersonId,
         personId: created.personId,
+        givenName: MARKER,
         seasonId,
         academic: { optInEvidence: "gave_it", optInNote: "   " },
       }),
@@ -269,6 +389,7 @@ describe("finishRecruitmentAddIn", () => {
       finishRecruitmentAddIn(tx, {
         actorPersonId: operatorPersonId,
         personId: created.personId,
+        givenName: MARKER,
         seasonId,
         academic: {},
       }),
@@ -277,6 +398,7 @@ describe("finishRecruitmentAddIn", () => {
       finishRecruitmentAddIn(tx, {
         actorPersonId: operatorPersonId,
         personId: created.personId,
+        givenName: MARKER,
         seasonId,
         academic: {},
       }),

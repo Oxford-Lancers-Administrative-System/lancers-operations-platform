@@ -13,7 +13,7 @@ import {
   splitMultiAnswer,
 } from "@/lib/services/recruitment-vocabulary";
 import { QuestionField } from "./question-field";
-import { GroupedMultiSelectCheckboxes, MultiSelectCheckboxes } from "./multi-select-checkboxes";
+import { GroupedMultiSelectField, MultiSelectField } from "./multi-select-checkboxes";
 import { submitInterestQuestionnaire } from "./interest-actions";
 import { BANNER, PRIVACY_NOTE } from "./presentation";
 
@@ -207,26 +207,29 @@ function QuestionnaireBForm({
           <QuestionField question={played} enforceRequired={false} />
           <QuestionField question={watched} enforceRequired={false} />
 
-          <Box>
-            <Typography sx={{ fontSize: 13, fontWeight: 700, color: "text.secondary", mb: 1 }}>
-              Which positions interest you?
-            </Typography>
-            <GroupedMultiSelectCheckboxes
-              name="q_B3"
-              groups={POSITION_GROUPS.map((group) => ({
-                label: group.label,
-                options: group.positions.map(positionValue),
-              }))}
-              selected={selectedPositions}
-            />
-          </Box>
+          {/* V-5, correction round 2 (Brian: "The dropdown should have a
+              multi-tick... That's awful" of the inline checkbox list
+              correction round 1 shipped): the same outlined `TextField
+              select` idiom `played`/`watched`/`heard` above already use,
+              carrying tick boxes in its own menu — `multi-select-checkboxes.tsx`'s
+              own module note has the mockup citation and the wiring detail.
+              The option sets are unchanged from round 1. */}
+          <GroupedMultiSelectField
+            name="q_B3"
+            label="Which positions interest you?"
+            groups={POSITION_GROUPS.map((group) => ({
+              label: group.label,
+              options: group.positions.map(positionValue),
+            }))}
+            selected={selectedPositions}
+          />
 
-          <Box>
-            <Typography sx={{ fontSize: 13, fontWeight: 700, color: "text.secondary", mb: 1 }}>
-              What playing gear do you already have?
-            </Typography>
-            <MultiSelectCheckboxes name="q_B4" options={GEAR_ITEMS} selected={selectedGear} />
-          </Box>
+          <MultiSelectField
+            name="q_B4"
+            label="What playing gear do you already have?"
+            options={GEAR_ITEMS}
+            selected={selectedGear}
+          />
 
           <QuestionField question={heard} enforceRequired={false} />
           <QuestionField question={anythingElse} enforceRequired={false} />

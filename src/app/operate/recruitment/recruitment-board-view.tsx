@@ -430,7 +430,18 @@ export default function RecruitmentBoardView({
                         key={column.key}
                         sx={{
                           top: BAND_ROW_HEIGHT,
-                          bgcolor: colours.tint,
+                          // V-9, correction round 2: `colours.tint` is a ~5%-alpha
+                          // wash, correct for a body cell (`RecruitCell` below,
+                          // unchanged) that never sits over scrolling content, but
+                          // this cell is the sticky header's own second row —
+                          // Brian's own board screenshot: "row text bleeds into
+                          // the header." A translucent `bgcolor` here lets exactly
+                          // that show through. `backgroundColor` paints first, the
+                          // tint's own `backgroundImage` layer paints over it, so
+                          // the result reads identically to the old tint but is
+                          // fully opaque at every scroll position.
+                          backgroundColor: "background.paper",
+                          backgroundImage: `linear-gradient(${colours.tint}, ${colours.tint})`,
                           minWidth: column.width,
                           width: column.width,
                           verticalAlign: "bottom",

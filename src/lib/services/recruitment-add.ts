@@ -71,6 +71,30 @@ export async function refuseIfAlreadyAMemberIn(
 export interface RecruitmentAddAcademic {
   readonly college?: string | null;
   readonly matriculationYear?: string | null;
+  /**
+   * V-2, correction round 2 — Brian: "The add-to form seems narrow… We can
+   * use the forms from before to see which fields we're asking for there."
+   * Six more of the shipped intake forms' own fields, every one optional
+   * (`REQ-missing-never-blocks`), written the same "fill only while blank"
+   * way `college`/`matriculationYear` already are — this door never
+   * overwrites a value another door already recorded.
+   */
+  readonly knownAs?: string | null;
+  readonly expectedGraduationYear?: string | null;
+  readonly degreeField?: string | null;
+  /** `YYYY-MM-DD`, an HTML `date` input's own format. */
+  readonly dateOfBirth?: string | null;
+  /**
+   * The emergency contact is one subject, per `person_emergency_contacts`'
+   * own "one per person" constraint — written only once, only when a name is
+   * given (the table's sole required field), never split across several
+   * partial writes the way the other fields above can be.
+   */
+  readonly emergencyGivenName?: string | null;
+  readonly emergencyFamilyName?: string | null;
+  readonly emergencyRelationship?: string | null;
+  readonly emergencyPhone?: string | null;
+  readonly emergencyEmail?: string | null;
   /** One of `RECRUITMENT_ADD_OPT_IN_OPTIONS`' own values, or blank for "not recorded". */
   readonly optInEvidence?: string | null;
   /**
@@ -81,6 +105,117 @@ export interface RecruitmentAddAcademic {
    * uses — never a second notes table.
    */
   readonly optInNote?: string | null;
+}
+
+/** `finishRecruitmentAddIn`'s own "fill only while blank" idiom, generalised — V-2. */
+async function fillPersonTextFieldIfBlankIn(
+  tx: Tx,
+  personId: string,
+  column: "degree_field",
+  value: string | null | undefined,
+): Promise<void> {
+  const trimmed = value?.trim() || null;
+  if (!trimmed) return;
+  await tx.query(
+    `update public.people set ${column} = $2, updated_at = now() where id = $1::uuid and ${column} is null`,
+    [personId, trimmed],
+  );
+}
+
+async function fillPersonYearFieldIfBlankIn(
+  tx: Tx,
+  personId: string,
+  column: "expected_graduation_year",
+  value: string | null | undefined,
+): Promise<void> {
+  const trimmed = value?.trim() || null;
+  if (!trimmed) return;
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isInteger(parsed) || parsed < 1900 || parsed > 2200) return;
+  await tx.query(
+    `update public.people set ${column} = $2, updated_at = now() where id = $1::uuid and ${column} is null`,
+    [personId, parsed],
+  );
+}
+
+const DATE_OF_BIRTH_SHAPE = /^\d{4}-\d{2}-\d{2}$/;
+
+async function fillDateOfBirthIfBlankIn(
+  tx: Tx,
+  personId: string,
+  value: string | null | undefined,
+): Promise<void> {
+  const trimmed = value?.trim() || null;
+  if (!trimmed || !DATE_OF_BIRTH_SHAPE.test(trimmed)) return;
+  await tx.query(
+    `update public.people set date_of_birth = $2::date, updated_at = now()
+      where id = $1::uuid and date_of_birth is null`,
+    [personId, trimmed],
+  );
+}
+
+/**
+ * The emergency contact — `person_emergency_contacts_one_per_person`. Given
+ * name is the table's sole required column, so this writes only when one is
+ * supplied, and only when the person does not already hold a row (this
+ * door never overwrites one another door — or a later edit — already
+ * recorded).
+ */
+async function fillEmergencyContactIfNoneIn(
+  tx: Tx,
+  personId: string,
+  actorPersonId: string,
+  academic: RecruitmentAddAcademic,
+): Promise<void> {
+  const givenName = academic.emergencyGivenName?.trim() || null;
+  if (!givenName) return;
+  const existing = await tx.query(
+    `select 1 from public.person_emergency_contacts where person_id = $1::uuid`,
+    [personId],
+  );
+  if (existing.rows[0]) return;
+  await tx.query(
+    `insert into public.person_emergency_contacts
+       (person_id, given_name, family_name, relationship, phone, email, recorded_by_person_id)
+     values ($1::uuid, $2, $3, $4, $5, $6, $7::uuid)`,
+    [
+      personId,
+      givenName,
+      academic.emergencyFamilyName?.trim() || null,
+      academic.emergencyRelationship?.trim() || null,
+      academic.emergencyPhone?.trim() || null,
+      academic.emergencyEmail?.trim() || null,
+      actorPersonId,
+    ],
+  );
+}
+
+/** `recordKnownAsIn`'s own logic (`recruitment-signup.ts`) — a `person_aliases` row, only when it differs from the given name. */
+async function fillKnownAsIfDifferentIn(
+  tx: Tx,
+  personId: string,
+  givenName: string,
+  knownAs: string | null | undefined,
+): Promise<void> {
+  const trimmed = knownAs?.trim() || null;
+  if (!trimmed) return;
+  if (trimmed.toLowerCase() === givenName.trim().toLowerCase()) return;
+  const exists = await tx.query(
+    `select 1 from public.person_aliases where person_id = $1::uuid and alias = $2`,
+    [personId, trimmed],
+  );
+  if (exists.rows[0]) return;
+  await tx.query(
+    `update public.person_aliases set is_display_name = false
+      where person_id = $1::uuid and is_display_name and alias <> $2`,
+    [personId, trimmed],
+  );
+  await tx.query(
+    `insert into public.person_aliases (person_id, alias, source, is_display_name)
+     values ($1::uuid, $2, $3, true)
+     on conflict (person_id, alias) do update set is_display_name = true`,
+    [personId, trimmed, "recruitment operator add (LAN-206)"],
+  );
 }
 
 export interface FinishRecruitmentAddResult {
@@ -112,11 +247,13 @@ export async function finishRecruitmentAddIn(
   params: {
     actorPersonId: string;
     personId: string;
+    /** V-2, correction round 2: only "Known as" needs it, to refuse a value that just repeats the given name. */
+    givenName: string;
     seasonId: string;
     academic: RecruitmentAddAcademic;
   },
 ): Promise<FinishRecruitmentAddResult> {
-  const { actorPersonId, personId, seasonId, academic } = params;
+  const { actorPersonId, personId, givenName, seasonId, academic } = params;
 
   const college = academic.college?.trim() || null;
   const matriculationYear = academic.matriculationYear?.trim() || null;
@@ -136,6 +273,16 @@ export async function finishRecruitmentAddIn(
       );
     }
   }
+  await fillKnownAsIfDifferentIn(tx, personId, givenName, academic.knownAs);
+  await fillPersonTextFieldIfBlankIn(tx, personId, "degree_field", academic.degreeField);
+  await fillPersonYearFieldIfBlankIn(
+    tx,
+    personId,
+    "expected_graduation_year",
+    academic.expectedGraduationYear,
+  );
+  await fillDateOfBirthIfBlankIn(tx, personId, academic.dateOfBirth);
+  await fillEmergencyContactIfNoneIn(tx, personId, actorPersonId, academic);
 
   const evidenceValue = academic.optInEvidence?.trim() || null;
   const evidenceLabel = evidenceValue ? (OPT_IN_LABEL.get(evidenceValue) ?? null) : null;

@@ -46,6 +46,7 @@ vi.mock("@/lib/services/recruitment-add", () => ({
 }));
 
 import { ConstraintViolated, InvalidTransition } from "@/lib/db";
+import type { PersonDuplicateMatch } from "@/lib/services/person-duplicate";
 import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator";
 import { createPerson } from "@/lib/services/person-create";
 import { findPersonDuplicates } from "@/lib/services/person-duplicate";
@@ -208,7 +209,54 @@ describe("F-206-02 — 'Go back and change the details' dismisses the panel", ()
 describe("linking onto an existing person", () => {
   beforeEach(() => signedInAs(fourRoleOperator()));
 
-  it("refuses linking onto a current player and calls createPerson for nobody", async () => {
+  // V-3 / V-4, correction round 2 — this used to fall into `formError`, a
+  // banner stacked on the still-visible candidates panel and form beneath
+  // it (Brian's own "flurry of information"). It resolves instead to the
+  // one dedicated `alreadyMember` outcome, a normal fact rather than a
+  // refusal, and calls `createPerson` for nobody either way.
+  it("resolves to alreadyMember for a current player, not a form error, and calls createPerson for nobody", async () => {
+    vi.mocked(refuseIfAlreadyAMemberIn).mockRejectedValue(
+      new InvalidTransition("This person already holds a membership this season.", {
+        rule: "recruitment_add_existing_member_is_not_a_recruit",
+      }),
+    );
+    const previousWithCandidate = {
+      ...INITIAL_ADD_RECRUIT_STATE,
+      candidates: [
+        {
+          personId: "44444444-4444-4444-8444-444444444444",
+          givenName: "Alaric",
+          familyName: "Brindlewood",
+          displayAlias: null,
+          displayName: "Alaric Brindlewood",
+          currentEmails: [],
+          currentPhones: ["07700 900753"],
+          matchedOn: ["given_name", "phone"] as PersonDuplicateMatch[],
+          identity: {
+            kind: "player" as const,
+            membershipStatus: "active",
+            seasonLabel: "2026-27",
+          },
+        },
+      ],
+    };
+
+    const result = await submitAddRecruit(
+      previousWithCandidate,
+      form({ linkPersonId: "44444444-4444-4444-8444-444444444444" }),
+    );
+
+    expect(result.formError).toBeUndefined();
+    expect(result.candidates).toBeNull();
+    expect(result.alreadyMember).toEqual({
+      displayName: "Alaric Brindlewood",
+      membershipStatus: "active",
+      seasonLabel: "2026-27",
+    });
+    expect(createPerson).not.toHaveBeenCalled();
+  });
+
+  it("still resolves to alreadyMember with a generic fallback when the candidate is not in the prior state", async () => {
     vi.mocked(refuseIfAlreadyAMemberIn).mockRejectedValue(
       new InvalidTransition("This person already holds a membership this season.", {
         rule: "recruitment_add_existing_member_is_not_a_recruit",
@@ -220,7 +268,8 @@ describe("linking onto an existing person", () => {
       form({ linkPersonId: "44444444-4444-4444-8444-444444444444" }),
     );
 
-    expect(result.formError).toMatch(/already holds a membership/i);
+    expect(result.formError).toBeUndefined();
+    expect(result.alreadyMember).not.toBeNull();
     expect(createPerson).not.toHaveBeenCalled();
   });
 
