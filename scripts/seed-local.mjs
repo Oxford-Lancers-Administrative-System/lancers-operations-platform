@@ -37,12 +37,18 @@ import {
   resolveLocalDatabaseUrl,
 } from "./lib/local-db.mjs";
 import fs from "node:fs";
-import crypto from "node:crypto";
 import { seedFrame, shiftAuthoredValue, shiftedYearOf } from "./lib/seed-clock.mjs";
 
 const SEED = 20260810;
 const random = makeRandom(SEED);
 const uuid = makeUuidFactory(random);
+// A second, independent deterministic stream — LAN-204's own recruit-and-
+// events block draws from this one instead of `random`/`uuid` above, so a
+// later block inserted before a randomised section (jerseys, positions, …)
+// never silently shifts it. See `recruitId`'s own comment for the failure
+// this replaced.
+const RECRUIT_SEED = 20260902;
+const recruitRandom = makeRandom(RECRUIT_SEED);
 
 /**
  * The frame this run seeds in — see `./lib/seed-clock.mjs` for the whole rule.
@@ -1478,12 +1484,20 @@ add("recruitment_prospect_notes", {
  * too would shift every value downstream of this block by however many
  * draws this section makes, silently — exactly the failure a first version
  * of this block caused (`player-record.test.ts`'s "not another season's"
- * jersey-holder assertion, moved by the shift alone). These rows do not
- * need to be part of that reproducible sequence, only to be valid, unique
- * ids — `crypto.randomUUID()` on its own generator is what keeps them from
- * perturbing it.
+ * jersey-holder assertion, moved by the shift alone).
+ *
+ * Not `crypto.randomUUID()` either — a first fix used that, and it traded
+ * the shift bug for a bigger one: the whole seed script exists to be
+ * reproducible (`makeUuidFactory`'s own comment — "so relationships can be
+ * built without round-trips"), and a non-seeded id would give these twelve
+ * recruits a new id on every `db:reset`, breaking anything that holds one
+ * fixed — a review environment's own state, a URL handed to Brian, a test
+ * or doc that names a row. `recruitId` is therefore its own **seeded**
+ * factory (`RECRUIT_SEED`, above), over its own PRNG stream
+ * (`recruitRandom`) — fully deterministic, and never the same stream as
+ * `random`/`uuid`, so it can never perturb what they produce.
  */
-const recruitId = () => crypto.randomUUID();
+const recruitId = makeUuidFactory(recruitRandom);
 
 // LAN-204, item 6 (Brian, 2026-09-02: "I need to see a dozen recruits, and I
 // want to see three events minimum"). Ten more, on top of the two above, so
