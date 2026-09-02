@@ -515,6 +515,9 @@ const rows = {
   season_membership_status_events: [],
   recruitment_prospects: [],
   recruitment_prospect_notes: [],
+  // LAN-204, item 6: the two shipped recruits never exercised this table, so
+  // it was never registered here. `void`'s own status event needs it.
+  recruitment_prospect_status_events: [],
   person_emergency_contacts: [],
   position_assignments: [],
   jersey_assignments: [],
@@ -1466,6 +1469,279 @@ add("recruitment_prospect_notes", {
   created_at: "2026-11-05T09:00:00Z",
 });
 
+// LAN-204, item 6 (Brian, 2026-09-02: "I need to see a dozen recruits, and I
+// want to see three events minimum"). Ten more, on top of the two above, so
+// the rebuilt board and record have real variety — every one of the seven
+// ladder values, and all four of the club's own capture doors — rather than
+// the bare two rows that shipped. `committed_on` is set directly, as raw
+// fixture data, wherever `recruitment_prospects_commitment_is_dated`
+// requires it — never derived here the way the application's own
+// `updateRecruitmentProspectStatusIn` derives it on a real write. The two
+// `joined` recruits also get the season membership
+// `recruitment_prospects_conversion_matches_status` requires, minted
+// directly on the same shape `flipRecruitmentProspectToJoinedIn` itself
+// writes — never through the service function, which this script does not
+// call.
+const CAPTURE_SOURCES = Object.freeze([
+  "Freshers' fair sign-up sheet",
+  "Taster session, Michaelmas week 3",
+  "Referred by a current player",
+  // "Walk-up", never "Walk-on" — Brian locked the word 2026-08-31
+  // (`src/lib/services/attendance.ts`'s own composed source string is the
+  // same wording, for the same reason).
+  "Walk-up at training, Hilary week 2",
+]);
+
+function addRecruit({
+  given,
+  family,
+  college = null,
+  matriculationYear = null,
+  gradYear = null,
+  degree = null,
+  status,
+  source,
+  firstContact,
+  committedOn = null,
+  createdAt,
+  updatedAt = createdAt,
+}) {
+  const person = {
+    id: uuid(),
+    given_name: given,
+    family_name: family,
+    college,
+    matriculation_year: matriculationYear,
+    expected_graduation_year: gradYear,
+    degree_field: degree,
+    date_of_birth: null,
+    past_member_override: null,
+    merged_into_person_id: null,
+    merged_at: null,
+    merged_by_person_id: null,
+    merge_reason: null,
+    created_at: createdAt,
+    updated_at: updatedAt,
+  };
+  people.push(person);
+  add("people", person);
+  const prospect = add("recruitment_prospects", {
+    id: uuid(),
+    person_id: person.id,
+    season_id: seasonCurrent.id,
+    status,
+    source,
+    first_contact_on: firstContact,
+    committed_on: committedOn,
+    converted_membership_id: null,
+    created_at: createdAt,
+    updated_at: updatedAt,
+  });
+  return { person, prospect };
+}
+
+/**
+ * A `joined` recruit's own season membership — minted directly on
+ * `flipRecruitmentProspectToJoinedIn`'s own shape (status `onboarding`,
+ * entry `new`, one status event), and the prospect's own
+ * `converted_membership_id` set to match — see this block's own header
+ * comment for why this is fixture data rather than a real flip.
+ */
+function joinRecruit(person, prospect, committedOn, when) {
+  const membership = add("season_memberships", {
+    id: uuid(),
+    person_id: person.id,
+    season_id: seasonCurrent.id,
+    status: "onboarding",
+    entry: "new",
+    carried_forward_from_id: null,
+    confirmed_on: committedOn,
+    activated_on: null,
+    departed_on: null,
+    expected_return_on: null,
+    departure_reason: null,
+    inactivity_label: null,
+    created_at: when,
+    updated_at: when,
+  });
+  recordTransition(
+    membership,
+    null,
+    "onboarding",
+    when,
+    people[1],
+    "Flipped from the recruit board.",
+  );
+  prospect.converted_membership_id = membership.id;
+  return membership;
+}
+
+const recruit03 = addRecruit({
+  given: "Persephone",
+  family: "Wilding",
+  college: collegeName(COLLEGES[3]),
+  matriculationYear: 2026,
+  gradYear: 2029,
+  degree: DEGREE_FIELDS[4],
+  status: "identified",
+  source: CAPTURE_SOURCES[2],
+  firstContact: "2026-10-06",
+  createdAt: "2026-10-06T14:00:00Z",
+});
+
+const recruit04 = addRecruit({
+  given: "Cassius",
+  family: "Thorne",
+  college: null,
+  status: "engaged",
+  source: CAPTURE_SOURCES[3],
+  firstContact: "2026-10-21",
+  createdAt: "2026-10-21T18:15:00Z",
+  updatedAt: "2026-10-28T09:00:00Z",
+});
+
+const recruit05 = addRecruit({
+  given: "Marigold",
+  family: "Fenwick",
+  college: collegeName(COLLEGES[11]),
+  matriculationYear: 2026,
+  gradYear: 2030,
+  degree: DEGREE_FIELDS[8],
+  status: "committed",
+  source: CAPTURE_SOURCES[0],
+  firstContact: "2026-10-03",
+  committedOn: "2026-10-24",
+  createdAt: "2026-10-03T13:30:00Z",
+  updatedAt: "2026-10-24T10:00:00Z",
+});
+
+const recruit06 = addRecruit({
+  given: "Barnaby",
+  family: "Quince",
+  college: collegeName(COLLEGES[19]),
+  matriculationYear: 2025,
+  gradYear: 2028,
+  degree: DEGREE_FIELDS[6],
+  status: "committed",
+  source: CAPTURE_SOURCES[1],
+  firstContact: "2026-10-17",
+  committedOn: "2026-11-01",
+  createdAt: "2026-10-17T18:15:00Z",
+  updatedAt: "2026-11-01T09:00:00Z",
+});
+
+const recruit07 = addRecruit({
+  given: "Odile",
+  family: "Marchmont",
+  college: collegeName(COLLEGES[7]),
+  matriculationYear: 2026,
+  gradYear: 2029,
+  degree: DEGREE_FIELDS[1],
+  status: "joined",
+  source: CAPTURE_SOURCES[2],
+  firstContact: "2026-09-27",
+  committedOn: "2026-10-11",
+  createdAt: "2026-09-27T12:00:00Z",
+  updatedAt: "2026-10-11T09:00:00Z",
+});
+joinRecruit(recruit07.person, recruit07.prospect, "2026-10-11", "2026-10-11T09:00:00Z");
+
+const recruit08 = addRecruit({
+  given: "Lysander",
+  family: "Croft",
+  college: null,
+  status: "joined",
+  source: CAPTURE_SOURCES[3],
+  firstContact: "2026-10-14",
+  committedOn: "2026-10-29",
+  createdAt: "2026-10-14T18:15:00Z",
+  updatedAt: "2026-10-29T09:00:00Z",
+});
+joinRecruit(recruit08.person, recruit08.prospect, "2026-10-29", "2026-10-29T09:00:00Z");
+
+const recruit09 = addRecruit({
+  given: "Wilhelmina",
+  family: "Astor",
+  college: collegeName(COLLEGES[15]),
+  matriculationYear: 2026,
+  gradYear: 2029,
+  degree: DEGREE_FIELDS[2],
+  status: "declined",
+  source: CAPTURE_SOURCES[0],
+  firstContact: "2026-10-03",
+  createdAt: "2026-10-03T13:45:00Z",
+  updatedAt: "2026-10-09T09:00:00Z",
+});
+
+const recruit10 = addRecruit({
+  given: "Thaddeus",
+  family: "Fairweather",
+  college: collegeName(COLLEGES[22]),
+  matriculationYear: 2025,
+  gradYear: 2028,
+  degree: DEGREE_FIELDS[9],
+  status: "declined",
+  source: CAPTURE_SOURCES[1],
+  firstContact: "2026-10-17",
+  createdAt: "2026-10-17T18:30:00Z",
+  updatedAt: "2026-10-22T09:00:00Z",
+});
+
+addRecruit({
+  given: "Cordelia",
+  family: "Winterbourne",
+  college: null,
+  status: "disengaged",
+  source: CAPTURE_SOURCES[2],
+  firstContact: "2026-10-09",
+  createdAt: "2026-10-09T15:00:00Z",
+  updatedAt: "2026-11-20T09:00:00Z",
+});
+
+const recruit12 = addRecruit({
+  given: "Reginald",
+  family: "Pemberton-Hale",
+  college: collegeName(COLLEGES[27]),
+  matriculationYear: 2026,
+  gradYear: 2029,
+  degree: DEGREE_FIELDS[5],
+  status: "void",
+  source: CAPTURE_SOURCES[3],
+  firstContact: "2026-10-21",
+  createdAt: "2026-10-21T18:45:00Z",
+  updatedAt: "2026-10-23T09:00:00Z",
+});
+add("recruitment_prospect_status_events", {
+  id: uuid(),
+  prospect_id: recruit12.prospect.id,
+  from_status: "identified",
+  to_status: "void",
+  occurred_at: "2026-10-23T09:00:00Z",
+  actor_person_id: people[1].id,
+  actor_label: null,
+  reason: "Duplicate entry — the same person signed up twice at the same stand.",
+});
+
+// --- Recruitment events (LAN-204, item 6) -----------------------------------
+//
+// Placed after the main events/invitations machinery below builds `events`,
+// `addAudienceMember` and `inviteAudienceMember` (this file's own order —
+// see that section's header), rather than here, because those do not exist
+// yet at this point in the script. Search `RECRUITMENT_EVENT_RECRUITS` for
+// the continuation.
+const RECRUITMENT_EVENT_RECRUITS = [
+  recruitOne,
+  recruitTwo,
+  recruit03.person,
+  recruit04.person,
+  recruit05.person,
+  recruit06.person,
+  recruit07.person,
+  recruit08.person,
+  recruit09.person,
+  recruit10.person,
+];
+
 // --- Positions and jerseys -------------------------------------------------
 
 function assignPositions(membership, season, vocab, offenceMix, defenceMix) {
@@ -2331,6 +2607,110 @@ invitedEvents.forEach((event, index) => {
     inviteAudienceMember(event, member, "pending");
   }
 });
+
+// LAN-204, item 6, continued from `RECRUITMENT_EVENT_RECRUITS` above — real
+// attendance and RSVP rows for the board's own Events band, against three of
+// the five `event_type = 'recruitment'` events `makeEvent` already built,
+// rather than inventing a fourth kind of fixture. `capacity: 'recruit'`
+// throughout, anchored to the person (never a season membership — a recruit
+// has none), on the same idiom `attendance.ts`'s own walk-on capture uses.
+function inviteRecruit(event, person) {
+  const member = addAudienceMember(event, { person, capacity: "recruit" });
+  return add("invitations", {
+    id: uuid(),
+    event_id: event.id,
+    event_status: event.status,
+    season_id: seasonCurrent.id,
+    audience_member_id: member.id,
+    capacity: "recruit",
+    season_membership_id: null,
+    person_id: person.id,
+    status: "issued",
+    issued_at: event.approved_at,
+    expires_at: event.response_deadline_at,
+    cancelled_at: null,
+    created_at: event.approved_at,
+  });
+}
+
+function recordRecruitRsvp(invitation, response, when) {
+  add("rsvp_responses", {
+    id: uuid(),
+    invitation_id: invitation.id,
+    response,
+    reason: response === "no" ? "Clash with another commitment." : null,
+    raw_capture: null,
+    source: "signed_link",
+    responded_at: when,
+    recorded_at: when,
+    recorded_by_person_id: null,
+  });
+  invitation.status = "responded";
+}
+
+function recordRecruitAttendance(event, person, presence, when) {
+  add("attendance_records", {
+    id: uuid(),
+    event_id: event.id,
+    event_status: event.status,
+    season_id: seasonCurrent.id,
+    capacity: "recruit",
+    season_membership_id: null,
+    person_id: person.id,
+    presence,
+    recorded_at: when,
+    recorded_by_person_id: people[12].id,
+  });
+}
+
+const freshersFair = events.find((e) => e.name === "Freshers' Fair — stand");
+const tasterSession1 = events.find((e) => e.name === "Taster session 1");
+const recruitmentSocial = events.find((e) => e.name === "Recruitment social");
+if (!freshersFair || !tasterSession1 || !recruitmentSocial) {
+  throw new Error(
+    "LAN-204's recruitment-event fixtures could not find one of the three named " +
+      "recruitment events — has the recruitment events list above changed?",
+  );
+}
+const [r03, r04, r05, r06, r07, r08, r09, r10] = RECRUITMENT_EVENT_RECRUITS.slice(2);
+
+// Freshers' Fair — stand: a drop-by. Everybody who was ever captured is on
+// it (it is where recruitment starts), attendance mostly present, RSVP not
+// meaningful for a walk-past stand so left unanswered throughout.
+for (const person of [recruitOne, recruitTwo, r03, r04, r05, r06, r09, r10]) {
+  inviteRecruit(freshersFair, person);
+  recordRecruitAttendance(freshersFair, person, "present", "2026-10-03T18:30:00Z");
+}
+
+// Taster session 1: an RSVP round, with the usual mix of yes/no and the
+// occasional no-show — the same shape the general audience gets, on a
+// smaller, hand-picked set.
+const taster1Invite = inviteRecruit(tasterSession1, recruitTwo);
+recordRecruitRsvp(taster1Invite, "yes", "2026-10-06T09:00:00Z");
+recordRecruitAttendance(tasterSession1, recruitTwo, "present", "2026-10-08T18:45:00Z");
+
+const taster1InviteR05 = inviteRecruit(tasterSession1, r05);
+recordRecruitRsvp(taster1InviteR05, "yes", "2026-10-05T11:00:00Z");
+recordRecruitAttendance(tasterSession1, r05, "late", "2026-10-08T18:45:00Z");
+
+const taster1InviteR07 = inviteRecruit(tasterSession1, r07);
+recordRecruitRsvp(taster1InviteR07, "yes", "2026-10-04T20:00:00Z");
+recordRecruitAttendance(tasterSession1, r07, "present", "2026-10-08T18:45:00Z");
+
+const taster1InviteR09 = inviteRecruit(tasterSession1, r09);
+recordRecruitRsvp(taster1InviteR09, "no", "2026-10-05T08:00:00Z");
+// No attendance row — the RSVP is the only record, the same imperfect-data
+// shape the general audience's own attendance table carries.
+
+// Recruitment social: RSVP-only for one recruit (attendance not yet taken),
+// and one recruit who turned up with no RSVP on file at all — the same
+// "showed up anyway" mismatch the practice-attendance fixtures carry
+// deliberately, on a recruitment event this time.
+const socialInviteR06 = inviteRecruit(recruitmentSocial, r06);
+recordRecruitRsvp(socialInviteR06, "yes", "2026-10-24T10:00:00Z");
+
+inviteRecruit(recruitmentSocial, r08);
+recordRecruitAttendance(recruitmentSocial, r08, "present", "2026-10-30T18:45:00Z");
 
 const questionsByEvent = new Map();
 for (const question of rows.event_questions) {
@@ -4291,6 +4671,20 @@ const WRITE_PLAN = [
     "public.recruitment_prospect_notes",
     ["id", "prospect_id", "note", "author_person_id", "author_label", "created_at"],
     "recruitment_prospect_notes",
+  ],
+  [
+    "public.recruitment_prospect_status_events",
+    [
+      "id",
+      "prospect_id",
+      "from_status",
+      "to_status",
+      "occurred_at",
+      "actor_person_id",
+      "actor_label",
+      "reason",
+    ],
+    "recruitment_prospect_status_events",
   ],
   [
     "public.onboarding_item_types",
