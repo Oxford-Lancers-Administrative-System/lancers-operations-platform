@@ -295,10 +295,26 @@
     {
       "id": "W11",
       "name": "Set onboarding's chase",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {},
+      "approvals": {
+        "spec": {
+          "words": "Okay, but the onboarding is not in the right place. It should be right below recruitment. Other than that, this looks below recruitment, above events. Other than that, approved.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "Okay, but the onboarding is not in the right place. It should be right below recruitment. Other than that, this looks below recruitment, above events. Other than that, approved.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        },
+        "acceptance": {
+          "words": "Okay, but the onboarding is not in the right place. It should be right below recruitment. Other than that, this looks below recruitment, above events. Other than that, approved.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        }
+      },
       "spec": "workflows/W11-set-onboardings-chase.md"
     }
   ],
@@ -1908,5 +1924,5 @@
     ],
     "approval": null
   },
-  "next_action": "W11 — Set onboarding chase: specification drafted and two screens shot; one open decision on where the chase actually lives in the schema, since messaging_schedules is keyed by event type."
+  "next_action": "All eleven workflows are approved. Next: assemble the packet under missions/packets/, validate it against the frozen inventory, and prepare the intake-only PR."
 }

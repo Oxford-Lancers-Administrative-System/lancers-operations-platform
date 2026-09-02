@@ -430,6 +430,15 @@
     const save = row.querySelector("button[type='submit'], .MuiButton-root");
     if (save && button) save.textContent = button;
 
+    // Onboarding belongs directly below Recruitment and above Event messaging —
+    // the two person-lifecycle chases together, then the events. The shipped page
+    // renders it last, so the proposal moves it.
+    const recruitment = must(
+      $('[data-testid="recruitment-cycle-section"]'),
+      "the page has no recruitment section to sit below",
+    );
+    recruitment.after(section);
+
     return { section, row, controls: $$(".MuiTextField-root", row) };
   };
 
@@ -468,7 +477,9 @@
     "One packet, chased on one link. When the count runs out the chase is exhausted and a person takes over.",
   );
 
-  // 1 — the section that already exists, and today reads "Not built yet."
+  // 1 — the section that already exists, and today reads "Not built yet." Moved
+  //     to sit directly below Recruitment and above Event messaging: the two
+  //     person-lifecycle chases together, then the events.
   mark(section, 1);
 
   // 2 — how long after joining the first chase goes, so it never overtakes the
