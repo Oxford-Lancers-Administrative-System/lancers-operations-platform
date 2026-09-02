@@ -53,6 +53,16 @@ export const DESTINATIONS: readonly Destination[] = Object.freeze([
     label: "Roster",
     capability: "person_record_authority" as CapabilityKey,
   }),
+  // LAN-204, `W1`. Brian, 2026-08-31: "It's a new page on the sidebar
+  // underneath Roster, and it's under /operate. That's it." Deliberately not
+  // Administration — gated on the same four-office `person_record_authority`
+  // the board itself reads (`REQ-authority`), one place beneath Roster
+  // rather than a fifth Administration entry.
+  Object.freeze({
+    href: "/operate/recruitment",
+    label: "Recruitment",
+    capability: "person_record_authority" as CapabilityKey,
+  }),
   Object.freeze({ href: "/operate/events", label: "Events", capability: null }),
   Object.freeze({
     href: "/operate/report",

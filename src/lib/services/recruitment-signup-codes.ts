@@ -102,6 +102,52 @@ export async function resolveRecruitmentSignupCode(code: string): Promise<Resolv
   return withTransaction((tx) => resolveRecruitmentSignupCodeIn(tx, code));
 }
 
+export interface LiveSignupCode {
+  readonly id: string;
+  readonly code: string;
+  readonly mintedAt: string;
+  readonly signInCount: number;
+}
+
+/**
+ * The season's one live code, for `W1-04`'s own page — `null` when nothing
+ * has ever been minted for this season. `deactivated_at is null` is the whole
+ * filter, on `recruitment_signup_codes_one_live_per_season`'s own guarantee
+ * that at most one row ever matches it.
+ */
+export async function readLiveRecruitmentSignupCodeIn(
+  tx: Tx,
+  seasonId: string,
+): Promise<LiveSignupCode | null> {
+  const result = await tx.query<{
+    id: string;
+    code: string;
+    minted_at: Date;
+    sign_in_count: number;
+  }>(
+    `select id, code, minted_at, sign_in_count
+       from public.recruitment_signup_codes
+      where season_id = $1::uuid and deactivated_at is null`,
+    [seasonId],
+  );
+  const row = result.rows[0];
+  return row
+    ? {
+        id: row.id,
+        code: row.code,
+        mintedAt: row.minted_at.toISOString(),
+        signInCount: row.sign_in_count,
+      }
+    : null;
+}
+
+/** Convenience wrapper for a caller with no open transaction. */
+export async function readLiveRecruitmentSignupCode(
+  seasonId: string,
+): Promise<LiveSignupCode | null> {
+  return withTransaction((tx) => readLiveRecruitmentSignupCodeIn(tx, seasonId));
+}
+
 /**
  * Bumps the code's own sign-in counter — `W1-04`'s "N people have signed in
  * through it this season." Called once per successful save through the QR
