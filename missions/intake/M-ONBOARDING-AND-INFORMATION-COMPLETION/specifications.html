@@ -518,7 +518,7 @@
             <ol class="sub">
               <li><a href="#s14-h2">What the object is</a></li>
               <li><a href="#s14-h3">The three numbers</a></li>
-              <li><a href="#s14-h4">Where it goes</a></li>
+              <li><a href="#s14-h4">Where it goes — and it is already there</a></li>
               <li><a href="#s14-h5">The checklist rules this workflow now carries</a></li>
               <li><a href="#s14-h6">Required actions</a></li>
               <li><a href="#s14-h7">Handoffs</a></li>
@@ -7279,8 +7279,9 @@
             <li>Trigger: setting the club's policy, usually once a season.</li>
             <li>
               Entry point / route: <strong><code>/operate/admin/messaging</code></strong
-              >, the club's messaging schedule, where onboarding gets its own entry in the same
-              grammar every other row on that page already uses.
+              >, the club's messaging schedule — specifically its
+              <strong>Onboarding</strong> section, which already renders and currently reads
+              &quot;Not built yet.&quot;
             </li>
             <li>
               Controlling source: <code>S26</code>, and <code>S14</code>, <code>S15</code>,
@@ -7384,21 +7385,48 @@
             runs out the chase is simply <strong>exhausted</strong>; what happens next is
             <code>W9</code>'s.
           </p>
-          <h2 id="s14-h4">Where it goes</h2>
+          <h2 id="s14-h4">Where it goes — and it is already there</h2>
           <p>
-            The app already has the structure for this: a page where the club sets how it messages
-            people about a thing, one section per thing, each with a lead time, a count and a
-            cadence. <strong>Onboarding needs the same treatment for its one packet</strong>, and
-            that is the whole of what this workflow asks for.
+            <strong>The messaging schedule already has an Onboarding section.</strong> As of
+            <code>main@0a04be7</code> that page carries three:
+          </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Section</th>
+                  <th>State</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Recruitment</strong></td>
+                  <td>Built — the cycle and its steps (LAN-203)</td>
+                </tr>
+                <tr>
+                  <td><strong>Event messaging</strong></td>
+                  <td>Built — a row per event type</td>
+                </tr>
+                <tr>
+                  <td><strong>Onboarding</strong></td>
+                  <td>
+                    <strong
+                      >The heading renders, and the body says &quot;Not built yet.&quot;</strong
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            That third section is this workflow, and it is sitting on the page waiting for it.
+            Nothing needs restructuring, nothing needs a new page, and the two sections above it
+            belong to other missions and are not touched.
           </p>
           <p>
-            <code>OD7-own-cadence</code>: onboarding gets its own section on that page. Everything
-            already on it — the event types and their settings — is untouched by this mission.
-          </p>
-          <p>
-            <strong>How it is stored is not this workflow's business.</strong> There is no
-            onboarding cadence anywhere in the application today, so something has to be added; what
-            shape that takes is a technical decision for implementation, not a product one.
+            <strong>How it is stored is not this workflow's business.</strong> What the product
+            needs is the three values below in that section; the shape they take underneath is a
+            technical decision for implementation.
           </p>
           <h2 id="s14-h5">The checklist rules this workflow now carries</h2>
           <p>Folded in from the removed workflow, and unchanged by the fold:</p>
@@ -7547,14 +7575,15 @@
               <tbody>
                 <tr>
                   <td><code>W11-01</code></td>
-                  <td>One new section on the messaging page, and nothing else on it changed</td>
+                  <td>The page's own Onboarding section, filled — and nothing above it changed</td>
                 </tr>
               </tbody>
             </table>
           </div>
           <p>
-            Shot on <code>/operate/admin/messaging</code>, a real implemented route, both sides,
-            measured 1280 and 375.
+            Shot on <code>/operate/admin/messaging</code> at
+            <strong><code>main@0a04be7</code></strong
+            >, both sides, measured 1280 and 375.
           </p>
           <p>Grounding: <strong>screenshots</strong>.</p>
           <h2 id="s14-h12">Core decisions</h2>

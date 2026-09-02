@@ -652,11 +652,10 @@ const WORKFLOWS = [
       P(
         "W11-01",
         "One new section, on the page that already sets how the club messages people",
-        `The whole of this mission\u2019s change to this page. What sits below it is the real shipped
-         configuration for events, untouched \u2014 this mission is not changing how practices are
-         messaged and does not mark them.`,
+        `Recruitment and Event messaging sit above it, built by other missions and untouched here.
+         The row uses the page\u2019s own idiom for a thing the club chases and its timings.`,
         [
-          "<strong>The one new section</strong>, for the one packet onboarding sends",
+          "<strong>The section the page already has</strong>, which today reads \u201cNot built yet.\u201d",
           "<strong>How long after joining.</strong> The one value this page has no equivalent of \u2014 a delay measured from a person joining rather than from an event starting, so the chase never overtakes the welcome carrying the link",
           "<strong>How many times it asks</strong>, spent only when a message actually arrives",
           "<strong>And how far apart.</strong> No third number to disagree with these two",

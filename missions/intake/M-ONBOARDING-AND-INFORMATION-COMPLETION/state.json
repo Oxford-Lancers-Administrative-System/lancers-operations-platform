@@ -4,7 +4,15 @@
   "stage": "workflows",
   "baseline": {
     "branch": "main",
-    "commit": "332bc6b3ba3028f1b79d99fc59dc1417791c2d81"
+    "commit": "332bc6b3ba3028f1b79d99fc59dc1417791c2d81",
+    "drift": {
+      "observed_at": "2026-09-02",
+      "from": "332bc6b3ba3028f1b79d99fc59dc1417791c2d81",
+      "to": "0a04be76b44589ec5081425e15f79975f91a8377",
+      "merged_into_worktree": true,
+      "what_landed": "LAN-202 sign-up form, LAN-203 recruitment cycle and ladders, LAN-204 recruit board record and flip, LAN-205 walk-up capture.",
+      "effect": "No approved decision changes. Grounding statements in W3 and W4 that named LAN-202 and LAN-204 as unbuilt are now stale, and W11 is reshot against the Onboarding section that LAN-203 put on the messaging page."
+    }
   },
   "approvals": {
     "boundary": {

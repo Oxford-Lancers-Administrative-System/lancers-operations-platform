@@ -6,8 +6,8 @@
 - Primary actor: A four-role operator.
 - Trigger: setting the club's policy, usually once a season.
 - Entry point / route: **`/operate/admin/messaging`**, the club's messaging
-  schedule, where onboarding gets its own entry in the same grammar every
-  other row on that page already uses.
+  schedule — specifically its **Onboarding** section, which already renders and
+  currently reads "Not built yet."
 - Controlling source: `S26`, and `S14`, `S15`, `S19`, `S20` inherited from the
   workflow folded into this one; owned `M4`, `T11-cadence`, `T11-cap-delivered`,
   `T11-suppression`, `PR7-nudges-chase`, `OD7-own-cadence`,
@@ -67,20 +67,24 @@ President" field. That was borrowed from the event schedule's own
 told"* — which is the **event RSVP escalation** and does not belong here. When
 the count runs out the chase is simply **exhausted**; what happens next is `W9`'s.
 
-## Where it goes
+## Where it goes — and it is already there
 
-The app already has the structure for this: a page where the club sets how it
-messages people about a thing, one section per thing, each with a lead time, a
-count and a cadence. **Onboarding needs the same treatment for its one packet**,
-and that is the whole of what this workflow asks for.
+**The messaging schedule already has an Onboarding section.** As of
+`main@0a04be7` that page carries three:
 
-`OD7-own-cadence`: onboarding gets its own section on that page. Everything
-already on it — the event types and their settings — is untouched by this
-mission.
+| Section             | State                                              |
+| ------------------- | ---------------------------------------------------- |
+| **Recruitment**     | Built — the cycle and its steps (LAN-203)          |
+| **Event messaging** | Built — a row per event type                       |
+| **Onboarding**      | **The heading renders, and the body says "Not built yet."** |
 
-**How it is stored is not this workflow's business.** There is no onboarding
-cadence anywhere in the application today, so something has to be added; what
-shape that takes is a technical decision for implementation, not a product one.
+That third section is this workflow, and it is sitting on the page waiting for
+it. Nothing needs restructuring, nothing needs a new page, and the two sections
+above it belong to other missions and are not touched.
+
+**How it is stored is not this workflow's business.** What the product needs is
+the three values below in that section; the shape they take underneath is a
+technical decision for implementation.
 
 
 ## The checklist rules this workflow now carries
@@ -149,10 +153,10 @@ Folded in from the removed workflow, and unchanged by the fold:
 
 | Screen   | What it proves                                                                  |
 | -------- | --------------------------------------------------------------------------------- |
-| `W11-01` | One new section on the messaging page, and nothing else on it changed |
+| `W11-01` | The page's own Onboarding section, filled — and nothing above it changed |
 
-Shot on `/operate/admin/messaging`, a real implemented route, both sides,
-measured 1280 and 375.
+Shot on `/operate/admin/messaging` at **`main@0a04be7`**, both sides, measured
+1280 and 375.
 
 Grounding: **screenshots**.
 
