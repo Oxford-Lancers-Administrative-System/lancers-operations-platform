@@ -6643,9 +6643,9 @@
             exists to catch what everything else missed.
           </p>
           <p>
-            The office is configuration, and the surface that sets it is
-            <strong><code>W11</code></strong
-            >'s alongside the cadence, the gap and the cap.
+            The office needs no configuring: <code>roles</code> on <code>main</code> already ships
+            <code>president</code> as a constitutional office, with
+            <code>role_assignments</code> naming whoever currently holds it. It is read, not set.
           </p>
           <h2 id="s12-h5">What &quot;exhausted&quot; means exactly</h2>
           <p>
@@ -6871,9 +6871,12 @@
                   <td>settled</td>
                 </tr>
                 <tr>
-                  <td>The office is configured on <code>W11</code>'s surface</td>
+                  <td>The office is read from the club's roles, never configured</td>
                   <td>locked</td>
-                  <td>It sits with the cadence, gap and cap</td>
+                  <td>
+                    <code>roles</code> ships <code>president</code>;
+                    <code>role_assignments</code> names its holder
+                  </td>
                   <td>settled</td>
                 </tr>
                 <tr>
@@ -7678,17 +7681,13 @@
                   <td>settled</td>
                 </tr>
                 <tr>
+                  <td>The escalation office is read from the club's roles, never configured</td>
+                  <td>locked</td>
                   <td>
-                    <strong>Where the escalation office is configured, now it is not here</strong>
+                    <code>roles</code> ships <code>president</code> as a constitutional office with
+                    <code>role_assignments</code> naming its holder. Nothing to set
                   </td>
-                  <td><strong>proposed for owner approval</strong></td>
-                  <td>
-                    <code>W9</code> is approved and says this surface configures it; it no longer
-                    does. <strong>Recommended: it is not configuration at all</strong> — the office
-                    is whoever currently holds it, read from the club's roles rather than typed into
-                    a box
-                  </td>
-                  <td><strong>open</strong></td>
+                  <td>settled</td>
                 </tr>
                 <tr>
                   <td><strong>Where onboarding's chase lives in the schema</strong></td>
