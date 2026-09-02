@@ -386,6 +386,17 @@ function byName(left: AttendanceParticipant, right: AttendanceParticipant): numb
  * walk-up stays in **Walk-ups** even when they happen to carry recruit
  * capacity (every walk-up does): "it should be its own separate group", not a
  * second appearance of the same row.
+ *
+ * ## Walk-ups moves up, directly under Recruits, on a recruitment event only
+ * — OWNER-WALKUP-GROUP-ORDER, Brian, 2026-09-02
+ *
+ * "Walk Up should not be at the bottom. Walk Up should be right below
+ * Recruits. Because they're very likely to recruit, I want to see the same
+ * thing there." A walk-up captured at a recruitment event is, structurally
+ * and in practice, a recruit — the door's whole point — so it sits with the
+ * other recruits rather than filed under everyone else, the same reasoning
+ * that put Recruits at the top in the first place. Every other event type's
+ * order is unchanged: Walk-ups stays last, where D11 never spoke to it.
  */
 export function groupParticipants(
   participants: AttendanceParticipant[],
@@ -407,14 +418,26 @@ export function groupParticipants(
     (participant) => !participant.isWalkUp && !recruitKeys.has(participant.key),
   );
 
+  const walkUps: ParticipantGroup = {
+    key: "walk_ups" as const,
+    label: WALK_UP_GROUP_LABEL,
+    detail: WALK_UP_GROUP_DETAIL,
+    participants: participants.filter((participant) => participant.isWalkUp).sort(byName),
+  };
+
   const groups: ParticipantGroup[] = [];
   if (isRecruitmentEvent) {
-    groups.push({
-      key: "recruits" as const,
-      label: RECRUITS_GROUP_LABEL,
-      detail: RECRUITS_GROUP_DETAIL,
-      participants: recruits,
-    });
+    groups.push(
+      {
+        key: "recruits" as const,
+        label: RECRUITS_GROUP_LABEL,
+        detail: RECRUITS_GROUP_DETAIL,
+        participants: recruits,
+      },
+      // OWNER-WALKUP-GROUP-ORDER: directly below Recruits on this event type
+      // only — a walk-up here is a recruit, and belongs with them.
+      walkUps,
+    );
   }
   groups.push(
     {
@@ -429,13 +452,9 @@ export function groupParticipants(
       detail: EVERYONE_ELSE_GROUP_DETAIL,
       participants: invited.filter((participant) => participant.rsvp !== "yes").sort(byName),
     },
-    {
-      key: "walk_ups" as const,
-      label: WALK_UP_GROUP_LABEL,
-      detail: WALK_UP_GROUP_DETAIL,
-      participants: participants.filter((participant) => participant.isWalkUp).sort(byName),
-    },
   );
+  // Every other event type: Walk-ups stays last, unchanged.
+  if (!isRecruitmentEvent) groups.push(walkUps);
   return groups;
 }
 

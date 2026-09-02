@@ -1553,6 +1553,78 @@ describe("Recruits first — W12, D11, LAN-205", () => {
     expect(screen.getByTestId("attendance-group-recruits")).toHaveAttribute("data-open", "true");
   });
 
+  /**
+   * OWNER-WALKUP-GROUP-ORDER — Brian, 2026-09-02, on his walkthrough: "Walk
+   * Up should not be at the bottom. Walk Up should be right below Recruits.
+   * Because they're very likely to recruit, I want to see the same thing
+   * there." This is a rendered-order regression test: it fails against the
+   * order this package shipped first (Recruits, Attending, Everyone else,
+   * Walk-ups) and passes against the corrected one.
+   */
+  it("puts Walk-ups directly below Recruits, ahead of Attending, on a recruitment event", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      recruitmentBoard([
+        participant({ key: "player:a", displayName: "Alwyn Cholmondley", rsvp: "yes" }),
+        participant({ key: "player:b", displayName: "Bar Sedgewick", rsvp: "no" }),
+        participant({
+          key: `recruit:${RECRUIT_PERSON_ID}`,
+          displayName: "Rosalind Penhaligon",
+          capacity: "recruit",
+          rsvp: null,
+          isWalkUp: false,
+          presence: null,
+        }),
+        participant({
+          key: "recruit:88888888-8888-4888-8888-888888888888",
+          displayName: "Devon Skye",
+          capacity: "recruit",
+          rsvp: null,
+          isWalkUp: true,
+          presence: "present",
+        }),
+      ]),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    const groups = [...container.querySelectorAll("[data-testid^='attendance-group-']")]
+      .map((node) => node.getAttribute("data-testid"))
+      .filter((id) => id !== null && !id.includes("toggle") && !id.includes("count"));
+    expect(groups).toEqual([
+      "attendance-group-recruits",
+      "attendance-group-walk_ups",
+      "attendance-group-attending",
+      "attendance-group-everyone_else",
+    ]);
+    expect(namesIn("walk_ups")).toEqual(["Devon Skye"]);
+  });
+
+  it("leaves Walk-ups last on every other event type, unchanged", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({
+        event: detail({ eventType: "practice" }),
+        participants: [
+          participant({ key: "player:a", displayName: "Alwyn Cholmondley", rsvp: "yes" }),
+          participant({
+            key: "guest:66666666-6666-4666-8666-666666666666",
+            displayName: "Devon Skye",
+            capacity: "guest",
+            rsvp: null,
+            isWalkUp: true,
+            presence: "present",
+          }),
+        ],
+      }),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    const groups = [...container.querySelectorAll("[data-testid^='attendance-group-']")]
+      .map((node) => node.getAttribute("data-testid"))
+      .filter((id) => id !== null && !id.includes("toggle") && !id.includes("count"));
+    expect(groups).toEqual(["attendance-group-attending", "attendance-group-walk_ups"]);
+  });
+
   it("keeps a walk-up out of Recruits even though every walk-up carries recruit capacity", async () => {
     vi.mocked(readAttendanceBoard).mockResolvedValue(
       recruitmentBoard([
