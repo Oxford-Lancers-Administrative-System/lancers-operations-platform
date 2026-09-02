@@ -632,6 +632,52 @@ const WORKFLOWS = [
       ),
     ],
   },
+  {
+    id: "W11",
+    slug: "set-onboardings-chase",
+    name: "Set onboarding's chase",
+    grounding: "photograph",
+    lede: `The onboarding checklist is one packet. This workflow says <strong>how many times the club
+      chases somebody about it, how often, and how long before the chase gives up</strong> — and
+      nothing else.`,
+    legend: [
+      "<strong>The previous draft of this workflow had the wrong target and was removed.</strong> Brian, 2026-09-02: \"We're not taking the individual items and bringing them to operators. Only the core four ever make changes in here… It should just define how many times we are going to chase them, how often we are going to chase them, and how long before the chase exhausts. That's it.\" The inventory went from twelve workflows to eleven",
+      "<strong>The checklist is fixed.</strong> It is the approved item-and-ask inventory, and nobody turns items on or off. <code>R1</code> and <code>R2-V2</code> are superseded",
+      "<strong>Nobody is assigned an item.</strong> Only the four-role group resolves anything — <code>R2</code> superseded. \"If the kit operator needs to go off and do something with a kit, they can go and run that on their own\"",
+      "<strong>Verification behaviour survives</strong> as a property of each item in the approved inventory rather than a setting, so W6 stands as approved: BUCS Play is still claimed then confirmed",
+      "<strong>There are no quiet hours.</strong> Brian, 2026-09-02 — that half of <code>T11-suppression</code> is out, and the shipped page already says so in its own standing note",
+      "<strong>The cap counts messages that arrived.</strong> A failure consumes nothing, which is what makes “the chase is exhausted” a fact rather than a guess — and why LAN-93 is a dependency rather than an option",
+    ],
+    screens: [
+      P(
+        "W11-01",
+        "Onboarding's chase, on the club's messaging schedule",
+        `Three numbers and an office. That is the entire configuration this mission has, now the
+         checklist itself is settled by the approved inventory.`,
+        [
+          "<strong>How many times.</strong> The cap, counted only when a message actually arrives",
+          "<strong>How often, and how long before it gives up.</strong> Then it stops for good and a person takes over — which is W9",
+          "<strong>The escalation office.</strong> W9 depends on this and nothing else sets it. An office rather than a person, because presidents change every year",
+          "<strong>Beside the recruit ladder</strong>, which is Mission 6's and which this mission does not touch",
+        ],
+        "oxfordlancers.example/operate/admin/messaging",
+      ),
+      P(
+        "W11-02",
+        "Where this actually lives, and why that is a decision",
+        `<code>messaging_schedules</code> is keyed by <code>event_type</code>. Mission 6 added the
+         recruit ladder to it as two columns, and <strong>both are null on all five rows</strong>,
+         because recruitment's cadence has nothing to do with practices or games. This photographs
+         the table as it really is, so the shape question is visible rather than described.`,
+        [
+          "<strong>The grain.</strong> Every row is an event type, and the club's recruitment cadence is not a property of a practice",
+          "<strong>The two columns Mission 6 added</strong>, null on all five rows because there is no event they belong to",
+          "<strong>The same emptiness on every row.</strong> Four more columns for onboarding would repeat it five times over. <strong>Recommended: a small table of its own</strong> — one row of club policy, keyed by nothing",
+        ],
+        "oxfordlancers.example/operate/admin/messaging",
+      ),
+    ],
+  },
 ];
 
 const SHOTS = JSON.parse(readFileSync(path.join(OUT, "shots", "shots.json"), "utf8"));

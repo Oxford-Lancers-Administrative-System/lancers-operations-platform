@@ -287,10 +287,11 @@
     {
       "id": "W11",
       "name": "Set onboarding's chase",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {},
+      "spec": "workflows/W11-set-onboardings-chase.md"
     }
   ],
   "mockup_hub": "generated",
@@ -1899,5 +1900,5 @@
     ],
     "approval": null
   },
-  "next_action": "Draft W12 — the onboarding checklist and its chase: how many times, how often, and how long before it exhausts. W11 was folded into it on 2026-09-02."
+  "next_action": "W11 — Set onboarding chase: specification drafted and two screens shot; one open decision on where the chase actually lives in the schema, since messaging_schedules is keyed by event type."
 }

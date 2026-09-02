@@ -122,3 +122,26 @@ const configureRow = (row, { label, fields, button }) => {
   if (save && button) save.textContent = button;
   return row;
 };
+
+/**
+ * The page's own subtitle, intro and standing note.
+ *
+ * All three are about events. Left alone they describe a different screen from
+ * the one underneath them — which is how the first rebuild of this workflow
+ * ended up with a checklist row under the sentence "when an unanswered
+ * invitation reaches the President".
+ */
+const setAdminIntro = ({ subtitle, intro, note }) => {
+  if (subtitle !== undefined) {
+    const el = $$("p").find((p) => /event types|items/i.test(p.textContent ?? "") && p.textContent.trim().length < 30);
+    if (el) el.textContent = subtitle;
+  }
+  if (intro !== undefined) {
+    const el = $$("p").find((p) => /when the club messages people about each kind of event/i.test(p.textContent ?? ""));
+    if (el) el.textContent = intro;
+  }
+  if (note !== undefined) {
+    const el = $(".MuiAlert-message");
+    if (el) el.textContent = note;
+  }
+};

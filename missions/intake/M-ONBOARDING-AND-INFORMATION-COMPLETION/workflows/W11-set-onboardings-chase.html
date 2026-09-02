@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W11 specification</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: #e7e9ee;
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: #212121;
+        color: #fff;
+        padding: 11px 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .layout {
+        display: flex;
+        gap: 26px;
+        max-width: 1220px;
+        margin: 26px auto 90px;
+        padding: 0 22px;
+        align-items: flex-start;
+      }
+      nav.toc {
+        position: sticky;
+        top: 68px;
+        flex: 0 0 252px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 16px 8px 16px 16px;
+        max-height: calc(100vh - 104px);
+        overflow: auto;
+      }
+      nav.toc h2 {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--sec);
+        margin: 0 0 10px;
+        border: 0;
+        padding: 0;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc > ol > li {
+        margin-bottom: 4px;
+      }
+      nav.toc a {
+        display: block;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13.5px;
+        padding: 4px 8px;
+        border-radius: 5px;
+      }
+      nav.toc a:hover {
+        background: var(--grey100);
+      }
+      nav.toc .sub {
+        padding-left: 11px;
+        margin-bottom: 6px;
+      }
+      nav.toc .sub a {
+        color: var(--sec);
+        font-size: 12.5px;
+        padding: 2px 8px;
+      }
+      main {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      section.doc {
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 4px 34px 30px;
+        margin-bottom: 22px;
+      }
+      section.doc > header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 16px 0 11px;
+        border-bottom: 1px solid var(--divider);
+      }
+      section.doc > header h2 {
+        font-size: 1.02rem;
+        margin: 0;
+        border: 0;
+        padding: 0;
+      }
+      section.doc > header .file {
+        font-size: 12px;
+        color: var(--sec);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        margin-left: auto;
+      }
+      h1 {
+        font-size: 1.45rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.1rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 0.98rem;
+        margin: 20px 0 6px;
+      }
+      h4 {
+        font-size: 0.92rem;
+        margin: 16px 0 4px;
+        color: var(--sec);
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul,
+      ol {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      .tablewrap {
+        overflow-x: auto;
+        margin: 14px 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+      }
+      a {
+        color: var(--primary);
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        margin: 22px 0;
+      }
+      .chip {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        padding: 2px 9px;
+        border-radius: 11px;
+        white-space: nowrap;
+      }
+      .chip.ok {
+        background: #edf7ed;
+        color: #1b5e20;
+      }
+      .chip.warn {
+        background: #fff4e5;
+        color: #663c00;
+      }
+      .chip.idle {
+        background: var(--grey100);
+        color: var(--sec);
+      }
+      @media (max-width: 900px) {
+        .layout {
+          display: block;
+          padding: 0 12px;
+        }
+        nav.toc {
+          position: static;
+          width: auto;
+          margin-bottom: 18px;
+          max-height: none;
+        }
+        section.doc {
+          padding: 4px 18px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        W11 — Set onboarding's chase<span
+          >M-ONBOARDING-AND-INFORMATION-COMPLETION · main@332bc6b</span
+        >
+      </div>
+      <div>
+        <a href="../mockups/index.html">Index</a>
+        <a href="../specifications.html">All specifications</a>
+        <a href="../mockups/W11-set-onboardings-chase.html">Screens</a>
+      </div>
+    </div>
+    <div class="layout">
+      <nav class="toc">
+        <h2>On this page</h2>
+        <ol>
+          <li><a href="#s14-h2">What the object is</a></li>
+          <li><a href="#s14-h3">The three numbers</a></li>
+          <li><a href="#s14-h4">The table this has to go in, and why that is a decision</a></li>
+          <li><a href="#s14-h5">The checklist rules this workflow now carries</a></li>
+          <li><a href="#s14-h6">Required actions</a></li>
+          <li><a href="#s14-h7">Handoffs</a></li>
+          <li><a href="#s14-h8">Dependencies and mission boundaries</a></li>
+          <li><a href="#s14-h9">Exceptions and recovery</a></li>
+          <li><a href="#s14-h10">Safety, privacy, consent, and authority boundaries</a></li>
+          <li><a href="#s14-h11">Acceptance evidence</a></li>
+          <li><a href="#s14-h12">Core decisions</a></li>
+          <li><a href="#s14-h13">Brian approval</a></li>
+        </ol>
+      </nav>
+      <main>
+        <section class="doc">
+          <header>
+            <h2>W11 — Set onboarding's chase</h2>
+            <span class="chip warn">draft, not approved</span>
+            <span class="file">workflows/W11-set-onboardings-chase.md</span>
+          </header>
+          <h1 id="s14-h1">W11 — Set onboarding's chase</h1>
+          <ul>
+            <li>
+              Purpose/intended outcome: The onboarding checklist is one packet. This workflow says
+              <strong
+                >how many times the club chases somebody about it, how often, and how long before
+                the chase gives up</strong
+              >
+              — and nothing else.
+            </li>
+            <li>Primary actor: A four-role operator.</li>
+            <li>Trigger: setting the club's policy, usually once a season.</li>
+            <li>
+              Entry point / route: <strong><code>/operate/admin/messaging</code></strong
+              >, the club's messaging schedule, where onboarding gets its own entry beside the
+              recruit ladder.
+            </li>
+            <li>
+              Controlling source: <code>S26</code>, and <code>S14</code>, <code>S15</code>,
+              <code>S19</code>, <code>S20</code> inherited from the workflow folded into this one;
+              owned <code>M4</code>, <code>T11-cadence</code>, <code>T11-cap-delivered</code>,
+              <code>T11-suppression</code>, <code>PR7-nudges-chase</code>,
+              <code>OD7-own-cadence</code>, <code>OD7-checklist-is-fixed</code>,
+              <code>OD7-cadence-is-the-config</code>, <code>R1a</code>, <code>R1b</code>,
+              <code>R2-E</code>, <code>T10-A1</code>, <code>T10-entry-guards</code>,
+              <code>PR7-checklist</code>.
+            </li>
+            <li>
+              User-visible result: the chase runs to the club's policy rather than to a constant in
+              the code.
+            </li>
+          </ul>
+          <h2 id="s14-h2">What the object is</h2>
+          <p>Worth stating first, because the previous draft of this workflow got it wrong.</p>
+          <p>
+            <strong>The onboarding checklist is one packet.</strong> It is the approved
+            <code>item-and-ask-inventory.md</code> — the twelve items and the fifteen asks, settled
+            once — and it goes out as one thing: <em>here is what you need to go and do.</em>
+          </p>
+          <ul>
+            <li>
+              <strong>Nobody configures which items are on it.</strong>
+              <code>OD7-checklist-is-fixed</code>, Brian 2026-09-02. <code>R1</code> and
+              <code>R2-V2</code> are superseded.
+            </li>
+            <li>
+              <strong>Nobody is assigned an item.</strong> Only the four-role group resolves
+              anything. <code>R2</code> is superseded —
+              <em
+                >&quot;If the kit operator needs to go off and do something with a kit, they can go
+                and run that on their own.&quot;</em
+              >
+            </li>
+            <li>
+              <strong>Verification behaviour still exists</strong>, but as a property of each item
+              in the approved inventory rather than a setting: BUCS Play is claimed then confirmed,
+              the derived details item completes itself. Not a knob.
+            </li>
+          </ul>
+          <p>So the only thing left to configure is the chase — and that is this workflow.</p>
+          <h2 id="s14-h3">The three numbers</h2>
+          <p><code>OD7-cadence-is-the-config</code>:</p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Setting</th>
+                  <th>What it means</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>How many times</strong></td>
+                  <td>The cap. How many chases the club will send before it stops for good</td>
+                </tr>
+                <tr>
+                  <td><strong>How often</strong></td>
+                  <td>The gap between them</td>
+                </tr>
+                <tr>
+                  <td><strong>Before it gives up</strong></td>
+                  <td>How long the whole chase runs before it exhausts and a human takes over</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Plus one more that has to live somewhere and belongs here:
+            <strong>the escalation office</strong>, initial value President, which
+            <code>W9</code> depends on.
+          </p>
+          <p>
+            <strong>The cap counts messages that arrived</strong> (<code>T11-cap-delivered</code>).
+            A message that failed to deliver consumes nothing and routes to the failure path instead
+            — which is what makes &quot;the chase is exhausted&quot; a true statement, and why
+            LAN-93 is a dependency rather than an option.
+          </p>
+          <p>
+            <strong>There are no quiet hours.</strong> Brian, 2026-09-02.
+            <code>T11-suppression</code> names them among its rules; that half is out. The rest of
+            <code>T11-suppression</code> stands: an arriving submission clears pending follow-ups,
+            and a partial submission resets the timer but never the cap.
+          </p>
+          <h2 id="s14-h4">The table this has to go in, and why that is a decision</h2>
+          <p>
+            <code>messaging_schedules</code> is keyed by <strong><code>event_type</code></strong> —
+            one row each for practice, strength and conditioning, chalk, game, social. Mission 6
+            added the recruit ladder to it as <strong>two columns</strong>:
+          </p>
+          <pre><code>recruit_invitation_lead_days      null on all five rows
+recruit_follow_up_cadence_hours   null on all five rows</code></pre>
+          <p>
+            Both are null on every row, because recruitment's cadence has nothing to do with
+            practices or games. <strong>Onboarding fits that grain even less.</strong> Its chase has
+            a cap, a gap, an exhaustion point and an escalation office, and none of them is
+            per-event-type.
+          </p>
+          <p>
+            <code>OD7-own-cadence</code> says onboarding gets its own cadence &quot;beside the
+            recruit ladder on the messaging page&quot;. That settles the <strong>surface</strong>.
+            It does not settle the <strong>shape</strong>, and the shape is the open decision below.
+          </p>
+          <h2 id="s14-h5">The checklist rules this workflow now carries</h2>
+          <p>Folded in from the removed workflow, and unchanged by the fold:</p>
+          <ul>
+            <li>
+              <strong>The full checklist regenerates for everyone every season</strong>
+              (<code>R1b</code>) — &quot;it's about the president, not the person&quot;.
+            </li>
+            <li>
+              <strong>No mid-season expiry</strong> (<code>R2-E</code>). Items reset at the season
+              boundary only; a lapse mid-season is a manual reopen, which is <code>W6</code>'s.
+            </li>
+            <li>
+              <strong
+                >An empty configuration reads as &quot;this season has no onboarding items
+                configured&quot;</strong
+              >, never as &quot;everybody is complete&quot; (<code>T10-entry-guards</code>).
+            </li>
+            <li>
+              <strong
+                >An item added mid-season backfills as <code>pending</code> onto everybody</strong
+              >, not only onto later arrivals.
+            </li>
+            <li>
+              <strong>Formalwear is asked every season</strong> (<code>T10-A1</code>), its returner
+              carve-out removed as kit's already was.
+            </li>
+            <li>
+              <strong>The subscription invoiced/paid split is two items</strong> (<code>R1a</code>),
+              and constitutional membership derives from the paid one.
+            </li>
+          </ul>
+          <h2 id="s14-h6">Required actions</h2>
+          <ol>
+            <li>Open the messaging schedule.</li>
+            <li>
+              Set how many times onboarding chases, how often, and how long before it gives up. Set
+              the office the exhaustion goes to.
+            </li>
+            <li>Save. The chase runs to that from the next message onwards.</li>
+          </ol>
+          <h2 id="s14-h7">Handoffs</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>To / from</th>
+                  <th>What crosses</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W4</code></td>
+                  <td>The follow-ups that carry the compiled ask</td>
+                </tr>
+                <tr>
+                  <td><code>W8</code></td>
+                  <td>
+                    &quot;Next automated contact&quot;, and the exhausted warning on the queue
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W9</code></td>
+                  <td>The cap that defines exhaustion, and the office it escalates to</td>
+                </tr>
+                <tr>
+                  <td><code>W6</code></td>
+                  <td>Every chase, onto the person's activity log</td>
+                </tr>
+                <tr>
+                  <td>Mission 4</td>
+                  <td>Transport, the templates, the delivery states, the scheduler</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s14-h8">Dependencies and mission boundaries</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Seam</th>
+                  <th>This mission's side</th>
+                  <th>The other side</th>
+                  <th>Blocking?</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Mission 4 · Communications</td>
+                  <td>Onboarding's own cadence, cap and office</td>
+                  <td>The schedule table, the pipeline, delivery states</td>
+                  <td><strong>Depends on LAN-93</strong> for the cap</td>
+                </tr>
+                <tr>
+                  <td>Mission 6 · Recruitment</td>
+                  <td>Sitting beside the recruit ladder</td>
+                  <td>The recruit ladder itself</td>
+                  <td>Not blocking; its columns ship</td>
+                </tr>
+                <tr>
+                  <td>Mission 11 · Season Lifecycle</td>
+                  <td>Reading the current season</td>
+                  <td>Creating one</td>
+                  <td>Inherited precondition</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s14-h9">Exceptions and recovery</h2>
+          <ul>
+            <li>
+              <strong>A cap of zero.</strong> No automated chase at all; the welcome still goes, and
+              every subsequent ask is a human nudge. Legal, and worth being able to set.
+            </li>
+            <li>
+              <strong>Changing the cap mid-season.</strong> It governs from the next message;
+              nobody's count is retrospectively reset, and nobody already exhausted is restarted —
+              only a human restarts a chase (<code>W8</code>).
+            </li>
+            <li>
+              <strong>No office holder.</strong> <code>W9</code>'s case: the escalation is retained
+              and shown in the operator area.
+            </li>
+            <li>
+              <strong>An empty configuration.</strong> The chase does not run. It never reads as
+              &quot;nobody needs chasing&quot;.
+            </li>
+          </ul>
+          <h2 id="s14-h10">Safety, privacy, consent, and authority boundaries</h2>
+          <ul>
+            <li><strong>Four-role only.</strong></li>
+            <li>Configuration carries no personal data.</li>
+            <li>
+              <strong>Nothing here can send anything.</strong> It sets policy; <code>W8</code> and
+              the scheduler send.
+            </li>
+            <li>
+              The refuse-without-basis check is unaffected: no cadence value permits a message to
+              somebody with no recorded basis.
+            </li>
+          </ul>
+          <h2 id="s14-h11">Acceptance evidence</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Screen</th>
+                  <th>What it proves</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W11-01</code></td>
+                  <td>
+                    Onboarding's chase: how many times, how often, before it gives up, and the
+                    office
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W11-02</code></td>
+                  <td>
+                    Where it sits — beside the recruit ladder, and the shape problem underneath it
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Shot on <code>/operate/admin/messaging</code>, a real implemented route, both sides,
+            measured 1280 and 375.
+          </p>
+          <p>Grounding: <strong>screenshots</strong>.</p>
+          <h2 id="s14-h12">Core decisions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Decision</th>
+                  <th>Classification</th>
+                  <th>Governing evidence or recommended default</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>The checklist is the approved inventory, and nobody configures it</td>
+                  <td>locked</td>
+                  <td>
+                    <code>OD7-checklist-is-fixed</code>, Brian 2026-09-02; supersedes
+                    <code>R1</code> and <code>R2-V2</code>
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>There are no per-item owners; only the four-role group resolves</td>
+                  <td>locked</td>
+                  <td>
+                    <code>OD7-four-role-only</code>, Brian 2026-09-02; supersedes <code>R2</code>
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>What is configured is how many times, how often, and when it gives up</td>
+                  <td>locked</td>
+                  <td><code>OD7-cadence-is-the-config</code>, Brian 2026-09-02</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The escalation office is configured here</td>
+                  <td>locked</td>
+                  <td>
+                    <code>T11-escalation-target</code>; <code>W9</code> depends on it and nothing
+                    else configures it
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The cap counts messages that arrived</td>
+                  <td>locked</td>
+                  <td><code>T11-cap-delivered</code>; LAN-93 is a dependency</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td><strong>There are no quiet hours</strong></td>
+                  <td>locked</td>
+                  <td>
+                    Brian, 2026-09-02. Supersedes that half of <code>T11-suppression</code>; the
+                    rest of it stands
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>An arriving submission clears pending follow-ups</td>
+                  <td>locked</td>
+                  <td><code>T11-suppression</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>A partial submission resets the timer but never the cap</td>
+                  <td>locked</td>
+                  <td><code>T11-suppression</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The full checklist regenerates for everyone every season</td>
+                  <td>locked</td>
+                  <td><code>R1b</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>No mid-season expiry; a lapse is a manual reopen</td>
+                  <td>locked</td>
+                  <td><code>R2-E</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>An empty configuration never reads as &quot;everybody is complete&quot;</td>
+                  <td>locked</td>
+                  <td><code>T10-entry-guards</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td><strong>Where onboarding's chase actually lives in the schema</strong></td>
+                  <td><strong>proposed for owner approval</strong></td>
+                  <td>
+                    <code>messaging_schedules</code> is keyed by <code>event_type</code>, and the
+                    recruit ladder is two columns on it that are null on all five rows. Onboarding
+                    fits that grain even less.
+                    <strong>Recommended: a small table of its own, keyed by nothing</strong> — one
+                    row of club policy — rather than four more null columns on an event table
+                  </td>
+                  <td><strong>open</strong></td>
+                </tr>
+                <tr>
+                  <td>A cap of zero is legal</td>
+                  <td>delegated to Mission Lead</td>
+                  <td>It means &quot;no automated chase&quot;; the welcome is unaffected</td>
+                  <td>settled</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s14-h13">Brian approval</h2>
+          <ul>
+            <li>Exact words:</li>
+            <li>Date:</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
