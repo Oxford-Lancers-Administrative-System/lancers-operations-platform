@@ -801,13 +801,18 @@
             invention, and Mission 6's recruit door keeps its own three-field tier untouched.
           </p>
           <p>
-            <strong>Two details this workflow had to settle beyond the table.</strong> The emergency
-            contact is one required <em>fact</em> in <code>person-required.ts</code> but five fields
-            on the screen. <code>person_emergency_contacts</code> makes only
-            <code>given_name</code> NOT NULL, so first name is required by the substrate.
-            <strong>Phone is marked required here on this workflow's own judgement</strong> — an
-            emergency contact who cannot be rung is not one — and is recorded as a decision below
-            rather than slipped in. Last name, relationship and email stay optional.
+            <strong>The emergency contact is required, in four fields.</strong> Owner direction,
+            2026-09-02: &quot;we should make the emergency contact required. I think that's
+            prudent.&quot; First name, last name, email and phone all carry the asterisk.
+            <code>person_emergency_contacts</code> makes only <code>given_name</code> NOT NULL, so
+            the other three are required by the club rather than by the column — which is the right
+            way round: the substrate should not be the thing deciding what the club needs.
+          </p>
+          <p>
+            <strong><code>relationship</code> is the one field left optional.</strong> Brian has now
+            listed the emergency contact's fields twice, on 2026-09-01 and 2026-09-02, and named the
+            same four both times. The column exists and the form still shows it; it is recorded as
+            an open decision rather than quietly dropped.
           </p>
           <p>
             <strong>This collides with <code>R3-G</code>, and the collision is real.</strong> The
@@ -835,9 +840,9 @@
             </li>
           </ul>
           <p>
-            If Brian means something stronger — that an incomplete player is held out of something —
-            that is a change to the approved boundary and the overview, and it returns to him rather
-            than being written here.
+            <strong>Brian confirmed that reading on 2026-09-02</strong> — &quot;Yep, that's correct.
+            I agree.&quot; <code>R3-G</code> is therefore intact where it governs, and this workflow
+            does not amend the boundary or the overview.
           </p>
           <h3 id="s7-h11">How the sequence adapts</h3>
           <div class="tablewrap">
@@ -1553,14 +1558,14 @@
                 </tr>
                 <tr>
                   <td>
-                    <strong>Whether <code>relationship</code> is asked for</strong>
+                    <strong>Whether <code>relationship</code> is asked for at all</strong>
                   </td>
                   <td><strong>proposed for owner approval</strong></td>
                   <td>
-                    Brian named four fields; the table stores a fifth. Shown on
-                    <code>W4-01</code> so it can be kept or dropped.
-                    <strong>Recommended: keep it</strong> — it is the field that makes the contact
-                    usable in an emergency, and the column already exists
+                    Brian has now listed the emergency contact's fields twice without it. It is the
+                    one optional field on the form.
+                    <strong>Recommended: drop it, or confirm it explicitly</strong> — cheap either
+                    way
                   </td>
                   <td><strong>open</strong></td>
                 </tr>
@@ -1625,33 +1630,25 @@
                 </tr>
                 <tr>
                   <td>
-                    <strong
-                      >The onboarding required set is <code>person-required.ts</code>'s player tier,
-                      and it blocks the form</strong
-                    >
+                    The onboarding required set is <code>person-required.ts</code>'s player tier,
+                    and it blocks the form
                   </td>
-                  <td><strong>proposed for owner approval</strong></td>
+                  <td>locked</td>
                   <td>
-                    Owner direction, 2026-09-02, and the tiers already ship.
-                    <strong
-                      >But it collides with <code>R3-G</code>, &quot;nothing gates,
-                      ever&quot;.</strong
-                    >
-                    This specification reads it as blocking the form and never the player, and
-                    saving whatever was entered.
-                    <strong>Brian's word is needed on that reading</strong>
+                    Owner direction, 2026-09-02. It collides with <code>R3-G</code> on its face;
+                    Brian confirmed the reading that it blocks the form and never the player, and
+                    that whatever a step saved stays saved
                   </td>
-                  <td><strong>open</strong></td>
+                  <td>settled</td>
                 </tr>
                 <tr>
-                  <td><strong>Whether the emergency contact's phone is required</strong></td>
-                  <td><strong>proposed for owner approval</strong></td>
+                  <td>The emergency contact is required: first name, last name, email, phone</td>
+                  <td>locked</td>
                   <td>
-                    <code>person_emergency_contacts</code> makes only <code>given_name</code> NOT
-                    NULL. Phone is marked required on this workflow's judgement — a contact who
-                    cannot be rung is not one. <strong>Recommended: keep it required</strong>
+                    Owner direction, 2026-09-02: &quot;we should make the emergency contact
+                    required. I think that's prudent&quot;
                   </td>
-                  <td><strong>open</strong></td>
+                  <td>settled</td>
                 </tr>
                 <tr>
                   <td>Whether a document page shows its version number to the player</td>

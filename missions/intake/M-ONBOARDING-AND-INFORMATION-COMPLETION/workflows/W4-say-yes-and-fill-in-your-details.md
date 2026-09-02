@@ -212,13 +212,17 @@ three tiers, and an `onboarding` membership maps to the player tier:
 So the asterisks on `W4-01` and `W4-02` are that table, not an invention, and
 Mission 6's recruit door keeps its own three-field tier untouched.
 
-**Two details this workflow had to settle beyond the table.** The emergency
-contact is one required *fact* in `person-required.ts` but five fields on the
-screen. `person_emergency_contacts` makes only `given_name` NOT NULL, so first
-name is required by the substrate. **Phone is marked required here on this
-workflow's own judgement** — an emergency contact who cannot be rung is not one
-— and is recorded as a decision below rather than slipped in. Last name,
-relationship and email stay optional.
+**The emergency contact is required, in four fields.** Owner direction,
+2026-09-02: "we should make the emergency contact required. I think that's
+prudent." First name, last name, email and phone all carry the asterisk.
+`person_emergency_contacts` makes only `given_name` NOT NULL, so the other three
+are required by the club rather than by the column — which is the right way
+round: the substrate should not be the thing deciding what the club needs.
+
+**`relationship` is the one field left optional.** Brian has now listed the
+emergency contact's fields twice, on 2026-09-01 and 2026-09-02, and named the
+same four both times. The column exists and the form still shows it; it is
+recorded as an open decision rather than quietly dropped.
 
 **This collides with `R3-G`, and the collision is real.** The mission's
 governing principle is *nothing gates, ever*, restated in the boundary and the
@@ -237,9 +241,9 @@ The reading this specification takes, and which needs Brian's word:
 - **The chase still exists**, because people abandon forms. A blocked player is
   an outstanding player, and `W8` chases them exactly as before.
 
-If Brian means something stronger — that an incomplete player is held out of
-something — that is a change to the approved boundary and the overview, and it
-returns to him rather than being written here.
+**Brian confirmed that reading on 2026-09-02** — "Yep, that's correct. I agree."
+`R3-G` is therefore intact where it governs, and this workflow does not amend
+the boundary or the overview.
 
 ### How the sequence adapts
 
@@ -477,14 +481,14 @@ Grounding: **screenshots**.
 | How the step-1 asks are grouped into sections on that page                              | delegated to Mission Lead       | The inventory fixes content and order; grouping is presentation                                                                                                                | settled  |
 | **The form is a sequence: details, Code of Conduct, photo release, BUCS Play + Hudl**    | locked                          | Owner direction, 2026-09-01, quoted in full above. One link, five steps, one open ask                                                                                          | settled  |
 | **The emergency contact is five fields, not one**                                       | locked                          | Owner direction, 2026-09-01, and `person_emergency_contacts`' own columns                                                                                                      | settled  |
-| **Whether `relationship` is asked for**                                                 | **proposed for owner approval** | Brian named four fields; the table stores a fifth. Shown on `W4-01` so it can be kept or dropped. **Recommended: keep it** — it is the field that makes the contact usable in an emergency, and the column already exists | **open** |
+| **Whether `relationship` is asked for at all**                                          | **proposed for owner approval** | Brian has now listed the emergency contact's fields twice without it. It is the one optional field on the form. **Recommended: drop it, or confirm it explicitly** — cheap either way | **open** |
 | **The two documents are a versioned text plus a dated per-person acceptance, not an uploaded or e-signed file** | **proposed for owner approval** | Brian asked directly, and the answer is that the application has no object storage, no document table and no signature capture of any kind. Version + moment + person needs none of that; a drawn or PDF signature needs all of it. **Recommended: the versioned-agreement mechanism**, with e-signature additive later | **open** |
 | **Where the document text is administered**                                             | **proposed for owner approval** | Brian: "there probably needs to be an administration page to handle that. I don't really want to think about that right now." **Recommended: `W11`**, which already owns per-season checklist configuration. W4 needs only that the slot exists and is versioned, so this does not block it | **open** |
 | Hudl gets its own page                                                                  | locked                          | Owner direction, 2026-09-02: "the instructions for Huddle should also be on its own separate page. Not tagged on"                                                                               | settled  |
 | Hudl's page carries "No invitation has reached me"                                      | locked                          | Its first half is the club's job. Without that answer the queue chases a player for the club's own omission                                                                                     | settled  |
 | The finishing page lists what is outstanding by section, in dots, each a link to its step | locked                        | Owner direction, 2026-09-02: the previous sentence "is very hard to tell"                                                                                                                      | settled  |
-| **The onboarding required set is `person-required.ts`'s player tier, and it blocks the form** | **proposed for owner approval** | Owner direction, 2026-09-02, and the tiers already ship. **But it collides with `R3-G`, "nothing gates, ever".** This specification reads it as blocking the form and never the player, and saving whatever was entered. **Brian's word is needed on that reading** | **open** |
-| **Whether the emergency contact's phone is required**                                   | **proposed for owner approval** | `person_emergency_contacts` makes only `given_name` NOT NULL. Phone is marked required on this workflow's judgement — a contact who cannot be rung is not one. **Recommended: keep it required** | **open** |
+| The onboarding required set is `person-required.ts`'s player tier, and it blocks the form | locked                          | Owner direction, 2026-09-02. It collides with `R3-G` on its face; Brian confirmed the reading that it blocks the form and never the player, and that whatever a step saved stays saved | settled  |
+| The emergency contact is required: first name, last name, email, phone                  | locked                          | Owner direction, 2026-09-02: "we should make the emergency contact required. I think that's prudent"                                                                           | settled  |
 | Whether a document page shows its version number to the player                          | delegated to Mission Lead       | The version is recorded either way; showing it is presentation                                                                                                                 | settled  |
 | Field-level validation and error wording beyond the shipped `BUSY_MESSAGE`              | delegated to Mission Lead       | No approved source constrains it; nothing gates regardless                                                                                                                     | settled  |
 | The exact `messaging_consent_source` value for a self-served page                       | delegated to Mission Lead       | The enum ships with three values; the shape is a source, not a policy                                                                                                          | settled  |

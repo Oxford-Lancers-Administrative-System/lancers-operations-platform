@@ -800,7 +800,7 @@
     {
       kind: "note",
       key: "required",
-      text: "Everything marked * is required to finish onboarding. Rosalind gave three of these at the recruit door, where they were all the club asked for. Onboarding asks for the rest, and this is the flow that asks.",
+      text: "Everything marked * is required to finish onboarding, the emergency contact included. Rosalind gave three of these at the recruit door, where they were all the club asked for. Onboarding asks for the rest, and this is the flow that asks.",
     },
     { kind: "heading", text: "Who you are" },
     { key: "carried", label: "First name", value: "Rosalind", required: true },
@@ -832,10 +832,13 @@
 
     { kind: "heading", text: "Emergency contact" },
     { key: "emergency", label: "Emergency contact first name", required: true },
-    { label: "Emergency contact last name" },
-    { label: "Relationship to you" },
+    { label: "Emergency contact last name", required: true },
+    {
+      label: "Relationship to you",
+      help: "The only optional field here. Brian has now listed the emergency contact twice without it — say the word and it goes.",
+    },
     { label: "Emergency contact phone", required: true },
-    { label: "Emergency contact email" },
+    { label: "Emergency contact email", required: true },
   ]);
 
   // 2 — where W4-01 opens with the consent tick, this page opens with a sentence

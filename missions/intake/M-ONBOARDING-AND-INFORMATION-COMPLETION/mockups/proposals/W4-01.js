@@ -805,7 +805,7 @@
     {
       kind: "note",
       key: "required",
-      text: "Everything marked * is required to finish onboarding. The recruit sign-up form asks for three things and lets the rest go; this one does not — it is the form the club runs a season on.",
+      text: "Everything marked * is required to finish onboarding, the emergency contact included. The recruit sign-up form asks for three things and lets the rest go; this one does not — it is the form the club runs a season on.",
     },
     { kind: "heading", text: "Who you are" },
     { key: "given", label: "First name", value: "Merrick", required: true },
@@ -838,15 +838,15 @@
 
     { kind: "heading", text: "Emergency contact" },
     { key: "emergency", label: "Emergency contact first name", value: "Lucian", required: true },
-    { label: "Emergency contact last name", value: "Thornbury" },
+    { label: "Emergency contact last name", value: "Thornbury", required: true },
     {
       key: "relationship",
       label: "Relationship to you",
       value: "Partner",
-      help: "The fifth column person_emergency_contacts already stores. Drop it and the table keeps it blank.",
+      help: "The only optional field here. Brian has now listed the emergency contact twice without it — say the word and it goes.",
     },
     { label: "Emergency contact phone", value: "07700 900138", required: true },
-    { label: "Emergency contact email", value: "lucian.38@mail.example" },
+    { label: "Emergency contact email", value: "lucian.38@mail.example", required: true },
   ]);
 
   // 1 — the strip now doubles as the map of the sequence: five steps, one link.
