@@ -8,40 +8,55 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
-import Typography from "@mui/material/Typography";
-import type { RecruitmentQuestionnaireTrack } from "@/lib/services/recruitment-prospect";
+import { formatWhen } from "../../roster/presentation";
 import { sendRecruitmentQuestionnaireAction } from "./actions";
+import type { RecruitmentQuestionnaireTrack } from "@/lib/services/recruitment-prospect";
 
 const TRACK_LABEL: Record<RecruitmentQuestionnaireTrack, string> = {
   personal: "PERSONAL QUESTIONNAIRE",
   recruitment: "RECRUITMENT QUESTIONNAIRE",
 };
 
+const REASON_LABEL: Readonly<Record<string, string>> = Object.freeze({
+  not_consented: "Messaging consent has not been granted for this season.",
+  not_eligible: "The club will not message a recruit at this status.",
+  already_complete: "Already answered.",
+});
+
 /**
- * `W2`'s SEND / RESEND button — one per questionnaire. The dialog names when
- * it was last sent (`lastSentAt`) rather than assuming, because the point is
- * not bothering someone twice.
+ * `W2`'s SEND / RESEND button — one per questionnaire.
+ *
+ * `W2-04` (Brian, 2026-08-31 — "the pop-up... should be the answer at the
+ * moment of action") is why this button is never natively `disabled`: a
+ * disabled HTML button fires no `onClick` at all, so a control that cannot
+ * be pressed cannot open a dialog either — correction round 1's
+ * F-LAN204-005. The button always opens the dialog; the dialog is what
+ * refuses, in words, and it refuses at the moment of action whether the
+ * service layer would have refused anyway (an unconsented or ineligible
+ * recruit) or the operator confirms a real send.
  */
 export default function SendQuestionnaireButton({
   prospectId,
   track,
   displayName,
   lastSentAt,
-  disabled,
+  canSend,
   disabledReason,
 }: {
   prospectId: string;
   track: RecruitmentQuestionnaireTrack;
   displayName: string;
   lastSentAt: string | null;
-  disabled: boolean;
+  canSend: boolean;
   disabledReason: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [result, setResult] = useState<{ error: string | null; created: readonly string[] } | null>(
-    null,
-  );
+  const [result, setResult] = useState<{
+    error: string | null;
+    created: readonly string[];
+    reason: string | null;
+  } | null>(null);
 
   function confirm() {
     startTransition(async () => {
@@ -55,7 +70,6 @@ export default function SendQuestionnaireButton({
       <Button
         variant="contained"
         size="small"
-        disabled={disabled}
         onClick={() => {
           setResult(null);
           setOpen(true);
@@ -65,20 +79,24 @@ export default function SendQuestionnaireButton({
       >
         {lastSentAt ? `RESEND ${TRACK_LABEL[track]}` : `SEND ${TRACK_LABEL[track]}`}
       </Button>
-      {disabled && disabledReason ? (
-        <Typography variant="caption" color="text.secondary" component="p">
-          {disabledReason}
-        </Typography>
-      ) : null}
 
       <Dialog open={open} onClose={() => (pending ? undefined : setOpen(false))}>
         <DialogTitle>{TRACK_LABEL[track]}</DialogTitle>
         <DialogContent>
           <DialogContentText>
             {lastSentAt
-              ? `Last sent to ${displayName} on ${new Date(lastSentAt).toLocaleDateString()}.`
+              ? `Last sent to ${displayName} on ${formatWhen(new Date(lastSentAt))}.`
               : `Not yet sent to ${displayName}.`}
           </DialogContentText>
+          {!canSend && disabledReason ? (
+            <Alert
+              severity="warning"
+              sx={{ mt: 2 }}
+              data-testid={`recruitment-send-${track}-refused`}
+            >
+              {disabledReason}
+            </Alert>
+          ) : null}
           {result?.error ? (
             <Alert severity="error" sx={{ mt: 2 }}>
               {result.error}
@@ -86,7 +104,7 @@ export default function SendQuestionnaireButton({
           ) : null}
           {result && !result.error && result.created.length === 0 ? (
             <Alert severity="info" sx={{ mt: 2 }} data-testid={`recruitment-send-${track}-no-op`}>
-              Nothing new was sent.
+              {result.reason ? REASON_LABEL[result.reason] : "Nothing new was sent."}
             </Alert>
           ) : null}
           {result && !result.error && result.created.length > 0 ? (

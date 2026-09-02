@@ -8,6 +8,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { buildQrMatrix, qrMatrixToSvg } from "@/lib/qr/qr-matrix";
+import { formatWhen } from "../../roster/presentation";
 import { mintRecruitmentSignupCodeAction } from "./actions";
 
 /**
@@ -126,7 +127,7 @@ export default function QrCodeView({
         ) : null}
         {mintedAt ? (
           <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1 }}>
-            Minted {new Date(mintedAt).toLocaleDateString()}
+            Minted {formatWhen(new Date(mintedAt))}
           </Typography>
         ) : null}
       </Paper>

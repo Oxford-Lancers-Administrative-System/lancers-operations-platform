@@ -1,5 +1,6 @@
 "use client";
 
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
@@ -22,6 +23,7 @@ import {
   RSVP_LABEL,
 } from "@/lib/services/recruitment-vocabulary";
 import type { RecruitmentProspectRecord } from "@/lib/services/recruitment-prospect";
+import { formatWhen } from "../../roster/presentation";
 import NotesCard from "./notes-card";
 import SendQuestionnaireButton from "./send-questionnaire-button";
 import StatusCell from "../status-cell";
@@ -65,14 +67,35 @@ export default function RecruitmentRecordView({
   person: Partial<PersonRecord>;
 }) {
   const canSend = record.consent === "granted" && record.status !== "declined";
-  const disabledReason = !canSend
-    ? record.status === "declined"
-      ? "The club will not message a declined recruit."
-      : "Messaging consent has not been granted for this season."
-    : null;
+
+  // `W2-04` (Brian, 2026-08-31): the same fact stated three times, in
+  // descending order of how hard it is to miss — a banner at the top of the
+  // record, the send action itself, and the dialog reached by pressing it
+  // (`send-questionnaire-button.tsx`). Correction round 1 (F-LAN204-005)
+  // found only the third of the three had ever been built.
+  const declinedOn = record.statusHistory.find(
+    (event) => event.toStatus === "declined",
+  )?.occurredAt;
+  const disabledReason =
+    record.status === "declined"
+      ? "Messaging is refused. This recruit declined."
+      : !canSend
+        ? "Messaging is refused. Consent has not been granted for this season."
+        : null;
+  const bannerMessage =
+    record.status === "declined"
+      ? `The club will not message ${record.displayName}. Declined${declinedOn ? ` on ${formatWhen(new Date(declinedOn))}` : ""}. Change the status if that is wrong.`
+      : !canSend
+        ? `The club will not message ${record.displayName}. Messaging consent has not been granted for this season.`
+        : null;
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }} data-testid="recruitment-record">
+      {bannerMessage ? (
+        <Alert severity="warning" sx={{ mb: 3 }} data-testid="recruitment-cannot-message-banner">
+          {bannerMessage}
+        </Alert>
+      ) : null}
       <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={2}
@@ -118,12 +141,12 @@ export default function RecruitmentRecordView({
                   track="personal"
                   displayName={record.displayName}
                   lastSentAt={record.personal.lastSentAt}
-                  disabled={!canSend}
+                  canSend={canSend}
                   disabledReason={disabledReason}
                 />
                 <Typography variant="caption" color="text.secondary">
                   {record.personal.lastSentAt
-                    ? `Last sent ${new Date(record.personal.lastSentAt).toLocaleDateString()}`
+                    ? `Last sent ${formatWhen(new Date(record.personal.lastSentAt))}`
                     : "Not sent"}
                 </Typography>
               </Stack>
@@ -154,12 +177,12 @@ export default function RecruitmentRecordView({
                   track="recruitment"
                   displayName={record.displayName}
                   lastSentAt={record.recruitment.lastSentAt}
-                  disabled={!canSend}
+                  canSend={canSend}
                   disabledReason={disabledReason}
                 />
                 <Typography variant="caption" color="text.secondary">
                   {record.recruitment.lastSentAt
-                    ? `Last sent ${new Date(record.recruitment.lastSentAt).toLocaleDateString()}`
+                    ? `Last sent ${formatWhen(new Date(record.recruitment.lastSentAt))}`
                     : "Not sent"}
                 </Typography>
               </Stack>

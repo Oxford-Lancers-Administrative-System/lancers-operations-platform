@@ -24,11 +24,26 @@
  *
  * ## What is proved, and what is not
  *
- * `qr-matrix.test.ts` asserts the structural invariants a decoder relies on —
- * matrix size, finder/timing/alignment placement, the fixed dark module, and
- * that the two format-information copies agree — but this module has no QR
- * *decoder* to round-trip against, so a physical scan is the one proof this
- * cannot produce for itself. Recorded as a limitation in the package receipt.
+ * `qr-matrix.test.ts` asserts the structural invariants a decoder relies on
+ * (matrix size, finder/timing/alignment placement, the fixed dark module),
+ * the exact fixed format-info value this module's one configuration must
+ * always place, and — via an independent reader it writes from scratch,
+ * `decodeQrMatrixByteMode`, which knows nothing of this file's own internal
+ * functions — that every supported byte length round-trips back to the text
+ * that went in, including a Reed–Solomon consistency check on the codewords
+ * actually stored in the grid. That test suite did not always contain the
+ * last three of those: correction round 1 (F-LAN204-002) found, the hard
+ * way, that "both format-info copies agree with each other" and "the two
+ * codewords match" are both satisfiable by a self-consistent but *wrong*
+ * encoding — a real scanner (Apple Vision, via this repository's own
+ * `decode_qr.py`) returned `NO BARCODE FOUND` for a build that passed every
+ * test in this file as it then stood, because the format-info value both
+ * copies agreed on was reversed bit-for-bit (LSB-first instead of the
+ * spec's MSB-first), so a real decoder recovered the wrong mask and level
+ * from it. One production scan has still never been performed against this
+ * module's actual output — the local toolchain has no scanner of its own —
+ * so that residual gap is recorded in the package receipt rather than
+ * asserted away here.
  */
 
 // ---------------------------------------------------------------------------
@@ -150,9 +165,20 @@ class BitWriter {
   }
 
   toCodewords(totalCodewords: number): number[] {
-    // Terminator, up to 4 zero bits, never past the data capacity.
+    // Terminator — up to 4 zero bits, never past the data capacity — THEN
+    // pad to the next byte boundary. Order matters and this module got it
+    // wrong once already: rounding up to a byte boundary *before* adding
+    // the terminator (as an earlier revision did) silently manufactures an
+    // extra padding byte whenever the pre-terminator length is not already
+    // byte-aligned — the common case — because the boundary-rounding and
+    // the terminator each believe they own the same few bits. That shifted
+    // every codeword after it, so the payload, the Reed–Solomon codewords
+    // computed over it, and therefore the whole symbol, decoded to nothing.
+    // Found by round-tripping this module's own byte-mode output for a
+    // plain two-character string against a real decoder and a reference
+    // encoder's own codeword dump, which is what `qr-matrix.test.ts`'s
+    // `encodeByteMode` codeword-count assertion now pins down structurally.
     const capacityBits = totalCodewords * 8;
-    while (this.bits.length < capacityBits && this.bits.length % 8 !== 0) this.bits.push(0);
     for (let i = 0; i < 4 && this.bits.length < capacityBits; i++) this.bits.push(0);
     while (this.bits.length % 8 !== 0) this.bits.push(0);
 
@@ -278,7 +304,21 @@ function buildReservedMask(spec: VersionSpec): boolean[][] {
 
 function drawFormatInformation(modules: boolean[][], size: number): void {
   const bits = formatBits();
-  const bit = (i: number) => ((bits >>> i) & 1) === 1;
+  // The 15-bit format value is transmitted MSB first: placement-order index
+  // 0 (the first module either copy writes) carries bit 14, the highest bit
+  // of `formatBits()`'s own return value, down to placement-order index 14
+  // carrying bit 0 — the same MSB-first convention `placeData` already uses
+  // for the data codewords. Indexing `bits` directly by placement order
+  // (`(bits >>> i) & 1`) silently reversed that polarity — every format-info
+  // module still got *a* bit, so the finder/timing/alignment structure and
+  // the two copies' own mutual agreement all read fine, but the level and
+  // mask a real decoder recovered from them were wrong, and Apple Vision
+  // refused the whole symbol rather than reading it with the wrong mask
+  // undone. Found by round-tripping this module's own output through a
+  // real decoder (`decode_qr.py`) after `qr-matrix.test.ts`'s structural
+  // assertions — which check the two copies agree with each other, not that
+  // either carries the *correct* value — passed on the broken code.
+  const bit = (i: number) => ((bits >>> (14 - i)) & 1) === 1;
 
   // Copy 1 — hugging the top-left finder pattern.
   for (let i = 0; i <= 5; i++) modules[8][i] = bit(i);

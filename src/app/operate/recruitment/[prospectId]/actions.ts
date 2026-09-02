@@ -44,7 +44,12 @@ export async function addRecruitmentNoteAction(params: {
 export async function sendRecruitmentQuestionnaireAction(params: {
   prospectId: string;
   track: RecruitmentQuestionnaireTrack;
-}): Promise<RecruitmentActionState & { created: readonly string[] }> {
+}): Promise<
+  RecruitmentActionState & {
+    created: readonly string[];
+    reason: "not_consented" | "not_eligible" | "already_complete" | null;
+  }
+> {
   const operator = await requireCapability("person_record_authority");
   try {
     const result = await sendRecruitmentQuestionnaire(
@@ -53,8 +58,8 @@ export async function sendRecruitmentQuestionnaireAction(params: {
       params.track,
     );
     refresh(params.prospectId);
-    return { error: null, created: result.created };
+    return { error: null, created: result.created, reason: result.reason };
   } catch (error) {
-    return { ...stateFor(error), created: [] };
+    return { ...stateFor(error), created: [], reason: null };
   }
 }

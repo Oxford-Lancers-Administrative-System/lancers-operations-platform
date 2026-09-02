@@ -93,6 +93,20 @@ beforeAll(async () => {
   );
   seasonId = season.rows[0].id;
 
+  // `generateOnboardingItems` (called by the flip) creates one row per
+  // `onboarding_item_types` row configured for the season — a season with
+  // none yields no items, which `membership.ts` documents as a real
+  // configuration state and not a failure. This suite mints its own
+  // isolated season (deliberately never the shared seeded one — see the
+  // module comment on `seasonId`), so it has to configure at least one type
+  // itself, or F-LAN204-003's own new assertion below would fail on a
+  // fixture gap rather than a real regression.
+  await observer.query(
+    `insert into public.onboarding_item_types (season_id, code, label, is_required, is_subscription, sort_order)
+     values ($1::uuid, 'kit', 'Kit collected', true, false, 1)`,
+    [seasonId],
+  );
+
   const actor = await observer.query<{ id: string }>(
     "insert into public.people (given_name, family_name) values ($1, 'Actor') returning id",
     [ACTOR_MARKER],
@@ -339,6 +353,18 @@ describe("flipRecruitmentProspectToJoinedIn — W14", () => {
       [result.membershipId],
     );
     expect(membership.rows[0]).toMatchObject({ status: "onboarding", entry: "new" });
+
+    // F-LAN204-003 (correction round 1): this test's own title claimed
+    // "generates its onboarding items" while the body never once queried
+    // `onboarding_items` — a regression that silently stopped
+    // `generateOnboardingItems` from running stayed green. `W14` (locked)
+    // names "onboarding opens, and they are in the next steps" as one of
+    // the flip's three load-bearing consequences.
+    const onboardingItems = await observer.query(
+      "select count(*)::int as n from public.onboarding_items where season_membership_id = $1::uuid",
+      [result.membershipId],
+    );
+    expect(onboardingItems.rows[0].n).toBeGreaterThan(0);
 
     const memberships = await observer.query(
       "select count(*)::int as n from public.season_memberships where person_id = $1::uuid and season_id = $2::uuid",

@@ -15,6 +15,7 @@ function row(overrides: Partial<RecruitmentBoardRow>): RecruitmentBoardRow {
     degreeField: null,
     hasMobile: false,
     hasEmail: false,
+    phoneForCall: null,
     status: "identified",
     source: null,
     firstContactOn: null,

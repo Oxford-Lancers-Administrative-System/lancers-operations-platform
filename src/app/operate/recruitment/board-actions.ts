@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCapability } from "@/lib/auth/guards";
+import { requireCapability, requireRole } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import {
   flipRecruitmentProspectToJoined,
@@ -11,12 +11,29 @@ import type { ProspectStatus } from "@/lib/services/recruitment-vocabulary";
 import type { RecruitmentActionState } from "./action-state";
 
 /**
- * The board's own server actions — LAN-204. Both open with
- * `requireCapability("person_record_authority")`, the same four-office gate
- * `W1` and `W14` both name, resolved from the verified session rather than
- * accepted as an argument (`../roster/actions.ts`'s own reasoning: a server
- * action is a POST endpoint the browser can call directly).
+ * The board's own server actions — LAN-204.
+ *
+ * `setRecruitmentStatusAction` opens with `requireCapability("person_record_authority")`,
+ * the same four-office-plus-administrative-seat gate `W1` names for reading
+ * and changing the board's own facts — `../roster/actions.ts`'s own precedent
+ * (LAN-124: the administrative seat holds every capability in the file), and
+ * unaffected by this file's other correction.
+ *
+ * `flipRecruitmentProspectAction` is narrower. `W14` (locked) names exactly
+ * "President, Vice President, Secretary and General Manager, and nobody
+ * else, ever" for the mission's one irreversible action, and `REQ-core-four`
+ * is explicit that recruitment mints no new capability — so this is not
+ * `person_record_authority` (which admits `it_officer`, LAN-124's standing
+ * administrative exception, correct for every other surface in this package
+ * but not for this one) and it is not a new entry in `capabilities.ts`
+ * either. `requireRole()` (LAN-73) is the mechanism built for exactly this:
+ * a literal role-code check against the verified session, independent of the
+ * capability map — found by review after `board-actions.test.ts` proved an
+ * IT-Officer-only operator could reach the flip through
+ * `person_record_authority` (F-LAN204-001).
  */
+const FLIP_ROLE_CODES = ["president", "vice_president", "secretary", "general_manager"] as const;
+const FLIP_ROLE_RULE = "recruitment_flip_core_four_only";
 
 function refresh(prospectId?: string): void {
   revalidatePath("/operate/recruitment");
@@ -54,11 +71,15 @@ export async function setRecruitmentStatusAction(params: {
   return OK;
 }
 
-/** `W14`. The one interruption in the mission — confirmed on the client before this ever runs. */
+/**
+ * `W14`. The one interruption in the mission — confirmed on the client
+ * before this ever runs, and gated on the four constitutional offices alone
+ * (see the module comment) rather than on `person_record_authority`.
+ */
 export async function flipRecruitmentProspectAction(params: {
   prospectId: string;
 }): Promise<RecruitmentActionState> {
-  const operator = await requireCapability("person_record_authority");
+  const operator = await requireRole([...FLIP_ROLE_CODES], { rule: FLIP_ROLE_RULE });
   try {
     await flipRecruitmentProspectToJoined(operator.personId, params.prospectId);
   } catch (error) {

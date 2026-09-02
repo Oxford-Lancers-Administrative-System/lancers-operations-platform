@@ -65,6 +65,14 @@ export interface RecruitmentBoardRow {
   readonly degreeField: string | null;
   readonly hasMobile: boolean;
   readonly hasEmail: boolean;
+  /**
+   * The raw mobile number, carried only to compose the phone condensed
+   * view's `tel:` link — the roster board's own one permitted mobile-card
+   * action (`../roster/roster-board.ts`'s `phoneForCall`), reused here for
+   * the same reason: voice call is a channel with no consent gate and no
+   * pipeline to bypass, unlike a WhatsApp send.
+   */
+  readonly phoneForCall: string | null;
 
   // Recruitment.
   readonly status: ProspectStatus;
@@ -141,6 +149,7 @@ async function listRecruitmentBoardIn(tx: Tx): Promise<RecruitmentBoardData> {
         degree_field: string | null;
         has_mobile: boolean;
         has_email: boolean;
+        phone_for_call: string | null;
       }>(
         `select id, college, matriculation_year, expected_graduation_year, degree_field,
               exists (
@@ -150,7 +159,10 @@ async function listRecruitmentBoardIn(tx: Tx): Promise<RecruitmentBoardData> {
               exists (
                 select 1 from public.contact_points c
                  where c.person_id = people.id and c.kind = 'email' and c.valid_until is null
-              ) as has_email
+              ) as has_email,
+              (select c.raw_value from public.contact_points c
+                where c.person_id = people.id and c.kind = 'phone' and c.valid_until is null
+                order by c.is_preferred desc, c.created_at desc limit 1) as phone_for_call
          from public.people people
         where id = any($1::uuid[])`,
         [personIds],
@@ -285,6 +297,7 @@ async function listRecruitmentBoardIn(tx: Tx): Promise<RecruitmentBoardData> {
       degreeField: person?.degree_field ?? null,
       hasMobile: person?.has_mobile ?? false,
       hasEmail: person?.has_email ?? false,
+      phoneForCall: person?.phone_for_call ?? null,
       status: prospect.status as ProspectStatus,
       source: prospect.source,
       firstContactOn: prospect.first_contact_on,

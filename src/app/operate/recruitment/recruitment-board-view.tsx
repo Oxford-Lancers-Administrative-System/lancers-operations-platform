@@ -386,44 +386,107 @@ export default function RecruitmentBoardView({
             </Table>
           </TableContainer>
 
-          {/* Mobile: cards. */}
+          {/* Mobile: cards — the roster board's own idiom (LAN-186): a static
+              chip, never in-cell editing, and voice call as its own,
+              separately tappable control. Editing is desktop work. */}
           <Stack spacing={1.5} sx={{ display: { xs: "flex", md: "none" } }}>
             {visibleRows.map((row) => (
-              <Card
-                key={row.prospectId}
-                variant="outlined"
-                sx={{ p: 2 }}
-                data-testid={`recruitment-card-${row.prospectId}`}
-              >
-                <Stack
-                  direction="row"
-                  sx={{ justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}
-                >
-                  <Link
-                    href={`/operate/recruitment/${row.prospectId}`}
-                    underline="hover"
-                    sx={{ fontWeight: 700 }}
-                  >
-                    {row.displayName}
-                  </Link>
-                  <Chip label={PROSPECT_STATUS_LABELS[row.status]} size="small" />
-                </Stack>
-                <Typography variant="body2" color="text.secondary">
-                  {row.college ?? NOT_RECORDED} · {CONSENT_LABELS[row.consent]}
-                </Typography>
-                <Box sx={{ mt: 1.5 }}>
-                  <StatusCell
-                    prospectId={row.prospectId}
-                    status={row.status}
-                    displayName={row.displayName}
-                    seasonLabel={season.label}
-                  />
-                </Box>
-              </Card>
+              <RecruitCard key={row.prospectId} row={row} />
             ))}
           </Stack>
         </>
       )}
+    </Box>
+  );
+}
+
+/**
+ * The phone card — `W1-01`'s own approved mockup, and `../roster/roster-board.tsx`'s
+ * `PlayerCard` (LAN-186, item 15) it is modelled on: the whole card is one
+ * tap target opening the record, a static status chip (never an in-cell
+ * edit — that is desktop work), and voice call as its own separate control.
+ * The call button is a sibling of the card-opening anchor, never nested
+ * inside it — two anchors cannot nest, and stacking this one on top by
+ * position rather than by DOM order is what keeps both tap targets
+ * independently real, with `stopPropagation` on both so a call can never
+ * fire from a tap meant for the card and a card navigation can never fire
+ * from a tap meant for the call.
+ */
+function RecruitCard({ row }: { row: RecruitmentBoardRow }) {
+  return (
+    <Card
+      variant="outlined"
+      sx={{ position: "relative", p: 0 }}
+      data-testid={`recruitment-card-${row.prospectId}`}
+    >
+      <Box
+        component="a"
+        href={`/operate/recruitment/${row.prospectId}`}
+        data-testid="recruitment-card-open"
+        sx={{
+          display: "block",
+          p: 2,
+          pr: 8,
+          minHeight: 44,
+          textDecoration: "none",
+          color: "inherit",
+          borderRadius: 1,
+          "&:hover": { bgcolor: "action.hover" },
+          "&:focus-visible": {
+            outline: "2px solid",
+            outlineColor: "primary.main",
+            outlineOffset: -2,
+          },
+        }}
+      >
+        <Stack spacing={1}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            {row.displayName}
+          </Typography>
+          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+            <Chip size="small" label={PROSPECT_STATUS_LABELS[row.status]} />
+          </Stack>
+          <Typography variant="body2" color="text.secondary">
+            {row.college ?? NOT_RECORDED} · {CONSENT_LABELS[row.consent]}
+          </Typography>
+        </Stack>
+      </Box>
+
+      <Box
+        sx={{ position: "absolute", top: 8, right: 8 }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <Button
+          variant="contained"
+          component="a"
+          href={row.phoneForCall ? `tel:${row.phoneForCall}` : undefined}
+          disabled={!row.phoneForCall}
+          aria-label="Call"
+          onClick={(event) => event.stopPropagation()}
+          sx={{
+            minHeight: 44,
+            minWidth: 44,
+            width: 44,
+            height: 44,
+            p: 0,
+            borderRadius: "50%",
+          }}
+        >
+          <PhoneIcon />
+        </Button>
+      </Box>
+    </Card>
+  );
+}
+
+/** Drawn inline, the same reason `../roster/roster-board.tsx`'s own `PhoneIcon` is: no icon package in this dependency tree. */
+function PhoneIcon() {
+  return (
+    <Box component="svg" viewBox="0 0 24 24" aria-hidden sx={{ width: 18, height: 18 }}>
+      <path
+        fill="currentColor"
+        d="M6.6 10.8c1.4 2.7 3.6 4.9 6.3 6.3l2.1-2.1c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.5.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.4 21 3 13.6 3 4.5c0-.6.4-1 1-1h3.6c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.5.1.4 0 .8-.2 1L6.6 10.8z"
+      />
     </Box>
   );
 }
