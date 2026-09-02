@@ -91,6 +91,18 @@ itself, and the boundary names defining it "a principal job of the mission".
 - **Consent wording** remains Clint's, from a versioned slot. Build and walk with
   a placeholder in a real slot.
 
+## Carried to W12, not decided yet
+
+- **Quiet hours are not a thing.** Brian, 2026-09-02, in passing while looking
+  at the messaging table. `T11-suppression` names quiet hours among its
+  suppression rules; that half of it is out. He asked to capture it properly at
+  W12 rather than then, so this line exists only so W12 does not re-introduce it.
+- **The recruit ladder is two columns, not a table.** `messaging_schedules` is
+  keyed by `event_type` — practice, game, social — and Mission 6 added
+  `recruit_invitation_lead_days` and `recruit_follow_up_cadence_hours` to it,
+  null on all five rows. Onboarding's cadence fits that grain even less than
+  recruitment's does. **W12's main decision.**
+
 ## Open, and deliberately not assigned
 
 - **Where the season comes from.** The import inherits the roster's current

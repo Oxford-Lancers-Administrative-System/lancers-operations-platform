@@ -237,19 +237,36 @@
     {
       "id": "W9",
       "name": "Pick up a chase that ran out",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {},
+      "approvals": {
+        "spec": {
+          "words": "Yeah, whatever this is, W-9 looks fine, approved.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "Yeah, whatever this is, W-9 looks fine, approved.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        },
+        "acceptance": {
+          "words": "Yeah, whatever this is, W-9 looks fine, approved.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        }
+      },
       "spec": "workflows/W9-pick-up-a-chase-that-ran-out.md"
     },
     {
       "id": "W10",
       "name": "Activate a player",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {},
+      "spec": "workflows/W10-activate-a-player.md"
     },
     {
       "id": "W11",
@@ -1839,5 +1856,5 @@
     ],
     "approval": null
   },
-  "next_action": "W9 — Pick up a chase that ran out: specification drafted and two screens shot; one open decision on what happens to an escalation when nobody holds the configured office."
+  "next_action": "W10 — Activate a player: specification drafted, and the workflow is almost entirely already shipped. No decision is open; the one candidate was raised and withdrawn by Brian in Mission 5 (Q-12)."
 }

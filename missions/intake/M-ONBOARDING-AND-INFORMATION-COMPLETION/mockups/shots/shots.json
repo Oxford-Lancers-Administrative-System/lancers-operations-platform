@@ -185,6 +185,98 @@
       "at": "2026-09-01T19:22:19.269Z"
     },
     {
+      "id": "W10-01",
+      "route": "/operate/roster/b7242a9d-07b8-4bab-8f3b-d0a16657d517",
+      "headSha": "bb540bf7fbd5f0c2822d2087e6ea9b8913e6f634",
+      "slot": "mission-m-onboarding-and-information-completion-3",
+      "proposal": {
+        "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W10-01.js",
+        "sha256": "b382606d084dbbcb166bbe5d1db83ea7220a4100abf283da18c88268bfb730df",
+        "bytes": 25604
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W10-01-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W10-01-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W10-01-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W10-01-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-02T17:21:39.410Z"
+    },
+    {
+      "id": "W10-02",
+      "route": "/operate/roster/b7242a9d-07b8-4bab-8f3b-d0a16657d517",
+      "headSha": "bb540bf7fbd5f0c2822d2087e6ea9b8913e6f634",
+      "slot": "mission-m-onboarding-and-information-completion-3",
+      "proposal": {
+        "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W10-02.js",
+        "sha256": "72ea21524356c3b8c463d813d1f0c8d2fe0e9914fe34f73d4c03ae59d7610ca6",
+        "bytes": 26121
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W10-02-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W10-02-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W10-02-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W10-02-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-02T17:22:06.740Z"
+    },
+    {
       "id": "W2-01",
       "route": "/operate/roster/new",
       "headSha": "6caa2a4bb987d99b736ee2c3a260b83ab345e5db",

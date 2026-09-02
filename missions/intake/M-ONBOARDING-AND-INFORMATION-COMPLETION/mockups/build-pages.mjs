@@ -591,6 +591,47 @@ const WORKFLOWS = [
       ),
     ],
   },
+  {
+    id: "W10",
+    slug: "activate-a-player",
+    name: "Activate a player",
+    grounding: "photograph",
+    lede: `The committee decides somebody is properly part of the team. An operator says so, and they
+      become active. <strong>That is all it is</strong> — and almost all of it already ships.`,
+    legend: [
+      "<strong>The flip ships.</strong> <code>setMembershipStatus</code> exists, the Season section's Status field is an editable select carrying all five statuses, and every flip is written append-only to <code>season_membership_status_events</code>",
+      "<strong>Mission 5 already considered the one thing this workflow might have added, and withdrew it.</strong> From <code>membership.ts</code>'s own header: the transition table was removed on Brian's <code>Q-12</code> decision — \"we can flip to whatever status we want to go in\" — and <em>\"a warn-only confirmation on <code>onboarding → active</code> was proposed and then withdrawn in the same walkthrough\"</em>. That is this exact transition",
+      "<strong>So W10 adds no control.</strong> <code>OD7-activation-flips</code> says the same from this mission's side: activation just flips them to active",
+      "<strong>“Outstanding shown as context” is already true.</strong> The Onboarding section sits directly above the Season section on the same page. Re-presenting it inside the status control would be the withdrawn confirmation wearing a different hat",
+      "<strong>Activation completes, waives and closes nothing.</strong> Every outstanding item stays outstanding and stays chased by W8 — <code>R3</code> makes an active player with an unfinished checklist the <em>normal</em> case",
+      "<strong>Nothing derives it.</strong> W6's \"ready to activate\" is display-only and never flips a membership on its own (<code>R3-C</code>)",
+    ],
+    screens: [
+      P(
+        "W10-01",
+        "Activation, on the control that already ships",
+        `Two things on one page, and neither is new: the checklist, and the status field. The whole
+         design of this workflow is the decision not to put anything between them.`,
+        [
+          "<strong>The context, and it is the page.</strong> Every item and its state, directly above the control — no summary, no confirmation, no repetition inside the dialog",
+          "<strong>The control, unchanged.</strong> The application's own select, carrying the five statuses this record has been able to flip between since <code>Q-12</code> removed the transition table",
+        ],
+        "oxfordlancers.example/operate/roster/b7242a9d",
+      ),
+      P(
+        "W10-02",
+        "Active, with an unfinished checklist",
+        `<code>R3</code>: the normal case, not an exception. The point of this screen is what is
+         <em>absent</em> from it — no warning, no blocked action, nothing flagged.`,
+        [
+          "<strong>Still three of seven, the day after activation.</strong> Becoming active resolved, waived and closed nothing",
+          "<strong>And the alert still names what is outstanding</strong>, in the same words it used while they were onboarding. The chase carries on exactly as it did the day before",
+          "<strong>Active.</strong> The only gate this mission has, and it gates squad membership rather than anything a checklist could withhold",
+        ],
+        "oxfordlancers.example/operate/roster/b7242a9d",
+      ),
+    ],
+  },
 ];
 
 const SHOTS = JSON.parse(readFileSync(path.join(OUT, "shots", "shots.json"), "utf8"));

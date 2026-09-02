@@ -578,66 +578,40 @@
     return label;
   };
 
-  // W6-03 — The activity log: every ask and every answer, individually.
+  // W10-01 — Activation, on the control that already ships.
   //
-  // Owner direction, 2026-09-02: the first draft gave one summary line per
-  // section and "that is just not useful… I want to see the individual items that
-  // come underneath, when it was asked versus when it was received."
+  // This workflow adds nothing to the flip. setMembershipStatus exists, the
+  // Season section's Status field is an editable select carrying all five
+  // statuses, and every flip is written append-only.
   //
-  // So this is the record's own `StatusHistory` markup — the shipped pattern for
-  // a dated log, already on this page — with its entries replaced. Nothing here
-  // is a component the record does not already use.
+  // Mission 5 also already considered the one thing W10 might have added, and
+  // withdrew it — from membership.ts's own header: "a warn-only confirmation on
+  // `onboarding → active` was proposed and then withdrawn in the same
+  // walkthrough". That is this exact transition.
   selectRosterNav();
 
-  const section = historySection();
-  setSectionTitle(section, "Activity · every ask and every answer");
+  const onboarding = onboardingSection();
+  setSectionTitle(onboarding, "Onboarding · 3 of 7 resolved");
 
-  const built = replaceHistory(section, [
-    [
-      "Contact & academic details",
-      "Asked — the welcome",
-      "12 Aug 2026, 09:00 · WhatsApp, delivered",
-    ],
-    [
-      "Contact & academic details",
-      "Asked — follow-up 1",
-      "19 Aug 2026, 09:00 · WhatsApp, delivered",
-    ],
-    [
-      "Contact & academic details",
-      "Answered",
-      "20 Aug 2026, 18:42 · Merrick Thornbury · 6 of 10 fields",
-    ],
-    [
-      "Contact & academic details",
-      "Asked — follow-up 2",
-      "26 Aug 2026, 09:00 · WhatsApp, delivered",
-    ],
-    [
-      "Contact & academic details",
-      "Asked — nudge",
-      "1 Sep 2026, 11:04 · Caspian Hallowfield, by hand",
-    ],
-    ["Code of Conduct", "Asked — the welcome", "12 Aug 2026, 09:00 · WhatsApp, delivered"],
-    ["Code of Conduct", "Agreed", "2 Sep 2026, 19:03 · Merrick Thornbury · version 1"],
-    ["BUCS Play", "Asked — follow-up 3", "29 Aug 2026, 09:00 · WhatsApp, delivered"],
-    ["BUCS Play", "Claimed", "2 Sep 2026, 19:05 · Merrick Thornbury · not yet confirmed"],
-    ["Hudl access", "Invitation sent", "28 Aug 2026, 14:20 · Zenas Yaxlington"],
-    ["Hudl access", "Asked — follow-up 1", "1 Sep 2026, 09:00 · WhatsApp, delivered"],
-  ]);
+  // 1 — the context, and it is the page. The checklist sits directly above the
+  //     status field on the same record; re-presenting it inside the control
+  //     would be the withdrawn confirmation wearing a different hat.
+  mark(onboarding, 1);
 
-  // 1 — one entry per event, asked and answered alike, in the pattern this page
-  //     already uses for status changes.
-  mark(built[0], 1);
-  // 2 — an answer, against the asks above it. Four asks and one partial answer is
-  //     the shape of a real chase, and it is not visible in a summary count.
-  mark(built[2], 2);
-  // 3 — the section that has been asked repeatedly and answered by the player but
-  //     never confirmed by the club. That gap is the one the queue cannot see.
-  mark(built[8], 3);
-  // 4 — and the item whose first half is the club's own: an invitation the club
-  //     sent, before any ask of the player at all.
-  mark(built[9], 4);
+  // 2 — the control, unchanged. Open, showing the five statuses this record has
+  //     always been able to flip between since Q-12 removed the transition table.
+  const season = must($('[data-testid="section-season"]'), "this page has no season section");
+  const status = must(
+    season.querySelector('[data-testid="record-row"][data-label="Status"]'),
+    "the season section has no status row",
+  );
+  const field = must(
+    status.querySelector('[data-testid="editable-field"]'),
+    "the status row is not editable",
+  );
+  field.click();
+  await settle(6);
+  mark(must($$(".MuiMenuItem-root"), "the status control opened no menu")[1].parentElement, 2);
 
   await settle();
 })();

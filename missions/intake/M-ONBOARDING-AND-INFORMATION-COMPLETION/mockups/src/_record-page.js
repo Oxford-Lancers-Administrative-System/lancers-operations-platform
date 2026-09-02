@@ -207,3 +207,21 @@ const addMenuOption = (items, text) => {
   items[items.length - 1].after(option);
   return option;
 };
+
+/**
+ * The membership status, which is a Chip rather than text.
+ *
+ * `setRowStatus` handles the onboarding items, whose status is a plain
+ * underlined body2. The Season section's Status field is a `RecordField` with a
+ * colour chip, so it needs its own setter — `must()` refused W10-02 outright
+ * rather than photograph a row it had not changed.
+ */
+const setMembershipChip = (row, text) => {
+  const body = rowBody(row);
+  const label = must(
+    body.querySelector(".MuiChip-label"),
+    `the ${row.getAttribute("data-label")} row renders no status chip`,
+  );
+  label.textContent = text;
+  return label;
+};
