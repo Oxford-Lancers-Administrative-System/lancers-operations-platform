@@ -286,16 +286,7 @@
     },
     {
       "id": "W11",
-      "name": "Set up this season's checklist",
-      "state": "spec_draft",
-      "stale": false,
-      "feedback": [],
-      "approvals": {},
-      "spec": "workflows/W11-set-up-this-seasons-checklist.md"
-    },
-    {
-      "id": "W12",
-      "name": "Set onboarding's messaging cadence",
+      "name": "Set onboarding's chase",
       "state": "not_started",
       "stale": false,
       "feedback": [],
@@ -446,7 +437,10 @@
         "decision_ids": [
           "OD7-required-no-decline",
           "OD7-no-targeted-ask",
-          "OD7-followup-is-the-form"
+          "OD7-followup-is-the-form",
+          "OD7-checklist-is-fixed",
+          "OD7-four-role-only",
+          "OD7-cadence-is-the-config"
         ]
       }
     ],
@@ -454,36 +448,42 @@
       {
         "id": "R1",
         "source_id": "SRC-task-10",
-        "disposition": "workflow",
+        "disposition": "superseded",
         "reason": "The twelve-item inventory is what an operator configures for a season.",
-        "workflow": "W11",
-        "also_referenced_by": [
-          "W6"
-        ]
+        "superseded_by": "OD7-checklist-is-fixed",
+        "approval": {
+          "words": "We're not taking the individual items and bringing them to operators. Only the core four ever make changes in here. ... It should just define how many times we are going to chase them, how often we are going to chase them, and how long before the chase exhausts. That's it.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        }
       },
       {
         "id": "R1a",
         "source_id": "SRC-task-10",
         "disposition": "workflow",
-        "reason": "Per-item applicability, the subs invoiced/paid split and BPS as a named gate are item-type attributes.",
-        "workflow": "W11"
+        "reason": "The subscription invoiced/paid split is two items in the approved inventory. Applicability as per-season configuration is gone with R1; BPS left the checklist entirely.",
+        "workflow": "W11",
+        "also_referenced_by": []
       },
       {
         "id": "R1b",
         "source_id": "SRC-task-10",
         "disposition": "workflow",
         "reason": "The full checklist regenerates for everyone every season — it's about the president, not the person.",
-        "workflow": "W11"
+        "workflow": "W11",
+        "also_referenced_by": []
       },
       {
         "id": "R2",
         "source_id": "SRC-task-10",
-        "disposition": "workflow",
+        "disposition": "superseded",
         "reason": "Item owners (Kit Manager, compliance owner, GM, Media Secretary, four-role) are per-item configuration.",
-        "workflow": "W11",
-        "also_referenced_by": [
-          "W6"
-        ]
+        "superseded_by": "OD7-four-role-only",
+        "approval": {
+          "words": "We're not taking the individual items and bringing them to operators. Only the core four ever make changes in here. ... It should just define how many times we are going to chase them, how often we are going to chase them, and how long before the chase exhausts. That's it.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        }
       },
       {
         "id": "R2-E",
@@ -509,16 +509,20 @@
         "reason": "Trust completes on the player's word with provenance; verify shows claimed until a named human confirms.",
         "workflow": "W6",
         "also_referenced_by": [
-          "W4",
-          "W11"
+          "W4"
         ]
       },
       {
         "id": "R2-V2",
         "source_id": "SRC-task-10",
-        "disposition": "workflow",
+        "disposition": "superseded",
         "reason": "Which class an item carries is per-season configuration, not code.",
-        "workflow": "W11"
+        "superseded_by": "OD7-checklist-is-fixed",
+        "approval": {
+          "words": "We're not taking the individual items and bringing them to operators. Only the core four ever make changes in here. ... It should just define how many times we are going to chase them, how often we are going to chase them, and how long before the chase exhausts. That's it.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        }
       },
       {
         "id": "R3",
@@ -542,8 +546,7 @@
         "workflow": "W6",
         "also_referenced_by": [
           "W4",
-          "W10",
-          "W11"
+          "W10"
         ]
       },
       {
@@ -596,7 +599,8 @@
         "source_id": "SRC-task-10",
         "disposition": "workflow",
         "reason": "The kit returner carve-out is removed: formalwear is a seasonal fact reasked every season.",
-        "workflow": "W11"
+        "workflow": "W11",
+        "also_referenced_by": []
       },
       {
         "id": "T10-A2",
@@ -637,7 +641,8 @@
         "source_id": "SRC-task-10",
         "disposition": "workflow",
         "reason": "An empty configuration reads as season not configured; an item type added mid-season backfills as pending onto everyone.",
-        "workflow": "W11"
+        "workflow": "W11",
+        "also_referenced_by": []
       },
       {
         "id": "T10-activity-log",
@@ -695,7 +700,7 @@
         "source_id": "SRC-task-11",
         "disposition": "workflow",
         "reason": "The standing outstanding-items condition and its bounded automated cadence during the onboarding window.",
-        "workflow": "W12"
+        "workflow": "W11"
       },
       {
         "id": "M5",
@@ -735,14 +740,14 @@
         "source_id": "SRC-task-11",
         "disposition": "workflow",
         "reason": "The cadence, gap and cap values, provisional defaults restated at implementation.",
-        "workflow": "W12"
+        "workflow": "W11"
       },
       {
         "id": "T11-cap-delivered",
         "source_id": "SRC-task-11",
         "disposition": "workflow",
         "reason": "The cap counts only notifications known to have arrived; failures route to the failure path and consume nothing.",
-        "workflow": "W12",
+        "workflow": "W11",
         "also_referenced_by": [
           "W8"
         ]
@@ -752,7 +757,7 @@
         "source_id": "SRC-task-11",
         "disposition": "workflow",
         "reason": "An arriving submission clears pending follow-ups; a partial submission resets the timer but never the cap; quiet hours apply.",
-        "workflow": "W12"
+        "workflow": "W11"
       },
       {
         "id": "T11-batch-nudge",
@@ -1109,7 +1114,7 @@
         "source_id": "SRC-portfolio-row-7",
         "disposition": "workflow",
         "reason": "Nudges and the bounded chase ending in exhausted — human follow-up.",
-        "workflow": "W12",
+        "workflow": "W11",
         "also_referenced_by": [
           "W8",
           "W9"
@@ -1264,7 +1269,7 @@
         "source_id": "SRC-owner-2026-09-01",
         "disposition": "workflow",
         "reason": "Onboarding gets its own cadence beside the recruit ladder on the messaging page.",
-        "workflow": "W12"
+        "workflow": "W11"
       },
       {
         "id": "OD7-flip-workflow",
@@ -1307,6 +1312,27 @@
         "disposition": "workflow",
         "workflow": "W5",
         "reason": "The follow-up is the same form carrying everything the club holds, editable. Changing a value there is the player's prerogative; anything else the club changes by its own means."
+      },
+      {
+        "id": "OD7-checklist-is-fixed",
+        "source_id": "SRC-owner-2026-09-02",
+        "disposition": "workflow",
+        "workflow": "W11",
+        "reason": "The checklist is the approved item-and-ask inventory. Nobody configures which items exist, per season or otherwise."
+      },
+      {
+        "id": "OD7-four-role-only",
+        "source_id": "SRC-owner-2026-09-02",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "Only the four-role group ever resolves an item. There are no per-item owners in the system; a kit manager who needs to hand out kit goes and does it."
+      },
+      {
+        "id": "OD7-cadence-is-the-config",
+        "source_id": "SRC-owner-2026-09-02",
+        "disposition": "workflow",
+        "workflow": "W11",
+        "reason": "What is configured is how many times the club chases, how often, and how long before the chase exhausts. That is the whole of it."
       }
     ]
   },
@@ -1564,7 +1590,7 @@
         "name": "Onboarding's own cadence, caps and suppression",
         "belongs": "Task 11 §3 commits bounded automation then a human; Brian, 2026-09-01: onboarding gets its own on the messaging page.",
         "disposition": "workflow",
-        "workflow": "W12",
+        "workflow": "W11",
         "implementation": "modified",
         "reason": "Mission 6 added the recruit ladder to the messaging schedule; onboarding's rows sit beside it rather than in a new surface.",
         "baseline": "messaging_schedules and src/app/operate/admin/messaging, main@332bc6b"
@@ -1873,5 +1899,5 @@
     ],
     "approval": null
   },
-  "next_action": "W11 — Set up this season checklist: specification drafted and two screens shot; two open decisions, on what replaces the Required chip and the outstanding alert, and on where the configuration page lives."
+  "next_action": "Draft W12 — the onboarding checklist and its chase: how many times, how often, and how long before it exhausts. W11 was folded into it on 2026-09-02."
 }

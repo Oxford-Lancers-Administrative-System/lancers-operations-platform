@@ -119,7 +119,7 @@ are flipped they are not a recruit any more.
 | Firing `onboarding-opened` inside the flip's transaction              | **W3**   |
 | The welcome, the form, the compiled ask, one-open-request, its states | **W4**   |
 | The trigger set, the queue, the nudge — single and batch              | **W8**   |
-| Cadence, gap, cap, suppression                                        | **W12**  |
+| Cadence, gap, cap, suppression                                        | **W11**  |
 | Which items exist this season, and how each is verified               | **W11**  |
 | The record, per-item provenance and the activity log                  | **W6**   |
 

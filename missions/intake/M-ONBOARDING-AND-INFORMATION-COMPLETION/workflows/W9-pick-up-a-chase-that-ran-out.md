@@ -54,7 +54,7 @@ year. An escalation addressed to a person stops working the day they hand over,
 and does so silently — which is the worst possible failure for the one message
 that exists to catch what everything else missed.
 
-The office is configuration, and the surface that sets it is **`W12`**'s
+The office is configuration, and the surface that sets it is **`W11`**'s
 alongside the cadence, the gap and the cap.
 
 ## What "exhausted" means exactly
@@ -98,7 +98,7 @@ need software to have a conversation.
 | ---------- | --------------------------------------------------------------------------- |
 | `W8`       | The queue the link lands on, and the nudge that restarts a chase           |
 | `W6`       | The recorded follow-up, onto the person's sectioned activity log           |
-| `W12`      | The configured office, the cap, and the gap this workflow reports against  |
+| `W11`      | The configured office, the cap, and the gap this workflow reports against  |
 | Mission 4  | Transport for the escalation itself, and the delivery states behind the cap |
 | Mission 10 | The Monday report surfaces exhausted chases; it does not own them          |
 
@@ -153,7 +153,7 @@ Grounding: **screenshots**.
 | --------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------ | -------- |
 | The escalation carries a count and a link, never names              | locked                          | `T11-escalation-personal-data-free`                                                            | settled  |
 | The target is a configured office, initial value President          | locked                          | `T11-escalation-target`; presidents change and a person-addressed escalation fails silently    | settled  |
-| The office is configured on `W12`'s surface                         | locked                          | It sits with the cadence, gap and cap                                                          | settled  |
+| The office is configured on `W11`'s surface                         | locked                          | It sits with the cadence, gap and cap                                                          | settled  |
 | The chase stops permanently and only a human restarts it            | locked                          | `R4-T`; the restart is `W8`'s nudge, outside the cap                                           | settled  |
 | Exhaustion removes nobody and changes no standing                   | locked                          | `R3-G`; the boundary's "no automated timeout ever removes anybody"                             | settled  |
 | The human's own contact is recorded on the person's log             | locked                          | `S31`, `T10-activity-log`                                                                      | settled  |

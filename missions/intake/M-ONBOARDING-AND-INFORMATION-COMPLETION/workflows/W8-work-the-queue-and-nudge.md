@@ -109,7 +109,7 @@ durable credential per person per season.
 | `W4`, `W5`  | The compiled ask a nudge sends, and whatever comes back                |
 | `W6`        | Every nudge, onto the person's activity log, attributed to the operator |
 | `W9`        | A chase that has run out, which is that workflow's own trigger          |
-| `W12`       | The cadence, the gap and the cap this screen reports against            |
+| `W11`       | The cadence, the gap and the cap this screen reports against            |
 | Mission 4   | Transport: the pipeline, the templates, the delivery states, the cap counting |
 | Mission 5   | The queue itself, its sorting and its missing-data summary              |
 | Mission 10  | The Monday report reads this; it does not own it                        |

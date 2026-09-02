@@ -350,7 +350,7 @@ release complete on the player's confirmation. BUCS Play and Hudl go to
 | `W7`      | A submitted value that contradicts an operator-confirmed, verified or derived one → `disputed`        |
 | `W8`      | What is still outstanding after submit is what the queue ranks and the chase asks for next            |
 | `W11`     | Which items exist, their labels and their verification class, all read rather than decided here       |
-| `W12`     | The cadence the follow-ups run to                                                                     |
+| `W11`     | The cadence the follow-ups run to                                                                     |
 | Mission 4 | The welcome and every follow-up ride the pipeline, template-only. Nothing here sends anything by hand |
 | Mission 8 | The wording in the consent, Code of Conduct and photo-release slots                                   |
 
