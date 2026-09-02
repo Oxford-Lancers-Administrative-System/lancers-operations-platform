@@ -141,10 +141,16 @@ function reservedModules(size: number, version: number): boolean[][] {
 }
 
 /**
- * Reads a matrix back to the UTF-8 text that produced it — byte mode, level
- * L, mask 0 only, matching the whole of what `qr-matrix.ts` ever emits.
+ * Walks the matrix's own zigzag order and undoes mask 0 — the part of
+ * reading a symbol that is identical whether the codewords turn out to be
+ * data or padding. Split out so the round-trip decoder and the stronger,
+ * whole-codeword check below (F-LAN204-CORR1-009) both start from the same
+ * independently-derived bits without duplicating the walk.
  */
-function decodeQrMatrixByteMode(matrix: QrMatrix): string {
+function readMatrixCodewords(matrix: QrMatrix): {
+  dataCodewords: number[];
+  eccCodewords: number[];
+} {
   const { size, modules } = matrix;
   const version = versionForSize(size);
   const dataCodewordCount = DATA_CODEWORDS_BY_VERSION[version];
@@ -174,18 +180,42 @@ function decodeQrMatrixByteMode(matrix: QrMatrix): string {
   const totalCodewords = dataCodewordCount + eccCodewordCount;
   const codewords: number[] = [];
   for (let i = 0; i < totalCodewords; i++) codewords.push(byteAt(i));
-  const dataCodewords = codewords.slice(0, dataCodewordCount);
-  const eccCodewords = codewords.slice(dataCodewordCount);
+  return {
+    dataCodewords: codewords.slice(0, dataCodewordCount),
+    eccCodewords: codewords.slice(dataCodewordCount),
+  };
+}
 
-  // The check this module's own decoder-less test suite never made: are the
-  // stored ECC codewords actually what Reed–Solomon says these exact data
-  // codewords should carry? A real scanner refuses the whole symbol the
-  // moment this disagrees by more than the code can correct — which is
-  // exactly what happened when a padding bug left the message bytes intact
-  // but every codeword after them wrong (F-LAN204-002): this assertion is
-  // sensitive to that class of bug even though the message prefix alone is
-  // not.
-  const expectedEcc = expectedEccCodewords(dataCodewords, eccCodewordCount);
+/**
+ * Reads a matrix back to the UTF-8 text that produced it — byte mode, level
+ * L, mask 0 only, matching the whole of what `qr-matrix.ts` ever emits.
+ *
+ * F-LAN204-CORR1-009: this function is **not** the round-trip's real proof
+ * against the terminator/padding-ordering defect (F-LAN204-002) —
+ * `payloadEqualsExpectedDataCodewords` below is. It reads exactly the bytes
+ * the payload occupies (`dataCodewords[0]` through the byte the last
+ * payload character's low nibble sits in), which for a short payload sit
+ * entirely before the first codeword the ordering bug actually corrupts:
+ * the terminator's own zero bits and the boundary padding's zero bits
+ * happen to coincide, byte for byte, in that one shared byte regardless of
+ * which order produced them, so the text this function returns is
+ * identical whether the bug is present or not. The RS-consistency check
+ * just below is blind to the same defect for an unrelated reason:
+ * `rsEncode` computes valid parity for *whatever* data codewords it is
+ * given, buggy or not, so a self-consistent but wrong data sequence still
+ * passes it. Both checks are kept — a decoder needs exactly this
+ * text-recovery behaviour, and RS-consistency is still the property a real
+ * scanner's own error correction depends on — but this file's actual proof
+ * against F-LAN204-002's defect class is the whole-codeword comparison
+ * below, not this string.
+ */
+function decodeQrMatrixByteMode(matrix: QrMatrix): string {
+  const { dataCodewords, eccCodewords } = readMatrixCodewords(matrix);
+
+  // Are the stored ECC codewords actually what Reed–Solomon says these
+  // exact data codewords should carry? A real scanner refuses the whole
+  // symbol the moment this disagrees by more than the code can correct.
+  const expectedEcc = expectedEccCodewords(dataCodewords, eccCodewords.length);
   if (!expectedEcc.every((byte, i) => byte === eccCodewords[i])) {
     throw new Error(
       `Reed-Solomon mismatch: the stored codewords are not internally consistent. ` +
@@ -209,6 +239,57 @@ function decodeQrMatrixByteMode(matrix: QrMatrix): string {
     payload[i] = (hi << 4) | lo;
   }
   return new TextDecoder().decode(payload);
+}
+
+/**
+ * The full data-codeword sequence a correct encoder must produce for
+ * `text` — mode nibble, character count, payload bytes, the terminator (up
+ * to 4 zero bits, added *before* rounding to the next byte boundary, never
+ * past capacity), then alternating `0xEC`/`0x11` padding bytes out to
+ * `totalDataCodewords`. Written from scratch against the standard's own
+ * clause order, independently of `qr-matrix.ts`'s `BitWriter` — sharing its
+ * bug would need this test and the module under test to independently make
+ * the identical ordering mistake, which is what an independent proof means.
+ *
+ * F-LAN204-CORR1-009: this closes the gap `decodeQrMatrixByteMode`'s own
+ * doc comment names. F-LAN204-002's defect (rounding to a byte boundary
+ * *before* the terminator, rather than after) leaves every payload byte
+ * untouched and still produces internally-consistent Reed–Solomon parity —
+ * so a bug confined to *how many bytes of padding follow the payload, and
+ * what they contain* is invisible to both of those checks. Comparing the
+ * grid's actual data codewords against this independently-reconstructed
+ * expectation, byte for byte, is sensitive to exactly that: reintroducing
+ * the defect shifts every codeword from the terminator onward, which this
+ * comparison catches immediately where the round-trip and RS checks do not.
+ */
+function expectedDataCodewords(text: string, totalDataCodewords: number): number[] {
+  const bytes = Array.from(new TextEncoder().encode(text));
+  const bits: number[] = [];
+  const pushBits = (value: number, length: number) => {
+    for (let i = length - 1; i >= 0; i--) bits.push((value >>> i) & 1);
+  };
+  pushBits(0b0100, 4); // byte mode indicator
+  pushBits(bytes.length, 8); // character count indicator, versions 1-9
+  for (const byte of bytes) pushBits(byte, 8);
+
+  const capacityBits = totalDataCodewords * 8;
+  // Terminator first — up to 4 zero bits, never past capacity...
+  for (let i = 0; i < 4 && bits.length < capacityBits; i++) bits.push(0);
+  // ...THEN round up to the next byte boundary. Reversing this order is
+  // exactly F-LAN204-002's own defect, restated independently here rather
+  // than imported from the module under test.
+  while (bits.length % 8 !== 0) bits.push(0);
+
+  const codewords: number[] = [];
+  for (let i = 0; i < bits.length; i += 8) {
+    let byte = 0;
+    for (let j = 0; j < 8; j++) byte = (byte << 1) | bits[i + j];
+    codewords.push(byte);
+  }
+  const PAD = [0xec, 0x11];
+  let padIndex = 0;
+  while (codewords.length < totalDataCodewords) codewords.push(PAD[padIndex++ % 2]);
+  return codewords;
 }
 
 describe("buildQrMatrix", () => {
@@ -312,31 +393,46 @@ describe("buildQrMatrix", () => {
     expect(value).toBe(0x77c4);
   });
 
+  /**
+   * Asserts both what a decoder needs (the text round-trips) and what
+   * `decodeQrMatrixByteMode`'s own doc comment says that alone cannot prove
+   * (F-LAN204-CORR1-009): that the grid's actual data codewords, past the
+   * payload and into the terminator and padding, match byte for byte what
+   * `expectedDataCodewords` independently reconstructs from the same text.
+   */
+  function expectRoundTrip(text: string, label = text): void {
+    const matrix = buildQrMatrix(text);
+    expect(decodeQrMatrixByteMode(matrix), label).toBe(text);
+    const version = versionForSize(matrix.size);
+    const { dataCodewords } = readMatrixCodewords(matrix);
+    expect(dataCodewords, `${label} — full data-codeword sequence`).toEqual(
+      expectedDataCodewords(text, DATA_CODEWORDS_BY_VERSION[version]),
+    );
+  }
+
   describe("decodeQrMatrixByteMode — an independent reader, not this module's own placement code", () => {
-    it("round-trips a two-character string (version 1, the case F-LAN204-002 failed on)", () => {
-      expect(decodeQrMatrixByteMode(buildQrMatrix("HI"))).toBe("HI");
+    it("round-trips a two-character string, AND matches the exact expected codeword sequence (version 1, the case F-LAN204-002 failed on)", () => {
+      expectRoundTrip("HI");
     });
 
     it("round-trips the shortest possible payload", () => {
-      expect(decodeQrMatrixByteMode(buildQrMatrix("A"))).toBe("A");
+      expectRoundTrip("A");
     });
 
-    it("round-trips every byte length from 1 to 106 — every version and every terminator/padding phase", () => {
+    it("round-trips every byte length from 1 to 106 — every version and every terminator/padding phase — matching the exact expected codeword sequence each time", () => {
       for (let length = 1; length <= 106; length++) {
-        const text = "A".repeat(length);
-        expect(decodeQrMatrixByteMode(buildQrMatrix(text)), `length ${length}`).toBe(text);
+        expectRoundTrip("A".repeat(length), `length ${length}`);
       }
     });
 
     it("round-trips the real shape of a season sign-up URL", () => {
-      const url = "http://127.0.0.1:3101/join/vtWKurCWzGCj";
-      expect(decodeQrMatrixByteMode(buildQrMatrix(url))).toBe(url);
+      expectRoundTrip("http://127.0.0.1:3101/join/vtWKurCWzGCj");
     });
 
     it("round-trips a URL long enough to need version 3", () => {
       const url = "https://lancers.example.org/join/AbCdEfGhIjKl12";
       expect(buildQrMatrix(url).size).toBe(29); // version 3, per the sizing test above
-      expect(decodeQrMatrixByteMode(buildQrMatrix(url))).toBe(url);
+      expectRoundTrip(url);
     });
   });
 
