@@ -1899,7 +1899,11 @@
         "change": "Append a dated note recording that the flagged/unflagged tracking distinction is dropped: every onboarding item counts equally and the queue ranks by everything outstanding, with subs paid carried by due-timing instead. R3-G's governing half, that nothing gates, is untouched.",
         "reason": "The flag's only observable effects were the outstanding total and the queue ranking. Brian dropped it on 2026-09-01 rather than keep a per-item configuration nobody could describe the purpose of.",
         "status": "applied_verified",
-        "applied_on": "2026-09-02"
+        "verification": {
+          "page": "https://app.notion.com/p/3bd488886d5781078f48f13a47c529c6",
+          "refetched_at": "2026-09-02T18:40:11Z",
+          "evidence": "Note 1 of the 2026-09-02 callout is present on the Task 10 brief: the tracking flag is dropped and R3-G's display-flag half superseded, its governing half untouched. Nothing above the callout was rewritten."
+        }
       },
       {
         "id": "A2",
@@ -1907,7 +1911,11 @@
         "change": "Remove the role-appropriate coach and committee welcome flow from this row's scope; coaches and committee get their own flows in their own missions.",
         "reason": "Brian, 2026-09-01: onboarding is onboarding a player onto the team, and a coach is not on the roster. The row names the coach welcome flow as built here, so it drifts from the approved boundary until amended.",
         "status": "applied_verified",
-        "applied_on": "2026-09-02"
+        "verification": {
+          "page": "https://app.notion.com/p/3bb488886d578126a88cdd747f590a01",
+          "refetched_at": "2026-09-02T18:41:37Z",
+          "evidence": "Portfolio row 7 now reads the coach/committee welcome flow as struck through and \"removed 2026-09-02\", row 9 owns it, and the dated callout is present at the foot of the page."
+        }
       },
       {
         "id": "A3",
@@ -1915,7 +1923,11 @@
         "change": "Append a dated note that BPS leaves the onboarding checklist and becomes a yes/no attribute on the roster, added by this mission.",
         "reason": "A scout found no player-facing step for BPS anywhere; it is a coaching selection decision, and on a checklist that regenerates for everyone it would show outstanding against players never in the scheme.",
         "status": "applied_verified",
-        "applied_on": "2026-09-02"
+        "verification": {
+          "page": "https://app.notion.com/p/3bd488886d5781078f48f13a47c529c6",
+          "refetched_at": "2026-09-02T18:40:11Z",
+          "evidence": "Note 2 of the 2026-09-02 callout is present: BPS leaves the checklist and becomes a roster attribute."
+        }
       },
       {
         "id": "A4",
@@ -1923,7 +1935,11 @@
         "change": "Append a dated note that the photo release is seasonal, asked of everyone every season, with its returner carve-out removed as kit's already was.",
         "reason": "Brian, 2026-09-01. Hudl keeps its carve-out because Hudl access persists until revoked, which is a different underlying fact rather than an inconsistency.",
         "status": "applied_verified",
-        "applied_on": "2026-09-02"
+        "verification": {
+          "page": "https://app.notion.com/p/3bd488886d5781078f48f13a47c529c6",
+          "refetched_at": "2026-09-02T18:40:11Z",
+          "evidence": "Note 3 of the 2026-09-02 callout is present: item 11's returner carve-out is removed and the photo release is seasonal."
+        }
       },
       {
         "id": "A5",
@@ -1931,7 +1947,11 @@
         "change": "Record that the checklist is not configured per season; it is the approved item-and-ask inventory.",
         "reason": "Brian, 2026-09-02.",
         "status": "applied_verified",
-        "applied_on": "2026-09-02"
+        "verification": {
+          "page": "https://app.notion.com/p/3bd488886d5781078f48f13a47c529c6",
+          "refetched_at": "2026-09-02T18:40:11Z",
+          "evidence": "Note 4 of the 2026-09-02 callout is present: R1 superseded, the checklist is not configured per season."
+        }
       },
       {
         "id": "A6",
@@ -1939,7 +1959,11 @@
         "change": "Record that there are no per-item owners; only the four-role group resolves anything.",
         "reason": "Brian, 2026-09-02.",
         "status": "applied_verified",
-        "applied_on": "2026-09-02"
+        "verification": {
+          "page": "https://app.notion.com/p/3bd488886d5781078f48f13a47c529c6",
+          "refetched_at": "2026-09-02T18:40:11Z",
+          "evidence": "Note 5 of the 2026-09-02 callout is present: R2 superseded, no per-item owners."
+        }
       },
       {
         "id": "A7",
@@ -1947,7 +1971,11 @@
         "change": "Record that verification class is a property of the item rather than per-season configuration; the behaviour survives.",
         "reason": "Brian, 2026-09-02.",
         "status": "applied_verified",
-        "applied_on": "2026-09-02"
+        "verification": {
+          "page": "https://app.notion.com/p/3bd488886d5781078f48f13a47c529c6",
+          "refetched_at": "2026-09-02T18:40:11Z",
+          "evidence": "Note 6 of the 2026-09-02 callout is present: R2-V2 superseded, verification class is a property of the item and the behaviour survives."
+        }
       },
       {
         "id": "A8",
@@ -1955,7 +1983,11 @@
         "change": "Record that per-fact refusal is withdrawn; required facts must be given.",
         "reason": "Brian, 2026-09-02.",
         "status": "applied_verified",
-        "applied_on": "2026-09-02"
+        "verification": {
+          "page": "https://app.notion.com/p/3bd488886d578157b520db77cf5ca50c",
+          "refetched_at": "2026-09-02T18:40:31Z",
+          "evidence": "Note 1 of the 2026-09-02 callout is present on the Task 11 brief: per-fact refused is withdrawn and the required set named."
+        }
       },
       {
         "id": "A9",
@@ -1963,7 +1995,11 @@
         "change": "Record that the system never generates a one-fact ask; there are no quiet hours; the cadence is three values with no separate give-up date; the escalation office is read from roles rather than configured.",
         "reason": "Brian, 2026-09-02.",
         "status": "applied_verified",
-        "applied_on": "2026-09-02"
+        "verification": {
+          "page": "https://app.notion.com/p/3bd488886d578157b520db77cf5ca50c",
+          "refetched_at": "2026-09-02T18:40:31Z",
+          "evidence": "Notes 2 to 5 of the 2026-09-02 callout are present: no system-generated one-fact ask, no quiet hours, the three-value cadence with no separate give-up date, and the escalation office read from roles."
+        }
       }
     ],
     "approval": {
@@ -1971,30 +2007,7 @@
       "date": "2026-09-02",
       "by": "Brian Schuster",
       "shown_as": "A nine-item batch presented in full before any edit: the four already queued plus five supersessions that arose during the workflow stage."
-    },
-    "proof": [
-      {
-        "target": "Task 10 brief",
-        "url": "https://app.notion.com/p/3bd488886d5781078f48f13a47c529c6",
-        "method": "dated callout appended, append-only",
-        "refetched_at": "2026-09-02T18:40:11Z",
-        "verified": "The 2026-09-02 owner-amendment callout is present with all six notes; nothing above it was rewritten."
-      },
-      {
-        "target": "Task 11 brief",
-        "url": "https://app.notion.com/p/3bd488886d578157b520db77cf5ca50c",
-        "method": "dated callout appended, append-only",
-        "refetched_at": "2026-09-02T18:40:31Z",
-        "verified": "The 2026-09-02 owner-amendment callout is present with all five notes; nothing above it was rewritten."
-      },
-      {
-        "target": "Release One Mission Portfolio v2, rows 7 and 9",
-        "url": "https://app.notion.com/p/3bb488886d578126a88cdd747f590a01",
-        "method": "two scope cells corrected with the old wording struck through, plus a dated callout appended",
-        "refetched_at": "2026-09-02T18:41:37Z",
-        "verified": "Row 7 no longer claims the coach welcome flow is built in this mission; row 9 now owns it. The dated note is present."
-      }
-    ]
+    }
   },
   "next_action": "Amendments applied and verified. Remaining before the PR: split scripts/intake/lib/hub.mjs onto its own branch, then open the intake-only draft PR."
 }
