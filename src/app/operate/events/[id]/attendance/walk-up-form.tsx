@@ -18,6 +18,7 @@ import {
   WALK_UP_HEADLINE,
   WALK_UP_PHONE_LABEL,
   WALK_UP_RECONCILIATION_NOTE,
+  WALK_UP_SEND_NOTE,
   WALK_UP_SUBMIT,
 } from "./presentation";
 
@@ -51,9 +52,21 @@ import {
  *
  * ## What it creates
  *
- * A person, their contact points, and a **recruitment prospect** — see
- * `recordWalkUpAttendance`. Not a season membership: they are not on the team,
- * which is what made them a walk-on.
+ * A person, their contact points, a **recruitment prospect**, granted
+ * `walk_up_read_back` consent for the season, and the recruitment cycle's
+ * declared jobs — see `recordWalkUpAttendance`. Not a season membership: they
+ * are not on the team, which is what made them a walk-up. ("Walk-on" above is
+ * this screen's own history; Brian locked *walk-up* as the word on
+ * 2026-08-31, and every label on the form now uses it.)
+ *
+ * ## The one message this now sends — LAN-205, 2026-09-01
+ *
+ * Saving is also the touchline's whole consent act: the phone number just
+ * typed is read back aloud, and pressing save is what turns that read-back
+ * into a granted, season-scoped consent and one WhatsApp send — the signed,
+ * prefilled link to the sign-up form, never a second template. `WALK_UP_SEND_NOTE`
+ * says so on the form, because a save with a real-world consequence this
+ * direct should not be silent about having one.
  */
 export function WalkUpForm({ eventId }: { eventId: string }) {
   const [state, formAction, pending] = useActionState(recordWalkUpAction, EMPTY_WALK_UP_STATE);
@@ -74,6 +87,10 @@ export function WalkUpForm({ eventId }: { eventId: string }) {
 
         <Alert severity="warning" data-testid="walk-up-reconciliation-note">
           <Typography variant="body2">{WALK_UP_RECONCILIATION_NOTE}</Typography>
+        </Alert>
+
+        <Alert severity="info" data-testid="walk-up-send-note">
+          <Typography variant="body2">{WALK_UP_SEND_NOTE}</Typography>
         </Alert>
 
         {state.error ? (

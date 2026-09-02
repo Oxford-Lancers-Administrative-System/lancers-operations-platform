@@ -157,30 +157,27 @@ async function incompleteRecruit(status: string = "identified"): Promise<string>
   return personId;
 }
 
-/** A recruit with a full welcome-track completing set: name and a mobile. */
+/**
+ * A recruit who has already been through the sign-up form — welcome-track
+ * complete. LAN-205 corrected the completing fact from "name and mobile on
+ * file" to "granted via `qr_self_entry`", so this fixture now grants
+ * consent that way directly rather than merely writing a phone number —
+ * making the fixture's premise the actual fact the production code reads,
+ * not a proxy for it.
+ */
 async function completeWelcomeRecruit(status: string = "identified"): Promise<string> {
   const personId = await incompleteRecruit(status);
-  await withTransaction((tx) =>
-    tx.query(
-      `insert into public.contact_points
-         (person_id, kind, scope, raw_value, is_preferred, source, valid_from)
-       values ($1::uuid, 'phone', null, $2, true, 'other', current_date)`,
-      [personId, uniquePhone()],
-    ),
-  );
+  await grantConsent(personId);
   return personId;
 }
 
 /**
- * A recruit whose family name is never supplied — the welcome track stays
- * incomplete (`readRecruitmentCycleCompletionIn` requires given name,
- * family name *and* mobile) even once `addMobile` runs on its own below.
- * `dispatchRecruitmentCycleJob`'s own completion re-check (LAN-203 fix,
- * Brian 2026-09-01) means a job declared while missing *only* a mobile
- * would, once that mobile arrives, read as complete and be skipped rather
- * than sent — the fixture `incompleteRecruit` cannot exercise an accepted
- * dispatch once a mobile is added post-declaration, so the two tests below
- * that need a real send after a later `addMobile` use this shape instead.
+ * A recruit with no contact point at all — used with {@link grantConsentViaWalkUp}
+ * so the welcome track stays incomplete (LAN-205: completion now reads the
+ * consent source, never name or mobile) while `addMobile` below adds the
+ * number dispatch actually needs. Family name is left unsupplied only
+ * because `incompleteRecruit` already shapes that; it plays no part in
+ * completion any more.
  */
 async function firstNameOnlyRecruit(status: string = "identified"): Promise<string> {
   const person = await withTransaction((tx) =>
@@ -211,8 +208,34 @@ async function addMobile(personId: string): Promise<void> {
   );
 }
 
+/** Grants consent the way the sign-up form does — the completing fact for the welcome track. */
 async function grantConsent(personId: string): Promise<void> {
   await withTransaction((tx) => grantSeasonMessagingConsentIn(tx, personId, seasonId));
+}
+
+/**
+ * Grants consent the way an operator door does — LAN-205's walk-up
+ * read-back, or LAN-206's operator-add. `messaging-consent.ts` never writes
+ * this source (see its own module note), so this raw insert stands in for
+ * the write those packages own, exactly as `recordWalkUpAttendance` does in
+ * production.
+ *
+ * Authorizes a send the same as {@link grantConsent}, but — unlike it — does
+ * **not** complete the welcome track: the recruit has not been through the
+ * sign-up form, only had these details taken down by an operator, which is
+ * the exact distinction LAN-205 found `readRecruitmentCycleCompletionIn`
+ * failing to draw.
+ */
+async function grantConsentViaWalkUp(personId: string): Promise<void> {
+  await withTransaction((tx) =>
+    tx.query(
+      `insert into public.season_messaging_consents (person_id, season_id, state, source, changed_at)
+       values ($1::uuid, $2::uuid, 'granted', 'walk_up_read_back', now())
+       on conflict (person_id, season_id) do update
+         set state = 'granted', source = excluded.source, changed_at = now()`,
+      [personId, seasonId],
+    ),
+  );
 }
 
 async function prospectIdFor(personId: string): Promise<string> {
@@ -249,24 +272,41 @@ async function jobsFor(personId: string): Promise<{ idempotency_key: string; sta
 }
 
 describe("readRecruitmentCycleCompletionIn", () => {
-  it("reads welcomeStepComplete false with no mobile, true once one exists", async () => {
+  it("reads welcomeStepComplete false with no consent granted, true once granted via the sign-up form", async () => {
     const personId = await incompleteRecruit();
     const before = await withTransaction((tx) =>
-      readRecruitmentCycleCompletionIn(tx, personId, null),
+      readRecruitmentCycleCompletionIn(tx, personId, seasonId, null),
     );
     expect(before.welcomeStepComplete).toBe(false);
 
+    await grantConsent(personId);
+    const after = await withTransaction((tx) =>
+      readRecruitmentCycleCompletionIn(tx, personId, seasonId, null),
+    );
+    expect(after.welcomeStepComplete).toBe(true);
+  });
+
+  it("reads welcomeStepComplete false for consent granted via an operator read-back — LAN-205", async () => {
+    // A walk-up or operator-add capture writes name and mobile directly and
+    // grants consent from the read-back, never from the recruit's own hand
+    // on the sign-up form. The defect this guards: the old completing set
+    // (name + mobile on file) went true the instant that write landed,
+    // sending the wrong template — see the module note on
+    // `RecruitmentCycleCompletion.welcomeStepComplete`.
+    const personId = await incompleteRecruit();
     await withTransaction((tx) =>
       tx.query(
         `insert into public.contact_points (person_id, kind, scope, raw_value, is_preferred, source, valid_from)
-         values ($1::uuid, 'phone', null, $2, true, 'other', current_date)`,
+         values ($1::uuid, 'phone', null, $2, true, 'walk-on attendance', current_date)`,
         [personId, uniquePhone()],
       ),
     );
-    const after = await withTransaction((tx) =>
-      readRecruitmentCycleCompletionIn(tx, personId, null),
+    await grantConsentViaWalkUp(personId);
+
+    const completion = await withTransaction((tx) =>
+      readRecruitmentCycleCompletionIn(tx, personId, seasonId, null),
     );
-    expect(after.welcomeStepComplete).toBe(true);
+    expect(completion.welcomeStepComplete).toBe(false);
   });
 
   it("reads questionnaireBComplete only once B1-B5 are all answered directly — B6 never counts", async () => {
@@ -274,20 +314,20 @@ describe("readRecruitmentCycleCompletionIn", () => {
     const prospectId = await prospectIdFor(personId);
 
     const none = await withTransaction((tx) =>
-      readRecruitmentCycleCompletionIn(tx, personId, prospectId),
+      readRecruitmentCycleCompletionIn(tx, personId, seasonId, prospectId),
     );
     expect(none.questionnaireBComplete).toBe(false);
 
     // B6 alone never completes it, however many times it is answered.
     await answerQuestionnaireB(prospectId, ["B6"]);
     const b6Only = await withTransaction((tx) =>
-      readRecruitmentCycleCompletionIn(tx, personId, prospectId),
+      readRecruitmentCycleCompletionIn(tx, personId, seasonId, prospectId),
     );
     expect(b6Only.questionnaireBComplete).toBe(false);
 
     await answerQuestionnaireB(prospectId, QUESTIONNAIRE_B_COMPLETING_CODES);
     const complete = await withTransaction((tx) =>
-      readRecruitmentCycleCompletionIn(tx, personId, prospectId),
+      readRecruitmentCycleCompletionIn(tx, personId, seasonId, prospectId),
     );
     expect(complete.questionnaireBComplete).toBe(true);
   });
@@ -315,7 +355,9 @@ describe("declareRecruitmentCycleJobsIn", () => {
 
   it("creates the welcome track only, for a recruit missing the welcome completing set with an answered questionnaire", async () => {
     const personId = await incompleteRecruit();
-    await grantConsent(personId);
+    // An operator read-back grant, not the sign-up form — the welcome track
+    // must stay incomplete despite consent being granted.
+    await grantConsentViaWalkUp(personId);
     const prospectId = await prospectIdFor(personId);
     await answerQuestionnaireB(prospectId, QUESTIONNAIRE_B_COMPLETING_CODES);
 
@@ -333,7 +375,6 @@ describe("declareRecruitmentCycleJobsIn", () => {
 
   it("creates the questionnaire track only, for a recruit who already has the welcome completing set", async () => {
     const personId = await completeWelcomeRecruit();
-    await grantConsent(personId);
 
     const result = await withTransaction((tx) =>
       declareRecruitmentCycleJobsIn(tx, personId, seasonId),
@@ -344,7 +385,9 @@ describe("declareRecruitmentCycleJobsIn", () => {
 
   it("creates all four jobs when both tracks are incomplete and consent is granted", async () => {
     const personId = await incompleteRecruit();
-    await grantConsent(personId);
+    // An operator read-back grant — consent alone must not complete the
+    // welcome track, or this recruit would wrongly get only two jobs.
+    await grantConsentViaWalkUp(personId);
 
     const result = await withTransaction((tx) =>
       declareRecruitmentCycleJobsIn(tx, personId, seasonId),
@@ -355,7 +398,6 @@ describe("declareRecruitmentCycleJobsIn", () => {
 
   it("creates nothing once both tracks are already complete — completion stops the cycle (Brian, 2026-09-01)", async () => {
     const personId = await completeWelcomeRecruit();
-    await grantConsent(personId);
     const prospectId = await prospectIdFor(personId);
     await answerQuestionnaireB(prospectId, QUESTIONNAIRE_B_COMPLETING_CODES);
 
@@ -368,7 +410,6 @@ describe("declareRecruitmentCycleJobsIn", () => {
 
   it("never creates a third questionnaire job — exactly ask and reminder, never more, on repeated calls", async () => {
     const personId = await completeWelcomeRecruit();
-    await grantConsent(personId);
 
     await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
     await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
@@ -386,7 +427,7 @@ describe("declareRecruitmentCycleJobsIn", () => {
 
   it("is idempotent — rerunning after a partial answer creates only what is still missing", async () => {
     const personId = await incompleteRecruit();
-    await grantConsent(personId);
+    await grantConsentViaWalkUp(personId);
     await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
     expect(await jobsFor(personId)).toHaveLength(4);
 
@@ -402,12 +443,14 @@ describe("declareRecruitmentCycleJobsIn", () => {
 describe("dispatchRecruitmentCycleJob", () => {
   it("sends the welcome template, records an accepted attempt, and leaves the job processing", async () => {
     const personId = await firstNameOnlyRecruit();
-    await grantConsent(personId);
+    // An operator read-back grant: consent is granted, but never through the
+    // sign-up form, so the welcome track's completing set stays unmet and
+    // the completion re-check (LAN-203 fix, corrected by LAN-205) does not
+    // stop it.
+    await grantConsentViaWalkUp(personId);
     await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
     // The welcome job was declared while no mobile was on file; a number
-    // arriving afterwards is what dispatch actually sends to. The family
-    // name is never supplied, so the welcome track's completing set stays
-    // unmet and the completion re-check (LAN-203 fix) does not stop it.
+    // arriving afterwards is what dispatch actually sends to.
     await addMobile(personId);
     const jobId = (
       await withTransaction((tx) =>
@@ -444,7 +487,7 @@ describe("dispatchRecruitmentCycleJob", () => {
 
   it("refuses at claim time when consent was withdrawn after the job was declared (Brian, 2026-09-01)", async () => {
     const personId = await incompleteRecruit();
-    await grantConsent(personId);
+    await grantConsentViaWalkUp(personId);
     await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
     await addMobile(personId);
     const jobId = (
@@ -479,7 +522,6 @@ describe("dispatchRecruitmentCycleJob", () => {
 
   it("skips the interest reminder once the recruit answers B1-B5 in between declaration and dispatch (Brian, 2026-09-01: completion stops the cycle)", async () => {
     const personId = await completeWelcomeRecruit();
-    await grantConsent(personId);
     // Declared while B is still unanswered — both the ask and its reminder
     // are created, on the same 72h/144h-apart offsets the finding describes.
     await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
@@ -519,7 +561,9 @@ describe("dispatchRecruitmentCycleJob", () => {
     // completion re-check (LAN-203 fix) would otherwise stop the two welcome
     // -track jobs the moment a mobile completed that track.
     const personId = await firstNameOnlyRecruit();
-    await grantConsent(personId);
+    // An operator read-back grant, so the welcome track stays incomplete
+    // until `addMobile` below.
+    await grantConsentViaWalkUp(personId);
     await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
     await addMobile(personId);
     // Backdated far enough that this fixture's own four jobs always sort
