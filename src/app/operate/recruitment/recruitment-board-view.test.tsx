@@ -88,7 +88,16 @@ describe("the phone card", () => {
   it("disables the call action rather than hiding it when no number is on file", () => {
     renderBoard([row({ phoneForCall: null })]);
     const card = screen.getByTestId("recruitment-card-prospect-1");
-    expect(within(card).getByRole("button", { name: "Call" })).toBeDisabled();
+    // The call action is `component="a"` (an anchor, so `tel:` navigation
+    // works without JS) — the same `../roster/roster-board.tsx` idiom. MUI's
+    // `disabled` on a non-form element carries no native `disabled`
+    // attribute for `toBeDisabled()` to see; it renders `aria-disabled`,
+    // drops the `href`, and switches the accessible role from "link" to
+    // "button" — which is exactly what this asserts, rather than a form
+    // control's own `disabled` property.
+    const call = within(card).getByRole("button", { name: "Call" });
+    expect(call).toHaveAttribute("aria-disabled", "true");
+    expect(call).not.toHaveAttribute("href");
   });
 
   it("still opens the record from the whole card, per the roster board's own tap-target rule", () => {
