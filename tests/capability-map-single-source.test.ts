@@ -10,9 +10,14 @@
  * invisible until the two disagree in production.
  *
  * The scan is narrow on purpose. It looks for a **role code in a string
- * literal** anywhere under `src/` outside the one module allowed to have them,
+ * literal** anywhere under `src/` outside the modules allowed to have them,
  * which is exactly the shape an inline policy takes, and it ignores tests,
  * which necessarily name codes in order to check them.
+ *
+ * `ALLOWED` holds more than one entry as of LAN-204's correction round 1: see
+ * its own comment for the one narrow, deliberate exception — a gate the
+ * capability map cannot express without acquiring the same widening every
+ * other entry in it eventually gets.
  */
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -45,7 +50,28 @@ const ROLE_CODES = [
 ];
 
 /** The one module permitted to name a role code, and the tests that check it. */
-const ALLOWED = [join("src", "lib", "auth", "capabilities.ts")];
+const ALLOWED = [
+  join("src", "lib", "auth", "capabilities.ts"),
+  // LAN-204, `board-actions.ts`'s own `flipRecruitmentProspectAction`
+  // (F-LAN204-001, correction round 1) — `REQ-core-four` and `W14` (locked):
+  // "President, Vice President, Secretary and General Manager, and nobody
+  // else, ever" for the mission's one irreversible action, with the explicit
+  // instruction to mint no new capability for it. Every capability this map
+  // holds that ever named that same four-office set has since had
+  // `it_officer` added to it under LAN-124's own standing precedent
+  // ("the administrative seat holds every capability in this file") — see
+  // `membership_activation` and `event_calendar_management` above, both
+  // widened exactly that way. A new map entry for the flip would be the
+  // identical shape and, on that same precedent, an equally reasonable
+  // target for the next widening — which is precisely what "and nobody
+  // else, ever" forbids for this one action. `requireRole()` (`guards.ts`,
+  // LAN-73's own second guard, built for this and until now never called in
+  // production) is the deliberate escape from that drift: a literal,
+  // narrower-than-the-map check, independent of `capabilityRoleCodes` and
+  // everything that widens through it. `board-actions.test.ts` proves the
+  // fifth role (`it_officer` included) is refused.
+  join("src", "app", "operate", "recruitment", "board-actions.ts"),
+];
 
 function sourceFiles(directory: string): string[] {
   const entries = readdirSync(directory);

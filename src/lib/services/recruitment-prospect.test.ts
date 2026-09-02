@@ -482,7 +482,9 @@ describe("sendRecruitmentQuestionnaireIn and the sweep — the 2026-09-01 amendm
       // `sent` at all, but asserting on the one template this test can ever
       // cause is a direct claim rather than one resting on queue order.
       const own = sent.find(
-        (message) => (message.body as { template?: { name?: string } }).template?.name === "recruit_welcome_v1",
+        (message) =>
+          (message.body as { template?: { name?: string } }).template?.name ===
+          "recruit_welcome_v1",
       );
       expect(own).toBeDefined();
       const payload = own!.body as { to: string; template: { name: string } };

@@ -20,7 +20,13 @@ import type { RecruitmentBoardRow } from "@/lib/services/recruitment-board";
 import type { Season } from "@/lib/services/seasons";
 import RecruitmentBoardView from "./recruitment-board-view";
 
-const SEASON: Season = { id: "season-1", label: "2026-27", startsOn: null, endsOn: null };
+const SEASON: Season = {
+  id: "season-1",
+  label: "2026-27",
+  status: "open",
+  startsOn: null,
+  endsOn: null,
+};
 
 function row(overrides: Partial<RecruitmentBoardRow> = {}): RecruitmentBoardRow {
   return {
