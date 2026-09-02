@@ -93,9 +93,6 @@ itself, and the boundary names defining it "a principal job of the mission".
 
 ## Open, and deliberately not assigned
 
-- **Task 11's M5, active-membership maintenance**, is excluded here because
-  onboarding ends at activation, and **no other mission has claimed it.** Raise
-  it with Brian; do not file it somewhere to satisfy a validator.
 - **Where the season comes from.** The import inherits the roster's current
   season and never creates one. Season creation is Mission 11's and exists
   nowhere; a local walk needs a seeded season.
@@ -104,6 +101,10 @@ itself, and the boundary names defining it "a principal job of the mission".
   photograph argues against it: Entry reads `New`, so a flipped recruit is
   indistinguishable from a hand-added player on the surface an operator works
   from. **First thing to put back to him if it bites.** See `acceptance/W3.md`.
+
+**Task 11's M5, active-membership maintenance, is closed and is not a gap.**
+Brian, 2026-09-02: it is day-to-day club operation, Clint handles it, and it
+needs no mission and no record. Do not re-raise it.
 
 ## Two things that must happen before Stage 5
 

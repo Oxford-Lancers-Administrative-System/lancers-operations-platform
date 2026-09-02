@@ -112,10 +112,26 @@
     {
       "id": "W4",
       "name": "Say yes and fill in your details",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {},
+      "approvals": {
+        "spec": {
+          "words": "W4 is approved, accepted and move to W5",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "W4 is approved, accepted and move to W5",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        },
+        "acceptance": {
+          "words": "W4 is approved, accepted and move to W5",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        }
+      },
       "spec": "workflows/W4-say-yes-and-fill-in-your-details.md"
     },
     {
@@ -1713,5 +1729,5 @@
     ],
     "approval": null
   },
-  "next_action": "W4 — Say yes and fill in your details: specification drafted and five screens shot on the /a/[token] shell; awaiting Brian on the route decision and the spec."
+  "next_action": "Begin W5 — Fix something the club has wrong: the same signed link opened outside the welcome moment, where corrected and refused are exercised."
 }

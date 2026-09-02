@@ -50,9 +50,12 @@ nothing.
 club's position changes. It records who agreed, to exactly which words, and
 when — which is what a dispute actually turns on.
 
-**Team input needed? YES.** This is a club-liability question, not an
-engineering one. Whoever owns the club's legal exposure should say whether a
-dated agreement is sufficient for the photo release.
+**On LAN-213.** A club-liability question, not an engineering one. Whoever owns
+the club's legal exposure decides whether a dated agreement is sufficient.
+
+**W4 was approved with the recommendation standing**, so the mission builds the
+dated-agreement mechanism unless the team says otherwise. E-signature stays
+additive.
 
 ---
 
@@ -87,7 +90,11 @@ It is currently on the form as the one optional field.
 
 ---
 
-## 2 · Content the club owes, which nobody has written
+## 2 · Content the club owes — filed as **LAN-213**
+
+Brian took these to the team on 2026-09-02. Tracked as an owner action in
+**MVP 1 — QA & Pilot Readiness**, alongside the photo-release signature question
+in §1.2.
 
 None of these blocks a build or a walk. **All of them block a real send.**
 
@@ -99,22 +106,14 @@ None of these blocks a build or a walk. **All of them block a real send.**
 | **BUCS Play instructions**        | **This mission**   | Task 10 deferred it to Task 11, which is this mission. Nobody has drafted it. Stewart described it on 2026-08-11 |
 | **Hudl instructions**             | **This mission**   | Same. Nobody has drafted it                                                                                    |
 
-**Team input needed? YES**, for all five. These are words the club has to write,
-and two of them are this mission's own debt.
+All five are on **LAN-213**. They are words the club has to write, and two of
+them are this mission's own debt.
 
 ---
 
-## 3 · Scope gaps nobody owns
+## 3 · Scope gap
 
-### 3.1 Active-membership maintenance has no mission
-
-Task 11's **M5** — keeping an active member's details current after onboarding
-ends — is excluded from this mission because onboarding stops at activation.
-**No other mission has claimed it.**
-
-**Team input needed? YES.** It is a real ongoing club operation with no home.
-
-### 3.2 Nothing creates a season
+### 3.1 Nothing creates a season
 
 `readCurrentSeason` throws when no season exists, so the roster already requires
 one, and the import inherits the roster's current season rather than opening
@@ -164,3 +163,10 @@ batch first.
 - **Hudl gets its own page**; the finishing page lists what is outstanding by
   section, in dots, each a link back to its step. Brian, 2026-09-02.
 - **The form is a five-step sequence** behind one link. Brian, 2026-09-01.
+- **W4 approved, accepted, closed.** Brian, 2026-09-02: "W4 is approved,
+  accepted and move to W5." The decisions still listed above as open were
+  approved **at their recommendation**; only the photo-release signature
+  question genuinely leaves the mission, on LAN-213.
+- **Active-membership maintenance is not a gap.** Brian, 2026-09-02: it is
+  day-to-day club operation, Clint handles it, and it needs no mission and no
+  record. Removed from this register rather than carried.
