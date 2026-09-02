@@ -1,6 +1,7 @@
 "use client";
 
 import Alert from "@mui/material/Alert";
+import AlertTitle from "@mui/material/AlertTitle";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
@@ -82,18 +83,22 @@ export default function RecruitmentRecordView({
       : !canSend
         ? "Messaging is refused. Consent has not been granted for this season."
         : null;
-  const bannerMessage =
+  // `W2-04`'s own copy, verbatim in shape: one short fact as the alert's
+  // title, then a second, separate line naming why and what would change
+  // it — never folded into a single narrative sentence.
+  const bannerDetail =
     record.status === "declined"
-      ? `The club will not message ${record.displayName}. Declined${declinedOn ? ` on ${formatWhen(new Date(declinedOn))}` : ""}. Change the status if that is wrong.`
+      ? `Declined${declinedOn ? ` on ${formatWhen(new Date(declinedOn))}` : ""}. Change the status if that is wrong.`
       : !canSend
-        ? `The club will not message ${record.displayName}. Messaging consent has not been granted for this season.`
+        ? "Messaging consent has not been granted for this season."
         : null;
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }} data-testid="recruitment-record">
-      {bannerMessage ? (
+      {bannerDetail ? (
         <Alert severity="warning" sx={{ mb: 3 }} data-testid="recruitment-cannot-message-banner">
-          {bannerMessage}
+          <AlertTitle>The club will not message {record.displayName}.</AlertTitle>
+          {bannerDetail}
         </Alert>
       ) : null}
       <Stack
