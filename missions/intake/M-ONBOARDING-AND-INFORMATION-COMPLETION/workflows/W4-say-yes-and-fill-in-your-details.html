@@ -290,17 +290,18 @@
           <li><a href="#s7-h3">Current main grounding</a></li>
           <li><a href="#s7-h4">The link is already on main</a></li>
           <li><a href="#s7-h5">What the substrate already gives us</a></li>
-          <li><a href="#s7-h6">The screen</a></li>
-          <li><a href="#s7-h8">Required actions</a></li>
-          <li><a href="#s7-h9">State transitions</a></li>
-          <li><a href="#s7-h10">Handoffs</a></li>
-          <li><a href="#s7-h11">Dependencies and mission boundaries</a></li>
-          <li><a href="#s7-h12">Exceptions and recovery</a></li>
-          <li><a href="#s7-h13">Safety, privacy, consent, and authority boundaries</a></li>
-          <li><a href="#s7-h14">Acceptance evidence</a></li>
-          <li><a href="#s7-h15">Core decisions</a></li>
-          <li><a href="#s7-h16">Owed, and not blocking</a></li>
-          <li><a href="#s7-h17">Brian approval</a></li>
+          <li><a href="#s7-h6">The screen — a sequence, not one page</a></li>
+          <li><a href="#s7-h11">What has no substrate, and is therefore new</a></li>
+          <li><a href="#s7-h12">Required actions</a></li>
+          <li><a href="#s7-h13">State transitions</a></li>
+          <li><a href="#s7-h14">Handoffs</a></li>
+          <li><a href="#s7-h15">Dependencies and mission boundaries</a></li>
+          <li><a href="#s7-h16">Exceptions and recovery</a></li>
+          <li><a href="#s7-h17">Safety, privacy, consent, and authority boundaries</a></li>
+          <li><a href="#s7-h18">Acceptance evidence</a></li>
+          <li><a href="#s7-h19">Core decisions</a></li>
+          <li><a href="#s7-h20">Owed, and not blocking</a></li>
+          <li><a href="#s7-h21">Brian approval</a></li>
         </ol>
       </nav>
       <main>
@@ -544,8 +545,9 @@
           </p>
           <h2 id="s7-h5">What the substrate already gives us</h2>
           <p>
-            Every fact the form asks for has a column on <code>main</code>. Nothing in the fifteen
-            asks requires inventing a place to put an answer.
+            Every fact <strong>step 1</strong> asks for has a column on <code>main</code>. Nothing
+            the details page collects requires inventing a place to put an answer. The two document
+            steps are a different matter, and have their own section below.
           </p>
           <div class="tablewrap">
             <table>
@@ -583,9 +585,11 @@
                   <td><code>people</code>, all five added by the person substrate</td>
                 </tr>
                 <tr>
-                  <td>Emergency contact</td>
+                  <td>Emergency contact, in five fields</td>
                   <td>
-                    <code>person_emergency_contacts</code>, one per person, structurally locked down
+                    <code>person_emergency_contacts</code> — <code>given_name</code>,
+                    <code>family_name</code>, <code>relationship</code>, <code>phone</code>,
+                    <code>email</code>, one row per person
                   </td>
                 </tr>
                 <tr>
@@ -603,49 +607,148 @@
             </table>
           </div>
           <p>
-            <strong>What has no substrate, and is therefore this mission's to add:</strong> the
-            <code>claimed</code> item state, per-item history and provenance, the versioned wording
-            slot the Code of Conduct and photo release are read from, and the ask's own state (<code
+            <code>people.known_as</code> is listed above for the preferred name, and
+            <strong>is not on the baseline</strong> — the column does not exist at
+            <code>332bc6b</code>. No ask in the approved inventory needs it, and no screen renders
+            it. It is named here only so a reader does not go looking for it.
+          </p>
+          <p>
+            The <code>claimed</code> item state, per-item history and provenance are also absent,
+            and are owned by <code>W6</code> and <code>W11</code>. The ask's own state (<code
               >invited · opened · submitted · …</code
-            >). The first three are owned by <code>W6</code> and <code>W11</code>; the ask's state
-            is owned here. The mockups mark what is proposed rather than drawing it as if it
-            shipped.
+            >) is absent and is owned here.
           </p>
-          <h2 id="s7-h6">The screen</h2>
+          <h2 id="s7-h6">The screen — a sequence, not one page</h2>
           <p>
-            <code>R4-P</code>: <strong>a minimal checklist at the top, then the form.</strong> One
-            page, one submit.
+            Owner direction, 2026-09-01. The first draft put all fifteen asks on one screen. Brian
+            split it:
           </p>
+          <blockquote>
+            <p>
+              &quot;I think the pages need to be split up into details, though, to make it a little
+              bit different… the code of conduct needs to be its own page where we have the code of
+              conduct on the page. We scroll to the bottom, and it says, 'Click I agree to the code
+              of conduct'… You go to the next page… Bucs play should be a set of steps. Again,
+              that's its own page as well.&quot;
+            </p>
+          </blockquote>
           <p>
-            <strong>1 — The strip.</strong> A short line of what is outstanding, with the count. Not
-            the full checklist, not per-item history — that is <code>W6</code>'s record, on the
-            operator side. Its job is to answer &quot;why am I here and how much is this&quot;
-            before the player scrolls.
+            <strong>One link, five steps, still one open ask.</strong>
+            <code>T11-one-request</code> is untouched by this:
+            <code>person_access_tokens</code> holds one live durable credential per person per
+            season, and the sequence lives behind it. Nothing here creates a second link.
           </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Step</th>
+                  <th>Page</th>
+                  <th>What it is</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>1</td>
+                  <td>Your details</td>
+                  <td>
+                    Consent, name and contact, academic facts, date of birth, emergency contact
+                  </td>
+                </tr>
+                <tr>
+                  <td>2</td>
+                  <td><em>(read-back)</em></td>
+                  <td>The mobile read-back, on the path that captured it</td>
+                </tr>
+                <tr>
+                  <td>3</td>
+                  <td>Code of Conduct</td>
+                  <td>The document, read, then agreed</td>
+                </tr>
+                <tr>
+                  <td>4</td>
+                  <td>Photo release</td>
+                  <td>The document, read, then agreed</td>
+                </tr>
+                <tr>
+                  <td>5</td>
+                  <td>BUCS Play, then Hudl</td>
+                  <td>Numbered steps, then &quot;have you done it?&quot;</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
           <p>
-            <strong>2 — Consent, as step one.</strong> A single tick, with the privacy line beside
-            it and the season named. <code>OD7-form-is-consent-board</code>: the form
-            <em>is</em> the consent board, so this is not a preamble to the form, it is the form's
-            first field.
+            <code>R4-P</code>'s minimal checklist strip sits at the top of every step and doubles as
+            the map: what is outstanding, and where in the sequence this person is.
           </p>
+          <h3 id="s7-h7">Step 1 — the details</h3>
           <p>
-            <strong>3 — The fifteen asks, in the approved order</strong>, grouped as the inventory
-            groups them: who you are (name, mobile, email); where you study (college, matriculation,
-            graduation, degree); the two restricted facts (date of birth, emergency contact); the
-            two you read and agree to (Code of Conduct, photo release); the two you go and do (BUCS
-            Play, Hudl).
+            Consent first (<code>OD7-form-is-consent-board</code>), then the asks in the approved
+            order, then <strong>the emergency contact as five separate fields</strong> rather than
+            one line — owner direction, 2026-09-01, and it matches what
+            <code>person_emergency_contacts</code> already stores:
           </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Column</th>
+                  <th>Asked for by Brian</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>First name</td>
+                  <td><code>person_emergency_contacts.given_name</code></td>
+                  <td>yes</td>
+                </tr>
+                <tr>
+                  <td>Last name</td>
+                  <td><code>person_emergency_contacts.family_name</code></td>
+                  <td>yes</td>
+                </tr>
+                <tr>
+                  <td>Phone</td>
+                  <td><code>person_emergency_contacts.phone</code></td>
+                  <td>yes</td>
+                </tr>
+                <tr>
+                  <td>Email</td>
+                  <td><code>person_emergency_contacts.email</code></td>
+                  <td>yes</td>
+                </tr>
+                <tr>
+                  <td><strong>Relationship</strong></td>
+                  <td><code>person_emergency_contacts.relationship</code></td>
+                  <td>
+                    <strong>not named</strong> — the fifth column the table already carries. Shown
+                    on <code>W4-01</code> so it can be kept or dropped; the table takes either
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h3 id="s7-h8">Steps 3 and 4 — the two documents</h3>
           <p>
-            <strong>4 — Confirm, don't retype.</strong> <code>OD7-recheck-prefill</code>: every
-            value the club already holds arrives in the field, and the ask is to confirm it. A
-            person with a complete record ticks their way down the page. A person with gaps sees the
-            gaps.
+            Both pages are the same mechanism: the document on the page, scrolling, and an agreement
+            reachable only from the end of it. The agreement records
+            <strong>the person, the exact version they saw, and the moment</strong> — which is what
+            makes it theirs rather than a tick.
           </p>
+          <h3 id="s7-h9">Step 5 — BUCS Play, and Hudl</h3>
           <p>
-            <strong>5 — One submit</strong>, and a result page that says what was saved and what
-            remains.
+            BUCS Play is numbered steps followed by &quot;have you done it?&quot;, which records
+            <code>claimed</code>, not <code>complete</code> (<code>R2-V</code>, owned by
+            <code>W6</code>).
+            <strong>Hudl rides on the same page rather than taking a sixth</strong>: it has no
+            document and no steps of its own, and its first half is the club's job — an operator
+            invites, then the player accepts. Brian was explicitly undecided here (&quot;I do not
+            know if Huddle should be&quot;); splitting it into its own page is a one-line change if
+            he wants it.
           </p>
-          <h3 id="s7-h7">How the page adapts</h3>
+          <h3 id="s7-h10">How the sequence adapts</h3>
           <div class="tablewrap">
             <table>
               <thead>
@@ -657,43 +760,79 @@
               <tbody>
                 <tr>
                   <td>An imported returner (<code>W1</code>)</td>
-                  <td>
-                    Name and whatever the CSV carried are pre-filled. Consent is step one and
-                    unticked.
-                  </td>
+                  <td>Step 1 pre-filled with whatever the CSV carried. Consent is asked.</td>
                 </tr>
                 <tr>
                   <td>A hand-added player (<code>W2</code>)</td>
-                  <td>
-                    The three required fields are pre-filled; everything else is blank. Consent is
-                    step one and unticked.
-                  </td>
+                  <td>The three required fields pre-filled; the rest blank. Consent is asked.</td>
                 </tr>
                 <tr>
                   <td><strong>A flipped recruit (<code>W3</code>)</strong></td>
                   <td>
                     Pre-filled from the recruit door and questionnaire A.
-                    <strong>Consent is absent</strong> — they granted it at the door this season and
-                    <code>season_messaging_consents</code> is unique per person per season, so there
-                    is nothing to ask. The four recruitment never asks — expected graduation, degree
-                    field, date of birth, emergency contact — are the visible gaps.
+                    <strong>Consent is absent</strong> — granted at the door this season, and the
+                    row is unique per person per season. Their gaps are the facts recruitment never
+                    asks: expected graduation, degree field, date of birth, and the whole emergency
+                    contact.
                   </td>
                 </tr>
                 <tr>
                   <td>Someone with nothing left</td>
-                  <td>The already-complete state. No form.</td>
+                  <td>The already-complete page. No sequence.</td>
+                </tr>
+                <tr>
+                  <td>Someone returning part-way</td>
+                  <td>
+                    The sequence resumes at the first step still outstanding. Steps already done are
+                    not re-asked, and an agreed document is not re-agreed unless its version
+                    changed.
+                  </td>
                 </tr>
               </tbody>
             </table>
           </div>
+          <h2 id="s7-h11">What has no substrate, and is therefore new</h2>
           <p>
-            <strong
-              >The flipped recruit's missing first step is the single most important thing the
-              mockups have to show</strong
-            >, because it is the one place where the three doors produce visibly different screens,
-            and <code>W3</code> settled it without rendering it.
+            The details in step 1 all have columns on <code>main</code>.
+            <strong>The two document steps do not, and neither does a signature.</strong>
+            Established by reading the baseline rather than assuming:
           </p>
-          <h2 id="s7-h8">Required actions</h2>
+          <ul>
+            <li>
+              <strong>No object storage.</strong> No bucket is configured anywhere;
+              <code>supabase/config.toml</code> carries only a commented-out example.
+            </li>
+            <li>
+              <strong>No document anywhere.</strong> No table holds a document, a policy text or a
+              version of one; no <code>bytea</code>, <code>blob</code> or <code>base64</code> column
+              exists in any migration.
+            </li>
+            <li>
+              <strong>No signature of any kind.</strong> Nothing captures, stores or verifies one.
+            </li>
+            <li>
+              <strong>One file input in the whole application</strong> — the event CSV import, which
+              parses in memory and stores nothing.
+            </li>
+          </ul>
+          <p>
+            So both document steps need substrate this mission adds:
+            <strong
+              >a versioned document text, and a dated per-person acceptance naming the
+              version.</strong
+            >
+            Neither needs an object store, because neither needs a file.
+          </p>
+          <p>
+            <strong>Where the text is administered is deferred.</strong> Brian, 2026-09-01:
+            &quot;there probably needs to be an administration page to handle that. I don't really
+            want to think about that right now.&quot; Recorded as an open decision below rather than
+            designed here; <code>W11</code> already owns per-season checklist configuration and is
+            the natural home. <strong>This workflow does not depend on the answer</strong> — it
+            needs the slot to exist and be versioned, not to know who fills it.
+          </p>
+          <h2 id="s7-h12">Required actions</h2>
+          <p><strong>Step 1 — the details page.</strong></p>
           <ol>
             <li>
               <strong>Open the link.</strong> A side-effect-free GET. The ask moves
@@ -705,28 +844,37 @@
               offers no way to remove it (<code>OD7-oneway-tick</code>).
             </li>
             <li>
-              <strong>Confirm or correct each pre-filled value; fill each gap.</strong> Read-back
-              applies on the mobile, as it does on every mobile-capture path in the mission.
+              <strong>Confirm or correct each pre-filled value; fill each gap</strong>, including
+              the emergency contact's five fields. Read-back applies on the mobile.
             </li>
-            <li>
-              <strong>Read and confirm the Code of Conduct; read and sign the photo release</strong>
-              — each a page of wording from a versioned slot, then a dated confirmation stored as
-              theirs.
-            </li>
-            <li>
-              <strong>Answer the two off-system asks</strong> — BUCS Play and Hudl — as &quot;have
-              you done it?&quot;, which records <code>claimed</code>, not
-              <code>complete</code> (<code>R2-V</code>, owned by <code>W6</code>).
-            </li>
-            <li><strong>Submit once.</strong> The ask moves to <code>submitted</code>.</li>
+            <li><strong>Save and continue.</strong></li>
           </ol>
           <p>
-            <strong>Nothing here is required to proceed.</strong> <code>R3-G</code> governs: nothing
-            gates, ever. A player may submit with every optional field blank and the page accepts
-            it; the gaps simply stay outstanding and stay chased. The three required fields are
-            required to be <em>asked for</em> and to be <em>chased</em>, not to be a barrier.
+            <strong>Steps 3 and 4 — the two documents.</strong> For each: read the document on the
+            page, reach its end, and agree. The agreement records the person, the version and the
+            moment, and continues to the next step.
           </p>
-          <h2 id="s7-h9">State transitions</h2>
+          <p>
+            <strong>Step 5 — the two off-system asks.</strong> Follow the BUCS Play steps, then
+            answer &quot;have you done it?&quot;; answer the Hudl question. Both record
+            <code>claimed</code>, not <code>complete</code> (<code>R2-V</code>, owned by
+            <code>W6</code>). Finish.
+          </p>
+          <p>
+            <strong>Nothing in the sequence is required to advance it.</strong>
+            <code>R3-G</code> governs: nothing gates, ever. A player may pass through all five steps
+            having entered nothing, declined both documents and answered neither off-system ask, and
+            every page takes it; the gaps stay outstanding and stay chased. The three required
+            fields are required to be <em>asked for</em> and to be <em>chased</em>, never to be a
+            barrier — and that includes the two documents, which are asked for and chased like
+            anything else.
+          </p>
+          <p>
+            <strong>Leaving part-way is normal.</strong> Whatever a step saved is saved. Returning
+            to the link resumes at the first step still outstanding, and an already-agreed document
+            is not re-agreed unless its version changed.
+          </p>
+          <h2 id="s7-h13">State transitions</h2>
           <p>
             <strong>The ask</strong> (<code>T11-states</code>, owned here, exercised by
             <code>W5</code> and <code>W8</code>):
@@ -809,7 +957,7 @@
             complete on the player's confirmation. BUCS Play and Hudl go to <code>claimed</code>.
             All of that is <code>W6</code>'s machinery; this workflow supplies the input.
           </p>
-          <h2 id="s7-h10">Handoffs</h2>
+          <h2 id="s7-h14">Handoffs</h2>
           <div class="tablewrap">
             <table>
               <thead>
@@ -878,7 +1026,7 @@
             <code>disputed — awaiting verification</code>. What that looks like to the player is one
             line saying the club will check — the resolution surface is <code>W7</code>'s.
           </p>
-          <h2 id="s7-h11">Dependencies and mission boundaries</h2>
+          <h2 id="s7-h15">Dependencies and mission boundaries</h2>
           <div class="tablewrap">
             <table>
               <thead>
@@ -944,7 +1092,7 @@
             transition, a control or an acceptance here; it changes the text inside three boxes. If
             that stops being true, it returns to Brian.
           </p>
-          <h2 id="s7-h12">Exceptions and recovery</h2>
+          <h2 id="s7-h16">Exceptions and recovery</h2>
           <ul>
             <li>
               <strong>Expired or revoked link, and an unknown token.</strong> All three render one
@@ -991,7 +1139,7 @@
               both rows.
             </li>
           </ul>
-          <h2 id="s7-h13">Safety, privacy, consent, and authority boundaries</h2>
+          <h2 id="s7-h17">Safety, privacy, consent, and authority boundaries</h2>
           <ul>
             <li>
               <strong>No login, ever.</strong> One signed, revocable, season-scoped credential per
@@ -1024,9 +1172,9 @@
               note is four-role-group only and never reaches a report verbatim.
             </li>
           </ul>
-          <h2 id="s7-h14">Acceptance evidence</h2>
+          <h2 id="s7-h18">Acceptance evidence</h2>
           <p>
-            Five screens, each photographed on both sides at a measured 1280 and 375 against the
+            Eight screens, each photographed on both sides at a measured 1280 and 375 against the
             running application on the mission slot. Both sides of every screen come from the same
             producer.
           </p>
@@ -1042,27 +1190,41 @@
                 <tr>
                   <td><code>W4-01</code></td>
                   <td>
-                    The form as an imported returner opens it: the strip, consent as step one, the
-                    gaps
+                    Step 1: the strip as the map, consent first, the gaps, the emergency contact as
+                    five fields
                   </td>
                 </tr>
                 <tr>
                   <td><code>W4-02</code></td>
                   <td>
-                    The same page for a <strong>flipped recruit</strong>: pre-filled, and
+                    Step 1 for a <strong>flipped recruit</strong>: pre-filled, and
                     <strong>no consent step</strong>
                   </td>
                 </tr>
                 <tr>
                   <td><code>W4-03</code></td>
-                  <td>Submitted — what was saved, what is still outstanding</td>
+                  <td>
+                    The Code of Conduct on its own page, scrolled to the end, agreement below it
+                  </td>
                 </tr>
                 <tr>
                   <td><code>W4-04</code></td>
-                  <td>Already-complete — the link opened with nothing left to give</td>
+                  <td>The photo release, same mechanism — and the e-signature decision, marked</td>
                 </tr>
                 <tr>
                   <td><code>W4-05</code></td>
+                  <td>BUCS Play as numbered steps, then the claim; Hudl alongside</td>
+                </tr>
+                <tr>
+                  <td><code>W4-06</code></td>
+                  <td>Done — what was saved, what is still outstanding</td>
+                </tr>
+                <tr>
+                  <td><code>W4-07</code></td>
+                  <td>Already complete — the link opened with nothing left to give</td>
+                </tr>
+                <tr>
+                  <td><code>W4-08</code></td>
                   <td>
                     Expired or revoked — the uniform page, and the one sentence that had to change
                   </td>
@@ -1071,15 +1233,19 @@
             </table>
           </div>
           <p>
-            <code>W4-01</code>, <code>W4-03</code>, <code>W4-04</code> and <code>W4-05</code> are
-            built on the <code>/a/[token]</code> shell, which is a real implemented route: the
-            current side photographs that page as it ships, and the proposed side photographs the
-            same page transformed. <code>W4-02</code> needs the locally seeded flipped recruit from
-            <code>evidence/W3-local-walk-data.md</code>, which must be re-run after any
-            <code>db:reset</code>.
+            Every screen is built on the <code>/a/[token]</code> shell, a real implemented route:
+            the current side photographs that page as it ships, the proposed side photographs the
+            same page transformed. <code>W4-02</code> and <code>W4-07</code> need the locally
+            flipped recruit from <code>evidence/W4-local-walk-data.md</code>, which must be re-run
+            after any <code>db:reset</code>.
+          </p>
+          <p>
+            The document text on <code>W4-03</code> and <code>W4-04</code>, and the four BUCS Play
+            steps on <code>W4-05</code>, are
+            <strong>placeholder and labelled as such on the screens themselves</strong>.
           </p>
           <p>Grounding: <strong>screenshots</strong>.</p>
-          <h2 id="s7-h15">Core decisions</h2>
+          <h2 id="s7-h19">Core decisions</h2>
           <div class="tablewrap">
             <table>
               <thead>
@@ -1150,9 +1316,15 @@
                   <td>settled</td>
                 </tr>
                 <tr>
-                  <td>A minimal checklist strip at the top, then the form</td>
+                  <td>
+                    A minimal checklist strip at the top of every step, doubling as the map of the
+                    sequence
+                  </td>
                   <td>locked</td>
-                  <td><code>R4-P</code></td>
+                  <td>
+                    <code>R4-P</code>, and Brian's direction of 2026-09-01 to split the form into
+                    pages
+                  </td>
                   <td>settled</td>
                 </tr>
                 <tr>
@@ -1236,18 +1408,91 @@
                   <td>settled</td>
                 </tr>
                 <tr>
-                  <td>How the fifteen asks are grouped into sections on the page</td>
+                  <td>How the step-1 asks are grouped into sections on that page</td>
                   <td>delegated to Mission Lead</td>
                   <td>The inventory fixes content and order; grouping is presentation</td>
                   <td>settled</td>
                 </tr>
                 <tr>
                   <td>
-                    Whether the Code of Conduct and photo release open in place or on their own
-                    sub-page
+                    <strong
+                      >The form is a sequence: details, Code of Conduct, photo release, BUCS Play +
+                      Hudl</strong
+                    >
                   </td>
+                  <td>locked</td>
+                  <td>
+                    Owner direction, 2026-09-01, quoted in full above. One link, five steps, one
+                    open ask
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td><strong>The emergency contact is five fields, not one</strong></td>
+                  <td>locked</td>
+                  <td>
+                    Owner direction, 2026-09-01, and <code>person_emergency_contacts</code>' own
+                    columns
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Whether <code>relationship</code> is asked for</strong>
+                  </td>
+                  <td><strong>proposed for owner approval</strong></td>
+                  <td>
+                    Brian named four fields; the table stores a fifth. Shown on
+                    <code>W4-01</code> so it can be kept or dropped.
+                    <strong>Recommended: keep it</strong> — it is the field that makes the contact
+                    usable in an emergency, and the column already exists
+                  </td>
+                  <td><strong>open</strong></td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong
+                      >The two documents are a versioned text plus a dated per-person acceptance,
+                      not an uploaded or e-signed file</strong
+                    >
+                  </td>
+                  <td><strong>proposed for owner approval</strong></td>
+                  <td>
+                    Brian asked directly, and the answer is that the application has no object
+                    storage, no document table and no signature capture of any kind. Version +
+                    moment + person needs none of that; a drawn or PDF signature needs all of it.
+                    <strong>Recommended: the versioned-agreement mechanism</strong>, with
+                    e-signature additive later
+                  </td>
+                  <td><strong>open</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Where the document text is administered</strong></td>
+                  <td><strong>proposed for owner approval</strong></td>
+                  <td>
+                    Brian: &quot;there probably needs to be an administration page to handle that. I
+                    don't really want to think about that right now.&quot;
+                    <strong>Recommended: <code>W11</code></strong
+                    >, which already owns per-season checklist configuration. W4 needs only that the
+                    slot exists and is versioned, so this does not block it
+                  </td>
+                  <td><strong>open</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Whether Hudl gets its own page</strong></td>
+                  <td><strong>proposed for owner approval</strong></td>
+                  <td>
+                    Brian: &quot;I do not know if Huddle should be.&quot;
+                    <strong>Recommended: no</strong> — it has no document and no steps, and its
+                    first half is the club's job. It rides on the BUCS Play page. Splitting it is
+                    one line
+                  </td>
+                  <td><strong>open</strong></td>
+                </tr>
+                <tr>
+                  <td>Whether a document page shows its version number to the player</td>
                   <td>delegated to Mission Lead</td>
-                  <td>Either satisfies &quot;a page they read, then confirm&quot;</td>
+                  <td>The version is recorded either way; showing it is presentation</td>
                   <td>settled</td>
                 </tr>
                 <tr>
@@ -1270,15 +1515,28 @@
               </tbody>
             </table>
           </div>
-          <h2 id="s7-h16">Owed, and not blocking</h2>
+          <h2 id="s7-h20">Owed, and not blocking</h2>
           <p>
-            <strong>BUCS Play and Hudl instruction copy.</strong> Task 10 defers both to Task 11,
-            which is this mission, and nobody has drafted either. They block no build and no walk —
-            the mockups carry a marked placeholder — but they block a real send. Carried forward
-            from <code>HANDOFF.md</code>; not an owner action under the five-condition test, because
-            Brian can resolve it inside normal intake whenever he chooses to write it.
+            <strong>BUCS Play instruction copy, and Hudl's.</strong> Task 10 defers both to Task 11,
+            which is this mission, and nobody has drafted either. Stewart described the BUCS Play
+            ask on 2026-08-11 — &quot;giving Jamie Carter the App Store download link for the app.
+            He downloads it. He fills it out with some instructions in the text message that say do
+            this this this&quot; — and that is as close to copy as exists.
+            <code>W4-05</code> carries four placeholder steps, labelled as placeholders on the
+            screen. They block no build and no walk; they block a real send.
           </p>
-          <h2 id="s7-h17">Brian approval</h2>
+          <p>
+            <strong>The Code of Conduct and photo release wording</strong>, which is Clint's through
+            Task
+          </p>
+          <ol>
+            <li>Both document panes carry labelled placeholder text at a realistic length.</li>
+          </ol>
+          <p>
+            None of these is an owner action under the five-condition test: Brian can settle each
+            inside normal intake whenever he chooses to write it.
+          </p>
+          <h2 id="s7-h21">Brian approval</h2>
           <ul>
             <li>Exact words:</li>
             <li>Date:</li>

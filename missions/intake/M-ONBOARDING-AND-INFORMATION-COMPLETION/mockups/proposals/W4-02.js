@@ -588,6 +588,8 @@
     for (const row of rows) {
       let node;
       if (row.kind === "heading") node = sectionHeading(headingTpl, row.text);
+      else if (row.kind === "pane") node = documentPane(row.paragraphs, { heading: row.heading });
+      else if (row.kind === "steps") node = stepList(row.steps);
       else if (row.kind === "consent") node = consentTick(shell.chip, row);
       else if (row.kind === "note") {
         node = document.createElement("p");
@@ -641,33 +643,102 @@
     return node;
   };
 
-  // W4-02 — The same page for a flipped recruit, and the one visible difference.
+  // ---------------------------------------------------------------------------
+  // Owner direction, 2026-09-01. The Code of Conduct, the photo release and the
+  // BUCS Play instructions each become their own page in the sequence behind the
+  // one link, rather than a tick on the details form:
+  //
+  //   "the code of conduct needs to be its own page where we have the code of
+  //    conduct on the page. We scroll to the bottom, and it says, 'Click I agree
+  //    to the code of conduct'... You go to the next page."
+  //
+  // These two helpers are what those pages are made of. Neither invents a
+  // component: the pane is a bordered scrolling box of paragraphs and the steps
+  // are an ordered list.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * A document the player reads before agreeing to it. Scrolled to its end in the
+   * shot, because the end is where the mechanic lives — the agreement control is
+   * only reachable there, and a screen showing the top would not show the thing
+   * being reviewed.
+   */
+  const documentPane = (paragraphs, { heading = null } = {}) => {
+    // Two elements, and the reason is mark(): it sets `overflow: visible` on
+    // whatever it outlines, so marking the scroller itself unclipped the document
+    // and spilled it over the agreement control and the button beneath. The
+    // wrapper is what gets marked; the scroller inside it keeps its own overflow.
+    const wrapper = document.createElement("div");
+    const pane = document.createElement("div");
+    wrapper.append(pane);
+    pane.dataset.intakePane = "document";
+    pane.style.cssText =
+      "border:1px solid rgba(0,0,0,0.23);border-radius:4px;padding:16px 18px;" +
+      "max-height:340px;overflow:auto;background:#fff";
+    if (heading) {
+      const h = document.createElement("p");
+      h.style.cssText = "margin:0 0 10px;font-size:15px;font-weight:700";
+      h.textContent = heading;
+      pane.append(h);
+    }
+    for (const text of paragraphs) {
+      const p = document.createElement("p");
+      p.style.cssText = "margin:0 0 11px;font-size:13.5px;line-height:1.65;color:rgba(0,0,0,0.8)";
+      p.textContent = text;
+      pane.append(p);
+    }
+    return wrapper;
+  };
+
+  /** Scroll every document pane to its end, so the shot shows the agreement point. */
+  const scrollPanesToEnd = () => {
+    for (const pane of $$('[data-intake-pane="document"]')) pane.scrollTop = pane.scrollHeight;
+  };
+
+  /** The numbered steps a player follows off-system, before confirming they did. */
+  const stepList = (steps) => {
+    const ol = document.createElement("ol");
+    // The app's own reset strips list markers, and a set of steps without its
+    // numbers is not a set of steps. Both are restored explicitly.
+    ol.style.cssText = "margin:0;padding-left:24px;list-style:decimal outside";
+    for (const step of steps) {
+      const li = document.createElement("li");
+      li.style.cssText =
+        "display:list-item;list-style:decimal outside;margin:0 0 9px;" +
+        "font-size:14px;line-height:1.6;color:rgba(0,0,0,0.82)";
+      li.textContent = step;
+      ol.append(li);
+    }
+    return ol;
+  };
+
+  /** A pane or list dropped straight into the form's stack, via buildForm. */
+  const BLOCK_KINDS = new Set(["pane", "steps"]);
+
+  // W4-02 — Step 1 for a flipped recruit, and the one visible difference.
   //
   // Rosalind Penhaligon is the seed's own prospect, flipped to `joined` with a
-  // season membership at `onboarding`, her checklist generated and a
-  // `season_messaging_consents` row granted at the door on 14 August — the same
-  // person W3 photographed. Her record holds what the recruit door and
-  // questionnaire A collected; the four facts recruitment never asks for are
-  // blank, because nothing ever asked her for them.
+  // membership at `onboarding` and a consent row granted at the door on 14
+  // August — the same person W3 photographed.
   //
   // **Consent is absent from this page.** `season_messaging_consents` is unique
-  // per person per season and hers already says `granted`, so there is nothing
-  // to ask. That absence is this screen's whole point.
+  // per person per season and hers already says `granted`, so there is nothing to
+  // ask. That absence is this screen's whole point. Her emergency contact is
+  // blank in all five fields, because recruitment never asks for one.
   const s = answerShell();
 
   setChip(s.chip, "ONBOARDING · 2026–27");
   s.h1.textContent = "Welcome to the team, 2026–27";
-  setLead(s.lead, "Rosalind Penhaligon · you told us most of this already");
+  setLead(s.lead, "Step 1 of 5 · Your details");
 
   dropEventLeftovers();
 
-  // 1 — consent is already granted, and the strip says when and where.
   mark(
     setFacts(s.dl, [
       ["Your details", "4 still needed", OUTSTANDING],
       ["Messaging consent", "Given 14 Aug, at the door", DONE],
-      ["Code of Conduct", "Not yet signed", OUTSTANDING],
-      ["Photo release", "Not yet signed", OUTSTANDING],
+      ["Code of Conduct", "Step 3", OUTSTANDING],
+      ["Photo release", "Step 4", OUTSTANDING],
     ]),
     1,
   );
@@ -706,31 +777,13 @@
       label: "Date of birth",
       help: "Never appears on any list, board or queue. Only whether you are under 18 is derived from it.",
     },
-    { label: "Emergency contact" },
 
-    { kind: "heading", text: "Read, then agree" },
-    {
-      kind: "consent",
-      label: "I have read and understood the Code of Conduct.",
-      note: "Placeholder wording in a real versioned slot. The words are Mission 8's.",
-    },
-    {
-      kind: "consent",
-      label: "I have read the photo release and I sign it for this season.",
-      note: "Placeholder wording in a real versioned slot. Asked again every season.",
-    },
-
-    { kind: "heading", text: "Two things to go and do" },
-    {
-      kind: "consent",
-      label: "I have registered on BUCS Play with my Oxford email and selected Oxford Lancers.",
-      note: "The instructions that belong above this line are owed by this mission and nobody has written them yet.",
-    },
-    {
-      kind: "consent",
-      label: "I have accepted the Hudl invitation and I can see the team.",
-      note: "Same: the instruction copy is owed and unwritten.",
-    },
+    { kind: "heading", text: "Emergency contact" },
+    { key: "emergency", label: "Emergency contact first name" },
+    { label: "Emergency contact last name" },
+    { label: "Relationship to you" },
+    { label: "Emergency contact phone" },
+    { label: "Emergency contact email" },
   ]);
 
   // 2 — where W4-01 opens with the consent tick, this page opens with a sentence
@@ -738,12 +791,14 @@
   mark(a.noconsent, 2);
   // 3 — what the recruit door and questionnaire A already collected.
   mark(a.carried, 3);
-  // 4 — and the four facts recruitment never asks anybody for.
+  // 4 — and the facts recruitment never asks anybody for.
   mark(a.gap, 4);
+  // 5 — including the whole emergency contact, blank in all five fields.
+  mark(a.emergency, 5);
 
-  setSubmit(s.submit, "Save my details");
+  setSubmit(s.submit, "Save and continue");
   setSecondary(
-    "Nothing here is required to save. Anything you leave blank simply stays outstanding.",
+    "Nothing here is required to continue. Anything you leave blank simply stays outstanding.",
   );
 
   await settle();

@@ -588,6 +588,8 @@
     for (const row of rows) {
       let node;
       if (row.kind === "heading") node = sectionHeading(headingTpl, row.text);
+      else if (row.kind === "pane") node = documentPane(row.paragraphs, { heading: row.heading });
+      else if (row.kind === "steps") node = stepList(row.steps);
       else if (row.kind === "consent") node = consentTick(shell.chip, row);
       else if (row.kind === "note") {
         node = document.createElement("p");
@@ -641,35 +643,106 @@
     return node;
   };
 
-  // W4-01 — The form, as an imported returner opens it.
+  // ---------------------------------------------------------------------------
+  // Owner direction, 2026-09-01. The Code of Conduct, the photo release and the
+  // BUCS Play instructions each become their own page in the sequence behind the
+  // one link, rather than a tick on the details form:
+  //
+  //   "the code of conduct needs to be its own page where we have the code of
+  //    conduct on the page. We scroll to the bottom, and it says, 'Click I agree
+  //    to the code of conduct'... You go to the next page."
+  //
+  // These two helpers are what those pages are made of. Neither invents a
+  // component: the pane is a bordered scrolling box of paragraphs and the steps
+  // are an ordered list.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * A document the player reads before agreeing to it. Scrolled to its end in the
+   * shot, because the end is where the mechanic lives — the agreement control is
+   * only reachable there, and a screen showing the top would not show the thing
+   * being reviewed.
+   */
+  const documentPane = (paragraphs, { heading = null } = {}) => {
+    // Two elements, and the reason is mark(): it sets `overflow: visible` on
+    // whatever it outlines, so marking the scroller itself unclipped the document
+    // and spilled it over the agreement control and the button beneath. The
+    // wrapper is what gets marked; the scroller inside it keeps its own overflow.
+    const wrapper = document.createElement("div");
+    const pane = document.createElement("div");
+    wrapper.append(pane);
+    pane.dataset.intakePane = "document";
+    pane.style.cssText =
+      "border:1px solid rgba(0,0,0,0.23);border-radius:4px;padding:16px 18px;" +
+      "max-height:340px;overflow:auto;background:#fff";
+    if (heading) {
+      const h = document.createElement("p");
+      h.style.cssText = "margin:0 0 10px;font-size:15px;font-weight:700";
+      h.textContent = heading;
+      pane.append(h);
+    }
+    for (const text of paragraphs) {
+      const p = document.createElement("p");
+      p.style.cssText = "margin:0 0 11px;font-size:13.5px;line-height:1.65;color:rgba(0,0,0,0.8)";
+      p.textContent = text;
+      pane.append(p);
+    }
+    return wrapper;
+  };
+
+  /** Scroll every document pane to its end, so the shot shows the agreement point. */
+  const scrollPanesToEnd = () => {
+    for (const pane of $$('[data-intake-pane="document"]')) pane.scrollTop = pane.scrollHeight;
+  };
+
+  /** The numbered steps a player follows off-system, before confirming they did. */
+  const stepList = (steps) => {
+    const ol = document.createElement("ol");
+    // The app's own reset strips list markers, and a set of steps without its
+    // numbers is not a set of steps. Both are restored explicitly.
+    ol.style.cssText = "margin:0;padding-left:24px;list-style:decimal outside";
+    for (const step of steps) {
+      const li = document.createElement("li");
+      li.style.cssText =
+        "display:list-item;list-style:decimal outside;margin:0 0 9px;" +
+        "font-size:14px;line-height:1.6;color:rgba(0,0,0,0.82)";
+      li.textContent = step;
+      ol.append(li);
+    }
+    return ol;
+  };
+
+  /** A pane or list dropped straight into the form's stack, via buildForm. */
+  const BLOCK_KINDS = new Set(["pane", "steps"]);
+
+  // W4-01 — Step 1: your details.
+  //
+  // Owner direction, 2026-09-01: the form is split. The Code of Conduct, the
+  // photo release and the BUCS Play instructions each get their own page, so this
+  // page is now only the details — and the emergency contact is broken out into
+  // the fields the database actually stores rather than one line of text.
   //
   // Merrick Thornbury arrived in this season's import. His record really does
-  // hold his name, mobile, personal email and an emergency contact, and really
-  // is missing college, matriculation year, expected graduation, degree field
-  // and date of birth — so the mix of confirm-this and fill-this on the screen
-  // is his actual record, not a story about one.
-  //
-  // Consent is step one and unticked: this is the moment it is asked.
+  // hold his name, mobile, personal email and a full emergency contact, and
+  // really is missing college, matriculation year, expected graduation, degree
+  // field and date of birth.
   const s = answerShell();
 
   setChip(s.chip, "ONBOARDING · 2026–27");
   s.h1.textContent = "Welcome to the team, 2026–27";
-  setLead(s.lead, "Merrick Thornbury · confirm what we have and fill in what we don't");
+  setLead(s.lead, "Step 1 of 5 · Your details");
 
-  // 1 — R4-P's minimal checklist: what this page can move, and nothing else.
-  // The operator-owned items (subs, kit, squad photo, comms groups) are the
-  // club's to tick on the roster board and are deliberately absent here.
+  dropEventLeftovers();
+
   mark(
     setFacts(s.dl, [
       ["Your details", "5 still needed", OUTSTANDING],
-      ["Code of Conduct", "Not yet signed", OUTSTANDING],
-      ["Photo release", "Not yet signed", OUTSTANDING],
-      ["BUCS Play & Hudl", "Not yet confirmed", OUTSTANDING],
+      ["Code of Conduct", "Step 3", OUTSTANDING],
+      ["Photo release", "Step 4", OUTSTANDING],
+      ["BUCS Play & Hudl", "Step 5", OUTSTANDING],
     ]),
     1,
   );
-
-  dropEventLeftovers();
 
   setPrivacy(
     s.privacy,
@@ -709,52 +782,35 @@
       label: "Date of birth",
       help: "Never appears on any list, board or queue. Only whether you are under 18 is derived from it.",
     },
-    {
-      label: "Emergency contact",
-      value: "Lucian Thornbury · Partner · 07700 900138",
-    },
 
-    { kind: "heading", text: "Read, then agree" },
+    { kind: "heading", text: "Emergency contact" },
+    { key: "emergency", label: "Emergency contact first name", value: "Lucian" },
+    { label: "Emergency contact last name", value: "Thornbury" },
     {
-      kind: "consent",
-      key: "conduct",
-      label: "I have read and understood the Code of Conduct.",
-      note: "Placeholder wording in a real versioned slot. The words are Mission 8's.",
+      key: "relationship",
+      label: "Relationship to you",
+      value: "Partner",
+      help: "The fifth column person_emergency_contacts already stores. Drop it and the table keeps it blank.",
     },
-    {
-      kind: "consent",
-      label: "I have read the photo release and I sign it for this season.",
-      note: "Placeholder wording in a real versioned slot. Asked again every season.",
-    },
-
-    { kind: "heading", text: "Two things to go and do" },
-    {
-      kind: "consent",
-      key: "owed",
-      label: "I have registered on BUCS Play with my Oxford email and selected Oxford Lancers.",
-      note: "The instructions that belong above this line are owed by this mission and nobody has written them yet.",
-    },
-    {
-      kind: "consent",
-      label: "I have accepted the Hudl invitation and I can see the team.",
-      note: "Same: the instruction copy is owed and unwritten.",
-    },
+    { label: "Emergency contact phone", value: "07700 900138" },
+    { label: "Emergency contact email", value: "lucian.38@mail.example" },
   ]);
 
-  // 2 — consent, and step one. The form IS the consent board.
+  // 1 — the strip now doubles as the map of the sequence: five steps, one link.
+  // 2 — consent, and it is still step one of step one.
   mark(a.consent, 2);
   // 3 — what the club already holds arrives filled in; the ask is to confirm it.
   mark(a.given, 3);
-  // 4 — and what it does not hold is blank, and is exactly what the chase asks for.
+  // 4 — and what it does not hold is blank.
   mark(a.gap, 4);
   // 5 — the one restricted fact.
   mark(a.dob, 5);
-  // 6 — the two asks whose instruction copy this mission owes and has not written.
-  mark(a.owed, 6);
+  // 6 — the emergency contact, as five fields rather than one line.
+  mark(a.emergency, 6);
 
-  setSubmit(s.submit, "Save my details");
+  setSubmit(s.submit, "Save and continue");
   setSecondary(
-    "Nothing here is required to save. Anything you leave blank simply stays outstanding.",
+    "Nothing here is required to continue. Anything you leave blank simply stays outstanding.",
   );
 
   await settle();

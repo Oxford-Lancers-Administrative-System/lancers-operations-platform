@@ -1,36 +1,82 @@
-// W4-05 — Expired, revoked, or never real: the one uniform page.
+// W4-05 — Step 5: BUCS Play, as a set of steps on its own page.
 //
-// `/a/[token]/not-found.tsx` already renders one response for every unusable
-// link — unknown, revoked and expired alike, at 404, with identical copy and
-// no variant that could let them diverge. W4 keeps that page exactly: its
-// heading, its privacy line, its single Close, its status code.
+// Owner direction, 2026-09-01: "Bucs play should be a set of steps. Again,
+// that's its own page as well."
 //
-// One sentence cannot come across. The shipped body says "If the event has
-// already started, response changes are closed", which is the answer link's
-// own business and not true of a collection link. That sentence is the whole
-// change on this screen, and it is why this workflow does not get to claim the
-// page is reused verbatim.
-const card = must($(".MuiPaper-root"), "the dead-link page has no card");
-must(
-  $$("h1").find((h) => /link can.t be used/i.test(h.textContent)),
-  "this is not the uniform dead-link page",
-);
-const privacy = must(
-  $$("p").find((p) => /can.t provide more information about this link/i.test(p.textContent)),
-  "the dead-link page has lost its privacy line",
-);
-const body = must(
-  $$("p").find((p) => /request the latest message from the club/i.test(p.textContent)),
-  "the dead-link page has lost its body line",
+// **The steps are placeholder and are marked as such.** Stewart described this
+// ask on 2026-08-11 — "giving Jamie Carter the App Store download link for the
+// app. He downloads it. He fills it out with some instructions in the text
+// message that say do this this this" — and Task 10 deferred that copy to Task
+// 11, which is this mission. Nobody has written it. The page shape is
+// reviewable now; the words are owed.
+const s = answerShell();
+
+setChip(s.chip, "ONBOARDING · 2026–27");
+s.h1.textContent = "Register on BUCS Play";
+setLead(s.lead, "Step 5 of 5 · Do these, then tell us");
+
+dropEventLeftovers();
+
+mark(
+  setFacts(s.dl, [
+    ["Photo release", "Agreed just now", DONE],
+    ["BUCS Play", "Not yet confirmed", OUTSTANDING],
+    ["Confirmed by", "You, then the club", OUTSTANDING],
+    ["Instructions", "Owed — not written", OUTSTANDING],
+  ]),
+  1,
 );
 
-// 1 — the one sentence that changes. Everything else on this page stays.
-body.textContent =
-  "Request the latest message from the club. Whenever the club sends you a new one it carries your current link.";
-mark(body, 1);
+setPrivacy(
+  s.privacy,
+  "BUCS Play is run by British Universities and Colleges Sport, not by the club. Nothing you do there is visible here — the club records only whether you say you have done it.",
+);
 
-// 2 — and the two things that must not change: it never says which of unknown,
-//     expired or revoked this link is, and it is the same page for all three.
-mark(privacy, 2);
+const a = buildForm(s, [
+  {
+    kind: "steps",
+    key: "steps",
+    steps: [
+      "PLACEHOLDER STEP. Download the BUCS Play app. The real copy names the store and carries the link.",
+      "PLACEHOLDER STEP. Register with your Oxford email address, not a personal one.",
+      "PLACEHOLDER STEP. Search for Oxford Lancers and select the club.",
+      "PLACEHOLDER STEP. Complete whatever BUCS asks you for. This has to be done again every year.",
+    ],
+  },
+  {
+    kind: "note",
+    key: "owed",
+    text: "PLACEHOLDER. These four steps stand in for instruction copy this mission owes and nobody has written. They block no build and no walk; they block a real send.",
+  },
+  { kind: "heading", text: "Have you done it?" },
+  {
+    kind: "consent",
+    key: "claim",
+    checked: false,
+    label: "Yes — I have registered on BUCS Play and selected Oxford Lancers.",
+    note: "This records claimed, not complete. The compliance owner confirms it against the BUCS roster, and W6 is where that happens.",
+  },
+  { kind: "heading", text: "And Hudl" },
+  {
+    kind: "consent",
+    key: "hudl",
+    checked: false,
+    label: "Yes — I have accepted the Hudl invitation and I can see the team.",
+    note: "Two parts, and the club owns the first: an operator invites you, then you accept. If no invitation has reached you, leave this and the club will chase its own half.",
+  },
+]);
+
+// 2 — the steps, which is what makes this a page rather than a tick.
+mark(a.steps, 2);
+// 3 — and the copy that does not exist yet.
+mark(a.owed, 3);
+// 4 — the player's own answer records `claimed`, never `complete`.
+mark(a.claim, 4);
+// 5 — Hudl rides along here rather than taking a sixth page: it has no document
+//     and no steps of its own, and its first half is the club's job, not yours.
+mark(a.hudl, 5);
+
+setSubmit(s.submit, "Finish");
+setSecondary("If you have not done either yet, finish anyway. The club will ask you again.");
 
 await settle();

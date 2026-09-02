@@ -107,8 +107,9 @@ approved sources.
 
 ## What the substrate already gives us
 
-Every fact the form asks for has a column on `main`. Nothing in the fifteen asks
-requires inventing a place to put an answer.
+Every fact **step 1** asks for has a column on `main`. Nothing the details page
+collects requires inventing a place to put an answer. The two document steps are
+a different matter, and have their own section below.
 
 | Ask                                                                           | Where it lands on `main`                                                 |
 | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
@@ -116,74 +117,142 @@ requires inventing a place to put an answer.
 | First name, last name, preferred name                                         | `people.given_name`, `family_name`, `known_as`                           |
 | Mobile, personal email                                                        | `contact_points`, `kind` + `scope = 'personal'`, `is_preferred`          |
 | College, matriculation year, expected graduation, degree field, date of birth | `people`, all five added by the person substrate                         |
-| Emergency contact                                                             | `person_emergency_contacts`, one per person, structurally locked down    |
+| Emergency contact, in five fields                                             | `person_emergency_contacts` — `given_name`, `family_name`, `relationship`, `phone`, `email`, one row per person |
 | The checklist strip                                                           | `onboarding_items` → `onboarding_item_types`                             |
 | The under-18 flag                                                             | derived in the person substrate; **never the date itself** on any list   |
 
-**What has no substrate, and is therefore this mission's to add:** the `claimed`
-item state, per-item history and provenance, the versioned wording slot the Code
-of Conduct and photo release are read from, and the ask's own state
-(`invited · opened · submitted · …`). The first three are owned by `W6` and
-`W11`; the ask's state is owned here. The mockups mark what is proposed rather
-than drawing it as if it shipped.
+`people.known_as` is listed above for the preferred name, and **is not on the
+baseline** — the column does not exist at `332bc6b`. No ask in the approved
+inventory needs it, and no screen renders it. It is named here only so a reader
+does not go looking for it.
 
-## The screen
+The `claimed` item state, per-item history and provenance are also absent, and
+are owned by `W6` and `W11`. The ask's own state
+(`invited · opened · submitted · …`) is absent and is owned here.
 
-`R4-P`: **a minimal checklist at the top, then the form.** One page, one submit.
+## The screen — a sequence, not one page
 
-**1 — The strip.** A short line of what is outstanding, with the count. Not the
-full checklist, not per-item history — that is `W6`'s record, on the operator
-side. Its job is to answer "why am I here and how much is this" before the
-player scrolls.
+Owner direction, 2026-09-01. The first draft put all fifteen asks on one screen.
+Brian split it:
 
-**2 — Consent, as step one.** A single tick, with the privacy line beside it and
-the season named. `OD7-form-is-consent-board`: the form _is_ the consent board,
-so this is not a preamble to the form, it is the form's first field.
+> "I think the pages need to be split up into details, though, to make it a
+> little bit different… the code of conduct needs to be its own page where we
+> have the code of conduct on the page. We scroll to the bottom, and it says,
+> 'Click I agree to the code of conduct'… You go to the next page… Bucs play
+> should be a set of steps. Again, that's its own page as well."
 
-**3 — The fifteen asks, in the approved order**, grouped as the inventory groups
-them: who you are (name, mobile, email); where you study (college, matriculation,
-graduation, degree); the two restricted facts (date of birth, emergency contact);
-the two you read and agree to (Code of Conduct, photo release); the two you go
-and do (BUCS Play, Hudl).
+**One link, five steps, still one open ask.** `T11-one-request` is untouched by
+this: `person_access_tokens` holds one live durable credential per person per
+season, and the sequence lives behind it. Nothing here creates a second link.
 
-**4 — Confirm, don't retype.** `OD7-recheck-prefill`: every value the club
-already holds arrives in the field, and the ask is to confirm it. A person with a
-complete record ticks their way down the page. A person with gaps sees the gaps.
+| Step | Page                   | What it is                                                                 |
+| ---- | ---------------------- | ---------------------------------------------------------------------------- |
+| 1    | Your details           | Consent, name and contact, academic facts, date of birth, emergency contact |
+| 2    | *(read-back)*          | The mobile read-back, on the path that captured it                          |
+| 3    | Code of Conduct        | The document, read, then agreed                                             |
+| 4    | Photo release          | The document, read, then agreed                                             |
+| 5    | BUCS Play, then Hudl   | Numbered steps, then "have you done it?"                                    |
 
-**5 — One submit**, and a result page that says what was saved and what remains.
+`R4-P`'s minimal checklist strip sits at the top of every step and doubles as
+the map: what is outstanding, and where in the sequence this person is.
 
-### How the page adapts
+### Step 1 — the details
 
-| Who opens it                 | What is different                                                                                                                                                                                                                                                                                                                                |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| An imported returner (`W1`)  | Name and whatever the CSV carried are pre-filled. Consent is step one and unticked.                                                                                                                                                                                                                                                              |
-| A hand-added player (`W2`)   | The three required fields are pre-filled; everything else is blank. Consent is step one and unticked.                                                                                                                                                                                                                                            |
-| **A flipped recruit (`W3`)** | Pre-filled from the recruit door and questionnaire A. **Consent is absent** — they granted it at the door this season and `season_messaging_consents` is unique per person per season, so there is nothing to ask. The four recruitment never asks — expected graduation, degree field, date of birth, emergency contact — are the visible gaps. |
-| Someone with nothing left    | The already-complete state. No form.                                                                                                                                                                                                                                                                                                             |
+Consent first (`OD7-form-is-consent-board`), then the asks in the approved
+order, then **the emergency contact as five separate fields** rather than one
+line — owner direction, 2026-09-01, and it matches what
+`person_emergency_contacts` already stores:
 
-**The flipped recruit's missing first step is the single most important thing
-the mockups have to show**, because it is the one place where the three doors
-produce visibly different screens, and `W3` settled it without rendering it.
+| Field         | Column                                    | Asked for by Brian |
+| ------------- | ----------------------------------------- | -------------------- |
+| First name    | `person_emergency_contacts.given_name`    | yes                  |
+| Last name     | `person_emergency_contacts.family_name`   | yes                  |
+| Phone         | `person_emergency_contacts.phone`         | yes                  |
+| Email         | `person_emergency_contacts.email`         | yes                  |
+| **Relationship** | `person_emergency_contacts.relationship` | **not named** — the fifth column the table already carries. Shown on `W4-01` so it can be kept or dropped; the table takes either |
+
+### Steps 3 and 4 — the two documents
+
+Both pages are the same mechanism: the document on the page, scrolling, and an
+agreement reachable only from the end of it. The agreement records **the person,
+the exact version they saw, and the moment** — which is what makes it theirs
+rather than a tick.
+
+### Step 5 — BUCS Play, and Hudl
+
+BUCS Play is numbered steps followed by "have you done it?", which records
+`claimed`, not `complete` (`R2-V`, owned by `W6`). **Hudl rides on the same page
+rather than taking a sixth**: it has no document and no steps of its own, and
+its first half is the club's job — an operator invites, then the player accepts.
+Brian was explicitly undecided here ("I do not know if Huddle should be");
+splitting it into its own page is a one-line change if he wants it.
+
+### How the sequence adapts
+
+| Who opens it                   | What is different                                                                                                                                                                                                                                        |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An imported returner (`W1`)    | Step 1 pre-filled with whatever the CSV carried. Consent is asked.                                                                                                                                                                                       |
+| A hand-added player (`W2`)     | The three required fields pre-filled; the rest blank. Consent is asked.                                                                                                                                                                                  |
+| **A flipped recruit (`W3`)**   | Pre-filled from the recruit door and questionnaire A. **Consent is absent** — granted at the door this season, and the row is unique per person per season. Their gaps are the facts recruitment never asks: expected graduation, degree field, date of birth, and the whole emergency contact. |
+| Someone with nothing left      | The already-complete page. No sequence.                                                                                                                                                                                                                  |
+| Someone returning part-way     | The sequence resumes at the first step still outstanding. Steps already done are not re-asked, and an agreed document is not re-agreed unless its version changed.                                                                                        |
+
+## What has no substrate, and is therefore new
+
+The details in step 1 all have columns on `main`. **The two document steps do
+not, and neither does a signature.** Established by reading the baseline rather
+than assuming:
+
+- **No object storage.** No bucket is configured anywhere; `supabase/config.toml`
+  carries only a commented-out example.
+- **No document anywhere.** No table holds a document, a policy text or a
+  version of one; no `bytea`, `blob` or `base64` column exists in any migration.
+- **No signature of any kind.** Nothing captures, stores or verifies one.
+- **One file input in the whole application** — the event CSV import, which
+  parses in memory and stores nothing.
+
+So both document steps need substrate this mission adds: **a versioned document
+text, and a dated per-person acceptance naming the version.** Neither needs an
+object store, because neither needs a file.
+
+**Where the text is administered is deferred.** Brian, 2026-09-01: "there
+probably needs to be an administration page to handle that. I don't really want
+to think about that right now." Recorded as an open decision below rather than
+designed here; `W11` already owns per-season checklist configuration and is the
+natural home. **This workflow does not depend on the answer** — it needs the
+slot to exist and be versioned, not to know who fills it.
 
 ## Required actions
+
+**Step 1 — the details page.**
 
 1. **Open the link.** A side-effect-free GET. The ask moves `invited → opened`;
    nothing else is written, following `/a/[token]`'s Q-11 rule exactly.
 2. **Tick consent** — where it is asked. One-way: the control that grants it
    offers no way to remove it (`OD7-oneway-tick`).
-3. **Confirm or correct each pre-filled value; fill each gap.** Read-back applies
-   on the mobile, as it does on every mobile-capture path in the mission.
-4. **Read and confirm the Code of Conduct; read and sign the photo release** —
-   each a page of wording from a versioned slot, then a dated confirmation
-   stored as theirs.
-5. **Answer the two off-system asks** — BUCS Play and Hudl — as "have you done
-   it?", which records `claimed`, not `complete` (`R2-V`, owned by `W6`).
-6. **Submit once.** The ask moves to `submitted`.
+3. **Confirm or correct each pre-filled value; fill each gap**, including the
+   emergency contact's five fields. Read-back applies on the mobile.
+4. **Save and continue.**
 
-**Nothing here is required to proceed.** `R3-G` governs: nothing gates, ever. A
-player may submit with every optional field blank and the page accepts it; the
-gaps simply stay outstanding and stay chased. The three required fields are
-required to be _asked for_ and to be _chased_, not to be a barrier.
+**Steps 3 and 4 — the two documents.** For each: read the document on the page,
+reach its end, and agree. The agreement records the person, the version and the
+moment, and continues to the next step.
+
+**Step 5 — the two off-system asks.** Follow the BUCS Play steps, then answer
+"have you done it?"; answer the Hudl question. Both record `claimed`, not
+`complete` (`R2-V`, owned by `W6`). Finish.
+
+**Nothing in the sequence is required to advance it.** `R3-G` governs: nothing
+gates, ever. A player may pass through all five steps having entered nothing,
+declined both documents and answered neither off-system ask, and every page
+takes it; the gaps stay outstanding and stay chased. The three required fields
+are required to be _asked for_ and to be _chased_, never to be a barrier — and
+that includes the two documents, which are asked for and chased like anything
+else.
+
+**Leaving part-way is normal.** Whatever a step saved is saved. Returning to the
+link resumes at the first step still outstanding, and an already-agreed document
+is not re-agreed unless its version changed.
 
 ## State transitions
 
@@ -299,23 +368,29 @@ inside three boxes. If that stops being true, it returns to Brian.
 
 ## Acceptance evidence
 
-Five screens, each photographed on both sides at a measured 1280 and 375 against
-the running application on the mission slot. Both sides of every screen come from
-the same producer.
+Eight screens, each photographed on both sides at a measured 1280 and 375
+against the running application on the mission slot. Both sides of every screen
+come from the same producer.
 
-| Screen  | What it proves                                                                      |
-| ------- | ----------------------------------------------------------------------------------- |
-| `W4-01` | The form as an imported returner opens it: the strip, consent as step one, the gaps |
-| `W4-02` | The same page for a **flipped recruit**: pre-filled, and **no consent step**        |
-| `W4-03` | Submitted — what was saved, what is still outstanding                               |
-| `W4-04` | Already-complete — the link opened with nothing left to give                        |
-| `W4-05` | Expired or revoked — the uniform page, and the one sentence that had to change      |
+| Screen  | What it proves                                                                              |
+| ------- | --------------------------------------------------------------------------------------------- |
+| `W4-01` | Step 1: the strip as the map, consent first, the gaps, the emergency contact as five fields |
+| `W4-02` | Step 1 for a **flipped recruit**: pre-filled, and **no consent step**                       |
+| `W4-03` | The Code of Conduct on its own page, scrolled to the end, agreement below it                |
+| `W4-04` | The photo release, same mechanism — and the e-signature decision, marked                    |
+| `W4-05` | BUCS Play as numbered steps, then the claim; Hudl alongside                                 |
+| `W4-06` | Done — what was saved, what is still outstanding                                            |
+| `W4-07` | Already complete — the link opened with nothing left to give                                |
+| `W4-08` | Expired or revoked — the uniform page, and the one sentence that had to change              |
 
-`W4-01`, `W4-03`, `W4-04` and `W4-05` are built on the `/a/[token]` shell, which
-is a real implemented route: the current side photographs that page as it ships,
-and the proposed side photographs the same page transformed. `W4-02` needs the
-locally seeded flipped recruit from `evidence/W3-local-walk-data.md`, which must
-be re-run after any `db:reset`.
+Every screen is built on the `/a/[token]` shell, a real implemented route: the
+current side photographs that page as it ships, the proposed side photographs
+the same page transformed. `W4-02` and `W4-07` need the locally flipped recruit
+from `evidence/W4-local-walk-data.md`, which must be re-run after any
+`db:reset`.
+
+The document text on `W4-03` and `W4-04`, and the four BUCS Play steps on
+`W4-05`, are **placeholder and labelled as such on the screens themselves**.
 
 Grounding: **screenshots**.
 
@@ -331,7 +406,7 @@ Grounding: **screenshots**.
 | Nothing gates: a player may submit with every optional field blank                      | locked                          | `R3-G`                                                                                                                                                                         | settled  |
 | One welcome template for every door                                                     | locked                          | `OD7-same-message`, `M2`                                                                                                                                                       | settled  |
 | The welcome is the single message permitted before consent exists                       | locked                          | `T07-exception`, `T07-enforce`, `T11-consent-gate`                                                                                                                             | settled  |
-| A minimal checklist strip at the top, then the form                                     | locked                          | `R4-P`                                                                                                                                                                         | settled  |
+| A minimal checklist strip at the top of every step, doubling as the map of the sequence | locked                          | `R4-P`, and Brian's direction of 2026-09-01 to split the form into pages                                                                                                       | settled  |
 | The dead-link page reuses the shipped one — 404, heading, privacy line, one `Close`     | locked                          | `not-found.tsx` on `main`. Its body sentence is replaced because the shipped one talks about events; nothing else changes                                                      | settled  |
 | Values arrive pre-filled and are confirmed rather than retyped                          | locked                          | `OD7-recheck-prefill`                                                                                                                                                          | settled  |
 | A player's answer never silently overwrites a confirmed value; it raises `disputed`     | locked                          | Boundary item 14; resolution is `W7`'s                                                                                                                                         | settled  |
@@ -341,18 +416,32 @@ Grounding: **screenshots**.
 | Read-back applies to the mobile captured here                                           | locked                          | Overview invariant                                                                                                                                                             | settled  |
 | Under-18: the date is stored, the flag stops the chase entirely                         | locked                          | Overview invariant, `S44`                                                                                                                                                      | settled  |
 | A person without consent keeps a working link but receives nothing further              | locked                          | `T07-enforce`; the link is a credential, not a message                                                                                                                         | settled  |
-| How the fifteen asks are grouped into sections on the page                              | delegated to Mission Lead       | The inventory fixes content and order; grouping is presentation                                                                                                                | settled  |
-| Whether the Code of Conduct and photo release open in place or on their own sub-page    | delegated to Mission Lead       | Either satisfies "a page they read, then confirm"                                                                                                                              | settled  |
+| How the step-1 asks are grouped into sections on that page                              | delegated to Mission Lead       | The inventory fixes content and order; grouping is presentation                                                                                                                | settled  |
+| **The form is a sequence: details, Code of Conduct, photo release, BUCS Play + Hudl**    | locked                          | Owner direction, 2026-09-01, quoted in full above. One link, five steps, one open ask                                                                                          | settled  |
+| **The emergency contact is five fields, not one**                                       | locked                          | Owner direction, 2026-09-01, and `person_emergency_contacts`' own columns                                                                                                      | settled  |
+| **Whether `relationship` is asked for**                                                 | **proposed for owner approval** | Brian named four fields; the table stores a fifth. Shown on `W4-01` so it can be kept or dropped. **Recommended: keep it** — it is the field that makes the contact usable in an emergency, and the column already exists | **open** |
+| **The two documents are a versioned text plus a dated per-person acceptance, not an uploaded or e-signed file** | **proposed for owner approval** | Brian asked directly, and the answer is that the application has no object storage, no document table and no signature capture of any kind. Version + moment + person needs none of that; a drawn or PDF signature needs all of it. **Recommended: the versioned-agreement mechanism**, with e-signature additive later | **open** |
+| **Where the document text is administered**                                             | **proposed for owner approval** | Brian: "there probably needs to be an administration page to handle that. I don't really want to think about that right now." **Recommended: `W11`**, which already owns per-season checklist configuration. W4 needs only that the slot exists and is versioned, so this does not block it | **open** |
+| **Whether Hudl gets its own page**                                                      | **proposed for owner approval** | Brian: "I do not know if Huddle should be." **Recommended: no** — it has no document and no steps, and its first half is the club's job. It rides on the BUCS Play page. Splitting it is one line | **open** |
+| Whether a document page shows its version number to the player                          | delegated to Mission Lead       | The version is recorded either way; showing it is presentation                                                                                                                 | settled  |
 | Field-level validation and error wording beyond the shipped `BUSY_MESSAGE`              | delegated to Mission Lead       | No approved source constrains it; nothing gates regardless                                                                                                                     | settled  |
 | The exact `messaging_consent_source` value for a self-served page                       | delegated to Mission Lead       | The enum ships with three values; the shape is a source, not a policy                                                                                                          | settled  |
 
 ## Owed, and not blocking
 
-**BUCS Play and Hudl instruction copy.** Task 10 defers both to Task 11, which is
-this mission, and nobody has drafted either. They block no build and no walk —
-the mockups carry a marked placeholder — but they block a real send. Carried
-forward from `HANDOFF.md`; not an owner action under the five-condition test,
-because Brian can resolve it inside normal intake whenever he chooses to write it.
+**BUCS Play instruction copy, and Hudl's.** Task 10 defers both to Task 11,
+which is this mission, and nobody has drafted either. Stewart described the BUCS
+Play ask on 2026-08-11 — "giving Jamie Carter the App Store download link for
+the app. He downloads it. He fills it out with some instructions in the text
+message that say do this this this" — and that is as close to copy as exists.
+`W4-05` carries four placeholder steps, labelled as placeholders on the screen.
+They block no build and no walk; they block a real send.
+
+**The Code of Conduct and photo release wording**, which is Clint's through Task
+07. Both document panes carry labelled placeholder text at a realistic length.
+
+None of these is an owner action under the five-condition test: Brian can settle
+each inside normal intake whenever he chooses to write it.
 
 ## Brian approval
 
