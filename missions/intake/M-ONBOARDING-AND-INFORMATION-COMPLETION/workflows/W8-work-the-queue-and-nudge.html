@@ -1,0 +1,772 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W8 specification</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: #e7e9ee;
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: #212121;
+        color: #fff;
+        padding: 11px 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .layout {
+        display: flex;
+        gap: 26px;
+        max-width: 1220px;
+        margin: 26px auto 90px;
+        padding: 0 22px;
+        align-items: flex-start;
+      }
+      nav.toc {
+        position: sticky;
+        top: 68px;
+        flex: 0 0 252px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 16px 8px 16px 16px;
+        max-height: calc(100vh - 104px);
+        overflow: auto;
+      }
+      nav.toc h2 {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--sec);
+        margin: 0 0 10px;
+        border: 0;
+        padding: 0;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc > ol > li {
+        margin-bottom: 4px;
+      }
+      nav.toc a {
+        display: block;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13.5px;
+        padding: 4px 8px;
+        border-radius: 5px;
+      }
+      nav.toc a:hover {
+        background: var(--grey100);
+      }
+      nav.toc .sub {
+        padding-left: 11px;
+        margin-bottom: 6px;
+      }
+      nav.toc .sub a {
+        color: var(--sec);
+        font-size: 12.5px;
+        padding: 2px 8px;
+      }
+      main {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      section.doc {
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 4px 34px 30px;
+        margin-bottom: 22px;
+      }
+      section.doc > header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 16px 0 11px;
+        border-bottom: 1px solid var(--divider);
+      }
+      section.doc > header h2 {
+        font-size: 1.02rem;
+        margin: 0;
+        border: 0;
+        padding: 0;
+      }
+      section.doc > header .file {
+        font-size: 12px;
+        color: var(--sec);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        margin-left: auto;
+      }
+      h1 {
+        font-size: 1.45rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.1rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 0.98rem;
+        margin: 20px 0 6px;
+      }
+      h4 {
+        font-size: 0.92rem;
+        margin: 16px 0 4px;
+        color: var(--sec);
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul,
+      ol {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      .tablewrap {
+        overflow-x: auto;
+        margin: 14px 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+      }
+      a {
+        color: var(--primary);
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        margin: 22px 0;
+      }
+      .chip {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        padding: 2px 9px;
+        border-radius: 11px;
+        white-space: nowrap;
+      }
+      .chip.ok {
+        background: #edf7ed;
+        color: #1b5e20;
+      }
+      .chip.warn {
+        background: #fff4e5;
+        color: #663c00;
+      }
+      .chip.idle {
+        background: var(--grey100);
+        color: var(--sec);
+      }
+      @media (max-width: 900px) {
+        .layout {
+          display: block;
+          padding: 0 12px;
+        }
+        nav.toc {
+          position: static;
+          width: auto;
+          margin-bottom: 18px;
+          max-height: none;
+        }
+        section.doc {
+          padding: 4px 18px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        W8 — Work the queue and nudge<span
+          >M-ONBOARDING-AND-INFORMATION-COMPLETION · main@332bc6b</span
+        >
+      </div>
+      <div>
+        <a href="../mockups/index.html">Index</a>
+        <a href="../specifications.html">All specifications</a>
+        <a href="../mockups/W8-work-the-queue-and-nudge.html">Screens</a>
+      </div>
+    </div>
+    <div class="layout">
+      <nav class="toc">
+        <h2>On this page</h2>
+        <ol>
+          <li><a href="#s11-h2">Current main grounding</a></li>
+          <li><a href="#s11-h3">What a nudge is, and is not</a></li>
+          <li><a href="#s11-h4">What the queue has to show, per person</a></li>
+          <li><a href="#s11-h5">Who is on the queue, and who is not</a></li>
+          <li><a href="#s11-h6">Required actions</a></li>
+          <li><a href="#s11-h7">State transitions</a></li>
+          <li><a href="#s11-h8">Handoffs</a></li>
+          <li><a href="#s11-h9">Dependencies and mission boundaries</a></li>
+          <li><a href="#s11-h10">Exceptions and recovery</a></li>
+          <li><a href="#s11-h11">Safety, privacy, consent, and authority boundaries</a></li>
+          <li><a href="#s11-h12">Acceptance evidence</a></li>
+          <li><a href="#s11-h13">Core decisions</a></li>
+          <li><a href="#s11-h14">Brian approval</a></li>
+        </ol>
+      </nav>
+      <main>
+        <section class="doc">
+          <header>
+            <h2>W8 — Work the queue and nudge</h2>
+            <span class="chip warn">draft, not approved</span>
+            <span class="file">workflows/W8-work-the-queue-and-nudge.md</span>
+          </header>
+          <h1 id="s11-h1">W8 — Work the queue and nudge</h1>
+          <ul>
+            <li>
+              Purpose/intended outcome: An operator opens the outstanding list on a Monday, sees who
+              is furthest behind,
+              <strong
+                >when each was last contacted and when the machine will next contact them</strong
+              >, and nudges one person or several in one action — each receiving only their own
+              compiled ask.
+            </li>
+            <li>Primary actor: A four-role operator.</li>
+            <li>Trigger: a person, usually Monday. Nothing about this workflow is automatic.</li>
+            <li>
+              Entry point / route: <strong><code>/operate/people/missing</code></strong
+              >, the missing-data queue, which ships.
+            </li>
+            <li>
+              Controlling source: <code>S28</code>, <code>S29</code>; owned <code>R4-T</code>,
+              <code>M3</code>, <code>T11-batch-nudge</code>, <code>T11-nudge-outside-cap</code>,
+              <code>T11-terminal-failure</code>, <code>T11-visibility</code>,
+              <code>OD7-depart-stops</code>, <code>OD7-no-targeted-ask</code>.
+            </li>
+            <li>
+              User-visible result: messages go out, each person gets their own link, and the queue
+              records that a human asked.
+            </li>
+          </ul>
+          <h2 id="s11-h2">Current <code>main</code> grounding</h2>
+          <p>
+            The queue ships with <code>Name · Status · To the club · Missing · Correct</code>,
+            sortable by name and by how much is missing, and Mission 5 built it knowing nothing
+            acted on it yet.
+          </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>What ships</th>
+                  <th>What is missing</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>The table, sortable, with a per-person missing summary</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>A <code>Correct</code> action routing to the operator edit path</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>—</td>
+                  <td><strong>when each person was last contacted, and how</strong></td>
+                </tr>
+                <tr>
+                  <td>—</td>
+                  <td><strong>when the machine will next contact them</strong></td>
+                </tr>
+                <tr>
+                  <td>—</td>
+                  <td><strong>any way to ask them</strong> — the queue can only correct</td>
+                </tr>
+                <tr>
+                  <td>—</td>
+                  <td><strong>selection, and one action across several people</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <code>T11-visibility</code> is the first two. <code>M3</code> and
+            <code>T11-batch-nudge</code> are the last two.
+          </p>
+          <h2 id="s11-h3">What a nudge is, and is not</h2>
+          <p>
+            <strong>A nudge sends the person's own compiled ask.</strong> Not a new message, not a
+            one-fact question: the same link they already hold, compiled to whatever is still
+            outstanding for them. <code>OD7-no-targeted-ask</code> — Brian, 2026-09-02 — settled
+            that the system never generates a one-fact ask, so there is nothing else it could send.
+          </p>
+          <p>
+            <strong>A nudge is a human deciding.</strong> <code>R4-T</code>'s trigger set is
+            onboarding-open, the operator nudge, a standing condition, and reopen — and reopen never
+            auto-fires. Nothing on this screen happens on a timer.
+          </p>
+          <p>
+            <strong>Batch is several people, not one message to several people.</strong>
+            <code>T11-batch-nudge</code>: each person receives their own compiled ask, addressed to
+            them, carrying their own link. There is no group message anywhere in this mission, and a
+            link is scoped to one person by construction.
+          </p>
+          <p>
+            <strong>Operator nudges are outside the cap</strong>
+            (<code>T11-nudge-outside-cap</code>). The automated chase stops after a configured
+            number of messages that actually arrived; a human is never stopped by that. The queue
+            <strong>warns</strong> when the automated chase for someone is already exhausted — not
+            to prevent the nudge, but because that is exactly the person a human should be thinking
+            about.
+          </p>
+          <h2 id="s11-h4">What the queue has to show, per person</h2>
+          <p><code>T11-visibility</code>, as three columns:</p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Column</th>
+                  <th>What it says</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Last contact</strong></td>
+                  <td>
+                    When, and <strong>what kind</strong> — the welcome, a follow-up, or a human
+                    nudge
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Next</strong></td>
+                  <td>When the machine will next write, or that it will not</td>
+                </tr>
+                <tr>
+                  <td><strong>Missing</strong></td>
+                  <td>Already ships</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            &quot;Or that it will not&quot; carries three real cases: the chase is exhausted; the
+            person is unmessageable; or delivery terminally failed. Each is a person a human has to
+            handle, and the queue is where that becomes visible.
+          </p>
+          <h2 id="s11-h5">Who is on the queue, and who is not</h2>
+          <ul>
+            <li>
+              <strong>A disputed fact is not outstanding.</strong> The person answered; nothing is
+              being waited on from them (<code>W7</code>).
+            </li>
+            <li>
+              <strong>A person who left mid-onboarding drops off entirely.</strong>
+              <code>OD7-depart-stops</code>: the ask simply stops, nothing more is asked, and
+              whatever records exist stay as they are.
+            </li>
+            <li>
+              <strong>An under-18 person is not messaged at all</strong>, so they are not chaseable
+              until a fresh owner decision defines under-18 handling.
+            </li>
+            <li>
+              <strong>A person with no consent is unmessageable</strong> and shows as such rather
+              than being silently skipped.
+            </li>
+            <li>
+              <strong>Terminal delivery failure</strong> puts the person on the list for a human,
+              and
+              <strong>no automated email is sent in its place</strong>
+              (<code>T11-terminal-failure</code>). The cap is not burned by a message that never
+              arrived.
+            </li>
+          </ul>
+          <h2 id="s11-h6">Required actions</h2>
+          <ol>
+            <li>Open the queue, sorted by how much is outstanding.</li>
+            <li>
+              Read, per person, what is missing, when they were last contacted and when the machine
+              will next write.
+            </li>
+            <li>Select one person, or several.</li>
+            <li>Nudge. Each selected person receives their own compiled ask.</li>
+          </ol>
+          <h2 id="s11-h7">State transitions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>On</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>open</code></td>
+                  <td><code>open</code></td>
+                  <td>A nudge. The ask does not change; it is re-sent</td>
+                </tr>
+                <tr>
+                  <td>—</td>
+                  <td>logged</td>
+                  <td>Every nudge appears on that person's <code>W6</code> log</td>
+                </tr>
+                <tr>
+                  <td><code>open</code></td>
+                  <td><code>exhausted — human follow-up</code></td>
+                  <td>
+                    The automated chase runs out (<strong><code>W9</code></strong
+                    >)
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            A nudge never creates a second ask: <code>person_access_tokens</code> permits one live
+            durable credential per person per season.
+          </p>
+          <h2 id="s11-h8">Handoffs</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>To / from</th>
+                  <th>What crosses</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W4</code>, <code>W5</code></td>
+                  <td>The compiled ask a nudge sends, and whatever comes back</td>
+                </tr>
+                <tr>
+                  <td><code>W6</code></td>
+                  <td>Every nudge, onto the person's activity log, attributed to the operator</td>
+                </tr>
+                <tr>
+                  <td><code>W9</code></td>
+                  <td>A chase that has run out, which is that workflow's own trigger</td>
+                </tr>
+                <tr>
+                  <td><code>W12</code></td>
+                  <td>The cadence, the gap and the cap this screen reports against</td>
+                </tr>
+                <tr>
+                  <td>Mission 4</td>
+                  <td>
+                    Transport: the pipeline, the templates, the delivery states, the cap counting
+                  </td>
+                </tr>
+                <tr>
+                  <td>Mission 5</td>
+                  <td>The queue itself, its sorting and its missing-data summary</td>
+                </tr>
+                <tr>
+                  <td>Mission 10</td>
+                  <td>The Monday report reads this; it does not own it</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s11-h9">Dependencies and mission boundaries</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Seam</th>
+                  <th>This mission's side</th>
+                  <th>The other side</th>
+                  <th>Blocking?</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Mission 4 · Communications</td>
+                  <td>What a nudge is, when it is allowed, what it carries</td>
+                  <td>Sending it, and the five delivery states</td>
+                  <td><strong>Depends on LAN-93</strong> — see below</td>
+                </tr>
+                <tr>
+                  <td>Mission 5 · People &amp; Roster</td>
+                  <td>The three columns and the nudge action</td>
+                  <td>The queue, the table, the sorting</td>
+                  <td>Not blocking; shipped</td>
+                </tr>
+                <tr>
+                  <td>Mission 10 · Reporting</td>
+                  <td>The queue's content</td>
+                  <td>Its Monday surfacing</td>
+                  <td>Not blocking</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <strong>LAN-93 is a stated dependency, not an option.</strong> The cap counts messages
+            known to have arrived, so delivery callbacks are what make &quot;the automated chase is
+            exhausted&quot; a true statement rather than a guess. Recorded in the overview's rollout
+            constraints; repeated here because this is the screen that displays it.
+          </p>
+          <h2 id="s11-h10">Exceptions and recovery</h2>
+          <ul>
+            <li>
+              <strong>Nudging somebody with nothing outstanding.</strong> Not offered; they are not
+              on the queue.
+            </li>
+            <li>
+              <strong>Nudging somebody unmessageable.</strong> Refused, with the reason — no
+              consent, no channel, or under 18.
+            </li>
+            <li>
+              <strong>A nudge that fails terminally.</strong> The person stays on the list, flagged
+              for a human; no automated email replaces it.
+            </li>
+            <li>
+              <strong>Nudging the same person twice in a minute.</strong> Permitted — operator
+              nudges are outside the cap — and both appear on the log.
+            </li>
+          </ul>
+          <h2 id="s11-h11">Safety, privacy, consent, and authority boundaries</h2>
+          <ul>
+            <li><strong>Four-role only.</strong></li>
+            <li>
+              <strong>Each person receives only their own ask</strong>, on their own link. No group
+              send exists anywhere in this mission.
+            </li>
+            <li>
+              <strong>Nothing is ever sent by hand.</strong> A nudge rides Mission 4's pipeline,
+              template-only in production.
+            </li>
+            <li>
+              <strong>The refuse-without-basis check still applies</strong>: a nudge to somebody
+              without a recorded basis is refused, and the welcome is the only exception.
+            </li>
+            <li><strong>No free text in a nudge.</strong> An operator chooses who, never what.</li>
+          </ul>
+          <h2 id="s11-h12">Acceptance evidence</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Screen</th>
+                  <th>What it proves</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W8-01</code></td>
+                  <td>The queue with last contact, its kind, and the next automated contact</td>
+                </tr>
+                <tr>
+                  <td><code>W8-02</code></td>
+                  <td>
+                    Several people selected, one action, each receiving only their own compiled ask
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W8-03</code></td>
+                  <td>
+                    The three people the machine will not write to again, and why each is a human's
+                    job
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Shot on <code>/operate/people/missing</code>, a real implemented route, both sides,
+            measured 1280 and 375.
+          </p>
+          <p>Grounding: <strong>screenshots</strong>.</p>
+          <h2 id="s11-h13">Core decisions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Decision</th>
+                  <th>Classification</th>
+                  <th>Governing evidence or recommended default</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>The surface is Mission 5's shipped missing-data queue</td>
+                  <td>locked</td>
+                  <td>It ships, it sorts, and nothing acts on it yet</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>A nudge sends the person's own compiled ask, never a new message</td>
+                  <td>locked</td>
+                  <td><code>OD7-no-targeted-ask</code>, <code>M3</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Batch means several people, each getting their own ask</td>
+                  <td>locked</td>
+                  <td>
+                    <code>T11-batch-nudge</code>; a link is scoped to one person by construction
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Operator nudges are unlimited and outside the cap</td>
+                  <td>locked</td>
+                  <td><code>T11-nudge-outside-cap</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The queue warns when the automated chase is already exhausted</td>
+                  <td>locked</td>
+                  <td><code>T11-nudge-outside-cap</code>; it warns, it does not prevent</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Last contact, its kind, and the next automated contact are shown</td>
+                  <td>locked</td>
+                  <td><code>T11-visibility</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    Terminal delivery failure lists the person for a human, sends no email in its
+                    place
+                  </td>
+                  <td>locked</td>
+                  <td><code>T11-terminal-failure</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Leaving mid-onboarding drops the person off the queue entirely</td>
+                  <td>locked</td>
+                  <td><code>OD7-depart-stops</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Nothing on this screen fires on a timer</td>
+                  <td>locked</td>
+                  <td><code>R4-T</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td><strong>Whether the queue defaults to onboarding players only</strong></td>
+                  <td><strong>proposed for owner approval</strong></td>
+                  <td>
+                    The shipped queue lists everybody with missing data, including coaches and
+                    committee. The collection loop is players only.
+                    <strong
+                      >Recommended: default to onboarding players, with the shipped scope still
+                      reachable</strong
+                    >
+                  </td>
+                  <td><strong>open</strong></td>
+                </tr>
+                <tr>
+                  <td>Sort order on first open</td>
+                  <td>delegated to Mission Lead</td>
+                  <td>The column ships sortable; which way it opens is presentation</td>
+                  <td>settled</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s11-h14">Brian approval</h2>
+          <ul>
+            <li>Exact words:</li>
+            <li>Date:</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

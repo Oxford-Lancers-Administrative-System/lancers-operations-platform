@@ -26,6 +26,7 @@ const SHARED_BY_WORKFLOW = {
   W5: ["_player-page.js"],
   W6: ["_record-page.js"],
   W7: ["_person-page.js"],
+  W8: ["_queue-page.js"],
 };
 for (const file of readdirSync(SRC).sort()) {
   if (file.startsWith("_") || !file.endsWith(".js")) continue;

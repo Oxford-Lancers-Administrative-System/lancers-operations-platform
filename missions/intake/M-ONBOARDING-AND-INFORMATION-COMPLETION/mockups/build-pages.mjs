@@ -489,6 +489,62 @@ const WORKFLOWS = [
       ),
     ],
   },
+  {
+    id: "W8",
+    slug: "work-the-queue-and-nudge",
+    name: "Work the queue and nudge",
+    grounding: "photograph",
+    lede: `An operator opens the outstanding list on a Monday, sees who is furthest behind, when each
+      was last contacted and when the machine will next write — and nudges one person or several in
+      one action, each receiving only their own compiled ask.`,
+    legend: [
+      "<strong>Mission 5 shipped this table knowing nothing acted on it.</strong> Name, Status, To the club, Missing, Correct — sortable, and honest about who is behind. What it cannot say is whether anybody has <em>asked</em>",
+      "<strong>A nudge sends the person's own compiled ask</strong>, not a new message and not a one-fact question. <code>OD7-no-targeted-ask</code> settled that the system never generates a single-field ask, so there is nothing else it could send",
+      "<strong>Batch means several people, not one message to several people.</strong> Each gets their own link, and a link is scoped to one person by construction — <code>person_access_tokens</code> permits exactly one live credential per person per season",
+      "<strong>Operator nudges are outside the cap.</strong> The automated chase stops after a configured number of messages that actually arrived; a human never is. The queue <em>warns</em> when the chase is exhausted rather than refusing, because that is exactly who a person should be looking at",
+      "<strong>Nothing on this screen fires on a timer.</strong> <code>R4-T</code>'s trigger set is onboarding-open, the operator nudge, a standing condition, and reopen — and reopen never auto-fires",
+      "<strong>LAN-93 is a dependency, not an option.</strong> The cap counts messages known to have <em>arrived</em>, so delivery callbacks are what make “the chase is exhausted” true rather than a guess. This is the screen that displays it",
+    ],
+    screens: [
+      P(
+        "W8-01",
+        "The queue, with what it cannot say today",
+        `Two columns and one action. A welcome sent three weeks ago and a nudge sent yesterday are not
+         the same situation, and the shipped table cannot tell them apart.`,
+        [
+          "<strong>When they were last contacted, and what kind it was</strong> — the welcome, a follow-up, or a human nudge",
+          "<strong>And when the machine will write next, or that it will not.</strong> Three rows here say it will not, and each is a different human job — W8-03 is those three",
+          "<strong>The action the queue is missing.</strong> Today it can only route to Correct; it cannot ask anybody for anything",
+        ],
+        "oxfordlancers.example/operate/people/missing",
+      ),
+      P(
+        "W8-02",
+        "Several people, one action, and one ask each",
+        `<code>T11-batch-nudge</code>. This is not a group message and cannot become one — each
+         selected person receives their own compiled ask on their own link, carrying only what is
+         outstanding for them.`,
+        [
+          "<strong>Selection</strong>, which the queue does not have today",
+          "<strong>One action across the three.</strong> Three messages go out, not one — addressed individually, each carrying only that person's own outstanding items",
+          "<strong>The second person's automated chase has already run out.</strong> An operator nudge is outside the cap and is not stopped by it; the queue says so rather than refusing",
+        ],
+        "oxfordlancers.example/operate/people/missing",
+      ),
+      P(
+        "W8-03",
+        "The three the machine will not write to again",
+        `“Next: never” is not one state. Each of these is a different reason and a different human
+         job, and a queue that collapsed them into a blank cell would hide all three.`,
+        [
+          "<strong>Exhausted.</strong> The chase stopped itself after the configured number of messages that actually arrived — and <strong>W9</strong> is what happens next",
+          "<strong>Unmessageable.</strong> No basis to send, so nothing is sent — and the person is not silently dropped from the list either",
+          "<strong>Terminal delivery failure.</strong> No automated email is sent in its place, and the cap is not burned by a message that never arrived",
+        ],
+        "oxfordlancers.example/operate/people/missing",
+      ),
+    ],
+  },
 ];
 
 const SHOTS = JSON.parse(readFileSync(path.join(OUT, "shots", "shots.json"), "utf8"));

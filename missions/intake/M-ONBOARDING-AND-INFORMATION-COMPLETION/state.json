@@ -187,19 +187,36 @@
     {
       "id": "W7",
       "name": "Settle a disputed fact",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {},
+      "approvals": {
+        "spec": {
+          "words": "W7 is approved",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "W7 is approved",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        },
+        "acceptance": {
+          "words": "W7 is approved",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        }
+      },
       "spec": "workflows/W7-settle-a-disputed-fact.md"
     },
     {
       "id": "W8",
       "name": "Work the queue and nudge",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {},
+      "spec": "workflows/W8-work-the-queue-and-nudge.md"
     },
     {
       "id": "W9",
@@ -1805,5 +1822,5 @@
     ],
     "approval": null
   },
-  "next_action": "W7 — Settle a disputed fact: specification drafted and two screens shot on the person record; one open decision on which consent record wins when two people merge."
+  "next_action": "W8 — Work the queue and nudge: specification drafted and three screens shot on the shipped missing-data queue; one open decision on whether the queue defaults to onboarding players only."
 }
