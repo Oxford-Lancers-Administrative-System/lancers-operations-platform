@@ -536,9 +536,9 @@ export function formatInstant(value: Date | string): string {
   const moment = toInstant(value);
   if (!moment) return UNREADABLE_DATE;
   return `${formatDay(value)}, ${part(moment, {
-    hour: "2-digit",
+    hour: "numeric",
     minute: "2-digit",
-    hour12: false,
+    hour12: true,
   })}`;
 }
 

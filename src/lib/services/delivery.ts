@@ -345,14 +345,14 @@ async function claimJobIn(
             to_char(
               (e.scheduled_on + coalesce(e.starts_at, '00:00'::time)) at time zone 'Europe/London'
                 at time zone 'Europe/London',
-              'FMDay FMDD FMMonth, HH24:MI') as when_label,
+              'FMDay FMDD FMMonth, FMHH12:MI am') as when_label,
             -- LAN-169. The response deadline, as the player reads it. Rendered
             -- in the club's zone for the reason every other instant is: an
             -- invitation that quotes a UTC deadline is an hour wrong for seven
             -- months of the year.
             to_char(
               i.expires_at at time zone 'Europe/London',
-              'FMDay FMDD FMMonth, HH24:MI') as deadline_label,
+              'FMDay FMDD FMMonth, FMHH12:MI am') as deadline_label,
             e.venue,
             -- The dispatch-time snapshot the approved W2-02 chase carries.
             -- Counted here, inside the claiming transaction, so the number in
@@ -768,6 +768,24 @@ export const EMAIL_FALLBACK_SUFFIX = ":email-fallback";
  * own send — and is recorded by the ordinary failure path `dispatchJob` takes
  * for it. There is deliberately no second fallback from an email failure:
  * email is the last rung this function ever reaches for.
+ *
+ * ## A recruit is never emailed (Brian, 2 September)
+ *
+ * WhatsApp is the club's channel for recruits, and email is not a channel they
+ * are on at all. The four recruit *cycle* steps were already safe by accident:
+ * they carry no `invitation_id`, so this function never matched them. A recruit
+ * invited to a **recruitment event** is not safe by accident — that job carries
+ * an invitation like any player's, so a failed WhatsApp send would have minted
+ * an email and reached them on a channel the club never chose for them.
+ *
+ * The capacity is the fence, not the message kind: it is a fact about who the
+ * person is to the club, recorded on the invitation itself, and it therefore
+ * covers the recruit's event invitation and their one follow-up together
+ * without either having to remember to opt out.
+ *
+ * A recruit whose WhatsApp fails stays a visible delivery failure for an
+ * operator to work, which is what `REQ-whatsapp-outage-visible` asks for
+ * anyway — not a silent switch to a channel they never opted into.
  */
 async function scheduleWhatsAppFallbackIn(tx: Tx, jobId: string): Promise<string | null> {
   const created = await tx.query<{ id: string }>(
@@ -778,7 +796,9 @@ async function scheduleWhatsAppFallbackIn(tx: Tx, jobId: string): Promise<string
             j.invitation_id, j.event_id, j.person_id,
             'email'::public.notification_channel, now(), j.ladder_rung, '{}'::jsonb
        from public.notification_jobs j
+       join public.invitations i on i.id = j.invitation_id
       where j.id = $1 and j.invitation_id is not null and j.channel = 'whatsapp'
+        and i.capacity <> 'recruit'
      on conflict (idempotency_key) do nothing
      returning id`,
     [jobId],

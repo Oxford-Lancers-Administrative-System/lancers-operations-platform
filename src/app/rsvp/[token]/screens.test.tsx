@@ -154,7 +154,7 @@ describe("UX-60 — the invitation", () => {
     expect(text).toContain("Avery Fielding");
     expect(text).toContain("Iffley Road Astro");
     // The response deadline, which is NOT the write cutoff.
-    expect(text).toContain("Tuesday, 13 October at 18:00");
+    expect(text).toContain("Tuesday, 13 October at 6:00 pm");
     expect(text).toContain("Late responses accepted until start");
   });
 

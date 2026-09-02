@@ -150,7 +150,7 @@ describe("OWNER-LAN172-01 — the restored fact block", () => {
 
     expect(text).toContain("Avery Fielding");
     expect(text).toContain("Iffley Road Astro");
-    expect(text).toContain("Tuesday, 13 October at 18:00");
+    expect(text).toContain("Tuesday, 13 October at 6:00 pm");
     expect(text).toContain(YES_HEADING);
   });
 

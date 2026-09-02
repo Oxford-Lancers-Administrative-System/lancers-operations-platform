@@ -8,6 +8,7 @@ package-lock.json
 supabase/.temp/
 supabase/.branches/
 src/lib/supabase/database.types.ts
+docs/whatsapp-template-manifest.md
 
 # Agent worktrees are checkouts of this repository, not source of it.
 .claude/worktrees/

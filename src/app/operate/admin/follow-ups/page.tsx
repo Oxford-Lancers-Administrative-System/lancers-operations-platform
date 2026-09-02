@@ -94,6 +94,7 @@ function followUpsSortState(
 
 /** One flat row — the table's own shape, an event repeated across its people. */
 interface QueueRow extends FollowUpRow {
+  readonly eventId: string;
   readonly eventName: string;
   readonly scheduledOn: string | null;
 }
@@ -102,6 +103,7 @@ function flatten(events: readonly FollowUpEvent[]): readonly QueueRow[] {
   return events.flatMap((event) =>
     event.people.map((person) => ({
       ...person,
+      eventId: event.eventId,
       eventName: event.eventName,
       scheduledOn: event.scheduledOn,
     })),
@@ -246,6 +248,12 @@ export default async function FollowUpsPage({
   const period: EventPeriod = (EVENT_PERIODS as readonly string[]).includes(rawPeriod)
     ? (rawPeriod as EventPeriod)
     : "all";
+  // The escalation's own link (`templates.ts`, `messaging-scheduler.ts`) opens
+  // this queue already narrowed to the event it was about. An unknown id
+  // filters to nothing rather than silently showing everything: the officer
+  // followed a link about one event, and a full queue would read as that
+  // event's outstanding list.
+  const eventFilter = typeof query.event === "string" ? query.event : "";
   const rawSort = typeof query.sort === "string" ? query.sort : "";
   const sort = isFollowUpsSort(rawSort) ? rawSort : "";
   const rawDirection = typeof query.dir === "string" ? query.dir : "";
@@ -276,6 +284,7 @@ export default async function FollowUpsPage({
   const filtered = rows.filter(
     (row) =>
       (status === "" || row.status === status) &&
+      (eventFilter === "" || row.eventId === eventFilter) &&
       (needle === "" || row.personName.toLowerCase().includes(needle)) &&
       matchesPeriod(row, bounds),
   );
@@ -313,7 +322,11 @@ export default async function FollowUpsPage({
 
       {sorted.length === 0 ? (
         <Alert severity="info" data-testid="follow-ups-empty">
-          {rows.length === 0 ? EMPTY_QUEUE : "No one matches this search."}
+          {rows.length === 0
+            ? EMPTY_QUEUE
+            : eventFilter !== ""
+              ? "No one is outstanding for that event."
+              : "No one matches this search."}
         </Alert>
       ) : (
         <Paper variant="outlined">

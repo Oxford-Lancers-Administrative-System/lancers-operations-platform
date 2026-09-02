@@ -2027,7 +2027,7 @@ describe("UX-41 — confirming exactly who will be asked", () => {
     // 12 October 2026 at 17:00Z is 18:00 in British Summer Time — the case a
     // UTC-rendered deadline would show an hour early for half a season.
     expect(flatten(screen.getByTestId("deadline-fact").textContent)).toContain(
-      "Monday, 12 October 2026 at 18:00",
+      "Monday, 12 October 2026 at 6:00 pm",
     );
   });
 

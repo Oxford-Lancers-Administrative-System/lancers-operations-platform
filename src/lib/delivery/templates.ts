@@ -99,6 +99,9 @@ export function templateNameVariable(kind: MessageKind): string {
 /** Brian's amended button labels. Alphanumerics and spaces only — no em dashes. */
 export const YES_BUTTON_LABEL = "Yes view details";
 export const NO_BUTTON_LABEL = "No give reason";
+export const FINISH_ANSWERS_LABEL = "Finish your answers";
+export const VIEW_EVENT_LABEL = "View the event";
+export const OPEN_FOLLOW_UPS_LABEL = "Open follow ups";
 
 /**
  * LAN-199's own recruit button labels, verbatim — alphanumerics and spaces
@@ -113,6 +116,74 @@ export const RECRUIT_ANSWER_QUESTIONS_LABEL = "Answer a few questions";
 export const RECRUIT_YES_LABEL = "Yes I can come";
 export const RECRUIT_NO_LABEL = "No thanks";
 
+/**
+ * Meta's two template categories.
+ *
+ * The category is submitted with the template and Meta re-checks it against the
+ * message's actual content. Since 16 April 2025 a detected misclassification is
+ * enforced immediately with no notice period, so this is declared per kind
+ * rather than assumed for the account: the player ladder chases an arrangement
+ * the person is already part of, and the recruit cycle does not.
+ */
+export type TemplateCategory = "UTILITY" | "MARKETING";
+
+/**
+ * One URL button of an approved template.
+ *
+ * Meta stores the *fixed prefix* and appends the caller's suffix, so `path` is
+ * what the club types into the template editor and the suffix is the one-time
+ * token the adapter sends at dispatch. A `dynamic: false` button carries no
+ * parameter at all and needs no component in the payload — which is what makes
+ * a static destination like the follow-up queue a button rather than a body
+ * variable that never varies.
+ */
+export interface TemplateButton {
+  readonly label: string;
+  /** The path Meta holds, appended to the application host. Ends with `/` when dynamic. */
+  readonly path: string;
+  readonly dynamic: boolean;
+}
+
+/**
+ * What Meta holds for one kind — the approved body, its category and its
+ * buttons.
+ *
+ * ## Why this is declared here and not written down in Linear
+ *
+ * Meta matches what is sent against what the approved template declares,
+ * positionally, and a disagreement is either error `132000` or, worse, a
+ * *delivered* message with its sentences swapped. Until this existed, the body
+ * copy lived only in a ticket and `parameterNames` lived only in code, and the
+ * two had drifted apart on every player-facing kind: parameters the body had no
+ * slot for, slots the parameters did not fill, and a `{{n}}` count that matched
+ * on none of the six.
+ *
+ * Declaring the body next to the parameters that fill it makes that drift a
+ * test failure (`templates.test.ts` asserts every `{{n}}` in `body` has exactly
+ * one entry in `parameterNames`, and vice versa) and makes the LAN-168 manifest
+ * something generated rather than something maintained by hand.
+ *
+ * ## What a Meta body may not do, and the rule that follows
+ *
+ * A template cannot omit a positional parameter, drop a line, or swap a
+ * sentence. The email bodies below do all three and stay free to. **A WhatsApp
+ * body always supplies every value and never drops a line** — where the email
+ * omits an absent venue, the WhatsApp parameter folds it into the line above;
+ * where the email drops a zero attendance count, the WhatsApp parameter carries
+ * different words instead. That rule is why there is one approved template per
+ * kind rather than a with-count and a without-count variant of each.
+ */
+export interface WhatsAppTemplate {
+  readonly category: TemplateCategory;
+  /**
+   * The approved body, one entry per line, exactly as Meta holds it. `{{n}}` is
+   * positional and is filled by the nth entry of `parameterNames`.
+   */
+  readonly body: readonly string[];
+  /** The buttons, in Meta's index order. At most two may be URL buttons. */
+  readonly buttons: readonly TemplateButton[];
+}
+
 /** One kind's declaration: what WhatsApp sends, and what the email says. */
 export interface MessageTemplate {
   readonly kind: MessageKind;
@@ -123,19 +194,22 @@ export interface MessageTemplate {
   readonly parameterNames: readonly string[];
   /** The same parameters, resolved for one message. Same length, same order. */
   parameters(message: OutboundMessage): readonly string[];
+  /** What Meta holds for this kind. The manifest LAN-168 generates walks this. */
+  readonly whatsapp: WhatsAppTemplate;
   /** The email subject line for this kind. */
   subject(message: OutboundMessage): string;
   /** The email body, as plain text. Rendered to HTML by the transport. */
   body(message: OutboundMessage): readonly string[];
   /**
-   * The two WhatsApp URL buttons this kind carries — LAN-172, Q-11. `[yes, no]`
-   * order, matching the two approved actions. `undefined` for every kind
-   * besides `invitation` and `reminder`, which still carry `rsvpUrl` as body
-   * copy or a single CTA. Declared on the template registry, not read off
-   * `message.kind` a second time somewhere else, for the same reason
-   * `parameterNames` is declared here rather than implied.
+   * One resolved URL per **dynamic** button of `whatsapp.buttons`, in the same
+   * order. Static buttons contribute nothing here because they carry no
+   * parameter, so this is shorter than the button list whenever a kind mixes
+   * the two. Undefined for a kind with no dynamic button at all.
+   *
+   * Declared on the registry rather than read off `message.kind` a second time
+   * somewhere else, for the same reason `parameterNames` is.
    */
-  buttonUrls?(message: OutboundMessage): readonly [string, string] | null;
+  buttonUrls?(message: OutboundMessage): readonly string[];
 }
 
 function required(value: string | null | undefined, name: string): string {
@@ -151,12 +225,25 @@ function required(value: string | null | undefined, name: string): string {
 
 function deadlineSentence(message: OutboundMessage): string {
   const deadline = (message.deadlineLabel ?? "").trim();
-  return deadline === "" ? "Please answer as soon as you can." : `Please answer by ${deadline}.`;
+  return deadline === "" ? "Please respond as soon as you can." : `Please respond by ${deadline}.`;
 }
 
 function whereAndWhen(message: OutboundMessage): readonly string[] {
   const venue = (message.venue ?? "").trim();
   return venue === "" ? [message.whenLabel] : [message.whenLabel, venue];
+}
+
+/**
+ * The date, time and venue as one line.
+ *
+ * The email's `whereAndWhen` drops the venue line when the club has none on
+ * file. A Meta body cannot drop a line, so the WhatsApp parameter folds the
+ * venue into the line above and simply says less when there is nothing to say.
+ */
+function whenAndVenue(message: OutboundMessage): string {
+  const when = required(message.whenLabel, "date and time");
+  const venue = (message.venue ?? "").trim();
+  return venue === "" ? when : `${when}, ${venue}`;
 }
 
 /**
@@ -168,12 +255,34 @@ function whereAndWhen(message: OutboundMessage): readonly string[] {
  * a broken template; the first contact is deliberately a plain invitation with
  * no social proof at all.
  */
-function attendingSentence(message: OutboundMessage): string | null {
+function attendingSentence(message: OutboundMessage): string {
   const count = message.attendingCount;
-  if (typeof count !== "number" || count <= 0) return null;
+  if (typeof count !== "number" || count <= 0) {
+    // The zero wording, and the reason there is no second approved template.
+    // The LAN-168 draft answered a zero count with `event_reminder_nocount_v1`,
+    // a whole second Meta submission whose only difference was a missing line.
+    // A parameter that carries a sentence rather than a number answers it
+    // instead. It states no count and no absence, so
+    // `REQ-attendance-not-absence` holds: "0 people have said yes" is the
+    // sentence this exists to avoid, and it is not this one.
+    return "You would be among the first to respond.";
+  }
   return count === 1
-    ? "One other person has already said yes."
-    : `${count} other people have already said yes.`;
+    ? "One other person has confirmed they are attending."
+    : `${count} others have confirmed they are attending.`;
+}
+
+/**
+ * "One person has not answered" / "18 people have not answered".
+ *
+ * The whole clause, not the bare number, for the same reason the attendance
+ * sentence is a sentence: a Meta template cannot choose between a singular and
+ * a plural verb, and "1 people have not answered" is what a number parameter
+ * produces on the day one person is late.
+ */
+function outstandingClause(message: OutboundMessage): string {
+  const count = message.outstandingCount ?? 0;
+  return count === 1 ? "One person has not responded" : `${count} people have not responded`;
 }
 
 /**
@@ -182,21 +291,41 @@ function attendingSentence(message: OutboundMessage): string | null {
  * can act on, so a missing URL is refused here rather than sent as a template
  * with a blank button.
  */
-function answerButtonUrls(message: OutboundMessage): readonly [string, string] {
+function answerButtonUrls(message: OutboundMessage): readonly string[] {
   return [required(message.yesUrl, "Yes link"), required(message.noUrl, "No link")];
 }
 
 const INVITATION: MessageTemplate = {
   kind: "invitation",
-  // Three body parameters. `rsvpUrl` left this list with LAN-172: the approved
-  // W2-01 shape carries no raw URL in body copy at all — the two answers are
-  // WhatsApp URL buttons, declared below in `buttonUrls`, not text.
-  parameterNames: ["inviteeName", "eventName", "whenLabel"],
+  // The approved W2-01 shape, and it carries no name. WhatsApp arrives in a
+  // one-to-one thread where a greeting earns nothing, and a name parameter is
+  // a slot something can later put the wrong name into — the same reasoning
+  // `ESCALATION` records for having no name parameter at all. The email keeps
+  // its greeting, where a name is worth something.
+  //
+  // `rsvpUrl` is absent for a second reason (LAN-172): the two answers are URL
+  // buttons, not body text.
+  parameterNames: ["eventName", "whenAndVenue", "deadlineLabel"],
   parameters: (message) => [
-    required(message.inviteeName, "name"),
     required(message.eventName, "event name"),
-    required(message.whenLabel, "date and time"),
+    whenAndVenue(message),
+    // Nullable on `invitations.expires_at`, but every dispatched invitation has
+    // one: the messaging plan writes its not-null `response_deadline_at` to
+    // each invitation of the event. So this refuses rather than inventing a
+    // fallback phrase — "Please answer by as soon as you can" is the sentence a
+    // fallback would produce.
+    required(message.deadlineLabel, "response deadline"),
   ],
+  whatsapp: {
+    // The player ladder chases an event the person is already rostered for,
+    // which is the ongoing arrangement UTILITY describes.
+    category: "UTILITY",
+    body: ["You are invited to {{1}}", "", "{{2}}", "", "Please respond by {{3}}."],
+    buttons: [
+      { label: YES_BUTTON_LABEL, path: "/a/", dynamic: true },
+      { label: NO_BUTTON_LABEL, path: "/a/", dynamic: true },
+    ],
+  },
   subject: (message) => `You are invited: ${message.eventName}`,
   body: (message) => [
     `${message.inviteeName}, you are invited to ${message.eventName}.`,
@@ -215,22 +344,34 @@ const INVITATION: MessageTemplate = {
 
 const REMINDER: MessageTemplate = {
   kind: "reminder",
-  parameterNames: ["inviteeName", "eventName", "whenLabel"],
-  parameters: (message) => [
-    required(message.inviteeName, "name"),
-    required(message.eventName, "event name"),
-    required(message.whenLabel, "date and time"),
-  ],
+  // No date or venue: the player already has them from the invitation, and the
+  // approved W2-02 chase deliberately says less rather than repeating itself.
+  parameterNames: ["eventName", "attendingSentence"],
+  parameters: (message) => [required(message.eventName, "event name"), attendingSentence(message)],
+  whatsapp: {
+    category: "UTILITY",
+    body: [
+      "We still need your response",
+      "",
+      "{{1}} is coming up.",
+      "{{2}}",
+      "",
+      "Please respond below so the coaches can plan.",
+    ],
+    buttons: [
+      { label: YES_BUTTON_LABEL, path: "/a/", dynamic: true },
+      { label: NO_BUTTON_LABEL, path: "/a/", dynamic: true },
+    ],
+  },
   // The approved W2-02 wording: the chase gets stronger rather than repeating
   // itself, and it states plainly what the club is waiting for.
   subject: (message) => `Action required: RSVP for ${message.eventName}`,
   body: (message) => {
-    const attending = attendingSentence(message);
     return [
-      `${message.inviteeName}, the club still needs your answer.`,
+      `${message.inviteeName}, the club still needs your response.`,
       ...whereAndWhen(message),
-      ...(attending ? [attending] : []),
-      "Please respond now. Your answer affects numbers, transport and coaching plans.",
+      attendingSentence(message),
+      "Please respond now. Your response affects numbers, transport and coaching plans.",
       `${YES_BUTTON_LABEL}: ${message.yesUrl}`,
       `${NO_BUTTON_LABEL}: ${message.noUrl}`,
     ];
@@ -240,65 +381,99 @@ const REMINDER: MessageTemplate = {
 
 const NUDGE: MessageTemplate = {
   kind: "nudge",
-  parameterNames: ["inviteeName", "eventName", "rsvpUrl"],
-  parameters: (message) => [
-    required(message.inviteeName, "name"),
-    required(message.eventName, "event name"),
-    required(message.rsvpUrl, "link"),
-  ],
+  // `rsvpUrl` left this list: it is a button now, not a raw URL in body text.
+  //
+  // What is outstanding is deliberately *not* a parameter. Naming the specific
+  // unanswered questions would need a field `OutboundMessage` does not carry
+  // and the scheduler does not compute; the generic sentence needs nothing and
+  // says the same thing to a player who is one tap from seeing the list.
+  parameterNames: ["eventName"],
+  parameters: (message) => [required(message.eventName, "event name")],
+  whatsapp: {
+    category: "UTILITY",
+    body: [
+      "You are attending {{1}}, but there are still some outstanding questions.",
+      "",
+      "Please answer them below.",
+    ],
+    buttons: [{ label: FINISH_ANSWERS_LABEL, path: "/rsvp/", dynamic: true }],
+  },
   // W2's single nudge, and it is deliberately not a chase. The player has
   // already said yes; what is outstanding is the event's own questions, and W5
   // is explicit that "a Yes with unanswered questions is answered" and never
   // reaches the nonresponse queue.
-  subject: (message) => `One thing left for ${message.eventName}`,
+  subject: (message) => `Outstanding questions for ${message.eventName}`,
   body: (message) => [
-    `${message.inviteeName}, thank you for answering ${message.eventName}.`,
-    "There are still a couple of questions to finish, and the coaches need them to plan.",
-    "Finish here:",
+    `${message.inviteeName}, you are attending ${message.eventName}, but there are still some outstanding questions.`,
+    "Please answer them here:",
     message.rsvpUrl,
   ],
+  buttonUrls: (message) => [required(message.rsvpUrl, "link")],
 };
 
 const CHANGE_NOTICE: MessageTemplate = {
   kind: "change_notice",
-  parameterNames: ["inviteeName", "eventName", "changeSummary", "whenLabel", "rsvpUrl"],
+  parameterNames: ["eventName", "changeSummary", "whenAndVenue"],
   parameters: (message) => [
-    required(message.inviteeName, "name"),
     required(message.eventName, "event name"),
     required(message.changeSummary, "summary of what changed"),
-    required(message.whenLabel, "date and time"),
-    required(message.rsvpUrl, "link"),
+    whenAndVenue(message),
   ],
+  whatsapp: {
+    category: "UTILITY",
+    body: [
+      "{{1}} has changed",
+      "",
+      "{{2}}",
+      "It is now scheduled for {{3}}.",
+      "",
+      "Your response still stands. Please use the link below if you need to change it.",
+    ],
+    buttons: [{ label: VIEW_EVENT_LABEL, path: "/rsvp/", dynamic: true }],
+  },
   subject: (message) => `Changed: ${message.eventName}`,
   body: (message) => [
     `${message.inviteeName}, ${message.eventName} has changed.`,
     required(message.changeSummary, "summary of what changed"),
-    "It now reads:",
+    "It is now scheduled for:",
     ...whereAndWhen(message),
     // `REQ-history-is-never-rewritten`. A player's standing answer survives an
     // amendment, so the message says so rather than asking them to answer again
     // as though nothing had been recorded.
-    "Your answer still stands. Change it here if the new details do not work for you:",
+    "Your response still stands. Please use this link if you need to change it:",
     message.rsvpUrl,
   ],
+  buttonUrls: (message) => [required(message.rsvpUrl, "link")],
 };
 
 const CANCELLATION: MessageTemplate = {
   kind: "cancellation",
-  parameterNames: ["inviteeName", "eventName", "whenLabel", "cancellationReason"],
+  // `cancellationReason` left this list, and that is the point.
+  //
+  // The scheduler has only ever filled it with the constant
+  // `CANCELLATION_NOTICE_SAFE_REASON` — the internal reason never reached the
+  // payload — so `REQ-cancellation-reason-is-internal` held by what the caller
+  // passed. Now it holds by shape: the approved template has no slot a reason
+  // could go in, so no future caller can put one there. A Meta variable whose
+  // value never varies is also a review risk, so the sentence is body copy.
+  parameterNames: ["eventName", "whenLabel"],
   parameters: (message) => [
-    required(message.inviteeName, "name"),
     required(message.eventName, "event name"),
     required(message.whenLabel, "date and time"),
-    required(message.cancellationReason, "reason"),
   ],
+  whatsapp: {
+    category: "UTILITY",
+    // No button. There is nothing left to answer, and a control that cannot
+    // act is `docs/ux/standards.md` rule 4.
+    body: ["{{1}} has been cancelled", "", "It was originally scheduled for {{2}}."],
+    buttons: [],
+  },
   subject: (message) => `Cancelled: ${message.eventName}`,
   body: (message) => [
-    `${message.inviteeName}, ${message.eventName} on ${message.whenLabel} has been cancelled.`,
-    required(message.cancellationReason, "reason"),
-    // No link. There is nothing left to answer, and offering one would be a
-    // control that cannot act — `docs/ux/standards.md` rule 4.
-    "There is nothing you need to do.",
+    `${message.inviteeName}, ${message.eventName} has been cancelled.`,
+    // No link, and nothing after this line. There is nothing left to answer,
+    // and a control that cannot act is `docs/ux/standards.md` rule 4.
+    `It was originally scheduled for ${required(message.whenLabel, "date and time")}.`,
   ],
 };
 
@@ -314,26 +489,47 @@ const CANCELLATION: MessageTemplate = {
  */
 const ESCALATION: MessageTemplate = {
   kind: "escalation",
-  parameterNames: ["outstandingCount", "eventName", "whenLabel", "deadlineLabel", "queueUrl"],
+  // `queueUrl` left this list: the follow-up queue is a fixed path, so as a
+  // Meta variable it never varied. It is a static button now, which needs no
+  // parameter at all.
+  //
+  // The count is a clause rather than a number so one template reads correctly
+  // at one and at eighteen. Still no name, contact or reason parameter — a
+  // template with a name slot is a template something can later put a player's
+  // name into.
+  parameterNames: ["outstandingClause", "eventName", "whenLabel", "deadlineLabel"],
   parameters: (message) => [
-    String(message.outstandingCount ?? 0),
+    outstandingClause(message),
     required(message.eventName, "event name"),
     required(message.whenLabel, "date and time"),
     required(message.deadlineLabel, "deadline"),
-    required(message.queueUrl, "link to the follow-up queue"),
   ],
-  subject: (message) => `${message.outstandingCount ?? 0} unanswered for ${message.eventName}`,
+  whatsapp: {
+    category: "UTILITY",
+    body: [
+      "{{1}} for {{2}}",
+      "",
+      "Scheduled for {{3}}.",
+      "The response deadline passed at {{4}}.",
+      "",
+      "Please use the link below to review and follow up.",
+    ],
+    buttons: [
+      { label: OPEN_FOLLOW_UPS_LABEL, path: "/operate/admin/follow-ups?event=", dynamic: true },
+    ],
+  },
+  subject: (message) =>
+    `${message.outstandingCount ?? 0} outstanding responses for ${message.eventName}`,
   body: (message) => {
-    const count = message.outstandingCount ?? 0;
     return [
-      count === 1
-        ? `One person has not answered for ${message.eventName} on ${message.whenLabel}.`
-        : `${count} people have not answered for ${message.eventName} on ${message.whenLabel}.`,
+      `${outstandingClause(message)} for ${message.eventName}.`,
+      `Scheduled for ${message.whenLabel}.`,
       `The response deadline passed at ${message.deadlineLabel}.`,
-      "Open the club app to see who:",
+      "Please use this link to review and follow up:",
       required(message.queueUrl, "link to the follow-up queue"),
     ];
   },
+  buttonUrls: (message) => [required(message.queueUrl, "link to the follow-up queue")],
 };
 
 /**
@@ -366,12 +562,34 @@ const RECRUIT_EVENT_FOLLOWUP: MessageTemplate = {
     required(message.whenLabel, "date and time"),
     recruitEventVenueLine(message),
   ],
-  subject: (message) => `${message.eventName} is still coming up`,
+  whatsapp: {
+    // Nothing a recruit is sent follows a user-initiated action, so none of the
+    // five qualifies as UTILITY — LAN-199, against Meta's own categorization
+    // guidance. Since 16 April 2025 a detected misclassification is enforced
+    // with no notice period.
+    category: "MARKETING",
+    body: [
+      "{{1}} is coming up",
+      "",
+      "{{2}}",
+      "{{3}}",
+      "",
+      "Please let us know below whether you would like to attend.",
+    ],
+    // The one recruit template without `Stop messages`: two URL buttons is
+    // Meta's ceiling and the yes/no pair spends both. LAN-199 carries the
+    // question of whether to trade an answer button for the opt-out.
+    buttons: [
+      { label: RECRUIT_YES_LABEL, path: "/a/", dynamic: true },
+      { label: RECRUIT_NO_LABEL, path: "/a/", dynamic: true },
+    ],
+  },
+  subject: (message) => `${message.eventName} is coming up`,
   body: (message) => [
-    `${message.eventName} is still coming up`,
+    `${message.eventName} is coming up`,
     message.whenLabel,
     recruitEventVenueLine(message),
-    "Come along if you can. No need to decide in advance.",
+    "Please let us know whether you would like to attend.",
     `${RECRUIT_YES_LABEL}: ${message.yesUrl}`,
     `${RECRUIT_NO_LABEL}: ${message.noUrl}`,
   ],
@@ -397,11 +615,27 @@ const RECRUIT_WELCOME: MessageTemplate = {
   kind: "recruit_welcome",
   parameterNames: ["inviteeName"],
   parameters: (message) => [required(message.inviteeName, "name")],
-  subject: () => "Thanks for your interest in Oxford Lancers",
+  whatsapp: {
+    category: "MARKETING",
+    // The one place a name belongs in a WhatsApp body: a cold first contact
+    // from a number the recruit has not saved.
+    body: [
+      "Thank you for your interest in Oxford Lancers, {{1}}",
+      "",
+      "We would like to tell you more about training and how to get started.",
+      "",
+      "Please complete the sign-up form below.",
+    ],
+    buttons: [
+      { label: RECRUIT_FILL_IN_DETAILS_LABEL, path: "/me/join/", dynamic: true },
+      { label: RECRUIT_STOP_MESSAGES_LABEL, path: "/me/stop/", dynamic: true },
+    ],
+  },
+  subject: () => "Thank you for your interest in Oxford Lancers",
   body: (message) => [
-    `Thanks for your interest in Oxford Lancers, ${message.inviteeName}`,
-    "We would love to tell you more about training and how to get started.",
-    "When you have a moment, fill in a few details. It takes a minute, and almost all of it is optional.",
+    `Thank you for your interest in Oxford Lancers, ${message.inviteeName}`,
+    "We would like to tell you more about training and how to get started.",
+    "Please complete the sign-up form:",
     `${RECRUIT_FILL_IN_DETAILS_LABEL}: ${required(message.formUrl, "form link")}`,
   ],
   buttonUrls: recruitFormButtonUrls,
@@ -412,10 +646,24 @@ const RECRUIT_DETAILS_REMINDER: MessageTemplate = {
   kind: "recruit_details_reminder",
   parameterNames: [],
   parameters: () => [],
-  subject: () => "Still interested in Oxford Lancers?",
+  whatsapp: {
+    category: "MARKETING",
+    body: [
+      "Oxford Lancers sign-up",
+      "",
+      "We have not yet received your completed sign-up form.",
+      "",
+      "Please complete it below.",
+    ],
+    buttons: [
+      { label: RECRUIT_FILL_IN_DETAILS_LABEL, path: "/me/join/", dynamic: true },
+      { label: RECRUIT_STOP_MESSAGES_LABEL, path: "/me/stop/", dynamic: true },
+    ],
+  },
+  subject: () => "Oxford Lancers sign-up",
   body: (message) => [
-    "Still interested in Oxford Lancers?",
-    "You have not filled in your details yet. It takes a minute, and you can leave anything blank.",
+    "We have not yet received your completed sign-up form.",
+    "Please complete it here:",
     `${RECRUIT_FILL_IN_DETAILS_LABEL}: ${required(message.formUrl, "form link")}`,
   ],
   buttonUrls: recruitFormButtonUrls,
@@ -426,11 +674,25 @@ const RECRUIT_INTEREST_ASK: MessageTemplate = {
   kind: "recruit_interest_ask",
   parameterNames: ["inviteeName"],
   parameters: (message) => [required(message.inviteeName, "name")],
+  whatsapp: {
+    category: "MARKETING",
+    body: [
+      "One more thing, {{1}}",
+      "",
+      "We would like to know about your football background, whether you have played, watched, or neither.",
+      "",
+      "Please answer below.",
+    ],
+    buttons: [
+      { label: RECRUIT_ANSWER_QUESTIONS_LABEL, path: "/me/join/", dynamic: true },
+      { label: RECRUIT_STOP_MESSAGES_LABEL, path: "/me/stop/", dynamic: true },
+    ],
+  },
   subject: (message) => `One more thing, ${message.inviteeName}`,
   body: (message) => [
     `One more thing, ${message.inviteeName}`,
-    "Tell us how you came to American football, whether you have played, watched, or neither. " +
-      "There are no wrong answers, and you can skip anything.",
+    "We would like to know about your football background, whether you have played, watched, or neither.",
+    "Please answer here:",
     `${RECRUIT_ANSWER_QUESTIONS_LABEL}: ${required(message.formUrl, "form link")}`,
   ],
   buttonUrls: recruitFormButtonUrls,
@@ -441,10 +703,22 @@ const RECRUIT_INTEREST_REMINDER: MessageTemplate = {
   kind: "recruit_interest_reminder",
   parameterNames: ["inviteeName"],
   parameters: (message) => [required(message.inviteeName, "name")],
-  subject: (message) => `No rush, ${message.inviteeName}`,
+  whatsapp: {
+    category: "MARKETING",
+    body: [
+      "There are still a few questions about your football background, {{1}}.",
+      "",
+      "Please answer them below when you have a moment.",
+    ],
+    buttons: [
+      { label: RECRUIT_ANSWER_QUESTIONS_LABEL, path: "/me/join/", dynamic: true },
+      { label: RECRUIT_STOP_MESSAGES_LABEL, path: "/me/stop/", dynamic: true },
+    ],
+  },
+  subject: () => "Questions about your football background",
   body: (message) => [
-    `No rush, ${message.inviteeName}`,
-    "We still have a few questions about your football background, whenever you have a moment.",
+    `${message.inviteeName}, there are still a few questions about your football background.`,
+    "Please answer them when you have a moment:",
     `${RECRUIT_ANSWER_QUESTIONS_LABEL}: ${required(message.formUrl, "form link")}`,
   ],
   buttonUrls: recruitFormButtonUrls,

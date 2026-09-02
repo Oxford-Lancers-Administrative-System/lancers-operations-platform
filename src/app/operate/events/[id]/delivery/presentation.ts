@@ -304,8 +304,9 @@ export function formatAttemptTime(at: Date | null): string {
   return new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
     month: "short",
-    hour: "2-digit",
+    hour: "numeric",
     minute: "2-digit",
+    hour12: true,
     timeZone: "Europe/London",
   })
     .format(at)

@@ -210,7 +210,9 @@ describe("chasePositionLabel", () => {
     expect(label).toBe("WhatsApp 2 sent");
   });
 
-  it("formats the due time as weekday and 24-hour clock", () => {
-    expect(formatChaseDue(new Date("2026-09-10T17:00:00Z"))).toMatch(/^\w{3} \d{2}:\d{2}$/);
+  it("formats the due time as weekday and 12-hour clock", () => {
+    expect(formatChaseDue(new Date("2026-09-10T17:00:00Z"))).toMatch(
+      /^\w{3} \d{1,2}:\d{2} (am|pm)$/,
+    );
   });
 });

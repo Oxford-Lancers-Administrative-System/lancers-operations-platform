@@ -330,7 +330,7 @@ describe("the register panel, which decides nothing", () => {
 
     expect(screen.queryByTestId("open-attendance")).toBeNull();
     expect(container.textContent).toContain(REGISTER_NOT_YET_HEADLINE);
-    expect(container.textContent).toContain("It opens on 1 Jan 2099, 14:00.");
+    expect(container.textContent).toContain("It opens on 1 Jan 2099, 2:00 pm.");
     expect(container.textContent).not.toContain("Attendance is open");
   });
 
@@ -380,7 +380,7 @@ describe("the register before its buffer lifts", () => {
     expect(screen.getByTestId("register-not-open-yet")).toBeVisible();
     expect(container.textContent).toContain("The register is not open yet");
     expect(screen.getByTestId("register-opens-at").textContent).toBe(
-      "It opens on 1 Jan 2099, 14:00.",
+      "It opens on 1 Jan 2099, 2:00 pm.",
     );
     expect(container.textContent).not.toContain("2099-01-01T14:00:00.000Z");
   });
@@ -399,7 +399,7 @@ describe("the register before its buffer lifts", () => {
     const { container } = render(await AttendancePage(attendanceProps()));
 
     expect(screen.getByTestId("register-opens-at").textContent).toBe(
-      "It opens on 1 Jan 2099, 14:00.",
+      "It opens on 1 Jan 2099, 2:00 pm.",
     );
     for (const policy of [
       "never closes afterwards",
@@ -632,7 +632,7 @@ describe("UX-72 — the attendance board", () => {
 
     const { container } = render(await AttendancePage(attendanceProps()));
 
-    expect(container.textContent).toContain("Saved · Casey North · 20:07");
+    expect(container.textContent).toContain("Saved · Casey North · 8:07 pm");
   });
 
   it("offers no removal until there is something to remove", async () => {

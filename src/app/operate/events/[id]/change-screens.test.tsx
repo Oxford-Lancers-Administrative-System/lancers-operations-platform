@@ -869,7 +869,7 @@ describe("a cancelled event's page", () => {
     render(await EventDetailPage(detailProps()));
 
     expect(flatten(screen.getByTestId("cancelled-summary").textContent)).toBe(
-      "Cancelled on 9 Nov 2026, 19:40 by Rowan Ashfield. All 37 invited people were told.",
+      "Cancelled on 9 Nov 2026, 7:40 pm by Rowan Ashfield. All 37 invited people were told.",
     );
   });
 

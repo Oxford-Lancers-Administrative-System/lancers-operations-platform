@@ -188,11 +188,11 @@ describe("validating against the declared registry", () => {
     const { sink } = collecting();
     const response = await sink(GRAPH, {
       method: "POST",
-      body: templateBody(TEMPLATE_NAMES.invitation, ["Jamie", "", "when"]),
+      body: templateBody(TEMPLATE_NAMES.invitation, ["Michaelmas week 3", "", "deadline"]),
     });
     expect(response.status).toBe(400);
     expect(((await response.json()) as { error: { message: string } }).error.message).toContain(
-      "eventName",
+      "whenAndVenue",
     );
   });
 

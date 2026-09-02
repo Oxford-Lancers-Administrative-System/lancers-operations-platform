@@ -385,7 +385,7 @@ export function formatRecordedMoment(at: Date | string): string {
 
   return (
     `${part({ day: "numeric" })} ${part({ month: "short" })} ${part({ year: "numeric" })}, ` +
-    `${part({ hour: "2-digit", minute: "2-digit", hour12: false })}`
+    `${part({ hour: "numeric", minute: "2-digit", hour12: true })}`
   );
 }
 

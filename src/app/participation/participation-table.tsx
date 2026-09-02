@@ -80,8 +80,9 @@ function formatWhen(value: string | null): string {
     day: "numeric",
     month: "short",
     year: "numeric",
-    hour: "2-digit",
+    hour: "numeric",
     minute: "2-digit",
+    hour12: true,
     timeZone: "Europe/London",
   }).format(when);
 }

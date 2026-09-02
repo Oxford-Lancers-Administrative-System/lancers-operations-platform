@@ -134,7 +134,7 @@ export function formatScheduleWhen(at: Date): string {
     day: "2-digit",
   }).format(at);
   const month = shortMonthOf(isoDate);
-  const time = part({ hour: "2-digit", minute: "2-digit", hour12: false });
+  const time = part({ hour: "numeric", minute: "2-digit", hour12: true });
   return `${weekday} ${day} ${month}, ${time}`;
 }
 

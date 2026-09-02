@@ -652,7 +652,7 @@ describe("one operator's record", () => {
     const entries = screen.getAllByTestId("history-entry");
     expect(entries).toHaveLength(2);
     expect(entries[0]).toHaveTextContent("Invitation resent");
-    expect(entries[0]).toHaveTextContent("18 Aug 2026, 23:30");
+    expect(entries[0]).toHaveTextContent("18 Aug 2026, 11:30 pm");
     expect(entries[0]).toHaveTextContent("By Clint Grohmann");
     expect(entries[1]).toHaveTextContent("Access removed after a lost device.");
   });

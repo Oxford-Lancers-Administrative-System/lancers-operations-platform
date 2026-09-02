@@ -482,7 +482,7 @@ describe("account state", () => {
         deliveryFailedAt: null,
         deliveryFailureReason: null,
       }),
-    ).toBe("Sent 18 Aug 2026, 14:09");
+    ).toBe("Sent 18 Aug 2026, 2:09 pm");
 
     expect(
       describeInvitationProgress({
@@ -648,7 +648,7 @@ describe("dates", () => {
 
   it("renders a recorded moment on club time", () => {
     // 22:30 UTC on 18 August is 23:30 in London — the club's own evening.
-    expect(formatInstant(new Date("2026-08-18T22:30:00Z"))).toBe("18 Aug 2026, 23:30");
+    expect(formatInstant(new Date("2026-08-18T22:30:00Z"))).toBe("18 Aug 2026, 11:30 pm");
   });
 
   /**
@@ -659,7 +659,7 @@ describe("dates", () => {
    * The agent's browser preflight found it; this is what keeps it found.
    */
   it("renders an ISO instant string, and does not read it as a calendar date", () => {
-    expect(formatInstant("2026-08-18T22:30:00.123Z")).toBe("18 Aug 2026, 23:30");
+    expect(formatInstant("2026-08-18T22:30:00.123Z")).toBe("18 Aug 2026, 11:30 pm");
     expect(formatDay("2026-08-18T22:30:00.123Z")).toBe("18 Aug 2026");
   });
 

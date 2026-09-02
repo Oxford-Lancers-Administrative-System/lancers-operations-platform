@@ -52,7 +52,9 @@ const MESSAGE: InvitationMessage = {
   recipient: "447700900123",
   inviteeName: "Alex",
   eventName: "Team Practice",
-  whenLabel: "Wednesday 19 November, 19:00",
+  whenLabel: "Wednesday 19 November, 7:00 pm",
+  venue: "Iffley Road",
+  deadlineLabel: "Monday 17 November, 6:00 pm",
   rsvpUrl: "https://lancers.example.org/rsvp/abc123",
   yesUrl: "https://lancers.example.org/a/y.11111111-1111-1111-1111-111111111111.abc",
   noUrl: "https://lancers.example.org/a/n.11111111-1111-1111-1111-111111111111.xyz",
@@ -66,7 +68,7 @@ function respond(status: number, body: unknown): Response {
 }
 
 describe("the request body", () => {
-  it("sends the approved template with its three body parameters in order", () => {
+  it("sends the approved template with its body parameters in order", () => {
     const body = buildMessageBody(config(), MESSAGE) as Record<string, never>;
     expect(body.messaging_product).toBe("whatsapp");
     expect(body.to).toBe("447700900123");
@@ -91,9 +93,9 @@ describe("the request body", () => {
     // link left the body entirely — it is carried by the two buttons below.
     const body_component = template.components.find((c) => c.type === "body");
     expect(body_component?.parameters.map((parameter) => parameter.text)).toEqual([
-      "Alex",
       "Team Practice",
-      "Wednesday 19 November, 19:00",
+      "Wednesday 19 November, 7:00 pm, Iffley Road",
+      "Monday 17 November, 6:00 pm",
     ]);
   });
 
@@ -133,11 +135,61 @@ describe("the request body", () => {
     expect(serialised).not.toContain("https://lancers.example.org/a/");
   });
 
-  it("sends no buttons for a kind that carries a single link, not two answers", () => {
+  it("sends one button for a kind that declares one, carrying its own suffix", () => {
+    // The nudge used to send its link as body parameter three, as raw URL
+    // text. It is a button now, and the component list follows whatever
+    // `whatsapp.buttons` declares rather than assuming a Yes/No pair.
     const body = buildMessageBody(config(), { ...MESSAGE, kind: "nudge" }) as {
+      template: {
+        components: { type: string; index?: string; parameters?: { text: string }[] }[];
+      };
+    };
+    const buttons = body.template.components.filter((c) => c.type === "button");
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toMatchObject({ index: "0", parameters: [{ text: "abc123" }] });
+  });
+
+  it("sends no buttons at all for a kind that declares none", () => {
+    // The cancellation offers nothing to press: there is nothing left to
+    // answer, and a control that cannot act is worse than no control.
+    const body = buildMessageBody(config(), { ...MESSAGE, kind: "cancellation" }) as {
       template: { components: { type: string }[] };
     };
     expect(body.template.components.some((c) => c.type === "button")).toBe(false);
+  });
+
+  it("takes a button suffix from the declared path, not the last path segment", () => {
+    // The escalation's button carries its suffix in a query string. The old
+    // rule — "the last path segment" — would have sent Meta the string
+    // "follow-ups" as the variable, so the suffix is taken against the path the
+    // approved template actually declares.
+    const body = buildMessageBody(config(), {
+      ...MESSAGE,
+      kind: "escalation",
+      outstandingCount: 4,
+      queueUrl: "https://lancers.example.org/operate/admin/follow-ups?event=e1",
+    }) as {
+      template: { components: { type: string; index?: string; parameters?: { text: string }[] }[] };
+    };
+    const buttons = body.template.components.filter((c) => c.type === "button");
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toMatchObject({ index: "0", parameters: [{ text: "e1" }] });
+  });
+
+  it("omits the body component entirely for a template that declares no variables", () => {
+    // The defect this ticket found. `recruit_details_reminder` declares no body
+    // variables, and an empty `parameters` array against a template with none
+    // is the same disagreement Meta answers 132000 to as a wrong count. Every
+    // send of that template would have failed in production, and nothing local
+    // caught it because the sink validates against the registry, not Meta.
+    const body = buildMessageBody(config(), {
+      ...MESSAGE,
+      kind: "recruit_details_reminder",
+      formUrl: "https://lancers.example.org/me/join/f1",
+      stopUrl: "https://lancers.example.org/me/stop/s1",
+    }) as { template: { components: { type: string; parameters?: unknown[] }[] } };
+    expect(body.template.components.some((c) => c.type === "body")).toBe(false);
+    expect(body.template.components.filter((c) => c.type === "button")).toHaveLength(2);
   });
 
   it("sends free-form text carrying the Yes link, only in the loopback test mode", () => {
@@ -263,16 +315,16 @@ describe("LAN-124 — a template that takes no parameters", () => {
     expect(body.template).not.toHaveProperty("components");
   });
 
-  it("still sends the three-parameter body plus two buttons for the club's own template", () => {
+  it("still sends the full body plus two buttons for the club's own template", () => {
     const body = buildMessageBody(config(), MESSAGE) as {
       template: { components: { type: string; parameters: { text: string }[] }[] };
     };
 
     const bodyComponent = body.template.components.find((c) => c.type === "body");
     expect(bodyComponent?.parameters.map((p) => p.text)).toEqual([
-      "Alex",
       "Team Practice",
-      "Wednesday 19 November, 19:00",
+      "Wednesday 19 November, 7:00 pm, Iffley Road",
+      "Monday 17 November, 6:00 pm",
     ]);
     expect(body.template.components.filter((c) => c.type === "button")).toHaveLength(2);
   });

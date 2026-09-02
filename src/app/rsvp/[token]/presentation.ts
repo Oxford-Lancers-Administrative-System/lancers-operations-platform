@@ -183,9 +183,9 @@ export function formatDeadline(deadline: Date | null): string | null {
   }).format(deadline);
   const date = `${weekday}, ${dayMonth}`;
   const time = new Intl.DateTimeFormat("en-GB", {
-    hour: "2-digit",
+    hour: "numeric",
     minute: "2-digit",
-    hour12: false,
+    hour12: true,
     timeZone: ZONE,
   }).format(deadline);
   return `${date} at ${time}`;

@@ -205,7 +205,7 @@ describe("OWNER-LAN172-05 — the focused panel is the one richly detailed answe
     const text = container.textContent ?? "";
 
     expect(text).toContain(FOLLOW_UP_ENTRY.venue as string);
-    expect(text).toContain("Tuesday, 13 October at 18:00");
+    expect(text).toContain("Tuesday, 13 October at 6:00 pm");
     expect(text).toMatch(/not attending/i);
     expect(text).toMatch(/no reason given/i);
     expect(text).toContain("2 other invitations");

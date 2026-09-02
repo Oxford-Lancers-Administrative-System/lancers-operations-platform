@@ -170,7 +170,7 @@ export function formatDeadline(at: Date | string): string {
   const day = parts({ day: "numeric" });
   const month = parts({ month: "long" });
   const year = parts({ year: "numeric" });
-  const time = parts({ hour: "2-digit", minute: "2-digit", hour12: false });
+  const time = parts({ hour: "numeric", minute: "2-digit", hour12: true });
   return `${weekday}, ${day} ${month} ${year} at ${time}`;
 }
 
@@ -392,7 +392,7 @@ export function formatPlanWhen(at: Date): string {
     day: "2-digit",
   }).format(at);
   const month = shortMonthOf(isoDate);
-  const time = part({ hour: "2-digit", minute: "2-digit", hour12: false });
+  const time = part({ hour: "numeric", minute: "2-digit", hour12: true });
   return `${weekday} ${day} ${month} · ${time}`;
 }
 

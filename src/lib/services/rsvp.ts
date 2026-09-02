@@ -129,8 +129,8 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
             e.event_type::text as event_type,
             e.status::text as event_status,
             to_char(e.scheduled_on, 'YYYY-MM-DD') as scheduled_on,
-            to_char(e.starts_at, 'HH24:MI') as starts_at,
-            to_char(e.ends_at, 'HH24:MI') as ends_at,
+            to_char(e.starts_at, 'FMHH12:MI am') as starts_at,
+            to_char(e.ends_at, 'FMHH12:MI am') as ends_at,
             e.venue,
             (e.scheduled_on + coalesce(e.starts_at, '00:00'::time))
               at time zone 'Europe/London' as event_starts_at,

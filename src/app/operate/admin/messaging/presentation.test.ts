@@ -44,7 +44,7 @@ function planForSchedule(overrides: Partial<MessagingPlan> = {}): MessagingPlan 
 describe("formatScheduleWhen", () => {
   it("reads as a compact club-zone instant", () => {
     // 19:00 UTC in mid-September is 20:00 BST.
-    expect(formatScheduleWhen(new Date("2026-09-15T19:00:00Z"))).toBe("Tue 15 Sep, 20:00");
+    expect(formatScheduleWhen(new Date("2026-09-15T19:00:00Z"))).toBe("Tue 15 Sep, 8:00 pm");
   });
 });
 

@@ -174,14 +174,17 @@ function formatClubMoment(moment: Date): string {
     day: "numeric",
     month: "short",
     year: "numeric",
-    hour: "2-digit",
+    hour: "numeric",
     minute: "2-digit",
-    hour12: false,
+    hour12: true,
   }).formatToParts(moment);
   const value = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((part) => part.type === type)?.value ?? "";
 
-  return `${value("day")} ${value("month")} ${value("year")}, ${value("hour")}:${value("minute")}`;
+  return (
+    `${value("day")} ${value("month")} ${value("year")}, ` +
+    `${value("hour")}:${value("minute")} ${value("dayPeriod")}`
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -496,9 +499,9 @@ export function describeCommitted(
 ): string | null {
   if (recordedAt === null) return null;
   const time = new Intl.DateTimeFormat("en-GB", {
-    hour: "2-digit",
+    hour: "numeric",
     minute: "2-digit",
-    hour12: false,
+    hour12: true,
     timeZone: "Europe/London",
   }).format(new Date(recordedAt));
 

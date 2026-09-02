@@ -73,7 +73,7 @@ describe("the request body", () => {
     expect(body.from).toBe(CONFIG.fromAddress);
     expect(body.to).toEqual(["jamie@example.com"]);
     expect(body.subject).toBe("Action required: RSVP for Michaelmas week 3");
-    expect(body.text).toContain("the club still needs your answer");
+    expect(body.text).toContain("the club still needs your response");
     expect(body.text).toContain("Iffley Road");
     // The event is named in the subject rather than repeated in the first line,
     // which is the approved W2-02 shape: the card head carries "Action

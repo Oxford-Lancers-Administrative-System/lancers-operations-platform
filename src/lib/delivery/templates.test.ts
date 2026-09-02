@@ -48,17 +48,17 @@ function message(overrides: Partial<OutboundMessage> = {}): OutboundMessage {
     recipient: "447700900001",
     inviteeName: "Jamie",
     eventName: "Michaelmas week 3",
-    whenLabel: "Wednesday 14 October, 20:00",
+    whenLabel: "Wednesday 14 October, 8:00 pm",
     rsvpUrl: "https://lancers.example/rsvp/abc",
     yesUrl: "https://lancers.example/a/y.11111111-1111-1111-1111-111111111111.abc",
     noUrl: "https://lancers.example/a/n.11111111-1111-1111-1111-111111111111.xyz",
     venue: "Iffley Road Sports Centre",
-    deadlineLabel: "Tuesday 13 October, 20:00",
+    deadlineLabel: "Tuesday 13 October, 8:00 pm",
     attendingCount: 18,
     changeSummary: "The venue moved to the University Parks.",
     cancellationReason: "The pitch is waterlogged.",
     outstandingCount: 6,
-    queueUrl: "https://lancers.example/operate/follow-ups",
+    queueUrl: "https://lancers.example/operate/admin/follow-ups?event=e1",
     formUrl: "https://lancers.example/me/abc",
     stopUrl: "https://lancers.example/me/abc/stop",
     ...overrides,
@@ -99,28 +99,33 @@ describe("every declared template", () => {
     // is the honest answer: the job records a failure a human can read rather
     // than the club sending nonsense.
     expect(() =>
-      MESSAGE_TEMPLATES.cancellation.parameters(
-        message({ kind: "cancellation", cancellationReason: null }),
-      ),
-    ).toThrowError(/reason/);
+      MESSAGE_TEMPLATES.invitation.parameters(message({ kind: "invitation", deadlineLabel: null })),
+    ).toThrowError(/response deadline/);
   });
 });
 
 describe("the invitation", () => {
-  it("keeps three body parameters and carries no raw URL in body copy", () => {
+  it("carries no name, no raw URL, and folds the venue into one line", () => {
     // LAN-172: the approved W2-01 shape carries no raw link as body text at
     // all. The two answers are WhatsApp URL buttons, declared through
     // `buttonUrls`, not template body parameters.
+    // No `inviteeName`: a name slot is somewhere a wrong name can later land,
+    // which is the reason the escalation has never had one either.
     expect(MESSAGE_TEMPLATES.invitation.parameterNames).toEqual([
-      "inviteeName",
       "eventName",
-      "whenLabel",
+      "whenAndVenue",
+      "deadlineLabel",
     ]);
     expect(MESSAGE_TEMPLATES.invitation.parameters(message({ kind: "invitation" }))).toEqual([
-      "Jamie",
       "Michaelmas week 3",
-      "Wednesday 14 October, 20:00",
+      "Wednesday 14 October, 8:00 pm, Iffley Road Sports Centre",
+      "Tuesday 13 October, 8:00 pm",
     ]);
+    // The venue folds into the same parameter when there is one, and simply
+    // says less when there is not — a Meta body cannot drop a line.
+    expect(
+      MESSAGE_TEMPLATES.invitation.parameters(message({ kind: "invitation", venue: null }))[1],
+    ).toBe("Wednesday 14 October, 8:00 pm");
   });
 
   it("declares the two answer buttons in Yes-then-No order", () => {
@@ -148,14 +153,18 @@ describe("the invitation", () => {
 describe("the chase", () => {
   it("names the count of others on a reminder, and never zero", () => {
     const withCount = MESSAGE_TEMPLATES.reminder.body(message({ kind: "reminder" })).join("\n");
-    expect(withCount).toContain("18 other people have already said yes.");
+    expect(withCount).toContain("18 others have confirmed they are attending.");
 
-    // Omitted rather than rendered as zero. "0 people have already said Yes" is
-    // true, useless, and reads as a broken template.
+    // A zero count is answered by different words, not by a second approved
+    // template and not by the number nought. "0 people have said yes" is true,
+    // useless, and reads as a broken template; `REQ-attendance-not-absence`
+    // rules out saying it another way round.
     const withoutCount = MESSAGE_TEMPLATES.reminder
       .body(message({ kind: "reminder", attendingCount: 0 }))
       .join("\n");
-    expect(withoutCount).not.toMatch(/already said yes/);
+    expect(withoutCount).toContain("You would be among the first to respond.");
+    expect(withoutCount).not.toMatch(/confirmed they are attending/);
+    expect(withoutCount).not.toMatch(/\b0\b/);
   });
 
   it("carries Brian's amended button labels, with no em dashes anywhere", () => {
@@ -176,7 +185,11 @@ describe("the cancellation", () => {
   it("offers no link, because there is nothing left to answer", () => {
     const body = MESSAGE_TEMPLATES.cancellation.body(message({ kind: "cancellation" })).join("\n");
     expect(body).not.toContain("https://lancers.example/rsvp/");
-    expect(body).toContain("There is nothing you need to do.");
+    expect(body).toContain("It was originally scheduled for");
+    // The internal reason reaches no recipient-facing payload, and now cannot:
+    // neither transport renders one and the approved template declares no slot.
+    expect(body).not.toContain("waterlogged");
+    expect(MESSAGE_TEMPLATES.cancellation.parameterNames).not.toContain("cancellationReason");
   });
 });
 
@@ -188,7 +201,7 @@ describe("the change notice", () => {
     const body = MESSAGE_TEMPLATES.change_notice
       .body(message({ kind: "change_notice" }))
       .join("\n");
-    expect(body).toContain("Your answer still stands");
+    expect(body).toContain("Your response still stands");
   });
 });
 
@@ -200,12 +213,14 @@ describe("the escalation", () => {
     // is a template something can later put a player's name into, so the slot
     // itself is what must not exist.
     expect(MESSAGE_TEMPLATES.escalation.parameterNames).toEqual([
-      "outstandingCount",
+      "outstandingClause",
       "eventName",
       "whenLabel",
       "deadlineLabel",
-      "queueUrl",
     ]);
+    // The queue link left the parameter list too: it is a fixed path, so as a
+    // Meta variable it never varied. It is a static button now.
+    expect(MESSAGE_TEMPLATES.escalation.parameterNames).not.toContain("queueUrl");
     expect(MESSAGE_TEMPLATES.escalation.parameterNames).not.toContain("inviteeName");
   });
 
@@ -222,17 +237,17 @@ describe("the escalation", () => {
 
   it("says how many, for which event, by when, and links to the queue", () => {
     const body = MESSAGE_TEMPLATES.escalation.body(escalation).join("\n");
-    expect(body).toContain("6 people have not answered");
+    expect(body).toContain("6 people have not responded");
     expect(body).toContain("Michaelmas week 3");
-    expect(body).toContain("Tuesday 13 October, 20:00");
-    expect(body).toContain("https://lancers.example/operate/follow-ups");
+    expect(body).toContain("Tuesday 13 October, 8:00 pm");
+    expect(body).toContain("https://lancers.example/operate/admin/follow-ups?event=e1");
   });
 
   it("reads naturally when exactly one person has not answered", () => {
     const body = MESSAGE_TEMPLATES.escalation
       .body(message({ kind: "escalation", outstandingCount: 1 }))
       .join("\n");
-    expect(body).toContain("One person has not answered");
+    expect(body).toContain("One person has not responded");
     expect(body).not.toContain("1 people");
   });
 
@@ -284,7 +299,7 @@ describe("the recruit event follow-up", () => {
       MESSAGE_TEMPLATES.recruit_event_followup.parameters(
         message({ kind: "recruit_event_followup" }),
       ),
-    ).toEqual(["Michaelmas week 3", "Wednesday 14 October, 20:00", "Iffley Road Sports Centre"]);
+    ).toEqual(["Michaelmas week 3", "Wednesday 14 October, 8:00 pm", "Iffley Road Sports Centre"]);
 
     const buttons = MESSAGE_TEMPLATES.recruit_event_followup.buttonUrls?.(
       message({ kind: "recruit_event_followup" }),
@@ -320,7 +335,7 @@ describe("the recruit event follow-up", () => {
     const body = MESSAGE_TEMPLATES.recruit_event_followup
       .body(message({ kind: "recruit_event_followup" }))
       .join("\n");
-    expect(body).toContain("Come along if you can. No need to decide in advance.");
+    expect(body).toContain("Please let us know whether you would like to attend.");
     expect(body).not.toMatch(/\d+ (people|others)/);
   });
 
@@ -329,7 +344,7 @@ describe("the recruit event follow-up", () => {
     const rendered = MESSAGE_TEMPLATES.recruit_event_followup.parameters(
       message({ kind: "recruit_event_followup", venue: null }),
     );
-    expect(rendered[2]).toBe("Wednesday 14 October, 20:00");
+    expect(rendered[2]).toBe("Wednesday 14 October, 8:00 pm");
   });
 });
 
@@ -411,5 +426,109 @@ describe("the five recruit template names", () => {
     expect(TEMPLATE_NAMES.recruit_interest_ask).toBe("recruit_interest_ask_v1");
     expect(TEMPLATE_NAMES.recruit_event_followup).toBe("recruit_event_followup_v1");
     expect(TEMPLATE_NAMES.recruit_interest_reminder).toBe("recruit_interest_reminder_v1");
+  });
+});
+
+/**
+ * The approved body and the parameters that fill it — LAN-168.
+ *
+ * Until `whatsapp` was declared, the body copy lived in a Linear ticket and
+ * `parameterNames` lived here, and nothing could compare them. They had drifted
+ * apart on every player-facing kind. These are the tests that stop that
+ * happening again: a `{{n}}` and its parameter cannot now move independently
+ * without a red suite, which is the difference between finding a reordering
+ * here and finding it as a *delivered* message with its sentences swapped.
+ */
+describe("what Meta holds", () => {
+  const placeholders = (body: readonly string[]): number[] =>
+    [...body.join("\n").matchAll(/\{\{(\d+)\}\}/g)].map((match) => Number(match[1]));
+
+  it("gives every parameter a slot, and every slot a parameter", () => {
+    for (const kind of MESSAGE_KINDS) {
+      const template = MESSAGE_TEMPLATES[kind];
+      const found = new Set(placeholders(template.whatsapp.body));
+      const expected = new Set(template.parameterNames.map((_, index) => index + 1));
+      expect([...found].sort(), `${kind}: slots do not match parameters`).toEqual(
+        [...expected].sort(),
+      );
+    }
+  });
+
+  it("numbers its slots from one, with no gaps", () => {
+    // Meta's parameters are positional. A body that jumped from {{1}} to {{3}}
+    // would take the third parameter's value into the second's sentence.
+    for (const kind of MESSAGE_KINDS) {
+      const found = placeholders(MESSAGE_TEMPLATES[kind].whatsapp.body);
+      const unique = [...new Set(found)].sort((a, b) => a - b);
+      unique.forEach((value, index) => {
+        expect(value, `${kind}: slot numbering has a gap`).toBe(index + 1);
+      });
+    }
+  });
+
+  it("never ends a body on a variable", () => {
+    // Meta refuses a template whose body ends on a parameter.
+    for (const kind of MESSAGE_KINDS) {
+      const lines = MESSAGE_TEMPLATES[kind].whatsapp.body.filter((line) => line.trim() !== "");
+      const last = lines[lines.length - 1] ?? "";
+      expect(last.trim(), `${kind}: body ends on a variable`).not.toMatch(/\{\{\d+\}\}$/);
+    }
+  });
+
+  it("stays inside Meta's ceiling of two URL buttons", () => {
+    for (const kind of MESSAGE_KINDS) {
+      expect(
+        MESSAGE_TEMPLATES[kind].whatsapp.buttons.length,
+        `${kind}: too many buttons`,
+      ).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("resolves exactly one URL for each dynamic button, and none for a static one", () => {
+    for (const kind of MESSAGE_KINDS) {
+      const template = MESSAGE_TEMPLATES[kind];
+      const dynamic = template.whatsapp.buttons.filter((button) => button.dynamic);
+      const resolved = template.buttonUrls?.(message({ kind })) ?? [];
+      expect(resolved, `${kind}: dynamic buttons and resolved URLs disagree`).toHaveLength(
+        dynamic.length,
+      );
+      for (const url of resolved) expect(url.trim()).not.toBe("");
+    }
+  });
+
+  it("keeps every button label to alphanumerics and spaces", () => {
+    // Q-10, and it applies to every label the mission ships, not just the pair
+    // Brian amended by hand.
+    for (const kind of MESSAGE_KINDS) {
+      for (const button of MESSAGE_TEMPLATES[kind].whatsapp.buttons) {
+        expect(button.label, `${kind}: button label`).toMatch(/^[A-Za-z0-9 ]+$/);
+      }
+    }
+  });
+
+  it("categorises the player ladder as UTILITY and the recruit cycle as MARKETING", () => {
+    // Since 16 April 2025 Meta enforces a detected misclassification
+    // immediately, with no notice period. The player ladder chases an
+    // arrangement the person is already part of; nothing a recruit is sent
+    // follows an action they took.
+    for (const kind of MESSAGE_KINDS) {
+      expect(MESSAGE_TEMPLATES[kind].whatsapp.category, `${kind}: category`).toBe(
+        kind.startsWith("recruit_") ? "MARKETING" : "UTILITY",
+      );
+    }
+  });
+
+  it("carries no name slot on any player-facing template", () => {
+    // The escalation's own rule, applied to the ladder that reaches players:
+    // WhatsApp arrives in a one-to-one thread, so a greeting earns nothing and
+    // a name slot is somewhere a wrong name can later land. The recruit welcome
+    // is the deliberate exception — a cold first contact from an unsaved
+    // number — and is asserted separately above.
+    for (const kind of MESSAGE_KINDS) {
+      if (kind.startsWith("recruit_")) continue;
+      expect(MESSAGE_TEMPLATES[kind].parameterNames, `${kind}: has a name slot`).not.toContain(
+        "inviteeName",
+      );
+    }
   });
 });

@@ -692,8 +692,9 @@ function HistoryRow({ entry }: { entry: PersonHistoryEntry }) {
           day: "numeric",
           month: "long",
           year: "numeric",
-          hour: "2-digit",
+          hour: "numeric",
           minute: "2-digit",
+          hour12: true,
         })}{" "}
         · {entry.actorDisplayName}
       </Typography>

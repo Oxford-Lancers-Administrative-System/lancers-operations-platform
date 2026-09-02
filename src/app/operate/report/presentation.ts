@@ -207,7 +207,7 @@ export function formatInstant(iso: string): string {
   const day = instantPart(iso, { day: "numeric" });
   const month = instantPart(iso, { month: "short" });
   const year = instantPart(iso, { year: "numeric" });
-  const time = instantPart(iso, { hour: "2-digit", minute: "2-digit", hour12: false });
+  const time = instantPart(iso, { hour: "numeric", minute: "2-digit", hour12: true });
   return `${day} ${month} ${year}, ${time}`;
 }
 

@@ -821,21 +821,23 @@ export async function dispatchEscalationJob(
       if (!job) return { outcome: { kind: "no-send" }, fallbackId: null };
 
       const details = await tx.query<{
+        event_id: string;
         event_name: string;
         event_starts_at_set: boolean;
         when_label: string;
         deadline_label: string | null;
         outstanding: number;
       }>(
-        `select e.name as event_name,
+        `select e.id as event_id,
+              e.name as event_name,
               (e.starts_at is not null) as event_starts_at_set,
               to_char(
                 (e.scheduled_on + coalesce(e.starts_at, '00:00'::time))
                   at time zone 'Europe/London' at time zone 'Europe/London',
-                'FMDay FMDD FMMonth, HH24:MI') as when_label,
+                'FMDay FMDD FMMonth, FMHH12:MI am') as when_label,
               to_char(
                 p.response_deadline_at at time zone 'Europe/London',
-                'FMDay FMDD FMMonth, HH24:MI') as deadline_label,
+                'FMDay FMDD FMMonth, FMHH12:MI am') as deadline_label,
               (select count(*)::int
                  from public.nonresponse_flags f
                  join public.invitations i on i.id = f.invitation_id
@@ -961,7 +963,13 @@ export async function dispatchEscalationJob(
             outstandingCount: detail.outstanding,
             // The queue, not the names. The club login is the boundary that decides
             // who reads a roster, and this message travels outside it.
-            queueUrl: `${context.appBaseUrl}/operate/follow-ups`,
+            //
+            // Narrowed to this event, so the officer who opens it is looking at
+            // the people this message is about rather than every outstanding
+            // chase in the club. `/operate/follow-ups` — the path this built
+            // until now — is not a route: every escalation so far has carried a
+            // link to a 404.
+            queueUrl: `${context.appBaseUrl}/operate/admin/follow-ups?event=${detail.event_id}`,
             // Empty, and not a URL. An escalation is a message *about* players, to
             // a committee officer; there is nothing here for anybody to answer, and
             // the escalation template declares no link parameter. Building a
@@ -1619,7 +1627,7 @@ export async function dispatchNoticeJob(
               to_char(
                 (e.scheduled_on + coalesce(e.starts_at, '00:00'::time))
                   at time zone 'Europe/London' at time zone 'Europe/London',
-                'FMDay FMDD FMMonth, HH24:MI') as when_label,
+                'FMDay FMDD FMMonth, FMHH12:MI am') as when_label,
               p.given_name,
               ${personDisplayAliasSql("p")} as display_alias
          from public.invitations i

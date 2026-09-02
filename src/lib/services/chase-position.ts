@@ -94,9 +94,9 @@ function rungName(job: ChaseJobFact, atSentenceStart: boolean): string {
 export function formatChaseDue(at: Date): string {
   return new Intl.DateTimeFormat("en-GB", {
     weekday: "short",
-    hour: "2-digit",
+    hour: "numeric",
     minute: "2-digit",
-    hour12: false,
+    hour12: true,
     timeZone: "Europe/London",
   }).format(at);
 }

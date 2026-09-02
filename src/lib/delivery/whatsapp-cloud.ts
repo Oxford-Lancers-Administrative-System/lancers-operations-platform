@@ -183,39 +183,56 @@ export function buildMessageBody(
   // worse, arriving at a player as a correctly-delivered message with its
   // sentences swapped.
   const template = templateFor(message);
-  const components: Record<string, unknown>[] = [
-    {
-      type: "body",
-      parameters: template.parameters(message).map((text) => ({ type: "text", text })),
-    },
-  ];
+  const components: Record<string, unknown>[] = [];
 
-  // LAN-172, Q-11: `invitation` and `reminder` carry two URL buttons rather
-  // than a link in body text. Meta's button component takes only the URL's
-  // *dynamic suffix* — the approved template supplies the fixed prefix — so
-  // the token, and nothing else, is what gets sent as each button's parameter.
-  // Index order (`"0"`, `"1"`) is Yes then No, matching the two approved
-  // actions and matching what `escalationCarriesNoPersonalData`'s sibling
-  // reasoning would call the same contract: the order is declared, not
-  // implied, and is asserted on by `local-sink.ts`.
-  const buttons = template.buttonUrls?.(message);
-  if (buttons) {
-    const [yesUrl, noUrl] = buttons;
-    components.push(
-      {
-        type: "button",
-        sub_type: "url",
-        index: "0",
-        parameters: [{ type: "text", text: suffixOf(yesUrl) }],
-      },
-      {
-        type: "button",
-        sub_type: "url",
-        index: "1",
-        parameters: [{ type: "text", text: suffixOf(noUrl) }],
-      },
-    );
+  // The body component only when the approved template declares body variables.
+  //
+  // `recruit_details_reminder` declares none, and an empty `parameters` array
+  // against a template with no variables is the same disagreement Meta answers
+  // `132000` to as a wrong count — the rule the parameterless branch above
+  // states for the whole message applies per component too. Nothing local
+  // caught it, because the sink validates against this registry rather than
+  // against Meta.
+  const bodyParameters = template.parameters(message);
+  if (bodyParameters.length > 0) {
+    components.push({
+      type: "body",
+      parameters: bodyParameters.map((text) => ({ type: "text", text })),
+    });
   }
+
+  // The buttons the approved template declares, in its own index order.
+  //
+  // Meta's button component takes only the URL's *dynamic suffix* — the
+  // approved template supplies the fixed prefix — so the token, and nothing
+  // else, is what gets sent as each button's parameter. A static button
+  // (`escalation`'s follow-up queue) carries no parameter and therefore needs
+  // no component at all, which is why `index` counts across every button while
+  // the URLs are consumed only by the dynamic ones.
+  //
+  // Walked from `whatsapp.buttons` rather than assumed to be a Yes/No pair:
+  // that assumption is what kept `nudge`, `change_notice` and `escalation`
+  // putting raw URLs in body text, where a link is a variable that barely
+  // varies and the player loses the one-tap journey the rest of the ladder has.
+  const urls = template.buttonUrls?.(message) ?? [];
+  let urlIndex = 0;
+  template.whatsapp.buttons.forEach((button, index) => {
+    if (!button.dynamic) return;
+    const url = urls[urlIndex++];
+    if (url === undefined) {
+      throw new Error(
+        `The approved ${message.kind ?? "invitation"} template declares a dynamic button ` +
+          `at index ${index} and no URL was resolved for it. Refusing to send a template ` +
+          "whose button would arrive without its one-time token.",
+      );
+    }
+    components.push({
+      type: "button",
+      sub_type: "url",
+      index: String(index),
+      parameters: [{ type: "text", text: suffixFor(url, button.path) }],
+    });
+  });
 
   return {
     messaging_product: "whatsapp",
@@ -230,10 +247,24 @@ export function buildMessageBody(
   };
 }
 
-/** The last path segment of a URL — the one-time token, for a button's dynamic suffix. */
-function suffixOf(url: string): string {
-  const path = new URL(url).pathname;
-  return path.slice(path.lastIndexOf("/") + 1);
+/**
+ * The part of a resolved URL that Meta appends to the approved button.
+ *
+ * Taken against the button's own declared `path` rather than guessed as the
+ * last path segment. The guess only ever worked for a token sitting at the end
+ * of a path; the escalation's button carries its suffix in a query string
+ * (`?event=<id>`), where the last path segment is the route's own name and the
+ * guess would have sent "follow-ups" to Meta as the variable.
+ */
+function suffixFor(url: string, path: string): string {
+  const at = url.indexOf(path);
+  if (at === -1) {
+    throw new Error(
+      "A button URL was resolved that does not contain the path its approved template declares. " +
+        "Refusing to send a suffix Meta would append to a different destination.",
+    );
+  }
+  return url.slice(at + path.length);
 }
 
 /** Meta's success shape, as far as this adapter is willing to look at it. */

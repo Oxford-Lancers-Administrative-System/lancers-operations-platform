@@ -194,8 +194,9 @@ async function assertNoConcurrentPersonChange(
     ? latest.occurred_at.toLocaleString("en-GB", {
         day: "numeric",
         month: "long",
-        hour: "2-digit",
+        hour: "numeric",
         minute: "2-digit",
+        hour12: true,
       })
     : "";
   const valueClause =
