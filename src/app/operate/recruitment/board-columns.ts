@@ -249,6 +249,13 @@ export function eventColumnKey(eventId: string, cell: "rsvp" | "attendance"): st
  * Two columns per event — RSVP and Attendance, side by side, `W1`. Each
  * event's own synthetic band (`events:<eventId>`) is what gives it its own
  * header run and its own boundary — see the module note.
+ *
+ * Both sort — Brian, 2026-09-02: "RSVP in attendance should be sortable
+ * here" — through the same `column.sortable` idiom every other column
+ * already uses (the board's `TableSortLabel` header and `applyBoard`'s
+ * generic `rawValue`/`comparable` machinery need nothing event-specific;
+ * `rawValue`'s `event:<eventId>:rsvp|attendance` case already resolves
+ * these two).
  */
 export function eventColumns(events: readonly RecruitmentEventColumn[]): readonly ColumnDef[] {
   return events.flatMap((event) => {
@@ -260,7 +267,7 @@ export function eventColumns(events: readonly RecruitmentEventColumn[]): readonl
         band,
         edit: "none" as const,
         width: 90,
-        sortable: false,
+        sortable: true,
         filterable: false,
       },
       {
@@ -269,7 +276,7 @@ export function eventColumns(events: readonly RecruitmentEventColumn[]): readonl
         band,
         edit: "none" as const,
         width: 108,
-        sortable: false,
+        sortable: true,
         filterable: false,
       },
     ];

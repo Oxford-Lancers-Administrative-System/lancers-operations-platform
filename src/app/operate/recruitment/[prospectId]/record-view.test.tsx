@@ -191,3 +191,24 @@ describe("the SEND button — never natively disabled (F-LAN204-005)", () => {
     expect(screen.queryByTestId("recruitment-send-recruitment-refused")).toBeNull();
   });
 });
+
+describe("the Person and Recruitment bands — stacked, not side by side (Brian, 2026-09-02)", () => {
+  // "The bands are side by side when really they should be layered on top of
+  // each other." Asserts the rendered DOM shape, not a class name: today
+  // (reverted) each band sits in its own separate half-width Grid item, so
+  // the two Section roots do not share an immediate parent — each one's
+  // parent is its own Grid item, one level further from the other's. Once
+  // they are plain full-width children of one stack, in order, they do.
+  it("renders Person then Recruitment as direct siblings of one full-width container, in that order", () => {
+    render(<RecruitmentRecordView record={BASE_RECORD} person={NO_PERSON} />);
+    const person = screen.getByTestId("section-person");
+    const recruitment = screen.getByTestId("section-recruitment");
+
+    expect(person.parentElement).not.toBeNull();
+    expect(person.parentElement).toBe(recruitment.parentElement);
+
+    const container = person.parentElement as HTMLElement;
+    const children = Array.from(container.children);
+    expect(children.indexOf(person)).toBeLessThan(children.indexOf(recruitment));
+  });
+});

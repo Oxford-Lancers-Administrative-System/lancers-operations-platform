@@ -149,107 +149,99 @@ export default function RecruitmentRecordView({
         />
       </Stack>
 
-      <Grid container spacing={2}>
+      {/* Person and Recruitment stack full width, one above the other — the
+          same plain vertical flow the shipped player record uses for its own
+          bands (`../../roster/[membershipId]/record-view.tsx`), not a Grid
+          item pair sized to share a row. Brian, 2026-09-02: "The bands are
+          side by side when really they should be layered on top of each
+          other." */}
+      <Stack spacing={2} sx={{ mb: 2 }} data-testid="recruitment-record-top-bands">
         {/* ------------------------------------------------------------ Person -- */}
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Section colours={BAND_COLOURS.person} title="Person" testId="person">
-            <RecordField label="College" value={person.college ?? null} readOnly />
-            <RecordField
-              label="Matriculation"
-              value={person.matriculationYear != null ? String(person.matriculationYear) : null}
-              readOnly
+        <Section colours={BAND_COLOURS.person} title="Person" testId="person">
+          <RecordField label="College" value={person.college ?? null} readOnly />
+          <RecordField
+            label="Matriculation"
+            value={person.matriculationYear != null ? String(person.matriculationYear) : null}
+            readOnly
+          />
+          <RecordField
+            label="Expected graduation"
+            value={
+              person.expectedGraduationYear != null ? String(person.expectedGraduationYear) : null
+            }
+            readOnly
+          />
+          <RecordField label="Degree field" value={person.degreeField ?? null} readOnly />
+          <Box sx={{ pt: 1.5 }}>
+            <SendQuestionnaireButton
+              prospectId={record.prospectId}
+              track="personal"
+              displayName={record.displayName}
+              lastSentAt={record.personal.lastSentAt}
+              canSend={canSendPersonal}
+              disabledReason={personalDisabledReason}
             />
-            <RecordField
-              label="Expected graduation"
-              value={
-                person.expectedGraduationYear != null ? String(person.expectedGraduationYear) : null
-              }
-              readOnly
-            />
-            <RecordField label="Degree field" value={person.degreeField ?? null} readOnly />
-            <Box sx={{ pt: 1.5 }}>
-              <SendQuestionnaireButton
-                prospectId={record.prospectId}
-                track="personal"
-                displayName={record.displayName}
-                lastSentAt={record.personal.lastSentAt}
-                canSend={canSendPersonal}
-                disabledReason={personalDisabledReason}
-              />
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: "block", mt: 0.5 }}
-              >
-                {record.personal.lastSentAt
-                  ? `Last sent ${formatWhen(new Date(record.personal.lastSentAt))}`
-                  : "Not sent"}
-              </Typography>
-            </Box>
-          </Section>
-        </Grid>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+              {record.personal.lastSentAt
+                ? `Last sent ${formatWhen(new Date(record.personal.lastSentAt))}`
+                : "Not sent"}
+            </Typography>
+          </Box>
+        </Section>
 
         {/* ------------------------------------------------------- Recruitment -- */}
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Section colours={BAND_COLOURS.recruitment} title="Recruitment" testId="recruitment">
-            <StatusRow
-              status={record.status}
+        <Section colours={BAND_COLOURS.recruitment} title="Recruitment" testId="recruitment">
+          <StatusRow
+            status={record.status}
+            prospectId={record.prospectId}
+            displayName={record.displayName}
+            seasonLabel={record.seasonLabel}
+          />
+          <RecordField label="Source" value={record.source} readOnly />
+          <RecordField
+            label="First contact"
+            value={record.firstContactOn ? formatDay(record.firstContactOn) : null}
+            readOnly
+          />
+          <RecordField
+            label="Committed on"
+            value={record.committedOn ? formatDay(record.committedOn) : null}
+            readOnly
+          />
+          <RecordField label="WhatsApp consent" value={CONSENT_LABELS[record.consent]} readOnly />
+          <RecordField
+            label="Played before"
+            value={record.answers.playedBefore ? RSVP_LABEL[record.answers.playedBefore] : null}
+            readOnly
+          />
+          <RecordField
+            label="Watched before"
+            value={record.answers.watchedBefore ? RSVP_LABEL[record.answers.watchedBefore] : null}
+            readOnly
+          />
+          <RecordField label="Position interest" value={record.answers.positionInterest} readOnly />
+          <RecordField label="Gear owned" value={record.answers.gearOwned} readOnly />
+          <RecordField label="How they heard" value={record.answers.howTheyHeard} readOnly />
+          <RecordField label="Anything else" value={record.answers.anythingElse} readOnly />
+          <Box sx={{ pt: 1.5 }}>
+            <SendQuestionnaireButton
               prospectId={record.prospectId}
+              track="recruitment"
               displayName={record.displayName}
-              seasonLabel={record.seasonLabel}
+              lastSentAt={record.recruitment.lastSentAt}
+              canSend={canSendRecruitment}
+              disabledReason={recruitmentDisabledReason}
             />
-            <RecordField label="Source" value={record.source} readOnly />
-            <RecordField
-              label="First contact"
-              value={record.firstContactOn ? formatDay(record.firstContactOn) : null}
-              readOnly
-            />
-            <RecordField
-              label="Committed on"
-              value={record.committedOn ? formatDay(record.committedOn) : null}
-              readOnly
-            />
-            <RecordField label="WhatsApp consent" value={CONSENT_LABELS[record.consent]} readOnly />
-            <RecordField
-              label="Played before"
-              value={record.answers.playedBefore ? RSVP_LABEL[record.answers.playedBefore] : null}
-              readOnly
-            />
-            <RecordField
-              label="Watched before"
-              value={record.answers.watchedBefore ? RSVP_LABEL[record.answers.watchedBefore] : null}
-              readOnly
-            />
-            <RecordField
-              label="Position interest"
-              value={record.answers.positionInterest}
-              readOnly
-            />
-            <RecordField label="Gear owned" value={record.answers.gearOwned} readOnly />
-            <RecordField label="How they heard" value={record.answers.howTheyHeard} readOnly />
-            <RecordField label="Anything else" value={record.answers.anythingElse} readOnly />
-            <Box sx={{ pt: 1.5 }}>
-              <SendQuestionnaireButton
-                prospectId={record.prospectId}
-                track="recruitment"
-                displayName={record.displayName}
-                lastSentAt={record.recruitment.lastSentAt}
-                canSend={canSendRecruitment}
-                disabledReason={recruitmentDisabledReason}
-              />
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: "block", mt: 0.5 }}
-              >
-                {record.recruitment.lastSentAt
-                  ? `Last sent ${formatWhen(new Date(record.recruitment.lastSentAt))}`
-                  : "Not sent"}
-              </Typography>
-            </Box>
-          </Section>
-        </Grid>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+              {record.recruitment.lastSentAt
+                ? `Last sent ${formatWhen(new Date(record.recruitment.lastSentAt))}`
+                : "Not sent"}
+            </Typography>
+          </Box>
+        </Section>
+      </Stack>
 
+      <Grid container spacing={2}>
         {/* ------------------------------------------------- Recruitment events -- */}
         <Grid size={{ xs: 12, md: 6 }}>
           <Section colours={EVENTS_BAND_COLOUR} title="Recruitment events" testId="events">

@@ -9,7 +9,7 @@
  * than asserting on the whole document.
  */
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 
 vi.mock("./board-actions", () => ({
   setRecruitmentStatusAction: vi.fn(),
@@ -110,5 +110,72 @@ describe("the phone card", () => {
     renderBoard([row()]);
     const open = screen.getByTestId("recruitment-card-open");
     expect(open).toHaveAttribute("href", "/operate/recruitment/prospect-1");
+  });
+});
+
+describe("the per-event RSVP and Attendance columns — sortable (Brian, 2026-09-02)", () => {
+  const EVENT = { eventId: "event-1", name: "Taster session", date: "2026-05-10" };
+
+  function eventRows() {
+    // Same status and first-contact date, so the *default* order (before any
+    // sort click) is simply array order — array sort is stable — giving a
+    // known "before" state for the reorder assertion below.
+    const a = row({
+      prospectId: "a",
+      displayName: "Amory Vance",
+      firstContactOn: "2026-05-01",
+      events: { [EVENT.eventId]: { rsvp: "yes", attendance: "present" } },
+    });
+    const b = row({
+      prospectId: "b",
+      displayName: "Beatrix Nowell",
+      firstContactOn: "2026-05-01",
+      events: { [EVENT.eventId]: { rsvp: "no", attendance: "absent" } },
+    });
+    return [a, b];
+  }
+
+  function renderWithEvent(rows: readonly RecruitmentBoardRow[]) {
+    return render(
+      <RecruitmentBoardView
+        operatorPersonId="operator-1"
+        season={SEASON}
+        rows={rows}
+        events={[EVENT]}
+        totalInSeason={rows.length}
+        initialSearch=""
+        initialFilters={{}}
+        initialSortKey={null}
+        initialSortDirection="asc"
+      />,
+    );
+  }
+
+  function rowOrder(): string[] {
+    return screen
+      .getAllByTestId(/^recruitment-row-/)
+      .map((el) => el.getAttribute("data-testid")?.replace("recruitment-row-", "") ?? "");
+  }
+
+  it("sorts by RSVP on click, exactly as the person/recruitment columns already sort", () => {
+    renderWithEvent(eventRows());
+    expect(rowOrder()).toEqual(["a", "b"]); // unsorted: array order (a: yes, b: no)
+
+    fireEvent.click(screen.getByRole("button", { name: "RSVP" }));
+    expect(rowOrder()).toEqual(["b", "a"]); // ascending: "no" sorts before "yes"
+
+    fireEvent.click(screen.getByRole("button", { name: "RSVP" }));
+    expect(rowOrder()).toEqual(["a", "b"]); // second click reverses, the shared idiom
+  });
+
+  it("sorts by Attendance on click, exactly as the person/recruitment columns already sort", () => {
+    renderWithEvent(eventRows());
+    expect(rowOrder()).toEqual(["a", "b"]); // unsorted: array order (a: present, b: absent)
+
+    fireEvent.click(screen.getByRole("button", { name: "Attendance" }));
+    expect(rowOrder()).toEqual(["b", "a"]); // ascending: "absent" sorts before "present"
+
+    fireEvent.click(screen.getByRole("button", { name: "Attendance" }));
+    expect(rowOrder()).toEqual(["a", "b"]); // second click reverses, the shared idiom
   });
 });
