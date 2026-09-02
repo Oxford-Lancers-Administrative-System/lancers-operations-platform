@@ -115,12 +115,21 @@ invitation"), which predates that instruction.
 - Keeps `declined` and `disengaged` — an exit status is not a gate on this
   door; the recruit can still turn up, and the club records that they did.
 - A walk-up (an attendance row with no invitation) is never duplicated into
-  Recruits — it stays in its own Walk-ups group, unchanged.
+  Recruits — it stays in its own Walk-ups group.
 - `resolveParticipant` gained the matching write-side fallback: recording
   attendance for a recruit shown this way, who has neither an invitation nor
   a prior attendance row at this specific event, resolves against the same
   season roster the board read from, so an operator can mark them present
   without an invitation ever being created.
+- **Walk-ups sits directly below Recruits on a recruitment event, not at the
+  bottom** — OWNER-WALKUP-GROUP-ORDER, Brian, 2026-09-02, from his
+  walkthrough: "Walk Up should not be at the bottom. Walk Up should be right
+  below Recruits. Because they're very likely to recruit, I want to see the
+  same thing there." A walk-up captured at a recruitment event is, in
+  practice, a recruit, so it sits with the other recruits rather than filed
+  under everyone else. Every other event type's group order (Attending,
+  Everyone else, Walk-ups) is unchanged — this reordering is scoped to
+  `eventType === "recruitment"` alone.
 
 ### Departure from the mockup's own copy — decidable, not escalated
 
@@ -153,3 +162,8 @@ Both the sheet (with its Recruits group populated from the seeded
 at desktop (1440px) and a Playwright-measured 375px —
 `npm run visual:preflight` against the real login. See the package receipt
 for the exact routes and the ignored evidence path.
+
+Re-proved, at the head carrying the OWNER-WALKUP-GROUP-ORDER correction,
+against the same seeded event with a real recruit and a real walk-up both
+present, confirming Recruits, then Walk-ups, then Attending, at both
+viewports.
