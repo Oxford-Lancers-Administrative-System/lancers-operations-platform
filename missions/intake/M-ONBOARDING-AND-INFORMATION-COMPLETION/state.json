@@ -1,7 +1,7 @@
 {
   "mission_id": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
   "ledger_version": 3,
-  "stage": "packet",
+  "stage": "assembly",
   "baseline": {
     "branch": "main",
     "commit": "332bc6b3ba3028f1b79d99fc59dc1417791c2d81",
