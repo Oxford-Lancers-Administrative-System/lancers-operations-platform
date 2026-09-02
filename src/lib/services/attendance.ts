@@ -1234,13 +1234,15 @@ async function mintWalkUpProspect(
   // `identified` is the honest status: somebody turned up and gave a number.
   // Nothing about that says they have engaged or committed, and the schema
   // requires a date for either of those. `source` records where they came from
-  // in the club's own words, because "walk-on" and the event name are what
-  // whoever picks this up next will recognise.
+  // in the club's own words, because "walk-up" and the event name are what
+  // whoever picks this up next will recognise -- Brian locked "walk-up" as
+  // the word, 2026-08-31, and this string is what the recruit board's own
+  // Source column shows, so it has to say it too.
   await tx.query(
     `insert into public.recruitment_prospects
        (person_id, season_id, status, source, first_contact_on)
      values ($1::uuid, $2::uuid, 'identified', $3, $4::date)`,
-    [personId, event.seasonId, `Walk-on at ${event.name}`, event.scheduledOn],
+    [personId, event.seasonId, `Walk-up at ${event.name}`, event.scheduledOn],
   );
 
   return { capacity: "recruit", membershipId: null, personId };

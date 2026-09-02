@@ -262,7 +262,7 @@ async function recordWalkUp(typedName: string, contact: string | null) {
   await client.query(
     `insert into public.recruitment_prospects
        (person_id, season_id, status, source, first_contact_on)
-     select $1, e.season_id, 'identified', 'Walk-on at ' || e.name, e.scheduled_on
+     select $1, e.season_id, 'identified', 'Walk-up at ' || e.name, e.scheduled_on
        from public.events e where e.id = $2`,
     [person.id, EVENT_ID],
   );
