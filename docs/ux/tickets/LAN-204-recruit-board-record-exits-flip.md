@@ -76,7 +76,8 @@ heard · Anything else · one RSVP/Attendance pair per event.
 ## The QR page (`W1-04`)
 
 One live sign-up code per season, pointing at `W7`'s own door
-(`/join/[code]`, `LAN-202`). `DOWNLOAD` and `COPY LINK`, the season's sign-in
+(`/join/[code]`, `LAN-202`). A `DOWNLOAD` control for the rendered code and a
+clipboard control that copies the sign-up URL to it, the season's sign-in
 count, and a mint action that deactivates the live code and mints a
 replacement in one call (`mintRecruitmentSignupCodeIn`, already built by
 `LAN-202` for exactly this page) — Brian, 2026-08-31.
