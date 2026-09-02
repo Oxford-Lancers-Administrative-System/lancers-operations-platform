@@ -28,6 +28,9 @@ import {
 } from "./recruitment-cycle";
 import { sendRecruitmentQuestionnaireIn } from "./recruitment-prospect";
 import { dispatchRecruitmentCycleJob, runMessagingSweep } from "./messaging-scheduler";
+import { finishRecruitmentAddIn } from "./recruitment-add";
+import { resolveRecruitmentInterestTokenIn } from "./recruitment-interest-tokens";
+import { createPerson } from "./person-create";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const MARKER = "LAN203CycleSuite";
@@ -775,5 +778,230 @@ describe("LAN-204 — the consent deadlock, and its fix", () => {
         `recruit-cycle:welcome:${personId}:${seasonId}`,
       ].sort(),
     );
+  });
+});
+
+/**
+ * LAN-206's own send machinery. The 2026-09-01 amendment: "prove it end to
+ * end into `.lancers-runtime/delivery-sink/` — job created, sweep claims it,
+ * dispatcher renders the right template, sink accepts the Meta-shaped
+ * payload," and Questionnaire B's own extra bar — "the signed link in the
+ * message resolves to the questionnaire page this package builds."
+ */
+describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's link, end to end", () => {
+  it("operator-add with opt-in evidence: the welcome reaches the real local sink, claimed by the real sweep", async () => {
+    const created = await createPerson({
+      actorPersonId: operatorPersonId,
+      input: { givenName: MARKER, familyName: "OperatorAdd", mobile: uniquePhone() },
+      decision: { kind: "create_new", overrideReason: "LAN-206 fixture" },
+    });
+    await withTransaction((tx) =>
+      finishRecruitmentAddIn(tx, {
+        actorPersonId: operatorPersonId,
+        personId: created.personId,
+        seasonId,
+        academic: { optInEvidence: "freshers_fair" },
+      }),
+    );
+    await withTransaction((tx) =>
+      tx.query(
+        "update public.notification_jobs set scheduled_for = now() - interval '100 years' where person_id = $1::uuid",
+        [created.personId],
+      ),
+    );
+
+    const sinkRecords: SinkRecord[] = [];
+    const sink = createDeliverySink(CONFIGURED, { write: (record) => sinkRecords.push(record) });
+    const swept = await runMessagingSweep({ source: CONFIGURED, transport: sink });
+
+    expect(swept.accepted).toBeGreaterThanOrEqual(1);
+    const welcome = sinkRecords.find(
+      (r) =>
+        (r.payload as { template: { name: string } }).template.name ===
+        TEMPLATE_NAMES.recruit_welcome,
+    );
+    expect(welcome).toBeDefined();
+
+    const attempt = await withTransaction((tx) =>
+      tx.query<{ accepted_at: Date | null }>(
+        `select da.accepted_at from public.delivery_attempts da
+           join public.notification_jobs nj on nj.id = da.notification_job_id
+          where nj.idempotency_key = $1`,
+        [`recruit-cycle:welcome:${created.personId}:${seasonId}`],
+      ),
+    );
+    expect(attempt.rows[0]?.accepted_at).not.toBeNull();
+  });
+
+  it("with no opt-in evidence: the recruit is created and nothing is sent, even after a sweep", async () => {
+    const created = await createPerson({
+      actorPersonId: operatorPersonId,
+      input: { givenName: MARKER, familyName: "NoEvidenceSweep", mobile: uniquePhone() },
+      decision: { kind: "create_new", overrideReason: "LAN-206 fixture" },
+    });
+    await withTransaction((tx) =>
+      finishRecruitmentAddIn(tx, {
+        actorPersonId: operatorPersonId,
+        personId: created.personId,
+        seasonId,
+        academic: {},
+      }),
+    );
+
+    const { transport } = acceptingTransport();
+    await runMessagingSweep({ source: CONFIGURED, transport });
+
+    const jobs = await withTransaction((tx) =>
+      tx.query("select 1 from public.notification_jobs where person_id = $1::uuid", [
+        created.personId,
+      ]),
+    );
+    expect(jobs.rows).toHaveLength(0);
+  });
+
+  it("nothing at all is sent to a recruit whose status is declined, even mid-cycle", async () => {
+    const personId = await completeWelcomeRecruit();
+    await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
+    await withTransaction((tx) =>
+      tx.query(
+        `update public.recruitment_prospects set status = 'declined' where person_id = $1::uuid`,
+        [personId],
+      ),
+    );
+    await withTransaction((tx) =>
+      tx.query(
+        "update public.notification_jobs set scheduled_for = now() - interval '100 years' where person_id = $1::uuid",
+        [personId],
+      ),
+    );
+
+    const { sent, transport } = acceptingTransport();
+    await runMessagingSweep({ source: CONFIGURED, transport });
+
+    expect(sent).toHaveLength(0);
+  });
+
+  it("Questionnaire B's ask reaches the real local sink and its own link resolves to the recruit's own prospect", async () => {
+    const personId = await completeWelcomeRecruit();
+    await addMobile(personId);
+    await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
+    const prospectId = await prospectIdFor(personId);
+    await withTransaction((tx) =>
+      tx.query(
+        "update public.notification_jobs set scheduled_for = now() - interval '100 years' where person_id = $1::uuid and idempotency_key = $2",
+        [personId, `recruit-cycle:interest_ask:${personId}:${seasonId}`],
+      ),
+    );
+
+    const sinkRecords: SinkRecord[] = [];
+    const sink = createDeliverySink(CONFIGURED, { write: (record) => sinkRecords.push(record) });
+    const jobId = (
+      await withTransaction((tx) =>
+        tx.query<{ id: string }>(
+          "select id from public.notification_jobs where idempotency_key = $1",
+          [`recruit-cycle:interest_ask:${personId}:${seasonId}`],
+        ),
+      )
+    ).rows[0].id;
+    const outcome = await dispatchRecruitmentCycleJob(jobId, {
+      source: CONFIGURED,
+      transport: sink,
+    });
+
+    expect(outcome).toBe("accepted");
+    expect(sinkRecords).toHaveLength(1);
+    const payload = sinkRecords[0].payload as {
+      template: {
+        name: string;
+        components: { type: string; index?: string; parameters: { text: string }[] }[];
+      };
+    };
+    expect(payload.template.name).toBe(TEMPLATE_NAMES.recruit_interest_ask);
+    const formButton = payload.template.components.find(
+      (c) => c.type === "button" && c.index === "0",
+    );
+    const token = formButton?.parameters[0]?.text;
+    expect(token).toBeTruthy();
+
+    // The whole point of the amendment: this is not a link to a page that
+    // does not exist. The same resolver `/a/[token]/page.tsx` calls before
+    // rendering Questionnaire B resolves it to this exact recruit.
+    const resolution = await withTransaction((tx) =>
+      resolveRecruitmentInterestTokenIn(tx, token as string),
+    );
+    expect(resolution.state).toBe("valid");
+    expect(resolution.resolved?.personId).toBe(personId);
+    expect(resolution.resolved?.prospectId).toBe(prospectId);
+  });
+
+  it("at most two asks in total for Questionnaire B — the reminder supersedes the ask's own link, which stops resolving", async () => {
+    const personId = await completeWelcomeRecruit();
+    await addMobile(personId);
+    await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
+    const prospectId = await prospectIdFor(personId);
+    await withTransaction((tx) =>
+      tx.query(
+        "update public.notification_jobs set scheduled_for = now() - interval '100 years' where person_id = $1::uuid",
+        [personId],
+      ),
+    );
+
+    const tokenOf = (record: SinkRecord) => {
+      const payload = record.payload as {
+        template: {
+          components: { type: string; index?: string; parameters: { text: string }[] }[];
+        };
+      };
+      return payload.template.components.find((c) => c.type === "button" && c.index === "0")
+        ?.parameters[0]?.text as string;
+    };
+    const jobIdFor = async (step: string) =>
+      (
+        await withTransaction((tx) =>
+          tx.query<{ id: string }>(
+            "select id from public.notification_jobs where idempotency_key = $1",
+            [`recruit-cycle:${step}:${personId}:${seasonId}`],
+          ),
+        )
+      ).rows[0].id;
+
+    // Dispatched explicitly in ask-then-reminder order — the cycle's own
+    // sequence — rather than through one sweep call, so this proof does not
+    // depend on how the sweep breaks a tie between two jobs backdated to the
+    // identical instant.
+    const askSink: SinkRecord[] = [];
+    const askOutcome = await dispatchRecruitmentCycleJob(await jobIdFor("interest_ask"), {
+      source: CONFIGURED,
+      transport: createDeliverySink(CONFIGURED, { write: (record) => askSink.push(record) }),
+    });
+    const reminderSink: SinkRecord[] = [];
+    const reminderOutcome = await dispatchRecruitmentCycleJob(await jobIdFor("interest_reminder"), {
+      source: CONFIGURED,
+      transport: createDeliverySink(CONFIGURED, { write: (record) => reminderSink.push(record) }),
+    });
+
+    expect(askOutcome).toBe("accepted");
+    expect(reminderOutcome).toBe("accepted");
+    expect(askSink[0]?.payload).toMatchObject({
+      template: { name: TEMPLATE_NAMES.recruit_interest_ask },
+    });
+    expect(reminderSink[0]?.payload).toMatchObject({
+      template: { name: TEMPLATE_NAMES.recruit_interest_reminder },
+    });
+
+    const askResolution = await withTransaction((tx) =>
+      resolveRecruitmentInterestTokenIn(tx, tokenOf(askSink[0])),
+    );
+    const reminderResolution = await withTransaction((tx) =>
+      resolveRecruitmentInterestTokenIn(tx, tokenOf(reminderSink[0])),
+    );
+
+    // W4-03: "the ask's own link goes dead the moment the reminder mints its
+    // own" — the reminder's own link is the live one; a third slot never
+    // exists at all (the schema's own structural cap, proved elsewhere in
+    // this file).
+    expect(askResolution.state).toBe("unknown");
+    expect(reminderResolution.state).toBe("valid");
+    expect(reminderResolution.resolved?.prospectId).toBe(prospectId);
   });
 });

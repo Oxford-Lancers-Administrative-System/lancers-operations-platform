@@ -87,3 +87,19 @@ export const QUESTIONNAIRE_B_CODE = Object.freeze({
   howTheyHeard: "B5",
   anythingElse: "B6",
 } as const);
+
+/**
+ * `W6-01.js`'s own literal option list for "How we came by this number" —
+ * `W6`'s opt-in evidence. A value, not a type, so it lives here rather than
+ * in `recruitment-add.ts` (`server-only`) for the same reason every other
+ * value this module exports does — `add-recruit-form.tsx` is a client
+ * component and a client bundle may never reach a `server-only`-tagged
+ * module (see this file's own module note above).
+ */
+export const RECRUITMENT_ADD_OPT_IN_OPTIONS: readonly { value: string; label: string }[] =
+  Object.freeze([
+    { value: "freshers_fair", label: "They gave it to us at the Freshers' Fair" },
+    { value: "taster", label: "They gave it to us at a taster" },
+    { value: "player_passed_on", label: "A current player passed it on" },
+    { value: "elsewhere", label: "Somewhere else" },
+  ]);
