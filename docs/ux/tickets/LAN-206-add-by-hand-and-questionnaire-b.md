@@ -287,12 +287,22 @@ restored and pass with the fix.
 
 ## Visual evidence
 
-`/operate/recruitment/new` (empty; the duplicate check answering with two
-real seeded players, both refused; "Go back and change the details"
-dismissing the panel back to the still-visible, editable form — all driven
-live through the real login) and Questionnaire B at `/a/[token]` (the
-multi-select form, empty and prefilled with several selections each; the
-"Already completed" summary) were proved at desktop (1440px) and a
-Playwright-measured 375px — `npm run visual:preflight` against the real
-login. See the package receipt for the exact routes and the ignored evidence
-path.
+`/operate/recruitment/new` (empty, with the restored "In your own words"
+field visible) and Questionnaire B at `/a/[token]` (the multi-select form,
+empty and prefilled with several selections each; the "Already completed"
+summary) were proved at desktop (1440px) and a Playwright-measured 375px —
+`npm run visual:preflight` against the real login, at this correction
+round's own head. See the package receipt for the exact routes and the
+ignored evidence path.
+
+**Declared limitation.** The add-recruit door's duplicate-resolution state
+— the candidates panel, and its "This is somebody new"/"Go back and change
+the details" controls — has no rendered screenshot in this round. Reaching
+it needs an authenticated, interactive session (fill the four fields, submit
+the check); `npm run visual:preflight` only navigates to and screenshots a
+GET route, so it cannot reach a state that exists only after a form
+submission, and entering the protected local review password into a browser
+by hand is outside what this round's agent does. Its correctness is
+established instead by direct review of the diff against the mockup
+(control-for-control) and by `actions.test.ts`'s coverage of the candidates
+and dismiss branches at the server-action layer.
