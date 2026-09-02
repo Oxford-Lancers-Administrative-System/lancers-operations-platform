@@ -423,6 +423,21 @@
               <li><a href="#s8-h15">Brian approval</a></li>
             </ol>
           </li>
+          <li>
+            <a href="#sec9">W6 — One player's onboarding record</a>
+            <ol class="sub">
+              <li><a href="#s9-h2">Current main grounding</a></li>
+              <li><a href="#s9-h4">What the record has to answer</a></li>
+              <li><a href="#s9-h5">Resolution</a></li>
+              <li><a href="#s9-h6">Handoffs</a></li>
+              <li><a href="#s9-h7">Dependencies and mission boundaries</a></li>
+              <li><a href="#s9-h8">Exceptions and recovery</a></li>
+              <li><a href="#s9-h9">Safety, privacy, consent, and authority boundaries</a></li>
+              <li><a href="#s9-h10">Acceptance evidence</a></li>
+              <li><a href="#s9-h11">Core decisions</a></li>
+              <li><a href="#s9-h12">Brian approval</a></li>
+            </ol>
+          </li>
         </ol>
       </nav>
       <main>
@@ -4629,7 +4644,7 @@
         <section class="doc" id="sec8">
           <header>
             <h2>W5 — Fix something the club has wrong</h2>
-            <span class="chip warn">draft, not approved</span>
+            <span class="chip ok">spec approved</span>
             <span class="file">workflows/W5-fix-something-the-club-has-wrong.md</span>
           </header>
           <h1 id="s8-h1">W5 — Fix something the club has wrong</h1>
@@ -5029,6 +5044,466 @@
             </table>
           </div>
           <h2 id="s8-h15">Brian approval</h2>
+          <ul>
+            <li>Exact words:</li>
+            <li>Date:</li>
+          </ul>
+        </section>
+        <section class="doc" id="sec9">
+          <header>
+            <h2>W6 — One player's onboarding record</h2>
+            <span class="chip warn">draft, not approved</span>
+            <span class="file">workflows/W6-one-players-onboarding-record.md</span>
+          </header>
+          <h1 id="s9-h1">W6 — One player's onboarding record</h1>
+          <ul>
+            <li>
+              Purpose/intended outcome: An operator opens one player and sees the whole truth about
+              them: every checklist item, <strong>who said it and when</strong>, everything the club
+              has ever asked them counted by section, and one place to complete, waive, mark not
+              applicable or reopen any item.
+            </li>
+            <li>
+              Primary actor: A four-role operator (President, Vice President, Secretary, General
+              Manager).
+            </li>
+            <li>
+              Trigger: they open a player — from the roster board, the missing-data queue, or the
+              Monday chase list.
+            </li>
+            <li>
+              Entry point / route: <strong><code>/operate/roster/[membershipId]</code></strong
+              >, which ships. This workflow adds no new surface; it deepens the Onboarding section
+              that is already there.
+            </li>
+            <li>
+              Controlling source: <code>S16</code>, <code>S17</code>, <code>S18</code>,
+              <code>S23</code>, <code>S24</code>, <code>S32</code>; owned <code>R2-R</code>,
+              <code>R2-V</code>, <code>R3-C</code>, <code>R3-G</code>,
+              <code>T10-activity-log</code>, <code>PR7-activity-log</code>,
+              <code>OD7-log-by-section</code>; cited <code>R1</code>, <code>R2</code>,
+              <code>R2-E</code>, <code>PR7-checklist</code> (<code>W11</code>),
+              <code>R4-T</code> (<code>W8</code>), <code>T07-permissions</code> and
+              <code>OD7-oneway-tick</code> (<code>W4</code>).
+            </li>
+            <li>
+              User-visible result: the record answers &quot;where is this person up to, who said so,
+              and how often have we chased them about it&quot; — and any item can be resolved from
+              it.
+            </li>
+          </ul>
+          <h2 id="s9-h2">Current <code>main</code> grounding</h2>
+          <p>
+            The record ships and is good. What it does <strong>not</strong> carry is this workflow.
+          </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>What ships at <code>/operate/roster/[membershipId]</code></th>
+                  <th>What is missing</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    An <strong>Onboarding</strong> section, one <code>OnboardingRow</code> per item
+                  </td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td><code>Required</code> and <code>Never blocks activation</code> chips</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>A resolve control offering complete, waived, not applicable</td>
+                  <td><strong>reopen</strong>, and <code>claimed</code></td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>provenanceNote</code>: <code>Waived by X — reason</code>, or
+                    <code>Completed &lt;day&gt;</code>
+                  </td>
+                  <td>
+                    <strong>who</strong> completed it; anything at all before the current state
+                  </td>
+                </tr>
+                <tr>
+                  <td>An alert naming the required items still outstanding</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>onboarding_item_status</code>:
+                    <code>pending → invited → complete | waived | not_applicable</code>
+                  </td>
+                  <td>
+                    <strong><code>claimed</code></strong>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p><strong>Three things are genuinely absent and are this workflow's:</strong></p>
+          <ol>
+            <li>
+              <strong><code>claimed</code></strong> — &quot;the player says done, awaiting
+              confirmation&quot; — is not in the enum. <code>R2-V</code>: a trust-class item
+              completes on the player's word carrying player-claimed provenance; a verify-class item
+              shows <code>claimed</code> until a named human confirms it.
+            </li>
+            <li>
+              <strong>Per-item history.</strong> <code>onboarding_items</code> stores current state
+              only. The record can say an item is complete; it cannot say it was complete, reopened
+              in November and completed again.
+            </li>
+            <li>
+              <strong>The sectioned activity log.</strong> <code>PR7-activity-log</code>,
+              <code>T10-activity-log</code>, <code>OD7-log-by-section</code>. LAN-105, its old
+              Post-MVP home, is Canceled, so this is its only home.
+            </li>
+          </ol>
+          <h3 id="s9-h3">The shipped constraint this workflow must unwind</h3>
+          <p>
+            <code>R2-R</code> says reopen and waive are four-role actions with
+            <strong>no mandatory reason</strong>, audited. The database currently refuses that:
+          </p>
+          <pre><code>constraint onboarding_items_waiver_is_justified check (
+  status &lt;&gt; 'waived'
+  or (waived_by_person_id is not null and btrim(coalesce(waived_reason, '')) &lt;&gt; ''))</code></pre>
+          <p>
+            A live constraint contradicting an approved owner decision. It is named here so the
+            Mission Lead does not discover it at implementation time; unwinding it is a forward-only
+            migration, and the author stays mandatory while the reason stops being.
+          </p>
+          <h2 id="s9-h4">What the record has to answer</h2>
+          <p>Three questions, in this order. They are what the section is for.</p>
+          <ol>
+            <li>
+              <strong>Where is this person up to?</strong> Every item, its state, and the derived
+              completeness <code>R3-C</code> defines.
+            </li>
+            <li>
+              <strong>Who said so?</strong> Per item: who put it in that state, when, and — for a
+              <code>claimed</code> item — that it was the player who said it and nobody has
+              confirmed.
+            </li>
+            <li>
+              <strong>How often have we chased them about this?</strong> The activity log,
+              <strong>counted by section</strong> rather than as one undifferentiated list of
+              messages.
+            </li>
+          </ol>
+          <p>
+            <code>OD7-log-by-section</code> is the whole point of the third: &quot;how many times
+            have we asked him about this&quot; is a question about a section, not about a mailbox. A
+            flat list of sends cannot answer it.
+          </p>
+          <h2 id="s9-h5">Resolution</h2>
+          <p>
+            Four resolutions, all four-role, all audited,
+            <strong>none of them requiring a reason</strong> (<code>R2-R</code>):
+          </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Resolution</th>
+                  <th>What it means</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>complete</code></td>
+                  <td>Done. Dated, and attributed to whoever recorded it</td>
+                </tr>
+                <tr>
+                  <td><code>waived</code></td>
+                  <td>This person does not have to. Author recorded; reason optional</td>
+                </tr>
+                <tr>
+                  <td><code>not_applicable</code></td>
+                  <td>This item never applied to this person</td>
+                </tr>
+                <tr>
+                  <td><code>reopen</code></td>
+                  <td>
+                    Back to outstanding from any terminal state. <strong>Never automatic</strong>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <code>R4-T</code>, owned by <code>W8</code>, is explicit that
+            <strong>reopen never auto-fires</strong>. A human reopens; the machine never does, and
+            neither does a new season on its own (<code>R2-E</code>: items reset only at the season
+            boundary, and a lapse is a manual reopen).
+          </p>
+          <p>
+            <strong>Nothing gates.</strong> <code>R3-G</code> is enforced here, where items are
+            resolved: no item blocks any action anywhere, and an active player with an unfinished
+            checklist is the normal case, not an exception. Derived onboarding-completeness is
+            <strong>display-only and never flips membership status on its own</strong>
+            (<code>R3-C</code>) — activation is a human declaration and is <code>W10</code>'s.
+          </p>
+          <h2 id="s9-h6">Handoffs</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>To / from</th>
+                  <th>What crosses</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W4</code>, <code>W5</code></td>
+                  <td>Everything a player submits or changes lands here, with player provenance</td>
+                </tr>
+                <tr>
+                  <td><code>W7</code></td>
+                  <td>A disputed fact is resolved there, and its resolution shows here</td>
+                </tr>
+                <tr>
+                  <td><code>W8</code></td>
+                  <td>
+                    The queue reads what is outstanding; every ask it sends appears in this log
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W10</code></td>
+                  <td>
+                    &quot;Who is ready to activate&quot; is derived from this and consumed there
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W11</code></td>
+                  <td>Which items exist, their labels and their verification class</td>
+                </tr>
+                <tr>
+                  <td>Mission 5</td>
+                  <td>
+                    The record, the roster board, its filtering and its status colours
+                    (<code>S24</code>)
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s9-h7">Dependencies and mission boundaries</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Seam</th>
+                  <th>This mission's side</th>
+                  <th>The other side</th>
+                  <th>Blocking?</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Mission 5 · People &amp; Roster</td>
+                  <td>
+                    <code>claimed</code>, per-item history, the log, reason-free waive and reopen
+                  </td>
+                  <td>The record and roster surfaces that show them</td>
+                  <td>Not blocking; shipped</td>
+                </tr>
+                <tr>
+                  <td>Mission 4 · Communications</td>
+                  <td>What the log counts</td>
+                  <td>The sends themselves and their delivery states</td>
+                  <td>Not blocking</td>
+                </tr>
+                <tr>
+                  <td><code>W11</code></td>
+                  <td>Reading the configuration</td>
+                  <td>Setting it</td>
+                  <td>Not blocking</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s9-h8">Exceptions and recovery</h2>
+          <ul>
+            <li>
+              <strong>An empty item configuration</strong> reads as &quot;this season has no
+              onboarding items configured&quot;, which ships — never as &quot;everyone is
+              complete&quot;.
+            </li>
+            <li>
+              <strong>An item type added mid-season</strong> backfills as <code>pending</code> onto
+              everybody.
+            </li>
+            <li><strong>A closed season</strong> is read-only, which ships.</li>
+            <li>
+              <strong>An active player with an unfinished checklist</strong> is normal and is not
+              flagged as an error anywhere.
+            </li>
+            <li>
+              <strong>A <code>claimed</code> item nobody ever confirms</strong> stays
+              <code>claimed</code>. It is visible, and it is the compliance owner's to close — no
+              timeout resolves it.
+            </li>
+          </ul>
+          <h2 id="s9-h9">Safety, privacy, consent, and authority boundaries</h2>
+          <ul>
+            <li>
+              <strong>Four-role only</strong> for resolution. Coaches and players never see another
+              person's record (<code>T07-permissions</code>).
+            </li>
+            <li>
+              <strong>Date of birth is never on this surface as a date</strong> — only the derived
+              under-18 flag, per the overview invariant.
+            </li>
+            <li>
+              <strong>Free text is restricted</strong>: waiver reasons and refusal notes are
+              four-role only and never reach a report verbatim.
+            </li>
+            <li>
+              <strong>Consent appears here as a status an operator can switch off</strong>
+              (<code>OD7-oneway-tick</code>), and nowhere else.
+            </li>
+            <li>
+              <strong>History is append-only.</strong> A superseded value is retained, never
+              overwritten.
+            </li>
+          </ul>
+          <h2 id="s9-h10">Acceptance evidence</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Screen</th>
+                  <th>What it proves</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W6-01</code></td>
+                  <td>
+                    The checklist with real provenance: state, who said it, when — and
+                    <code>claimed</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W6-02</code></td>
+                  <td>Resolving one item: four resolutions, four-role, and no reason demanded</td>
+                </tr>
+                <tr>
+                  <td><code>W6-03</code></td>
+                  <td>The activity log, counted by section rather than listed as sends</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Shot on <code>/operate/roster/[membershipId]</code>, a real implemented route, both
+            sides, measured 1280 and 375.
+          </p>
+          <p>Grounding: <strong>screenshots</strong>.</p>
+          <h2 id="s9-h11">Core decisions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Decision</th>
+                  <th>Classification</th>
+                  <th>Governing evidence or recommended default</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>This deepens the shipped record; it is not a new surface</td>
+                  <td>locked</td>
+                  <td>
+                    <code>/operate/roster/[membershipId]</code> ships and is the surface an operator
+                    already works from
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td><code>claimed</code> is added to <code>onboarding_item_status</code></td>
+                  <td>locked</td>
+                  <td><code>R2-V</code>; the enum has no such value today</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Trust-class items complete on the player's word, with provenance</td>
+                  <td>locked</td>
+                  <td><code>R2-V</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Per-item history is append-only and never overwrites</td>
+                  <td>locked</td>
+                  <td>Overview audit posture; <code>S17</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Waive and reopen are four-role and demand no reason</td>
+                  <td>locked</td>
+                  <td>
+                    <code>R2-R</code>.
+                    <strong
+                      >Requires unwinding <code>onboarding_items_waiver_is_justified</code></strong
+                    >
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Reopen is never automatic</td>
+                  <td>locked</td>
+                  <td><code>R4-T</code>, <code>R2-E</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Onboarding-completeness is derived and display-only</td>
+                  <td>locked</td>
+                  <td><code>R3-C</code>; activation is <code>W10</code>'s human declaration</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Nothing gates, enforced here</td>
+                  <td>locked</td>
+                  <td><code>R3-G</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The activity log is counted by section</td>
+                  <td>locked</td>
+                  <td><code>OD7-log-by-section</code>, Brian 2026-09-01</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td><strong>Whether the log counts asks only, or asks and answers</strong></td>
+                  <td><strong>proposed for owner approval</strong></td>
+                  <td>
+                    &quot;How often have we chased him&quot; needs sends; &quot;did it work&quot;
+                    needs both. <strong>Recommended: both</strong> — a section showing 4 asks and 1
+                    answer is the useful row
+                  </td>
+                  <td><strong>open</strong></td>
+                </tr>
+                <tr>
+                  <td>How far back the log reaches on first render</td>
+                  <td>delegated to Mission Lead</td>
+                  <td>Presentation; the data is append-only either way</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Where <code>claimed</code> sits visually against complete</td>
+                  <td>delegated to Mission Lead</td>
+                  <td>The state is what matters; its colour is presentation</td>
+                  <td>settled</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s9-h12">Brian approval</h2>
           <ul>
             <li>Exact words:</li>
             <li>Date:</li>

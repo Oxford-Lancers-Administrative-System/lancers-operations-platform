@@ -383,6 +383,67 @@ const WORKFLOWS = [
       ),
     ],
   },
+  {
+    id: "W6",
+    slug: "one-players-onboarding-record",
+    name: "One player's onboarding record",
+    grounding: "photograph",
+    lede: `An operator opens one player and sees the whole truth about them: every item, who said it
+      and when, everything the club has ever asked them counted by section, and one place to
+      complete, waive, mark not applicable or reopen. <strong>This adds no new surface</strong> — it
+      deepens the Onboarding section that already ships.`,
+    legend: [
+      "<strong>The record ships and is good.</strong> It already has the Onboarding section, a row per item, the Required chip and the outstanding alert. Three things are genuinely absent, and they are this workflow",
+      "<strong><code>claimed</code> is not in the enum.</strong> <code>onboarding_item_status</code> is <code>pending → invited → complete | waived | not_applicable</code>. R2-V needs a state meaning \"the player says done, awaiting confirmation\"",
+      "<strong>There is no history.</strong> <code>onboarding_items</code> stores current state only, so the record can say an item is complete but never that it was complete, reopened in November, and completed again",
+      "<strong>The shipped provenance says when, never who.</strong> <code>provenanceNote</code> renders \"Completed &lt;day&gt;\" and nothing else",
+      "<strong>A live database constraint contradicts an approved decision.</strong> R2-R makes waive reason-free; <code>onboarding_items_waiver_is_justified</code> currently refuses a waiver without one. Unwinding it is a forward-only migration, named here so the Mission Lead does not meet it at implementation time",
+      "<strong>Nothing gates, and this is where that is enforced.</strong> No item blocks anything for anybody; derived completeness is display-only and never flips membership — activation is a human declaration, and W10's",
+    ],
+    screens: [
+      P(
+        "W6-01",
+        "The checklist, with who said it and when",
+        `The same rows the record already renders, carrying what they cannot carry today. Nothing is
+         added beside the shipped status — each row's status is <em>replaced</em>, because the first
+         shoot put a “Complete” chip next to the shipped word “Pending” and every marked row
+         contradicted itself.`,
+        [
+          "<strong>A trust-class item, completed on the player's own word.</strong> R2-V: it completes without a human and carries player-claimed provenance",
+          "<strong>A verify-class item, and the state the enum does not have.</strong> The player has said it; the compliance owner has not confirmed it. <code>claimed</code> is new",
+          "<strong>Who, not just when.</strong> The shipped note says “Completed 30 August”; this says who handed the kit over",
+          "<strong>History, not just current state.</strong> Reopened on 1 September, waived on 20 August, three earlier changes — none of which the record can say today",
+          "<strong>And the governing rule, on the one item nobody has touched</strong>: nothing here blocks anything, ever",
+        ],
+        "oxfordlancers.example/operate/roster/b7242a9d",
+      ),
+      P(
+        "W6-02",
+        "Resolving one item — four resolutions, and no reason demanded",
+        `Three of the four ship. <strong>Reopen is new</strong>, and it is the only way back from a
+         terminal state — never automatic, and never a new season on its own.`,
+        [
+          "<strong>The four resolutions.</strong> Complete, waive, not applicable ship; reopen does not",
+          "<strong>The author is recorded and the reason is not demanded.</strong> This row is illegal against <code>main</code> today — the shipped constraint refuses a waiver with no reason, and a forward-only migration has to unwind it",
+          "<strong>Four-role only.</strong> The surrounding record edits at the general-operator floor; resolving an onboarding item does not",
+          "<strong>And what none of these buttons does</strong>: stop anybody training, being selected, or travelling",
+        ],
+        "oxfordlancers.example/operate/roster/b7242a9d",
+      ),
+      P(
+        "W6-03",
+        "The activity log, counted by section",
+        `Brian, 2026-09-01: the record should answer “how often have we chased him about this?”
+         rather than only “have we messaged him?”. A flat list of sends cannot answer that.
+         <strong>LAN-105, the old Post-MVP home for a per-player log, is Canceled — this is its only
+         home.</strong>`,
+        [
+          "<strong>Counted, not listed.</strong> Four asks and two answers is a row an operator can act on; forty message rows is not. Each section carries its own count, its last ask, and what came back — including the one that was claimed and never confirmed",
+        ],
+        "oxfordlancers.example/operate/roster/b7242a9d",
+      ),
+    ],
+  },
 ];
 
 const SHOTS = JSON.parse(readFileSync(path.join(OUT, "shots", "shots.json"), "utf8"));
