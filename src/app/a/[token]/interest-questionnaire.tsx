@@ -1,4 +1,3 @@
-import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Paper from "@mui/material/Paper";
@@ -7,42 +6,40 @@ import Typography from "@mui/material/Typography";
 
 import type { EventQuestionForAnswer } from "@/lib/services/player-home";
 import type { RecruitmentQuestionnaireAnswers } from "@/lib/services/recruitment-prospect";
+import {
+  GEAR_ITEMS,
+  POSITION_GROUPS,
+  positionValue,
+  splitMultiAnswer,
+} from "@/lib/services/recruitment-vocabulary";
 import { QuestionField } from "./question-field";
+import { GroupedMultiSelectCheckboxes, MultiSelectCheckboxes } from "./multi-select-checkboxes";
 import { submitInterestQuestionnaire } from "./interest-actions";
 import { BANNER, PRIVACY_NOTE } from "./presentation";
 
 /**
- * Questionnaire B — "how you came to football". `W4-02`, LAN-206.
+ * Questionnaire B — "how you came to football". `W4`, LAN-206.
  *
- * The recruit-stage field set W4 enumerates: yes/no for played and watched,
- * a chooser where the answer set is fixed, fill-in text only for "anything
- * else" — `question-field.tsx`'s own three controls, reused rather than
- * replaced, per the mockup's own note that College and Matriculation year
- * (Questionnaire A, gone from this route) are text inputs on the shipped
- * person-edit form while "How did you hear" and its siblings are genuinely
- * fixed sets. Position interest and gear are one choice each, not a
- * multi-select — `question-field.tsx` exports exactly `boolean`, `choice`
- * and `text`, and W4's own approved field table calls each a single
- * "chooser", not a chooser-of-many.
+ * Correction round 1, F-206-02 (Brian: "Mock up wins" on structure and copy
+ * where the runnable fidelity mockup and the approved screens disagree):
+ * heading, sub-heading, every field's prompt, the submit label and the
+ * saved/already-answered flow all follow
+ * `src/app/recruitment-preview/questionnaire-b.tsx` on
+ * `origin/chore/recruitment-fidelity-mockup`, read directly. `played`,
+ * `watched`, `heard` and `anything else` stay `question-field.tsx`'s own
+ * shipped controls; `positions` and `gear` are the two the mockup makes
+ * genuine multi-selects (Brian: "A recruit is allowed to be interested in
+ * more than one thing"), which the shared `QuestionField` has no variant
+ * for, so those two use the same `Checkbox`/`FormControlLabel` idiom
+ * `audience-builder.tsx` already ships elsewhere in this application —
+ * native, uncontrolled checkboxes, each its own `q_B3`/`q_B4` form field, so
+ * the plain server-action `<form>` this page already posts through needs no
+ * client-side state to carry several selections at once.
  *
  * Every field is optional — no `isRequired`, ever, on any of the six —
  * `REQ-missing-never-blocks` and W4's own "every field is optional and
  * nothing gates."
  */
-
-const POSITION_CHOICES = [
-  "No preference",
-  "Quarterback",
-  "Running back",
-  "Wide receiver",
-  "Offensive line",
-  "Defensive line",
-  "Linebacker",
-  "Defensive back",
-  "Kicker",
-];
-
-const GEAR_CHOICES = ["None", "Boots only", "Boots and gloves", "Full pads", "Something else"];
 
 const HEARD_CHOICES = [
   "Freshers' Fair",
@@ -77,28 +74,6 @@ function questionsFor(answers: RecruitmentQuestionnaireAnswers): readonly EventQ
           : { text: null, boolean: answers.watchedBefore === "yes", choice: null },
     },
     {
-      id: "B3",
-      prompt: "Which position interests you?",
-      answerType: "choice",
-      choices: POSITION_CHOICES,
-      isRequired: false,
-      currentAnswer:
-        answers.positionInterest === null
-          ? null
-          : { text: null, boolean: null, choice: answers.positionInterest },
-    },
-    {
-      id: "B4",
-      prompt: "What playing gear do you already own?",
-      answerType: "choice",
-      choices: GEAR_CHOICES,
-      isRequired: false,
-      currentAnswer:
-        answers.gearOwned === null
-          ? null
-          : { text: null, boolean: null, choice: answers.gearOwned },
-    },
-    {
       id: "B5",
       prompt: "How did you hear about the Lancers?",
       answerType: "choice",
@@ -111,7 +86,7 @@ function questionsFor(answers: RecruitmentQuestionnaireAnswers): readonly EventQ
     },
     {
       id: "B6",
-      prompt: "Anything else you would like us to know?",
+      prompt: "Anything else",
       answerType: "text",
       choices: null,
       isRequired: false,
@@ -147,44 +122,114 @@ export function QuestionnaireBShell({ children }: { children: React.ReactNode })
   );
 }
 
-export function QuestionnaireBForm({
+function NameKicker({ displayName }: { displayName: string }) {
+  return (
+    <Typography
+      sx={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", color: "primary.main" }}
+    >
+      {displayName.toUpperCase()}
+    </Typography>
+  );
+}
+
+/** The mockup's own "saved" state — right after this visit's own submit. */
+function AnswersReceivedScreen({ token, displayName }: { token: string; displayName: string }) {
+  return (
+    <QuestionnaireBShell>
+      <NameKicker displayName={displayName} />
+      <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700, mt: 0.5 }}>
+        Answers received
+      </Typography>
+      <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 1 }}>
+        Nothing further is needed.
+      </Typography>
+      <Button
+        variant="text"
+        href={`/a/${token}?edit=1`}
+        sx={{ minHeight: 48, mt: 2 }}
+        data-testid="questionnaire-b-change-answer"
+      >
+        Change an answer
+      </Button>
+    </QuestionnaireBShell>
+  );
+}
+
+/** The mockup's own "already" state — a later revisit, answers already on record. */
+function AlreadyCompletedScreen({ token, displayName }: { token: string; displayName: string }) {
+  return (
+    <QuestionnaireBShell>
+      <NameKicker displayName={displayName} />
+      <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700, mt: 0.5 }}>
+        Already completed
+      </Typography>
+      <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 1 }}>
+        You can change any answer.
+      </Typography>
+      <Button
+        variant="contained"
+        href={`/a/${token}?edit=1`}
+        sx={{ minHeight: 48, mt: 2 }}
+        data-testid="questionnaire-b-change-answer"
+      >
+        Change an answer
+      </Button>
+    </QuestionnaireBShell>
+  );
+}
+
+function QuestionnaireBForm({
   token,
   displayName,
   answers,
-  saved,
 }: {
   token: string;
   displayName: string;
   answers: RecruitmentQuestionnaireAnswers;
-  saved: boolean;
 }) {
+  const selectedPositions = new Set(splitMultiAnswer(answers.positionInterest));
+  const selectedGear = new Set(splitMultiAnswer(answers.gearOwned));
+  const [played, watched, heard, anythingElse] = questionsFor(answers);
+
   return (
     <QuestionnaireBShell>
-      <Typography
-        sx={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", color: "primary.main" }}
-      >
-        {displayName.toUpperCase()}
-      </Typography>
+      <NameKicker displayName={displayName} />
       <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700, mt: 0.5 }}>
-        About your football experience
+        Football background
       </Typography>
       <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 1 }}>
-        So the coaches know where to start with you. There are no wrong answers and nothing here
-        decides whether you can play. Every question is optional.
+        For the coaching staff. Every question is optional.
       </Typography>
-
-      {saved ? (
-        <Alert severity="success" sx={{ mt: 3 }} data-testid="questionnaire-b-saved">
-          Thanks — your answers are saved. You can change anything below at any time.
-        </Alert>
-      ) : null}
 
       <Box component="form" action={submitInterestQuestionnaire} sx={{ mt: 3 }}>
         <input type="hidden" name="token" value={token} />
         <Stack spacing={2.5}>
-          {questionsFor(answers).map((question) => (
-            <QuestionField key={question.id} question={question} enforceRequired={false} />
-          ))}
+          <QuestionField question={played} enforceRequired={false} />
+          <QuestionField question={watched} enforceRequired={false} />
+
+          <Box>
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: "text.secondary", mb: 1 }}>
+              Which positions interest you?
+            </Typography>
+            <GroupedMultiSelectCheckboxes
+              name="q_B3"
+              groups={POSITION_GROUPS.map((group) => ({
+                label: group.label,
+                options: group.positions.map(positionValue),
+              }))}
+              selected={selectedPositions}
+            />
+          </Box>
+
+          <Box>
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: "text.secondary", mb: 1 }}>
+              What playing gear do you already have?
+            </Typography>
+            <MultiSelectCheckboxes name="q_B4" options={GEAR_ITEMS} selected={selectedGear} />
+          </Box>
+
+          <QuestionField question={heard} enforceRequired={false} />
+          <QuestionField question={anythingElse} enforceRequired={false} />
         </Stack>
         <Button
           type="submit"
@@ -193,11 +238,42 @@ export function QuestionnaireBForm({
           sx={{ minHeight: 48, mt: 3 }}
           data-testid="questionnaire-b-submit"
         >
-          SEND MY ANSWERS
+          Submit
         </Button>
       </Box>
 
       <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 3 }}>{PRIVACY_NOTE}</Typography>
     </QuestionnaireBShell>
   );
+}
+
+/**
+ * The three real states a GET to this route resolves to, matching the
+ * mockup's own `state: "form" | "saved" | "already"` (`"invalid"` is the
+ * uniform `not-found.tsx` the caller reaches through `notFound()` instead,
+ * never rendered here).
+ */
+export function QuestionnaireBScreen({
+  token,
+  displayName,
+  answers,
+  saved,
+  edit,
+  hasAnyAnswer,
+}: {
+  token: string;
+  displayName: string;
+  answers: RecruitmentQuestionnaireAnswers;
+  /** `?saved=1` — this visit's own submit just landed. */
+  saved: boolean;
+  /** `?edit=1` — "Change an answer", from either summary screen. */
+  edit: boolean;
+  /** Whether any of the six questions already carries an answer, from an earlier visit. */
+  hasAnyAnswer: boolean;
+}) {
+  if (saved) return <AnswersReceivedScreen token={token} displayName={displayName} />;
+  if (hasAnyAnswer && !edit) {
+    return <AlreadyCompletedScreen token={token} displayName={displayName} />;
+  }
+  return <QuestionnaireBForm token={token} displayName={displayName} answers={answers} />;
 }

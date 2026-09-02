@@ -14,6 +14,7 @@ import Typography from "@mui/material/Typography";
 import { MEMBERSHIP_STATUS_LABELS } from "@/app/operate/roster/presentation";
 import {
   PROSPECT_STATUS_LABELS,
+  RECRUITMENT_ADD_OPT_IN_NOTE_HELPER,
   RECRUITMENT_ADD_OPT_IN_OPTIONS,
   type ProspectStatus,
 } from "@/lib/services/recruitment-vocabulary";
@@ -25,23 +26,31 @@ const MIN_TOUCH_TARGET = 44;
 
 /**
  * `W6` — add a recruit by hand, with `W8`'s duplicate check inside it.
- * LAN-206. `/operate/people/new/create-person-form.tsx`, cloned wholesale
- * for its four fields and its check-then-create flow, plus the Academic
- * section `W6-01` adds and the answer position `W6-02`/`W8-01` fix: the
- * check's own answer renders above the form, never below it — "the
- * duplicate check if it finds something needs to go at the top, not the
- * bottom" (Brian, 2026-09-01).
+ * LAN-206. `/operate/people/new/create-person-form.tsx`, for its four fields
+ * and its duplicate check (`findPersonDuplicates`, called and never
+ * duplicated), plus the Academic section `W6-01` adds. The check's own
+ * answer renders above the form, never below it — "the duplicate check if
+ * it finds something needs to go at the top, not the bottom" (Brian,
+ * 2026-09-01).
+ *
+ * Correction round 1, F-206-02 (Brian: "Mock up wins" on structure and copy
+ * where the runnable fidelity mockup and the approved screens disagree):
+ * this door's own structure now follows
+ * `src/app/recruitment-preview/add-recruit.tsx` — the header carries only
+ * `Cancel`/`Check for duplicates`, never a button whose own label morphs;
+ * the fields below stay visible throughout; and a match, once found, offers
+ * its own two controls — "This is somebody new" (create) and "Go back and
+ * change the details" (dismiss the panel, touching nothing) — inside the
+ * candidates panel itself, exactly as the mockup shows.
  */
 export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string }) {
   const [state, formAction, pending] = useActionState(submitAddRecruit, INITIAL_ADD_RECRUIT_STATE);
   const { values, errors, candidates, exactMatch } = state;
 
   const requiredCount = Object.keys(errors).length;
-  const primaryLabel = exactMatch
+  const createLabel = exactMatch
     ? "Create anyway"
-    : candidates !== null
-      ? `Create ${values.givenName || "recruit"}${values.familyName ? ` ${values.familyName}` : ""}`
-      : "Check for duplicates";
+    : `Create ${values.givenName || "recruit"}${values.familyName ? ` ${values.familyName}` : ""}`;
 
   return (
     <Box component="form" action={formAction} sx={{ maxWidth: 880 }}>
@@ -79,13 +88,13 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
             <Button
               type="submit"
               name="intent"
-              value={exactMatch ? "create" : candidates !== null ? "create" : "check"}
+              value="check"
               variant="contained"
               disabled={pending}
               sx={{ minHeight: MIN_TOUCH_TARGET }}
-              data-testid="add-recruit-primary"
+              data-testid="add-recruit-check"
             >
-              {primaryLabel}
+              Check for duplicates
             </Button>
           </Stack>
         </Stack>
@@ -94,17 +103,13 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
 
         {candidates !== null ? (
           <Section title={candidates.length > 0 ? "Already in the club" : "Duplicate check"}>
-            <Typography
-              color="text.secondary"
-              sx={{ mb: candidates.length > 0 ? 1.5 : 0 }}
-              data-testid="candidate-count"
-            >
+            <Typography color="text.secondary" sx={{ mb: 1.5 }} data-testid="candidate-count">
               {candidates.length === 0
-                ? "No existing person matches the supplied names or contact details."
-                : `${candidates.length} ${candidates.length === 1 ? "person matches" : "people match"} the supplied names or contact details.`}
+                ? "No record looks like this person. Nothing has been written yet."
+                : `${candidates.length} record${candidates.length === 1 ? "" : "s"} look${candidates.length === 1 ? "s" : ""} like this person. Nothing has been written yet.`}
             </Typography>
             {candidates.length > 0 ? (
-              <Stack spacing={1}>
+              <Stack spacing={1} sx={{ mb: 2 }}>
                 {candidates.map((candidate) => (
                   <Box key={candidate.personId}>
                     <CandidateRow candidate={candidate} pending={pending} />
@@ -118,6 +123,30 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
                 ))}
               </Stack>
             ) : null}
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              <Button
+                type="submit"
+                name="intent"
+                value="create"
+                variant="contained"
+                disabled={pending}
+                sx={{ minHeight: MIN_TOUCH_TARGET }}
+                data-testid="add-recruit-create"
+              >
+                {createLabel}
+              </Button>
+              <Button
+                type="submit"
+                name="intent"
+                value="dismiss"
+                variant="outlined"
+                disabled={pending}
+                sx={{ minHeight: MIN_TOUCH_TARGET }}
+                data-testid="add-recruit-dismiss"
+              >
+                Go back and change the details
+              </Button>
+            </Stack>
           </Section>
         ) : null}
 
@@ -201,6 +230,16 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
                 </MenuItem>
               ))}
             </TextField>
+            <TextField
+              name="optInNote"
+              label="In your own words"
+              defaultValue={values.optInNote}
+              fullWidth
+              multiline
+              minRows={2}
+              helperText={RECRUITMENT_ADD_OPT_IN_NOTE_HELPER}
+              data-testid="opt-in-note"
+            />
           </Stack>
         </Section>
 

@@ -181,6 +181,30 @@ describe("the check step", () => {
   });
 });
 
+describe("F-206-02 — 'Go back and change the details' dismisses the panel", () => {
+  beforeEach(() => signedInAs(fourRoleOperator()));
+
+  it("clears candidates and exactMatch, calls no service, and keeps the still-submitted field values", async () => {
+    const result = await submitAddRecruit(
+      INITIAL_ADD_RECRUIT_STATE,
+      form({
+        intent: "dismiss",
+        givenName: "Marguerite",
+        familyName: "Ashdown",
+        mobile: "07700 900461",
+      }),
+    );
+
+    expect(result.candidates).toBeNull();
+    expect(result.exactMatch).toBeNull();
+    expect(result.values.givenName).toBe("Marguerite");
+    expect(result.values.familyName).toBe("Ashdown");
+    expect(findPersonDuplicates).not.toHaveBeenCalled();
+    expect(createPerson).not.toHaveBeenCalled();
+    expect(finishRecruitmentAddIn).not.toHaveBeenCalled();
+  });
+});
+
 describe("linking onto an existing person", () => {
   beforeEach(() => signedInAs(fourRoleOperator()));
 

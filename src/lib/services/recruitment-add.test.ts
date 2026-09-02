@@ -54,6 +54,14 @@ afterEach(async () => {
     `delete from public.season_messaging_consents where person_id in ${people}`,
     [MARKER],
   );
+  // F-206-02: `recruitment_prospect_notes.prospect_id` is `on delete restrict`
+  // — a note written by the new "In your own words" field would otherwise
+  // block the prospect delete below.
+  await observer.query(
+    `delete from public.recruitment_prospect_notes
+      where prospect_id in (select id from public.recruitment_prospects where person_id in ${people})`,
+    [MARKER],
+  );
   await observer.query(`delete from public.recruitment_prospects where person_id in ${people}`, [
     MARKER,
   ]);
@@ -165,7 +173,7 @@ describe("finishRecruitmentAddIn", () => {
         personId: created.personId,
         seasonId,
         academic: {
-          optInEvidence: "freshers_fair",
+          optInEvidence: "gave_it",
           college: "Kestrelhall",
           matriculationYear: "2026",
         },
@@ -195,6 +203,59 @@ describe("finishRecruitmentAddIn", () => {
     );
     expect(person.rows[0].college).toBe("Kestrelhall");
     expect(person.rows[0].matriculation_year).toBe(2026);
+  });
+
+  it("F-206-02 — 'In your own words' is written as the prospect's first note, attributed to the operator", async () => {
+    const created = await createPerson({
+      actorPersonId: operatorPersonId,
+      input: { givenName: MARKER, familyName: "WithNote", mobile: uniquePhone() },
+      decision: { kind: "create_new" },
+    });
+
+    const result = await withTransaction((tx) =>
+      finishRecruitmentAddIn(tx, {
+        actorPersonId: operatorPersonId,
+        personId: created.personId,
+        seasonId,
+        academic: {
+          optInEvidence: "gave_it",
+          optInNote: "They gave it to us at the Freshers' Fair",
+        },
+      }),
+    );
+
+    const notes = await observer.query<{ note: string; author_person_id: string }>(
+      "select note, author_person_id from public.recruitment_prospect_notes where prospect_id = $1::uuid",
+      [result.prospectId],
+    );
+    expect(notes.rows).toHaveLength(1);
+    expect(notes.rows[0].note).toBe(
+      "How we came by this number: They gave it to us at the Freshers' Fair",
+    );
+    expect(notes.rows[0].author_person_id).toBe(operatorPersonId);
+  });
+
+  it("F-206-02 — a blank or omitted 'In your own words' writes no note at all", async () => {
+    const created = await createPerson({
+      actorPersonId: operatorPersonId,
+      input: { givenName: MARKER, familyName: "BlankNote", mobile: uniquePhone() },
+      decision: { kind: "create_new" },
+    });
+
+    const result = await withTransaction((tx) =>
+      finishRecruitmentAddIn(tx, {
+        actorPersonId: operatorPersonId,
+        personId: created.personId,
+        seasonId,
+        academic: { optInEvidence: "gave_it", optInNote: "   " },
+      }),
+    );
+
+    const notes = await observer.query(
+      "select 1 from public.recruitment_prospect_notes where prospect_id = $1::uuid",
+      [result.prospectId],
+    );
+    expect(notes.rows).toHaveLength(0);
   });
 
   it("already a recruit this season: offers the existing prospect rather than erroring", async () => {

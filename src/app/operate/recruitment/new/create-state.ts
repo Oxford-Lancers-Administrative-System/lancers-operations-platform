@@ -16,6 +16,8 @@ export interface AddRecruitFormValues {
   matriculationYear: string;
   /** One of `RECRUITMENT_ADD_OPT_IN_OPTIONS`' own values, or `""` for "not recorded". */
   optInEvidence: string;
+  /** `W6-01`'s "In your own words" — correction round 1, F-206-02. */
+  optInNote: string;
 }
 
 export const EMPTY_VALUES: AddRecruitFormValues = {
@@ -26,6 +28,7 @@ export const EMPTY_VALUES: AddRecruitFormValues = {
   college: "",
   matriculationYear: "",
   optInEvidence: "",
+  optInNote: "",
 };
 
 export type AddRecruitFieldErrors = Partial<Record<keyof AddRecruitFormValues, string>>;
@@ -69,5 +72,6 @@ export function readAddRecruitValues(formData: FormData): AddRecruitFormValues {
     college: read("college"),
     matriculationYear: read("matriculationYear"),
     optInEvidence: read("optInEvidence"),
+    optInNote: read("optInNote"),
   };
 }

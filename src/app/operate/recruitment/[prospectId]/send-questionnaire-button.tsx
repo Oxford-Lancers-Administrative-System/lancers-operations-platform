@@ -21,6 +21,10 @@ const REASON_LABEL: Readonly<Record<string, string>> = Object.freeze({
   not_consented: "Messaging consent has not been granted for this season.",
   not_eligible: "The club will not message a recruit at this status.",
   already_complete: "Already answered.",
+  // F-206-01. An outstanding, unanswered request already has a queued job —
+  // never reported as "Already answered.", which was a false status on a
+  // reachable path.
+  outstanding: "Already queued and not yet answered — made due again now.",
 });
 
 /**

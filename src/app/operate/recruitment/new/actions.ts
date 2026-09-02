@@ -42,6 +42,14 @@ export async function submitAddRecruit(
   const intent =
     typeof linkPersonId === "string" && linkPersonId !== "" ? "link" : formData.get("intent");
 
+  // F-206-02, correction round 1: `src/app/recruitment-preview/add-recruit.tsx`'s
+  // own "Go back and change the details" — hides the candidates panel so the
+  // still-visible fields below can be edited before checking again. No
+  // service call, nothing written; this is a pure state reset.
+  if (intent === "dismiss") {
+    return { values, errors: {}, candidates: null, exactMatch: null };
+  }
+
   if (intent === "check") {
     const errors = requiredErrors(values);
     if (Object.keys(errors).length > 0) {
@@ -89,6 +97,7 @@ export async function submitAddRecruit(
             college: values.college,
             matriculationYear: values.matriculationYear,
             optInEvidence: values.optInEvidence,
+            optInNote: values.optInNote,
           },
         });
         return finished.prospectId;
@@ -132,6 +141,7 @@ export async function submitAddRecruit(
             college: values.college,
             matriculationYear: values.matriculationYear,
             optInEvidence: values.optInEvidence,
+            optInNote: values.optInNote,
           },
         });
         return finished.prospectId;

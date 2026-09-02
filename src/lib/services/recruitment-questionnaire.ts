@@ -1,7 +1,7 @@
 import "server-only";
 
 import { NotFound, withTransaction, type Tx } from "@/lib/db";
-import { QUESTIONNAIRE_B_CODE } from "./recruitment-vocabulary";
+import { QUESTIONNAIRE_B_CODE, joinMultiAnswer } from "./recruitment-vocabulary";
 
 /**
  * Questionnaire B's one write — LAN-206, `/a/[token]`'s own recruit-facing
@@ -35,8 +35,17 @@ import { QUESTIONNAIRE_B_CODE } from "./recruitment-vocabulary";
 export interface QuestionnaireBSubmission {
   readonly playedBefore?: "yes" | "no" | null;
   readonly watchedBefore?: "yes" | "no" | null;
-  readonly positionInterest?: string | null;
-  readonly gearOwned?: string | null;
+  /**
+   * `W4`'s "Which positions interest you?" — correction round 1, F-206-02:
+   * genuine multi-select over `POSITION_GROUPS`' own `CODE · Label` values,
+   * joined and stored in the one `answer_choice` column the schema already
+   * gives one answer, per `recruitment_questionnaire_responses`' own
+   * "exactly one answer" constraint — no migration, since the column stores
+   * a string either way.
+   */
+  readonly positionInterest?: readonly string[] | null;
+  /** `W4`'s "What playing gear do you already have?" — same multi-select shape, over `GEAR_ITEMS`. */
+  readonly gearOwned?: readonly string[] | null;
   readonly howTheyHeard?: string | null;
   /** Free text, 500 chars — `question-field.tsx`'s own text control's limit. */
   readonly anythingElse?: string | null;
@@ -117,15 +126,15 @@ export async function submitQuestionnaireBAnswersIn(
     });
     answeredSomething = true;
   }
-  if (submission.positionInterest?.trim()) {
+  if (submission.positionInterest && submission.positionInterest.length > 0) {
     await supersedeAndInsertIn(tx, prospectId, QUESTIONNAIRE_B_CODE.positionInterest, {
-      choice: submission.positionInterest.trim(),
+      choice: joinMultiAnswer(submission.positionInterest),
     });
     answeredSomething = true;
   }
-  if (submission.gearOwned?.trim()) {
+  if (submission.gearOwned && submission.gearOwned.length > 0) {
     await supersedeAndInsertIn(tx, prospectId, QUESTIONNAIRE_B_CODE.gearOwned, {
-      choice: submission.gearOwned.trim(),
+      choice: joinMultiAnswer(submission.gearOwned),
     });
     answeredSomething = true;
   }

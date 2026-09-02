@@ -30,7 +30,7 @@ import { formatDeadline, formatEventDate, formatEventTime } from "@/app/rsvp/[to
 
 import { AutoSubmitOnInteraction } from "./auto-submit";
 import { QuestionField } from "./question-field";
-import { QuestionnaireBForm } from "./interest-questionnaire";
+import { QuestionnaireBScreen } from "./interest-questionnaire";
 import { submitAnswer } from "./actions";
 import { ANSWER_FORM_ID, ERROR_PARAM } from "./params";
 import {
@@ -105,7 +105,7 @@ interface Resolved {
  * RSVP resolution below is exactly what happens for every token that is not
  * this shape, `TOKEN_PATTERN` match or not.
  */
-async function tryQuestionnaireB(token: string, saved: boolean) {
+async function tryQuestionnaireB(token: string, saved: boolean, edit: boolean) {
   if (!TOKEN_PATTERN.test(token)) return null;
 
   return withTransaction(async (tx) => {
@@ -115,14 +115,18 @@ async function tryQuestionnaireB(token: string, saved: boolean) {
     const prospect = await readRecruitmentProspectIn(tx, resolution.resolved.prospectId);
     if (!prospect) return { found: false as const };
 
+    const hasAnyAnswer = Object.values(prospect.answers).some((value) => value !== null);
+
     return {
       found: true as const,
       screen: (
-        <QuestionnaireBForm
+        <QuestionnaireBScreen
           token={token}
           displayName={prospect.displayName}
           answers={prospect.answers}
           saved={saved}
+          edit={edit}
+          hasAnyAnswer={hasAnyAnswer}
         />
       ),
     };
@@ -133,7 +137,11 @@ export default async function AnswerLinkPage({ params, searchParams }: PageProps
   const { token } = await params;
   const query = await searchParams;
 
-  const questionnaireB = await tryQuestionnaireB(token, firstValue(query.saved) === "1");
+  const questionnaireB = await tryQuestionnaireB(
+    token,
+    firstValue(query.saved) === "1",
+    firstValue(query.edit) === "1",
+  );
   if (questionnaireB) {
     if (!questionnaireB.found) notFound();
     return questionnaireB.screen;

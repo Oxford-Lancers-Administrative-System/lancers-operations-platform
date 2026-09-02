@@ -3,6 +3,7 @@ import "server-only";
 import { ConstraintViolated, InvalidTransition, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
 import { declareRecruitmentCycleJobsIn } from "./recruitment-cycle";
+import { addRecruitmentProspectNoteIn } from "./recruitment-prospect";
 import { RECRUITMENT_ADD_OPT_IN_OPTIONS } from "./recruitment-vocabulary";
 
 /**
@@ -72,6 +73,14 @@ export interface RecruitmentAddAcademic {
   readonly matriculationYear?: string | null;
   /** One of `RECRUITMENT_ADD_OPT_IN_OPTIONS`' own values, or blank for "not recorded". */
   readonly optInEvidence?: string | null;
+  /**
+   * `W6-01`'s "In your own words" — restored in correction round 1
+   * (F-206-02). Optional, beside the chooser above; written as the recruit's
+   * own first note, attributed to the operator, the same shipped mechanism
+   * (`addRecruitmentProspectNoteIn`) the record's own notes card already
+   * uses — never a second notes table.
+   */
+  readonly optInNote?: string | null;
 }
 
 export interface FinishRecruitmentAddResult {
@@ -152,6 +161,16 @@ export async function finishRecruitmentAddIn(
     prospectCreated = false;
   }
 
+  const optInNote = academic.optInNote?.trim() || null;
+  if (optInNote) {
+    await addRecruitmentProspectNoteIn(
+      tx,
+      actorPersonId,
+      prospectId,
+      `How we came by this number: ${optInNote}`,
+    );
+  }
+
   await recordAudit(tx, {
     actorPersonId,
     action: "recruitment_prospect.added_by_hand",
@@ -162,6 +181,7 @@ export async function finishRecruitmentAddIn(
       door: "operator_add",
       prospectCreated,
       optInEvidence: evidenceValue,
+      optInNoteRecorded: Boolean(optInNote),
     },
   });
 

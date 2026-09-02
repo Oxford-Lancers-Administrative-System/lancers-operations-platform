@@ -90,8 +90,8 @@ describe("submitQuestionnaireBAnswersIn", () => {
       submitQuestionnaireBAnswersIn(tx, prospectId, {
         playedBefore: "yes",
         watchedBefore: "no",
-        positionInterest: "Quarterback",
-        gearOwned: "Boots only",
+        positionInterest: ["QB · Quarterback"],
+        gearOwned: ["Boots"],
         howTheyHeard: "Freshers' Fair",
         anythingElse: "Looking forward to it",
       }),
@@ -101,12 +101,29 @@ describe("submitQuestionnaireBAnswersIn", () => {
     expect(record?.answers).toEqual({
       playedBefore: "yes",
       watchedBefore: "no",
-      positionInterest: "Quarterback",
-      gearOwned: "Boots only",
+      positionInterest: "QB · Quarterback",
+      gearOwned: "Boots",
       howTheyHeard: "Freshers' Fair",
       anythingElse: "Looking forward to it",
     });
     expect(record?.status).toBe("engaged");
+  });
+
+  it("F-206-02 — a multi-select answer joins several selected values into the one stored answer", async () => {
+    const { prospectId } = await newProspect("identified");
+
+    await withTransaction((tx) =>
+      submitQuestionnaireBAnswersIn(tx, prospectId, {
+        positionInterest: ["QB · Quarterback", "WR · Wide Receiver", "KR · Kick Return"],
+        gearOwned: ["Boots", "Mouthguard"],
+      }),
+    );
+
+    const record = await withTransaction((tx) => readRecruitmentProspectIn(tx, prospectId));
+    expect(record?.answers.positionInterest).toBe(
+      "QB · Quarterback, WR · Wide Receiver, KR · Kick Return",
+    );
+    expect(record?.answers.gearOwned).toBe("Boots, Mouthguard");
   });
 
   it("a later answer supersedes the earlier one, which is kept in history", async () => {

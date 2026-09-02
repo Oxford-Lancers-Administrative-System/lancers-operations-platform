@@ -16,11 +16,15 @@ import { submitQuestionnaireBAnswersIn } from "@/lib/services/recruitment-questi
  * for the automated traffic that gate exists to repel, before any
  * transaction opens.
  *
- * Redirects back to the same `/a/[token]` route on success — this page has
- * no second, "answered" route the way the RSVP flow's `/me/[token]` is,
- * because a recruit may return and change any answer at any time (W4's own
- * "the recruit answers twice" exception), so the same GET simply re-renders
- * the same form, prefilled, with a transient saved banner.
+ * Redirects back to the same `/a/[token]` route on success, `?saved=1` —
+ * this page has no second, "answered" route the way the RSVP flow's
+ * `/me/[token]` is; the same GET re-resolves the same token and renders the
+ * mockup's own "Answers received" screen (`interest-questionnaire.tsx`'s
+ * `QuestionnaireBScreen`). A recruit may return and change any answer at any
+ * time (W4's own "the recruit answers twice" exception) — a later visit with
+ * no `?saved=1` and an answer already on record shows "Already completed"
+ * instead, with its own "Change an answer" link back to the same route with
+ * `?edit=1`, which is what actually reaches the form again.
  */
 function yesNoOrNull(value: FormDataEntryValue | null): "yes" | "no" | null {
   if (value === "true") return "yes";
@@ -30,6 +34,18 @@ function yesNoOrNull(value: FormDataEntryValue | null): "yes" | "no" | null {
 
 function textOrNull(value: FormDataEntryValue | null): string | null {
   return typeof value === "string" && value.trim() !== "" ? value : null;
+}
+
+/**
+ * F-206-02, correction round 1: "Which positions interest you?" and "What
+ * playing gear do you already have?" are genuine multi-selects, each its own
+ * checkbox per option under the same `name` — `getAll` returns every one
+ * that was checked, in document order.
+ */
+function multiOrEmpty(form: FormData, name: string): readonly string[] {
+  return form
+    .getAll(name)
+    .filter((value): value is string => typeof value === "string" && value.trim() !== "");
 }
 
 export async function submitInterestQuestionnaire(form: FormData): Promise<void> {
@@ -54,8 +70,8 @@ export async function submitInterestQuestionnaire(form: FormData): Promise<void>
       await submitQuestionnaireBAnswersIn(tx, resolution.resolved.prospectId, {
         playedBefore: yesNoOrNull(form.get("q_B1")),
         watchedBefore: yesNoOrNull(form.get("q_B2")),
-        positionInterest: textOrNull(form.get("q_B3")),
-        gearOwned: textOrNull(form.get("q_B4")),
+        positionInterest: multiOrEmpty(form, "q_B3"),
+        gearOwned: multiOrEmpty(form, "q_B4"),
         howTheyHeard: textOrNull(form.get("q_B5")),
         anythingElse: textOrNull(form.get("q_B6")),
       });

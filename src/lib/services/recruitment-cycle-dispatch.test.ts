@@ -800,7 +800,7 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
         actorPersonId: operatorPersonId,
         personId: created.personId,
         seasonId,
-        academic: { optInEvidence: "freshers_fair" },
+        academic: { optInEvidence: "gave_it" },
       }),
     );
     await withTransaction((tx) =>
@@ -1003,5 +1003,111 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
     expect(askResolution.state).toBe("unknown");
     expect(reminderResolution.state).toBe("valid");
     expect(reminderResolution.resolved?.prospectId).toBe(prospectId);
+  });
+});
+
+/**
+ * F-206-01, correction round 1. The reviewer's own live reproduction:
+ * pressing SEND/RESEND on an outstanding, unanswered request rendered
+ * "Already answered." to the operator while the job sat `pending`.
+ */
+describe("F-206-01 — resend on an outstanding request", () => {
+  it("reports 'outstanding', not 'already_complete', and makes the existing job due again rather than creating a third one", async () => {
+    const personId = await completeWelcomeRecruit();
+    const prospectId = await prospectIdFor(personId);
+
+    const first = await withTransaction((tx) =>
+      sendRecruitmentQuestionnaireIn(tx, operatorPersonId, prospectId, "recruitment"),
+    );
+    expect([...first.created].sort()).toEqual(["interest_ask", "interest_reminder"]);
+    expect(first.reason).toBeNull();
+
+    const before = await jobsFor(personId);
+    expect(before).toHaveLength(2);
+
+    const resend = await withTransaction((tx) =>
+      sendRecruitmentQuestionnaireIn(tx, operatorPersonId, prospectId, "recruitment"),
+    );
+
+    // The defect: this used to read "already_complete" — false, the recruit
+    // has answered nothing — which the record's own SEND/RESEND button then
+    // rendered as "Already answered." to the operator.
+    expect(resend.created).toHaveLength(0);
+    expect(resend.reason).toBe("outstanding");
+    expect(resend.reason).not.toBe("already_complete");
+
+    // Never a third job: the two-ask cap is structural, and a resend reuses
+    // the same two rows rather than inserting a new one.
+    const after = await jobsFor(personId);
+    expect(after).toHaveLength(2);
+    expect(after.map((j) => j.idempotency_key).sort()).toEqual(
+      before.map((j) => j.idempotency_key).sort(),
+    );
+  });
+
+  it("makes an outstanding job's scheduled_for due immediately, so resend actually resends", async () => {
+    const personId = await completeWelcomeRecruit();
+    const prospectId = await prospectIdFor(personId);
+    await withTransaction((tx) =>
+      sendRecruitmentQuestionnaireIn(tx, operatorPersonId, prospectId, "recruitment"),
+    );
+    // Push the ask's own scheduled offset far into the future, the way a real
+    // 72h-later offset would read at the moment an operator presses resend.
+    await withTransaction((tx) =>
+      tx.query(
+        "update public.notification_jobs set scheduled_for = now() + interval '3 days' where person_id = $1::uuid",
+        [personId],
+      ),
+    );
+
+    await withTransaction((tx) =>
+      sendRecruitmentQuestionnaireIn(tx, operatorPersonId, prospectId, "recruitment"),
+    );
+
+    const rows = await withTransaction((tx) =>
+      tx.query<{ scheduled_for: Date }>(
+        "select scheduled_for from public.notification_jobs where person_id = $1::uuid",
+        [personId],
+      ),
+    );
+    for (const row of rows.rows) {
+      expect(row.scheduled_for.getTime()).toBeLessThanOrEqual(Date.now() + 1000);
+    }
+  });
+
+  it("never reports 'outstanding' once the recruit has genuinely answered — the real completion, re-read, not assumed", async () => {
+    const personId = await completeWelcomeRecruit();
+    const prospectId = await prospectIdFor(personId);
+    await withTransaction((tx) =>
+      sendRecruitmentQuestionnaireIn(tx, operatorPersonId, prospectId, "recruitment"),
+    );
+    await answerQuestionnaireB(prospectId, QUESTIONNAIRE_B_COMPLETING_CODES);
+
+    const resend = await withTransaction((tx) =>
+      sendRecruitmentQuestionnaireIn(tx, operatorPersonId, prospectId, "recruitment"),
+    );
+
+    expect(resend.created).toHaveLength(0);
+    expect(resend.reason).toBe("already_complete");
+  });
+
+  it("still refuses a declined recruit outright, never reporting 'outstanding' for one", async () => {
+    const personId = await completeWelcomeRecruit();
+    const prospectId = await prospectIdFor(personId);
+    await withTransaction((tx) =>
+      sendRecruitmentQuestionnaireIn(tx, operatorPersonId, prospectId, "recruitment"),
+    );
+    await withTransaction((tx) =>
+      tx.query(`update public.recruitment_prospects set status = 'declined' where id = $1::uuid`, [
+        prospectId,
+      ]),
+    );
+
+    const resend = await withTransaction((tx) =>
+      sendRecruitmentQuestionnaireIn(tx, operatorPersonId, prospectId, "recruitment"),
+    );
+
+    expect(resend.created).toHaveLength(0);
+    expect(resend.reason).toBe("not_eligible");
   });
 });
