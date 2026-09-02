@@ -37,6 +37,7 @@ import {
   resolveLocalDatabaseUrl,
 } from "./lib/local-db.mjs";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import { seedFrame, shiftAuthoredValue, shiftedYearOf } from "./lib/seed-clock.mjs";
 
 const SEED = 20260810;
@@ -1469,6 +1470,21 @@ add("recruitment_prospect_notes", {
   created_at: "2026-11-05T09:00:00Z",
 });
 
+/**
+ * Independent of the seeded `uuid()` factory used everywhere else in this
+ * file — deliberately: that factory draws from the one shared, seeded PRNG
+ * every other value in this file's determinism guarantee depends on (jersey
+ * numbers, positions, RSVP outcomes, attendance, …). Drawing from it here
+ * too would shift every value downstream of this block by however many
+ * draws this section makes, silently — exactly the failure a first version
+ * of this block caused (`player-record.test.ts`'s "not another season's"
+ * jersey-holder assertion, moved by the shift alone). These rows do not
+ * need to be part of that reproducible sequence, only to be valid, unique
+ * ids — `crypto.randomUUID()` on its own generator is what keeps them from
+ * perturbing it.
+ */
+const recruitId = () => crypto.randomUUID();
+
 // LAN-204, item 6 (Brian, 2026-09-02: "I need to see a dozen recruits, and I
 // want to see three events minimum"). Ten more, on top of the two above, so
 // the rebuilt board and record have real variety — every one of the seven
@@ -1507,7 +1523,7 @@ function addRecruit({
   updatedAt = createdAt,
 }) {
   const person = {
-    id: uuid(),
+    id: recruitId(),
     given_name: given,
     family_name: family,
     college,
@@ -1526,7 +1542,7 @@ function addRecruit({
   people.push(person);
   add("people", person);
   const prospect = add("recruitment_prospects", {
-    id: uuid(),
+    id: recruitId(),
     person_id: person.id,
     season_id: seasonCurrent.id,
     status,
@@ -1549,7 +1565,7 @@ function addRecruit({
  */
 function joinRecruit(person, prospect, committedOn, when) {
   const membership = add("season_memberships", {
-    id: uuid(),
+    id: recruitId(),
     person_id: person.id,
     season_id: seasonCurrent.id,
     status: "onboarding",
@@ -1564,14 +1580,19 @@ function joinRecruit(person, prospect, committedOn, when) {
     created_at: when,
     updated_at: when,
   });
-  recordTransition(
-    membership,
-    null,
-    "onboarding",
-    when,
-    people[1],
-    "Flipped from the recruit board.",
-  );
+  // Inlined rather than calling the shared `recordTransition` — that
+  // helper's own `id: uuid()` draws from the same seeded factory this
+  // block deliberately avoids (see `recruitId`'s own comment).
+  add("season_membership_status_events", {
+    id: recruitId(),
+    season_membership_id: membership.id,
+    from_status: null,
+    to_status: "onboarding",
+    occurred_at: when,
+    actor_person_id: people[1].id,
+    actor_label: null,
+    reason: "Flipped from the recruit board.",
+  });
   prospect.converted_membership_id = membership.id;
   return membership;
 }
@@ -1712,7 +1733,7 @@ const recruit12 = addRecruit({
   updatedAt: "2026-10-23T09:00:00Z",
 });
 add("recruitment_prospect_status_events", {
-  id: uuid(),
+  id: recruitId(),
   prospect_id: recruit12.prospect.id,
   from_status: "identified",
   to_status: "void",
@@ -2615,9 +2636,21 @@ invitedEvents.forEach((event, index) => {
 // throughout, anchored to the person (never a season membership — a recruit
 // has none), on the same idiom `attendance.ts`'s own walk-on capture uses.
 function inviteRecruit(event, person) {
-  const member = addAudienceMember(event, { person, capacity: "recruit" });
+  // Inlined rather than calling the shared `addAudienceMember` — that
+  // helper's own `id: uuid()` draws from the same seeded factory this
+  // block deliberately avoids (see `recruitId`'s own comment).
+  const member = add("event_audience_members", {
+    id: recruitId(),
+    event_id: event.id,
+    season_id: seasonCurrent.id,
+    capacity: "recruit",
+    season_membership_id: null,
+    person_id: person.id,
+    added_at: event.audience_confirmed_at ?? event.created_at,
+    added_by_person_id: event.audience_confirmed_by_person_id,
+  });
   return add("invitations", {
-    id: uuid(),
+    id: recruitId(),
     event_id: event.id,
     event_status: event.status,
     season_id: seasonCurrent.id,
@@ -2635,7 +2668,7 @@ function inviteRecruit(event, person) {
 
 function recordRecruitRsvp(invitation, response, when) {
   add("rsvp_responses", {
-    id: uuid(),
+    id: recruitId(),
     invitation_id: invitation.id,
     response,
     reason: response === "no" ? "Clash with another commitment." : null,
@@ -2650,7 +2683,7 @@ function recordRecruitRsvp(invitation, response, when) {
 
 function recordRecruitAttendance(event, person, presence, when) {
   add("attendance_records", {
-    id: uuid(),
+    id: recruitId(),
     event_id: event.id,
     event_status: event.status,
     season_id: seasonCurrent.id,
