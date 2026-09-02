@@ -1,0 +1,1371 @@
+{
+  "packet_version": 1,
+  "mission_id": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+  "status": "approved",
+  "title": "Onboarding — from “they're in” to active",
+  "objective": "Take a squad from the moment somebody decides a person is in, to the day the club stops chasing them for anything: three arrival doors, one welcome, one signed link carrying one questionnaire, a checklist the club can see and resolve, a bounded chase that gives up and tells a human, and a human declaration that makes them active.",
+  "why_now": "Mission 6 fills the top of the funnel and Mission 5 shipped the record and the board that display all of this, deliberately undeployed — LAN-196 holds Missions 5, 6 and 7 for one release window, so this is the last of a set that ships together. Until it exists there is no path from a recruit or a spreadsheet to a season's squad except an operator typing, and no consent capture outside the recruit door, which means the club cannot lawfully message anybody it did not meet at a recruiting event. Two shipped things also depend on it to become coherent: Mission 5's operator correction path was accepted only as the interim answer until a person can fix their own record, and its missing-data queue has nothing acting on it today.",
+  "non_goals": [
+    "Consent wording, retention, correction policy, subject-access export, erasure and under-18 handling — Mission 8; the wording is Clint's through Task 07.",
+    "Creating a season, season rollover, and the season-boundary checklist reset — Mission 11.",
+    "The recruitment funnel, its doors and its ladder up to the flip — Mission 6.",
+    "Any chase of a recruit at all.",
+    "All coach and committee onboarding, welcome flow included, and football assignments — Mission 9.",
+    "The event-RSVP reminder stream — Mission 4.",
+    "The Monday report's own evolution — Mission 10.",
+    "Real data, hosted cutover and production activation — Tracks A and B; LAN-86, LAN-101, LAN-126.",
+    "Player logins, in any form.",
+    "Per-season configuration of which checklist items exist, and per-item owners — superseded by Brian on 2026-09-02."
+  ],
+  "sources": [
+    {
+      "id": "SRC-portfolio-row-7",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bb488886d578126a88cdd747f590a01",
+      "version": "Portfolio v2, restructure approved 2026-08-26; fetched 2026-09-01"
+    },
+    {
+      "id": "SRC-owner-2026-09-01",
+      "kind": "document",
+      "ref": "Brian Schuster, working session recorded in missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/00-boundary.md and 01-overview.md",
+      "version": "2026-09-01"
+    },
+    {
+      "id": "SRC-owner-2026-09-02",
+      "kind": "document",
+      "ref": "Brian Schuster, working session recorded across missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/workflows/ and 02-workflows.md",
+      "version": "2026-09-02"
+    },
+    {
+      "id": "SRC-task-10",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bd488886d5781078f48f13a47c529c6",
+      "version": "approved 2026-08-15; reconciled 2026-08-17; owner amendment 2026-08-26; fetched 2026-09-01"
+    },
+    {
+      "id": "SRC-task-11",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bd488886d578157b520db77cf5ca50c",
+      "version": "approved 2026-08-15; reconciled 2026-08-17; owner amendment 2026-08-26; fetched 2026-09-01"
+    },
+    {
+      "id": "SRC-task-07",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bc488886d5781e4be86d85e7f65558c",
+      "version": "approved 2026-08-14; amended 2026-08-15; owner amendment 2026-08-26; fetched 2026-09-01"
+    },
+    {
+      "id": "SRC-manifest",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bf488886d57818aa53ec09f4fc5f757",
+      "version": "published 2026-08-17; owner amendment 2026-08-26; fetched 2026-09-01"
+    },
+    {
+      "id": "SRC-linear",
+      "kind": "linear",
+      "ref": "LAN-85, LAN-93, LAN-105, LAN-111, LAN-196, LAN-200-206, LAN-213",
+      "version": "read 2026-09-01; LAN-213 filed 2026-09-02"
+    },
+    {
+      "id": "SRC-repo-baseline",
+      "kind": "github",
+      "ref": "main@332bc6b3ba3028f1b79d99fc59dc1417791c2d81",
+      "version": "observed 2026-09-01"
+    },
+    {
+      "id": "SRC-repo-current",
+      "kind": "github",
+      "ref": "main@0a04be76b44589ec5081425e15f79975f91a8377",
+      "version": "merged into the intake worktree 2026-09-02"
+    },
+    {
+      "id": "SRC-m5-ledger",
+      "kind": "github",
+      "ref": "missions/intake/M-PEOPLE-AND-ROSTER/decision-coverage.md",
+      "version": "merged"
+    },
+    {
+      "id": "SRC-m6-ledger",
+      "kind": "github",
+      "ref": "missions/intake/M-RECRUITMENT/decision-coverage.md",
+      "version": "merged"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-three-doors",
+      "source_id": "SRC-task-10",
+      "text": "Three arrival doors — a CSV import of last season's squad, an operator adding one person by hand, and a recruit flipped to joined — and what happens after them is identical: a season membership at onboarding, the season's checklist generated in full, and one welcome."
+    },
+    {
+      "id": "REQ-one-welcome",
+      "source_id": "SRC-owner-2026-09-01",
+      "text": "One welcome template for everybody, which does not vary by door. It is the only message the club may send before a messaging basis exists, and its purpose is to obtain one."
+    },
+    {
+      "id": "REQ-one-link",
+      "source_id": "SRC-task-11",
+      "text": "One signed, revocable, season-scoped link per person, carrying no session and exposing nobody else's information. At most one open ask per person, ever: new outstanding facts join the open ask rather than starting a second. There are no player logins in any form."
+    },
+    {
+      "id": "REQ-one-questionnaire",
+      "source_id": "SRC-owner-2026-09-01",
+      "text": "One questionnaire behind that link, in five steps: the player's details, the Code of Conduct, the photo release, BUCS Play, and Hudl. Every later message re-sends the same link, compiled to whatever is still outstanding."
+    },
+    {
+      "id": "REQ-form-is-consent-board",
+      "source_id": "SRC-owner-2026-09-01",
+      "text": "The personal-details form is the consent board. The tick is its first field, not a preamble. Consent is season-scoped and re-asked every season; within a season a recruit-door grant carries, so nobody is asked twice in one year."
+    },
+    {
+      "id": "REQ-consent-one-way",
+      "source_id": "SRC-owner-2026-09-01",
+      "text": "Consent is one-way on the player's side: their own form offers no way to untick it. An operator can switch it off at any point, on request, as part of the person's status."
+    },
+    {
+      "id": "REQ-required-set",
+      "source_id": "SRC-owner-2026-09-02",
+      "text": "The onboarding required set is person-required.ts's player tier — first name, last name, mobile, personal email, college, matriculation year, expected graduation, degree field, date of birth and an emergency contact of first name, last name, email and phone. It blocks the form and never the player, and whatever a step saved stays saved. Declining a required fact is not offered anywhere."
+    },
+    {
+      "id": "REQ-nothing-gates",
+      "source_id": "SRC-task-10",
+      "text": "Nothing gates. No onboarding item blocks any action anywhere, for anybody. An active player with an unfinished checklist is the normal case, not an exception. Onboarding memberships count as players for event audiences from the moment they are on the team."
+    },
+    {
+      "id": "REQ-checklist-fixed",
+      "source_id": "SRC-owner-2026-09-02",
+      "text": "The checklist is the approved item-and-ask inventory. Nobody configures which items exist, per season or otherwise, and no item has a per-item owner: only the four-role group resolves anything."
+    },
+    {
+      "id": "REQ-item-states",
+      "source_id": "SRC-task-10",
+      "text": "Checklist item states are pending, invited, claimed, complete, waived and not_applicable, with reopen from any terminal state. claimed means the player says done and awaits confirmation; a trust-class item completes on the player's word carrying player-claimed provenance. Verification class is a property of the item, not a configuration knob."
+    },
+    {
+      "id": "REQ-reason-free-waive",
+      "source_id": "SRC-task-10",
+      "text": "Waive and reopen are four-role actions requiring no reason, audited, with the author recorded. This supersedes the shipped onboarding_items_waiver_is_justified constraint, which must be unwound by a forward-only migration."
+    },
+    {
+      "id": "REQ-item-history",
+      "source_id": "SRC-task-10",
+      "text": "Per-item history is append-only: a superseded value is retained, never overwritten, and every state transition records actor, date and the state pair."
+    },
+    {
+      "id": "REQ-activity-log",
+      "source_id": "SRC-owner-2026-09-01",
+      "text": "A per-player activity log, grouped by section, carrying one entry per ask and per answer with when, how and who — so the record answers how often somebody was asked about a thing, not merely whether they were messaged."
+    },
+    {
+      "id": "REQ-no-silent-overwrite",
+      "source_id": "SRC-task-11",
+      "text": "A player's answer never silently overwrites a value an operator recorded, an externally verified value, or a derived one. It raises disputed — awaiting verification, both values are kept, and a four-role operator decides. Provenance is the derived one Mission 5 already built from audit_events."
+    },
+    {
+      "id": "REQ-self-service",
+      "source_id": "SRC-task-07",
+      "text": "A player fixes their own record through the same signed link, at any time. This is the club's whole answer to self-service and replaces Mission 5's operator correction path as the interim answer."
+    },
+    {
+      "id": "REQ-chase",
+      "source_id": "SRC-task-11",
+      "text": "The chase is configured as three values on the messaging schedule's Onboarding section: how long after joining the first chase goes, how many times it asks, and how far apart. There is no separate give-up value; the chase ends when the count runs out. There are no quiet hours."
+    },
+    {
+      "id": "REQ-cap-delivered",
+      "source_id": "SRC-task-11",
+      "text": "The count is spent only on messages known to have arrived. A delivery failure consumes nothing and routes to the failure path, which puts the person on the list for a human and sends no automated email in its place. LAN-93 delivery callbacks are a stated dependency."
+    },
+    {
+      "id": "REQ-operator-nudge",
+      "source_id": "SRC-task-11",
+      "text": "An operator nudges one person or several from the queue in one action, each receiving only their own compiled ask on their own link. Operator nudges are unlimited and outside the count. The system never generates a one-fact ask of its own."
+    },
+    {
+      "id": "REQ-queue-visibility",
+      "source_id": "SRC-task-11",
+      "text": "The queue shows, per person, when they were last contacted and what kind it was, and when the machine will next write or that it will not — distinguishing exhausted, unmessageable and terminal delivery failure."
+    },
+    {
+      "id": "REQ-exhaustion",
+      "source_id": "SRC-task-11",
+      "text": "When the count runs out the chase stops permanently and escalates to a configured office, initial value President, read from the club's roles rather than configured. The escalation carries a count and a link and never names. Only a human restarts a chase. No automated timeout ever removes anybody."
+    },
+    {
+      "id": "REQ-activation",
+      "source_id": "SRC-owner-2026-09-01",
+      "text": "Activation is a human declaration by the four-role group on the shipped status field, with no confirmation step. It completes, waives and closes nothing, and derived onboarding-completeness is display-only and never flips membership on its own."
+    },
+    {
+      "id": "REQ-restricted-fields",
+      "source_id": "SRC-task-07",
+      "text": "Date of birth is restricted: it never appears on any list, board or queue, and only the derived under-18 flag does. A person flagged under 18 is not messaged at all until a fresh owner decision defines under-18 handling. Free text — refusal notes, correction reasons, waiver reasons — is four-role only and never reaches a report verbatim."
+    },
+    {
+      "id": "REQ-policy-at-collection",
+      "source_id": "SRC-task-07",
+      "text": "Every player-facing screen shows the club's privacy policy at the point of collection, and the Code of Conduct and photo release are read on their own pages before being agreed, each recorded against the exact version shown and dated."
+    },
+    {
+      "id": "REQ-transport",
+      "source_id": "SRC-task-11",
+      "text": "Nothing is ever sent by hand. Every message rides Mission 4's pipeline, template-only in production, and the refuse-without-basis check permits only the welcome before a basis exists."
+    },
+    {
+      "id": "REQ-departure",
+      "source_id": "SRC-owner-2026-09-01",
+      "text": "Leaving mid-onboarding simply stops the ask. Nothing more is asked, the person drops off the queue, and whatever records exist stay as they are."
+    }
+  ],
+  "decisions": [
+    {
+      "id": "W1:The import writes into the roster's current season, never as",
+      "workflow": "W1",
+      "text": "The import writes into the roster's current season, never asks, never creates one",
+      "basis": "OD7-season-inherit, Brian 2026-09-01",
+      "classification": "locked"
+    },
+    {
+      "id": "W1:The import follows /operate/events/import's shape rather tha",
+      "workflow": "W1",
+      "text": "The import follows /operate/events/import's shape rather than inventing one",
+      "basis": "OD7-import-like-events, Brian 2026-09-01",
+      "classification": "locked"
+    },
+    {
+      "id": "W1:A confirmation page showing who is about to be added, with p",
+      "workflow": "W1",
+      "text": "A confirmation page showing who is about to be added, with possible duplicates underneath",
+      "basis": "OD7-dup-preview, Brian 2026-09-01",
+      "classification": "locked"
+    },
+    {
+      "id": "W1:Everyone imported gets the same welcome as every other door",
+      "workflow": "W1",
+      "text": "Everyone imported gets the same welcome as every other door",
+      "basis": "Boundary §2, Brian 2026-09-01",
+      "classification": "locked"
+    },
+    {
+      "id": "W1:The file carries first name, last name and mobile — required",
+      "workflow": "W1",
+      "text": "The file carries first name, last name and mobile — required — plus personal email, college and matriculation year, optional. Nothing else.",
+      "basis": "Those three are the required set at every tier and are what a welcome needs to arrive. The other three are things a club spreadsheet genuinely holds and that save the player retyping. Everything else onboarding asks for — DOB, emergency contact, degree, graduation — comes from nowhere on main, is asked of everyone anyway, and does not belong in a file on a laptop.",
+      "raised_as": "proposed for owner approval",
+      "classification": "locked"
+    },
+    {
+      "id": "W1:A carried-forward person's own facts are never overwritten b",
+      "workflow": "W1",
+      "text": "A carried-forward person's own facts are never overwritten by the file. A difference becomes something the player confirms on the form, not a silent update.",
+      "basis": "The mission's standing rule that nothing a person says silently overwrites a confirmed value (W5) reads the same way pointed at a spreadsheet. The alternative — last-file-wins over a value a human confirmed — is the failure mode the whole provenance design exists to prevent. Recommended.",
+      "raised_as": "proposed for owner approval",
+      "classification": "locked"
+    },
+    {
+      "id": "W1:An unanswered duplicate refuses its own row and nothing else",
+      "workflow": "W1",
+      "text": "An unanswered duplicate refuses its own row and nothing else.",
+      "basis": "The two alternatives are worse: blocking the whole import makes one ambiguous name hold up fifty people, and defaulting to _create_ mints a second record of a real human silently. Refusing one row is visible, recoverable and costs one more pass. Recommended.",
+      "raised_as": "proposed for owner approval",
+      "classification": "locked"
+    },
+    {
+      "id": "W1:Confirming queues the welcomes; it never sends them.",
+      "workflow": "W1",
+      "text": "Confirming queues the welcomes; it never sends them.",
+      "basis": "The invariant that nothing is ever sent by hand, and the mission rides Mission 4's scheduler verbatim (PR7-rides-m4). The operator is told \"42 welcomes queued\". Recommended.",
+      "raised_as": "proposed for owner approval",
+      "classification": "locked"
+    },
+    {
+      "id": "W1:Four-role, not the general-operator floor the surrounding ro",
+      "workflow": "W1",
+      "text": "Four-role, not the general-operator floor the surrounding roster surfaces use",
+      "basis": "Every other bulk or consequential write in the application narrows. This one creates dozens of people. Recommended.",
+      "raised_as": "proposed for owner approval",
+      "classification": "locked"
+    },
+    {
+      "id": "W2:The route, the three steps, the duplicate flow, the refusal ",
+      "workflow": "W2",
+      "text": "The route, the three steps, the duplicate flow, the refusal and the redirect are kept exactly as shipped",
+      "basis": "S2 — the surface exists; this mission brings it onto the one path rather than replacing it",
+      "classification": "locked"
+    },
+    {
+      "id": "W2:The membership begins at onboarding and the checklist genera",
+      "workflow": "W2",
+      "text": "The membership begins at onboarding and the checklist generates in the same transaction",
+      "basis": "Already true on main; roster.ts and generateOnboardingItems",
+      "classification": "locked"
+    },
+    {
+      "id": "W2:The welcome is queued on confirmation — the same template, a",
+      "workflow": "W2",
+      "text": "The welcome is queued on confirmation — the same template, and the only thing this workflow adds",
+      "basis": "M2, boundary §2, and W1's approved decision that confirming queues rather than sends",
+      "classification": "locked"
+    },
+    {
+      "id": "W2:Last name and mobile become required, joining first name",
+      "workflow": "W2",
+      "text": "Last name and mobile become required, joining first name",
+      "basis": "The approved item-and-ask inventory (Brian, 2026-09-01), and person-required.ts, which already requires last name at every tier. The form is behind the required set it feeds; today only first name is enforced",
+      "classification": "locked"
+    },
+    {
+      "id": "W2:Authority stays at the shipped general-operator floor, rathe",
+      "workflow": "W2",
+      "text": "Authority stays at the shipped general-operator floor, rather than the four-role W1 uses",
+      "basis": "W1 narrowed because it writes dozens of people at once. This is the everyday single-record path, already open to any linked active operator who is not a coach, and narrowing it would take a surface away from people who use it today. Recommended: leave it as shipped",
+      "raised_as": "proposed for owner approval",
+      "classification": "locked"
+    },
+    {
+      "id": "W2:Whether personal email stays optional here",
+      "workflow": "W2",
+      "text": "Whether personal email stays optional here",
+      "basis": "Recommended: yes. The welcome travels by mobile, and email is one of the things the player's own link collects. Requiring it here would block an operator who genuinely does not have it",
+      "raised_as": "proposed for owner approval",
+      "classification": "locked"
+    },
+    {
+      "id": "W3:The four consequences all happen inside Mission 6's flip tra",
+      "workflow": "W3",
+      "text": "The four consequences all happen inside Mission 6's flip transaction",
+      "basis": "S3; and W14's own \"all of it, or none of it\"",
+      "classification": "locked"
+    },
+    {
+      "id": "W3:The welcome is the same message and template as the other tw",
+      "workflow": "W3",
+      "text": "The welcome is the same message and template as the other two doors",
+      "basis": "OD7-two-doors-lens, M2, and W1's approved decision",
+      "classification": "locked"
+    },
+    {
+      "id": "W3:The recruit's open ask is superseded and audited at the flip",
+      "workflow": "W3",
+      "text": "The recruit's open ask is superseded and audited at the flip",
+      "basis": "T11-supersede-on-conversion, S13, and the one-open-ask invariant",
+      "classification": "locked"
+    },
+    {
+      "id": "W3:Consent is neither copied nor re-asked — the row already exi",
+      "workflow": "W3",
+      "text": "Consent is neither copied nor re-asked — the row already exists for this person and season",
+      "basis": "season_messaging_consents unique (person_id, season_id), and the approved item inventory",
+      "classification": "locked"
+    },
+    {
+      "id": "W3:Their questionnaire answers arrive pre-filled and are not as",
+      "workflow": "W3",
+      "text": "Their questionnaire answers arrive pre-filled and are not asked again",
+      "basis": "S12, OD7-recheck-prefill, and the approved item inventory's carry-across table",
+      "classification": "locked"
+    },
+    {
+      "id": "W3:No new membership_entry value for \"came through recruitment\"",
+      "workflow": "W3",
+      "text": "No new membership_entry value for \"came through recruitment\"",
+      "basis": "membership_entry is ('new','returning') and describes whether they are new to the club, not which door they used. The prospect record and its converted_membership_id carry the provenance. But the photograph makes the cost visible: on this record a flipped recruit is indistinguishable from a hand-added player — Entry reads New and nothing names recruitment. Recommended: still add nothing to the enum, and let W6's activity log carry it; but this is the decision most worth overruling, and the screen is the argument against my own recommendation",
+      "raised_as": "proposed for owner approval",
+      "classification": "locked"
+    },
+    {
+      "id": "W3:This workflow draws no new surface and no new card",
+      "workflow": "W3",
+      "text": "This workflow draws no new surface and no new card",
+      "basis": "Everything it produces is read on Mission 5's record and roster. Where the supersession and the queued welcome appear is W6's activity log. Recommended: yes",
+      "raised_as": "proposed for owner approval",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:The form is the consent board; the tick is its first field, ",
+      "workflow": "W4",
+      "text": "The form is the consent board; the tick is its first field, not a preamble",
+      "basis": "OD7-form-is-consent-board, boundary item 6",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:Consent is one-way on the player's side; an operator switche",
+      "workflow": "W4",
+      "text": "Consent is one-way on the player's side; an operator switches it off",
+      "basis": "OD7-oneway-tick, Brian 2026-09-01",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:A flipped recruit sees no consent step this season",
+      "workflow": "W4",
+      "text": "A flipped recruit sees no consent step this season",
+      "basis": "season_messaging_consents unique per person per season; W3 acceptance",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:What is asked, and in what order",
+      "workflow": "W4",
+      "text": "What is asked, and in what order",
+      "basis": "Approved item-and-ask-inventory.md; cited, not re-decided",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:First name, last name and mobile are the required set",
+      "workflow": "W4",
+      "text": "First name, last name and mobile are the required set",
+      "basis": "Brian 2026-09-01, and person-required.ts on main",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:Nothing gates the player: no onboarding item blocks training",
+      "workflow": "W4",
+      "text": "Nothing gates the player: no onboarding item blocks training, selection, travel or invitation",
+      "basis": "R3-G, boundary, overview. Unchanged by the required set, which blocks only the form",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:One welcome template for every door",
+      "workflow": "W4",
+      "text": "One welcome template for every door",
+      "basis": "OD7-same-message, M2",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:The welcome is the single message permitted before consent e",
+      "workflow": "W4",
+      "text": "The welcome is the single message permitted before consent exists",
+      "basis": "T07-exception, T07-enforce, T11-consent-gate",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:A minimal checklist strip at the top of every step, doubling",
+      "workflow": "W4",
+      "text": "A minimal checklist strip at the top of every step, doubling as the map of the sequence",
+      "basis": "R4-P, and Brian's direction of 2026-09-01 to split the form into pages",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:The dead-link page reuses the shipped one — 404, heading, pr",
+      "workflow": "W4",
+      "text": "The dead-link page reuses the shipped one — 404, heading, privacy line, one Close",
+      "basis": "not-found.tsx on main. Its body sentence is replaced because the shipped one talks about events; nothing else changes",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:Values arrive pre-filled and are confirmed rather than retyp",
+      "workflow": "W4",
+      "text": "Values arrive pre-filled and are confirmed rather than retyped",
+      "basis": "OD7-recheck-prefill",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:A player's answer never silently overwrites a confirmed valu",
+      "workflow": "W4",
+      "text": "A player's answer never silently overwrites a confirmed value; it raises disputed",
+      "basis": "Boundary item 14; resolution is W7's",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:The ask's state model, invited through error",
+      "workflow": "W4",
+      "text": "The ask's state model, invited through error",
+      "basis": "T11-states; corrected and refused are exercised by W5",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:BUCS Play and Hudl answers record claimed, not complete",
+      "workflow": "W4",
+      "text": "BUCS Play and Hudl answers record claimed, not complete",
+      "basis": "R2-V, owned by W6",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:Read-back applies to the mobile captured here",
+      "workflow": "W4",
+      "text": "Read-back applies to the mobile captured here",
+      "basis": "Overview invariant",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:Under-18: the date is stored, the flag stops the chase entir",
+      "workflow": "W4",
+      "text": "Under-18: the date is stored, the flag stops the chase entirely",
+      "basis": "Overview invariant, S44",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:A person without consent keeps a working link but receives n",
+      "workflow": "W4",
+      "text": "A person without consent keeps a working link but receives nothing further",
+      "basis": "T07-enforce; the link is a credential, not a message",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:The form is a sequence: details, Code of Conduct, photo rele",
+      "workflow": "W4",
+      "text": "The form is a sequence: details, Code of Conduct, photo release, BUCS Play + Hudl",
+      "basis": "Owner direction, 2026-09-01, quoted in full above. One link, five steps, one open ask",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:The emergency contact is five fields, not one",
+      "workflow": "W4",
+      "text": "The emergency contact is five fields, not one",
+      "basis": "Owner direction, 2026-09-01, and person_emergency_contacts' own columns",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:Hudl gets its own page",
+      "workflow": "W4",
+      "text": "Hudl gets its own page",
+      "basis": "Owner direction, 2026-09-02: \"the instructions for Huddle should also be on its own separate page. Not tagged on\"",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:Hudl's page carries \"No invitation has reached me\"",
+      "workflow": "W4",
+      "text": "Hudl's page carries \"No invitation has reached me\"",
+      "basis": "Its first half is the club's job. Without that answer the queue chases a player for the club's own omission",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:The finishing page lists what is outstanding by section, in ",
+      "workflow": "W4",
+      "text": "The finishing page lists what is outstanding by section, in dots, each a link to its step",
+      "basis": "Owner direction, 2026-09-02: the previous sentence \"is very hard to tell\"",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:The onboarding required set is person-required.ts's player t",
+      "workflow": "W4",
+      "text": "The onboarding required set is person-required.ts's player tier, and it blocks the form",
+      "basis": "Owner direction, 2026-09-02. It collides with R3-G on its face; Brian confirmed the reading that it blocks the form and never the player, and that whatever a step saved stays saved",
+      "classification": "locked"
+    },
+    {
+      "id": "W4:The emergency contact is required: first name, last name, em",
+      "workflow": "W4",
+      "text": "The emergency contact is required: first name, last name, email, phone",
+      "basis": "Owner direction, 2026-09-02: \"we should make the emergency contact required. I think that's prudent\"",
+      "classification": "locked"
+    },
+    {
+      "id": "W5:The follow-up is the same form, carrying everything, editabl",
+      "workflow": "W5",
+      "text": "The follow-up is the same form, carrying everything, editable",
+      "basis": "OD7-followup-is-the-form, owner direction 2026-09-02",
+      "classification": "locked"
+    },
+    {
+      "id": "W5:Same page and same link as W4, in its returning state",
+      "workflow": "W5",
+      "text": "Same page and same link as W4, in its returning state",
+      "basis": "No player logins; one credential per person per season",
+      "classification": "locked"
+    },
+    {
+      "id": "W5:No declining a required fact, anywhere",
+      "workflow": "W5",
+      "text": "No declining a required fact, anywhere",
+      "basis": "OD7-required-no-decline; supersedes T11-refused",
+      "classification": "locked"
+    },
+    {
+      "id": "W5:The system never generates a one-fact ask",
+      "workflow": "W5",
+      "text": "The system never generates a one-fact ask",
+      "basis": "OD7-no-targeted-ask; supersedes M6. A person chases, carrying the compiled link — W8's",
+      "classification": "locked"
+    },
+    {
+      "id": "W5:Provenance is the derived one Mission 5 already built",
+      "workflow": "W5",
+      "text": "Provenance is the derived one Mission 5 already built",
+      "basis": "readFieldProvenanceIn; Brian's LAN-184 walkthrough choice",
+      "classification": "locked"
+    },
+    {
+      "id": "W5:A change to an operator-recorded value is checked by a perso",
+      "workflow": "W5",
+      "text": "A change to an operator-recorded value is checked by a person first",
+      "basis": "Boundary item 14",
+      "classification": "locked"
+    },
+    {
+      "id": "W5:Both values are kept when a fact is disputed; W7 resolves it",
+      "workflow": "W5",
+      "text": "Both values are kept when a fact is disputed; W7 resolves it",
+      "basis": "Append-only audit posture",
+      "classification": "locked"
+    },
+    {
+      "id": "W5:The page carries no explanation of itself beyond field-level",
+      "workflow": "W5",
+      "text": "The page carries no explanation of itself beyond field-level copy",
+      "basis": "Owner direction 2026-09-02 on UI narration",
+      "classification": "locked"
+    },
+    {
+      "id": "W6:This deepens the shipped record; it is not a new surface",
+      "workflow": "W6",
+      "text": "This deepens the shipped record; it is not a new surface",
+      "basis": "/operate/roster/[membershipId] ships and is the surface an operator already works from",
+      "classification": "locked"
+    },
+    {
+      "id": "W6:claimed is added to onboarding_item_status",
+      "workflow": "W6",
+      "text": "claimed is added to onboarding_item_status",
+      "basis": "R2-V; the enum has no such value today",
+      "classification": "locked"
+    },
+    {
+      "id": "W6:Trust-class items complete on the player's word, with proven",
+      "workflow": "W6",
+      "text": "Trust-class items complete on the player's word, with provenance",
+      "basis": "R2-V",
+      "classification": "locked"
+    },
+    {
+      "id": "W6:Per-item history is append-only and never overwrites",
+      "workflow": "W6",
+      "text": "Per-item history is append-only and never overwrites",
+      "basis": "Overview audit posture; S17",
+      "classification": "locked"
+    },
+    {
+      "id": "W6:Waive and reopen are four-role and demand no reason",
+      "workflow": "W6",
+      "text": "Waive and reopen are four-role and demand no reason",
+      "basis": "R2-R. Requires unwinding onboarding_items_waiver_is_justified",
+      "classification": "locked"
+    },
+    {
+      "id": "W6:Reopen is never automatic",
+      "workflow": "W6",
+      "text": "Reopen is never automatic",
+      "basis": "R4-T, R2-E",
+      "classification": "locked"
+    },
+    {
+      "id": "W6:Onboarding-completeness is derived and display-only",
+      "workflow": "W6",
+      "text": "Onboarding-completeness is derived and display-only",
+      "basis": "R3-C; activation is W10's human declaration",
+      "classification": "locked"
+    },
+    {
+      "id": "W6:Nothing gates, enforced here",
+      "workflow": "W6",
+      "text": "Nothing gates, enforced here",
+      "basis": "R3-G",
+      "classification": "locked"
+    },
+    {
+      "id": "W6:The activity log is counted by section",
+      "workflow": "W6",
+      "text": "The activity log is counted by section",
+      "basis": "OD7-log-by-section, Brian 2026-09-01",
+      "classification": "locked"
+    },
+    {
+      "id": "W6:The log carries asks and answers alike, one entry each, grou",
+      "workflow": "W6",
+      "text": "The log carries asks and answers alike, one entry each, grouped by section",
+      "basis": "Owner direction, 2026-09-02: counts alone are \"just not useful\"",
+      "classification": "locked"
+    },
+    {
+      "id": "W6:The log reuses the record's shipped StatusHistory markup",
+      "workflow": "W6",
+      "text": "The log reuses the record's shipped StatusHistory markup",
+      "basis": "Owner direction, 2026-09-02, on inventing UI the app does not use elsewhere",
+      "classification": "locked"
+    },
+    {
+      "id": "W6:Item status renders as the record already renders it",
+      "workflow": "W6",
+      "text": "Item status renders as the record already renders it",
+      "basis": "Plain underlined body2, no colour and no chip. The state name changes; its styling does not",
+      "classification": "locked"
+    },
+    {
+      "id": "W6:Resolution uses the row's own Select, with Reopen added to i",
+      "workflow": "W6",
+      "text": "Resolution uses the row's own Select, with Reopen added to it",
+      "basis": "The control ships; R2-R adds one option to it rather than a new control",
+      "classification": "locked"
+    },
+    {
+      "id": "W7:The surface is the person record, not the roster record",
+      "workflow": "W7",
+      "text": "The surface is the person record, not the roster record",
+      "basis": "The contestable facts are person facts, and already render there with their attribution",
+      "classification": "locked"
+    },
+    {
+      "id": "W7:Both values are shown, with both attributions",
+      "workflow": "W7",
+      "text": "Both values are shown, with both attributions",
+      "basis": "Boundary item 14; the By badge already ships",
+      "classification": "locked"
+    },
+    {
+      "id": "W7:The losing value is retained, never deleted",
+      "workflow": "W7",
+      "text": "The losing value is retained, never deleted",
+      "basis": "Append-only audit posture",
+      "classification": "locked"
+    },
+    {
+      "id": "W7:Flag, correction and confirmation stay separately attributab",
+      "workflow": "W7",
+      "text": "Flag, correction and confirmation stay separately attributable",
+      "basis": "The frozen inventory's own wording for this workflow",
+      "classification": "locked"
+    },
+    {
+      "id": "W7:A disputed fact gates nothing and is never chased",
+      "workflow": "W7",
+      "text": "A disputed fact gates nothing and is never chased",
+      "basis": "R3-G; the person has already answered",
+      "classification": "locked"
+    },
+    {
+      "id": "W7:Resolution is four-role",
+      "workflow": "W7",
+      "text": "Resolution is four-role",
+      "basis": "T07-permissions",
+      "classification": "locked"
+    },
+    {
+      "id": "W8:The surface is Mission 5's shipped missing-data queue",
+      "workflow": "W8",
+      "text": "The surface is Mission 5's shipped missing-data queue",
+      "basis": "It ships, it sorts, and nothing acts on it yet",
+      "classification": "locked"
+    },
+    {
+      "id": "W8:A nudge sends the person's own compiled ask, never a new mes",
+      "workflow": "W8",
+      "text": "A nudge sends the person's own compiled ask, never a new message",
+      "basis": "OD7-no-targeted-ask, M3",
+      "classification": "locked"
+    },
+    {
+      "id": "W8:Batch means several people, each getting their own ask",
+      "workflow": "W8",
+      "text": "Batch means several people, each getting their own ask",
+      "basis": "T11-batch-nudge; a link is scoped to one person by construction",
+      "classification": "locked"
+    },
+    {
+      "id": "W8:Operator nudges are unlimited and outside the cap",
+      "workflow": "W8",
+      "text": "Operator nudges are unlimited and outside the cap",
+      "basis": "T11-nudge-outside-cap",
+      "classification": "locked"
+    },
+    {
+      "id": "W8:The queue warns when the automated chase is already exhauste",
+      "workflow": "W8",
+      "text": "The queue warns when the automated chase is already exhausted",
+      "basis": "T11-nudge-outside-cap; it warns, it does not prevent",
+      "classification": "locked"
+    },
+    {
+      "id": "W8:Last contact, its kind, and the next automated contact are s",
+      "workflow": "W8",
+      "text": "Last contact, its kind, and the next automated contact are shown",
+      "basis": "T11-visibility",
+      "classification": "locked"
+    },
+    {
+      "id": "W8:Terminal delivery failure lists the person for a human, send",
+      "workflow": "W8",
+      "text": "Terminal delivery failure lists the person for a human, sends no email in its place",
+      "basis": "T11-terminal-failure",
+      "classification": "locked"
+    },
+    {
+      "id": "W8:Leaving mid-onboarding drops the person off the queue entire",
+      "workflow": "W8",
+      "text": "Leaving mid-onboarding drops the person off the queue entirely",
+      "basis": "OD7-depart-stops",
+      "classification": "locked"
+    },
+    {
+      "id": "W8:Nothing on this screen fires on a timer",
+      "workflow": "W8",
+      "text": "Nothing on this screen fires on a timer",
+      "basis": "R4-T",
+      "classification": "locked"
+    },
+    {
+      "id": "W9:The escalation carries a count and a link, never names",
+      "workflow": "W9",
+      "text": "The escalation carries a count and a link, never names",
+      "basis": "T11-escalation-personal-data-free",
+      "classification": "locked"
+    },
+    {
+      "id": "W9:The target is a configured office, initial value President",
+      "workflow": "W9",
+      "text": "The target is a configured office, initial value President",
+      "basis": "T11-escalation-target; presidents change and a person-addressed escalation fails silently",
+      "classification": "locked"
+    },
+    {
+      "id": "W9:The office is read from the club's roles, never configured",
+      "workflow": "W9",
+      "text": "The office is read from the club's roles, never configured",
+      "basis": "roles ships president; role_assignments names its holder",
+      "classification": "locked"
+    },
+    {
+      "id": "W9:The chase stops permanently and only a human restarts it",
+      "workflow": "W9",
+      "text": "The chase stops permanently and only a human restarts it",
+      "basis": "R4-T; the restart is W8's nudge, outside the cap",
+      "classification": "locked"
+    },
+    {
+      "id": "W9:Exhaustion removes nobody and changes no standing",
+      "workflow": "W9",
+      "text": "Exhaustion removes nobody and changes no standing",
+      "basis": "R3-G; the boundary's \"no automated timeout ever removes anybody\"",
+      "classification": "locked"
+    },
+    {
+      "id": "W9:The human's own contact is recorded on the person's log",
+      "workflow": "W9",
+      "text": "The human's own contact is recorded on the person's log",
+      "basis": "S31, T10-activity-log",
+      "classification": "locked"
+    },
+    {
+      "id": "W9:One message with a count, not one per person",
+      "workflow": "W9",
+      "text": "One message with a count, not one per person",
+      "basis": "T11-escalation-personal-data-free; the count is the payload",
+      "classification": "locked"
+    },
+    {
+      "id": "W10:Activation is a human declaration on the shipped status fiel",
+      "workflow": "W10",
+      "text": "Activation is a human declaration on the shipped status field",
+      "basis": "OD7-activation-flips, PR7-activation",
+      "classification": "locked"
+    },
+    {
+      "id": "W10:No confirmation step is added",
+      "workflow": "W10",
+      "text": "No confirmation step is added",
+      "basis": "Q-12 proposed and withdrew exactly that on this exact transition; R3 makes it the normal case",
+      "classification": "locked"
+    },
+    {
+      "id": "W10:Outstanding items are context, and the context is the page",
+      "workflow": "W10",
+      "text": "Outstanding items are context, and the context is the page",
+      "basis": "The Onboarding section already sits directly above the Season section",
+      "classification": "locked"
+    },
+    {
+      "id": "W10:Activation completes, waives and closes nothing",
+      "workflow": "W10",
+      "text": "Activation completes, waives and closes nothing",
+      "basis": "R3; the chase continues unchanged",
+      "classification": "locked"
+    },
+    {
+      "id": "W10:Nothing derives or schedules activation",
+      "workflow": "W10",
+      "text": "Nothing derives or schedules activation",
+      "basis": "R3-C: derived completeness is display-only and never flips membership",
+      "classification": "locked"
+    },
+    {
+      "id": "W10:Activation is the only gate this mission has, and it gates s",
+      "workflow": "W10",
+      "text": "Activation is the only gate this mission has, and it gates squad membership only",
+      "basis": "Boundary item 16; R3-G everywhere else",
+      "classification": "locked"
+    },
+    {
+      "id": "W11:The checklist is the approved inventory, and nobody configur",
+      "workflow": "W11",
+      "text": "The checklist is the approved inventory, and nobody configures it",
+      "basis": "OD7-checklist-is-fixed, Brian 2026-09-02; supersedes R1 and R2-V2",
+      "classification": "locked"
+    },
+    {
+      "id": "W11:There are no per-item owners; only the four-role group resol",
+      "workflow": "W11",
+      "text": "There are no per-item owners; only the four-role group resolves",
+      "basis": "OD7-four-role-only, Brian 2026-09-02; supersedes R2",
+      "classification": "locked"
+    },
+    {
+      "id": "W11:What is configured is how many times, how often, and when it",
+      "workflow": "W11",
+      "text": "What is configured is how many times, how often, and when it gives up",
+      "basis": "OD7-cadence-is-the-config, Brian 2026-09-02",
+      "classification": "locked"
+    },
+    {
+      "id": "W11:Nothing on this page escalates; the chase simply exhausts",
+      "workflow": "W11",
+      "text": "Nothing on this page escalates; the chase simply exhausts",
+      "basis": "Owner direction, 2026-09-02. The President field on this page is the event RSVP's escalation, not onboarding's",
+      "classification": "locked"
+    },
+    {
+      "id": "W11:There is no \"give up after\" value; it is the count times the",
+      "workflow": "W11",
+      "text": "There is no \"give up after\" value; it is the count times the interval",
+      "basis": "Owner direction, 2026-09-02: \"'Give up after' is not a good number\"",
+      "classification": "locked"
+    },
+    {
+      "id": "W11:A first-chase delay in hours, measured from joining",
+      "workflow": "W11",
+      "text": "A first-chase delay in hours, measured from joining",
+      "basis": "Owner direction, 2026-09-02",
+      "classification": "locked"
+    },
+    {
+      "id": "W11:The count is spent on delivery, never on a failure",
+      "workflow": "W11",
+      "text": "The count is spent on delivery, never on a failure",
+      "basis": "T11-cap-delivered; LAN-93 is a dependency",
+      "classification": "locked"
+    },
+    {
+      "id": "W11:There are no quiet hours",
+      "workflow": "W11",
+      "text": "There are no quiet hours",
+      "basis": "Brian, 2026-09-02. Supersedes that half of T11-suppression; the rest of it stands",
+      "classification": "locked"
+    },
+    {
+      "id": "W11:An arriving submission clears pending follow-ups",
+      "workflow": "W11",
+      "text": "An arriving submission clears pending follow-ups",
+      "basis": "T11-suppression",
+      "classification": "locked"
+    },
+    {
+      "id": "W11:A partial submission resets the timer but never the cap",
+      "workflow": "W11",
+      "text": "A partial submission resets the timer but never the cap",
+      "basis": "T11-suppression",
+      "classification": "locked"
+    },
+    {
+      "id": "W11:The full checklist regenerates for everyone every season",
+      "workflow": "W11",
+      "text": "The full checklist regenerates for everyone every season",
+      "basis": "R1b",
+      "classification": "locked"
+    },
+    {
+      "id": "W11:No mid-season expiry; a lapse is a manual reopen",
+      "workflow": "W11",
+      "text": "No mid-season expiry; a lapse is a manual reopen",
+      "basis": "R2-E",
+      "classification": "locked"
+    },
+    {
+      "id": "W11:An empty configuration never reads as \"everybody is complete",
+      "workflow": "W11",
+      "text": "An empty configuration never reads as \"everybody is complete\"",
+      "basis": "T10-entry-guards",
+      "classification": "locked"
+    },
+    {
+      "id": "W11:The escalation office is read from the club's roles, never c",
+      "workflow": "W11",
+      "text": "The escalation office is read from the club's roles, never configured",
+      "basis": "roles ships president as a constitutional office with role_assignments naming its holder. Nothing to set",
+      "classification": "locked"
+    },
+    {
+      "id": "R1",
+      "text": "The twelve-item inventory is what an operator configures for a season.",
+      "basis": "Superseded by OD7-checklist-is-fixed; Brian's words and date in decision-coverage.md",
+      "classification": "superseded",
+      "superseded_by": "OD7-checklist-is-fixed",
+      "approved": "2026-09-02"
+    },
+    {
+      "id": "R2",
+      "text": "Item owners (Kit Manager, compliance owner, GM, Media Secretary, four-role) are per-item configuration.",
+      "basis": "Superseded by OD7-four-role-only; Brian's words and date in decision-coverage.md",
+      "classification": "superseded",
+      "superseded_by": "OD7-four-role-only",
+      "approved": "2026-09-02"
+    },
+    {
+      "id": "R2-V2",
+      "text": "Which class an item carries is per-season configuration, not code.",
+      "basis": "Superseded by OD7-checklist-is-fixed; Brian's words and date in decision-coverage.md",
+      "classification": "superseded",
+      "superseded_by": "OD7-checklist-is-fixed",
+      "approved": "2026-09-02"
+    },
+    {
+      "id": "M6",
+      "text": "The system-generated one-fact ask is withdrawn. A person chases, and the message carries the compiled link rather than a single field.",
+      "basis": "Superseded by OD7-no-targeted-ask; Brian's words and date in decision-coverage.md",
+      "classification": "superseded",
+      "superseded_by": "OD7-no-targeted-ask",
+      "approved": "2026-09-02"
+    },
+    {
+      "id": "T11-refused",
+      "text": "Per-fact refusal is withdrawn. Required facts must be given, so nothing offers a player a way to decline one.",
+      "basis": "Superseded by OD7-required-no-decline; Brian's words and date in decision-coverage.md",
+      "classification": "superseded",
+      "superseded_by": "OD7-required-no-decline",
+      "approved": "2026-09-02"
+    }
+  ],
+  "baseline": {
+    "branch": "main",
+    "commit": "332bc6b3ba3028f1b79d99fc59dc1417791c2d81"
+  },
+  "repository_drift": {
+    "startup_rule": "At execution start, compare main with baseline.commit. Re-read src/lib/services/membership.ts, src/lib/services/person-required.ts, src/lib/services/person-record.ts, src/lib/services/player-answer-tokens.ts, src/app/operate/roster/[membershipId]/, src/app/operate/people/[personId]/, src/app/operate/people/missing/, src/app/operate/admin/messaging/ and src/app/a/[token]/ before writing anything, because every approved screen in this packet is a photograph of one of them. Drift that does not change meaning, feasibility, invariants, interfaces or acceptance evidence may be recorded and tolerated.",
+    "stop_rule": "Stop and ask Brian if drift changes the onboarding item status enum, the person required-set tiers, person_access_tokens' one-live-credential-per-person-per-season index, the derived field provenance in person-record.ts, the messaging schedule's Onboarding section, or the shape of the player-facing signed-link shell at /a/[token].",
+    "recorded": "This intake began at 332bc6b and main moved to 0a04be7 during it: LAN-202's sign-up form, LAN-203's recruitment cycle and ladders, LAN-204's recruit board, record and flip, and LAN-205's walk-up capture all landed. main was merged into the intake worktree on 2026-09-02 and W11 was shot against 0a04be7; W1 to W10 were shot at 332bc6b, and shots.json records the head SHA per screen. No approved decision changed. Two grounding statements are stale and are recorded rather than rewritten: W3 says LAN-204 is in Backlog with no flip to photograph, and W4 says LAN-202's sign-up form is not in the baseline. Both were true when written."
+  },
+  "gates": {
+    "owner": [
+      "Clint's wording for the Code of Conduct, the photo release and the consent line. All three are versioned slots carrying labelled placeholders today. Tracked as LAN-213.",
+      "Whether the photo release needs a real signature or a dated agreement against a named version is a club-liability decision, not an engineering one. Tracked as LAN-213; the packet assumes the dated agreement and treats e-signature as additive.",
+      "BUCS Play and Hudl instruction copy, which this mission owes and nobody has written. Tracked as LAN-213.",
+      "LAN-86 and LAN-101 remain open gates: no real member data and no real sends in any environment this mission touches.",
+      "Brian merges this packet. No execution is authorized before that merge."
+    ],
+    "external": [
+      "WhatsApp templates for the welcome and the follow-ups must exist in Meta before a real send. Brian submits them; agents never do.",
+      "LAN-93 delivery callbacks are a stated dependency of counting the chase by what arrived."
+    ],
+    "mission": [
+      "LAN-196 holds Missions 5, 6 and 7 for one release window. This mission is not deployed alone.",
+      "A season must already exist. readCurrentSeason throws when none does, and nothing in this mission creates one — season creation is Mission 11's."
+    ]
+  },
+  "merge_envelope": {
+    "auto_merge_classes": ["standard-application"],
+    "owner_gated": [
+      "schema-migration",
+      "rls-auth-security",
+      "secrets-credentials",
+      "deployment-production-data",
+      "whatsapp-external-configuration",
+      "highest-risk",
+      "visual-without-approval"
+    ]
+  },
+  "workflow_matrix": [
+    {
+      "id": "W1",
+      "title": "Bring last season's squad in",
+      "actor": "A four-role operator (President, Secretary, GM, Treasurer).",
+      "trigger": "The season has turned over and the squad needs to exist on the roster.",
+      "entry_point": "The roster board — the surface an operator already works from.",
+      "placement": "`/operate/roster/import`, reached from an **Add players** menu on the roster board. The Events page already carries a menu of exactly this shape (`src/app/operate/events/create-menu.tsx`), added by LAN-155 so that bulk import could sit beside the single-record path without displacing it.",
+      "actions": [
+        "Open the import. From the roster board's Add players menu. The screen",
+        "Download the template. The event import ships a prompt and a versioned",
+        "Choose a file. Refused whole, before any row is read, if it is over the",
+        "Read the proposal. One table, one row per line of the file, each row",
+        "Confirm. One action. Everything that can apply applies; refused rows are",
+        "Read what happened. Counts by outcome, the names that arrived, the rows",
+        "Abandon, at any point before confirming. Nothing is written."
+      ],
+      "user_visible_result": "The named people are on this season's roster with status `onboarding`, each holding a full generated checklist, each with a welcome queued; the operator is told how many arrived, how many were already there, and which rows were refused and why.",
+      "approved": {
+        "by": "Brian Schuster",
+        "date": "2026-09-01",
+        "words": "Workflow 1 approved. Move on to the next one."
+      }
+    },
+    {
+      "id": "W2",
+      "title": "Add one player by hand",
+      "actor": "An operator (any linked, active operator who is not a coaching assignment) — see the decisions.",
+      "trigger": "A player the club does not yet hold this season needs to be on the roster, and there is no file to import.",
+      "entry_point": "The roster board's **Add players** menu, **Add one player**.",
+      "placement": "`/operate/roster/new` — **it already exists**, built by LAN-74 as the returner intake. This workflow does not create a surface.",
+      "actions": [
+        "Open the form from Add players → Add one player.",
+        "Enter first name, last name and mobile. All three are required; personal",
+        "Check for matches. The shipped step, unchanged: it never writes, and an",
+        "Choose — use the person the club already holds, or confirm this is",
+        "Read what happened. The person's record, with their generated checklist"
+      ],
+      "user_visible_result": "The person is on the roster at `onboarding`, their checklist generated, their welcome queued, and the operator is on their record.",
+      "approved": {
+        "by": "Brian Schuster",
+        "date": "2026-09-01",
+        "words": "Last name and mobile are absolutely required. That's what I'm telling all my bots at this point, and W2 is fucking approved. So long as we're not inventing new UX elements here"
+      }
+    },
+    {
+      "id": "W3",
+      "title": "A flipped recruit lands in onboarding",
+      "actor": "A four-role operator — but only as the flip's actor. **This workflow has no action of its own**: everything here is the consequence of one decision taken in Mission 6.",
+      "trigger": "Mission 6's `W14` commits — prospect → `joined`, season membership created at `onboarding`.",
+      "entry_point": "None. It is not reached; it happens.",
+      "placement": "The operator lands wherever `W14` sends them. The state this workflow produces is read on `/operate/roster/[membershipId]`, which exists.",
+      "actions": [
+        "None by this workflow's actor. Its content is what the flip's transaction must additionally do, and what an operator then sees."
+      ],
+      "user_visible_result": "They are on the roster in onboarding with a checklist generated, everything they already told the club carried across, their recruit link retired, and their welcome queued.",
+      "approved": {
+        "by": "Brian Schuster",
+        "date": "2026-09-01",
+        "words": "If that's the case, W3 is approved."
+      }
+    },
+    {
+      "id": "W4",
+      "title": "Say yes and fill in your details",
+      "actor": "**The player.** This is the mission's only workflow whose actor is not an operator, and there is no login anywhere in it.",
+      "trigger": "`onboarding-opened`, fired by `W1`, `W2` or `W3`, sends the welcome. Every later follow-up and operator nudge carries **the same link to the same page** — they are re-entries, not new asks.",
+      "entry_point": "The link in the welcome message. There is no other way in: no navigation, no search, no login, no page on the operator side links here.",
+      "placement": "**`/me/[token]/details`** — a new page on the player's existing season credential. See _The link is already on `main`_ below; this is the one real owner decision in the workflow.",
+      "actions": [
+        "Open the link. A side-effect-free GET. The ask moves invited → opened;",
+        "Tick consent — where it is asked. One-way: the control that grants it",
+        "Confirm or correct each pre-filled value; fill each gap, including the",
+        "Save and continue."
+      ],
+      "user_visible_result": "A page that says what was saved and what is still outstanding, and a record the club can now chase against.",
+      "approved": {
+        "by": "Brian Schuster",
+        "date": "2026-09-02",
+        "words": "W4 is approved, accepted and move to W5"
+      }
+    },
+    {
+      "id": "W5",
+      "title": "Fix something the club has wrong",
+      "actor": "The player, unprompted.",
+      "trigger": "they open their link at any point after finishing `W4` — because something changed, or because a follow-up message brought them back.",
+      "entry_point": "the same signed link. No login, no second credential, no new page.",
+      "placement": "`/me/[token]/details`, the page `W4` built, showing everything the club holds rather than only what is missing.",
+      "actions": [
+        "Open the link. Nothing is outstanding; this is not a chase.",
+        "Change whatever has changed.",
+        "Save. Values the player owns are saved; a changed operator-recorded value"
+      ],
+      "user_visible_result": "the record is what the player says it is — except where an operator put the value there, in which case a person checks first.",
+      "approved": {
+        "by": "Brian Schuster",
+        "date": "2026-09-02",
+        "words": "W5 is approved. Let's do W6."
+      }
+    },
+    {
+      "id": "W6",
+      "title": "One player's onboarding record",
+      "actor": "A four-role operator (President, Vice President, Secretary, General Manager).",
+      "trigger": "they open a player — from the roster board, the missing-data queue, or the Monday chase list.",
+      "entry_point": "**`/operate/roster/[membershipId]`**, which ships. This workflow adds no new surface; it deepens the Onboarding section that is already there.",
+      "placement": "**`/operate/roster/[membershipId]`**, which ships. This workflow adds no new surface; it deepens the Onboarding section that is already there.",
+      "actions": [
+        "Read every item with its state, who put it in that state, and when",
+        "Read the whole history of an item, not only its current state",
+        "Complete an item",
+        "Waive an item — author recorded, reason optional",
+        "Mark an item not applicable",
+        "Reopen an item from any terminal state — never automatic",
+        "Read the activity log, grouped by section, one entry per ask and per answer"
+      ],
+      "user_visible_result": "the record answers \"where is this person up to, who said so, and how often have we chased them about it\" — and any item can be resolved from it.",
+      "approved": {
+        "by": "Brian Schuster",
+        "date": "2026-09-02",
+        "words": "Yeah, that's fine. W6 looks fine. Let's continue to the next one."
+      }
+    },
+    {
+      "id": "W7",
+      "title": "Settle a disputed fact",
+      "actor": "A four-role operator.",
+      "trigger": "a fact goes to `disputed — awaiting verification` when a player's answer differs from an operator-recorded value (`W5`).",
+      "entry_point": "**`/operate/people/[personId]`**, the person record, which ships. Reached from the missing-data queue, the roster, or a link in the chase.",
+      "placement": "**`/operate/people/[personId]`**, the person record, which ships. Reached from the missing-data queue, the roster, or a link in the chase.",
+      "actions": [
+        "Open a person with a disputed fact.",
+        "Read both values, both attributions, and the history.",
+        "Resolve: keep the club's value, or take the player's.",
+        "Optionally record why — free text, four-role only, never in a report."
+      ],
+      "user_visible_result": "one value stands, the other is retained, and the record says who decided and when.",
+      "approved": {
+        "by": "Brian Schuster",
+        "date": "2026-09-02",
+        "words": "W7 is approved"
+      }
+    },
+    {
+      "id": "W8",
+      "title": "Work the queue and nudge",
+      "actor": "A four-role operator.",
+      "trigger": "a person, usually Monday. Nothing about this workflow is automatic.",
+      "entry_point": "**`/operate/people/missing`**, the missing-data queue, which ships.",
+      "placement": "**`/operate/people/missing`**, the missing-data queue, which ships.",
+      "actions": [
+        "Open the queue, sorted by how much is outstanding.",
+        "Read, per person, what is missing, when they were last contacted and when the",
+        "Select one person, or several.",
+        "Nudge. Each selected person receives their own compiled ask."
+      ],
+      "user_visible_result": "messages go out, each person gets their own link, and the queue records that a human asked.",
+      "approved": {
+        "by": "Brian Schuster",
+        "date": "2026-09-02",
+        "words": "That looks fucking awesome. I love it. Cleared."
+      }
+    },
+    {
+      "id": "W9",
+      "title": "Pick up a chase that ran out",
+      "actor": "Whoever holds the **configured escalation office**, initial value President.",
+      "trigger": "an automated chase exhausts — the configured number of messages *that actually arrived* have gone out and nothing came back.",
+      "entry_point": "a message to the configured office. From there, `/operate/people/missing`, and then one person's record.",
+      "placement": null,
+      "actions": [
+        "The office receives the escalation and opens the link.",
+        "They see the people whose chase has exhausted, with what each is missing and",
+        "They contact one of them themselves — in person, or by phone.",
+        "They record what happened on that person's log."
+      ],
+      "user_visible_result": "a person who stopped answering is picked up by a human, and what that human did is on the record.",
+      "approved": {
+        "by": "Brian Schuster",
+        "date": "2026-09-02",
+        "words": "Yeah, whatever this is, W-9 looks fine, approved."
+      }
+    },
+    {
+      "id": "W10",
+      "title": "Activate a player",
+      "actor": "A four-role operator.",
+      "trigger": "a human decision, taken off-system. Nothing schedules it and nothing derives it.",
+      "entry_point": "**`/operate/roster/[membershipId]`**, the Season section's Status field, which ships and already works.",
+      "placement": "**`/operate/roster/[membershipId]`**, the Season section's Status field, which ships and already works.",
+      "actions": [
+        "Open the player.",
+        "Read the Onboarding section, if you want to. Nothing requires it.",
+        "Set Status to Active."
+      ],
+      "user_visible_result": "the membership reads `active`, and the person is manageable as a full member of the squad.",
+      "approved": {
+        "by": "Brian Schuster",
+        "date": "2026-09-02",
+        "words": "Okay, W10 looks fine."
+      }
+    },
+    {
+      "id": "W11",
+      "title": "Set onboarding's chase",
+      "actor": "A four-role operator.",
+      "trigger": "setting the club's policy, usually once a season.",
+      "entry_point": "**`/operate/admin/messaging`**, the club's messaging schedule — specifically its **Onboarding** section, which already renders and currently reads \"Not built yet.\"",
+      "placement": "**`/operate/admin/messaging`**, the club's messaging schedule — specifically its **Onboarding** section, which already renders and currently reads \"Not built yet.\"",
+      "actions": [
+        "Open the messaging schedule.",
+        "Set how many times onboarding chases, how often, and how long before it gives",
+        "Save. The chase runs to that from the next message onwards."
+      ],
+      "user_visible_result": "the chase runs to the club's policy rather than to a constant in the code.",
+      "approved": {
+        "by": "Brian Schuster",
+        "date": "2026-09-02",
+        "words": "Okay, but the onboarding is not in the right place. It should be right below recruitment. Other than that, this looks below recruitment, above events. Other than that, approved."
+      }
+    }
+  ],
+  "delegated_to_mission_lead": [
+    "W1 — Column order, the exact header names, the size limit, and the template's wording",
+    "W1 — Whether the export route that round-trips the template ships with this workflow",
+    "W2 — Field order, the exact new error sentences, and where the \"welcome queued\" line sits on the record",
+    "W3 — Which questionnaire answers map to which onboarding fields",
+    "W4 — How the step-1 asks are grouped into sections on that page",
+    "W4 — Whether a document page shows its version number to the player",
+    "W4 — Field-level validation and error wording beyond the shipped BUSY_MESSAGE",
+    "W4 — The exact messaging_consent_source value for a self-served page",
+    "W5 — Whether the source line shows a date as well as who",
+    "W6 — How far back the log reaches on first render",
+    "W6 — Where claimed sits visually against complete",
+    "W7 — Whether resolving may carry a note",
+    "W8 — Sort order on first open",
+    "W9 — The exact wording of the escalation",
+    "W10 — Whether the roster board surfaces \"ready to activate\" prominently",
+    "W11 — A cap of zero is legal"
+  ],
+  "nonblocking_unknowns": [
+    {
+      "unknown": "The Code of Conduct, photo release and consent wording do not exist in the system.",
+      "handling": "Build and walk every screen with labelled placeholder text in a real versioned slot. Do not invent club policy. The words drop in without changing a workflow, a state, a screen or an acceptance criterion."
+    },
+    {
+      "unknown": "BUCS Play and Hudl instruction copy is owed by this mission and unwritten.",
+      "handling": "Render labelled placeholder steps. They block no build and no walk; they block a real send."
+    },
+    {
+      "unknown": "Whether the photo release requires a real e-signature.",
+      "handling": "Build the versioned-agreement mechanism — version, moment, person. It needs no object storage, and the application has none. If the club later requires a drawn or PDF signature, it is additive rather than a rework."
+    },
+    {
+      "unknown": "membership_entry stays ('new','returning'), so a flipped recruit is indistinguishable from a hand-added player on the roster board.",
+      "handling": "Locked at the recommendation and flagged in W3's acceptance. Changing it is a schema and vocabulary change and needs Brian's decision; do not change it during execution."
+    }
+  ],
+  "escalation_rules": {
+    "permitted_clarifications": [
+      "Naming, placement and layout detail that changes no approved meaning, and follows the shipped surface the screen was photographed on.",
+      "Which existing component satisfies an approved screen, provided nothing new is drawn and the reused component's own idiom is kept.",
+      "How the fifteen asks are grouped into sections, and whether a document opens in place or on its own sub-page.",
+      "Field-level validation and error wording beyond the shipped BUSY_MESSAGE.",
+      "Test structure, fixture shape and the synthetic universe's contents, provided no real person or club record appears.",
+      "How the chase's three values are stored, and where the escalation office is read from."
+    ],
+    "requires_packet_revision": [
+      "Any change to the required set, or to required blocking the form rather than the player.",
+      "Introducing a way for a player to decline a required fact, or a system-generated one-fact ask.",
+      "Any weakening of nothing-gates, or making any onboarding item block any action anywhere.",
+      "Any change to one-open-ask-per-person, or issuing a second live link to one person in one season.",
+      "Making consent removable by the player, or askable more than once per season.",
+      "Configuring which checklist items exist, or assigning an item to an owner other than the four-role group.",
+      "Putting a name, a count per person, or item detail into the exhaustion escalation.",
+      "Adding a confirmation step to activation."
+    ]
+  },
+  "completion_evidence": [
+    "Canonical packet validation passes and the approved packet version is merged by Brian before execution.",
+    "npm run verify passes: format check, lint, typecheck, tests and build.",
+    "Migrations apply from empty; generated types and docs/architecture/data-model.md agree; every new table enables RLS in its creating migration and grants only the narrow server need.",
+    "The forward-only migration unwinding onboarding_items_waiver_is_justified is present, and the author stays mandatory while the reason stops being.",
+    "claimed exists in onboarding_item_status, per-item history is append-only, and the sectioned activity log carries one entry per ask and per answer.",
+    "person_access_tokens still permits exactly one live durable credential per person per season, and nothing issues a second link.",
+    "Every player-facing screen matches its approved mock at a measured 1280 and 375, and shows the privacy policy at the point of collection.",
+    "The required set blocks the form and never the player: a partially completed step saves what was entered, and no onboarding item blocks training, selection, travel or an event invitation.",
+    "The chase counts only delivered messages, exhausts permanently, escalates without names, and is restarted only by a human.",
+    "No secret, no real member data and no unauthorized domain concept is added anywhere.",
+    "CI is green and the pull request's Production handoff block is complete."
+  ],
+  "blockers": [],
+  "approval": {
+    "approved_by": "Brian Schuster",
+    "date": "2026-09-02",
+    "evidence": "Stage approvals recorded in missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/state.json: boundary \"All right, cool. I think the boundary makes sense here. Let's go to the next stage.\" (2026-09-01), overview \"This mission seems roughly correct... I'm good to continue.\" (2026-09-01), inventory \"Okay, I like that. ... The workflows look fine\" (2026-09-01), and the item-and-ask inventory \"Okay, cool. Let's close this out\" (2026-09-01). The inventory was amended on 2026-09-02 from twelve workflows to eleven, on Brian's direction that the checklist-configuration workflow had the wrong target. All eleven workflows were approved in Brian's own words, one at a time, recorded per workflow in missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/acceptance/, closing with \"Other than that, approved.\" on W11. Packet assembly authorized in the same session: \"Go.\" Brian's merge of this packet's pull request is the packet approval; nothing executes before it."
+  }
+}

@@ -1,7 +1,7 @@
 {
   "mission_id": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
   "ledger_version": 3,
-  "stage": "workflows",
+  "stage": "packet",
   "baseline": {
     "branch": "main",
     "commit": "332bc6b3ba3028f1b79d99fc59dc1417791c2d81",
@@ -1924,5 +1924,5 @@
     ],
     "approval": null
   },
-  "next_action": "All eleven workflows are approved. Next: assemble the packet under missions/packets/, validate it against the frozen inventory, and prepare the intake-only PR."
+  "next_action": "Packet assembled and validated. Remaining before the PR: show Brian the four-item amendment batch, and split scripts/intake/lib/hub.mjs onto its own branch so the PR carries only missions/intake/** and missions/packets/**."
 }
