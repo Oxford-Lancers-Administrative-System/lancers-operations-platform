@@ -53,7 +53,8 @@
     "visual:release": "node scripts/visual-environment.mjs release",
     "mission:finish": "node scripts/mission/finish-mission.mjs",
     "templates:manifest": "node scripts/generate-template-manifest.mjs",
-    "templates:check": "node scripts/generate-template-manifest.mjs --check"
+    "templates:check": "node scripts/generate-template-manifest.mjs --check",
+    "check:messaging": "node scripts/check-messaging-config.mjs"
   },
   "dependencies": {
     "@emotion/cache": "^11.14.0",

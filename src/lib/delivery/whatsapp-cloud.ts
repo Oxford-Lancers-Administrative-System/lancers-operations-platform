@@ -99,6 +99,22 @@ const PROVIDER_REASONS: Readonly<Record<number, string>> = {
     "conversation with this person and the message was not an approved template.",
   131026: "WhatsApp could not deliver to this number — it may not be a WhatsApp account.",
   131030: "This number is not on the provider's permitted recipient list.",
+  // Meta's marketing throttle. It accepts the send, then declines to deliver
+  // because it judges this person to have had enough marketing lately.
+  //
+  // It matters more than it reads: Meta classified every one of the club's
+  // eleven templates as MARKETING on submission, including the player ladder,
+  // so an ordinary event invitation can now be accepted and then quietly not
+  // delivered. Left unnamed it reaches the follow-up queue as "the provider
+  // gave no further detail", which is the one thing an operator cannot act on.
+  //
+  // Deliberately not in `RETRYABLE_PROVIDER_CODES`: retrying the same message
+  // to the same person is what the throttle exists to stop. Terminal here means
+  // the player's next rung — the email — carries it instead, which is the
+  // behaviour the ladder already has for every other undeliverable message.
+  131049:
+    "WhatsApp did not deliver this message because Meta is limiting how much " +
+    "marketing this person receives. The next rung of the chase will carry it.",
   132000: "The approved message template did not match what was sent.",
   132001: "The message template named for invitations does not exist on the club's account.",
   132015: "The message template named for invitations has been paused by the provider.",

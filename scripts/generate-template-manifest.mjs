@@ -39,12 +39,31 @@ const SOURCE = resolve(ROOT, "src/lib/delivery/templates.ts");
 const OUTPUT = resolve(ROOT, "docs/whatsapp-template-manifest.md");
 
 /**
+ * The permanent application hostname — LAN-142, closed 21 August 2026, served
+ * through Firebase Hosting. Recorded here rather than read from configuration
+ * because this document is what the club creates its Meta templates *from*, and
+ * a manifest whose button bases depended on whose machine generated it would be
+ * a manifest nobody could check. `docs/deployment.md` carries the same value.
+ */
+const HOST = "https://app.oxfordlancers.com";
+
+/**
+ * A synthetic token of the same length the real ones are: 32 random bytes,
+ * base64url, which is 43 characters. Shaped correctly so a Meta reviewer sees a
+ * plausible link, and worded so nobody can mistake it for a credential.
+ */
+const NONCE = "EXAMPLE0ONLY0NOT0A0REAL0TOKEN00000000000000";
+const INVITATION_ID = "11111111-1111-1111-1111-111111111111";
+const EVENT_ID = "22222222-2222-2222-2222-222222222222";
+
+/**
  * One message with every field populated, so each kind's own `parameters()`
- * produces the sample values Meta asks for at submission.
+ * produces the sample values Meta asks for at submission — and its own
+ * `buttonUrls()` produces the sample *suffix* each dynamic button needs, which
+ * Meta asks for just as insistently and refuses to accept a template without.
  *
  * Synthetic throughout, and deliberately so: no roster data, no real number and
- * no real token ever reaches a generated document. `HOST` stands in for the
- * permanent application hostname, which is LAN-126's to settle.
+ * no real token ever reaches a generated document.
  */
 const SAMPLE = {
   recipient: "447700900123",
@@ -57,13 +76,22 @@ const SAMPLE = {
   changeSummary: "The date and the venue have changed.",
   cancellationReason: "The club has cancelled this event.",
   outstandingCount: 12,
-  rsvpUrl: "https://HOST/rsvp/EXAMPLETOKEN",
-  yesUrl: "https://HOST/a/EXAMPLEYES",
-  noUrl: "https://HOST/a/EXAMPLENO",
-  queueUrl: "https://HOST/operate/admin/follow-ups?event=EXAMPLEEVENT",
-  formUrl: "https://HOST/me/join/EXAMPLEFORM",
-  stopUrl: "https://HOST/me/stop/EXAMPLESTOP",
+  rsvpUrl: `${HOST}/rsvp/${NONCE}`,
+  // `<y|n>.<invitationId>.<nonce>` — the answer and the invitation are carried
+  // in the plaintext itself, so a sample that omitted them would be the wrong
+  // shape for the reviewer who clicks it.
+  yesUrl: `${HOST}/a/y.${INVITATION_ID}.${NONCE}`,
+  noUrl: `${HOST}/a/n.${INVITATION_ID}.${NONCE}`,
+  queueUrl: `${HOST}/operate/admin/follow-ups?event=${EVENT_ID}`,
+  formUrl: `${HOST}/me/join/${NONCE}`,
+  stopUrl: `${HOST}/me/stop/${NONCE}`,
 };
+
+/** What Meta appends to the approved base: everything after the declared path. */
+function suffixFor(url, path) {
+  const at = url.indexOf(path);
+  return at === -1 ? url : url.slice(at + path.length);
+}
 
 function loadRegistry() {
   const ts = require("typescript");
@@ -88,8 +116,10 @@ function render(registry) {
     "application sends. A mismatch between an approved template and the payload is",
     "Meta error `132000`, or worse, a delivered message with its sentences swapped.",
     "",
-    "`HOST` is the permanent application hostname (LAN-126). Sample values are the",
-    "registry's own output for a synthetic event; no roster data appears here.",
+    "Sample values are the registry's own output for a synthetic event, including",
+    "the full example URL behind each button. Meta asks for every one of them at",
+    "submission and refuses a template without. No roster data or real token",
+    "appears here.",
     "",
     "Regenerate with `npm run templates:manifest`. `npm run templates:check` fails",
     "when this file and the registry disagree.",
@@ -129,11 +159,26 @@ function render(registry) {
     if (template.whatsapp.buttons.length === 0) {
       lines.push("No buttons.", "");
     } else {
-      lines.push("| Button | Type | Label | URL |", "| -- | -- | -- | -- |");
+      // The resolved URLs, in the same order as the dynamic buttons. The full
+      // example is given whole rather than as a suffix to assemble: Meta asks
+      // for a complete URL, and a base in one column with a token in another is
+      // two chances to paste the wrong thing.
+      const resolved = template.buttonUrls?.(message) ?? [];
+      let dynamicSeen = 0;
+      lines.push(
+        "| Button | Type | Label | URL to enter | Full example URL |",
+        "| -- | -- | -- | -- | -- |",
+      );
       for (const [position, button] of template.whatsapp.buttons.entries()) {
-        const url = `https://HOST${button.path}${button.dynamic ? "{{1}}" : ""}`;
-        const type = button.dynamic ? "URL, dynamic suffix" : "URL, static";
-        lines.push(`| ${position} | ${type} | ${button.label} | \`${url}\` |`);
+        const base = `${HOST}${button.path}`;
+        if (!button.dynamic) {
+          lines.push(`| ${position} | URL, static | ${button.label} | \`${base}\` | \`${base}\` |`);
+          continue;
+        }
+        const full = resolved[dynamicSeen++] ?? "";
+        lines.push(
+          `| ${position} | URL, dynamic | ${button.label} | \`${base}{{1}}\` | \`${full}\` |`,
+        );
       }
       lines.push("");
     }

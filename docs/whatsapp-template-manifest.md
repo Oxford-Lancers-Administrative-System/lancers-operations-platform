@@ -7,8 +7,10 @@ from `src/lib/delivery/templates.ts` so that what is approved here is what the
 application sends. A mismatch between an approved template and the payload is
 Meta error `132000`, or worse, a delivered message with its sentences swapped.
 
-`HOST` is the permanent application hostname (LAN-126). Sample values are the
-registry's own output for a synthetic event; no roster data appears here.
+Sample values are the registry's own output for a synthetic event, including
+the full example URL behind each button. Meta asks for every one of them at
+submission and refuses a template without. No roster data or real token
+appears here.
 
 Regenerate with `npm run templates:manifest`. `npm run templates:check` fails
 when this file and the registry disagree.
@@ -36,10 +38,10 @@ Please respond by {{3}}.
 | `{{2}}` | whenAndVenue | Thursday 12 March, 7:00 pm, Marston Sports Ground |
 | `{{3}}` | deadlineLabel | Tuesday 10 March, 6:00 pm |
 
-| Button | Type | Label | URL |
-| -- | -- | -- | -- |
-| 0 | URL, dynamic suffix | Yes view details | `https://HOST/a/{{1}}` |
-| 1 | URL, dynamic suffix | No give reason | `https://HOST/a/{{1}}` |
+| Button | Type | Label | URL to enter | Full example URL |
+| -- | -- | -- | -- | -- |
+| 0 | URL, dynamic | Yes view details | `https://app.oxfordlancers.com/a/{{1}}` | `https://app.oxfordlancers.com/a/y.11111111-1111-1111-1111-111111111111.EXAMPLE0ONLY0NOT0A0REAL0TOKEN00000000000000` |
+| 1 | URL, dynamic | No give reason | `https://app.oxfordlancers.com/a/{{1}}` | `https://app.oxfordlancers.com/a/n.11111111-1111-1111-1111-111111111111.EXAMPLE0ONLY0NOT0A0REAL0TOKEN00000000000000` |
 
 ## 2. `lancers_event_reminder`
 
@@ -64,10 +66,10 @@ Please respond below so the coaches can plan.
 | `{{1}}` | eventName | Thursday Practice |
 | `{{2}}` | attendingSentence | 18 others have confirmed they are attending. |
 
-| Button | Type | Label | URL |
-| -- | -- | -- | -- |
-| 0 | URL, dynamic suffix | Yes view details | `https://HOST/a/{{1}}` |
-| 1 | URL, dynamic suffix | No give reason | `https://HOST/a/{{1}}` |
+| Button | Type | Label | URL to enter | Full example URL |
+| -- | -- | -- | -- | -- |
+| 0 | URL, dynamic | Yes view details | `https://app.oxfordlancers.com/a/{{1}}` | `https://app.oxfordlancers.com/a/y.11111111-1111-1111-1111-111111111111.EXAMPLE0ONLY0NOT0A0REAL0TOKEN00000000000000` |
+| 1 | URL, dynamic | No give reason | `https://app.oxfordlancers.com/a/{{1}}` | `https://app.oxfordlancers.com/a/n.11111111-1111-1111-1111-111111111111.EXAMPLE0ONLY0NOT0A0REAL0TOKEN00000000000000` |
 
 ## 3. `lancers_event_nudge`
 
@@ -88,9 +90,9 @@ Please answer them below.
 | -- | -- | -- |
 | `{{1}}` | eventName | Thursday Practice |
 
-| Button | Type | Label | URL |
-| -- | -- | -- | -- |
-| 0 | URL, dynamic suffix | Finish your answers | `https://HOST/rsvp/{{1}}` |
+| Button | Type | Label | URL to enter | Full example URL |
+| -- | -- | -- | -- | -- |
+| 0 | URL, dynamic | Finish your answers | `https://app.oxfordlancers.com/rsvp/{{1}}` | `https://app.oxfordlancers.com/rsvp/EXAMPLE0ONLY0NOT0A0REAL0TOKEN00000000000000` |
 
 ## 4. `lancers_event_change_notice`
 
@@ -116,9 +118,9 @@ Your response still stands. Please use the link below if you need to change it.
 | `{{2}}` | changeSummary | The date and the venue have changed. |
 | `{{3}}` | whenAndVenue | Thursday 12 March, 7:00 pm, Marston Sports Ground |
 
-| Button | Type | Label | URL |
-| -- | -- | -- | -- |
-| 0 | URL, dynamic suffix | View the event | `https://HOST/rsvp/{{1}}` |
+| Button | Type | Label | URL to enter | Full example URL |
+| -- | -- | -- | -- | -- |
+| 0 | URL, dynamic | View the event | `https://app.oxfordlancers.com/rsvp/{{1}}` | `https://app.oxfordlancers.com/rsvp/EXAMPLE0ONLY0NOT0A0REAL0TOKEN00000000000000` |
 
 ## 5. `lancers_event_cancellation`
 
@@ -167,9 +169,9 @@ Please use the link below to review and follow up.
 | `{{3}}` | whenLabel | Thursday 12 March, 7:00 pm |
 | `{{4}}` | deadlineLabel | Tuesday 10 March, 6:00 pm |
 
-| Button | Type | Label | URL |
-| -- | -- | -- | -- |
-| 0 | URL, dynamic suffix | Open follow ups | `https://HOST/operate/admin/follow-ups?event={{1}}` |
+| Button | Type | Label | URL to enter | Full example URL |
+| -- | -- | -- | -- | -- |
+| 0 | URL, dynamic | Open follow ups | `https://app.oxfordlancers.com/operate/admin/follow-ups?event={{1}}` | `https://app.oxfordlancers.com/operate/admin/follow-ups?event=22222222-2222-2222-2222-222222222222` |
 
 ## 7. `recruit_event_followup_v1`
 
@@ -195,10 +197,10 @@ Please let us know below whether you would like to attend.
 | `{{2}}` | whenLabel | Thursday 12 March, 7:00 pm |
 | `{{3}}` | venue | Marston Sports Ground |
 
-| Button | Type | Label | URL |
-| -- | -- | -- | -- |
-| 0 | URL, dynamic suffix | Yes I can come | `https://HOST/a/{{1}}` |
-| 1 | URL, dynamic suffix | No thanks | `https://HOST/a/{{1}}` |
+| Button | Type | Label | URL to enter | Full example URL |
+| -- | -- | -- | -- | -- |
+| 0 | URL, dynamic | Yes I can come | `https://app.oxfordlancers.com/a/{{1}}` | `https://app.oxfordlancers.com/a/y.11111111-1111-1111-1111-111111111111.EXAMPLE0ONLY0NOT0A0REAL0TOKEN00000000000000` |
+| 1 | URL, dynamic | No thanks | `https://app.oxfordlancers.com/a/{{1}}` | `https://app.oxfordlancers.com/a/n.11111111-1111-1111-1111-111111111111.EXAMPLE0ONLY0NOT0A0REAL0TOKEN00000000000000` |
 
 ## 8. `recruit_welcome_v1`
 
@@ -221,10 +223,10 @@ Please complete the sign-up form below.
 | -- | -- | -- |
 | `{{1}}` | inviteeName | Sam |
 
-| Button | Type | Label | URL |
-| -- | -- | -- | -- |
-| 0 | URL, dynamic suffix | Fill in your details | `https://HOST/me/join/{{1}}` |
-| 1 | URL, dynamic suffix | Stop messages | `https://HOST/me/stop/{{1}}` |
+| Button | Type | Label | URL to enter | Full example URL |
+| -- | -- | -- | -- | -- |
+| 0 | URL, dynamic | Fill in your details | `https://app.oxfordlancers.com/me/join/{{1}}` | `https://app.oxfordlancers.com/me/join/EXAMPLE0ONLY0NOT0A0REAL0TOKEN00000000000000` |
+| 1 | URL, dynamic | Stop messages | `https://app.oxfordlancers.com/me/stop/{{1}}` | `https://app.oxfordlancers.com/me/stop/EXAMPLE0ONLY0NOT0A0REAL0TOKEN00000000000000` |
 
 ## 9. `recruit_details_reminder_v1`
 
@@ -245,10 +247,10 @@ Please complete it below.
 
 No body variables, so Meta asks for no sample values.
 
-| Button | Type | Label | URL |
-| -- | -- | -- | -- |
-| 0 | URL, dynamic suffix | Fill in your details | `https://HOST/me/join/{{1}}` |
-| 1 | URL, dynamic suffix | Stop messages | `https://HOST/me/stop/{{1}}` |
+| Button | Type | Label | URL to enter | Full example URL |
+| -- | -- | -- | -- | -- |
+| 0 | URL, dynamic | Fill in your details | `https://app.oxfordlancers.com/me/join/{{1}}` | `https://app.oxfordlancers.com/me/join/EXAMPLE0ONLY0NOT0A0REAL0TOKEN00000000000000` |
+| 1 | URL, dynamic | Stop messages | `https://app.oxfordlancers.com/me/stop/{{1}}` | `https://app.oxfordlancers.com/me/stop/EXAMPLE0ONLY0NOT0A0REAL0TOKEN00000000000000` |
 
 ## 10. `recruit_interest_ask_v1`
 
@@ -271,10 +273,10 @@ Please answer below.
 | -- | -- | -- |
 | `{{1}}` | inviteeName | Sam |
 
-| Button | Type | Label | URL |
-| -- | -- | -- | -- |
-| 0 | URL, dynamic suffix | Answer a few questions | `https://HOST/me/join/{{1}}` |
-| 1 | URL, dynamic suffix | Stop messages | `https://HOST/me/stop/{{1}}` |
+| Button | Type | Label | URL to enter | Full example URL |
+| -- | -- | -- | -- | -- |
+| 0 | URL, dynamic | Answer a few questions | `https://app.oxfordlancers.com/me/join/{{1}}` | `https://app.oxfordlancers.com/me/join/EXAMPLE0ONLY0NOT0A0REAL0TOKEN00000000000000` |
+| 1 | URL, dynamic | Stop messages | `https://app.oxfordlancers.com/me/stop/{{1}}` | `https://app.oxfordlancers.com/me/stop/EXAMPLE0ONLY0NOT0A0REAL0TOKEN00000000000000` |
 
 ## 11. `recruit_interest_reminder_v1`
 
@@ -295,8 +297,8 @@ Please answer them below when you have a moment.
 | -- | -- | -- |
 | `{{1}}` | inviteeName | Sam |
 
-| Button | Type | Label | URL |
-| -- | -- | -- | -- |
-| 0 | URL, dynamic suffix | Answer a few questions | `https://HOST/me/join/{{1}}` |
-| 1 | URL, dynamic suffix | Stop messages | `https://HOST/me/stop/{{1}}` |
+| Button | Type | Label | URL to enter | Full example URL |
+| -- | -- | -- | -- | -- |
+| 0 | URL, dynamic | Answer a few questions | `https://app.oxfordlancers.com/me/join/{{1}}` | `https://app.oxfordlancers.com/me/join/EXAMPLE0ONLY0NOT0A0REAL0TOKEN00000000000000` |
+| 1 | URL, dynamic | Stop messages | `https://app.oxfordlancers.com/me/stop/{{1}}` | `https://app.oxfordlancers.com/me/stop/EXAMPLE0ONLY0NOT0A0REAL0TOKEN00000000000000` |
 

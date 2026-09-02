@@ -270,10 +270,26 @@ describe("interpreting a response", () => {
     [131030, "the recipient is not on the allow list"],
     [132001, "the template does not exist"],
     [190, "the credential has expired"],
+    // Retrying the same message to the same person is exactly what the
+    // marketing throttle exists to stop, so a retry would be the club arguing
+    // with Meta on a loop. Terminal means the next rung carries it instead.
+    [131049, "Meta is limiting this person's marketing"],
   ])("never retries %i — %s", (code) => {
     const outcome = interpretResponse(400, { error: { code } });
     expect(outcome.status).toBe("refused");
     expect(outcome.status === "refused" && outcome.retryable).toBe(false);
+  });
+
+  it("names Meta's marketing throttle, which now reaches the player ladder", () => {
+    // Meta classified all eleven of the club's templates as MARKETING on
+    // submission — the player ladder included — so an ordinary invitation can
+    // be accepted and then quietly not delivered. Unnamed, that arrives in the
+    // follow-up queue as "the provider gave no further detail".
+    const outcome = interpretResponse(400, { error: { code: 131049 } });
+    expect(outcome.status).toBe("refused");
+    if (outcome.status !== "refused") return;
+    expect(outcome.reason).toMatch(/limiting how much marketing/i);
+    expect(outcome.reason).not.toMatch(/no further detail/i);
   });
 
   it("explains the window failure the live test produced", () => {
