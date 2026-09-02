@@ -20,14 +20,14 @@ The queue ships with `Name · Status · To the club · Missing · Correct`, sort
 by name and by how much is missing, and Mission 5 built it knowing nothing acted
 on it yet.
 
-| What ships                                              | What is missing                                    |
-| --------------------------------------------------------- | ---------------------------------------------------- |
-| The table, sortable, with a per-person missing summary   | —                                                    |
-| A `Correct` action routing to the operator edit path      | —                                                    |
-| —                                                         | **when each person was last contacted, and how**     |
-| —                                                         | **when the machine will next contact them**          |
-| —                                                         | **any way to ask them** — the queue can only correct |
-| —                                                         | **selection, and one action across several people**  |
+| What ships                                             | What is missing                                      |
+| ------------------------------------------------------ | ---------------------------------------------------- |
+| The table, sortable, with a per-person missing summary | —                                                    |
+| A `Correct` action routing to the operator edit path   | —                                                    |
+| —                                                      | **when each person was last contacted, and how**     |
+| —                                                      | **when the machine will next contact them**          |
+| —                                                      | **any way to ask them** — the queue can only correct |
+| —                                                      | **selection, and one action across several people**  |
 
 `T11-visibility` is the first two. `M3` and `T11-batch-nudge` are the last two.
 
@@ -58,7 +58,7 @@ exactly the person a human should be thinking about.
 
 `T11-visibility`, as three columns:
 
-| Column           | What it says                                                       |
+| Column           | What it says                                                         |
 | ---------------- | -------------------------------------------------------------------- |
 | **Last contact** | When, and **what kind** — the welcome, a follow-up, or a human nudge |
 | **Next**         | When the machine will next write, or that it will not                |
@@ -93,34 +93,34 @@ has to handle, and the queue is where that becomes visible.
 
 ## State transitions
 
-| From      | To          | On                                              |
-| --------- | ----------- | ------------------------------------------------- |
-| `open`    | `open`      | A nudge. The ask does not change; it is re-sent |
-| —         | logged      | Every nudge appears on that person's `W6` log   |
-| `open`    | `exhausted — human follow-up` | The automated chase runs out (**`W9`**) |
+| From   | To                            | On                                              |
+| ------ | ----------------------------- | ----------------------------------------------- |
+| `open` | `open`                        | A nudge. The ask does not change; it is re-sent |
+| —      | logged                        | Every nudge appears on that person's `W6` log   |
+| `open` | `exhausted — human follow-up` | The automated chase runs out (**`W9`**)         |
 
 A nudge never creates a second ask: `person_access_tokens` permits one live
 durable credential per person per season.
 
 ## Handoffs
 
-| To / from   | What crosses                                                          |
-| ----------- | ----------------------------------------------------------------------- |
-| `W4`, `W5`  | The compiled ask a nudge sends, and whatever comes back                |
-| `W6`        | Every nudge, onto the person's activity log, attributed to the operator |
-| `W9`        | A chase that has run out, which is that workflow's own trigger          |
-| `W11`       | The cadence, the gap and the cap this screen reports against            |
-| Mission 4   | Transport: the pipeline, the templates, the delivery states, the cap counting |
-| Mission 5   | The queue itself, its sorting and its missing-data summary              |
-| Mission 10  | The Monday report reads this; it does not own it                        |
+| To / from  | What crosses                                                                  |
+| ---------- | ----------------------------------------------------------------------------- |
+| `W4`, `W5` | The compiled ask a nudge sends, and whatever comes back                       |
+| `W6`       | Every nudge, onto the person's activity log, attributed to the operator       |
+| `W9`       | A chase that has run out, which is that workflow's own trigger                |
+| `W11`      | The cadence, the gap and the cap this screen reports against                  |
+| Mission 4  | Transport: the pipeline, the templates, the delivery states, the cap counting |
+| Mission 5  | The queue itself, its sorting and its missing-data summary                    |
+| Mission 10 | The Monday report reads this; it does not own it                              |
 
 ## Dependencies and mission boundaries
 
-| Seam                        | This mission's side                                   | The other side                                | Blocking?                          |
-| --------------------------- | ------------------------------------------------------- | ----------------------------------------------- | ------------------------------------ |
-| Mission 4 · Communications  | What a nudge is, when it is allowed, what it carries  | Sending it, and the five delivery states      | **Depends on LAN-93** — see below   |
-| Mission 5 · People & Roster | The three columns and the nudge action                | The queue, the table, the sorting             | Not blocking; shipped              |
-| Mission 10 · Reporting      | The queue's content                                   | Its Monday surfacing                          | Not blocking                       |
+| Seam                        | This mission's side                                  | The other side                           | Blocking?                         |
+| --------------------------- | ---------------------------------------------------- | ---------------------------------------- | --------------------------------- |
+| Mission 4 · Communications  | What a nudge is, when it is allowed, what it carries | Sending it, and the five delivery states | **Depends on LAN-93** — see below |
+| Mission 5 · People & Roster | The three columns and the nudge action               | The queue, the table, the sorting        | Not blocking; shipped             |
+| Mission 10 · Reporting      | The queue's content                                  | Its Monday surfacing                     | Not blocking                      |
 
 **LAN-93 is a stated dependency, not an option.** The cap counts messages known
 to have arrived, so delivery callbacks are what make "the automated chase is
@@ -151,8 +151,8 @@ rollout constraints; repeated here because this is the screen that displays it.
 
 ## Acceptance evidence
 
-| Screen  | What it proves                                                                     |
-| ------- | ------------------------------------------------------------------------------------ |
+| Screen  | What it proves                                                                      |
+| ------- | ----------------------------------------------------------------------------------- |
 | `W8-01` | The queue with last contact, its kind, and the next automated contact               |
 | `W8-02` | Several people selected, one action, each receiving only their own compiled ask     |
 | `W8-03` | The three people the machine will not write to again, and why each is a human's job |
@@ -164,19 +164,19 @@ Grounding: **screenshots**.
 
 ## Core decisions
 
-| Decision                                                          | Classification                  | Governing evidence or recommended default                                                            | Status   |
-| ------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------ | -------- |
-| The surface is Mission 5's shipped missing-data queue              | locked                          | It ships, it sorts, and nothing acts on it yet                                                       | settled  |
-| A nudge sends the person's own compiled ask, never a new message   | locked                          | `OD7-no-targeted-ask`, `M3`                                                                          | settled  |
-| Batch means several people, each getting their own ask             | locked                          | `T11-batch-nudge`; a link is scoped to one person by construction                                    | settled  |
-| Operator nudges are unlimited and outside the cap                  | locked                          | `T11-nudge-outside-cap`                                                                              | settled  |
-| The queue warns when the automated chase is already exhausted      | locked                          | `T11-nudge-outside-cap`; it warns, it does not prevent                                               | settled  |
-| Last contact, its kind, and the next automated contact are shown   | locked                          | `T11-visibility`                                                                                     | settled  |
-| Terminal delivery failure lists the person for a human, sends no email in its place | locked          | `T11-terminal-failure`                                                                               | settled  |
-| Leaving mid-onboarding drops the person off the queue entirely     | locked                          | `OD7-depart-stops`                                                                                   | settled  |
-| Nothing on this screen fires on a timer                            | locked                          | `R4-T`                                                                                               | settled  |
-| **Whether the queue defaults to onboarding players only**          | **proposed for owner approval** | The shipped queue lists everybody with missing data, including coaches and committee. The collection loop is players only. **Recommended: default to onboarding players, with the shipped scope still reachable** | **open** |
-| Sort order on first open                                            | delegated to Mission Lead       | The column ships sortable; which way it opens is presentation                                        | settled  |
+| Decision                                                                            | Classification                  | Governing evidence or recommended default                                                                                                                                                                         | Status   |
+| ----------------------------------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| The surface is Mission 5's shipped missing-data queue                               | locked                          | It ships, it sorts, and nothing acts on it yet                                                                                                                                                                    | settled  |
+| A nudge sends the person's own compiled ask, never a new message                    | locked                          | `OD7-no-targeted-ask`, `M3`                                                                                                                                                                                       | settled  |
+| Batch means several people, each getting their own ask                              | locked                          | `T11-batch-nudge`; a link is scoped to one person by construction                                                                                                                                                 | settled  |
+| Operator nudges are unlimited and outside the cap                                   | locked                          | `T11-nudge-outside-cap`                                                                                                                                                                                           | settled  |
+| The queue warns when the automated chase is already exhausted                       | locked                          | `T11-nudge-outside-cap`; it warns, it does not prevent                                                                                                                                                            | settled  |
+| Last contact, its kind, and the next automated contact are shown                    | locked                          | `T11-visibility`                                                                                                                                                                                                  | settled  |
+| Terminal delivery failure lists the person for a human, sends no email in its place | locked                          | `T11-terminal-failure`                                                                                                                                                                                            | settled  |
+| Leaving mid-onboarding drops the person off the queue entirely                      | locked                          | `OD7-depart-stops`                                                                                                                                                                                                | settled  |
+| Nothing on this screen fires on a timer                                             | locked                          | `R4-T`                                                                                                                                                                                                            | settled  |
+| **Whether the queue defaults to onboarding players only**                           | **proposed for owner approval** | The shipped queue lists everybody with missing data, including coaches and committee. The collection loop is players only. **Recommended: default to onboarding players, with the shipped scope still reachable** | **open** |
+| Sort order on first open                                                            | delegated to Mission Lead       | The column ships sortable; which way it opens is presentation                                                                                                                                                     | settled  |
 
 ## Brian approval
 

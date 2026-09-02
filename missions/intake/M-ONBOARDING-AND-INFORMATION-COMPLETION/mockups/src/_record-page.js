@@ -31,8 +31,7 @@ const itemRow = (section, label) =>
   );
 
 /** The value side of a row — the second Box, where the note and chips live. */
-const rowBody = (row) =>
-  must(row.children[1] ?? row.children[0], "a record row has no value side");
+const rowBody = (row) => must(row.children[1] ?? row.children[0], "a record row has no value side");
 
 /**
  * Set or add the small note under a row's value. The shipped `provenanceNote`
@@ -40,9 +39,7 @@ const rowBody = (row) =>
  */
 const setRowNote = (row, text, tone = "rgba(0,0,0,.6)") => {
   const body = rowBody(row);
-  const existing = $$("span, p", body).find((n) =>
-    n.className.includes("MuiTypography-caption"),
-  );
+  const existing = $$("span, p", body).find((n) => n.className.includes("MuiTypography-caption"));
   if (existing) {
     existing.textContent = text;
     existing.style.color = tone;
@@ -119,7 +116,9 @@ const ITEM_STATUS_WORDS =
 const setRowStatus = (row, text) => {
   const body = rowBody(row);
   const node = must(
-    $$("*", body).filter((n) => n.children.length === 0 && ITEM_STATUS_WORDS.test(n.textContent ?? ""))[0],
+    $$("*", body).filter(
+      (n) => n.children.length === 0 && ITEM_STATUS_WORDS.test(n.textContent ?? ""),
+    )[0],
     `the ${row.getAttribute("data-label")} row renders no status to replace`,
   );
   node.textContent = text;

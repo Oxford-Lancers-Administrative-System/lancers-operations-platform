@@ -20,10 +20,7 @@ mark(onboarding, 1);
 
 // 2 — the control, unchanged. Open, showing the five statuses this record has
 //     always been able to flip between since Q-12 removed the transition table.
-const season = must(
-  $('[data-testid="section-season"]'),
-  "this page has no season section",
-);
+const season = must($('[data-testid="section-season"]'), "this page has no season section");
 const status = must(
   season.querySelector('[data-testid="record-row"][data-label="Status"]'),
   "the season section has no status row",

@@ -17,7 +17,9 @@
 const answerShell = () => {
   const h1 = must($("h1"), "the page has no h1");
   if (!/you're attending/i.test(h1.textContent)) {
-    throw new Error(`Proposal could not apply: this is not the answer link's Yes page (h1 read "${h1.textContent}").`);
+    throw new Error(
+      `Proposal could not apply: this is not the answer link's Yes page (h1 read "${h1.textContent}").`,
+    );
   }
   const form = must(
     $$("form").find((f) => f.querySelector(".MuiTextField-root")),
@@ -102,7 +104,10 @@ const helperText = (text) => {
  * this page (no field here is filled), so both are applied as the inline
  * transform and notch width MUI itself uses.
  */
-const asField = (tpl, { label, value = "", help = null, required = false, restricted = false, source = null }) => {
+const asField = (
+  tpl,
+  { label, value = "", help = null, required = false, restricted = false, source = null },
+) => {
   const field = tpl.cloneNode(true);
   const text = required ? `${label} *` : label;
 
@@ -260,7 +265,9 @@ const setSubmit = (button, label) => {
  * their place.
  */
 const dropEventLeftovers = () => {
-  const attending = $$("p").find((p) => /other (people|person) (are|is) already attending/i.test(p.textContent));
+  const attending = $$("p").find((p) =>
+    /other (people|person) (are|is) already attending/i.test(p.textContent),
+  );
   attending?.remove();
   for (const alert of $$(".MuiAlert-root")) alert.remove();
 };
@@ -274,7 +281,8 @@ const setSecondary = (text) => {
   const node = $$("*").find(
     (el) => el.children.length === 0 && /plans changed/i.test(el.textContent ?? ""),
   );
-  if (!node) throw new Error("Proposal could not apply: the page has no secondary line under its form.");
+  if (!node)
+    throw new Error("Proposal could not apply: the page has no secondary line under its form.");
   if (text === null) {
     (node.closest("form") ?? node).remove();
     return null;

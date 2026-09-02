@@ -73,15 +73,15 @@ anywhere below — not struck out, never added"). That was a seam left here.
 Boundary item 14, which is approved: a player's answer never **silently**
 overwrites an operator-confirmed, externally verified or derived value.
 
-| What the current value is                                     | What a change does                                          |
-| ------------------------------------------------------------- | ------------------------------------------------------------- |
-| Supplied by the player themselves                             | **Changes it.** Their prerogative                            |
-| Supplied by an operator                                       | **A person checks first.** Both values kept; `W7` resolves   |
-| Derived — the under-18 flag, a verify-class item              | Not editable here at all                                     |
-| Unattributed — seeded or imported, `null` source              | **Changes it**, recording the player as the source           |
+| What the current value is                        | What a change does                                         |
+| ------------------------------------------------ | ---------------------------------------------------------- |
+| Supplied by the player themselves                | **Changes it.** Their prerogative                          |
+| Supplied by an operator                          | **A person checks first.** Both values kept; `W7` resolves |
+| Derived — the under-18 flag, a verify-class item | Not editable here at all                                   |
+| Unattributed — seeded or imported, `null` source | **Changes it**, recording the player as the source         |
 
 On the screen this is one clause on the field's own source line, and nothing
-else. The player is told *the club* recorded it, never which officer.
+else. The player is told _the club_ recorded it, never which officer.
 
 **The last row is proposed rather than assumed.** `readFieldProvenanceIn`
 returns `null` for anything seeded or imported. Nobody attributable asserted
@@ -99,31 +99,31 @@ Read-back applies to a changed mobile, as at first capture.
 
 ## State transitions
 
-| From        | To          | On                                                     |
-| ----------- | ----------- | -------------------------------------------------------- |
-| `submitted` | `opened`    | They return through the same link                       |
-| `opened`    | `corrected` | They change an already-confirmed value and save         |
-| a fact      | `disputed`  | Their value differs from an operator-recorded one       |
-| `disputed`  | resolved    | **`W7`**, never here                                    |
+| From        | To          | On                                                |
+| ----------- | ----------- | ------------------------------------------------- |
+| `submitted` | `opened`    | They return through the same link                 |
+| `opened`    | `corrected` | They change an already-confirmed value and save   |
+| a fact      | `disputed`  | Their value differs from an operator-recorded one |
+| `disputed`  | resolved    | **`W7`**, never here                              |
 
 Consent is untouched: `OD7-oneway-tick` means this page cannot untick it.
 
 ## Handoffs
 
-| To        | What crosses                                                              |
-| --------- | ---------------------------------------------------------------------------- |
-| `W7`      | Every disputed fact, with both values, both sources and both dates          |
-| `W6`      | Every change, into the record and the sectioned activity log                |
-| Mission 5 | The corrected values, and its missing-data queue, which this finally feeds   |
-| `W4`      | The page itself. This is its returning state, not a second surface           |
+| To        | What crosses                                                               |
+| --------- | -------------------------------------------------------------------------- |
+| `W7`      | Every disputed fact, with both values, both sources and both dates         |
+| `W6`      | Every change, into the record and the sectioned activity log               |
+| Mission 5 | The corrected values, and its missing-data queue, which this finally feeds |
+| `W4`      | The page itself. This is its returning state, not a second surface         |
 
 ## Dependencies and mission boundaries
 
-| Seam                        | This mission's side               | The other side                                | Blocking?              |
-| --------------------------- | ----------------------------------- | ----------------------------------------------- | ------------------------ |
-| Mission 5 · People & Roster | The `disputed` state, the ranking | The record, the operator edit path, the queue | Not blocking; shipped  |
+| Seam                        | This mission's side               | The other side                                 | Blocking?              |
+| --------------------------- | --------------------------------- | ---------------------------------------------- | ---------------------- |
+| Mission 5 · People & Roster | The `disputed` state, the ranking | The record, the operator edit path, the queue  | Not blocking; shipped  |
 | Mission 8 · Consent/Privacy | The mechanism                     | Correction **policy**, subject-access, erasure | Not blocking           |
-| `W7`                        | Raising it, keeping both values   | Resolving it                                  | Independently walkable |
+| `W7`                        | Raising it, keeping both values   | Resolving it                                   | Independently walkable |
 
 ## Exceptions and recovery
 
@@ -144,8 +144,8 @@ Consent is untouched: `OD7-oneway-tick` means this page cannot untick it.
 
 ## Acceptance evidence
 
-| Screen  | What it proves                                                              |
-| ------- | ----------------------------------------------------------------------------- |
+| Screen  | What it proves                                                                                                                                             |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `W5-01` | The follow-up form: everything the club holds, editable, each value carrying where it came from — and the one clause that marks an operator-recorded value |
 
 One screen, both sides, measured 1280 and 375, on the `/a/[token]` shell.
@@ -154,18 +154,18 @@ Grounding: **screenshots**.
 
 ## Core decisions
 
-| Decision                                                                | Classification                  | Governing evidence or recommended default                                                                                          | Status   |
-| ----------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------- |
-| The follow-up is the same form, carrying everything, editable          | locked                          | `OD7-followup-is-the-form`, owner direction 2026-09-02                                                                             | settled  |
-| Same page and same link as `W4`, in its returning state                | locked                          | No player logins; one credential per person per season                                                                             | settled  |
-| No declining a required fact, anywhere                                 | locked                          | `OD7-required-no-decline`; supersedes `T11-refused`                                                                                | settled  |
-| The system never generates a one-fact ask                              | locked                          | `OD7-no-targeted-ask`; supersedes `M6`. A person chases, carrying the compiled link — `W8`'s                                       | settled  |
-| Provenance is the derived one Mission 5 already built                  | locked                          | `readFieldProvenanceIn`; Brian's LAN-184 walkthrough choice                                                                        | settled  |
-| A change to an operator-recorded value is checked by a person first    | locked                          | Boundary item 14                                                                                                                   | settled  |
-| Both values are kept when a fact is disputed; `W7` resolves it         | locked                          | Append-only audit posture                                                                                                          | settled  |
-| The page carries no explanation of itself beyond field-level copy      | locked                          | Owner direction 2026-09-02 on UI narration                                                                                         | settled  |
-| **An unattributed value can be replaced by the player**                | **proposed for owner approval** | `readFieldProvenanceIn` returns `null` for seeded and imported values; nobody attributable asserted them, and `W1` already refuses to let the file overwrite a person's own facts. **Recommended** | **open** |
-| Whether the source line shows a date as well as who                    | delegated to Mission Lead       | Presentation; the data is there either way                                                                                         | settled  |
+| Decision                                                            | Classification                  | Governing evidence or recommended default                                                                                                                                                          | Status   |
+| ------------------------------------------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| The follow-up is the same form, carrying everything, editable       | locked                          | `OD7-followup-is-the-form`, owner direction 2026-09-02                                                                                                                                             | settled  |
+| Same page and same link as `W4`, in its returning state             | locked                          | No player logins; one credential per person per season                                                                                                                                             | settled  |
+| No declining a required fact, anywhere                              | locked                          | `OD7-required-no-decline`; supersedes `T11-refused`                                                                                                                                                | settled  |
+| The system never generates a one-fact ask                           | locked                          | `OD7-no-targeted-ask`; supersedes `M6`. A person chases, carrying the compiled link — `W8`'s                                                                                                       | settled  |
+| Provenance is the derived one Mission 5 already built               | locked                          | `readFieldProvenanceIn`; Brian's LAN-184 walkthrough choice                                                                                                                                        | settled  |
+| A change to an operator-recorded value is checked by a person first | locked                          | Boundary item 14                                                                                                                                                                                   | settled  |
+| Both values are kept when a fact is disputed; `W7` resolves it      | locked                          | Append-only audit posture                                                                                                                                                                          | settled  |
+| The page carries no explanation of itself beyond field-level copy   | locked                          | Owner direction 2026-09-02 on UI narration                                                                                                                                                         | settled  |
+| **An unattributed value can be replaced by the player**             | **proposed for owner approval** | `readFieldProvenanceIn` returns `null` for seeded and imported values; nobody attributable asserted them, and `W1` already refuses to let the file overwrite a person's own facts. **Recommended** | **open** |
+| Whether the source line shows a date as well as who                 | delegated to Mission Lead       | Presentation; the data is there either way                                                                                                                                                         | settled  |
 
 ## Brian approval
 

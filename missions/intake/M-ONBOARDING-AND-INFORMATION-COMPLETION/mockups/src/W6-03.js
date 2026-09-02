@@ -15,9 +15,17 @@ setSectionTitle(section, "Activity · every ask and every answer");
 const built = replaceHistory(section, [
   ["Contact & academic details", "Asked — the welcome", "12 Aug 2026, 09:00 · WhatsApp, delivered"],
   ["Contact & academic details", "Asked — follow-up 1", "19 Aug 2026, 09:00 · WhatsApp, delivered"],
-  ["Contact & academic details", "Answered", "20 Aug 2026, 18:42 · Merrick Thornbury · 6 of 10 fields"],
+  [
+    "Contact & academic details",
+    "Answered",
+    "20 Aug 2026, 18:42 · Merrick Thornbury · 6 of 10 fields",
+  ],
   ["Contact & academic details", "Asked — follow-up 2", "26 Aug 2026, 09:00 · WhatsApp, delivered"],
-  ["Contact & academic details", "Asked — nudge", "1 Sep 2026, 11:04 · Caspian Hallowfield, by hand"],
+  [
+    "Contact & academic details",
+    "Asked — nudge",
+    "1 Sep 2026, 11:04 · Caspian Hallowfield, by hand",
+  ],
   ["Code of Conduct", "Asked — the welcome", "12 Aug 2026, 09:00 · WhatsApp, delivered"],
   ["Code of Conduct", "Agreed", "2 Sep 2026, 19:03 · Merrick Thornbury · version 1"],
   ["BUCS Play", "Asked — follow-up 3", "29 Aug 2026, 09:00 · WhatsApp, delivered"],

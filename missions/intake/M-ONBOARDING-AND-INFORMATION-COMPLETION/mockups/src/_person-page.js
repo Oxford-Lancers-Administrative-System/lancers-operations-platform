@@ -70,7 +70,8 @@ const setFactBadge = (row, text) => {
   }
   const badge = byBadge(text);
   const first = $$("*", body).find(
-    (n) => n.children.length === 0 && (n.textContent ?? "").trim() && !n.className.includes("caption"),
+    (n) =>
+      n.children.length === 0 && (n.textContent ?? "").trim() && !n.className.includes("caption"),
   );
   (first ?? body).after?.(badge) ?? body.append(badge);
   if (first && first.parentElement) first.after(badge);

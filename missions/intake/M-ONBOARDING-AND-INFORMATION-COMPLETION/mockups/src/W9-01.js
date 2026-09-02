@@ -14,7 +14,11 @@ const last = [
   "Follow-up 5 · 28 Aug · delivered",
   "Follow-up 5 · 27 Aug · delivered",
 ];
-const next = ["Stopped · nothing further", "Stopped · nothing further", "Stopped · nothing further"];
+const next = [
+  "Stopped · nothing further",
+  "Stopped · nothing further",
+  "Stopped · nothing further",
+];
 
 addColumn(table, "Last contact", (row, i) => last[i % last.length]);
 const nextCells = addColumn(table, "Next", (row, i) => next[i % next.length]);

@@ -23,7 +23,7 @@ with its own token?
 
 **Recommended: `/me/[token]/details`.** `person_access_tokens` already ships one
 live durable credential per person per season, enforced by a database index.
-That *is* "one open ask, ever". A separate token costs a migration, a second
+That _is_ "one open ask, ever". A separate token costs a migration, a second
 resolver, a second revocation path, and permits the thing the rule exists to
 prevent.
 
@@ -41,10 +41,10 @@ a document or a blob, nothing captures a signature, and the only file input in
 the whole application is the event CSV import, which parses in memory and stores
 nothing.
 
-| Option                                          | What it needs                                                          |
-| ----------------------------------------------- | ------------------------------------------------------------------------ |
-| **Dated agreement against a version** *(rec.)*  | Two ordinary tables. No object storage, no upload, no signature control |
-| Drawn signature or signed PDF                   | Object storage, an upload pipeline, a signature control, and a retention decision |
+| Option                                         | What it needs                                                                     |
+| ---------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Dated agreement against a version** _(rec.)_ | Two ordinary tables. No object storage, no upload, no signature control           |
+| Drawn signature or signed PDF                  | Object storage, an upload pipeline, a signature control, and a retention decision |
 
 **Recommended: the dated agreement**, with e-signature additive later if the
 club's position changes. It records who agreed, to exactly which words, and
@@ -98,13 +98,13 @@ in §1.2.
 
 None of these blocks a build or a walk. **All of them block a real send.**
 
-| What                              | Who owns it        | Where it stands                                                                                              |
-| --------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------- |
-| **Code of Conduct text**          | Clint, via Task 07 | Never written into this system. W4-03 carries labelled placeholder text                                        |
-| **Photo release text**            | Clint, via Task 07 | Same. W4-04 carries labelled placeholder text                                                                  |
-| **Consent wording**               | Clint, via Task 07 | Placeholder in a real versioned slot                                                                           |
-| **BUCS Play instructions**        | **This mission**   | Task 10 deferred it to Task 11, which is this mission. Nobody has drafted it. Stewart described it on 2026-08-11 |
-| **Hudl instructions**             | **This mission**   | Same. Nobody has drafted it                                                                                    |
+| What                       | Who owns it        | Where it stands                                                                                                  |
+| -------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| **Code of Conduct text**   | Clint, via Task 07 | Never written into this system. W4-03 carries labelled placeholder text                                          |
+| **Photo release text**     | Clint, via Task 07 | Same. W4-04 carries labelled placeholder text                                                                    |
+| **Consent wording**        | Clint, via Task 07 | Placeholder in a real versioned slot                                                                             |
+| **BUCS Play instructions** | **This mission**   | Task 10 deferred it to Task 11, which is this mission. Nobody has drafted it. Stewart described it on 2026-08-11 |
+| **Hudl instructions**      | **This mission**   | Same. Nobody has drafted it                                                                                      |
 
 All five are on **LAN-213**. They are words the club has to write, and two of
 them are this mission's own debt.
@@ -145,12 +145,12 @@ Four proposed edits to product records, from `state.json.amendment_plan`.
 **Nothing has been edited.** They go as one batch, with Brian seeing the whole
 batch first.
 
-| Id   | Target                              | Change                                                                          |
-| ---- | ----------------------------------- | --------------------------------------------------------------------------------- |
-| `A1` | Task 10, decision `R3-G`            | Record that the flagged/unflagged tracking distinction is dropped; due-timing carries subs paid instead. The governing half — nothing gates — is untouched |
-| `A2` | Mission Portfolio v2, **row 7**     | Remove the coach and committee welcome flow from this mission's scope. **The row currently contradicts the approved boundary** |
-| `A3` | Task 10, item 5 (BPS)               | BPS leaves the onboarding checklist and becomes a yes/no attribute on the roster |
-| `A4` | Task 10, items 11 and 3             | The photo release is seasonal, asked of everyone every season; its returner carve-out is removed |
+| Id   | Target                          | Change                                                                                                                                                     |
+| ---- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `A1` | Task 10, decision `R3-G`        | Record that the flagged/unflagged tracking distinction is dropped; due-timing carries subs paid instead. The governing half — nothing gates — is untouched |
+| `A2` | Mission Portfolio v2, **row 7** | Remove the coach and committee welcome flow from this mission's scope. **The row currently contradicts the approved boundary**                             |
+| `A3` | Task 10, item 5 (BPS)           | BPS leaves the onboarding checklist and becomes a yes/no attribute on the roster                                                                           |
+| `A4` | Task 10, items 11 and 3         | The photo release is seasonal, asked of everyone every season; its returner carve-out is removed                                                           |
 
 ---
 

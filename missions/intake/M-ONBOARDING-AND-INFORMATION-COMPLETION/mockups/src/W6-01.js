@@ -32,7 +32,13 @@ mark(setRowNote(kit, "Zenas Yaxlington, 30 August"), 3);
 // 4 — history, not just current state.
 const subs = itemRow(section, "Subscription paid");
 setRowStatus(subs, "Pending");
-mark(setRowNote(subs, "Reopened by Caspian Hallowfield, 1 September · waived 20 August · 3 earlier changes"), 4);
+mark(
+  setRowNote(
+    subs,
+    "Reopened by Caspian Hallowfield, 1 September · waived 20 August · 3 earlier changes",
+  ),
+  4,
+);
 
 setOutstandingAlert(
   section,

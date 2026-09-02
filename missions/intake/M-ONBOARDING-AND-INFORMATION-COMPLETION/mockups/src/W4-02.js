@@ -70,7 +70,10 @@ const a = buildForm(s, [
   { kind: "heading", text: "Emergency contact" },
   { key: "emergency", label: "Emergency contact first name", required: true },
   { label: "Emergency contact last name", required: true },
-  { label: "Relationship to you", help: "The only optional field here. Brian has now listed the emergency contact twice without it — say the word and it goes." },
+  {
+    label: "Relationship to you",
+    help: "The only optional field here. Brian has now listed the emergency contact twice without it — say the word and it goes.",
+  },
   { label: "Emergency contact phone", required: true },
   { label: "Emergency contact email", required: true },
 ]);

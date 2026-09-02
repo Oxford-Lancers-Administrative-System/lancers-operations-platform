@@ -23,14 +23,14 @@
 
 The record ships and is good. What it does **not** carry is this workflow.
 
-| What ships at `/operate/roster/[membershipId]`                                | What is missing                                          |
-| ------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| An **Onboarding** section, one `OnboardingRow` per item                       | —                                                          |
-| `Required` and `Never blocks activation` chips                                 | —                                                          |
-| A resolve control offering complete, waived, not applicable                    | **reopen**, and `claimed`                                  |
-| `provenanceNote`: `Waived by X — reason`, or `Completed <day>`                 | **who** completed it; anything at all before the current state |
-| An alert naming the required items still outstanding                           | —                                                          |
-| `onboarding_item_status`: `pending → invited → complete \| waived \| not_applicable` | **`claimed`**                                        |
+| What ships at `/operate/roster/[membershipId]`                                       | What is missing                                                |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| An **Onboarding** section, one `OnboardingRow` per item                              | —                                                              |
+| `Required` and `Never blocks activation` chips                                       | —                                                              |
+| A resolve control offering complete, waived, not applicable                          | **reopen**, and `claimed`                                      |
+| `provenanceNote`: `Waived by X — reason`, or `Completed <day>`                       | **who** completed it; anything at all before the current state |
+| An alert naming the required items still outstanding                                 | —                                                              |
+| `onboarding_item_status`: `pending → invited → complete \| waived \| not_applicable` | **`claimed`**                                                  |
 
 **Three things are genuinely absent and are this workflow's:**
 
@@ -76,7 +76,7 @@ Three questions, in this order. They are what the section is for.
 asked him about this" is a question about a section, not about a mailbox.
 
 **It is entries, not counts.** The first draft rendered one summary line per
-section — *asked 4 times · answered twice* — and Brian rejected it on
+section — _asked 4 times · answered twice_ — and Brian rejected it on
 2026-09-02: "that is just not useful… I want to see the individual items that
 come underneath, when it was asked versus when it was received." So every ask
 and every answer is its own dated entry, and the section is what groups them.
@@ -91,12 +91,12 @@ that markup with different entries, not a new component.
 Four resolutions, all four-role, all audited, **none of them requiring a
 reason** (`R2-R`):
 
-| Resolution       | What it means                                                      |
-| ---------------- | -------------------------------------------------------------------- |
-| `complete`       | Done. Dated, and attributed to whoever recorded it                  |
-| `waived`         | This person does not have to. Author recorded; reason optional      |
-| `not_applicable` | This item never applied to this person                              |
-| `reopen`         | Back to outstanding from any terminal state. **Never automatic**    |
+| Resolution       | What it means                                                    |
+| ---------------- | ---------------------------------------------------------------- |
+| `complete`       | Done. Dated, and attributed to whoever recorded it               |
+| `waived`         | This person does not have to. Author recorded; reason optional   |
+| `not_applicable` | This item never applied to this person                           |
+| `reopen`         | Back to outstanding from any terminal state. **Never automatic** |
 
 `R4-T`, owned by `W8`, is explicit that **reopen never auto-fires**. A human
 reopens; the machine never does, and neither does a new season on its own
@@ -111,22 +111,22 @@ activation is a human declaration and is `W10`'s.
 
 ## Handoffs
 
-| To / from   | What crosses                                                                |
-| ----------- | ----------------------------------------------------------------------------- |
-| `W4`, `W5`  | Everything a player submits or changes lands here, with player provenance    |
-| `W7`        | A disputed fact is resolved there, and its resolution shows here             |
-| `W8`        | The queue reads what is outstanding; every ask it sends appears in this log  |
-| `W10`       | "Who is ready to activate" is derived from this and consumed there           |
-| `W11`       | Which items exist, their labels and their verification class                 |
-| Mission 5   | The record, the roster board, its filtering and its status colours (`S24`)   |
+| To / from  | What crosses                                                                |
+| ---------- | --------------------------------------------------------------------------- |
+| `W4`, `W5` | Everything a player submits or changes lands here, with player provenance   |
+| `W7`       | A disputed fact is resolved there, and its resolution shows here            |
+| `W8`       | The queue reads what is outstanding; every ask it sends appears in this log |
+| `W10`      | "Who is ready to activate" is derived from this and consumed there          |
+| `W11`      | Which items exist, their labels and their verification class                |
+| Mission 5  | The record, the roster board, its filtering and its status colours (`S24`)  |
 
 ## Dependencies and mission boundaries
 
-| Seam                        | This mission's side                                              | The other side                              | Blocking?             |
-| --------------------------- | ------------------------------------------------------------------ | --------------------------------------------- | ----------------------- |
-| Mission 5 · People & Roster | `claimed`, per-item history, the log, reason-free waive and reopen | The record and roster surfaces that show them | Not blocking; shipped |
-| Mission 4 · Communications  | What the log counts                                              | The sends themselves and their delivery states | Not blocking          |
-| `W11`                       | Reading the configuration                                        | Setting it                                   | Not blocking          |
+| Seam                        | This mission's side                                                | The other side                                 | Blocking?             |
+| --------------------------- | ------------------------------------------------------------------ | ---------------------------------------------- | --------------------- |
+| Mission 5 · People & Roster | `claimed`, per-item history, the log, reason-free waive and reopen | The record and roster surfaces that show them  | Not blocking; shipped |
+| Mission 4 · Communications  | What the log counts                                                | The sends themselves and their delivery states | Not blocking          |
+| `W11`                       | Reading the configuration                                          | Setting it                                     | Not blocking          |
 
 ## Exceptions and recovery
 
@@ -153,11 +153,11 @@ activation is a human declaration and is `W10`'s.
 
 ## Acceptance evidence
 
-| Screen  | What it proves                                                                  |
-| ------- | --------------------------------------------------------------------------------- |
-| `W6-01` | The checklist with real provenance: state, who said it, when — and `claimed`     |
-| `W6-02` | Resolving one item: four resolutions, four-role, and no reason demanded          |
-| `W6-03` | The activity log, counted by section rather than listed as sends                 |
+| Screen  | What it proves                                                               |
+| ------- | ---------------------------------------------------------------------------- |
+| `W6-01` | The checklist with real provenance: state, who said it, when — and `claimed` |
+| `W6-02` | Resolving one item: four resolutions, four-role, and no reason demanded      |
+| `W6-03` | The activity log, counted by section rather than listed as sends             |
 
 Shot on `/operate/roster/[membershipId]`, a real implemented route, both sides,
 measured 1280 and 375.
@@ -166,23 +166,23 @@ Grounding: **screenshots**.
 
 ## Core decisions
 
-| Decision                                                             | Classification                  | Governing evidence or recommended default                                                                              | Status   |
-| -------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------- |
-| This deepens the shipped record; it is not a new surface            | locked                          | `/operate/roster/[membershipId]` ships and is the surface an operator already works from                               | settled  |
-| `claimed` is added to `onboarding_item_status`                      | locked                          | `R2-V`; the enum has no such value today                                                                               | settled  |
-| Trust-class items complete on the player's word, with provenance    | locked                          | `R2-V`                                                                                                                 | settled  |
-| Per-item history is append-only and never overwrites                | locked                          | Overview audit posture; `S17`                                                                                          | settled  |
-| Waive and reopen are four-role and demand no reason                 | locked                          | `R2-R`. **Requires unwinding `onboarding_items_waiver_is_justified`**                                                  | settled  |
-| Reopen is never automatic                                           | locked                          | `R4-T`, `R2-E`                                                                                                         | settled  |
-| Onboarding-completeness is derived and display-only                 | locked                          | `R3-C`; activation is `W10`'s human declaration                                                                        | settled  |
-| Nothing gates, enforced here                                        | locked                          | `R3-G`                                                                                                                 | settled  |
-| The activity log is counted by section                              | locked                          | `OD7-log-by-section`, Brian 2026-09-01                                                                                 | settled  |
-| The log carries asks and answers alike, one entry each, grouped by section | locked                      | Owner direction, 2026-09-02: counts alone are "just not useful"                                                        | settled  |
-| The log reuses the record's shipped `StatusHistory` markup           | locked                          | Owner direction, 2026-09-02, on inventing UI the app does not use elsewhere                                            | settled  |
-| Item status renders as the record already renders it                 | locked                          | Plain underlined `body2`, no colour and no chip. The state name changes; its styling does not                          | settled  |
-| Resolution uses the row's own `Select`, with `Reopen` added to it     | locked                          | The control ships; `R2-R` adds one option to it rather than a new control                                              | settled  |
-| How far back the log reaches on first render                        | delegated to Mission Lead       | Presentation; the data is append-only either way                                                                       | settled  |
-| Where `claimed` sits visually against complete                      | delegated to Mission Lead       | The state is what matters; its colour is presentation                                                                  | settled  |
+| Decision                                                                   | Classification            | Governing evidence or recommended default                                                     | Status  |
+| -------------------------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------------------- | ------- |
+| This deepens the shipped record; it is not a new surface                   | locked                    | `/operate/roster/[membershipId]` ships and is the surface an operator already works from      | settled |
+| `claimed` is added to `onboarding_item_status`                             | locked                    | `R2-V`; the enum has no such value today                                                      | settled |
+| Trust-class items complete on the player's word, with provenance           | locked                    | `R2-V`                                                                                        | settled |
+| Per-item history is append-only and never overwrites                       | locked                    | Overview audit posture; `S17`                                                                 | settled |
+| Waive and reopen are four-role and demand no reason                        | locked                    | `R2-R`. **Requires unwinding `onboarding_items_waiver_is_justified`**                         | settled |
+| Reopen is never automatic                                                  | locked                    | `R4-T`, `R2-E`                                                                                | settled |
+| Onboarding-completeness is derived and display-only                        | locked                    | `R3-C`; activation is `W10`'s human declaration                                               | settled |
+| Nothing gates, enforced here                                               | locked                    | `R3-G`                                                                                        | settled |
+| The activity log is counted by section                                     | locked                    | `OD7-log-by-section`, Brian 2026-09-01                                                        | settled |
+| The log carries asks and answers alike, one entry each, grouped by section | locked                    | Owner direction, 2026-09-02: counts alone are "just not useful"                               | settled |
+| The log reuses the record's shipped `StatusHistory` markup                 | locked                    | Owner direction, 2026-09-02, on inventing UI the app does not use elsewhere                   | settled |
+| Item status renders as the record already renders it                       | locked                    | Plain underlined `body2`, no colour and no chip. The state name changes; its styling does not | settled |
+| Resolution uses the row's own `Select`, with `Reopen` added to it          | locked                    | The control ships; `R2-R` adds one option to it rather than a new control                     | settled |
+| How far back the log reaches on first render                               | delegated to Mission Lead | Presentation; the data is append-only either way                                              | settled |
+| Where `claimed` sits visually against complete                             | delegated to Mission Lead | The state is what matters; its colour is presentation                                         | settled |
 
 ## Brian approval
 

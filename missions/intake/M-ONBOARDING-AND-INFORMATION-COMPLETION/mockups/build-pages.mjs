@@ -212,10 +212,10 @@ const WORKFLOWS = [
       Play, then Hudl. Still one open ask. This is the mission's largest workflow and its only one
       whose actor is not an operator.`,
     legend: [
-      "<strong>Required now means required.</strong> Owner direction, 2026-09-02: \"The form that they're being sent for the onboarding should be required… For recruits, they are not required. For onboarding, they are required.\" That split already exists in shipped code — <code>person-required.ts</code> asks a recruit for three facts and a player for ten — so the asterisks are the player tier, not an invention. <strong>It does collide with an approved invariant; see the decision below</strong>",
-      "<strong>Five pages, on Brian's direction.</strong> The Code of Conduct, the photo release, BUCS Play and now Hudl are each their own page: \"the instructions for Huddle should also be on its own separate page\"",
+      '<strong>Required now means required.</strong> Owner direction, 2026-09-02: "The form that they\'re being sent for the onboarding should be required… For recruits, they are not required. For onboarding, they are required." That split already exists in shipped code — <code>person-required.ts</code> asks a recruit for three facts and a player for ten — so the asterisks are the player tier, not an invention. <strong>It does collide with an approved invariant; see the decision below</strong>',
+      '<strong>Five pages, on Brian\'s direction.</strong> The Code of Conduct, the photo release, BUCS Play and now Hudl are each their own page: "the instructions for Huddle should also be on its own separate page"',
       "<strong>W4's surface does not exist on <code>main</code>.</strong> Every screen is shot on <code>/a/[token]</code>, the answer link — the nearest implemented player-facing, no-login, signed-link form. The current side is that page as it ships; the proposed side is the same running page transformed. Neither side is a drawing",
-      "<strong>The link is already on <code>main</code>.</strong> <code>person_access_tokens</code> ships one live durable credential per person per season, enforced by a partial unique index — <code>T11-one-request</code>'s \"one open ask, ever\". Five pages, still one link",
+      '<strong>The link is already on <code>main</code>.</strong> <code>person_access_tokens</code> ships one live durable credential per person per season, enforced by a partial unique index — <code>T11-one-request</code>\'s "one open ask, ever". Five pages, still one link',
       "<strong>There is no way to store a document or take a signature.</strong> No storage bucket, no document table, no blob column, no signature capture; the only file input in the application is the event CSV import, which stores nothing. Both document steps are new substrate",
       "<strong>Three doors, one sequence — with one visible difference.</strong> A flipped recruit sees no consent step, because <code>season_messaging_consents</code> is unique per person per season and theirs already says granted",
     ],
@@ -306,8 +306,8 @@ const WORKFLOWS = [
         [
           "<strong>The half the club owns, said at the top.</strong> Hudl's own roster reads <em>Pending Invite</em> between the two halves",
           "<strong>The steps</strong>, now that this is a page of its own",
-          "<strong>The copy still owed.</strong> The email-invite method is assumed — Brian, 2026-09-01: \"doesn't really matter for my purposes\"",
-          "<strong>\"No invitation has reached me\"</strong> — the answer that hands the item back to the club. Without it, a player who was never invited has no way to say so, and the queue would chase them for the club's own omission",
+          '<strong>The copy still owed.</strong> The email-invite method is assumed — Brian, 2026-09-01: "doesn\'t really matter for my purposes"',
+          '<strong>"No invitation has reached me"</strong> — the answer that hands the item back to the club. Without it, a player who was never invited has no way to say so, and the queue would chase them for the club\'s own omission',
         ],
         "oxfordlancers.example/me/[token]/hudl",
       ),
@@ -362,8 +362,8 @@ const WORKFLOWS = [
     legend: [
       "<strong>Where it sits.</strong> W4 is the form, given once. W5 is that same form still live in November — not a second surface and not a second link, just the same page showing everything rather than only the gaps. Anything else the club needs to change, it changes its own way at <code>/operate/people/[personId]/edit</code>",
       "<strong>Why it exists at all.</strong> There are no player logins, so the signed link is the only route a player will ever have to their own data — and Mission 5 shipped the operator edit path recording in its own spec that it was the <em>interim</em> answer until a person could fix their own record. Its missing-data queue has nothing acting on it from the player's side today",
-      "<strong>Three things came out on Brian's direction, 2026-09-02.</strong> No declining a fact — \"they have to give the date of birth and information\", which supersedes <code>T11-refused</code>. No system-generated one-fact ask — which supersedes <code>M6</code>; a person chases and the message carries the compiled link, and that is W8's. And no explanation living inside the page: \"too much UI narration… too narrative in design\"",
-      "<strong>Provenance already exists on <code>main</code>, and it is derived.</strong> <code>person-record.ts</code> answers \"who supplied this value\" from <code>audit_events</code> — Brian's own LAN-184 choice rather than adding columns. This workflow adds no provenance columns; it adds the ranking, and the <code>disputed</code> state Mission 5 deliberately did not ship",
+      '<strong>Three things came out on Brian\'s direction, 2026-09-02.</strong> No declining a fact — "they have to give the date of birth and information", which supersedes <code>T11-refused</code>. No system-generated one-fact ask — which supersedes <code>M6</code>; a person chases and the message carries the compiled link, and that is W8\'s. And no explanation living inside the page: "too much UI narration… too narrative in design"',
+      '<strong>Provenance already exists on <code>main</code>, and it is derived.</strong> <code>person-record.ts</code> answers "who supplied this value" from <code>audit_events</code> — Brian\'s own LAN-184 choice rather than adding columns. This workflow adds no provenance columns; it adds the ranking, and the <code>disputed</code> state Mission 5 deliberately did not ship',
       "<strong>One rule survives, because boundary item 14 is approved</strong>: a player's answer never <em>silently</em> overwrites what an operator recorded. On the screen that is one clause on a source line, and nothing else",
     ],
     screens: [
@@ -394,9 +394,9 @@ const WORKFLOWS = [
       deepens the Onboarding section that already ships.`,
     legend: [
       "<strong>The record ships and is good.</strong> It already has the Onboarding section, a row per item, the Required chip and the outstanding alert. Three things are genuinely absent, and they are this workflow",
-      "<strong><code>claimed</code> is not in the enum.</strong> <code>onboarding_item_status</code> is <code>pending → invited → complete | waived | not_applicable</code>. R2-V needs a state meaning \"the player says done, awaiting confirmation\"",
+      '<strong><code>claimed</code> is not in the enum.</strong> <code>onboarding_item_status</code> is <code>pending → invited → complete | waived | not_applicable</code>. R2-V needs a state meaning "the player says done, awaiting confirmation"',
       "<strong>There is no history.</strong> <code>onboarding_items</code> stores current state only, so the record can say an item is complete but never that it was complete, reopened in November, and completed again",
-      "<strong>The shipped provenance says when, never who.</strong> <code>provenanceNote</code> renders \"Completed &lt;day&gt;\" and nothing else",
+      '<strong>The shipped provenance says when, never who.</strong> <code>provenanceNote</code> renders "Completed &lt;day&gt;" and nothing else',
       "<strong>A live database constraint contradicts an approved decision.</strong> R2-R makes waive reason-free; <code>onboarding_items_waiver_is_justified</code> currently refuses a waiver without one. Unwinding it is a forward-only migration, named here so the Mission Lead does not meet it at implementation time",
       "<strong>Nothing gates, and this is where that is enforced.</strong> No item blocks anything for anybody; derived completeness is display-only and never flips membership — activation is a human declaration, and W10's",
     ],
@@ -457,7 +457,7 @@ const WORKFLOWS = [
     legend: [
       "<strong>The surface is the person record, not the roster record.</strong> The facts a player can contest — name, contact, college, course, date of birth — are person facts, and <code>/operate/people/[personId]</code> is where they already render",
       "<strong>The record is further along than the roster one for this.</strong> It already has a Fact row per fact, a bordered <code>By</code> badge naming who supplied each value, and a history section filterable by field and by actor. <strong>A disputed fact is that row carrying a second value and a second badge</strong> — not a new component",
-      "<strong>Mission 5 left this seam deliberately.</strong> <code>REQ-no-disputed</code>: \"There is no contested-value field, no verification-mark field and no confidence class anywhere below — not struck out, never added\"",
+      '<strong>Mission 5 left this seam deliberately.</strong> <code>REQ-no-disputed</code>: "There is no contested-value field, no verification-mark field and no confidence class anywhere below — not struck out, never added"',
       "<strong>The losing value is retained, never deleted.</strong> Append-only, so the decision is auditable and reversible",
       "<strong>A disputed fact gates nothing and is never chased.</strong> The person has already answered; there is nothing to ask them for",
       "<strong><code>T07-merge-precedence</code> gets no screen.</strong> <code>season_messaging_consents</code> is unique per person per season, so merging two people who both consented must choose one. That is a write-time rule, and its only surface is one more line in Mission 5's existing merge comparison. <strong>Recommended: the most restrictive state wins, not the most recent</strong> — record-keeping must never manufacture permission a person declined",
@@ -600,11 +600,11 @@ const WORKFLOWS = [
       become active. <strong>That is all it is</strong> — and almost all of it already ships.`,
     legend: [
       "<strong>The flip ships.</strong> <code>setMembershipStatus</code> exists, the Season section's Status field is an editable select carrying all five statuses, and every flip is written append-only to <code>season_membership_status_events</code>",
-      "<strong>Mission 5 already considered the one thing this workflow might have added, and withdrew it.</strong> From <code>membership.ts</code>'s own header: the transition table was removed on Brian's <code>Q-12</code> decision — \"we can flip to whatever status we want to go in\" — and <em>\"a warn-only confirmation on <code>onboarding → active</code> was proposed and then withdrawn in the same walkthrough\"</em>. That is this exact transition",
+      '<strong>Mission 5 already considered the one thing this workflow might have added, and withdrew it.</strong> From <code>membership.ts</code>\'s own header: the transition table was removed on Brian\'s <code>Q-12</code> decision — "we can flip to whatever status we want to go in" — and <em>"a warn-only confirmation on <code>onboarding → active</code> was proposed and then withdrawn in the same walkthrough"</em>. That is this exact transition',
       "<strong>So W10 adds no control.</strong> <code>OD7-activation-flips</code> says the same from this mission's side: activation just flips them to active",
       "<strong>“Outstanding shown as context” is already true.</strong> The Onboarding section sits directly above the Season section on the same page. Re-presenting it inside the status control would be the withdrawn confirmation wearing a different hat",
       "<strong>Activation completes, waives and closes nothing.</strong> Every outstanding item stays outstanding and stays chased by W8 — <code>R3</code> makes an active player with an unfinished checklist the <em>normal</em> case",
-      "<strong>Nothing derives it.</strong> W6's \"ready to activate\" is display-only and never flips a membership on its own (<code>R3-C</code>)",
+      '<strong>Nothing derives it.</strong> W6\'s "ready to activate" is display-only and never flips a membership on its own (<code>R3-C</code>)',
     ],
     screens: [
       P(

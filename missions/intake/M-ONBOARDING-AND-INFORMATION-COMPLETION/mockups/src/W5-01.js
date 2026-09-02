@@ -64,9 +64,19 @@ const a = buildForm(s, [
     required: true,
     source: "The club, 28 August · a change here is checked by a person",
   },
-  { label: "Matriculation year", value: "2024", required: true, source: "The club, 28 August · a change here is checked by a person" },
+  {
+    label: "Matriculation year",
+    value: "2024",
+    required: true,
+    source: "The club, 28 August · a change here is checked by a person",
+  },
   { label: "Expected graduation", value: "2027", required: true, source: "You, 2 September" },
-  { label: "Degree field", value: "Engineering Science", required: true, source: "You, 2 September" },
+  {
+    label: "Degree field",
+    value: "Engineering Science",
+    required: true,
+    source: "You, 2 September",
+  },
 
   { kind: "heading", text: "Kept private" },
   {
@@ -79,11 +89,31 @@ const a = buildForm(s, [
   },
 
   { kind: "heading", text: "Emergency contact" },
-  { label: "Emergency contact first name", value: "Lucian", required: true, source: "You, 2 September" },
-  { label: "Emergency contact last name", value: "Thornbury", required: true, source: "You, 2 September" },
+  {
+    label: "Emergency contact first name",
+    value: "Lucian",
+    required: true,
+    source: "You, 2 September",
+  },
+  {
+    label: "Emergency contact last name",
+    value: "Thornbury",
+    required: true,
+    source: "You, 2 September",
+  },
   { label: "Relationship to you", value: "Partner", source: "You, 2 September" },
-  { label: "Emergency contact phone", value: "07700 900138", required: true, source: "You, 2 September" },
-  { label: "Emergency contact email", value: "lucian.38@mail.example", required: true, source: "You, 2 September" },
+  {
+    label: "Emergency contact phone",
+    value: "07700 900138",
+    required: true,
+    source: "You, 2 September",
+  },
+  {
+    label: "Emergency contact email",
+    value: "lucian.38@mail.example",
+    required: true,
+    source: "You, 2 September",
+  },
 ]);
 
 // 1 — nothing is outstanding. This is not a chase, and the strip says so.

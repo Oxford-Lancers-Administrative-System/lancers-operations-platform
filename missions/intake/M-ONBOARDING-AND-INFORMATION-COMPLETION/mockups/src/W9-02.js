@@ -16,9 +16,21 @@ setSectionTitle(section, "Activity · every ask and every answer");
 const built = replaceHistory(section, [
   ["Contact & academic details", "Asked — follow-up 4", "23 Aug 2026, 09:00 · WhatsApp, delivered"],
   ["Contact & academic details", "Asked — follow-up 5", "30 Aug 2026, 09:00 · WhatsApp, delivered"],
-  ["Chase", "Exhausted — stopped, and escalated", "30 Aug 2026, 09:05 · 5 delivered, none answered · President notified"],
-  ["Chase", "Contacted by hand", "1 Sep 2026, 18:30 · Caspian Hallowfield · spoke to him after training"],
-  ["Contact & academic details", "Answered", "1 Sep 2026, 21:14 · Merrick Thornbury · 4 of 4 remaining fields"],
+  [
+    "Chase",
+    "Exhausted — stopped, and escalated",
+    "30 Aug 2026, 09:05 · 5 delivered, none answered · President notified",
+  ],
+  [
+    "Chase",
+    "Contacted by hand",
+    "1 Sep 2026, 18:30 · Caspian Hallowfield · spoke to him after training",
+  ],
+  [
+    "Contact & academic details",
+    "Answered",
+    "1 Sep 2026, 21:14 · Merrick Thornbury · 4 of 4 remaining fields",
+  ],
 ]);
 
 // 1 — the last message the machine was allowed to send, and that it arrived.

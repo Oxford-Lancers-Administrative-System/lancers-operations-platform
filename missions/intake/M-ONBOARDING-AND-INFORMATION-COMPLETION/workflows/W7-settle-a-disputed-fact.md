@@ -29,15 +29,15 @@ carrying who supplied it.
 
 The person record is further along than the roster one for this purpose.
 
-| What ships at `/operate/people/[personId]`                            | What is missing                             |
-| ----------------------------------------------------------------------- | --------------------------------------------- |
-| A `Fact` row per person fact                                          | —                                             |
-| `By` / `DerivedBy` — a bordered caption naming who supplied the value  | —                                             |
-| A **history section**, expandable, filterable by field and by actor    | —                                             |
-| A missing-required banner                                              | —                                             |
-| —                                                                      | **the disputed state itself**                 |
-| —                                                                      | **a second, contested value alongside the first** |
-| —                                                                      | **a resolve control**                         |
+| What ships at `/operate/people/[personId]`                            | What is missing                                   |
+| --------------------------------------------------------------------- | ------------------------------------------------- |
+| A `Fact` row per person fact                                          | —                                                 |
+| `By` / `DerivedBy` — a bordered caption naming who supplied the value | —                                                 |
+| A **history section**, expandable, filterable by field and by actor   | —                                                 |
+| A missing-required banner                                             | —                                                 |
+| —                                                                     | **the disputed state itself**                     |
+| —                                                                     | **a second, contested value alongside the first** |
+| —                                                                     | **a resolve control**                             |
 
 Mission 5 was explicit that it shipped none of the last three
 (`REQ-no-disputed`, `REQ-no-verification-mark`): "There is no contested-value
@@ -59,11 +59,11 @@ posture is append-only and a superseded value survives.
 **Three things stay attributable afterwards**, which is the whole requirement of
 the inventory's own wording:
 
-| Event            | Attributed to                                   |
-| ---------------- | ------------------------------------------------- |
-| The flag         | The player, at the moment they submitted `W5`   |
-| The correction   | Whoever's value was wrong, and when it was set   |
-| The confirmation | The operator who resolved it, dated              |
+| Event            | Attributed to                                  |
+| ---------------- | ---------------------------------------------- |
+| The flag         | The player, at the moment they submitted `W5`  |
+| The correction   | Whoever's value was wrong, and when it was set |
+| The confirmation | The operator who resolved it, dated            |
 
 ## Which consent record wins on a merge
 
@@ -93,31 +93,31 @@ what stays with the losing record, and this is one more line in it.
 
 ## State transitions
 
-| From                            | To                          | On                                       |
-| ------------------------------- | --------------------------- | ------------------------------------------ |
-| a fact                          | `disputed`                  | `W5`, never here                          |
-| `disputed`                      | resolved to the club's value | An operator keeps what the club had      |
-| `disputed`                      | resolved to the player's     | An operator takes the player's answer    |
-| the losing value                | retained                    | Always. Never deleted                     |
+| From             | To                           | On                                    |
+| ---------------- | ---------------------------- | ------------------------------------- |
+| a fact           | `disputed`                   | `W5`, never here                      |
+| `disputed`       | resolved to the club's value | An operator keeps what the club had   |
+| `disputed`       | resolved to the player's     | An operator takes the player's answer |
+| the losing value | retained                     | Always. Never deleted                 |
 
 **A disputed fact is not a gate.** `R3-G` holds: it blocks nothing, and a person
 can train, be selected and travel with a fact in dispute indefinitely.
 
 ## Handoffs
 
-| To / from | What crosses                                                              |
-| --------- | ---------------------------------------------------------------------------- |
-| `W5`      | The dispute, with both values and both sources                              |
-| `W6`      | The resolution, into the record and the activity log                        |
+| To / from | What crosses                                                                         |
+| --------- | ------------------------------------------------------------------------------------ |
+| `W5`      | The dispute, with both values and both sources                                       |
+| `W6`      | The resolution, into the record and the activity log                                 |
 | `W8`      | A disputed fact is **not** outstanding and is not chased — a person already answered |
-| Mission 5 | The person record, its history section, the merge, and the missing queue    |
+| Mission 5 | The person record, its history section, the merge, and the missing queue             |
 
 ## Dependencies and mission boundaries
 
-| Seam                        | This mission's side                          | The other side                                  | Blocking?              |
-| --------------------------- | ---------------------------------------------- | ------------------------------------------------- | ------------------------ |
-| Mission 5 · People & Roster | The disputed state and its resolution         | The record, the history, the merge, the queue   | Not blocking; shipped  |
-| Mission 8 · Consent/Privacy | Consent precedence as a merge **mechanism**   | Correction and retention **policy**             | Not blocking           |
+| Seam                        | This mission's side                         | The other side                                | Blocking?             |
+| --------------------------- | ------------------------------------------- | --------------------------------------------- | --------------------- |
+| Mission 5 · People & Roster | The disputed state and its resolution       | The record, the history, the merge, the queue | Not blocking; shipped |
+| Mission 8 · Consent/Privacy | Consent precedence as a merge **mechanism** | Correction and retention **policy**           | Not blocking          |
 
 ## Exceptions and recovery
 
@@ -141,9 +141,9 @@ can train, be selected and travel with a fact in dispute indefinitely.
 
 ## Acceptance evidence
 
-| Screen  | What it proves                                                                 |
-| ------- | -------------------------------------------------------------------------------- |
-| `W7-01` | A disputed fact on the person record: both values, both attributions, one control |
+| Screen  | What it proves                                                                            |
+| ------- | ----------------------------------------------------------------------------------------- |
+| `W7-01` | A disputed fact on the person record: both values, both attributions, one control         |
 | `W7-02` | Afterwards — flag, correction and confirmation, each attributable, in the shipped history |
 
 Shot on `/operate/people/[personId]`, a real implemented route, both sides,
@@ -155,16 +155,16 @@ Grounding: **screenshots**.
 
 ## Core decisions
 
-| Decision                                                        | Classification                  | Governing evidence or recommended default                                                                | Status   |
-| --------------------------------------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------- |
-| The surface is the person record, not the roster record        | locked                          | The contestable facts are person facts, and already render there with their attribution                  | settled  |
-| Both values are shown, with both attributions                  | locked                          | Boundary item 14; the `By` badge already ships                                                           | settled  |
-| The losing value is retained, never deleted                    | locked                          | Append-only audit posture                                                                                | settled  |
-| Flag, correction and confirmation stay separately attributable | locked                          | The frozen inventory's own wording for this workflow                                                     | settled  |
-| A disputed fact gates nothing and is never chased               | locked                          | `R3-G`; the person has already answered                                                                  | settled  |
-| Resolution is four-role                                        | locked                          | `T07-permissions`                                                                                        | settled  |
+| Decision                                                       | Classification                  | Governing evidence or recommended default                                                                                                                                                          | Status   |
+| -------------------------------------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| The surface is the person record, not the roster record        | locked                          | The contestable facts are person facts, and already render there with their attribution                                                                                                            | settled  |
+| Both values are shown, with both attributions                  | locked                          | Boundary item 14; the `By` badge already ships                                                                                                                                                     | settled  |
+| The losing value is retained, never deleted                    | locked                          | Append-only audit posture                                                                                                                                                                          | settled  |
+| Flag, correction and confirmation stay separately attributable | locked                          | The frozen inventory's own wording for this workflow                                                                                                                                               | settled  |
+| A disputed fact gates nothing and is never chased              | locked                          | `R3-G`; the person has already answered                                                                                                                                                            | settled  |
+| Resolution is four-role                                        | locked                          | `T07-permissions`                                                                                                                                                                                  | settled  |
 | **On a merge, the most restrictive consent state wins**        | **proposed for owner approval** | `season_messaging_consents` is unique per person per season, so a merge must choose. **Recommended: restrictive, not recent** — record-keeping must never manufacture permission a person declined | **open** |
-| Whether resolving may carry a note                             | delegated to Mission Lead       | Free text either way, restricted either way                                                              | settled  |
+| Whether resolving may carry a note                             | delegated to Mission Lead       | Free text either way, restricted either way                                                                                                                                                        | settled  |
 
 ## Brian approval
 

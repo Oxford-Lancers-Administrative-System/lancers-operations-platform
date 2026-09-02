@@ -22,13 +22,13 @@ Worth stating first, because the previous draft of this workflow got it wrong.
 
 **The onboarding checklist is one packet.** It is the approved
 `item-and-ask-inventory.md` — the twelve items and the fifteen asks, settled
-once — and it goes out as one thing: *here is what you need to go and do.*
+once — and it goes out as one thing: _here is what you need to go and do._
 
 - **Nobody configures which items are on it.** `OD7-checklist-is-fixed`, Brian
   2026-09-02. `R1` and `R2-V2` are superseded.
 - **Nobody is assigned an item.** Only the four-role group resolves anything.
-  `R2` is superseded — *"If the kit operator needs to go off and do something
-  with a kit, they can go and run that on their own."*
+  `R2` is superseded — _"If the kit operator needs to go off and do something
+  with a kit, they can go and run that on their own."_
 - **Verification behaviour still exists**, but as a property of each item in the
   approved inventory rather than a setting: BUCS Play is claimed then confirmed,
   the derived details item completes itself. Not a knob.
@@ -40,14 +40,14 @@ So the only thing left to configure is the chase — and that is this workflow.
 `OD7-cadence-is-the-config`, in the grammar the messaging page already uses — a
 lead time, a count and a cadence:
 
-| Setting                 | What it means                                                                       |
-| ----------------------- | ------------------------------------------------------------------------------------- |
-| **First chase after**   | Hours from joining. Long enough that the welcome carrying the link lands first       |
-| **Ask this many times** | The count. Spent only when a message actually arrives                               |
-| **Every**               | The gap between one chase and the next, in days                                     |
+| Setting                 | What it means                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------ |
+| **First chase after**   | Hours from joining. Long enough that the welcome carrying the link lands first |
+| **Ask this many times** | The count. Spent only when a message actually arrives                          |
+| **Every**               | The gap between one chase and the next, in days                                |
 
-**There is no "give up after" value**, deliberately. Brian, 2026-09-02: *"'Give
-up after' is not a good number."* It is count × interval, and setting it
+**There is no "give up after" value**, deliberately. Brian, 2026-09-02: _"'Give
+up after' is not a good number."_ It is count × interval, and setting it
 separately invites the two to disagree. The chase is over when the count runs
 out.
 
@@ -63,8 +63,8 @@ follow-ups, and a partial submission resets the timer but never the count.
 
 **Nothing on this page escalates.** The previous draft carried a "tell the
 President" field. That was borrowed from the event schedule's own
-`escalation_hours` — *"hours after the RSVP deadline before the President is
-told"* — which is the **event RSVP escalation** and does not belong here. When
+`escalation_hours` — _"hours after the RSVP deadline before the President is
+told"_ — which is the **event RSVP escalation** and does not belong here. When
 the count runs out the chase is simply **exhausted**; what happens next is `W9`'s.
 
 ## Where it goes — and it is already there
@@ -72,10 +72,10 @@ the count runs out the chase is simply **exhausted**; what happens next is `W9`'
 **The messaging schedule already has an Onboarding section.** As of
 `main@0a04be7` that page carries three:
 
-| Section             | State                                              |
-| ------------------- | ---------------------------------------------------- |
-| **Recruitment**     | Built — the cycle and its steps (LAN-203)          |
-| **Event messaging** | Built — a row per event type                       |
+| Section             | State                                                       |
+| ------------------- | ----------------------------------------------------------- |
+| **Recruitment**     | Built — the cycle and its steps (LAN-203)                   |
+| **Event messaging** | Built — a row per event type                                |
 | **Onboarding**      | **The heading renders, and the body says "Not built yet."** |
 
 That third section is this workflow, and it is sitting on the page waiting for
@@ -85,7 +85,6 @@ above it belong to other missions and are not touched.
 **How it is stored is not this workflow's business.** What the product needs is
 the three values below in that section; the shape they take underneath is a
 technical decision for implementation.
-
 
 ## The checklist rules this workflow now carries
 
@@ -113,20 +112,20 @@ Folded in from the removed workflow, and unchanged by the fold:
 
 ## Handoffs
 
-| To / from  | What crosses                                                      |
-| ---------- | ------------------------------------------------------------------- |
-| `W4`       | The follow-ups that carry the compiled ask                        |
-| `W8`       | "Next automated contact", and the exhausted warning on the queue  |
-| `W9`       | The cap that defines exhaustion, and the office it escalates to   |
-| `W6`       | Every chase, onto the person's activity log                       |
-| Mission 4  | Transport, the templates, the delivery states, the scheduler      |
+| To / from | What crosses                                                     |
+| --------- | ---------------------------------------------------------------- |
+| `W4`      | The follow-ups that carry the compiled ask                       |
+| `W8`      | "Next automated contact", and the exhausted warning on the queue |
+| `W9`      | The cap that defines exhaustion, and the office it escalates to  |
+| `W6`      | Every chase, onto the person's activity log                      |
+| Mission 4 | Transport, the templates, the delivery states, the scheduler     |
 
 ## Dependencies and mission boundaries
 
-| Seam                        | This mission's side                        | The other side                                    | Blocking?                          |
-| --------------------------- | -------------------------------------------- | --------------------------------------------------- | ------------------------------------ |
-| Mission 4 · Communications  | Onboarding's own cadence, cap and office   | The schedule table, the pipeline, delivery states | **Depends on LAN-93** for the cap   |
-| Mission 11 · Season Lifecycle | Reading the current season               | Creating one                                      | Inherited precondition              |
+| Seam                          | This mission's side                      | The other side                                    | Blocking?                         |
+| ----------------------------- | ---------------------------------------- | ------------------------------------------------- | --------------------------------- |
+| Mission 4 · Communications    | Onboarding's own cadence, cap and office | The schedule table, the pipeline, delivery states | **Depends on LAN-93** for the cap |
+| Mission 11 · Season Lifecycle | Reading the current season               | Creating one                                      | Inherited precondition            |
 
 ## Exceptions and recovery
 
@@ -151,8 +150,8 @@ Folded in from the removed workflow, and unchanged by the fold:
 
 ## Acceptance evidence
 
-| Screen   | What it proves                                                                  |
-| -------- | --------------------------------------------------------------------------------- |
+| Screen   | What it proves                                                           |
+| -------- | ------------------------------------------------------------------------ |
 | `W11-01` | The page's own Onboarding section, filled — and nothing above it changed |
 
 Shot on `/operate/admin/messaging` at **`main@0a04be7`**, both sides, measured
@@ -162,23 +161,23 @@ Grounding: **screenshots**.
 
 ## Core decisions
 
-| Decision                                                             | Classification                  | Governing evidence or recommended default                                                                                 | Status   |
-| ---------------------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------- |
-| The checklist is the approved inventory, and nobody configures it    | locked                          | `OD7-checklist-is-fixed`, Brian 2026-09-02; supersedes `R1` and `R2-V2`                                                    | settled  |
-| There are no per-item owners; only the four-role group resolves      | locked                          | `OD7-four-role-only`, Brian 2026-09-02; supersedes `R2`                                                                   | settled  |
-| What is configured is how many times, how often, and when it gives up | locked                          | `OD7-cadence-is-the-config`, Brian 2026-09-02                                                                             | settled  |
-| Nothing on this page escalates; the chase simply exhausts            | locked                          | Owner direction, 2026-09-02. The President field on this page is the event RSVP's escalation, not onboarding's             | settled  |
-| There is no "give up after" value; it is the count times the interval | locked                          | Owner direction, 2026-09-02: "'Give up after' is not a good number"                                                       | settled  |
-| A first-chase delay in hours, measured from joining                   | locked                          | Owner direction, 2026-09-02                                                                                               | settled  |
-| The count is spent on delivery, never on a failure                   | locked                          | `T11-cap-delivered`; LAN-93 is a dependency                                                                               | settled  |
-| **There are no quiet hours**                                         | locked                          | Brian, 2026-09-02. Supersedes that half of `T11-suppression`; the rest of it stands                                       | settled  |
-| An arriving submission clears pending follow-ups                     | locked                          | `T11-suppression`                                                                                                         | settled  |
-| A partial submission resets the timer but never the cap              | locked                          | `T11-suppression`                                                                                                         | settled  |
-| The full checklist regenerates for everyone every season             | locked                          | `R1b`                                                                                                                     | settled  |
-| No mid-season expiry; a lapse is a manual reopen                     | locked                          | `R2-E`                                                                                                                    | settled  |
-| An empty configuration never reads as "everybody is complete"        | locked                          | `T10-entry-guards`                                                                                                        | settled  |
-| The escalation office is read from the club's roles, never configured | locked                          | `roles` ships `president` as a constitutional office with `role_assignments` naming its holder. Nothing to set                | settled  |
-| A cap of zero is legal                                               | delegated to Mission Lead       | It means "no automated chase"; the welcome is unaffected                                                                  | settled  |
+| Decision                                                              | Classification            | Governing evidence or recommended default                                                                      | Status  |
+| --------------------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------- | ------- |
+| The checklist is the approved inventory, and nobody configures it     | locked                    | `OD7-checklist-is-fixed`, Brian 2026-09-02; supersedes `R1` and `R2-V2`                                        | settled |
+| There are no per-item owners; only the four-role group resolves       | locked                    | `OD7-four-role-only`, Brian 2026-09-02; supersedes `R2`                                                        | settled |
+| What is configured is how many times, how often, and when it gives up | locked                    | `OD7-cadence-is-the-config`, Brian 2026-09-02                                                                  | settled |
+| Nothing on this page escalates; the chase simply exhausts             | locked                    | Owner direction, 2026-09-02. The President field on this page is the event RSVP's escalation, not onboarding's | settled |
+| There is no "give up after" value; it is the count times the interval | locked                    | Owner direction, 2026-09-02: "'Give up after' is not a good number"                                            | settled |
+| A first-chase delay in hours, measured from joining                   | locked                    | Owner direction, 2026-09-02                                                                                    | settled |
+| The count is spent on delivery, never on a failure                    | locked                    | `T11-cap-delivered`; LAN-93 is a dependency                                                                    | settled |
+| **There are no quiet hours**                                          | locked                    | Brian, 2026-09-02. Supersedes that half of `T11-suppression`; the rest of it stands                            | settled |
+| An arriving submission clears pending follow-ups                      | locked                    | `T11-suppression`                                                                                              | settled |
+| A partial submission resets the timer but never the cap               | locked                    | `T11-suppression`                                                                                              | settled |
+| The full checklist regenerates for everyone every season              | locked                    | `R1b`                                                                                                          | settled |
+| No mid-season expiry; a lapse is a manual reopen                      | locked                    | `R2-E`                                                                                                         | settled |
+| An empty configuration never reads as "everybody is complete"         | locked                    | `T10-entry-guards`                                                                                             | settled |
+| The escalation office is read from the club's roles, never configured | locked                    | `roles` ships `president` as a constitutional office with `role_assignments` naming its holder. Nothing to set | settled |
+| A cap of zero is legal                                                | delegated to Mission Lead | It means "no automated chase"; the welcome is unaffected                                                       | settled |
 
 ## Brian approval
 

@@ -7,7 +7,7 @@
 - Primary actor: Whoever holds the **configured escalation office**, initial
   value President.
 - Trigger: an automated chase exhausts — the configured number of messages
-  *that actually arrived* have gone out and nothing came back.
+  _that actually arrived_ have gone out and nothing came back.
 - Entry point: a message to the configured office. From there,
   `/operate/people/missing`, and then one person's record.
 - Controlling source: `S30`, `S31`; owned `T11-escalation-target`,
@@ -38,7 +38,7 @@ officer's personal phone, a handset that may be shared, a mailbox that outlives
 their term.
 
 So the message is deliberately worthless to anybody who is not already an
-operator: *"3 people have stopped answering. Open the queue."* The names sit
+operator: _"3 people have stopped answering. Open the queue."_ The names sit
 behind the login, where the four-role boundary already governs who sees them.
 
 **It gets no screen of its own** because it is a message, not a page — and
@@ -87,28 +87,28 @@ need software to have a conversation.
 
 ## State transitions
 
-| From                          | To                            | On                                      |
-| ----------------------------- | ----------------------------- | ----------------------------------------- |
-| `open`                        | `exhausted — human follow-up` | The last permitted delivered message goes unanswered |
-| `exhausted — human follow-up` | `open`                        | **An operator nudges** (`W8`). Never automatic |
+| From                          | To                            | On                                                    |
+| ----------------------------- | ----------------------------- | ----------------------------------------------------- |
+| `open`                        | `exhausted — human follow-up` | The last permitted delivered message goes unanswered  |
+| `exhausted — human follow-up` | `open`                        | **An operator nudges** (`W8`). Never automatic        |
 | —                             | logged                        | The human's own contact, recorded on the person's log |
 
 ## Handoffs
 
-| To / from  | What crosses                                                              |
+| To / from  | What crosses                                                                |
 | ---------- | --------------------------------------------------------------------------- |
-| `W8`       | The queue the link lands on, and the nudge that restarts a chase           |
-| `W6`       | The recorded follow-up, onto the person's sectioned activity log           |
-| `W11`      | The configured office, the cap, and the gap this workflow reports against  |
+| `W8`       | The queue the link lands on, and the nudge that restarts a chase            |
+| `W6`       | The recorded follow-up, onto the person's sectioned activity log            |
+| `W11`      | The configured office, the cap, and the gap this workflow reports against   |
 | Mission 4  | Transport for the escalation itself, and the delivery states behind the cap |
-| Mission 10 | The Monday report surfaces exhausted chases; it does not own them          |
+| Mission 10 | The Monday report surfaces exhausted chases; it does not own them           |
 
 ## Dependencies and mission boundaries
 
-| Seam                       | This mission's side                                | The other side                          | Blocking?                        |
-| -------------------------- | ---------------------------------------------------- | ----------------------------------------- | ---------------------------------- |
-| Mission 4 · Communications | The escalation's content, its target, its timing   | Sending it, and the delivery callbacks  | **Depends on LAN-93** for the cap |
-| Mission 10 · Reporting     | Exhaustion as a fact                               | Its Monday surfacing                    | Not blocking                     |
+| Seam                       | This mission's side                              | The other side                         | Blocking?                         |
+| -------------------------- | ------------------------------------------------ | -------------------------------------- | --------------------------------- |
+| Mission 4 · Communications | The escalation's content, its target, its timing | Sending it, and the delivery callbacks | **Depends on LAN-93** for the cap |
+| Mission 10 · Reporting     | Exhaustion as a fact                             | Its Monday surfacing                   | Not blocking                      |
 
 ## Exceptions and recovery
 
@@ -134,10 +134,10 @@ need software to have a conversation.
 
 ## Acceptance evidence
 
-| Screen  | What it proves                                                                |
-| ------- | ------------------------------------------------------------------------------- |
-| `W9-01` | Where the link lands: the exhausted people, with names, behind the login       |
-| `W9-02` | What the human did, recorded on that person's own log                          |
+| Screen  | What it proves                                                           |
+| ------- | ------------------------------------------------------------------------ |
+| `W9-01` | Where the link lands: the exhausted people, with names, behind the login |
+| `W9-02` | What the human did, recorded on that person's own log                    |
 
 The escalation message itself has no screen: it is a message, and drawing one
 would invent a surface the application does not have. Its exact content is in
@@ -150,17 +150,17 @@ Grounding: **screenshots**.
 
 ## Core decisions
 
-| Decision                                                            | Classification                  | Governing evidence or recommended default                                                      | Status   |
-| --------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------ | -------- |
-| The escalation carries a count and a link, never names              | locked                          | `T11-escalation-personal-data-free`                                                            | settled  |
-| The target is a configured office, initial value President          | locked                          | `T11-escalation-target`; presidents change and a person-addressed escalation fails silently    | settled  |
-| The office is read from the club's roles, never configured          | locked                          | `roles` ships `president`; `role_assignments` names its holder                                 | settled  |
-| The chase stops permanently and only a human restarts it            | locked                          | `R4-T`; the restart is `W8`'s nudge, outside the cap                                           | settled  |
-| Exhaustion removes nobody and changes no standing                   | locked                          | `R3-G`; the boundary's "no automated timeout ever removes anybody"                             | settled  |
-| The human's own contact is recorded on the person's log             | locked                          | `S31`, `T10-activity-log`                                                                      | settled  |
-| One message with a count, not one per person                        | locked                          | `T11-escalation-personal-data-free`; the count is the payload                                  | settled  |
-| **What happens when nobody holds the configured office**            | **proposed for owner approval** | An escalation with no recipient must not vanish. **Recommended: retain it and show it in the operator area**, rather than falling back to a named person or dropping it | **open** |
-| The exact wording of the escalation                                 | delegated to Mission Lead       | Its content is fixed — a count and a link, no names. The sentence around them is presentation  | settled  |
+| Decision                                                   | Classification                  | Governing evidence or recommended default                                                                                                                               | Status   |
+| ---------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| The escalation carries a count and a link, never names     | locked                          | `T11-escalation-personal-data-free`                                                                                                                                     | settled  |
+| The target is a configured office, initial value President | locked                          | `T11-escalation-target`; presidents change and a person-addressed escalation fails silently                                                                             | settled  |
+| The office is read from the club's roles, never configured | locked                          | `roles` ships `president`; `role_assignments` names its holder                                                                                                          | settled  |
+| The chase stops permanently and only a human restarts it   | locked                          | `R4-T`; the restart is `W8`'s nudge, outside the cap                                                                                                                    | settled  |
+| Exhaustion removes nobody and changes no standing          | locked                          | `R3-G`; the boundary's "no automated timeout ever removes anybody"                                                                                                      | settled  |
+| The human's own contact is recorded on the person's log    | locked                          | `S31`, `T10-activity-log`                                                                                                                                               | settled  |
+| One message with a count, not one per person               | locked                          | `T11-escalation-personal-data-free`; the count is the payload                                                                                                           | settled  |
+| **What happens when nobody holds the configured office**   | **proposed for owner approval** | An escalation with no recipient must not vanish. **Recommended: retain it and show it in the operator area**, rather than falling back to a named person or dropping it | **open** |
+| The exact wording of the escalation                        | delegated to Mission Lead       | Its content is fixed — a count and a link, no names. The sentence around them is presentation                                                                           | settled  |
 
 ## Brian approval
 

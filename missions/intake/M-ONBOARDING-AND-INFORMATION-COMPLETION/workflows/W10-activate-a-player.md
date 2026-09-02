@@ -67,9 +67,9 @@ Three things, none of them a control:
 
 ## State transitions
 
-| From         | To       | On                                   |
-| ------------ | -------- | -------------------------------------- |
-| `onboarding` | `active` | An operator says so                  |
+| From         | To       | On                                                   |
+| ------------ | -------- | ---------------------------------------------------- |
+| `onboarding` | `active` | An operator says so                                  |
 | any          | any      | Also permitted — `Q-12` removed the transition table |
 
 Every flip writes `season_membership_status_events`, which is what made removing
@@ -78,17 +78,17 @@ to know what happened, right?"
 
 ## Handoffs
 
-| To / from | What crosses                                                            |
-| --------- | ------------------------------------------------------------------------- |
+| To / from | What crosses                                                               |
+| --------- | -------------------------------------------------------------------------- |
 | `W6`      | The derived "ready to activate" signal, and the checklist shown as context |
-| `W8`      | Nothing changes. An active player with outstanding items is still chased  |
-| Mission 5 | The status field, the flip, and the audit trail — all shipped            |
-| `W11`     | Which items exist at all                                                 |
+| `W8`      | Nothing changes. An active player with outstanding items is still chased   |
+| Mission 5 | The status field, the flip, and the audit trail — all shipped              |
+| `W11`     | Which items exist at all                                                   |
 
 ## Dependencies and mission boundaries
 
-| Seam                        | This mission's side                     | The other side                             | Blocking?             |
-| --------------------------- | ----------------------------------------- | -------------------------------------------- | ----------------------- |
+| Seam                        | This mission's side                         | The other side                              | Blocking?             |
+| --------------------------- | ------------------------------------------- | ------------------------------------------- | --------------------- |
 | Mission 5 · People & Roster | What activation means, and what it does not | The status field, the flip, the audit trail | Not blocking; shipped |
 
 ## Exceptions and recovery
@@ -109,9 +109,9 @@ to know what happened, right?"
 
 ## Acceptance evidence
 
-| Screen   | What it proves                                                                    |
+| Screen   | What it proves                                                                      |
 | -------- | ----------------------------------------------------------------------------------- |
-| `W10-01` | The flip, on the shipped control, with the checklist above it as the only context  |
+| `W10-01` | The flip, on the shipped control, with the checklist above it as the only context   |
 | `W10-02` | Active with an unfinished checklist — the normal case, and nothing about it flagged |
 
 Shot on `/operate/roster/[membershipId]`, a real implemented route, both sides,
@@ -121,15 +121,15 @@ Grounding: **screenshots**.
 
 ## Core decisions
 
-| Decision                                                                  | Classification            | Governing evidence or recommended default                                                     | Status  |
-| --------------------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------- | ------- |
-| Activation is a human declaration on the shipped status field             | locked                    | `OD7-activation-flips`, `PR7-activation`                                                      | settled |
-| **No confirmation step is added**                                         | locked                    | `Q-12` proposed and withdrew exactly that on this exact transition; `R3` makes it the normal case | settled |
-| Outstanding items are context, and the context is the page                | locked                    | The Onboarding section already sits directly above the Season section                         | settled |
-| Activation completes, waives and closes nothing                           | locked                    | `R3`; the chase continues unchanged                                                           | settled |
-| Nothing derives or schedules activation                                   | locked                    | `R3-C`: derived completeness is display-only and never flips membership                       | settled |
-| Activation is the only gate this mission has, and it gates squad membership only | locked              | Boundary item 16; `R3-G` everywhere else                                                      | settled |
-| Whether the roster board surfaces "ready to activate" prominently         | delegated to Mission Lead | The signal is `W6`'s and display-only; where it is shown is presentation                      | settled |
+| Decision                                                                         | Classification            | Governing evidence or recommended default                                                         | Status  |
+| -------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------- | ------- |
+| Activation is a human declaration on the shipped status field                    | locked                    | `OD7-activation-flips`, `PR7-activation`                                                          | settled |
+| **No confirmation step is added**                                                | locked                    | `Q-12` proposed and withdrew exactly that on this exact transition; `R3` makes it the normal case | settled |
+| Outstanding items are context, and the context is the page                       | locked                    | The Onboarding section already sits directly above the Season section                             | settled |
+| Activation completes, waives and closes nothing                                  | locked                    | `R3`; the chase continues unchanged                                                               | settled |
+| Nothing derives or schedules activation                                          | locked                    | `R3-C`: derived completeness is display-only and never flips membership                           | settled |
+| Activation is the only gate this mission has, and it gates squad membership only | locked                    | Boundary item 16; `R3-G` everywhere else                                                          | settled |
+| Whether the roster board surfaces "ready to activate" prominently                | delegated to Mission Lead | The signal is `W6`'s and display-only; where it is shown is presentation                          | settled |
 
 **No decision is open.** This workflow's one candidate — a confirmation on
 activation — was already raised and withdrawn by Brian in Mission 5, and

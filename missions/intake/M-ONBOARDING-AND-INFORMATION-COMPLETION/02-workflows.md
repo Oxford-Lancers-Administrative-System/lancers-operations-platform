@@ -96,7 +96,7 @@ target:
 
 Three answers settled the shape:
 
-1. **One workflow, not two.** The chase numbers *are* the onboarding cadence, so
+1. **One workflow, not two.** The chase numbers _are_ the onboarding cadence, so
    the old `W11` folds into it and the inventory is now **eleven workflows**.
 2. **The checklist is fixed.** It is the approved `item-and-ask-inventory.md`,
    and nobody turns items on or off per season. `R1` and `R2-V2` are superseded.

@@ -10,8 +10,7 @@ const queueTable = () =>
 
 const queueRows = () => must($$('[data-testid="missing-row"]'), "the queue has no rows");
 
-const headerCells = (table) =>
-  must($$("thead th", table), "the queue table has no header cells");
+const headerCells = (table) => must($$("thead th", table), "the queue table has no header cells");
 
 /** Add a column: one header, and one cell per row, cloned from the table's own. */
 const addColumn = (table, label, valueFor, { before = null } = {}) => {
@@ -50,7 +49,10 @@ const rowName = (row) => ($$("td", row)[0]?.textContent ?? "").trim();
 
 /** Clone the table's own outlined Button — used for the per-row action. */
 const rowButton = (row, label) => {
-  const tpl = must(row.querySelector("td:last-child .MuiButton-root"), "a row has no action button");
+  const tpl = must(
+    row.querySelector("td:last-child .MuiButton-root"),
+    "a row has no action button",
+  );
   const button = tpl.cloneNode(true);
   button.textContent = label;
   button.removeAttribute("href");

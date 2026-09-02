@@ -50,7 +50,7 @@ const a = buildForm(s, [
   {
     kind: "note",
     key: "owed",
-    text: "PLACEHOLDER. The email-invite method is assumed — Brian, 2026-09-01: \"doesn't really matter for my purposes\". The real instruction copy is owed by this mission and nobody has written it.",
+    text: 'PLACEHOLDER. The email-invite method is assumed — Brian, 2026-09-01: "doesn\'t really matter for my purposes". The real instruction copy is owed by this mission and nobody has written it.',
   },
   { kind: "heading", text: "Are you in?" },
   {
