@@ -262,19 +262,36 @@
     {
       "id": "W10",
       "name": "Activate a player",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {},
+      "approvals": {
+        "spec": {
+          "words": "Okay, W10 looks fine.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "Okay, W10 looks fine.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        },
+        "acceptance": {
+          "words": "Okay, W10 looks fine.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        }
+      },
       "spec": "workflows/W10-activate-a-player.md"
     },
     {
       "id": "W11",
       "name": "Set up this season's checklist",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {},
+      "spec": "workflows/W11-set-up-this-seasons-checklist.md"
     },
     {
       "id": "W12",
@@ -1856,5 +1873,5 @@
     ],
     "approval": null
   },
-  "next_action": "W10 — Activate a player: specification drafted, and the workflow is almost entirely already shipped. No decision is open; the one candidate was raised and withdrawn by Brian in Mission 5 (Q-12)."
+  "next_action": "W11 — Set up this season checklist: specification drafted and two screens shot; two open decisions, on what replaces the Required chip and the outstanding alert, and on where the configuration page lives."
 }

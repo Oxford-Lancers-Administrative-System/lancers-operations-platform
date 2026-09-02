@@ -513,6 +513,25 @@
               <li><a href="#s13-h13">Brian approval</a></li>
             </ol>
           </li>
+          <li>
+            <a href="#sec14">W11 — Set up this season's checklist</a>
+            <ol class="sub">
+              <li><a href="#s14-h2">Current main grounding</a></li>
+              <li>
+                <a href="#s14-h3">The flag is gone, and this is where it stops meaning anything</a>
+              </li>
+              <li><a href="#s14-h4">What is configured</a></li>
+              <li><a href="#s14-h5">The generation guards</a></li>
+              <li><a href="#s14-h6">Required actions</a></li>
+              <li><a href="#s14-h7">Handoffs</a></li>
+              <li><a href="#s14-h8">Dependencies and mission boundaries</a></li>
+              <li><a href="#s14-h9">Exceptions and recovery</a></li>
+              <li><a href="#s14-h10">Safety, privacy, consent, and authority boundaries</a></li>
+              <li><a href="#s14-h11">Acceptance evidence</a></li>
+              <li><a href="#s14-h12">Core decisions</a></li>
+              <li><a href="#s14-h13">Brian approval</a></li>
+            </ol>
+          </li>
         </ol>
       </nav>
       <main>
@@ -6874,7 +6893,7 @@
         <section class="doc" id="sec13">
           <header>
             <h2>W10 — Activate a player</h2>
-            <span class="chip warn">draft, not approved</span>
+            <span class="chip ok">spec approved</span>
             <span class="file">workflows/W10-activate-a-player.md</span>
           </header>
           <h1 id="s13-h1">W10 — Activate a player</h1>
@@ -7189,6 +7208,468 @@
             here would be re-litigating a recorded decision.
           </p>
           <h2 id="s13-h13">Brian approval</h2>
+          <ul>
+            <li>Exact words:</li>
+            <li>Date:</li>
+          </ul>
+        </section>
+        <section class="doc" id="sec14">
+          <header>
+            <h2>W11 — Set up this season's checklist</h2>
+            <span class="chip warn">draft, not approved</span>
+            <span class="file">workflows/W11-set-up-this-seasons-checklist.md</span>
+          </header>
+          <h1 id="s14-h1">W11 — Set up this season's checklist</h1>
+          <ul>
+            <li>
+              Purpose/intended outcome: A four-role operator says which items apply this season,
+              what they are called, and how each one is verified.
+              <strong>That configuration is what generates for everybody who arrives</strong>,
+              through all three doors, for the rest of the season.
+            </li>
+            <li>Primary actor: A four-role operator.</li>
+            <li>Trigger: a new season, or a mid-season change of mind.</li>
+            <li>
+              Entry point / route: <strong>a new page under <code>/operate/admin/</code></strong
+              >. See the grounding below — no configuration surface for this exists anywhere today.
+            </li>
+            <li>
+              Controlling source: <code>S14</code>, <code>S15</code>, <code>S19</code>,
+              <code>S20</code>; owned <code>R1</code>, <code>R1a</code>, <code>R1b</code>,
+              <code>R2</code>, <code>R2-E</code>, <code>R2-V2</code>, <code>T10-A1</code>,
+              <code>T10-entry-guards</code>, <code>PR7-checklist</code>.
+            </li>
+            <li>User-visible result: the season's checklist, which every arrival gets in full.</li>
+          </ul>
+          <h2 id="s14-h2">Current <code>main</code> grounding</h2>
+          <p>
+            <code>onboarding_item_types</code> exists and is
+            <strong>seeded, never configured</strong>. Nothing under <code>src/app</code> reads or
+            writes it; only <code>membership.ts</code> and <code>weekly-report.ts</code> touch it at
+            all. <strong>There is no page for this.</strong>
+          </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>The table carries today</th>
+                  <th>What the approved sources need it to carry</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>code</code>, <code>label</code></td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td><code>sort_order</code></td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td><code>is_subscription</code></td>
+                  <td>— (<code>R1a</code>'s invoiced/paid split)</td>
+                </tr>
+                <tr>
+                  <td><code>is_required</code></td>
+                  <td><strong>superseded — see below</strong></td>
+                </tr>
+                <tr>
+                  <td>—</td>
+                  <td><strong>verification class</strong> (<code>R2-V2</code>)</td>
+                </tr>
+                <tr>
+                  <td>—</td>
+                  <td><strong>applicability</strong> (<code>R1a</code>)</td>
+                </tr>
+                <tr>
+                  <td>—</td>
+                  <td><strong>item owner</strong> (<code>R2</code>)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <strong>Nearest implemented surface: <code>/operate/admin/messaging</code>.</strong> It
+            is the club's existing per-type configuration page — a row per event type, expandable to
+            that type's settings, with a preview of what the rule means. That is exactly this
+            workflow's shape, and both screens are shot on it.
+          </p>
+          <h2 id="s14-h3">The flag is gone, and this is where it stops meaning anything</h2>
+          <p>
+            Brian, 2026-09-01:
+            <em>&quot;Yes, drop the flag/not flag distinction, please.&quot;</em> The approved
+            <code>item-and-ask-inventory.md</code> records the consequence in its own words:
+          </p>
+          <blockquote>
+            <p>
+              &quot;There is no flagged/unflagged distinction… Every item counts the same, and the
+              Monday queue ranks a person by everything outstanding…
+              <strong
+                >This supersedes Task 10 R3-G's retention of 'required' as a display flag.</strong
+              >&quot;
+            </p>
+          </blockquote>
+          <p>
+            So <code>is_required</code> stops driving anything, and
+            <strong>two shipped things lose their meaning with it</strong>:
+          </p>
+          <ol>
+            <li>
+              The <strong><code>Required</code> chip</strong> on every onboarding row of the player
+              record.
+            </li>
+            <li>
+              The <strong>required-outstanding alert</strong> beneath the checklist —
+              <em>&quot;2 required items are still outstanding: …&quot;</em>.
+            </li>
+          </ol>
+          <p>
+            Both are visible on <code>W6</code>'s approved screens because both ship today.
+            <code>W11-02</code> photographs what removing the flag actually does to that section,
+            because a decision recorded only in a brief is a decision nobody sees until
+            implementation.
+          </p>
+          <p>
+            <strong
+              >The frozen inventory's own wording for this workflow is stale on this point.</strong
+            >
+            It says an operator configures &quot;which items apply this season, their labels, their
+            tracking flag and how each is verified&quot;. The tracking flag was dropped five days
+            later. The rest of the line stands.
+          </p>
+          <p>
+            <code>R1a</code>'s &quot;BPS as a named gate&quot; is stale for the same reason: BPS
+            left the checklist entirely on 2026-09-01 and became a plain attribute on the roster.
+            Amendment <code>A3</code> records that against Task 10.
+          </p>
+          <h2 id="s14-h4">What is configured</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Setting</th>
+                  <th>What it does</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Applies this season</strong></td>
+                  <td>
+                    Whether the item generates at all. An empty configuration is &quot;not
+                    configured&quot;
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Label</strong></td>
+                  <td>What everybody sees it called</td>
+                </tr>
+                <tr>
+                  <td><strong>Verification class</strong></td>
+                  <td>
+                    <code>trust · verify · derived · operator</code> — configuration, never code
+                    (<code>R2-V2</code>)
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Owner</strong></td>
+                  <td>
+                    Kit Manager, compliance owner, GM, Media Secretary, four-role (<code>R2</code>)
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Subscription</strong></td>
+                  <td>The invoiced/paid split, which membership derives from (<code>R1a</code>)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s14-h5">The generation guards</h2>
+          <p>
+            <code>T10-entry-guards</code>, and they are the parts that go wrong quietly if nobody
+            states them:
+          </p>
+          <ul>
+            <li>
+              <strong
+                >An empty configuration reads as &quot;this season has no onboarding items
+                configured&quot;</strong
+              >
+              — never as &quot;everybody is complete&quot;. The record already renders that
+              sentence; this is what makes it true rather than accidental.
+            </li>
+            <li>
+              <strong
+                >An item type added mid-season backfills as <code>pending</code> onto
+                everybody</strong
+              >, not only onto people who arrive afterwards.
+            </li>
+            <li>
+              <strong>The full checklist regenerates for everyone every season</strong>
+              (<code>R1b</code>). It is about the season, not the person: &quot;it's about the
+              president, not the person.&quot;
+            </li>
+            <li>
+              <strong>No mid-season expiry</strong> (<code>R2-E</code>). Items reset at the season
+              boundary and nowhere else; a lapse mid-season is a manual reopen, which is
+              <code>W6</code>'s.
+            </li>
+            <li>
+              <strong>Formalwear is asked every season</strong> (<code>T10-A1</code>), its returner
+              carve-out removed as kit's already was.
+            </li>
+          </ul>
+          <h2 id="s14-h6">Required actions</h2>
+          <ol>
+            <li>Open the season's checklist configuration.</li>
+            <li>
+              Turn items on or off for this season; rename them; set each one's verification class
+              and owner.
+            </li>
+            <li>
+              Save. Everybody who arrives from now on gets this; everybody already here gets any
+              newly-added item as <code>pending</code>.
+            </li>
+          </ol>
+          <h2 id="s14-h7">Handoffs</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>To / from</th>
+                  <th>What crosses</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W1</code>–<code>W3</code></td>
+                  <td>Generation at each of the three doors reads this configuration</td>
+                </tr>
+                <tr>
+                  <td><code>W6</code></td>
+                  <td>Labels, verification classes and owners, as the record renders them</td>
+                </tr>
+                <tr>
+                  <td><code>W4</code></td>
+                  <td>Which items the player is asked about at all</td>
+                </tr>
+                <tr>
+                  <td><code>W8</code></td>
+                  <td>What counts as outstanding — every item equally, now the flag is gone</td>
+                </tr>
+                <tr>
+                  <td><code>W10</code></td>
+                  <td>Nothing. Configuration never gates activation</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s14-h8">Dependencies and mission boundaries</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Seam</th>
+                  <th>This mission's side</th>
+                  <th>The other side</th>
+                  <th>Blocking?</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Mission 5 · People &amp; Roster</td>
+                  <td>The configuration and what generates</td>
+                  <td>The record and board that display it</td>
+                  <td>Not blocking; shipped</td>
+                </tr>
+                <tr>
+                  <td>Mission 11 · Season Lifecycle</td>
+                  <td>Reading the current season</td>
+                  <td>Creating one, and the boundary reset</td>
+                  <td><strong>See below</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <strong>Mission 11 owns season creation and nothing creates a season.</strong> This
+            workflow configures the checklist <em>for</em> a season that already exists. It inherits
+            that precondition rather than filling it, exactly as <code>W1</code> does.
+          </p>
+          <h2 id="s14-h9">Exceptions and recovery</h2>
+          <ul>
+            <li>
+              <strong>No season.</strong> The page cannot open;
+              <code>readCurrentSeason</code> throws, as everywhere.
+            </li>
+            <li>
+              <strong>Turning an item off mid-season.</strong> It stops generating for new arrivals;
+              people who already have it keep it, because deleting somebody's history to tidy a
+              configuration is not a thing this mission does.
+            </li>
+            <li>
+              <strong>Renaming an item.</strong> The label changes everywhere, including on history.
+              The item is its <code>code</code>, not its label.
+            </li>
+            <li>
+              <strong>Two items with the same code.</strong> Refused by the table's own unique
+              constraint on <code>(season_id, code)</code>.
+            </li>
+          </ul>
+          <h2 id="s14-h10">Safety, privacy, consent, and authority boundaries</h2>
+          <ul>
+            <li><strong>Four-role only.</strong></li>
+            <li>Configuration carries no personal data at all.</li>
+            <li>
+              Changing a verification class never retroactively re-opens a resolved item; it governs
+              what happens next.
+            </li>
+          </ul>
+          <h2 id="s14-h11">Acceptance evidence</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Screen</th>
+                  <th>What it proves</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W11-01</code></td>
+                  <td>
+                    The season's items, each with its applicability, verification class and owner
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W11-02</code></td>
+                  <td>
+                    What dropping the flag removes from the shipped record: the chip, and the alert
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Shot on <code>/operate/admin/messaging</code> — the club's existing per-type
+            configuration page and the nearest implemented analogue — and on
+            <code>/operate/roster/[membershipId]</code>. Both sides, measured 1280 and 375.
+          </p>
+          <p>Grounding: <strong>screenshots</strong>.</p>
+          <h2 id="s14-h12">Core decisions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Decision</th>
+                  <th>Classification</th>
+                  <th>Governing evidence or recommended default</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>The twelve items are per-season configuration, not code</td>
+                  <td>locked</td>
+                  <td><code>R1</code>, <code>PR7-checklist</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Verification class is configuration, not code</td>
+                  <td>locked</td>
+                  <td><code>R2-V2</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Item owners are per-item configuration</td>
+                  <td>locked</td>
+                  <td><code>R2</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The full checklist regenerates for everyone every season</td>
+                  <td>locked</td>
+                  <td><code>R1b</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>No mid-season expiry; a lapse is a manual reopen</td>
+                  <td>locked</td>
+                  <td><code>R2-E</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    An empty configuration reads as &quot;not configured&quot;, never
+                    &quot;complete&quot;
+                  </td>
+                  <td>locked</td>
+                  <td><code>T10-entry-guards</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>An item added mid-season backfills as <code>pending</code> onto everybody</td>
+                  <td>locked</td>
+                  <td><code>T10-entry-guards</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Formalwear is asked every season</td>
+                  <td>locked</td>
+                  <td><code>T10-A1</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The tracking flag is gone, and <code>is_required</code> drives nothing</td>
+                  <td>locked</td>
+                  <td>
+                    Brian 2026-09-01; approved <code>item-and-ask-inventory.md</code>, which
+                    supersedes <code>R3-G</code>'s display-flag half
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong
+                      >What replaces the shipped <code>Required</code> chip and the outstanding
+                      alert</strong
+                    >
+                  </td>
+                  <td><strong>proposed for owner approval</strong></td>
+                  <td>
+                    Both lose their meaning with the flag.
+                    <strong
+                      >Recommended: the chip goes entirely, and the alert becomes a plain count of
+                      everything outstanding</strong
+                    >
+                    — which is what the Monday queue already ranks by
+                  </td>
+                  <td><strong>open</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Where this page lives</strong></td>
+                  <td><strong>proposed for owner approval</strong></td>
+                  <td>
+                    No configuration surface exists for this.
+                    <strong
+                      >Recommended: under <code>/operate/admin/</code>, beside the messaging
+                      schedule</strong
+                    >, which is the club's existing home for per-type configuration
+                  </td>
+                  <td><strong>open</strong></td>
+                </tr>
+                <tr>
+                  <td>Whether an item's <code>code</code> is ever editable</td>
+                  <td>delegated to Mission Lead</td>
+                  <td>
+                    The unique constraint is on <code>(season_id, code)</code>; the label is what
+                    people read
+                  </td>
+                  <td>settled</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s14-h13">Brian approval</h2>
           <ul>
             <li>Exact words:</li>
             <li>Date:</li>

@@ -632,6 +632,51 @@ const WORKFLOWS = [
       ),
     ],
   },
+  {
+    id: "W11",
+    slug: "set-up-this-seasons-checklist",
+    name: "Set up this season's checklist",
+    grounding: "photograph",
+    lede: `A four-role operator says which items apply this season, what they are called, how each is
+      verified and whose it is to chase. <strong>That configuration is what generates for everybody
+      who arrives</strong>, through all three doors, for the rest of the season.`,
+    legend: [
+      "<strong><code>onboarding_item_types</code> is seeded, never configured.</strong> Nothing under <code>src/app</code> reads or writes it — only <code>membership.ts</code> and <code>weekly-report.ts</code> touch it. <strong>There is no page for this at all</strong>",
+      "<strong>The table is missing three of the five things the approved sources need it to carry</strong>: verification class (<code>R2-V2</code>), applicability (<code>R1a</code>), and item owner (<code>R2</code>)",
+      "<strong>Shot on <code>/operate/admin/messaging</code></strong>, the club's existing per-type configuration page — a row per type, expandable to a worked example. Same shape, with the fields rewritten. The first attempt renamed only the headings and left every row carrying “RSVP by”, “First inv.” and a <em>Save practice</em> button; that screen argued with itself on every line",
+      "<strong>The tracking flag is gone</strong>, and this is where it stops meaning anything. Brian, 2026-09-01: \"drop the flag/not flag distinction, please\" — and the approved item-and-ask inventory records that this <em>supersedes Task 10 R3-G's retention of “required” as a display flag</em>",
+      "<strong>The frozen inventory's own wording for this workflow is stale on that point.</strong> It says an operator configures \"their tracking flag\"; the flag was dropped five days later. <code>R1a</code>'s \"BPS as a named gate\" is stale for the same reason — BPS left the checklist and became a roster attribute",
+      "<strong>Mission 11 owns season creation, and nothing creates a season.</strong> This configures the checklist <em>for</em> a season that already exists, inheriting that precondition exactly as W1 does",
+    ],
+    screens: [
+      P(
+        "W11-01",
+        "The season's items, and what each one carries",
+        `Six items, each with whether it applies, how it is verified, and whose it is to chase.
+         Verification class is <strong>configuration, not code</strong> — <code>R2-V2</code> — which
+         is what lets the same item be trusted one season and confirmed the next.`,
+        [
+          "<strong>Whether it generates at all.</strong> An empty configuration reads as “this season has no onboarding items configured”, never as “everybody is complete”",
+          "<strong>The verification class.</strong> Trust completes on the player's word; verify shows <code>claimed</code> until a named human confirms; derived completes itself when the record is complete",
+          "<strong>The owner, per item.</strong> Kit Manager, compliance owner, Treasurer, Media Secretary, four-role — configuration, not a role check buried in code",
+          "<strong>Formalwear, asked every season</strong> now its returner carve-out is removed, as kit's already was",
+        ],
+        "oxfordlancers.example/operate/admin/onboarding-checklist",
+      ),
+      P(
+        "W11-02",
+        "What dropping the flag actually removes",
+        `Two shipped things lose their meaning with the tracking flag, and both are on W6's approved
+         screens because both ship today. <strong>A decision recorded only in a brief is a decision
+         nobody sees until implementation.</strong>`,
+        [
+          "<strong>The <code>Required</code> chip</strong>, struck through here on every row that carries one. With the flag gone it marks nothing: every item counts the same, and the Monday queue ranks a person by everything outstanding",
+          "<strong>And the alert beneath it</strong>, which today counts only the flagged ones. It becomes a plain count of everything outstanding — four rather than two on this record — which is what the queue already ranks by",
+        ],
+        "oxfordlancers.example/operate/roster/b7242a9d",
+      ),
+    ],
+  },
 ];
 
 const SHOTS = JSON.parse(readFileSync(path.join(OUT, "shots", "shots.json"), "utf8"));
