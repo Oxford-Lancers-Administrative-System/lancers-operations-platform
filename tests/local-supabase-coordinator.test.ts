@@ -10,6 +10,7 @@ import {
   acquireLease as acquireLeaseRaw,
   acquireMissionLease,
   assertConfigApplied,
+  assertMigrationsApplied,
   attachMissionLease,
   cleanupStale as cleanupStaleRaw,
   detachMissionLease,
@@ -18,6 +19,7 @@ import {
   findOwningSessionPid,
   implementationRecord,
   markConfigApplied,
+  migrationVersionsOnDisk,
   missionSlot,
   releaseLease as releaseLeaseRaw,
   retireMissionLease,
@@ -194,6 +196,58 @@ describe("visual implementation preflight handoff", () => {
     const shared = implementationRecord(coordinatorStatus(repo, env), "M-PREFLIGHT");
     expect(shared?.slot).toBe(lease.slot);
     expect(shared?.attachedRepoPaths).toEqual([fs.realpathSync(repo)]);
+  });
+
+  /**
+   * LAN-212. A reclaimed worker's worktree is deleted before its mission
+   * stack is next retired, so the registry legitimately names an attachment
+   * whose directory no longer exists. That used to crash every subsequent
+   * retirement on an unguarded `fs.realpathSync`, permanently stranding the
+   * mission's review capacity.
+   */
+  it("retires the shared stack past a sibling attachment reclaimed out from under it", async () => {
+    const { repo, env } = fixture();
+    const finishing = path.join(path.dirname(repo), "finishing-worker");
+    const reclaimed = path.join(path.dirname(repo), "reclaimed-worker");
+    fs.cpSync(repo, finishing, { recursive: true });
+    fs.cpSync(repo, reclaimed, { recursive: true });
+    const lease = await acquireMissionLease({
+      missionId: "M-STALE-ATTACHMENT",
+      repoPath: repo,
+      baseCommit: "a".repeat(40),
+      migrationHead: 7,
+      pid: 4242,
+      env,
+      portProbe: async () => false,
+    });
+    await attachMissionLease({
+      missionId: "M-STALE-ATTACHMENT",
+      repoPath: finishing,
+      token: lease.token,
+      env,
+    });
+    await attachMissionLease({
+      missionId: "M-STALE-ATTACHMENT",
+      repoPath: reclaimed,
+      token: lease.token,
+      env,
+    });
+    // The mission's own reclaim already deleted this worktree; the registry
+    // still names it until something detaches it.
+    fs.rmSync(reclaimed, { recursive: true, force: true });
+
+    await relinquishImplementationPreflight({
+      repoPath: repo,
+      missionId: "M-STALE-ATTACHMENT",
+      packageWorktree: finishing,
+      packageIssueId: "LAN-212",
+      activeImplementationWorkers: false,
+      env,
+      stopProject: () => {},
+      kill: () => true,
+    });
+
+    expect(implementationRecord(coordinatorStatus(repo, env), "M-STALE-ATTACHMENT")).toBeNull();
   });
 });
 
@@ -1382,5 +1436,67 @@ describe("the rendered slot config keeps what password recovery needs", () => {
 
     expect(fs.existsSync(linked)).toBe(true);
     expect(fs.readFileSync(linked, "utf8")).toContain("{{ .TokenHash }}");
+  });
+});
+
+/**
+ * LAN-212. `supabase db reset` applied 27 of 28 tracked migrations on a live
+ * mission slot, went straight to seeding, and exited 0 — no error, nothing to
+ * notice. The missing table and columns then failed unrelated application
+ * code at runtime, far from the actual cause. `queryAppliedVersions` is
+ * injected precisely so this proves the guard fires on exactly what the
+ * tracked directory names, without needing a live database to exercise it.
+ */
+describe("assertMigrationsApplied", () => {
+  function migrationsFixture(names: string[]) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "lancers-migrations-"));
+    temporary.push(root);
+    const dir = path.join(root, "supabase", "migrations");
+    fs.mkdirSync(dir, { recursive: true });
+    for (const name of names) fs.writeFileSync(path.join(dir, name), "-- synthetic\n");
+    return root;
+  }
+
+  it("names exactly the missing version rather than passing silently", async () => {
+    const repoPath = migrationsFixture([
+      "20260901090000_recruitment_schema.sql",
+      "20260901120000_recruitment_messaging_schema.sql",
+    ]);
+
+    // The exact shape LAN-212 observed: reset stopped one file short and
+    // reported the stack ready anyway.
+    await expect(
+      assertMigrationsApplied({
+        repoPath,
+        queryAppliedVersions: async () => ["20260901090000"],
+      }),
+    ).rejects.toThrow(/20260901120000/);
+  });
+
+  it("passes once the applied set matches the tracked directory", async () => {
+    const repoPath = migrationsFixture([
+      "20260901090000_recruitment_schema.sql",
+      "20260901120000_recruitment_messaging_schema.sql",
+    ]);
+
+    await expect(
+      assertMigrationsApplied({
+        repoPath,
+        queryAppliedVersions: async () => ["20260901090000", "20260901120000"],
+      }),
+    ).resolves.toEqual({
+      expected: ["20260901090000", "20260901120000"],
+      appliedCount: 2,
+    });
+  });
+
+  it("reads the version as the leading number, not the whole filename", () => {
+    const repoPath = migrationsFixture([
+      "20260901090000_recruitment_schema.sql",
+      "not-a-migration.sql",
+      ".DS_Store",
+    ]);
+
+    expect(migrationVersionsOnDisk(repoPath)).toEqual(["20260901090000"]);
   });
 });
