@@ -112,7 +112,9 @@ export function renderMockupHub(state, ledgerRoot) {
     `${screens} ${screens === 1 ? "screen" : "screens"}`,
     `${done} of ${rows.length} done`,
     stale > 0 ? `${stale} stale` : null,
-    `grounded in ${state.baseline.branch} at ${state.baseline.commit.slice(0, 7)}`,
+    `grounded in ${state.baseline.branch} at ${state.baseline.commit.slice(0, 7)}${
+      state.baseline.drift ? " \u00b7 drift recorded" : ""
+    }`,
   ]
     .filter(Boolean)
     .join(" · ");
