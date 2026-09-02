@@ -781,81 +781,81 @@
     return box;
   };
 
-  // W4-04 — Step 3: the photo release, on its own page.
+  // W5-04 — The targeted ask: one fact, and nothing else.
   //
-  // Same shape as the Code of Conduct, deliberately. Brian, 2026-09-01: "Photo
-  // release should also be there and should also be a signed document, I think.
-  // I don't know. Do we have a way to handle signed documents right now in the
-  // thing? I don't think so."
+  // `M6`: the disputed-value targeted request — a signed-link ask for exactly one
+  // fact. The approved inventory fixes when it is allowed: "One fact, not the
+  // whole form. Only when nothing else is open." So it can never compete with the
+  // compiled ask; if anything else is outstanding, the compiled ask wins and this
+  // is not sent.
   //
-  // He is right: there is none. No object storage bucket is configured anywhere,
-  // no table holds a document or a blob, and the only file input in the whole
-  // application is the event CSV import, which parses in memory and stores
-  // nothing. So this screen proposes the mechanism that needs no new
-  // infrastructure — the exact version, the dated agreement, the person — and
-  // the specification records e-signature as the open owner decision.
+  // The whole design point is restraint. A club that doubts one number and
+  // responds by reopening the entire form has told the player their record is in
+  // question, which is both untrue and a good way to get no answer at all.
   const s = answerShell();
 
   setChip(s.chip, "ONBOARDING · 2026–27");
-  s.h1.textContent = "The photo release";
-  setLead(s.lead, "Step 3 of 5 · Read it, then sign");
+  s.h1.textContent = "One quick check";
+  setLead(s.lead, "Merrick Thornbury · we only need this one thing");
 
   dropEventLeftovers();
 
   mark(
     setFacts(s.dl, [
-      ["Code of Conduct", "Agreed just now", DONE],
-      ["Photo release", "Reading now", OUTSTANDING],
-      ["Asked", "Every season", OUTSTANDING],
-      ["Signature", "Agreement, not e-signature", OUTSTANDING],
+      ["What we are asking", "One fact", OUTSTANDING],
+      ["Everything else", "Not asked", DONE],
+      ["Sent because", "Nothing else was open", DONE],
+      ["Takes", "About ten seconds", DONE],
     ]),
     1,
   );
 
   setPrivacy(
     s.privacy,
-    "Your agreement is recorded against the exact version shown here, with the date. No photograph is ever stored in this system.",
+    "This secure page shows only the one thing we asked about. Nothing else on your record is shown or changed here.",
   );
 
   const a = buildForm(s, [
     {
-      kind: "pane",
-      key: "pane",
-      heading: "Oxford Lancers photo release — PLACEHOLDER TEXT",
-      paragraphs: [
-        "PLACEHOLDER. The real photo release is Clint's, through Task 07. This pane shows the shape of the page and the length a real release runs to, and carries no policy of its own.",
-        "1. Placeholder clause. Placeholder text about what the club photographs, and where those photographs are used.",
-        "2. Placeholder clause. Placeholder text about the squad photograph specifically, and about match and training photography.",
-        "3. Placeholder clause. Placeholder text about social media, the club website and university publications.",
-        "4. Placeholder clause. Placeholder text about how to withdraw this permission, and what happens to material already published.",
-        "5. Placeholder clause. Placeholder text about how long this permission lasts. It is asked again every season, of everybody.",
-        "End of the placeholder document. Agreeing is only possible from here.",
-      ],
+      kind: "note",
+      key: "why",
+      text: "A message to this number did not get through last week. Before the club changes anything, it is worth checking we have it right.",
+    },
+    {
+      key: "one",
+      label: "Mobile phone",
+      value: "07700 900218",
+      required: true,
+      source: "What the club currently holds",
+      help: "We will read it back to you before saving.",
     },
     {
       kind: "consent",
-      key: "agree",
+      key: "confirm",
       checked: false,
-      label: "I have read the photo release and I agree to it for the 2026–27 season.",
-      note: "Recorded against this version, dated, and stored as yours. This is a dated agreement, not a drawn or cryptographic signature — see the open decision.",
+      label: "That is right — nothing to change.",
+      note: "Confirming is an answer. It closes this ask and records that you checked.",
     },
     {
       kind: "note",
-      key: "open",
-      text: "OPEN DECISION, for Brian. A true signature — drawn, or a signed PDF — needs object storage and a signature control, and the application has neither today. Recording the version, the moment and the person needs nothing new. The specification recommends the second and treats e-signature as additive.",
+      key: "nothing",
+      text: "There is deliberately no way from this page into the rest of your details. If you want to change something else, the club's most recent message carries your own page.",
     },
   ]);
 
-  // 2 — the document, on the page, scrolled to its end.
-  mark(a.pane, 2);
-  // 3 — the agreement, in the same place and shape as the Code of Conduct's.
-  mark(a.agree, 3);
-  // 4 — and the thing this workflow cannot settle on its own.
-  mark(a.open, 4);
+  // 2 — why they got this, in one sentence. A targeted ask with no reason on it
+  //     reads like a phishing message.
+  mark(a.why, 2);
+  // 3 — the one fact. Nothing else is on the page at all.
+  mark(a.one, 3);
+  // 4 — confirming is an answer, not a no-op. Otherwise a correct value can never
+  //     close the ask and the chase runs forever against a fact that was fine.
+  mark(a.confirm, 4);
+  // 5 — and the restraint, stated: no route from here into the rest of the form.
+  mark(a.nothing, 5);
 
-  setSubmit(s.submit, "I agree — continue");
-  setSecondary("You can reopen this page later to see which version you agreed to, and when.");
+  setSubmit(s.submit, "Send this back");
+  setSecondary("This is the only thing the club is waiting on from you.");
 
-  scrollPanesToEnd();
   await settle();
 })();

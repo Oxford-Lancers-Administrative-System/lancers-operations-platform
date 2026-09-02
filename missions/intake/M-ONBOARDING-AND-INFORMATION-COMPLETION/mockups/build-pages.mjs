@@ -351,6 +351,88 @@ const WORKFLOWS = [
       ),
     ],
   },
+  {
+    id: "W5",
+    slug: "fix-something-the-club-has-wrong",
+    name: "Fix something the club has wrong",
+    grounding: "photograph",
+    lede: `The club holds something wrong about a player, or something they would rather not give at
+      all. This is the club's <strong>entire answer to self-service</strong>, because there are no
+      player logins: the same link they already hold, opened whenever they like, with every fact
+      editable — and a rule that nothing they type ever silently overwrites what the club confirmed.`,
+    legend: [
+      "<strong>Mission 5 built the operator half and said so.</strong> <code>/operate/people/[personId]/edit</code> was accepted <em>explicitly as the interim answer</em> until a person could fix their own record. Its missing-data queue has, today, nothing acting on it from the player's side. This is that side",
+      "<strong>Provenance already exists on <code>main</code>, and it is derived.</strong> <code>person-record.ts</code> answers \"who supplied this value\" for the seven fields with no <code>source</code> column, from <code>audit_events</code> — a choice Brian made in the LAN-184 walkthrough rather than adding columns. <strong>This workflow adds no provenance columns</strong>; it adds the ranking, and the <code>disputed</code> state Mission 5 deliberately did not ship",
+      "<strong>The load-bearing word in boundary item 14 is <em>silently</em>.</strong> A correction that quietly becomes a dispute is a correction the player believes they made — so the page says which of the two will happen <em>before</em> the submit",
+      "<strong>Both values are always kept.</strong> Raising a dispute never destroys the player's answer and never removes the club's. W7 chooses between them; this workflow never does",
+      "<strong>Refusal is per fact</strong>, stops the chase, stops it counting, and only a person can reopen it — never the machine, never a new season on its own",
+      "<strong>W5-03 forces an amendment to W4, which is already approved.</strong> If declining only exists here, a player who will not give one required fact is trapped at W4 step 1 forever. <strong>That one needs Brian's word</strong>",
+    ],
+    screens: [
+      P(
+        "W5-01",
+        "The record, opened later and unprompted",
+        `Nobody asked Merrick to come here; his number changed. Every fact is editable, and — the
+         part that makes it safe — <strong>each one carries who supplied it</strong>. That line is
+         not new substrate: it is <code>readFieldProvenanceIn</code>, already on <code>main</code>.`,
+        [
+          "<strong>Nothing is outstanding.</strong> This is not a chase and the page does not pretend to be one",
+          "<strong>Why they are here, said plainly</strong> — nobody sent them, and they need not tell anybody first",
+          "<strong>A value they supplied themselves.</strong> Changing it simply changes it: they are correcting their own earlier statement",
+          "<strong>A value the club supplied.</strong> Changing this one goes to a person — and W5-02 is what they are told before they submit",
+          "<strong>A value nobody attributable ever asserted</strong> — seeded or imported, where <code>readFieldProvenanceIn</code> returns <code>null</code>. <strong>The open decision is that the player wins here</strong>, because a named person's statement about themselves beats an unattributed one",
+        ],
+        "oxfordlancers.example/me/[token]/details",
+      ),
+      P(
+        "W5-02",
+        "Changing something the club confirmed — and being told first",
+        `Two changes in one submit, and they behave differently. The page says which is which
+         <em>before</em> the button, not after it.`,
+        [
+          "<strong>The strip separates them</strong>: what saves now, what needs a person, and — the thing a worried player actually wants to know — that the club loses nothing",
+          "<strong>Their own value.</strong> They gave the club this number in the first place",
+          "<strong>So it saves, and the page says so</strong>, in the player's terms rather than in the word \"provenance\"",
+          "<strong>The club's value.</strong> An officer recorded Farrowgate; the player says Brasenose",
+          "<strong>So both are kept and a person decides</strong> — and the club's own lists keep saying Farrowgate meanwhile, which is the honest thing to tell them. Resolution is <strong>W7's</strong>",
+          "<strong>What the page will not say</strong>: which officer. The player is told <em>the club</em> recorded it, never who",
+        ],
+        "oxfordlancers.example/me/[token]/details",
+      ),
+      P(
+        "W5-03",
+        "Declining to give a value, and the amendment it forces on W4",
+        `<code>T11-refused</code>: per fact, the chase stops, it stops counting, and only a person can
+         reopen it. <strong>This screen is also where W4's approved required set meets its own
+         edge.</strong>`,
+        [
+          "<strong>What declining actually buys</strong>: not chased, not counted, and reopened only by a person",
+          "<strong>The fact itself</strong>, carrying its own refusal as its provenance rather than going blank",
+          "<strong>The decline.</strong> One fact, not the whole form, and not a withdrawal of anything else",
+          "<strong>A reason, optional</strong> — and restricted to the four-role group, never in a report",
+          "<strong>The one real consequence, said rather than hidden.</strong> The under-18 check runs off this date and cannot run without it",
+          "<strong>PROPOSED AMENDMENT TO W4.</strong> W4 requires ten fields and blocks step 1. Unless declining is available there too, a player who will not give one of them never reaches the pages behind it. <strong>Recommended: required means answer it or decline it, explicitly</strong>",
+        ],
+        "oxfordlancers.example/me/[token]/details",
+      ),
+      P(
+        "W5-04",
+        "The targeted ask — one fact, and nothing else",
+        `<code>M6</code>. The approved inventory fixes when it is allowed: "One fact, not the whole
+         form. Only when nothing else is open." A club that doubts one number and reopens the whole
+         form has told the player their record is in question — untrue, and a good way to get no
+         answer at all.`,
+        [
+          "<strong>One fact asked, everything else explicitly not</strong>, and it was sent only because nothing else was open",
+          "<strong>Why they got it, in one sentence.</strong> A targeted ask with no reason on it reads like a phishing message",
+          "<strong>The one fact.</strong> Nothing else is on the page",
+          "<strong>Confirming is an answer.</strong> Without that, a value that was right all along can never close the ask, and the chase runs forever against a fact that was fine",
+          "<strong>No route from here into the rest of the form</strong>, deliberately",
+        ],
+        "oxfordlancers.example/me/[token]/check",
+      ),
+    ],
+  },
 ];
 
 const SHOTS = JSON.parse(readFileSync(path.join(OUT, "shots", "shots.json"), "utf8"));

@@ -1,0 +1,905 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W5 specification</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: #e7e9ee;
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: #212121;
+        color: #fff;
+        padding: 11px 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .layout {
+        display: flex;
+        gap: 26px;
+        max-width: 1220px;
+        margin: 26px auto 90px;
+        padding: 0 22px;
+        align-items: flex-start;
+      }
+      nav.toc {
+        position: sticky;
+        top: 68px;
+        flex: 0 0 252px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 16px 8px 16px 16px;
+        max-height: calc(100vh - 104px);
+        overflow: auto;
+      }
+      nav.toc h2 {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--sec);
+        margin: 0 0 10px;
+        border: 0;
+        padding: 0;
+      }
+      nav.toc ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.toc > ol > li {
+        margin-bottom: 4px;
+      }
+      nav.toc a {
+        display: block;
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13.5px;
+        padding: 4px 8px;
+        border-radius: 5px;
+      }
+      nav.toc a:hover {
+        background: var(--grey100);
+      }
+      nav.toc .sub {
+        padding-left: 11px;
+        margin-bottom: 6px;
+      }
+      nav.toc .sub a {
+        color: var(--sec);
+        font-size: 12.5px;
+        padding: 2px 8px;
+      }
+      main {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      section.doc {
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 4px 34px 30px;
+        margin-bottom: 22px;
+      }
+      section.doc > header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 16px 0 11px;
+        border-bottom: 1px solid var(--divider);
+      }
+      section.doc > header h2 {
+        font-size: 1.02rem;
+        margin: 0;
+        border: 0;
+        padding: 0;
+      }
+      section.doc > header .file {
+        font-size: 12px;
+        color: var(--sec);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        margin-left: auto;
+      }
+      h1 {
+        font-size: 1.45rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.1rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 0.98rem;
+        margin: 20px 0 6px;
+      }
+      h4 {
+        font-size: 0.92rem;
+        margin: 16px 0 4px;
+        color: var(--sec);
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul,
+      ol {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      .tablewrap {
+        overflow-x: auto;
+        margin: 14px 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+      }
+      a {
+        color: var(--primary);
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        margin: 22px 0;
+      }
+      .chip {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        padding: 2px 9px;
+        border-radius: 11px;
+        white-space: nowrap;
+      }
+      .chip.ok {
+        background: #edf7ed;
+        color: #1b5e20;
+      }
+      .chip.warn {
+        background: #fff4e5;
+        color: #663c00;
+      }
+      .chip.idle {
+        background: var(--grey100);
+        color: var(--sec);
+      }
+      @media (max-width: 900px) {
+        .layout {
+          display: block;
+          padding: 0 12px;
+        }
+        nav.toc {
+          position: static;
+          width: auto;
+          margin-bottom: 18px;
+          max-height: none;
+        }
+        section.doc {
+          padding: 4px 18px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        W5 — Fix something the club has wrong<span
+          >M-ONBOARDING-AND-INFORMATION-COMPLETION · main@332bc6b</span
+        >
+      </div>
+      <div>
+        <a href="../mockups/index.html">Index</a>
+        <a href="../specifications.html">All specifications</a>
+        <a href="../mockups/W5-fix-something-the-club-has-wrong.html">Screens</a>
+      </div>
+    </div>
+    <div class="layout">
+      <nav class="toc">
+        <h2>On this page</h2>
+        <ol>
+          <li><a href="#s8-h2">Why this workflow exists at all</a></li>
+          <li><a href="#s8-h3">Current main grounding</a></li>
+          <li><a href="#s8-h5">The ranking, stated exactly</a></li>
+          <li><a href="#s8-h6">Refusal, and the collision with W4's required set</a></li>
+          <li><a href="#s8-h7">Required actions</a></li>
+          <li><a href="#s8-h8">State transitions</a></li>
+          <li><a href="#s8-h9">Handoffs</a></li>
+          <li><a href="#s8-h10">Dependencies and mission boundaries</a></li>
+          <li><a href="#s8-h11">Exceptions and recovery</a></li>
+          <li><a href="#s8-h12">Safety, privacy, consent, and authority boundaries</a></li>
+          <li><a href="#s8-h13">Acceptance evidence</a></li>
+          <li><a href="#s8-h14">Core decisions</a></li>
+          <li><a href="#s8-h15">Brian approval</a></li>
+        </ol>
+      </nav>
+      <main>
+        <section class="doc">
+          <header>
+            <h2>W5 — Fix something the club has wrong</h2>
+            <span class="chip warn">draft, not approved</span>
+            <span class="file">workflows/W5-fix-something-the-club-has-wrong.md</span>
+          </header>
+          <h1 id="s8-h1">W5 — Fix something the club has wrong</h1>
+          <ul>
+            <li>
+              Purpose/intended outcome: The club holds a fact about a player that is wrong, or
+              stale, or that the player would rather not give at all.
+              <strong>This workflow is the club's entire answer to self-service</strong>, because
+              there are no player logins: the same link they already hold, opened whenever they
+              like, with every fact about them editable — and a rule that nothing they type ever
+              silently overwrites something the club confirmed.
+            </li>
+            <li>Primary actor: <strong>The player</strong>, alone and unprompted.</li>
+            <li>
+              Trigger: two, and they are different in kind.
+              <ol>
+                <li>
+                  <strong>They open their link outside the welcome moment.</strong> Nobody asked;
+                  their number changed, or they moved college, or they noticed a typo.
+                </li>
+                <li>
+                  <strong>A targeted ask arrives</strong> (<code>M6</code>) — the club doubts one
+                  fact and asks about exactly that fact, never the whole form, and only when nothing
+                  else is open.
+                </li>
+              </ol>
+            </li>
+            <li>
+              Entry point: the same signed link <code>W4</code> established. No login, no
+              navigation, no second credential.
+            </li>
+            <li>
+              Route/placement: <code>/me/[token]/details</code>, the page <code>W4</code> built, in
+              its <strong>returning</strong> state; and a one-fact variant for the targeted ask.
+            </li>
+            <li>
+              Controlling source: <code>S33</code>, <code>S34</code>; owned <code>M6</code>,
+              <code>T11-refused</code>, <code>T11-provenance</code>; cited
+              <code>T11-states</code> (<code>W4</code>), and boundary item 14. Resolution of
+              anything disputed is <code>W7</code>'s.
+            </li>
+            <li>
+              User-visible result: the correction is recorded as theirs; or the disagreement is
+              raised for a human and the player is told so plainly; or the fact is marked refused
+              and stops being chased.
+            </li>
+          </ul>
+          <h2 id="s8-h2">Why this workflow exists at all</h2>
+          <p>
+            Mission 5 shipped the operator correction path —
+            <code>/operate/people/[personId]/edit</code> — and accepted it
+            <strong>explicitly as the interim answer</strong> until a person could fix their own
+            record (<code>OS-self-service-to-m7</code>). Its missing-data queue has, today, nothing
+            that acts on it from the player's side. This is that side.
+          </p>
+          <h2 id="s8-h3">Current <code>main</code> grounding</h2>
+          <ul>
+            <li>
+              Baseline <code>main@332bc6b</code>.
+              <strong>No player-facing correction path exists.</strong> The operator one does, at
+              <code>/operate/people/[personId]/edit</code>, with <code>person-write.ts</code> behind
+              it.
+            </li>
+            <li>
+              Nearest implemented shell, and the one every screen is shot on:
+              <code>/a/[token]</code>, as for <code>W4</code>. Same reasoning, same rules.
+            </li>
+          </ul>
+          <h3 id="s8-h4">Provenance already exists, and it is derived</h3>
+          <p>
+            This is the load-bearing discovery, and it is the second time this mission has found the
+            substrate already built.
+            <strong
+              ><code>person-record.ts</code> already answers &quot;who supplied this
+              value&quot;</strong
+            >
+            for the seven fields that have no <code>source</code> column:
+          </p>
+          <blockquote>
+            <p>
+              &quot;Brian's walkthrough of LAN-184 chose to derive 'who supplied it' for these seven
+              from <code>audit_events</code> instead of adding one: the most recent
+              <code>person_&lt;field&gt;_updated</code> row this module finds naming the person is
+              who supplied the value currently on file.&quot;
+            </p>
+          </blockquote>
+          <p>
+            <code>readFieldProvenanceIn</code> returns a <code>&lt;field&gt;Source</code> per field
+            — a display name, or
+            <strong><code>null</code> for a field never changed through the application</strong>:
+            seeded, imported, or set at <code>person_created</code>, which names no single field and
+            is deliberately not treated as attributing one.
+          </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fact</th>
+                  <th>Where its provenance already lives</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>The seven <code>people</code> columns</td>
+                  <td>
+                    derived from <code>audit_events</code>, via <code>readFieldProvenanceIn</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Mobile, personal email</td>
+                  <td><code>contact_points.source</code></td>
+                </tr>
+                <tr>
+                  <td>Emergency contact</td>
+                  <td><code>person_emergency_contacts.recorded_by_person_id</code></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <strong>So this workflow adds no provenance columns.</strong> It adds the
+            <em>ranking</em>, and the <code>disputed</code> state itself — which Mission 5
+            deliberately did not ship. Its own words, <code>REQ-no-disputed</code> and
+            <code>REQ-no-verification-mark</code>: &quot;There is no contested- value field, no
+            verification-mark field and no confidence class anywhere below — not struck out, never
+            added.&quot; That was a seam left for this mission, and this is the workflow that fills
+            it.
+          </p>
+          <h2 id="s8-h5">The ranking, stated exactly</h2>
+          <p>
+            Boundary item 14: a player's answer never silently overwrites an operator-confirmed,
+            externally verified or derived value; it raises
+            <code>disputed — awaiting verification</code>. What that means, case by case, against
+            provenance the application can actually compute:
+          </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>What the current value is</th>
+                  <th>What a differing player answer does</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <strong>Supplied by the player themselves</strong> — the source is the subject
+                  </td>
+                  <td>
+                    <strong>Replaces it.</strong> They are correcting their own earlier statement
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Supplied by an operator</strong> — the source is a named person who is
+                    not them
+                  </td>
+                  <td>
+                    <strong>Raises <code>disputed — awaiting verification</code>.</strong> The old
+                    value stands until <code>W7</code> resolves it
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Externally verified or derived</strong> — a verify-class item, or the
+                    under-18 flag
+                  </td>
+                  <td>
+                    <strong>Raises <code>disputed</code>.</strong> The player never edits a derived
+                    value directly
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Unattributed</strong> — <code>null</code> source: seeded, imported, or
+                    set at <code>person_created</code>
+                  </td>
+                  <td><strong>Replaces it</strong>, and records the player as the source</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <strong
+              >The fourth row is the one that needs arguing, and it is proposed rather than
+              assumed.</strong
+            >
+            <code>readFieldProvenanceIn</code> returns <code>null</code> for a value nobody set
+            through the application — which is exactly what a <code>W1</code> import produces. The
+            recommendation is that the player wins there, for two reasons: nobody attributable ever
+            asserted the old value, so a named player's statement about themselves is strictly
+            better provenance than an unattributed one; and <code>W1</code> already decided the same
+            thing from the other end — &quot;a carried-forward person's own facts are never
+            overwritten by the file. A difference becomes something the player confirms on the form,
+            not a silent update.&quot;
+          </p>
+          <p>
+            <strong>Raising a dispute never destroys the player's answer.</strong> Both values are
+            kept: the club's, still standing, and the player's, waiting. <code>W7</code> chooses.
+          </p>
+          <h2 id="s8-h6">Refusal, and the collision with W4's required set</h2>
+          <p>
+            <code>T11-refused</code>: refusal is <strong>per fact</strong>. The player says, in
+            effect, &quot;I would rather not give you this.&quot; The chase for that fact stops and
+            stops counting, the fact stays visible on the record, and
+            <strong>reopening is a human act</strong> — the machine never revives it.
+          </p>
+          <p>
+            <strong>This collides with <code>W4</code>, which is approved.</strong>
+            <code>W4</code> makes ten fields required and blocks the form until they are filled. If
+            refusal only exists here, then a player who genuinely cannot or will not give a date of
+            birth is <strong>trapped at step 1 forever</strong> and can never reach the Code of
+            Conduct, the photo release or anything behind them. That is not what &quot;blocked from
+            going&quot; was meant to buy.
+          </p>
+          <p>
+            <strong>Proposed amendment to <code>W4</code>, for Brian's approval:</strong> refusal is
+            available wherever a fact is asked, <code>W4</code> included. &quot;Required&quot; then
+            means <strong>answer it or refuse it, explicitly</strong> — which still blocks silently
+            skipping a field, still satisfies the direction of 2026-09-02, and never traps anybody
+            behind a fact they will not give. A refusal is visible, uncounted, unchased, and waits
+            for a human.
+          </p>
+          <p>
+            If Brian would rather <code>W4</code> stay strictly as approved, the alternative is that
+            a blocked player contacts the club and an operator records the refusal for them — which
+            works, costs a phone call, and puts the club back in the business of doing by hand the
+            thing this mission exists to stop.
+          </p>
+          <h2 id="s8-h7">Required actions</h2>
+          <ol>
+            <li>
+              <strong>Open the link, unprompted.</strong> The ask is not <code>invited</code>; there
+              may be no open ask at all. Opening one that has nothing outstanding is
+              <code>already-complete</code> — which is <code>W4</code>'s screen, and from it the
+              player can still choose to edit.
+            </li>
+            <li>
+              <strong>Change a value.</strong> What happens next depends on the ranking above, and
+              the player is told which of the two it was <strong>before</strong> they submit, not
+              after.
+            </li>
+            <li>
+              <strong>Decline a value</strong> — &quot;I would rather not say&quot; — per fact, with
+              an optional reason. The ask records <code>refused</code> for that fact.
+            </li>
+            <li><strong>Submit.</strong> The ask moves to <code>corrected</code>.</li>
+            <li>
+              <strong>Or answer a targeted ask</strong> (<code>M6</code>): one fact, its own page,
+              nothing else on it, and no way to wander into the rest of the form from it.
+            </li>
+          </ol>
+          <p>
+            <strong>Read-back applies</strong> on any mobile changed here, exactly as at first
+            capture.
+          </p>
+          <h2 id="s8-h8">State transitions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>On</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>submitted</code></td>
+                  <td><code>opened</code></td>
+                  <td>They return through the same link</td>
+                </tr>
+                <tr>
+                  <td><code>opened</code></td>
+                  <td><code>corrected</code></td>
+                  <td>They change an already-confirmed value and submit</td>
+                </tr>
+                <tr>
+                  <td>per fact</td>
+                  <td><code>refused</code></td>
+                  <td>They decline that fact</td>
+                </tr>
+                <tr>
+                  <td><code>refused</code></td>
+                  <td>outstanding again</td>
+                  <td>
+                    <strong>A human reopens it.</strong> Never the machine, never a new season alone
+                  </td>
+                </tr>
+                <tr>
+                  <td>a fact</td>
+                  <td><code>disputed</code></td>
+                  <td>Their answer differs from an operator-confirmed or derived value</td>
+                </tr>
+                <tr>
+                  <td><code>disputed</code></td>
+                  <td>resolved</td>
+                  <td>
+                    <strong><code>W7</code></strong
+                    >, not here
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Consent is untouched by all of this: <code>OD7-oneway-tick</code> means this page cannot
+            untick it, however many times it is opened.
+          </p>
+          <h2 id="s8-h9">Handoffs</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>To</th>
+                  <th>What crosses</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W7</code></td>
+                  <td>
+                    Every <code>disputed</code> fact, with both values, both sources and both dates
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W6</code></td>
+                  <td>
+                    Every correction and refusal, into the record and the sectioned activity log
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W8</code></td>
+                  <td>
+                    A refused fact stops being chased and stops counting toward the queue's ranking
+                  </td>
+                </tr>
+                <tr>
+                  <td>Mission 5</td>
+                  <td>
+                    The corrected values themselves, and its missing-data queue, which this feeds
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W4</code></td>
+                  <td>
+                    The page itself. This workflow is its returning state, not a second surface
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s8-h10">Dependencies and mission boundaries</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Seam</th>
+                  <th>This mission's side</th>
+                  <th>The other side</th>
+                  <th>Blocking?</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Mission 5 · People &amp; Roster</td>
+                  <td>The <code>disputed</code> state, the ranking, the refusal</td>
+                  <td>The person record, the edit path, the queue</td>
+                  <td>Not blocking; all shipped</td>
+                </tr>
+                <tr>
+                  <td>Mission 8 · Consent/Privacy</td>
+                  <td>Capture mechanics only</td>
+                  <td>Correction <em>policy</em>, subject-access, erasure</td>
+                  <td>Not blocking</td>
+                </tr>
+                <tr>
+                  <td><code>W7</code></td>
+                  <td>Raising the dispute and keeping both values</td>
+                  <td>Resolving it</td>
+                  <td>Independently walkable</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            **Correction <em>policy</em> is Mission 8's, and this is only the mechanism.** What a
+            person is entitled to have corrected, and in what time, is policy; that a person can say
+            &quot;this is wrong&quot; and be heard is mechanism.
+          </p>
+          <h2 id="s8-h11">Exceptions and recovery</h2>
+          <ul>
+            <li>
+              <strong>They change nothing and submit.</strong> Nothing is recorded, the ask does not
+              move to <code>corrected</code>, and no activity-log noise is generated.
+            </li>
+            <li>
+              <strong>They refuse a fact they previously gave.</strong> The old value is retained —
+              the audit posture is append-only and a superseded value is never overwritten — and the
+              fact stops being chased.
+            </li>
+            <li>
+              <strong>They dispute a fact already disputed.</strong> The newer answer supersedes the
+              waiting one; there is never more than one pending player answer per fact.
+            </li>
+            <li>
+              <strong>A targeted ask arrives while something else is open.</strong> It does not:
+              <code>M6</code> is permitted only when nothing else is open, so the compiled ask
+              always wins.
+            </li>
+            <li><strong>The link is dead.</strong> <code>W4</code>'s uniform page, unchanged.</li>
+            <li>
+              <strong>They are under 18.</strong> The flag stops the club messaging them at all, so
+              no targeted ask ever reaches them; the link they hold still works.
+            </li>
+          </ul>
+          <h2 id="s8-h12">Safety, privacy, consent, and authority boundaries</h2>
+          <ul>
+            <li>
+              <strong>No login, and no new credential.</strong> The same season-scoped signed link.
+            </li>
+            <li>
+              <strong>Free text is restricted.</strong> A refusal reason or a correction note is
+              four-role-group only and never reaches a report verbatim.
+            </li>
+            <li>
+              <strong>A player never sees another person's anything</strong>, including who at the
+              club supplied a value they are disputing. They are told <em>the club</em> recorded it,
+              not which officer.
+            </li>
+            <li>
+              <strong>Date of birth stays restricted</strong> when corrected, exactly as when
+              captured.
+            </li>
+            <li><strong>Nothing here can grant, change or remove consent.</strong></li>
+          </ul>
+          <h2 id="s8-h13">Acceptance evidence</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Screen</th>
+                  <th>What it proves</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W5-01</code></td>
+                  <td>
+                    The record opened later, unprompted: every fact editable, and who supplied each
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W5-02</code></td>
+                  <td>
+                    Changing something the club confirmed — what the player is told, before
+                    submitting
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W5-03</code></td>
+                  <td>Declining to give a value, per fact</td>
+                </tr>
+                <tr>
+                  <td><code>W5-04</code></td>
+                  <td>
+                    The targeted ask: one fact, its own page, no way into the rest of the form
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Grounding: <strong>screenshots</strong>, on the <code>/a/[token]</code> shell, both
+            sides, 1280 and 375.
+          </p>
+          <h2 id="s8-h14">Core decisions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Decision</th>
+                  <th>Classification</th>
+                  <th>Governing evidence or recommended default</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    This is the same page and the same link as <code>W4</code>, in its returning
+                    state
+                  </td>
+                  <td>locked</td>
+                  <td>No player logins; one credential per person per season</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Provenance is the derived one Mission 5 already built, not new columns</td>
+                  <td>locked</td>
+                  <td>
+                    <code>readFieldProvenanceIn</code>, and Brian's own LAN-184 walkthrough choice
+                    (<code>Q-13</code>)
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>A player's answer never silently overwrites an operator-confirmed value</td>
+                  <td>locked</td>
+                  <td>Boundary item 14</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    The player is told which of the two will happen <strong>before</strong> they
+                    submit
+                  </td>
+                  <td>locked</td>
+                  <td>
+                    A correction that silently becomes a dispute is a correction the player thinks
+                    they made
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Both values are kept when a fact is disputed</td>
+                  <td>locked</td>
+                  <td>Append-only audit posture; <code>W7</code> needs both to resolve</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Refusal is per fact, stops the chase, and only a human reopens it</td>
+                  <td>locked</td>
+                  <td><code>T11-refused</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Resolution of a disputed fact is <code>W7</code>'s, not this workflow's</td>
+                  <td>locked</td>
+                  <td>Boundary; <code>W7</code> is the resolution surface</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td><strong>An unattributed value can be replaced by the player</strong></td>
+                  <td><strong>proposed for owner approval</strong></td>
+                  <td>
+                    <code>readFieldProvenanceIn</code> returns <code>null</code> for seeded and
+                    imported values. Nobody attributable asserted them, and <code>W1</code> already
+                    refuses to let the file overwrite a person's own facts.
+                    <strong>Recommended</strong>
+                  </td>
+                  <td><strong>open</strong></td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong
+                      >Refusal is available wherever a fact is asked,
+                      <code>W4</code> included</strong
+                    >
+                  </td>
+                  <td><strong>proposed for owner approval</strong></td>
+                  <td>
+                    Otherwise a player who will not give one required fact is trapped at
+                    <code>W4</code> step 1 forever. &quot;Required&quot; becomes
+                    <em>answer or refuse, explicitly</em>.
+                    <strong
+                      >Recommended — and it amends an approved workflow, so it needs Brian's
+                      word</strong
+                    >
+                  </td>
+                  <td><strong>open</strong></td>
+                </tr>
+                <tr>
+                  <td>Whether a refusal may carry a reason, and whether it is optional</td>
+                  <td>delegated to Mission Lead</td>
+                  <td>Free text either way, restricted either way</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>How the targeted ask names the one fact it wants</td>
+                  <td>delegated to Mission Lead</td>
+                  <td><code>M6</code> fixes that it is one fact; the wording is presentation</td>
+                  <td>settled</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s8-h15">Brian approval</h2>
+          <ul>
+            <li>Exact words:</li>
+            <li>Date:</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

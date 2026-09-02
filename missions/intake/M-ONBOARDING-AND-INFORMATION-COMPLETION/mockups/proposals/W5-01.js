@@ -781,81 +781,125 @@
     return box;
   };
 
-  // W4-04 — Step 3: the photo release, on its own page.
+  // W5-01 — The record, opened later and unprompted.
   //
-  // Same shape as the Code of Conduct, deliberately. Brian, 2026-09-01: "Photo
-  // release should also be there and should also be a signed document, I think.
-  // I don't know. Do we have a way to handle signed documents right now in the
-  // thing? I don't think so."
+  // Nobody asked Merrick to come here. His number changed. This is the club's
+  // entire answer to self-service, because there are no player logins: the same
+  // link he already holds, every fact about him editable, and — the part that
+  // makes it safe — **who supplied each value, on the value.**
   //
-  // He is right: there is none. No object storage bucket is configured anywhere,
-  // no table holds a document or a blob, and the only file input in the whole
-  // application is the event CSV import, which parses in memory and stores
-  // nothing. So this screen proposes the mechanism that needs no new
-  // infrastructure — the exact version, the dated agreement, the person — and
-  // the specification records e-signature as the open owner decision.
+  // The provenance under each field is not new substrate. `person-record.ts`
+  // already derives it from `audit_events` for the seven `people` columns, a
+  // choice Brian made in the LAN-184 walkthrough rather than adding source
+  // columns; `contact_points.source` and
+  // `person_emergency_contacts.recorded_by_person_id` cover the rest.
   const s = answerShell();
 
   setChip(s.chip, "ONBOARDING · 2026–27");
-  s.h1.textContent = "The photo release";
-  setLead(s.lead, "Step 3 of 5 · Read it, then sign");
+  s.h1.textContent = "Your details";
+  setLead(s.lead, "Merrick Thornbury · change anything that is wrong");
 
   dropEventLeftovers();
 
   mark(
     setFacts(s.dl, [
-      ["Code of Conduct", "Agreed just now", DONE],
-      ["Photo release", "Reading now", OUTSTANDING],
-      ["Asked", "Every season", OUTSTANDING],
-      ["Signature", "Agreement, not e-signature", OUTSTANDING],
+      ["Everything the club asks for", "Complete", DONE],
+      ["Last changed", "By you, 2 September", DONE],
+      ["This link", "Yours for the season", DONE],
+      ["Nothing is outstanding", "You came here yourself", DONE],
     ]),
     1,
   );
 
   setPrivacy(
     s.privacy,
-    "Your agreement is recorded against the exact version shown here, with the date. No photograph is ever stored in this system.",
+    "This secure page shows only your own record. Changing something here never removes what the club had — the old value is kept, dated, and attributed.",
   );
 
   const a = buildForm(s, [
     {
-      kind: "pane",
-      key: "pane",
-      heading: "Oxford Lancers photo release — PLACEHOLDER TEXT",
-      paragraphs: [
-        "PLACEHOLDER. The real photo release is Clint's, through Task 07. This pane shows the shape of the page and the length a real release runs to, and carries no policy of its own.",
-        "1. Placeholder clause. Placeholder text about what the club photographs, and where those photographs are used.",
-        "2. Placeholder clause. Placeholder text about the squad photograph specifically, and about match and training photography.",
-        "3. Placeholder clause. Placeholder text about social media, the club website and university publications.",
-        "4. Placeholder clause. Placeholder text about how to withdraw this permission, and what happens to material already published.",
-        "5. Placeholder clause. Placeholder text about how long this permission lasts. It is asked again every season, of everybody.",
-        "End of the placeholder document. Agreeing is only possible from here.",
-      ],
-    },
-    {
-      kind: "consent",
-      key: "agree",
-      checked: false,
-      label: "I have read the photo release and I agree to it for the 2026–27 season.",
-      note: "Recorded against this version, dated, and stored as yours. This is a dated agreement, not a drawn or cryptographic signature — see the open decision.",
-    },
-    {
       kind: "note",
-      key: "open",
-      text: "OPEN DECISION, for Brian. A true signature — drawn, or a signed PDF — needs object storage and a signature control, and the application has neither today. Recording the version, the moment and the person needs nothing new. The specification recommends the second and treats e-signature as additive.",
+      key: "why",
+      text: "Nothing here needs your attention. You can change any of it whenever you like, and you do not need to tell anybody first.",
+    },
+
+    { kind: "heading", text: "Who you are" },
+    { label: "First name", value: "Merrick", required: true, source: "You gave this, 2 September" },
+    {
+      label: "Last name",
+      value: "Thornbury",
+      required: true,
+      source: "You gave this, 2 September",
+    },
+    {
+      key: "mine",
+      label: "Mobile phone",
+      value: "07700 900218",
+      required: true,
+      source: "You gave this, 2 September",
+      help: "We will read a new number back to you before saving it.",
+    },
+    {
+      label: "Personal email",
+      value: "merrick.thornbury@farrowgate.ox.ac.example",
+      required: true,
+      source: "You gave this, 2 September",
+    },
+
+    { kind: "heading", text: "Where you study" },
+    {
+      key: "theirs",
+      label: "College",
+      value: "Farrowgate",
+      required: true,
+      source: "The club recorded this, 28 August",
+    },
+    {
+      label: "Matriculation year",
+      value: "2024",
+      required: true,
+      source: "The club recorded this, 28 August",
+    },
+    {
+      label: "Expected graduation",
+      value: "2027",
+      required: true,
+      source: "You gave this, 2 September",
+    },
+    {
+      label: "Degree field",
+      value: "Engineering Science",
+      required: true,
+      source: "You gave this, 2 September",
+    },
+
+    { kind: "heading", text: "Kept private" },
+    {
+      key: "unattributed",
+      label: "Date of birth",
+      value: "14 March 2005",
+      required: true,
+      source: "No record of who supplied this",
+      help: "Never appears on any list, board or queue. Only whether you are under 18 is derived from it.",
     },
   ]);
 
-  // 2 — the document, on the page, scrolled to its end.
-  mark(a.pane, 2);
-  // 3 — the agreement, in the same place and shape as the Code of Conduct's.
-  mark(a.agree, 3);
-  // 4 — and the thing this workflow cannot settle on its own.
-  mark(a.open, 4);
+  // 2 — why they are here, said plainly: nobody sent them.
+  mark(a.why, 2);
+  // 3 — a value they supplied themselves. Changing it just changes it.
+  mark(a.mine, 3);
+  // 4 — a value the club supplied. Changing this one goes to a human, and W5-02
+  //     is what they are told before they submit.
+  mark(a.theirs, 4);
+  // 5 — and a value nobody attributable ever asserted: seeded or imported.
+  //     readFieldProvenanceIn returns null here. The open decision is that the
+  //     player wins on this row.
+  mark(a.unattributed, 5);
 
-  setSubmit(s.submit, "I agree — continue");
-  setSecondary("You can reopen this page later to see which version you agreed to, and when.");
+  setSubmit(s.submit, "Save changes");
+  setSecondary(
+    "The club never loses what it had. Every previous value is kept, dated and attributed.",
+  );
 
-  scrollPanesToEnd();
   await settle();
 })();

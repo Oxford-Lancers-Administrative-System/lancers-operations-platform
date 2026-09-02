@@ -781,81 +781,86 @@
     return box;
   };
 
-  // W4-04 — Step 3: the photo release, on its own page.
+  // W5-03 — Declining to give a value, per fact.
   //
-  // Same shape as the Code of Conduct, deliberately. Brian, 2026-09-01: "Photo
-  // release should also be there and should also be a signed document, I think.
-  // I don't know. Do we have a way to handle signed documents right now in the
-  // thing? I don't think so."
+  // `T11-refused`: the chase for that fact stops and stops counting, the fact
+  // stays visible on the record, and reopening is a human act — the machine never
+  // revives it.
   //
-  // He is right: there is none. No object storage bucket is configured anywhere,
-  // no table holds a document or a blob, and the only file input in the whole
-  // application is the event CSV import, which parses in memory and stores
-  // nothing. So this screen proposes the mechanism that needs no new
-  // infrastructure — the exact version, the dated agreement, the person — and
-  // the specification records e-signature as the open owner decision.
+  // This screen is also where W4's approved required set meets its own edge. W4
+  // blocks step 1 until ten fields are filled. If refusal only exists here, a
+  // player who will not give a date of birth is trapped at step 1 forever and can
+  // never reach the pages behind it. The proposed amendment — refusal available
+  // wherever a fact is asked — is marked below.
   const s = answerShell();
 
   setChip(s.chip, "ONBOARDING · 2026–27");
-  s.h1.textContent = "The photo release";
-  setLead(s.lead, "Step 3 of 5 · Read it, then sign");
+  s.h1.textContent = "Your details";
+  setLead(s.lead, "Merrick Thornbury · you can decline any of these");
 
   dropEventLeftovers();
 
   mark(
     setFacts(s.dl, [
-      ["Code of Conduct", "Agreed just now", DONE],
-      ["Photo release", "Reading now", OUTSTANDING],
-      ["Asked", "Every season", OUTSTANDING],
-      ["Signature", "Agreement, not e-signature", OUTSTANDING],
+      ["Declined", "1 — date of birth", OUTSTANDING],
+      ["Chased from now on", "No", DONE],
+      ["Counted as outstanding", "No", DONE],
+      ["Reopened by", "A person, never the system", OUTSTANDING],
     ]),
     1,
   );
 
   setPrivacy(
     s.privacy,
-    "Your agreement is recorded against the exact version shown here, with the date. No photograph is ever stored in this system.",
+    "A reason you give here is seen only by the club's four senior officers, and never appears in any report.",
   );
 
   const a = buildForm(s, [
+    { kind: "heading", text: "Kept private" },
     {
-      kind: "pane",
-      key: "pane",
-      heading: "Oxford Lancers photo release — PLACEHOLDER TEXT",
-      paragraphs: [
-        "PLACEHOLDER. The real photo release is Clint's, through Task 07. This pane shows the shape of the page and the length a real release runs to, and carries no policy of its own.",
-        "1. Placeholder clause. Placeholder text about what the club photographs, and where those photographs are used.",
-        "2. Placeholder clause. Placeholder text about the squad photograph specifically, and about match and training photography.",
-        "3. Placeholder clause. Placeholder text about social media, the club website and university publications.",
-        "4. Placeholder clause. Placeholder text about how to withdraw this permission, and what happens to material already published.",
-        "5. Placeholder clause. Placeholder text about how long this permission lasts. It is asked again every season, of everybody.",
-        "End of the placeholder document. Agreeing is only possible from here.",
-      ],
+      key: "field",
+      label: "Date of birth",
+      required: true,
+      source: "Declined by you, 2 September",
     },
     {
       kind: "consent",
-      key: "agree",
-      checked: false,
-      label: "I have read the photo release and I agree to it for the 2026–27 season.",
-      note: "Recorded against this version, dated, and stored as yours. This is a dated agreement, not a drawn or cryptographic signature — see the open decision.",
+      key: "decline",
+      checked: true,
+      label: "I would rather not give this.",
+      note: "The club stops asking. The field stays on your record as declined, and only a person can ask for it again — no reminder will.",
+    },
+    {
+      key: "reason",
+      label: "Why, if you want to say (optional)",
+      value: "I would rather not have my date of birth on a club system.",
+    },
+    {
+      kind: "notice",
+      key: "consequence",
+      tone: "#b26a00",
+      text: "One thing this does have a consequence for: the club works out whether a member is under 18 from this date, and without it that check cannot run. Nothing else about your membership changes.",
     },
     {
       kind: "note",
-      key: "open",
-      text: "OPEN DECISION, for Brian. A true signature — drawn, or a signed PDF — needs object storage and a signature control, and the application has neither today. Recording the version, the moment and the person needs nothing new. The specification recommends the second and treats e-signature as additive.",
+      key: "amend",
+      text: "PROPOSED AMENDMENT TO W4, which is already approved. W4 requires ten fields and blocks step 1 until they are filled. Unless declining is available there too, a player who will not give this is stuck at step 1 forever. Recommended: required means answer it or decline it, explicitly.",
     },
   ]);
 
-  // 2 — the document, on the page, scrolled to its end.
-  mark(a.pane, 2);
-  // 3 — the agreement, in the same place and shape as the Code of Conduct's.
-  mark(a.agree, 3);
-  // 4 — and the thing this workflow cannot settle on its own.
-  mark(a.open, 4);
+  // 2 — the fact itself, carrying its own refusal as its provenance.
+  mark(a.field, 2);
+  // 3 — the decline, and what it buys: the chase stops.
+  mark(a.decline, 3);
+  // 4 — the reason, optional and restricted to the four-role group.
+  mark(a.reason, 4);
+  // 5 — the one real consequence, said rather than hidden.
+  mark(a.consequence, 5);
+  // 6 — and the amendment this screen forces on an approved workflow.
+  mark(a.amend, 6);
 
-  setSubmit(s.submit, "I agree — continue");
-  setSecondary("You can reopen this page later to see which version you agreed to, and when.");
+  setSubmit(s.submit, "Save changes");
+  setSecondary("Declining a fact never affects whether you train, play or travel.");
 
-  scrollPanesToEnd();
   await settle();
 })();

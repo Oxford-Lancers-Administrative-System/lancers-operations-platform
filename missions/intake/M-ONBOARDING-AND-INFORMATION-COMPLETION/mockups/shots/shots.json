@@ -371,12 +371,12 @@
     {
       "id": "W4-01",
       "route": "/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
-      "headSha": "797cfd3b40868046d0b362d453f4ddd139e03e51",
+      "headSha": "6ebf3d937e9f9513ceaae26bd80a9529a73c8f19",
       "slot": "mission-m-onboarding-and-information-completion-3",
       "proposal": {
         "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W4-01.js",
-        "sha256": "1bc22de6f55c8c31a984e31d9a72dc2ca20cd1a598b21fede59fdc627f496162",
-        "bytes": 37224
+        "sha256": "b5f156e4c5442f95114a2b6387f6c3f1ded8116c5ac1259a389238456ff9e275",
+        "bytes": 38257
       },
       "captures": [
         {
@@ -412,17 +412,17 @@
           "file": "shots/W4-01-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-02T13:13:53.100Z"
+      "at": "2026-09-02T15:15:57.852Z"
     },
     {
       "id": "W4-02",
       "route": "/a/y.3ec61c6f-87cc-4c28-ba8d-46eb7d6f593a.qV_K8zqHkiwe8BrLDqCw52Cvl2UaEPL_57hWIEH3-gE",
-      "headSha": "797cfd3b40868046d0b362d453f4ddd139e03e51",
+      "headSha": "6ebf3d937e9f9513ceaae26bd80a9529a73c8f19",
       "slot": "mission-m-onboarding-and-information-completion-3",
       "proposal": {
         "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W4-02.js",
-        "sha256": "7221a5e664b32ac6fc177e12af32697d385f71c166cdb7162ba11a29edcdfe08",
-        "bytes": 37049
+        "sha256": "4ea3886c8af3596e449fd1c38b348e9a8715e65d73211b74877723277d4747ac",
+        "bytes": 38082
       },
       "captures": [
         {
@@ -458,17 +458,17 @@
           "file": "shots/W4-02-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-02T13:13:57.557Z"
+      "at": "2026-09-02T15:16:03.470Z"
     },
     {
       "id": "W4-03",
       "route": "/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
-      "headSha": "6dc0f2f063a9d1db4bd2e1234a0b534a34c8c046",
+      "headSha": "6ebf3d937e9f9513ceaae26bd80a9529a73c8f19",
       "slot": "mission-m-onboarding-and-information-completion-3",
       "proposal": {
         "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W4-03.js",
-        "sha256": "2b525c1d64a6a0ec3adc5d3515a716e0fb27c7b8a5b69ae9c7787b3fbd1ce916",
-        "bytes": 34296
+        "sha256": "7f0437ccd89f27c6c73acb470ef06bd76a1e025c6dffee7b333859f33291065a",
+        "bytes": 37347
       },
       "captures": [
         {
@@ -504,17 +504,17 @@
           "file": "shots/W4-03-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-02T00:26:19.762Z"
+      "at": "2026-09-02T15:16:10.414Z"
     },
     {
       "id": "W4-04",
       "route": "/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
-      "headSha": "6dc0f2f063a9d1db4bd2e1234a0b534a34c8c046",
+      "headSha": "6ebf3d937e9f9513ceaae26bd80a9529a73c8f19",
       "slot": "mission-m-onboarding-and-information-completion-3",
       "proposal": {
         "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W4-04.js",
-        "sha256": "41e8a46343696cf0cc36e4717924e84858482ac9d45d02525dc93dd853a11dbb",
-        "bytes": 34516
+        "sha256": "7de2af1a2d7d5eed427d14c11e7c334c539ba194f62f3f8e524db2dde61c07a6",
+        "bytes": 37567
       },
       "captures": [
         {
@@ -550,17 +550,17 @@
           "file": "shots/W4-04-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-02T00:26:24.165Z"
+      "at": "2026-09-02T15:16:17.386Z"
     },
     {
       "id": "W4-05",
       "route": "/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
-      "headSha": "d24d184fd7dd9fcf7ee02cedc3b622192c3f5dd8",
+      "headSha": "6ebf3d937e9f9513ceaae26bd80a9529a73c8f19",
       "slot": "mission-m-onboarding-and-information-completion-3",
       "proposal": {
         "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W4-05.js",
-        "sha256": "6f7db3ae10c9ea6acf8ec13ba46e7688091dc7114913330b6b154d7ea51cba74",
-        "bytes": 35716
+        "sha256": "9a03c080065721bb60f2124b3593123fa94192e0b80a15893bd12c70cf886bf6",
+        "bytes": 36749
       },
       "captures": [
         {
@@ -596,17 +596,17 @@
           "file": "shots/W4-05-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-02T13:01:53.001Z"
+      "at": "2026-09-02T15:16:24.242Z"
     },
     {
       "id": "W4-06",
       "route": "/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
-      "headSha": "d24d184fd7dd9fcf7ee02cedc3b622192c3f5dd8",
+      "headSha": "6ebf3d937e9f9513ceaae26bd80a9529a73c8f19",
       "slot": "mission-m-onboarding-and-information-completion-3",
       "proposal": {
         "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W4-06.js",
-        "sha256": "0c3bd3ff9c45b9db59ff0bd42f50459d41e9d9d5c6ff82bd06365b89db9d7523",
-        "bytes": 36135
+        "sha256": "61df35839d82f746a863970f1649eefbdf2c875567b7c64fc5917331de658e9c",
+        "bytes": 37168
       },
       "captures": [
         {
@@ -642,17 +642,17 @@
           "file": "shots/W4-06-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-02T13:01:57.649Z"
+      "at": "2026-09-02T15:16:30.122Z"
     },
     {
       "id": "W4-07",
       "route": "/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
-      "headSha": "d24d184fd7dd9fcf7ee02cedc3b622192c3f5dd8",
+      "headSha": "6ebf3d937e9f9513ceaae26bd80a9529a73c8f19",
       "slot": "mission-m-onboarding-and-information-completion-3",
       "proposal": {
         "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W4-07.js",
-        "sha256": "4cae16bad11659dbbc56e582bb83a0ecee5e5b9c9c202f0260a98eaa0a8257ce",
-        "bytes": 36208
+        "sha256": "e6dc8f8a757afe505b6b360547a7830ad22246e58421d47654ae79c1b18ade54",
+        "bytes": 37241
       },
       "captures": [
         {
@@ -688,17 +688,17 @@
           "file": "shots/W4-07-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-02T13:02:01.795Z"
+      "at": "2026-09-02T15:16:36.828Z"
     },
     {
       "id": "W4-08",
       "route": "/a/y.3ec61c6f-87cc-4c28-ba8d-46eb7d6f593a.qV_K8zqHkiwe8BrLDqCw52Cvl2UaEPL_57hWIEH3-gE",
-      "headSha": "d24d184fd7dd9fcf7ee02cedc3b622192c3f5dd8",
+      "headSha": "6ebf3d937e9f9513ceaae26bd80a9529a73c8f19",
       "slot": "mission-m-onboarding-and-information-completion-3",
       "proposal": {
         "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W4-08.js",
-        "sha256": "0b340a2ab7d949c7cd5d75e781c10ea5e782415bf8caba41698fa5bdfbd0ff64",
-        "bytes": 34790
+        "sha256": "3d955e8e1f3b2f9ba66e7a20b9650aad9dd64d2ded5c6ce3f3c67e5848825bb5",
+        "bytes": 35823
       },
       "captures": [
         {
@@ -734,17 +734,17 @@
           "file": "shots/W4-08-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-02T13:02:06.958Z"
+      "at": "2026-09-02T15:16:43.846Z"
     },
     {
       "id": "W4-09",
       "route": "/a/y.153f0efc-f344-46c1-b4e9-ff5ff1359cbb.4ZgGogEred5qpmsZWlA-3ht0rqB8pl9Xuc39rPGnC4c",
-      "headSha": "d24d184fd7dd9fcf7ee02cedc3b622192c3f5dd8",
+      "headSha": "6ebf3d937e9f9513ceaae26bd80a9529a73c8f19",
       "slot": "mission-m-onboarding-and-information-completion-3",
       "proposal": {
         "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W4-09.js",
-        "sha256": "0d5c5ebd3f1126587435bc5d8e466f9d69f73bd612b685df33e742a857efcabe",
-        "bytes": 34544
+        "sha256": "270cc3e824b42cf916ba9900fdf14bf685077af082a9df877282a01740cf7425",
+        "bytes": 35577
       },
       "captures": [
         {
@@ -780,7 +780,191 @@
           "file": "shots/W4-09-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-02T13:02:14.276Z"
+      "at": "2026-09-02T15:16:50.920Z"
+    },
+    {
+      "id": "W5-01",
+      "route": "/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
+      "headSha": "6ebf3d937e9f9513ceaae26bd80a9529a73c8f19",
+      "slot": "mission-m-onboarding-and-information-completion-3",
+      "proposal": {
+        "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W5-01.js",
+        "sha256": "86aa2c10edf2ed811e9f7d27ed6b822d72522d6a3d8c6cc1fcd6ce4cd6d9602a",
+        "bytes": 37867
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-01-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-01-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-01-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-01-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-02T15:15:21.501Z"
+    },
+    {
+      "id": "W5-02",
+      "route": "/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
+      "headSha": "6ebf3d937e9f9513ceaae26bd80a9529a73c8f19",
+      "slot": "mission-m-onboarding-and-information-completion-3",
+      "proposal": {
+        "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W5-02.js",
+        "sha256": "98ed6b01dacb0ced7600e0e88669cdfd813bffdcbd23b0531b57ae479fb39ab0",
+        "bytes": 36836
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-02-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-02-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-02-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-02-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-02T15:15:28.860Z"
+    },
+    {
+      "id": "W5-03",
+      "route": "/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
+      "headSha": "6ebf3d937e9f9513ceaae26bd80a9529a73c8f19",
+      "slot": "mission-m-onboarding-and-information-completion-3",
+      "proposal": {
+        "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W5-03.js",
+        "sha256": "c8203f380552279db1cdd33bada4e64e5810614ae39a4839c981db691ccd5917",
+        "bytes": 36994
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-03-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-03-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-03-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-03-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-02T15:15:36.678Z"
+    },
+    {
+      "id": "W5-04",
+      "route": "/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
+      "headSha": "6ebf3d937e9f9513ceaae26bd80a9529a73c8f19",
+      "slot": "mission-m-onboarding-and-information-completion-3",
+      "proposal": {
+        "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W5-04.js",
+        "sha256": "15050e78b9f6a7677b83959c841f518c07e9612b0ef6e15c6bac4de15e91dbaf",
+        "bytes": 36717
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-04-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-04-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-04-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-04-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-09-02T15:15:46.052Z"
     }
   ]
 }

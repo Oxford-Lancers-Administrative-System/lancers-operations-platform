@@ -137,10 +137,11 @@
     {
       "id": "W5",
       "name": "Fix something the club has wrong",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {},
+      "spec": "workflows/W5-fix-something-the-club-has-wrong.md"
     },
     {
       "id": "W6",
@@ -1729,5 +1730,5 @@
     ],
     "approval": null
   },
-  "next_action": "Begin W5 — Fix something the club has wrong: the same signed link opened outside the welcome moment, where corrected and refused are exercised."
+  "next_action": "W5 — Fix something the club has wrong: specification drafted and four screens shot; awaiting Brian on the unattributed-value rule and on the proposed amendment to approved W4 that refusal is available wherever a fact is asked."
 }

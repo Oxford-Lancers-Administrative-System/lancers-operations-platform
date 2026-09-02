@@ -15,16 +15,23 @@ const OUT = path.join(ROOT, "proposals");
 mkdirSync(OUT, { recursive: true });
 const prelude = readFileSync(path.join(SRC, "_prelude.js"), "utf8");
 let n = 0;
-// A workflow may add its own shared helpers as `_W<n>.js`, included only for
-// that workflow's screens. W4 builds a form the other workflows have no use
-// for, and appending its helpers to the shared prelude would rewrite every
-// already-approved proposal's bytes — and with them the hashes `shots.json`
-// records for W1, W2 and W3.
+// Helpers some workflows share and others must not see. W4 built the
+// player-facing signed-link page; W5 is that same page opened later, so both
+// need it — and W1, W2 and W3, which are approved, must keep the exact bytes
+// their shots.json hashes were taken from. Naming the sharing here rather than
+// deriving it from the filename is what lets W5 reuse W4's helpers without
+// either duplicating three hundred lines or disturbing an approved workflow.
+const SHARED_BY_WORKFLOW = {
+  W4: ["_player-page.js"],
+  W5: ["_player-page.js"],
+};
 for (const file of readdirSync(SRC).sort()) {
   if (file.startsWith("_") || !file.endsWith(".js")) continue;
   const workflow = /^(W\d+)-/.exec(file)?.[1] ?? null;
-  const sharedPath = workflow ? path.join(SRC, `_${workflow}.js`) : null;
-  const shared = sharedPath && existsSync(sharedPath) ? `${readFileSync(sharedPath, "utf8")}\n` : "";
+  const sharedNames = SHARED_BY_WORKFLOW[workflow] ?? [];
+  const shared = sharedNames
+    .map((name) => `${readFileSync(path.join(SRC, name), "utf8")}\n`)
+    .join("");
   const target = path.join(OUT, file);
   writeFileSync(
     target,

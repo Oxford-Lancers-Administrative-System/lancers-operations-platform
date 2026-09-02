@@ -781,81 +781,87 @@
     return box;
   };
 
-  // W4-04 — Step 3: the photo release, on its own page.
+  // W5-02 — Changing something the club confirmed, and being told so first.
   //
-  // Same shape as the Code of Conduct, deliberately. Brian, 2026-09-01: "Photo
-  // release should also be there and should also be a signed document, I think.
-  // I don't know. Do we have a way to handle signed documents right now in the
-  // thing? I don't think so."
+  // Boundary item 14: a player's answer never silently overwrites an
+  // operator-confirmed, externally verified or derived value; it raises
+  // `disputed — awaiting verification`.
   //
-  // He is right: there is none. No object storage bucket is configured anywhere,
-  // no table holds a document or a blob, and the only file input in the whole
-  // application is the event CSV import, which parses in memory and stores
-  // nothing. So this screen proposes the mechanism that needs no new
-  // infrastructure — the exact version, the dated agreement, the person — and
-  // the specification records e-signature as the open owner decision.
+  // The load-bearing word is **silently**. A correction that quietly becomes a
+  // dispute is a correction the player believes they made — so the page says
+  // which of the two is about to happen *before* the submit, not after it.
   const s = answerShell();
 
   setChip(s.chip, "ONBOARDING · 2026–27");
-  s.h1.textContent = "The photo release";
-  setLead(s.lead, "Step 3 of 5 · Read it, then sign");
+  s.h1.textContent = "Your details";
+  setLead(s.lead, "Merrick Thornbury · one of these needs a person to look");
 
   dropEventLeftovers();
 
   mark(
     setFacts(s.dl, [
-      ["Code of Conduct", "Agreed just now", DONE],
-      ["Photo release", "Reading now", OUTSTANDING],
-      ["Asked", "Every season", OUTSTANDING],
-      ["Signature", "Agreement, not e-signature", OUTSTANDING],
+      ["Changes ready to save", "2", OUTSTANDING],
+      ["Saved straight away", "1 — your mobile", DONE],
+      ["Needs a person", "1 — your college", OUTSTANDING],
+      ["What the club loses", "Nothing", DONE],
     ]),
     1,
   );
 
   setPrivacy(
     s.privacy,
-    "Your agreement is recorded against the exact version shown here, with the date. No photograph is ever stored in this system.",
+    "Changing something here never removes what the club had. Both values are kept until somebody has looked.",
   );
 
   const a = buildForm(s, [
+    { kind: "heading", text: "Who you are" },
     {
-      kind: "pane",
-      key: "pane",
-      heading: "Oxford Lancers photo release — PLACEHOLDER TEXT",
-      paragraphs: [
-        "PLACEHOLDER. The real photo release is Clint's, through Task 07. This pane shows the shape of the page and the length a real release runs to, and carries no policy of its own.",
-        "1. Placeholder clause. Placeholder text about what the club photographs, and where those photographs are used.",
-        "2. Placeholder clause. Placeholder text about the squad photograph specifically, and about match and training photography.",
-        "3. Placeholder clause. Placeholder text about social media, the club website and university publications.",
-        "4. Placeholder clause. Placeholder text about how to withdraw this permission, and what happens to material already published.",
-        "5. Placeholder clause. Placeholder text about how long this permission lasts. It is asked again every season, of everybody.",
-        "End of the placeholder document. Agreeing is only possible from here.",
-      ],
+      key: "mine",
+      label: "Mobile phone",
+      value: "07700 900941",
+      required: true,
+      source: "You gave the previous number, 2 September",
     },
     {
-      kind: "consent",
-      key: "agree",
-      checked: false,
-      label: "I have read the photo release and I agree to it for the 2026–27 season.",
-      note: "Recorded against this version, dated, and stored as yours. This is a dated agreement, not a drawn or cryptographic signature — see the open decision.",
+      kind: "notice",
+      key: "straight",
+      tone: "#2e7d32",
+      text: "This one saves as soon as you press the button. You gave the club this number in the first place, so changing it is you correcting yourself — nobody needs to check it. We will read the new number back to you.",
+    },
+
+    { kind: "heading", text: "Where you study" },
+    {
+      key: "theirs",
+      label: "College",
+      value: "Brasenose",
+      required: true,
+      source: "The club recorded Farrowgate, 28 August",
+    },
+    {
+      kind: "notice",
+      key: "dispute",
+      tone: "#b26a00",
+      text: "Somebody at the club recorded Farrowgate. You are telling us Brasenose. We will not quietly replace theirs with yours — both are kept, and a club officer decides which is right. Until then the club's own lists still say Farrowgate. You do not need to do anything else.",
     },
     {
       kind: "note",
-      key: "open",
-      text: "OPEN DECISION, for Brian. A true signature — drawn, or a signed PDF — needs object storage and a signature control, and the application has neither today. Recording the version, the moment and the person needs nothing new. The specification recommends the second and treats e-signature as additive.",
+      key: "nowho",
+      text: "You are never told which officer recorded a value — only that the club did.",
     },
   ]);
 
-  // 2 — the document, on the page, scrolled to its end.
-  mark(a.pane, 2);
-  // 3 — the agreement, in the same place and shape as the Code of Conduct's.
-  mark(a.agree, 3);
-  // 4 — and the thing this workflow cannot settle on its own.
-  mark(a.open, 4);
+  // 2 — a value they own. It saves, and the page says so.
+  mark(a.mine, 2);
+  mark(a.straight, 3);
+  // 4 — a value the club owns. Their answer is kept, the club's still stands,
+  //     and W7 is where somebody chooses. Said before the submit, not after.
+  mark(a.theirs, 4);
+  mark(a.dispute, 5);
+  // 6 — and what the page will not tell them.
+  mark(a.nowho, 6);
 
-  setSubmit(s.submit, "I agree — continue");
-  setSecondary("You can reopen this page later to see which version you agreed to, and when.");
+  setSubmit(s.submit, "Save changes");
+  setSecondary("Nothing you change here can affect whether you train, play or travel.");
 
-  scrollPanesToEnd();
   await settle();
 })();

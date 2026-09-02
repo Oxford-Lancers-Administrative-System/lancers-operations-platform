@@ -102,7 +102,7 @@ const helperText = (text) => {
  * this page (no field here is filled), so both are applied as the inline
  * transform and notch width MUI itself uses.
  */
-const asField = (tpl, { label, value = "", help = null, required = false, restricted = false }) => {
+const asField = (tpl, { label, value = "", help = null, required = false, restricted = false, source = null }) => {
   const field = tpl.cloneNode(true);
   const text = required ? `${label} *` : label;
 
@@ -161,6 +161,7 @@ const asField = (tpl, { label, value = "", help = null, required = false, restri
 
   if (restricted) root.style.borderRadius = "4px";
   if (help) field.append(helperText(help));
+  if (source) field.append(sourceLine(source));
   return field;
 };
 
@@ -231,6 +232,7 @@ const buildForm = (shell, rows) => {
     else if (row.kind === "pane") node = documentPane(row.paragraphs, { heading: row.heading });
     else if (row.kind === "steps") node = stepList(row.steps);
     else if (row.kind === "outstanding") node = outstandingBySection(row.groups);
+    else if (row.kind === "notice") node = inlineNotice(row.text, row.tone ?? OUTSTANDING);
     else if (row.kind === "consent") node = consentTick(shell.chip, row);
     else if (row.kind === "note") {
       node = document.createElement("p");
@@ -392,4 +394,26 @@ const outstandingBySection = (groups) => {
     wrap.append(ul);
   }
   return wrap;
+};
+
+/** A small provenance line under a field — who supplied the value on file. */
+const sourceLine = (text, tone = "rgba(0,0,0,.6)") => {
+  const p = document.createElement("p");
+  p.className = "MuiFormHelperText-root";
+  p.style.cssText = `margin:3px 14px 0;font-size:12px;color:${tone}`;
+  p.textContent = text;
+  return p;
+};
+
+/** An inline notice inside the form — what happens when this change is saved. */
+const inlineNotice = (text, tone) => {
+  const box = document.createElement("div");
+  box.style.cssText =
+    `margin:6px 0 0;padding:10px 12px;border-left:3px solid ${tone};` +
+    "background:rgba(0,0,0,0.03);border-radius:0 4px 4px 0";
+  const p = document.createElement("p");
+  p.style.cssText = "margin:0;font-size:13px;line-height:1.6;color:rgba(0,0,0,0.8)";
+  p.textContent = text;
+  box.append(p);
+  return box;
 };
