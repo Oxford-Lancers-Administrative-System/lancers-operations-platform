@@ -831,12 +831,12 @@
     {
       "id": "W6-01",
       "route": "/operate/roster/b7242a9d-07b8-4bab-8f3b-d0a16657d517",
-      "headSha": "03f3b046cc5f72dec528ac91d2fb59d436badd38",
+      "headSha": "0d773b5247f8804a44531bd6def30b2899ea74ac",
       "slot": "mission-m-onboarding-and-information-completion-3",
       "proposal": {
         "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W6-01.js",
-        "sha256": "1f2e723187de329e85568cc8acf3753edeb50271e60d1446e392835f833f1bb5",
-        "bytes": 24471
+        "sha256": "58779220ed648326f38f348312e590cf83f26c52e89428d13daf8d7a7e0ee23b",
+        "bytes": 25827
       },
       "captures": [
         {
@@ -872,17 +872,17 @@
           "file": "shots/W6-01-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-02T15:38:45.894Z"
+      "at": "2026-09-02T15:50:38.666Z"
     },
     {
       "id": "W6-02",
       "route": "/operate/roster/b7242a9d-07b8-4bab-8f3b-d0a16657d517",
-      "headSha": "03f3b046cc5f72dec528ac91d2fb59d436badd38",
+      "headSha": "0d773b5247f8804a44531bd6def30b2899ea74ac",
       "slot": "mission-m-onboarding-and-information-completion-3",
       "proposal": {
         "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W6-02.js",
-        "sha256": "0d4669ba1cd0503c7923c087c3fb289aed11a3619e8f5df64691f2184d8d29a8",
-        "bytes": 24101
+        "sha256": "08cd84e3532b35ca6a97ae2e9eea41dd5bfb0418fb9b48ca6218acce47f4aaf6",
+        "bytes": 24944
       },
       "captures": [
         {
@@ -918,17 +918,17 @@
           "file": "shots/W6-02-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-02T15:38:51.571Z"
+      "at": "2026-09-02T15:50:46.618Z"
     },
     {
       "id": "W6-03",
       "route": "/operate/roster/b7242a9d-07b8-4bab-8f3b-d0a16657d517",
-      "headSha": "03f3b046cc5f72dec528ac91d2fb59d436badd38",
+      "headSha": "0d773b5247f8804a44531bd6def30b2899ea74ac",
       "slot": "mission-m-onboarding-and-information-completion-3",
       "proposal": {
         "file": "missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/mockups/proposals/W6-03.js",
-        "sha256": "90f017e0d8d4aab5457558ca12d20495c79b158033a8ed6b791cf1e4ee7ecf3f",
-        "bytes": 23417
+        "sha256": "d1d369b7d517b7c8150e61e9ba0ce959bb88a947d5b2a9a58436ae08dec1990a",
+        "bytes": 26541
       },
       "captures": [
         {
@@ -964,7 +964,7 @@
           "file": "shots/W6-03-proposed-phone375.png"
         }
       ],
-      "at": "2026-09-02T15:38:57.037Z"
+      "at": "2026-09-02T15:51:02.768Z"
     }
   ]
 }

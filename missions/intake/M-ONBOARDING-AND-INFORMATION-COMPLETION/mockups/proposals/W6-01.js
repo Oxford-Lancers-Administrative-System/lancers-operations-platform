@@ -466,7 +466,7 @@
    * word "Pending" on the same row, so every marked row contradicted itself —
    * exactly the failure the mission's own notes warn about.
    */
-  const setRowStatus = (row, text, tone) => {
+  const setRowStatus = (row, text) => {
     const body = rowBody(row);
     const node = must(
       $$("*", body).filter(
@@ -475,10 +475,6 @@
       `the ${row.getAttribute("data-label")} row renders no status to replace`,
     );
     node.textContent = text;
-    if (tone) {
-      node.style.color = tone;
-      node.style.fontWeight = "600";
-    }
     return node;
   };
 
@@ -507,67 +503,105 @@
     section.querySelector(".MuiAlert-root")?.remove();
   };
 
+  /**
+   * The shipped dated-log pattern, reused.
+   *
+   * `StatusHistory` already renders exactly the shape the activity log needs — a
+   * bordered entry per event carrying a bold label, a line saying what happened,
+   * and a caption of when and who. Brian, 2026-09-02: the one-line-per-section
+   * summary "is just not useful… I want to see the individual items that come
+   * underneath, when it was asked versus when it was received." So the log is
+   * that component's own markup, with its entries replaced.
+   */
+  const historySection = () =>
+    must(
+      $('[data-testid="section-status-history"]'),
+      "this page has no status-history section to reuse",
+    );
+
+  const replaceHistory = (section, entries) => {
+    const list = must(
+      section.querySelector('[data-testid="status-history"]'),
+      "the status-history section has no entry list",
+    );
+    const template = must(list.firstElementChild, "the status history is empty").cloneNode(true);
+    list.textContent = "";
+    const built = [];
+    for (const [heading, what, when] of entries) {
+      const entry = template.cloneNode(true);
+      const lines = $$("p, span", entry).filter((n) => n.children.length === 0);
+      must(lines, "a history entry has no lines");
+      if (lines[0]) lines[0].textContent = heading;
+      if (lines[1]) lines[1].textContent = what;
+      const caption = entry.querySelector(".MuiTypography-caption") ?? lines[2];
+      if (caption) caption.textContent = when;
+      list.append(entry);
+      built.push(entry);
+    }
+    return built;
+  };
+
+  /** Open a row's own resolve control by clicking the field the record marks editable. */
+  const openRowControl = async (row) => {
+    const field = must(
+      row.querySelector('[data-testid="editable-field"]'),
+      `the ${row.getAttribute("data-label")} row is not editable`,
+    );
+    field.click();
+    await settle(6);
+    return must($$(".MuiMenuItem-root"), "the resolve control opened no menu");
+  };
+
+  /** Add one option to an open MUI menu, cloned from the options already in it. */
+  const addMenuOption = (items, text) => {
+    const option = items[items.length - 1].cloneNode(true);
+    option.textContent = text;
+    items[items.length - 1].after(option);
+    return option;
+  };
+
   // W6-01 — The checklist, with who said it and when.
   //
-  // The record ships and is good. Its Onboarding section already carries a row
-  // per item, the Required chip, and the outstanding alert. What it cannot say is
-  // **who** — `provenanceNote` renders "Completed <day>" and nothing else — and it
-  // has no `claimed`, because the enum has no such value.
+  // The record's Onboarding section already renders a row per item, the Required
+  // chip, the status as plain underlined text, and a small note under it. What it
+  // cannot say is **who** — `provenanceNote` renders "Completed <day>" and stops —
+  // and it has no `claimed`, because the enum has no such value.
   //
-  // This screen marks exactly that, on the shipped rows, and adds no card.
+  // Everything below uses the note slot the row already has and the status text
+  // the row already renders. No chip, no colour, no element the record does not
+  // use elsewhere.
   selectRosterNav();
 
   const section = onboardingSection();
   setSectionTitle(section, "Onboarding · 3 of 7 resolved");
 
-  // 1 — a trust-class item, completed on the player's own word. R2-V: it
-  //     completes without a human, and carries player-claimed provenance.
+  // 1 — a trust-class item, completed on the player's own word.
   const bucs = itemRow(section, "BUCS Play registration");
-  setRowStatus(bucs, "Complete", ITEM_DONE);
-  mark(
-    setRowNote(
-      bucs,
-      "Merrick said so, 2 September · player-claimed, no confirmation needed",
-      ITEM_DONE,
-    ),
-    1,
-  );
+  setRowStatus(bucs, "Complete");
+  mark(setRowNote(bucs, "Merrick Thornbury, 2 September · player-claimed, trust class"), 1);
 
-  // 2 — a verify-class item. The player has said it; nobody has confirmed it.
-  //     `claimed` is the state the shipped enum does not have.
+  // 2 — a verify-class item: said by the player, confirmed by nobody. `claimed`
+  //     is the state the shipped enum does not have.
   const hudl = itemRow(section, "Hudl access");
-  setRowStatus(hudl, "Claimed", ITEM_CLAIMED);
-  mark(
-    setRowNote(hudl, "Merrick said so, 2 September · awaiting the compliance owner", ITEM_CLAIMED),
-    2,
-  );
+  setRowStatus(hudl, "Claimed");
+  mark(setRowNote(hudl, "Merrick Thornbury, 2 September · awaiting the compliance owner"), 2);
 
-  // 3 — an operator item, and the whole point of the screen: who, not just when.
+  // 3 — who, not just when.
   const kit = itemRow(section, "Kit sorted");
-  setRowStatus(kit, "Complete", ITEM_DONE);
-  mark(setRowNote(kit, "Zenas Yaxlington, 30 August · handed over at training", ITEM_DONE), 3);
+  setRowStatus(kit, "Complete");
+  mark(setRowNote(kit, "Zenas Yaxlington, 30 August"), 3);
 
-  // 4 — history, not just current state. The record can say an item is complete;
-  //     it cannot say it was complete, reopened, and completed again.
+  // 4 — history, not just current state.
   const subs = itemRow(section, "Subscription paid");
-  setRowStatus(subs, "Outstanding", ITEM_OPEN);
+  setRowStatus(subs, "Pending");
   mark(
     setRowNote(
       subs,
-      "Reopened by Caspian Hallowfield, 1 September · was waived 20 August · 3 earlier changes",
-      ITEM_OPEN,
+      "Reopened by Caspian Hallowfield, 1 September · waived 20 August · 3 earlier changes",
     ),
     4,
   );
 
-  // 5 — derived, display-only, and never flipping membership on its own (R3-C).
-  const invoiced = itemRow(section, "Subscription invoiced");
-  setRowStatus(invoiced, "Outstanding", ITEM_OPEN);
-  mark(setRowNote(invoiced, "Not sent yet · nothing here blocks anything, ever", ITEM_OPEN), 5);
-
-  // The shipped alert names the required items still outstanding. Left alone it
-  // would contradict every row above it, which is the whole failure this mission
-  // keeps writing down.
   setOutstandingAlert(
     section,
     "2 required items are still outstanding: Subscription invoiced, Comms groups joined.",

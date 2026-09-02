@@ -404,41 +404,43 @@ const WORKFLOWS = [
       P(
         "W6-01",
         "The checklist, with who said it and when",
-        `The same rows the record already renders, carrying what they cannot carry today. Nothing is
-         added beside the shipped status — each row's status is <em>replaced</em>, because the first
-         shoot put a “Complete” chip next to the shipped word “Pending” and every marked row
-         contradicted itself.`,
+        `The same rows the record already renders, using the note slot and the status text they
+         already have. <strong>No chip, no colour, no element the record does not use elsewhere</strong> —
+         the first draft added a coloured pill beside the shipped status and it read as a second,
+         contradicting one.`,
         [
           "<strong>A trust-class item, completed on the player's own word.</strong> R2-V: it completes without a human and carries player-claimed provenance",
-          "<strong>A verify-class item, and the state the enum does not have.</strong> The player has said it; the compliance owner has not confirmed it. <code>claimed</code> is new",
-          "<strong>Who, not just when.</strong> The shipped note says “Completed 30 August”; this says who handed the kit over",
+          "<strong>The state the enum does not have.</strong> The player has said it; the compliance owner has not confirmed it. <code>claimed</code> is new",
+          "<strong>Who, not just when.</strong> The shipped note says “Completed 30 August” and stops",
           "<strong>History, not just current state.</strong> Reopened on 1 September, waived on 20 August, three earlier changes — none of which the record can say today",
-          "<strong>And the governing rule, on the one item nobody has touched</strong>: nothing here blocks anything, ever",
         ],
         "oxfordlancers.example/operate/roster/b7242a9d",
       ),
       P(
         "W6-02",
-        "Resolving one item — four resolutions, and no reason demanded",
-        `Three of the four ship. <strong>Reopen is new</strong>, and it is the only way back from a
-         terminal state — never automatic, and never a new season on its own.`,
+        "Resolving one item, using the control the record already has",
+        `The row's status is an editable field; clicking it opens a <code>Select</code>. This proposal
+         clicks that real control rather than drawing one, so the menu on screen is MUI's own — and
+         adds the single option <code>R2-R</code> needs and the shipped list does not have.`,
         [
-          "<strong>The four resolutions.</strong> Complete, waive, not applicable ship; reopen does not",
-          "<strong>The author is recorded and the reason is not demanded.</strong> This row is illegal against <code>main</code> today — the shipped constraint refuses a waiver with no reason, and a forward-only migration has to unwind it",
-          "<strong>Four-role only.</strong> The surrounding record edits at the general-operator floor; resolving an onboarding item does not",
-          "<strong>And what none of these buttons does</strong>: stop anybody training, being selected, or travelling",
+          "<strong>The three resolutions the record ships</strong>: complete, waived, not applicable",
+          "<strong>And the one it does not.</strong> Reopen is the only way back from a terminal state, and it is never automatic — not on a timer, and not at a season boundary on its own. Choosing <em>Waived</em> must also stop demanding a reason, which <code>onboarding_items_waiver_is_justified</code> currently refuses to allow",
         ],
         "oxfordlancers.example/operate/roster/b7242a9d",
       ),
       P(
         "W6-03",
-        "The activity log, counted by section",
-        `Brian, 2026-09-01: the record should answer “how often have we chased him about this?”
-         rather than only “have we messaged him?”. A flat list of sends cannot answer that.
-         <strong>LAN-105, the old Post-MVP home for a per-player log, is Canceled — this is its only
-         home.</strong>`,
+        "The activity log — every ask and every answer, individually",
+        `Brian, 2026-09-02: the first draft's one-line-per-section summary "is just not useful… I want
+         to see the individual items that come underneath, when it was asked versus when it was
+         received." So this is <strong>the record's own <code>StatusHistory</code> markup</strong>,
+         already on this page, with its entries replaced. <strong>LAN-105, the old Post-MVP home for
+         a per-player log, is Canceled — this is its only home.</strong>`,
         [
-          "<strong>Counted, not listed.</strong> Four asks and two answers is a row an operator can act on; forty message rows is not. Each section carries its own count, its last ask, and what came back — including the one that was claimed and never confirmed",
+          "<strong>One entry per event</strong>, asked and answered alike, in the pattern this page already uses for status changes",
+          "<strong>An answer, against the asks above it.</strong> Four asks and one partial answer — six of ten fields — is the shape of a real chase, and no summary count shows it",
+          "<strong>Asked repeatedly, claimed by the player, never confirmed by the club.</strong> That gap is the one the queue cannot see",
+          "<strong>And the item whose first half is the club's own</strong>: an invitation the club sent, before any ask of the player at all",
         ],
         "oxfordlancers.example/operate/roster/b7242a9d",
       ),

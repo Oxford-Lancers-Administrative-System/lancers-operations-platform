@@ -69,12 +69,22 @@ Three questions, in this order. They are what the section is for.
    completeness `R3-C` defines.
 2. **Who said so?** Per item: who put it in that state, when, and — for a
    `claimed` item — that it was the player who said it and nobody has confirmed.
-3. **How often have we chased them about this?** The activity log, **counted by
-   section** rather than as one undifferentiated list of messages.
+3. **How often have we chased them about this, and what came back?** The
+   activity log — **grouped by section, one entry per event**.
 
 `OD7-log-by-section` is the whole point of the third: "how many times have we
-asked him about this" is a question about a section, not about a mailbox. A flat
-list of sends cannot answer it.
+asked him about this" is a question about a section, not about a mailbox.
+
+**It is entries, not counts.** The first draft rendered one summary line per
+section — *asked 4 times · answered twice* — and Brian rejected it on
+2026-09-02: "that is just not useful… I want to see the individual items that
+come underneath, when it was asked versus when it was received." So every ask
+and every answer is its own dated entry, and the section is what groups them.
+
+**It reuses the record's own history component.** `StatusHistory` already
+renders exactly this shape on this page — a bordered entry carrying a bold
+label, a line saying what happened, and a caption of when and who. The log is
+that markup with different entries, not a new component.
 
 ## Resolution
 
@@ -167,7 +177,10 @@ Grounding: **screenshots**.
 | Onboarding-completeness is derived and display-only                 | locked                          | `R3-C`; activation is `W10`'s human declaration                                                                        | settled  |
 | Nothing gates, enforced here                                        | locked                          | `R3-G`                                                                                                                 | settled  |
 | The activity log is counted by section                              | locked                          | `OD7-log-by-section`, Brian 2026-09-01                                                                                 | settled  |
-| **Whether the log counts asks only, or asks and answers**           | **proposed for owner approval** | "How often have we chased him" needs sends; "did it work" needs both. **Recommended: both** — a section showing 4 asks and 1 answer is the useful row | **open** |
+| The log carries asks and answers alike, one entry each, grouped by section | locked                      | Owner direction, 2026-09-02: counts alone are "just not useful"                                                        | settled  |
+| The log reuses the record's shipped `StatusHistory` markup           | locked                          | Owner direction, 2026-09-02, on inventing UI the app does not use elsewhere                                            | settled  |
+| Item status renders as the record already renders it                 | locked                          | Plain underlined `body2`, no colour and no chip. The state name changes; its styling does not                          | settled  |
+| Resolution uses the row's own `Select`, with `Reopen` added to it     | locked                          | The control ships; `R2-R` adds one option to it rather than a new control                                              | settled  |
 | How far back the log reaches on first render                        | delegated to Mission Lead       | Presentation; the data is append-only either way                                                                       | settled  |
 | Where `claimed` sits visually against complete                      | delegated to Mission Lead       | The state is what matters; its colour is presentation                                                                  | settled  |
 

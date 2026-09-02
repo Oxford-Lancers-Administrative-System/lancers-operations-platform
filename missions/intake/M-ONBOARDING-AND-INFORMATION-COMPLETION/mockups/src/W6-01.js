@@ -1,57 +1,39 @@
 // W6-01 — The checklist, with who said it and when.
 //
-// The record ships and is good. Its Onboarding section already carries a row
-// per item, the Required chip, and the outstanding alert. What it cannot say is
-// **who** — `provenanceNote` renders "Completed <day>" and nothing else — and it
-// has no `claimed`, because the enum has no such value.
+// The record's Onboarding section already renders a row per item, the Required
+// chip, the status as plain underlined text, and a small note under it. What it
+// cannot say is **who** — `provenanceNote` renders "Completed <day>" and stops —
+// and it has no `claimed`, because the enum has no such value.
 //
-// This screen marks exactly that, on the shipped rows, and adds no card.
+// Everything below uses the note slot the row already has and the status text
+// the row already renders. No chip, no colour, no element the record does not
+// use elsewhere.
 selectRosterNav();
 
 const section = onboardingSection();
 setSectionTitle(section, "Onboarding · 3 of 7 resolved");
 
-// 1 — a trust-class item, completed on the player's own word. R2-V: it
-//     completes without a human, and carries player-claimed provenance.
+// 1 — a trust-class item, completed on the player's own word.
 const bucs = itemRow(section, "BUCS Play registration");
-setRowStatus(bucs, "Complete", ITEM_DONE);
-mark(setRowNote(bucs, "Merrick said so, 2 September · player-claimed, no confirmation needed", ITEM_DONE), 1);
+setRowStatus(bucs, "Complete");
+mark(setRowNote(bucs, "Merrick Thornbury, 2 September · player-claimed, trust class"), 1);
 
-// 2 — a verify-class item. The player has said it; nobody has confirmed it.
-//     `claimed` is the state the shipped enum does not have.
+// 2 — a verify-class item: said by the player, confirmed by nobody. `claimed`
+//     is the state the shipped enum does not have.
 const hudl = itemRow(section, "Hudl access");
-setRowStatus(hudl, "Claimed", ITEM_CLAIMED);
-mark(
-  setRowNote(hudl, "Merrick said so, 2 September · awaiting the compliance owner", ITEM_CLAIMED),
-  2,
-);
+setRowStatus(hudl, "Claimed");
+mark(setRowNote(hudl, "Merrick Thornbury, 2 September · awaiting the compliance owner"), 2);
 
-// 3 — an operator item, and the whole point of the screen: who, not just when.
+// 3 — who, not just when.
 const kit = itemRow(section, "Kit sorted");
-setRowStatus(kit, "Complete", ITEM_DONE);
-mark(setRowNote(kit, "Zenas Yaxlington, 30 August · handed over at training", ITEM_DONE), 3);
+setRowStatus(kit, "Complete");
+mark(setRowNote(kit, "Zenas Yaxlington, 30 August"), 3);
 
-// 4 — history, not just current state. The record can say an item is complete;
-//     it cannot say it was complete, reopened, and completed again.
+// 4 — history, not just current state.
 const subs = itemRow(section, "Subscription paid");
-setRowStatus(subs, "Outstanding", ITEM_OPEN);
-mark(
-  setRowNote(
-    subs,
-    "Reopened by Caspian Hallowfield, 1 September · was waived 20 August · 3 earlier changes",
-    ITEM_OPEN,
-  ),
-  4,
-);
+setRowStatus(subs, "Pending");
+mark(setRowNote(subs, "Reopened by Caspian Hallowfield, 1 September · waived 20 August · 3 earlier changes"), 4);
 
-// 5 — derived, display-only, and never flipping membership on its own (R3-C).
-const invoiced = itemRow(section, "Subscription invoiced");
-setRowStatus(invoiced, "Outstanding", ITEM_OPEN);
-mark(setRowNote(invoiced, "Not sent yet · nothing here blocks anything, ever", ITEM_OPEN), 5);
-
-// The shipped alert names the required items still outstanding. Left alone it
-// would contradict every row above it, which is the whole failure this mission
-// keeps writing down.
 setOutstandingAlert(
   section,
   "2 required items are still outstanding: Subscription invoiced, Comms groups joined.",

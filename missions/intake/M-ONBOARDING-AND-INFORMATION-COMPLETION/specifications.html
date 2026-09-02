@@ -5189,15 +5189,26 @@
               confirmed.
             </li>
             <li>
-              <strong>How often have we chased them about this?</strong> The activity log,
-              <strong>counted by section</strong> rather than as one undifferentiated list of
-              messages.
+              <strong>How often have we chased them about this, and what came back?</strong> The
+              activity log — <strong>grouped by section, one entry per event</strong>.
             </li>
           </ol>
           <p>
             <code>OD7-log-by-section</code> is the whole point of the third: &quot;how many times
-            have we asked him about this&quot; is a question about a section, not about a mailbox. A
-            flat list of sends cannot answer it.
+            have we asked him about this&quot; is a question about a section, not about a mailbox.
+          </p>
+          <p>
+            <strong>It is entries, not counts.</strong> The first draft rendered one summary line
+            per section — <em>asked 4 times · answered twice</em> — and Brian rejected it on
+            2026-09-02: &quot;that is just not useful… I want to see the individual items that come
+            underneath, when it was asked versus when it was received.&quot; So every ask and every
+            answer is its own dated entry, and the section is what groups them.
+          </p>
+          <p>
+            <strong>It reuses the record's own history component.</strong>
+            <code>StatusHistory</code> already renders exactly this shape on this page — a bordered
+            entry carrying a bold label, a line saying what happened, and a caption of when and who.
+            The log is that markup with different entries, not a new component.
           </p>
           <h2 id="s9-h5">Resolution</h2>
           <p>
@@ -5479,14 +5490,41 @@
                   <td>settled</td>
                 </tr>
                 <tr>
-                  <td><strong>Whether the log counts asks only, or asks and answers</strong></td>
-                  <td><strong>proposed for owner approval</strong></td>
                   <td>
-                    &quot;How often have we chased him&quot; needs sends; &quot;did it work&quot;
-                    needs both. <strong>Recommended: both</strong> — a section showing 4 asks and 1
-                    answer is the useful row
+                    The log carries asks and answers alike, one entry each, grouped by section
                   </td>
-                  <td><strong>open</strong></td>
+                  <td>locked</td>
+                  <td>Owner direction, 2026-09-02: counts alone are &quot;just not useful&quot;</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The log reuses the record's shipped <code>StatusHistory</code> markup</td>
+                  <td>locked</td>
+                  <td>
+                    Owner direction, 2026-09-02, on inventing UI the app does not use elsewhere
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Item status renders as the record already renders it</td>
+                  <td>locked</td>
+                  <td>
+                    Plain underlined <code>body2</code>, no colour and no chip. The state name
+                    changes; its styling does not
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    Resolution uses the row's own <code>Select</code>, with
+                    <code>Reopen</code> added to it
+                  </td>
+                  <td>locked</td>
+                  <td>
+                    The control ships; <code>R2-R</code> adds one option to it rather than a new
+                    control
+                  </td>
+                  <td>settled</td>
                 </tr>
                 <tr>
                   <td>How far back the log reaches on first render</td>

@@ -116,17 +116,13 @@ const ITEM_STATUS_WORDS =
  * word "Pending" on the same row, so every marked row contradicted itself —
  * exactly the failure the mission's own notes warn about.
  */
-const setRowStatus = (row, text, tone) => {
+const setRowStatus = (row, text) => {
   const body = rowBody(row);
   const node = must(
     $$("*", body).filter((n) => n.children.length === 0 && ITEM_STATUS_WORDS.test(n.textContent ?? ""))[0],
     `the ${row.getAttribute("data-label")} row renders no status to replace`,
   );
   node.textContent = text;
-  if (tone) {
-    node.style.color = tone;
-    node.style.fontWeight = "600";
-  }
   return node;
 };
 
@@ -153,4 +149,61 @@ const clearRowStatus = (row) => {
 /** Remove the outstanding alert, for a section that is no longer a checklist. */
 const dropOutstandingAlert = (section) => {
   section.querySelector(".MuiAlert-root")?.remove();
+};
+
+/**
+ * The shipped dated-log pattern, reused.
+ *
+ * `StatusHistory` already renders exactly the shape the activity log needs — a
+ * bordered entry per event carrying a bold label, a line saying what happened,
+ * and a caption of when and who. Brian, 2026-09-02: the one-line-per-section
+ * summary "is just not useful… I want to see the individual items that come
+ * underneath, when it was asked versus when it was received." So the log is
+ * that component's own markup, with its entries replaced.
+ */
+const historySection = () =>
+  must(
+    $('[data-testid="section-status-history"]'),
+    "this page has no status-history section to reuse",
+  );
+
+const replaceHistory = (section, entries) => {
+  const list = must(
+    section.querySelector('[data-testid="status-history"]'),
+    "the status-history section has no entry list",
+  );
+  const template = must(list.firstElementChild, "the status history is empty").cloneNode(true);
+  list.textContent = "";
+  const built = [];
+  for (const [heading, what, when] of entries) {
+    const entry = template.cloneNode(true);
+    const lines = $$("p, span", entry).filter((n) => n.children.length === 0);
+    must(lines, "a history entry has no lines");
+    if (lines[0]) lines[0].textContent = heading;
+    if (lines[1]) lines[1].textContent = what;
+    const caption = entry.querySelector(".MuiTypography-caption") ?? lines[2];
+    if (caption) caption.textContent = when;
+    list.append(entry);
+    built.push(entry);
+  }
+  return built;
+};
+
+/** Open a row's own resolve control by clicking the field the record marks editable. */
+const openRowControl = async (row) => {
+  const field = must(
+    row.querySelector('[data-testid="editable-field"]'),
+    `the ${row.getAttribute("data-label")} row is not editable`,
+  );
+  field.click();
+  await settle(6);
+  return must($$(".MuiMenuItem-root"), "the resolve control opened no menu");
+};
+
+/** Add one option to an open MUI menu, cloned from the options already in it. */
+const addMenuOption = (items, text) => {
+  const option = items[items.length - 1].cloneNode(true);
+  option.textContent = text;
+  items[items.length - 1].after(option);
+  return option;
 };
