@@ -18,7 +18,10 @@ import type { EnvironmentSource } from "@/lib/delivery/config";
 
 import { closePool, isServiceError, withTransaction } from "@/lib/db";
 import { todayInClubZone } from "@/lib/club-time";
-import { grantSeasonMessagingConsentIn } from "./messaging-consent";
+import {
+  grantSeasonMessagingConsentIn,
+  withdrawSeasonMessagingConsentIn,
+} from "./messaging-consent";
 import { runMessagingSweep } from "./messaging-scheduler";
 import {
   addRecruitmentProspectNoteIn,
@@ -187,12 +190,15 @@ afterAll(async () => {
 });
 
 /**
- * `family_name` is deliberately null — `readRecruitmentCycleCompletionIn`'s
- * welcome-track completion (unchanged on this branch; LAN-205's own fix to it
- * lands on its own branch and is not this file's to assume) reads given name
- * + family name + a current mobile, and a prospect that already carries all
- * three would declare `already_complete` and never queue the very jobs these
- * tests exist to observe.
+ * `family_name` is deliberately null. `readRecruitmentCycleCompletionIn`'s
+ * welcome-track completion is keyed on the consent *source* alone (LAN-205:
+ * `granted` via `qr_self_entry` — never name or mobile, corrected from the
+ * original name-and-mobile read this file's tests were first written
+ * against). A bare `newProspect` grants no consent at all, so the welcome
+ * track stays incomplete regardless of what name fields carry; a test that
+ * needs it complete calls {@link grantConsent} (the sign-up form's own
+ * grant), and one that needs *some* consent granted without completing the
+ * welcome track calls {@link grantConsentViaWalkUp} instead.
  */
 async function newProspect(
   status: string = "identified",
@@ -218,8 +224,33 @@ async function newProspect(
   return { personId, prospectId: prospect.rows[0].id };
 }
 
+/** Grants consent the way the sign-up form does — completes the welcome track (LAN-205). */
 async function grantConsent(personId: string): Promise<void> {
   await withTransaction((tx) => grantSeasonMessagingConsentIn(tx, personId, seasonId));
+}
+
+/**
+ * Grants consent the way an operator door does (LAN-205's walk-up read-back,
+ * or LAN-206's operator-add) — authorises the welcome track
+ * (`mayReceiveWelcomeContactIn`) without completing it, and, per
+ * `Q-read-back-authorises-how-much` (Brian, 2026-09-02, answered narrow),
+ * never reaches the interest/questionnaire track
+ * (`hasGrantedViaSignupFormIn`), which waits for the recruit's own grant
+ * through the sign-up form specifically. `messaging-consent.ts` never writes
+ * this source itself (see its own module note) — this raw insert stands in
+ * for the write those packages own, the same way
+ * `recruitment-cycle-dispatch.test.ts`'s own `grantConsentViaWalkUp` does.
+ */
+async function grantConsentViaWalkUp(personId: string): Promise<void> {
+  await withTransaction((tx) =>
+    tx.query(
+      `insert into public.season_messaging_consents (person_id, season_id, state, source, changed_at)
+       values ($1::uuid, $2::uuid, 'granted', 'walk_up_read_back', now())
+       on conflict (person_id, season_id) do update
+         set state = 'granted', source = excluded.source, changed_at = now()`,
+      [personId, seasonId],
+    ),
+  );
 }
 
 describe("updateRecruitmentProspectStatusIn — the exits, W13", () => {
@@ -310,7 +341,11 @@ describe("updateRecruitmentProspectStatusIn — the exits, W13", () => {
 
   it("stops the cycle: an exit cancels every queued job, not merely refuses new ones", async () => {
     const { personId, prospectId } = await newProspect("identified");
-    await grantConsent(personId);
+    // An operator read-back grant, not the sign-up form — a `grantConsent`
+    // (qr_self_entry) grant here would complete the welcome track outright
+    // (LAN-205), leaving nothing for `sendRecruitmentQuestionnaireIn` below
+    // to declare and nothing for this test's own cancellation to observe.
+    await grantConsentViaWalkUp(personId);
     const declared = await withTransaction((tx) =>
       sendRecruitmentQuestionnaireIn(tx, actorPersonId, prospectId, "personal"),
     );
@@ -480,24 +515,20 @@ describe("sendRecruitmentQuestionnaireIn and the sweep — the 2026-09-01 amendm
   });
 
   it("creates no job for a recruit with no granted consent when the recruitment track is asked, and names why", async () => {
-    // The welcome track is complete (a full name and a mobile on file) so the
-    // welcome track's own new permissiveness cannot create anything here as
-    // a side effect — this isolates the recruitment/interest track's own
-    // still-strict gate, the thing this test is actually about.
+    // The welcome track is complete — granted via the sign-up form, then
+    // withdrawn — so the welcome track's own new permissiveness cannot
+    // create anything here as a side effect (withdrawing leaves the
+    // completing *source* at `qr_self_entry`, per
+    // `withdrawSeasonMessagingConsentIn`'s own module note, while taking the
+    // *state* off `granted`). This isolates the recruitment/interest
+    // track's own still-strict gate, the thing this test is actually about
+    // — a bare `newProspect` with no consent action at all would instead
+    // leave the welcome track's own permissive gate open, and this door's
+    // shared declare call would wrongly report `reason: null` for a
+    // welcome-track job the "recruitment" track never asked for.
     const { personId, prospectId } = await newProspect("identified");
-    await withTransaction((tx) =>
-      tx.query("update public.people set family_name = 'Completewelcome' where id = $1::uuid", [
-        personId,
-      ]),
-    );
-    await withTransaction((tx) =>
-      tx.query(
-        `insert into public.contact_points
-           (person_id, kind, scope, raw_value, is_preferred, source, valid_from)
-         values ($1::uuid, 'phone', null, $2, true, 'other', current_date)`,
-        [personId, uniquePhone()],
-      ),
-    );
+    await grantConsent(personId);
+    await withTransaction((tx) => withdrawSeasonMessagingConsentIn(tx, personId, seasonId));
     const result = await withTransaction((tx) =>
       sendRecruitmentQuestionnaireIn(tx, actorPersonId, prospectId, "recruitment"),
     );
@@ -518,7 +549,11 @@ describe("sendRecruitmentQuestionnaireIn and the sweep — the 2026-09-01 amendm
       "the sink accepts the payload, and the record's own last-sent date reflects it",
     async () => {
       const { personId, prospectId } = await newProspect("identified");
-      await grantConsent(personId);
+      // An operator read-back grant, not the sign-up form — this proves the
+      // "personal" (welcome) track's own end-to-end path, which a
+      // `grantConsent` (qr_self_entry) grant would complete outright before
+      // the send below ever ran (LAN-205), leaving nothing to declare.
+      await grantConsentViaWalkUp(personId);
 
       const before = await withTransaction((tx) => readRecruitmentProspectIn(tx, prospectId));
       expect(before?.personal.lastSentAt).toBeNull();

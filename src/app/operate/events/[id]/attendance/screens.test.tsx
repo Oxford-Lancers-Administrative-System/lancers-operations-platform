@@ -853,7 +853,7 @@ describe("UX-73 — add walk-up attendance", () => {
     // player… first name, last name, phone, and email".
     const { container } = render(await AttendancePage(attendanceProps({ add: "walk-up" })));
 
-    expect(container.textContent).toContain("Add a walk-on");
+    expect(container.textContent).toContain("Add a walk-up");
     expect(screen.getByLabelText(/^First name/)).toBeTruthy();
     expect(screen.getByLabelText(/^Last name/)).toBeTruthy();
     expect(screen.getByLabelText(/^Phone/)).toBeTruthy();
@@ -898,11 +898,15 @@ describe("UX-73 — add walk-up attendance", () => {
     expect(container.textContent).not.toMatch(/LAN-\d+/);
   });
 
-  it("confirms the same two facts after it is committed", async () => {
+  it('confirms with a short label, not a paragraph — Brian, 2026-08-31: "Walkup added" is enough', async () => {
+    // Brian locked *walk-up* as the word the same day: "Walkup added" reads as
+    // "Walk-up added" on the shipped screen.
     const { container } = render(await AttendancePage(attendanceProps({ added: "walk-up" })));
 
-    expect(screen.getByTestId("walk-up-added").textContent).toContain("in recruitment");
-    expect(container.textContent).toContain("were not put on the roster");
+    expect(screen.getByTestId("walk-up-added").textContent).toBe("Walk-up added");
+    // The paragraph the confirmation used to carry is gone — the reconciliation
+    // note said it already, before the save, and no narrative text repeats it.
+    expect(container.textContent).not.toContain("were not put on the roster");
   });
 });
 
@@ -1491,6 +1495,187 @@ describe("the board is read in two groups", () => {
   });
 });
 
+describe("Recruits first — W12, D11, LAN-205", () => {
+  const RECRUIT_PERSON_ID = "77777777-7777-4777-8777-777777777777";
+
+  function recruitmentBoard(participants: AttendanceParticipant[]) {
+    return board({ event: detail({ eventType: "recruitment" }), participants });
+  }
+
+  function namesIn(group: string): string[] {
+    const panel = screen.getByTestId(`attendance-group-${group}`);
+    return [...panel.querySelectorAll("[data-testid='attendance-row']")].map(
+      (row) => row.querySelector("p")?.textContent ?? "",
+    );
+  }
+
+  it("puts every non-walk-up recruit in Recruits, ahead of Attending, on a recruitment event", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      recruitmentBoard([
+        participant({ key: "player:a", displayName: "Alwyn Cholmondley", rsvp: "yes" }),
+        participant({
+          key: `recruit:${RECRUIT_PERSON_ID}`,
+          displayName: "Rosalind Penhaligon",
+          capacity: "recruit",
+          rsvp: null,
+          isWalkUp: false,
+          presence: null,
+        }),
+      ]),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    const groups = [...container.querySelectorAll("[data-testid^='attendance-group-']")]
+      .map((node) => node.getAttribute("data-testid"))
+      .filter((id) => id !== null && !id.includes("toggle") && !id.includes("count"));
+    expect(groups).toEqual(["attendance-group-recruits", "attendance-group-attending"]);
+    expect(namesIn("recruits")).toEqual(["Rosalind Penhaligon"]);
+    expect(namesIn("attending")).toEqual(["Alwyn Cholmondley"]);
+  });
+
+  it("is open by default, the same as Attending", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      recruitmentBoard([
+        participant({
+          key: `recruit:${RECRUIT_PERSON_ID}`,
+          displayName: "Rosalind Penhaligon",
+          capacity: "recruit",
+          rsvp: null,
+          isWalkUp: false,
+          presence: null,
+        }),
+      ]),
+    );
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("attendance-group-recruits")).toHaveAttribute("data-open", "true");
+  });
+
+  /**
+   * OWNER-WALKUP-GROUP-ORDER — Brian, 2026-09-02, on his walkthrough: "Walk
+   * Up should not be at the bottom. Walk Up should be right below Recruits.
+   * Because they're very likely to recruit, I want to see the same thing
+   * there." This is a rendered-order regression test: it fails against the
+   * order this package shipped first (Recruits, Attending, Everyone else,
+   * Walk-ups) and passes against the corrected one.
+   */
+  it("puts Walk-ups directly below Recruits, ahead of Attending, on a recruitment event", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      recruitmentBoard([
+        participant({ key: "player:a", displayName: "Alwyn Cholmondley", rsvp: "yes" }),
+        participant({ key: "player:b", displayName: "Bar Sedgewick", rsvp: "no" }),
+        participant({
+          key: `recruit:${RECRUIT_PERSON_ID}`,
+          displayName: "Rosalind Penhaligon",
+          capacity: "recruit",
+          rsvp: null,
+          isWalkUp: false,
+          presence: null,
+        }),
+        participant({
+          key: "recruit:88888888-8888-4888-8888-888888888888",
+          displayName: "Devon Skye",
+          capacity: "recruit",
+          rsvp: null,
+          isWalkUp: true,
+          presence: "present",
+        }),
+      ]),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    const groups = [...container.querySelectorAll("[data-testid^='attendance-group-']")]
+      .map((node) => node.getAttribute("data-testid"))
+      .filter((id) => id !== null && !id.includes("toggle") && !id.includes("count"));
+    expect(groups).toEqual([
+      "attendance-group-recruits",
+      "attendance-group-walk_ups",
+      "attendance-group-attending",
+      "attendance-group-everyone_else",
+    ]);
+    expect(namesIn("walk_ups")).toEqual(["Devon Skye"]);
+  });
+
+  it("leaves Walk-ups last on every other event type, unchanged", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({
+        event: detail({ eventType: "practice" }),
+        participants: [
+          participant({ key: "player:a", displayName: "Alwyn Cholmondley", rsvp: "yes" }),
+          participant({
+            key: "guest:66666666-6666-4666-8666-666666666666",
+            displayName: "Devon Skye",
+            capacity: "guest",
+            rsvp: null,
+            isWalkUp: true,
+            presence: "present",
+          }),
+        ],
+      }),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    const groups = [...container.querySelectorAll("[data-testid^='attendance-group-']")]
+      .map((node) => node.getAttribute("data-testid"))
+      .filter((id) => id !== null && !id.includes("toggle") && !id.includes("count"));
+    expect(groups).toEqual(["attendance-group-attending", "attendance-group-walk_ups"]);
+  });
+
+  it("keeps a walk-up out of Recruits even though every walk-up carries recruit capacity", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      recruitmentBoard([
+        participant({
+          key: `recruit:${RECRUIT_PERSON_ID}`,
+          displayName: "Devon Skye",
+          capacity: "recruit",
+          rsvp: null,
+          isWalkUp: true,
+          presence: "present",
+        }),
+      ]),
+    );
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.queryByTestId("attendance-group-recruits")).toBeNull();
+    expect(namesIn("walk_ups")).toEqual(["Devon Skye"]);
+  });
+
+  it("draws no Recruits group at all for any other event type, even with a recruit-capacity row", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({
+        event: detail({ eventType: "practice" }),
+        participants: [
+          participant({
+            key: `recruit:${RECRUIT_PERSON_ID}`,
+            displayName: "Rosalind Penhaligon",
+            capacity: "recruit",
+            rsvp: null,
+            isWalkUp: false,
+            presence: null,
+          }),
+        ],
+      }),
+    );
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.queryByTestId("attendance-group-recruits")).toBeNull();
+    // Falls through to "Attending"/"Everyone else" like any other invitee —
+    // never dropped from the sheet, only ungrouped specially. "Everyone
+    // else" starts closed, so the count is what proves the row is there.
+    expect(screen.getByTestId("attendance-group-count-everyone_else").textContent).toBe("1");
+    fireEvent.click(screen.getByTestId("attendance-group-toggle-everyone_else"));
+    expect(screen.getByTestId("attendance-group-everyone_else").textContent).toContain(
+      "Rosalind Penhaligon",
+    );
+  });
+});
+
 describe("UX-97 — the coach's walk-up", () => {
   it("offers the same minimal capture, on the same route", async () => {
     givenCoach();
@@ -1499,7 +1684,7 @@ describe("UX-97 — the coach's walk-up", () => {
     const { container } = render(await AttendancePage(attendanceProps({ add: "walk-up" })));
 
     expect(screen.getByTestId("walk-up-step")).toHaveAttribute("data-view", "coach");
-    expect(container.textContent).toContain("Add a walk-on");
+    expect(container.textContent).toContain("Add a walk-up");
     expect(container.textContent).toContain("added to recruitment");
     // The deferred workflow is named and not offered — LAN-85, per LAN-80.
     expect(screen.queryByRole("link", { name: /onboard/i })).toBeNull();

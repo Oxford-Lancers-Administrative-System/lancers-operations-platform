@@ -38,12 +38,18 @@ import {
   WALK_UP_PHONE_REQUIRED,
 } from "./attendance";
 import { formatShowedAgainstInvited } from "@/app/operate/events/[id]/attendance/presentation";
+import fs from "node:fs";
+import path from "node:path";
 import { approveEvent, saveEventAudience } from "./event-approval";
 import { listAudienceCatalogueIn } from "./event-audience";
 import { createEventDraft, type EventDraftInput } from "./events";
 import { withTransaction } from "@/lib/db";
 import { todayInClubZone } from "@/lib/club-time";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
+import { readSeasonMessagingConsentIn } from "./messaging-consent";
+import { dispatchRecruitmentCycleJob } from "./messaging-scheduler";
+import { SINK_DIRECTORY, type SinkRecord } from "@/lib/delivery/local-sink";
+import { TEMPLATE_NAMES } from "@/lib/delivery/templates";
 
 const NAME_MARKER = "LAN80AttendanceSuite";
 
@@ -128,6 +134,39 @@ afterEach(async () => {
     "delete from public.contact_points where person_id in (select id from public.people where family_name = $1)",
     [NAME_MARKER],
   );
+  // LAN-205: a walk-up now also grants season consent and declares the
+  // recruitment cycle's jobs, both `on delete restrict` (or referencing) the
+  // person — cleared before the recruitment prospect and the person itself,
+  // on the same "the delete below fails, the hook aborts, every later test
+  // inherits the leftovers" reasoning the comment below already gives.
+  // `delivery_attempts`/`delivery_results` reference `notification_jobs`
+  // itself, so a dispatched cycle job's own rows go first.
+  await observer.query(
+    `delete from public.delivery_results where notification_job_id in
+      (select id from public.notification_jobs where person_id in
+        (select id from public.people where family_name = $1))`,
+    [NAME_MARKER],
+  );
+  await observer.query(
+    `delete from public.delivery_attempts where notification_job_id in
+      (select id from public.notification_jobs where person_id in
+        (select id from public.people where family_name = $1))`,
+    [NAME_MARKER],
+  );
+  await observer.query(
+    "delete from public.notification_jobs where person_id in (select id from public.people where family_name = $1)",
+    [NAME_MARKER],
+  );
+  await observer.query(
+    "delete from public.season_messaging_consents where person_id in (select id from public.people where family_name = $1)",
+    [NAME_MARKER],
+  );
+  // A dispatched welcome job mints a `person_access_tokens` row for the
+  // sign-up form link (`issuePersonTokenIn`) — also `on delete restrict`.
+  await observer.query(
+    "delete from public.person_access_tokens where person_id in (select id from public.people where family_name = $1)",
+    [NAME_MARKER],
+  );
   // A walk-on now leaves a recruitment prospect behind, and `person_id` is
   // `on delete restrict` — so without this the person delete below fails, the
   // hook aborts, and every later test in the file inherits the leftovers.
@@ -198,6 +237,11 @@ async function approvedEvent(size = 3, overrides: Partial<EventDraftInput> = {})
  */
 async function occurredEvent(size = 3) {
   return approvedEvent(size, { scheduledOn: daysFromToday(-7) });
+}
+
+/** The same, but `eventType: "recruitment"` — W12's own sheet. */
+async function recruitmentEvent(size = 1) {
+  return approvedEvent(size, { eventType: "recruitment", scheduledOn: daysFromToday(-7) });
 }
 
 /** `YYYY-MM-DD`, `offset` days from today in the club's own zone. */
@@ -789,18 +833,47 @@ describe("walk-ons", () => {
     expect(await mintedPerson()).toEqual([]);
   });
 
-  it("accepts the messy contacts the club's real files contain", async () => {
-    // As forgiving as LAN-74's intake, for the recorded reason: a contact the
-    // club cannot store is a contact the club loses.
+  it("accepts a messy but genuine phone number, and normalises it for delivery", async () => {
+    // Forgiving of *formatting* only — spaces, a leading 0 — never of a wrong
+    // length. LAN-205 tightened this from the bare "seven digits or more"
+    // check `requirePhoneShape` used to run: the shared `validatePhoneNumber`
+    // (LAN-183) is the same gate the sign-up form uses, and normalises to
+    // E.164 so the walk-up's own send cannot fail on a malformed number.
     const event = await occurredEvent();
 
     await recordWalkUpAttendance(actorPersonId, event.id, {
       ...WALK_ON,
-      phone: "07700 90010",
+      phone: "07700900105",
       email: "devon@example.ac.ox",
     });
 
     expect(await attendanceRows(event.id)).toHaveLength(1);
+
+    const contact = await observer.query<{ raw_value: string; normalised_value: string | null }>(
+      `select raw_value, normalised_value from public.contact_points
+        where person_id in (select id from public.people where family_name = $1)
+          and kind = 'phone'`,
+      [NAME_MARKER],
+    );
+    expect(contact.rows[0]).toMatchObject({
+      raw_value: "07700900105",
+      normalised_value: "447700900105",
+    });
+  });
+
+  it("refuses a phone number one digit short of a real one, and writes nothing", async () => {
+    // Source Data Analysis §11.1's own example, and the exact failure mode
+    // the shared validator exists to catch: "07700 90010" is short by one
+    // digit and would otherwise send a working link to a stranger.
+    const event = await occurredEvent();
+
+    const error = await expectRefused(
+      recordWalkUpAttendance(actorPersonId, event.id, { ...WALK_ON, phone: "07700 90010" }),
+    );
+
+    expect(error.kind).toBe("constraint_violated");
+    expect(await attendanceRows(event.id)).toEqual([]);
+    expect(await mintedPerson()).toEqual([]);
   });
 
   /**
@@ -1558,5 +1631,264 @@ describe("invariant P8", () => {
         [event.id, event.seasonId, membership],
       ),
     ).rejects.toMatchObject({ constraint: "attendance_records_one_per_player_per_event" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W12, D11 — recruits first on a recruitment event's sheet. LAN-205.
+// ---------------------------------------------------------------------------
+
+describe("recruits on a recruitment event's sheet — W12, D11, LAN-205", () => {
+  it("shows a recruit captured at one recruitment event on another, unrecorded and writable", async () => {
+    const eventA = await recruitmentEvent();
+    const saved = await recordWalkUpAttendance(actorPersonId, eventA.id, {
+      givenName: "Rosalind",
+      familyName: NAME_MARKER,
+      phone: "07700 900450",
+      email: null,
+      presence: "present",
+    });
+    const personId = saved.key.split(":")[1];
+
+    const eventB = await recruitmentEvent();
+    const boardB = await readAttendanceBoard(eventB.id);
+    const onBoard = boardB.participants.find((entry) => entry.key === `recruit:${personId}`);
+
+    expect(onBoard).toMatchObject({
+      displayName: "Rosalind LAN80AttendanceSuite",
+      capacity: "recruit",
+      isWalkUp: false,
+      presence: null,
+      rsvp: null,
+    });
+
+    const written = await recordAttendance(actorPersonId, eventB.id, onBoard!.key, "present");
+    expect(written.presence).toBe("present");
+
+    // Recorded without ever inviting them — the whole point of the fallback.
+    const invitations = await observer.query<{ count: string }>(
+      `select count(*)::text as count from public.invitations
+        where event_id = $1 and person_id = $2`,
+      [eventB.id, personId],
+    );
+    expect(Number(invitations.rows[0].count)).toBe(0);
+
+    // And at eventA, where they were actually captured, they appear exactly
+    // once — their walk-up row — never a second, unrecorded appearance too.
+    const boardA = await readAttendanceBoard(eventA.id);
+    const atA = boardA.participants.filter((entry) => entry.key === `recruit:${personId}`);
+    expect(atA).toHaveLength(1);
+    expect(atA[0].isWalkUp).toBe(true);
+  });
+
+  it("excludes a void prospect from the board — the record itself is wrong, per the schema's own comment", async () => {
+    const event = await recruitmentEvent();
+
+    const voided = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ($1, $2) returning id`,
+      ["Isambard", NAME_MARKER],
+    );
+    await observer.query(
+      `insert into public.recruitment_prospects (person_id, season_id, status, source)
+       values ($1::uuid, $2::uuid, 'void', 'other')`,
+      [voided.rows[0].id, event.seasonId],
+    );
+
+    const board = await readAttendanceBoard(event.id);
+    expect(board.participants.some((entry) => entry.key === `recruit:${voided.rows[0].id}`)).toBe(
+      false,
+    );
+  });
+
+  it("still shows a declined or disengaged prospect — an exit status is not a gate on the door", async () => {
+    const event = await recruitmentEvent();
+
+    const declined = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ($1, $2) returning id`,
+      ["Marlowe", NAME_MARKER],
+    );
+    await observer.query(
+      `insert into public.recruitment_prospects (person_id, season_id, status, source)
+       values ($1::uuid, $2::uuid, 'declined', 'other')`,
+      [declined.rows[0].id, event.seasonId],
+    );
+
+    const board = await readAttendanceBoard(event.id);
+    const onBoard = board.participants.find(
+      (entry) => entry.key === `recruit:${declined.rows[0].id}`,
+    );
+    expect(onBoard).toMatchObject({ capacity: "recruit", isWalkUp: false, presence: null });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The walk-up door's own send — LAN-205 amendment, Brian 2026-09-01.
+// ---------------------------------------------------------------------------
+
+describe("the walk-up door's own send — LAN-205 amendment", () => {
+  const CONFIGURED = {
+    APP_BASE_URL: "http://localhost:3000",
+    WHATSAPP_PHONE_NUMBER_ID: "5550001",
+    WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
+    WHATSAPP_TEMPLATE_NAME: "event_invitation",
+    EMAIL_API_KEY: "not-a-real-key",
+    EMAIL_FROM_ADDRESS: "Oxford Lancers <events@lancers.example.org>",
+    DELIVERY_EMAIL_ALLOWLIST: "nobody@example.test",
+  };
+
+  async function jobsFor(personId: string) {
+    const result = await observer.query<{ idempotency_key: string; status: string }>(
+      `select idempotency_key, status::text as status from public.notification_jobs
+        where person_id = $1::uuid order by idempotency_key`,
+      [personId],
+    );
+    return result.rows;
+  }
+
+  it("grants walk_up_read_back consent for the event's season, from the read-back alone", async () => {
+    const event = await recruitmentEvent();
+    const saved = await recordWalkUpAttendance(actorPersonId, event.id, {
+      givenName: "Tobias",
+      familyName: NAME_MARKER,
+      phone: "07700 900451",
+      email: null,
+      presence: "present",
+    });
+    const personId = saved.key.split(":")[1];
+
+    const consent = await withTransaction((tx) =>
+      readSeasonMessagingConsentIn(tx, personId, event.seasonId),
+    );
+    expect(consent).toMatchObject({ state: "granted", source: "walk_up_read_back" });
+  });
+
+  it("declares the recruitment cycle's welcome track — the interest track waits for the sign-up form itself (LAN-204's Q-read-back-authorises-how-much)", async () => {
+    const event = await recruitmentEvent();
+    const saved = await recordWalkUpAttendance(actorPersonId, event.id, {
+      givenName: "Fintan",
+      familyName: NAME_MARKER,
+      phone: "07700 900452",
+      email: null,
+      presence: "present",
+    });
+    const personId = saved.key.split(":")[1];
+
+    // The welcome track only: consent was granted via the read-back, never
+    // the sign-up form, so `welcomeStepComplete` reads false (LAN-205's own
+    // fix) and the welcome track is declared. The interest/questionnaire
+    // track stays absent — a touchline read-back's grant authorises the
+    // welcome track alone (`Q-read-back-authorises-how-much`, Brian,
+    // 2026-09-02, answered narrow); it takes the recruit's own grant through
+    // the sign-up form, not merely any granted state, to reach that track.
+    // See `recruitment-cycle-dispatch.test.ts`'s own "LAN-204 — the consent
+    // deadlock" suite for the direct proof of that gate.
+    const jobs = await jobsFor(personId);
+    expect(jobs.map((job) => job.idempotency_key).sort()).toEqual(
+      [
+        `recruit-cycle:details_reminder:${personId}:${event.seasonId}`,
+        `recruit-cycle:welcome:${personId}:${event.seasonId}`,
+      ].sort(),
+    );
+    expect(jobs.every((job) => job.status === "pending")).toBe(true);
+  });
+
+  /**
+   * The end-to-end proof the amendment asks for: the job created, claimed,
+   * rendered as the door's one authorised template, and accepted by the
+   * local delivery sink as a real Meta-shaped payload —
+   * `docs/operating-the-slice.md:350-395`'s own manual walk, run here as a
+   * test. `dispatchRecruitmentCycleJob` is the claim and the render
+   * together, on the same shape `recruitment-cycle-dispatch.test.ts` already
+   * exercises with an injected transport double; this test passes none, so
+   * `resolveDeliveryProvider` falls through to the real `selectDeliverySink`
+   * — the loopback `APP_BASE_URL` above is what makes that happen.
+   */
+  it("sends the door's one message end to end, and the local sink accepts it", async () => {
+    const event = await recruitmentEvent();
+    const saved = await recordWalkUpAttendance(actorPersonId, event.id, {
+      givenName: "Marguerite",
+      familyName: NAME_MARKER,
+      phone: "07700 900453",
+      email: null,
+      presence: "present",
+    });
+    const personId = saved.key.split(":")[1];
+
+    const job = await observer.query<{ id: string }>(
+      "select id from public.notification_jobs where idempotency_key = $1",
+      [`recruit-cycle:welcome:${personId}:${event.seasonId}`],
+    );
+    expect(job.rows).toHaveLength(1);
+
+    const before = new Set(fs.existsSync(SINK_DIRECTORY) ? fs.readdirSync(SINK_DIRECTORY) : []);
+
+    const outcome = await dispatchRecruitmentCycleJob(job.rows[0].id, {
+      source: { ...CONFIGURED, DELIVERY_RECIPIENT_ALLOWLIST: "07700 900453" },
+    });
+    expect(outcome).toBe("accepted");
+
+    const after = fs.readdirSync(SINK_DIRECTORY);
+    const written = after.find((name) => !before.has(name));
+    expect(written, "the sink must have written a new file").toBeDefined();
+
+    const record = JSON.parse(
+      fs.readFileSync(path.join(SINK_DIRECTORY, written as string), "utf8"),
+    ) as SinkRecord;
+    expect(record.kind).toBe("recruit_welcome");
+    expect(record.channel).toBe("whatsapp");
+    expect(record.recipient).toBe("447700900453");
+    expect((record.payload as { template: { name: string } }).template.name).toBe(
+      TEMPLATE_NAMES.recruit_welcome,
+    );
+
+    const dispatched = await observer.query<{ status: string }>(
+      "select status::text as status from public.notification_jobs where id = $1",
+      [job.rows[0].id],
+    );
+    expect(dispatched.rows[0].status).toBe("processing");
+  });
+
+  it("creates the recruit and grants consent regardless — if the number does not work, nothing is sent and nothing else changes", async () => {
+    const event = await recruitmentEvent();
+    const saved = await recordWalkUpAttendance(actorPersonId, event.id, {
+      givenName: "Clementine",
+      familyName: NAME_MARKER,
+      phone: "07700 900454",
+      email: null,
+      presence: "present",
+    });
+    const personId = saved.key.split(":")[1];
+
+    const job = await observer.query<{ id: string }>(
+      "select id from public.notification_jobs where idempotency_key = $1",
+      [`recruit-cycle:welcome:${personId}:${event.seasonId}`],
+    );
+
+    // Deliberately not this call's allowlisted number — standing in for "the
+    // number does not work", the same refusal an unreachable real recipient
+    // would produce at the provider.
+    const outcome = await dispatchRecruitmentCycleJob(job.rows[0].id, {
+      source: { ...CONFIGURED, DELIVERY_RECIPIENT_ALLOWLIST: "07700 900999" },
+    });
+    expect(outcome).toBe("skipped");
+
+    const failed = await observer.query<{ status: string; last_error: string | null }>(
+      "select status::text as status, last_error from public.notification_jobs where id = $1",
+      [job.rows[0].id],
+    );
+    expect(failed.rows[0].status).toBe("failed");
+
+    // The recruit is still created, still on the sheet, still followable —
+    // the send failing changes nothing about any of that.
+    expect(await attendanceRows(event.id)).toHaveLength(1);
+    const prospect = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.recruitment_prospects where person_id = $1",
+      [personId],
+    );
+    expect(Number(prospect.rows[0].count)).toBe(1);
+    const consent = await withTransaction((tx) =>
+      readSeasonMessagingConsentIn(tx, personId, event.seasonId),
+    );
+    expect(consent?.state).toBe("granted");
   });
 });

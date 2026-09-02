@@ -62,16 +62,21 @@ interface OpenState extends GroupOpenState {
 }
 
 /**
- * Attending open, Everyone else closed — and **Walk-ups open**.
+ * Recruits open, Attending open, Everyone else closed — and **Walk-ups open**.
  *
- * The third one is not an inconsistency. A walk-up group is empty at almost
- * every event, and an empty group is not drawn at all, so the open state costs
- * nothing until there is something in it. When there is, it is because the
- * recorder just added somebody thirty seconds ago and was returned to this
- * board to see it: closing the only confirmation that the walk-up was recorded
- * would be the one place a disclosure actively hides what the operator did.
+ * Recruits is open for the same reason Attending is — Brian, on the fidelity
+ * mockup: "recruits open because they are the point of a recruitment event."
+ *
+ * Walk-ups is not an inconsistency with Everyone else being closed. A walk-up
+ * group is empty at almost every event, and an empty group is not drawn at
+ * all, so the open state costs nothing until there is something in it. When
+ * there is, it is because the recorder just added somebody thirty seconds ago
+ * and was returned to this board to see it: closing the only confirmation
+ * that the walk-up was recorded would be the one place a disclosure actively
+ * hides what the operator did.
  */
 const DEFAULT_OPEN: OpenState = {
+  recruits: true,
   attending: true,
   everyone_else: false,
   walk_ups: true,
@@ -81,12 +86,15 @@ const DEFAULT_OPEN: OpenState = {
 
 export function AttendanceGroups({
   eventId,
+  eventType,
   participants,
   search,
   showMismatch,
   mayRemove,
 }: {
   eventId: string;
+  /** Whether to draw the Recruits group at all — `groupParticipants` reads it too. */
+  eventType: string;
   /** Already filtered by the page. Grouped and sorted here. */
   participants: AttendanceParticipant[];
   /** The current search text, from the query string. */
@@ -107,10 +115,12 @@ export function AttendanceGroups({
     setOpen((prev) => {
       if (searching) {
         return {
+          recruits: true,
           attending: true,
           everyone_else: true,
           walk_ups: true,
           saved: {
+            recruits: prev.recruits,
             attending: prev.attending,
             everyone_else: prev.everyone_else,
             walk_ups: prev.walk_ups,
@@ -124,7 +134,7 @@ export function AttendanceGroups({
     });
   }
 
-  const groups = groupParticipants(participants);
+  const groups = groupParticipants(participants, eventType);
 
   return (
     <Stack spacing={2} data-testid="attendance-groups">

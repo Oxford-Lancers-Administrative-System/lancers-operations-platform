@@ -35,6 +35,7 @@ import {
   NO_MATCHING_PARTICIPANTS,
   REGISTER_NOT_YET_HEADLINE,
   RSVP_STAYS_SEPARATE,
+  WALK_UP_ADDED,
 } from "./presentation";
 
 /**
@@ -186,9 +187,8 @@ export default async function AttendancePage({
       </Box>
 
       {justAdded ? (
-        <Alert severity="success" data-testid="walk-up-added">
-          Walk-on recorded. They are in recruitment as somebody to follow up, and were not put on
-          the roster.
+        <Alert severity="success" data-testid="walk-up-added" sx={{ py: 0 }}>
+          {WALK_UP_ADDED}
         </Alert>
       ) : null}
 
@@ -254,6 +254,7 @@ export default async function AttendancePage({
         ) : (
           <AttendanceGroups
             eventId={event.id}
+            eventType={event.eventType}
             participants={visible}
             search={search}
             showMismatch={!isCoachView}

@@ -123,8 +123,13 @@ export async function relinquishImplementationPreflight({
   if (shared && !activeImplementationWorkers) {
     shared = implementationRecord(coordinatorStatus(repoPath, env), missionId);
     for (const attached of shared?.attachedRepoPaths ?? []) {
+      // LAN-212: a reclaimed sibling's worktree is already gone by the time
+      // its stack is retired. `identityAnchor` gives detachMissionLease a
+      // still-live path (this call's own `repoPath`) to find the same
+      // registry the dead attachment lives in, so the stale entry is dropped
+      // instead of crashing every retirement after it forever.
       if (fs.existsSync(attached)) stopPreflightApplication(attached, kill);
-      await detachMissionLease({ missionId, repoPath: attached, env });
+      await detachMissionLease({ missionId, repoPath: attached, env, identityAnchor: repoPath });
     }
     if (shared) {
       await retireMissionLease({

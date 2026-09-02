@@ -2,7 +2,11 @@ import "server-only";
 
 import { withTransaction, type Tx } from "@/lib/db";
 import { deriveEntityIdFromNaturalKey, recordAudit } from "./audit";
-import { hasGrantedViaSignupFormIn, mayReceiveWelcomeContactIn } from "./messaging-consent";
+import {
+  hasGrantedViaSignupFormIn,
+  mayReceiveWelcomeContactIn,
+  readSeasonMessagingConsentIn,
+} from "./messaging-consent";
 
 /**
  * The recruitment cycle's own four rows. LAN-203, `REQ-recruitment-cycle`.
@@ -37,20 +41,39 @@ import { hasGrantedViaSignupFormIn, mayReceiveWelcomeContactIn } from "./messagi
  * dispatch, both of which are real and tested here and in
  * `messaging-scheduler.ts`.
  *
- * ## Completion — `REQ-recruitment-cycle` amended, Brian, 2026-09-01
+ * ## Completion — `REQ-recruitment-cycle` amended, Brian, 2026-09-01, corrected
+ * by LAN-205
  *
  * "If they fill out the whole thing… then it doesn't send out again." The
- * completing set is first name, last name and mobile for the Welcome step
- * (W1's own mandatory set at every door this package builds, so a recruit
- * captured through the QR or tokenised door already carries it — this
- * matters for a recruit captured elsewhere, walk-up or operator-add, whose
- * doors this package does not build) and Questionnaire B's B1–B5 for the
- * questionnaire step — never B6, and never college, matriculation,
- * graduation or degree, which stay optional at recruit stage
- * (`REQ-recruit-stage-optional`, finding 7, Mission 7's own enforcement,
- * record-only here). {@link readRecruitmentCycleCompletionIn} is the read;
- * `declareRecruitmentCycleJobsIn` is the only caller that turns it into a
- * refusal to create a job.
+ * Welcome step's own completing fact is **the recruit having reached the
+ * sign-up form themselves** — LAN-202's `qr_self_entry` consent source,
+ * `season_messaging_consents.source = 'qr_self_entry'` for this
+ * `(person, season)` — and Questionnaire B's B1–B5 for the questionnaire
+ * step — never B6, and never college, matriculation, graduation or degree,
+ * which stay optional at recruit stage (`REQ-recruit-stage-optional`,
+ * finding 7, Mission 7's own enforcement, record-only here).
+ * {@link readRecruitmentCycleCompletionIn} is the read; `declareRecruitmentCycleJobsIn`
+ * and `messaging-scheduler.ts`'s `dispatchRecruitmentCycleJob` are its two
+ * callers, the first turning it into a refusal to create a job, the second
+ * into a refusal to send one already declared.
+ *
+ * This was originally "first name, last name and mobile on file", which is
+ * what the sign-up form's own required set happens to be — correct for the
+ * QR and tokenised doors, where those fields arrive *because* the recruit
+ * filled the form in, and wrong everywhere else. LAN-205 found the defect
+ * this produced: the walk-up door writes that exact set (given name, family
+ * name, a current phone) in the *same transaction* that captures the
+ * recruit, per its own 2026-09-01 mandatory-mobile amendment, so the welcome
+ * track read `already_complete` for every walk-up before its declaration was
+ * ever attempted — and `declareRecruitmentCycleJobsIn` sent
+ * `recruit_interest_ask` (a football-background questionnaire) instead of
+ * `recruit_welcome` (the signed sign-up-form link), which is not the one
+ * template the walk-up's read-back opt-in authorises. The fields being on
+ * file said only that an *operator* had captured them; they never said the
+ * recruit had been through the form the welcome message exists to send them
+ * to. Keying completion on the consent source instead answers the question
+ * the step is actually asking, for every door alike, walk-up and
+ * operator-add (LAN-206) included, with no per-caller flag to remember.
  *
  * Questionnaire B's own collecting form does not exist yet — LAN-206 — so
  * nothing can honestly answer B1–B5 today outside a test that inserts rows
@@ -206,7 +229,12 @@ const CYCLE_ELIGIBLE_STATUSES: readonly string[] = Object.freeze([
 ]);
 
 export interface RecruitmentCycleCompletion {
-  /** First name, last name and a current mobile number all on file. */
+  /**
+   * The recruit reached the sign-up form themselves — `season_messaging_consents.source`
+   * is `qr_self_entry` for this `(person, season)`. See the module note above
+   * for why this is the fact the Welcome step's completion actually turns on,
+   * corrected from a raw name-and-mobile check by LAN-205.
+   */
   readonly welcomeStepComplete: boolean;
   /** Every one of B1–B5 answered (superseded rows do not count; B6 never counts). */
   readonly questionnaireBComplete: boolean;
@@ -215,30 +243,22 @@ export interface RecruitmentCycleCompletion {
 /**
  * Reads whether a recruit has already supplied the completing set for each
  * cycle track — the read half of "completion stops the cycle" (Brian,
- * 2026-09-01). Never throws for a person with no prospect row or no
- * questionnaire answers at all; both read as incomplete, which is correct
- * for a recruit nobody has captured through this check yet.
+ * 2026-09-01). Never throws for a person with no consent row, no prospect
+ * row or no questionnaire answers at all; all three read as incomplete,
+ * which is correct for a recruit nobody has captured through this check yet.
+ *
+ * `seasonId` was added by LAN-205: the Welcome track's completion is a
+ * consent-source read, and consent is keyed `(person, season)` — there is no
+ * asking this question for a person alone.
  */
 export async function readRecruitmentCycleCompletionIn(
   tx: Tx,
   personId: string,
+  seasonId: string,
   prospectId: string | null,
 ): Promise<RecruitmentCycleCompletion> {
-  const person = await tx.query<{ given_name: string | null; family_name: string | null }>(
-    `select given_name, family_name from public.people where id = $1::uuid`,
-    [personId],
-  );
-  const mobile = await tx.query(
-    `select 1 from public.contact_points
-      where person_id = $1::uuid and kind = 'phone'
-        and valid_from <= current_date and valid_until is null
-      limit 1`,
-    [personId],
-  );
-  const row = person.rows[0];
-  const welcomeStepComplete = Boolean(
-    row?.given_name?.trim() && row?.family_name?.trim() && mobile.rows[0],
-  );
+  const consent = await readSeasonMessagingConsentIn(tx, personId, seasonId);
+  const welcomeStepComplete = consent?.source === "qr_self_entry";
 
   let questionnaireBComplete = false;
   if (prospectId) {
@@ -328,7 +348,7 @@ export async function declareRecruitmentCycleJobsIn(
     return { created: [], reason: "not_eligible" };
   }
 
-  const completion = await readRecruitmentCycleCompletionIn(tx, personId, prospectRow.id);
+  const completion = await readRecruitmentCycleCompletionIn(tx, personId, seasonId, prospectRow.id);
   const steps = await listRecruitmentCycleStepsIn(tx);
   const offsetFor = (step: RecruitmentCycleStepName) =>
     steps.find((s) => s.step === step)?.offsetHours ?? 0;

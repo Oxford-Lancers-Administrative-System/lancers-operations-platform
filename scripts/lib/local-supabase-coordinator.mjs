@@ -768,10 +768,36 @@ export async function attachMissionLease({ missionId, repoPath, token, env = pro
  * torn down when the last attached package has finished with it. Tearing it
  * down under a sibling worker is the mission-scale version of the leak LAN-148
  * fixed at the slot scale, so the caller is told rather than left to guess.
+ *
+ * LAN-212: a reclaimed worker's worktree is gone by the time anyone detaches
+ * it — that is the normal, expected order, not a race. `repoPath` may not
+ * exist on disk any more, so it is resolved through `fs.realpathSync` only
+ * when it still does; the raw path is used as-is otherwise, which still
+ * matches the entry in `attachedRepoPaths` because that entry was itself
+ * canonicalized once, at attach time, while the directory was live.
+ *
+ * A dead `repoPath` also cannot answer `git remote get-url origin`, which is
+ * how the coordinator's registry location is derived, so `identityAnchor`
+ * lets the caller supply a sibling path that is still guaranteed to exist
+ * (its own, always-live `repoPath`) to locate the *same* mission registry
+ * the dead attachment was recorded in. Omit it and existing behavior is
+ * unchanged.
  */
-export async function detachMissionLease({ missionId, repoPath, env = process.env }) {
-  const resolvedRepo = fs.realpathSync(repoPath);
-  const paths = coordinatorPaths(resolvedRepo, env);
+export async function detachMissionLease({
+  missionId,
+  repoPath,
+  env = process.env,
+  identityAnchor = null,
+}) {
+  const exists = fs.existsSync(repoPath);
+  const resolvedRepo = exists ? fs.realpathSync(repoPath) : repoPath;
+  const identitySource =
+    exists || !identityAnchor
+      ? resolvedRepo
+      : fs.existsSync(identityAnchor)
+        ? fs.realpathSync(identityAnchor)
+        : identityAnchor;
+  const paths = coordinatorPaths(identitySource, env);
   return withAllocatorLock(paths, () => {
     const registry = readRegistry(paths.registry);
     const record = Object.values(registry.slots).find(
@@ -880,6 +906,50 @@ export function assertConfigApplied(repoPath, record) {
     );
   }
   return fingerprint;
+}
+
+/**
+ * The migration versions the tracked directory names, in Supabase's own
+ * `<version>_description.sql` numbering — the version is the leading number,
+ * not the whole filename, so it matches what `schema_migrations` records.
+ */
+export function migrationVersionsOnDisk(repoPath) {
+  const dir = path.join(repoPath, "supabase", "migrations");
+  return fs
+    .readdirSync(dir)
+    .filter((name) => /^\d+_.+\.sql$/.test(name))
+    .map((name) => name.match(/^(\d+)_/)[1])
+    .sort();
+}
+
+/**
+ * Refuse to trust a stack's reported success when its applied migration set
+ * does not match the tracked directory.
+ *
+ * LAN-212: `supabase db reset --local --yes` stopped one migration short of
+ * the tracked set, went straight to seeding, and exited 0 — no error, no
+ * indication anything was wrong. The missing table and columns then failed
+ * unrelated application code at runtime, far from the actual cause, and 72
+ * test files looked like defects that were not. Whatever makes the CLI skip a
+ * file is outside this repository's control; whether that is allowed to pass
+ * silently is not. `queryAppliedVersions` is injected — production passes a
+ * real query against `supabase_migrations.schema_migrations`, and a test
+ * passes a fixture — so this stays a fast, deterministic assertion rather
+ * than one that needs a live database to exercise.
+ */
+export async function assertMigrationsApplied({ repoPath, queryAppliedVersions }) {
+  const expected = migrationVersionsOnDisk(repoPath);
+  const applied = new Set(await queryAppliedVersions());
+  const missing = expected.filter((version) => !applied.has(version));
+  if (missing.length > 0) {
+    throw new Error(
+      `${missing.length} tracked migration(s) were not applied: ${missing.join(", ")}. ` +
+        `${repoPath}/supabase/migrations names ${expected.length} file(s); the stack reports ` +
+        `only ${applied.size} applied. Refusing to seed, or otherwise treat this stack as ready, ` +
+        "against a schema that does not match what is tracked.",
+    );
+  }
+  return { expected, appliedCount: applied.size };
 }
 
 /**

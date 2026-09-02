@@ -1339,6 +1339,7 @@ export async function dispatchRecruitmentCycleJob(
     const completion = await readRecruitmentCycleCompletionIn(
       tx,
       job.person_id,
+      seasonId,
       prospect.rows[0]?.id ?? null,
     );
     const trackComplete =
