@@ -28,9 +28,17 @@ const listFiles = (directory) => (fs.existsSync(directory) ? fs.readdirSync(dire
  * whether that mockup shows the current build beside the proposal.
  */
 export function describeWorkflow(workflow, ledgerRoot) {
-  const specs = listFiles(path.join(ledgerRoot, "workflows")).filter((name) =>
-    new RegExp(`^${workflow.id}-.+\\.md$`).test(name),
+  // A rendered specification is linked in preference to its markdown source.
+  // The hub is read in a browser, and a `.md` served as a static file arrives
+  // as a wall of pipes and asterisks — Brian, 2026-09-01, opening W1's from
+  // this table. The markdown remains the artifact of record and is still
+  // linked when no rendering exists.
+  const workflowFiles = listFiles(path.join(ledgerRoot, "workflows"));
+  const rendered = workflowFiles.filter((name) =>
+    new RegExp(`^${workflow.id}-.+\\.html$`).test(name),
   );
+  const sources = workflowFiles.filter((name) => new RegExp(`^${workflow.id}-.+\\.md$`).test(name));
+  const specs = rendered.length === 1 ? rendered : sources;
   const mocks = listFiles(path.join(ledgerRoot, "mockups")).filter((name) =>
     new RegExp(`^${workflow.id}-.+\\.html$`).test(name),
   );
@@ -104,7 +112,9 @@ export function renderMockupHub(state, ledgerRoot) {
     `${screens} ${screens === 1 ? "screen" : "screens"}`,
     `${done} of ${rows.length} done`,
     stale > 0 ? `${stale} stale` : null,
-    `grounded in ${state.baseline.branch} at ${state.baseline.commit.slice(0, 7)}`,
+    `grounded in ${state.baseline.branch} at ${state.baseline.commit.slice(0, 7)}${
+      state.baseline.drift ? " \u00b7 drift recorded" : ""
+    }`,
   ]
     .filter(Boolean)
     .join(" · ");
