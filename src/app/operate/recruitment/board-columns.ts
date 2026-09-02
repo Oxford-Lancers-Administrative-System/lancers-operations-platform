@@ -137,11 +137,17 @@ export const RECRUITMENT_COLUMNS: readonly ColumnDef[] = Object.freeze([
     filterable: true,
   },
   {
+    // LAN-204, item 7 (Brian, 2026-09-02: "It's WhatsApp consent, as in,
+    // have they consented to being contacted? That's important."). The key
+    // stays `consent` — the field this reads (`season_messaging_consents`)
+    // is unchanged and season-scoped, not WhatsApp-specific by schema — but
+    // the label says what an operator needs it to say. `width` widened to
+    // fit the longer label without wrapping.
     key: "consent",
-    label: "Consent",
+    label: "WhatsApp consent",
     band: "recruitment",
     edit: "none",
-    width: 116,
+    width: 152,
     sortable: true,
     filterable: true,
   },

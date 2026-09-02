@@ -6,12 +6,10 @@ import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Checkbox from "@mui/material/Checkbox";
 import Chip from "@mui/material/Chip";
-import Divider from "@mui/material/Divider";
 import Drawer from "@mui/material/Drawer";
 import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 import ListItemText from "@mui/material/ListItemText";
-import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
 import Select from "@mui/material/Select";
@@ -65,6 +63,7 @@ import {
 } from "./board-data";
 import JerseyPicker from "./jersey-picker";
 import { labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
+import { ColumnFilterMenu, FilterButton, StatusPill } from "../board-filter-controls";
 
 const AVAILABILITY_COLOUR: Readonly<Record<string, string>> = Object.freeze({
   green: "#2e7d32",
@@ -696,37 +695,14 @@ export default function RosterBoard({
         </Box>
       </Drawer>
 
-      <Menu
-        open={menu !== null}
-        anchorEl={menu?.anchor ?? null}
+      <ColumnFilterMenu
+        menu={menu}
+        filters={filters}
+        optionsFor={(column) => filterOptions(column, visible)}
+        optionLabel={(column, option) => optionListLabel(column, option)}
+        onSelect={setFilter}
         onClose={() => setMenu(null)}
-        slotProps={{ paper: { sx: { maxHeight: 360 } } }}
-      >
-        <MenuItem
-          selected={(filters[menu?.column.key ?? ""] ?? "") === ""}
-          onClick={() => {
-            if (menu) setFilter(menu.column.key, "");
-            setMenu(null);
-          }}
-        >
-          <em>All</em>
-        </MenuItem>
-        <Divider />
-        {menu
-          ? filterOptions(menu.column, visible).map((option) => (
-              <MenuItem
-                key={option}
-                selected={(filters[menu.column.key] ?? "") === option}
-                onClick={() => {
-                  setFilter(menu.column.key, option);
-                  setMenu(null);
-                }}
-              >
-                {optionListLabel(menu.column, option)}
-              </MenuItem>
-            ))
-          : null}
-      </Menu>
+      />
     </Stack>
   );
 }
@@ -790,59 +766,6 @@ function PinnedSelect({
         ))}
       </Select>
     </FormControl>
-  );
-}
-
-function FilterButton({
-  label,
-  active,
-  onOpen,
-}: {
-  label: string;
-  active: boolean;
-  onOpen: (anchor: HTMLElement) => void;
-}) {
-  return (
-    <Tooltip title={active ? `Filtering ${label}` : `Filter ${label}`} placement="top">
-      <Box
-        component="button"
-        type="button"
-        aria-label={active ? `Filtering ${label}` : `Filter ${label}`}
-        aria-pressed={active}
-        onClick={(event) => onOpen(event.currentTarget as HTMLElement)}
-        sx={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-          width: 24,
-          height: 24,
-          p: 0,
-          cursor: "pointer",
-          borderRadius: 1,
-          border: 1,
-          borderColor: active ? "primary.main" : "divider",
-          bgcolor: active ? "primary.main" : "transparent",
-          color: active ? "common.white" : "text.secondary",
-          "&:hover": {
-            borderColor: "primary.main",
-            bgcolor: active ? "primary.dark" : "action.hover",
-            color: active ? "common.white" : "primary.main",
-          },
-          "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main" },
-        }}
-      >
-        <Box component="svg" viewBox="0 0 24 24" aria-hidden sx={{ width: 14, height: 14 }}>
-          <path
-            d="M4 5.5h16l-6.2 7.2V19l-3.6 1.8v-8.1z"
-            fill={active ? "currentColor" : "none"}
-            stroke="currentColor"
-            strokeWidth={1.7}
-            strokeLinejoin="round"
-          />
-        </Box>
-      </Box>
-    </Tooltip>
   );
 }
 
@@ -1034,13 +957,13 @@ function CellValue({ row, column }: { row: RosterBoardRow; column: ColumnDef }) 
   }
 
   if (column.key === "status") {
-    // A colour-coded chip, same as the mockup and the card view — the one
-    // exception to "plain text like every other select cell", kept because a
-    // status is the single fact an operator scans the whole row for. Editing
-    // still opens the identical generic dropdown every other season fact uses.
+    // The board's one status-pill formula (`../board-filter-controls.tsx`) —
+    // the single exception to "plain text like every other select cell",
+    // kept because a status is the fact an operator scans the whole row
+    // for. Editing still opens the identical generic dropdown every other
+    // season fact uses.
     return (
-      <Chip
-        size="small"
+      <StatusPill
         color={STATUS_COLOUR[row.status] ?? "default"}
         label={labelFor(MEMBERSHIP_STATUS_LABELS, row.status)}
       />
@@ -1142,8 +1065,7 @@ function PlayerCard({ row }: { row: RosterBoardRow }) {
             {row.displayName}
           </Typography>
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-            <Chip
-              size="small"
+            <StatusPill
               color={STATUS_COLOUR[row.status] ?? "default"}
               label={labelFor(MEMBERSHIP_STATUS_LABELS, row.status)}
             />

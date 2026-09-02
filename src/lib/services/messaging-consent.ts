@@ -145,6 +145,29 @@ export async function requireGrantedSeasonMessagingConsent(
 }
 
 /**
+ * The one, narrow exception to {@link requireGrantedSeasonMessagingConsentIn}
+ * — LAN-204's own consent deadlock (Brian, 2026-09-02: "If consent is not
+ * given, sending the personal questionnaire is how we get it… deadlocked").
+ * The recruitment cycle's welcome track is the message that *carries the
+ * link to the sign-up form*, so it is the one send allowed to establish
+ * consent rather than require it already exist; every other send in this
+ * codebase — including the recruitment cycle's own interest/Questionnaire B
+ * track — keeps calling {@link requireGrantedSeasonMessagingConsentIn} or
+ * {@link hasGrantedSeasonMessagingConsentIn} exactly as shipped. This is
+ * never a general relaxation of the gate: `refused` and `withdrawn` are an
+ * explicit "no" and this still refuses both, terminally, on every channel.
+ */
+export async function mayReceiveWelcomeContactIn(
+  tx: Tx,
+  personId: string,
+  seasonId: string,
+): Promise<boolean> {
+  const consent = await readSeasonMessagingConsentIn(tx, personId, seasonId);
+  const state = consent?.state ?? "never_asked";
+  return state !== "refused" && state !== "withdrawn";
+}
+
+/**
  * Records consent granted by the person's own tick on the sign-up form —
  * `qr_self_entry`, whichever door reached the form. Upserts: re-granting an
  * already-granted or previously withdrawn/refused row for the same

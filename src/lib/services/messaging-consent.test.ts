@@ -17,6 +17,7 @@ import { closePool, isServiceError, withTransaction } from "@/lib/db";
 import {
   grantSeasonMessagingConsentIn,
   hasGrantedSeasonMessagingConsentIn,
+  mayReceiveWelcomeContactIn,
   readSeasonMessagingConsentIn,
   requireGrantedSeasonMessagingConsent,
   requireGrantedSeasonMessagingConsentIn,
@@ -191,6 +192,87 @@ describe("requireGrantedSeasonMessagingConsentIn — the seam LAN-203 calls", ()
     const personId = await insertPerson("gate-wrapper");
     await expect(requireGrantedSeasonMessagingConsent(personId, seasonId)).rejects.toMatchObject({
       rule: SEASON_MESSAGING_CONSENT_REQUIRED_RULE,
+    });
+  });
+
+  it("refuses an 'asked' consent — the strict gate stays granted-only", async () => {
+    const personId = await insertPerson("gate-asked");
+    await observer.query(
+      `insert into public.season_messaging_consents (person_id, season_id, state, source)
+       values ($1::uuid, $2::uuid, 'asked', 'operator_recorded')`,
+      [personId, seasonId],
+    );
+    await withTransaction(async (tx) => {
+      await expect(
+        requireGrantedSeasonMessagingConsentIn(tx, personId, seasonId),
+      ).rejects.toMatchObject({ rule: SEASON_MESSAGING_CONSENT_REQUIRED_RULE });
+    });
+  });
+});
+
+/**
+ * LAN-204's own consent exception — pins the exact allowed set so a later
+ * edit that widens it (or narrows the strict gate above to match) fails a
+ * test rather than passing quietly. See the function's own doc comment.
+ */
+describe("mayReceiveWelcomeContactIn — LAN-204's one consent exception", () => {
+  it("allows a person never asked — no row at all", async () => {
+    const personId = await insertPerson("welcome-never-asked");
+    await withTransaction(async (tx) => {
+      expect(await mayReceiveWelcomeContactIn(tx, personId, seasonId)).toBe(true);
+    });
+  });
+
+  it("allows a person explicitly recorded as 'never_asked'", async () => {
+    const personId = await insertPerson("welcome-never-asked-row");
+    await observer.query(
+      `insert into public.season_messaging_consents (person_id, season_id, state, source)
+       values ($1::uuid, $2::uuid, 'never_asked', 'operator_recorded')`,
+      [personId, seasonId],
+    );
+    await withTransaction(async (tx) => {
+      expect(await mayReceiveWelcomeContactIn(tx, personId, seasonId)).toBe(true);
+    });
+  });
+
+  it("allows a person in 'asked'", async () => {
+    const personId = await insertPerson("welcome-asked");
+    await observer.query(
+      `insert into public.season_messaging_consents (person_id, season_id, state, source)
+       values ($1::uuid, $2::uuid, 'asked', 'operator_recorded')`,
+      [personId, seasonId],
+    );
+    await withTransaction(async (tx) => {
+      expect(await mayReceiveWelcomeContactIn(tx, personId, seasonId)).toBe(true);
+    });
+  });
+
+  it("allows a person already 'granted'", async () => {
+    const personId = await insertPerson("welcome-granted");
+    await withTransaction(async (tx) => {
+      await grantSeasonMessagingConsentIn(tx, personId, seasonId);
+      expect(await mayReceiveWelcomeContactIn(tx, personId, seasonId)).toBe(true);
+    });
+  });
+
+  it("refuses a person who explicitly 'refused'", async () => {
+    const personId = await insertPerson("welcome-refused");
+    await observer.query(
+      `insert into public.season_messaging_consents (person_id, season_id, state, source)
+       values ($1::uuid, $2::uuid, 'refused', 'operator_recorded')`,
+      [personId, seasonId],
+    );
+    await withTransaction(async (tx) => {
+      expect(await mayReceiveWelcomeContactIn(tx, personId, seasonId)).toBe(false);
+    });
+  });
+
+  it("refuses a person who 'withdrawn'", async () => {
+    const personId = await insertPerson("welcome-withdrawn");
+    await withTransaction(async (tx) => {
+      await grantSeasonMessagingConsentIn(tx, personId, seasonId);
+      await withdrawSeasonMessagingConsentIn(tx, personId, seasonId);
+      expect(await mayReceiveWelcomeContactIn(tx, personId, seasonId)).toBe(false);
     });
   });
 });

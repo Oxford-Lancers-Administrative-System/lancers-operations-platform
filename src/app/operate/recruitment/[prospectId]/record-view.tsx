@@ -167,7 +167,7 @@ export default function RecruitmentRecordView({
               <LabelRow label="Source" value={record.source} />
               <LabelRow label="First contact" value={record.firstContactOn} />
               <LabelRow label="Committed on" value={record.committedOn} />
-              <LabelRow label="Consent" value={CONSENT_LABELS[record.consent]} />
+              <LabelRow label="WhatsApp consent" value={CONSENT_LABELS[record.consent]} />
               <Divider sx={{ my: 1 }} />
               <LabelRow label="Played before" value={record.answers.playedBefore ?? null} />
               <LabelRow label="Watched before" value={record.answers.watchedBefore ?? null} />

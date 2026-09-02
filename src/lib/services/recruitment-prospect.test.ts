@@ -17,6 +17,7 @@ import type { Client } from "pg";
 import type { EnvironmentSource } from "@/lib/delivery/config";
 
 import { closePool, isServiceError, withTransaction } from "@/lib/db";
+import { todayInClubZone } from "@/lib/club-time";
 import { grantSeasonMessagingConsentIn } from "./messaging-consent";
 import { runMessagingSweep } from "./messaging-scheduler";
 import {
@@ -336,6 +337,67 @@ describe("updateRecruitmentProspectStatusIn — the exits, W13", () => {
     const { sent, transport } = acceptingTransport();
     await runMessagingSweep({ source: CONFIGURED, transport });
     expect(sent).toHaveLength(0);
+  });
+});
+
+/**
+ * `Q-every-status-reachable` and `Q-committed-on-is-derived` (Brian,
+ * 2026-09-02): the free-select status control offers every value and never
+ * refuses a transition, because the service supplies what the two schema
+ * constraints need rather than gating the control on them.
+ */
+describe("updateRecruitmentProspectStatusIn — every status reachable (Q-every-status-reachable)", () => {
+  it("sets committed_on to today on the same write that sets status to committed — never a second field to flip", async () => {
+    const { prospectId } = await newProspect("identified");
+    await withTransaction((tx) =>
+      updateRecruitmentProspectStatusIn(tx, actorPersonId, prospectId, "committed"),
+    );
+    const record = await withTransaction((tx) => readRecruitmentProspectIn(tx, prospectId));
+    expect(record?.status).toBe("committed");
+    expect(record?.committedOn).toBe(todayInClubZone());
+  });
+
+  it("re-dates committed_on to today on a later re-commit, rather than keeping the earlier date", async () => {
+    const { prospectId } = await newProspect("identified");
+    await withTransaction((tx) =>
+      updateRecruitmentProspectStatusIn(tx, actorPersonId, prospectId, "committed"),
+    );
+    await withTransaction((tx) =>
+      updateRecruitmentProspectStatusIn(tx, actorPersonId, prospectId, "engaged"),
+    );
+    await withTransaction((tx) =>
+      updateRecruitmentProspectStatusIn(tx, actorPersonId, prospectId, "committed"),
+    );
+    const record = await withTransaction((tx) => readRecruitmentProspectIn(tx, prospectId));
+    expect(record?.committedOn).toBe(todayInClubZone());
+  });
+
+  it("clears converted_membership_id when a joined recruit is moved to any other status, without touching the membership the flip created", async () => {
+    const { prospectId } = await newProspect("committed");
+    const flip = await withTransaction((tx) =>
+      flipRecruitmentProspectToJoinedIn(tx, actorPersonId, prospectId),
+    );
+
+    // The free-select control offers every value, including away from
+    // `joined` — this must never fall through to
+    // `recruitment_prospects_conversion_matches_status`'s raw constraint
+    // error the way it would if `converted_membership_id` were left set.
+    await withTransaction((tx) =>
+      updateRecruitmentProspectStatusIn(tx, actorPersonId, prospectId, "engaged"),
+    );
+
+    const record = await withTransaction((tx) => readRecruitmentProspectIn(tx, prospectId));
+    expect(record?.status).toBe("engaged");
+    expect(record?.convertedMembershipId).toBeNull();
+
+    // The season membership the flip created is untouched — un-joining
+    // through the status control edits only the prospect's own
+    // back-reference, never the membership itself.
+    const membership = await observer.query(
+      "select status::text as status from public.season_memberships where id = $1::uuid",
+      [flip.membershipId],
+    );
+    expect(membership.rows[0]?.status).toBe("onboarding");
   });
 });
 

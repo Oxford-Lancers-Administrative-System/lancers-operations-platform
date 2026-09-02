@@ -16,6 +16,7 @@ import type { EnvironmentSource } from "@/lib/delivery/config";
 import { TEMPLATE_NAMES } from "@/lib/delivery/templates";
 
 import { closePool, withTransaction } from "@/lib/db";
+import { createDeliverySink, type SinkRecord } from "@/lib/delivery/local-sink";
 import {
   grantSeasonMessagingConsentIn,
   withdrawSeasonMessagingConsentIn,
@@ -25,6 +26,7 @@ import {
   QUESTIONNAIRE_B_COMPLETING_CODES,
   readRecruitmentCycleCompletionIn,
 } from "./recruitment-cycle";
+import { sendRecruitmentQuestionnaireIn } from "./recruitment-prospect";
 import { dispatchRecruitmentCycleJob, runMessagingSweep } from "./messaging-scheduler";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
@@ -32,6 +34,8 @@ const MARKER = "LAN203CycleSuite";
 
 let observer: Client;
 let seasonId: string;
+/** A real, seeded person — the actor for calls that need one, e.g. `sendRecruitmentQuestionnaireIn`. */
+let operatorPersonId: string;
 
 // Every test recruit's mobile is drawn from this fixed pool rather than a
 // generated one, so it is always inside CONFIGURED's own allowlist below —
@@ -95,6 +99,7 @@ beforeAll(async () => {
     [`${MARKER} season`, vocabulary.rows[0].id, anchor.rows[0].id],
   );
   seasonId = season.rows[0].id;
+  operatorPersonId = anchor.rows[0].id;
 });
 
 afterEach(async () => {
@@ -294,15 +299,29 @@ describe("readRecruitmentCycleCompletionIn", () => {
 });
 
 describe("declareRecruitmentCycleJobsIn", () => {
-  it("creates nothing for a recruit with no consent record at all", async () => {
+  it("creates the welcome track (not the interest track) for a recruit with no consent record at all — LAN-204's fix for the consent deadlock", async () => {
     const personId = await incompleteRecruit();
     const result = await withTransaction((tx) =>
       declareRecruitmentCycleJobsIn(tx, personId, seasonId),
     );
-    expect(result).toEqual({ created: [], reason: "not_consented" });
-    expect(await jobsFor(personId)).toHaveLength(0);
+    // Before LAN-204 this recruit could never receive the one message that
+    // lets them grant consent (Brian, 2026-09-02: "the fucking app is
+    // deadlocked"). The welcome track carries that link and is now the one
+    // exception — the interest track still needs consent already granted,
+    // so it stays absent here.
+    expect([...result.created].sort()).toEqual(["details_reminder", "welcome"]);
+    const jobs = await jobsFor(personId);
+    expect(jobs.map((j) => j.idempotency_key).sort()).toEqual(
+      [
+        `recruit-cycle:details_reminder:${personId}:${seasonId}`,
+        `recruit-cycle:welcome:${personId}:${seasonId}`,
+      ].sort(),
+    );
   });
 
+  // Also item 9's third negative — "a recruit whose status is declined
+  // receives nothing at all" — proved here in its strongest form: nothing is
+  // created even though consent is granted.
   it("creates nothing for a declined recruit, even with consent granted", async () => {
     const personId = await incompleteRecruit("declined");
     await grantConsent(personId);
@@ -547,5 +566,106 @@ describe("dispatchRecruitmentCycleJob", () => {
         TEMPLATE_NAMES.recruit_interest_reminder,
       ]),
     );
+  });
+});
+
+/**
+ * LAN-204's own consent deadlock, and its fix. Brian, 2026-09-02: "The
+ * personal questionnaire is how we get consent. If consent is not given,
+ * sending the personal questionnaire is how we get it… the fucking app is
+ * deadlocked now." This suite is the end-to-end proof: the exact SEND action
+ * `W2`'s button calls, against a recruit with no consent record at all,
+ * dispatched through the real local delivery sink (`local-sink.ts`) rather
+ * than a bare accepting stub — and the two negatives that keep the gate real.
+ */
+describe("LAN-204 — the consent deadlock, and its fix", () => {
+  it("sends the personal questionnaire end to end for a never-asked recruit — created, claimed, rendered, and accepted by the real local sink", async () => {
+    const personId = await firstNameOnlyRecruit();
+    const prospectId = await prospectIdFor(personId);
+
+    // `sendRecruitmentQuestionnaireIn` is `W2`'s own SEND action, called
+    // exactly as the record's SEND button calls it — no `grantConsent` here,
+    // deliberately: this recruit has never been asked, at any door.
+    const sent = await withTransaction((tx) =>
+      sendRecruitmentQuestionnaireIn(tx, operatorPersonId, prospectId, "personal"),
+    );
+    expect([...sent.created].sort()).toEqual(["details_reminder", "welcome"]);
+
+    // The welcome job was declared while no mobile was on file — see
+    // `firstNameOnlyRecruit`'s own comment for why a number arriving after
+    // declaration is what a real dispatch sends to without the completion
+    // re-check skipping it.
+    await addMobile(personId);
+    const jobId = (
+      await withTransaction((tx) =>
+        tx.query<{ id: string }>(
+          "select id from public.notification_jobs where idempotency_key = $1",
+          [`recruit-cycle:welcome:${personId}:${seasonId}`],
+        ),
+      )
+    ).rows[0].id;
+
+    const sinkRecords: SinkRecord[] = [];
+    const sink = createDeliverySink(CONFIGURED, { write: (record) => sinkRecords.push(record) });
+    const outcome = await dispatchRecruitmentCycleJob(jobId, { source: CONFIGURED, transport: sink });
+
+    expect(outcome).toBe("accepted");
+    expect(sinkRecords).toHaveLength(1);
+    expect(sinkRecords[0].channel).toBe("whatsapp");
+    expect(
+      (sinkRecords[0].payload as { template: { name: string } }).template.name,
+    ).toBe(TEMPLATE_NAMES.recruit_welcome);
+
+    const job = await withTransaction((tx) =>
+      tx.query<{ status: string }>(
+        "select status::text as status from public.notification_jobs where id = $1",
+        [jobId],
+      ),
+    );
+    expect(job.rows[0].status).toBe("processing");
+
+    const attempt = await withTransaction((tx) =>
+      tx.query<{ accepted_at: Date | null }>(
+        "select accepted_at from public.delivery_attempts where notification_job_id = $1",
+        [jobId],
+      ),
+    );
+    expect(attempt.rows[0].accepted_at).not.toBeNull();
+  });
+
+  it("negative 1 — refuses both tracks for a recruit who has explicitly refused consent", async () => {
+    const personId = await incompleteRecruit();
+    await withTransaction((tx) =>
+      tx.query(
+        `insert into public.season_messaging_consents (person_id, season_id, state, source)
+         values ($1::uuid, $2::uuid, 'refused', 'operator_recorded')`,
+        [personId, seasonId],
+      ),
+    );
+    const result = await withTransaction((tx) =>
+      declareRecruitmentCycleJobsIn(tx, personId, seasonId),
+    );
+    expect(result).toEqual({ created: [], reason: "not_consented" });
+    expect(await jobsFor(personId)).toHaveLength(0);
+  });
+
+  it("negative 2 — refuses both tracks for a recruit who has withdrawn consent", async () => {
+    const personId = await incompleteRecruit();
+    await grantConsent(personId);
+    await withTransaction((tx) => withdrawSeasonMessagingConsentIn(tx, personId, seasonId));
+    const result = await withTransaction((tx) =>
+      declareRecruitmentCycleJobsIn(tx, personId, seasonId),
+    );
+    expect(result).toEqual({ created: [], reason: "not_consented" });
+    expect(await jobsFor(personId)).toHaveLength(0);
+  });
+
+  it("the strict interest-track gate is unchanged — a never-asked recruit whose welcome track is already complete still gets nothing", async () => {
+    const personId = await completeWelcomeRecruit();
+    const result = await withTransaction((tx) =>
+      declareRecruitmentCycleJobsIn(tx, personId, seasonId),
+    );
+    expect(result).toEqual({ created: [], reason: "not_consented" });
+    expect(await jobsFor(personId)).toHaveLength(0);
   });
 });

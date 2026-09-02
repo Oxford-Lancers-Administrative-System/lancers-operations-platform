@@ -422,6 +422,27 @@ const CONSTRAINT_MESSAGES: Readonly<Record<string, Mapping>> = {
       "The President's escalation has to be between 0 and 720 hours after the RSVP deadline.",
       { rule: "messaging_schedules_escalation_is_sane", context },
     ),
+
+  // LAN-204, item 5 (Brian, 2026-09-02: "What rules? I made all the rules, so
+  // I don't even know what rule I'm breaking."). The recruit board's status
+  // control writes committed_on and converted_membership_id itself on every
+  // relevant transition (see `updateRecruitmentProspectStatusIn` and
+  // `flipRecruitmentProspectToJoinedIn`), so an operator using that control
+  // should never reach either of these — they are the backstop for a script,
+  // a retry, or a future caller this package does not anticipate.
+  recruitment_prospects_commitment_is_dated: (context) =>
+    new ConstraintViolated(
+      "A committed or joined recruit needs a committed date. Nothing was saved — try the status " +
+        "change again from the recruit's own board or record.",
+      { rule: "recruitment_prospects_commitment_is_dated", context },
+    ),
+
+  recruitment_prospects_conversion_matches_status: (context) =>
+    new ConstraintViolated(
+      "A recruit's joined status and their converted membership have to agree with each other. " +
+        "Nothing was saved — try the status change again from the recruit's own board or record.",
+      { rule: "recruitment_prospects_conversion_matches_status", context },
+    ),
 };
 
 /**

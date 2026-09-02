@@ -21,7 +21,7 @@ import {
   MAX_ATTEMPTS,
   dispatchJob,
 } from "./delivery";
-import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
+import { hasGrantedSeasonMessagingConsentIn, mayReceiveWelcomeContactIn } from "./messaging-consent";
 import { issuePersonTokenIn } from "./player-answer-tokens";
 import {
   readRecruitmentCycleCompletionIn,
@@ -1210,7 +1210,10 @@ function parseRecruitCycleKey(
  * stops it at claim time." A recruit who withdrew, declined, or whose
  * season closed between declaration and this sweep tick is refused here,
  * terminally, exactly as `claimJobIn`'s own `not_consented` refusal never
- * retries a refusal no channel would fix.
+ * retries a refusal no channel would fix. The re-check is per track, on the
+ * same seam `declareRecruitmentCycleJobsIn` uses (LAN-204): the welcome
+ * track's `mayReceiveWelcomeContactIn`, and the interest track's unchanged
+ * `hasGrantedSeasonMessagingConsentIn`.
  *
  * No WhatsApp-to-email fallback is built for this path this round — every
  * capture door this package builds requires a mobile number (finding 1), so
@@ -1305,7 +1308,10 @@ export async function dispatchRecruitmentCycleJob(
       return { kind: "no-send" };
     }
 
-    const consented = await hasGrantedSeasonMessagingConsentIn(tx, job.person_id, seasonId);
+    const consented =
+      CYCLE_COMPLETION_TRACK[step] === "welcomeStepComplete"
+        ? await mayReceiveWelcomeContactIn(tx, job.person_id, seasonId)
+        : await hasGrantedSeasonMessagingConsentIn(tx, job.person_id, seasonId);
     if (!consented) {
       await failClaimTerminallyIn(
         tx,

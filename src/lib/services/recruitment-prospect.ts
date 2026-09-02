@@ -432,11 +432,33 @@ export async function updateRecruitmentProspectStatusIn(
     );
   }
 
+  // `Q-every-status-reachable` (Brian, 2026-09-02): "It shouldn't stop me" —
+  // the service supplies what the two constraints need rather than gating the
+  // control on them. `recruitment_prospects_commitment_is_dated` needs
+  // `committed_on` the moment `status` becomes `committed`;
+  // `Q-committed-on-is-derived` (same walkthrough) is explicit that this is
+  // always today's date on the write that makes it committed, never a second
+  // field an operator flips themselves. `recruitment_prospects_conversion_matches_status`
+  // needs `converted_membership_id` cleared the moment a `joined` recruit is
+  // moved to any other status through this same free-select control — the
+  // membership the earlier flip created is left exactly as it is; only the
+  // prospect's own back-reference to it is cleared, so the constraint reads
+  // consistently either way and no transition through this control is ever
+  // refused by a constraint the write itself could have satisfied.
   await tx.query(
     `update public.recruitment_prospects
-        set status = $2::public.prospect_status, updated_at = now()
+        set status = $2::public.prospect_status,
+            committed_on = case
+              when $2::public.prospect_status = 'committed' then $3::date
+              else committed_on
+            end,
+            converted_membership_id = case
+              when $4::boolean then null
+              else converted_membership_id
+            end,
+            updated_at = now()
       where id = $1::uuid`,
-    [prospectId, toStatus],
+    [prospectId, toStatus, todayInClubZone(), row.status === "joined"],
   );
 
   await tx.query(

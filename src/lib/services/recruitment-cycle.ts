@@ -2,7 +2,7 @@ import "server-only";
 
 import { withTransaction, type Tx } from "@/lib/db";
 import { deriveEntityIdFromNaturalKey, recordAudit } from "./audit";
-import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
+import { hasGrantedSeasonMessagingConsentIn, mayReceiveWelcomeContactIn } from "./messaging-consent";
 
 /**
  * The recruitment cycle's own four rows. LAN-203, `REQ-recruitment-cycle`.
@@ -277,11 +277,16 @@ export interface DeclaredCycleJobs {
  *    seasonId)` must be `identified`, `engaged` or `committed` — anything
  *    else (no row at all, `declined`, `disengaged`, `void`, `joined`)
  *    creates nothing.
- * 2. **Consent.** `hasGrantedSeasonMessagingConsentIn` must be `true`.
- *    Ungranted, unasked, refused or withdrawn all create nothing — the same
- *    totality LAN-202's gate already holds for a send, applied here at
- *    declaration time so a job is never created for a recruit who could not
- *    lawfully receive it.
+ * 2. **Consent, per track** — LAN-204's own correction of the consent
+ *    deadlock (Brian, 2026-09-02): the welcome track (`welcome` +
+ *    `details_reminder`) carries the link to the sign-up form, so it is
+ *    gated on `mayReceiveWelcomeContactIn` — allowed unless the recruit has
+ *    explicitly `refused` or `withdrawn` — rather than requiring consent
+ *    already exist. The interest track (`interest_ask` + `interest_reminder`,
+ *    Questionnaire B) keeps the strict `hasGrantedSeasonMessagingConsentIn`
+ *    gate unchanged: ungranted, unasked, refused or withdrawn all create
+ *    nothing for that track, the same totality LAN-202's gate already holds
+ *    for an ordinary send.
  * 3. **Completion**, per track, independently:
  *    - Welcome track (`welcome` + `details_reminder`): skipped entirely
  *      once `welcomeStepComplete` — both or neither, matching the
@@ -321,26 +326,33 @@ export async function declareRecruitmentCycleJobsIn(
     return { created: [], reason: "not_eligible" };
   }
 
-  const consented = await hasGrantedSeasonMessagingConsentIn(tx, personId, seasonId);
-  if (!consented) {
-    return { created: [], reason: "not_consented" };
-  }
-
   const completion = await readRecruitmentCycleCompletionIn(tx, personId, prospectRow.id);
   const steps = await listRecruitmentCycleStepsIn(tx);
   const offsetFor = (step: RecruitmentCycleStepName) =>
     steps.find((s) => s.step === step)?.offsetHours ?? 0;
 
+  // Per-track consent — see the module note above and
+  // `mayReceiveWelcomeContactIn`'s own doc comment. Only checked when that
+  // track is not already complete, so a completed track never runs an extra
+  // consent read it has no use for.
+  const mayWelcome = completion.welcomeStepComplete
+    ? false
+    : await mayReceiveWelcomeContactIn(tx, personId, seasonId);
+  const mayInterest = completion.questionnaireBComplete
+    ? false
+    : await hasGrantedSeasonMessagingConsentIn(tx, personId, seasonId);
+
   const wanted: RecruitmentCycleStepName[] = [];
-  if (!completion.welcomeStepComplete) {
+  if (!completion.welcomeStepComplete && mayWelcome) {
     wanted.push("welcome", "details_reminder");
   }
-  if (!completion.questionnaireBComplete) {
+  if (!completion.questionnaireBComplete && mayInterest) {
     wanted.push("interest_ask", "interest_reminder");
   }
 
   if (wanted.length === 0) {
-    return { created: [], reason: "already_complete" };
+    const bothTracksComplete = completion.welcomeStepComplete && completion.questionnaireBComplete;
+    return { created: [], reason: bothTracksComplete ? "already_complete" : "not_consented" };
   }
 
   const created: RecruitmentCycleStepName[] = [];
