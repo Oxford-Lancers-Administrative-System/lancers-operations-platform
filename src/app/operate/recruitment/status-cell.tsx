@@ -14,7 +14,9 @@ import Select, { type SelectChangeEvent } from "@mui/material/Select";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { PROSPECT_STATUS_LABELS, type ProspectStatus } from "@/lib/services/recruitment-vocabulary";
+import { StatusPill } from "../board-filter-controls";
 import { flipRecruitmentProspectAction, setRecruitmentStatusAction } from "./board-actions";
+import { STATUS_COLOUR_FOR_PILL } from "./status-colour";
 
 const STATUS_ORDER: readonly ProspectStatus[] = [
   "identified",
@@ -28,12 +30,19 @@ const STATUS_ORDER: readonly ProspectStatus[] = [
 
 /**
  * The one status control every recruit surface shares — `W1`'s board cell and
- * `W2`'s record both edit the same field the same way. Every value except
- * `joined` is a direct, audited, uninterrupted change (`W13`: "no
- * confirmation screen and no callout"), with one exception — `void` asks for
- * the reason the schema requires, in a small dialog rather than losing the
- * change to a raw constraint error. `joined` is `W14`'s own interruption:
- * what it will create, what it will not do, and nothing written on cancel.
+ * `W2`'s record both edit the same field the same way. A pill by default —
+ * the same click-to-edit interaction the roster board's own status cell uses
+ * (item 1: "Today the board renders a bare MUI dropdown in the cell — that is
+ * the reinvention"). Clicking it opens the identical `Select` every other
+ * board and record edit uses, autofocused, offering every value with no
+ * transition ever refused by the control (`Q-every-status-reachable`).
+ *
+ * Every value except `joined` is a direct, audited, uninterrupted change
+ * (`W13`: "no confirmation screen and no callout"), with one exception —
+ * `void` asks for the reason the schema requires, in a small dialog rather
+ * than losing the change to a raw constraint error. `joined` is `W14`'s own
+ * interruption: what it will create, what it will not do, and nothing
+ * written on cancel.
  */
 export default function StatusCell({
   prospectId,
@@ -53,6 +62,7 @@ export default function StatusCell({
   const [voidOpen, setVoidOpen] = useState(false);
   const [voidReason, setVoidReason] = useState("");
   const [flipOpen, setFlipOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   function commitStatus(toStatus: Exclude<ProspectStatus, "joined">, reason?: string) {
     startTransition(async () => {
@@ -63,6 +73,7 @@ export default function StatusCell({
 
   function handleChange(event: SelectChangeEvent<string>) {
     const next = event.target.value as ProspectStatus;
+    setEditing(false);
     if (next === status) return;
     if (next === "joined") {
       setFlipOpen(true);
@@ -86,21 +97,39 @@ export default function StatusCell({
 
   return (
     <Box data-testid={`recruitment-status-cell-${prospectId}`}>
-      <Select
-        value={status}
-        onChange={handleChange}
-        size={size}
-        disabled={pending}
-        fullWidth
-        sx={{ minHeight: 36 }}
-        data-testid={`recruitment-status-select-${prospectId}`}
-      >
-        {STATUS_ORDER.map((value) => (
-          <MenuItem key={value} value={value}>
-            {PROSPECT_STATUS_LABELS[value]}
-          </MenuItem>
-        ))}
-      </Select>
+      {editing ? (
+        <Select
+          value={status}
+          open
+          autoFocus
+          onChange={handleChange}
+          onClose={() => setEditing(false)}
+          size={size}
+          disabled={pending}
+          fullWidth
+          sx={{ minHeight: 36 }}
+          data-testid={`recruitment-status-select-${prospectId}`}
+        >
+          {STATUS_ORDER.map((value) => (
+            <MenuItem key={value} value={value}>
+              {PROSPECT_STATUS_LABELS[value]}
+            </MenuItem>
+          ))}
+        </Select>
+      ) : (
+        <Box
+          onClick={() => (pending ? undefined : setEditing(true))}
+          data-testid={`recruitment-status-select-${prospectId}`}
+          sx={{
+            display: "inline-block",
+            cursor: pending ? "default" : "pointer",
+            borderRadius: 0.5,
+            "&:hover": pending ? undefined : { outline: "1px solid", outlineColor: "primary.light" },
+          }}
+        >
+          <StatusPill color={STATUS_COLOUR_FOR_PILL[status]} label={PROSPECT_STATUS_LABELS[status]} />
+        </Box>
+      )}
       {error ? (
         <Typography variant="caption" color="error" component="p" sx={{ mt: 0.5 }}>
           {error}

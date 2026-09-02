@@ -1,5 +1,11 @@
 import type { RecruitmentBoardRow } from "@/lib/services/recruitment-board";
-import { rawValue } from "./board-columns";
+import {
+  CONSENT_LABELS,
+  PROSPECT_STATUS_LABELS,
+  type ProspectStatus,
+} from "@/lib/services/recruitment-vocabulary";
+import type { SeasonMessagingConsentState } from "@/lib/services/messaging-consent";
+import { CONSENT_FILTER_OPTIONS, STATUS_FILTER_OPTIONS, rawValue } from "./board-columns";
 
 /**
  * Pure search, filter and sort over the recruit board's rows — no database, no
@@ -101,3 +107,43 @@ export function displayOf(value: string | number | boolean | null): string {
   if (typeof value === "boolean") return value ? "Yes" : "No";
   return String(value);
 }
+
+/**
+ * The values a column's header filter offers — `../board-filter-controls.tsx`'s
+ * `ColumnFilterMenu` reads this the same way `../roster/board-data.ts`'s own
+ * `filterOptions` does. Every filterable recruitment column has a fixed,
+ * known vocabulary (never derived from the rows in view, unlike the roster's
+ * open-ended columns), so this is a lookup rather than a scan.
+ */
+export function filterOptions(column: { key: string }): readonly string[] {
+  switch (column.key) {
+    case "status":
+      return STATUS_FILTER_OPTIONS;
+    case "consent":
+      return CONSENT_FILTER_OPTIONS;
+    case "personalSent":
+    case "recruitmentSent":
+      return ["yes", "no"];
+    default:
+      return [];
+  }
+}
+
+/** Display text for one entry in a column's open filter list, or its selected value's chip/caption. */
+export function optionListLabel(column: { key: string }, value: string): string {
+  switch (column.key) {
+    case "status":
+      return PROSPECT_STATUS_LABELS[value as ProspectStatus] ?? value;
+    case "consent":
+      return CONSENT_LABELS[value as SeasonMessagingConsentState] ?? value;
+    case "personalSent":
+      return value === "yes" ? "Sent" : "Not sent";
+    case "recruitmentSent":
+      return value === "yes" ? "Sent" : "Not sent";
+    default:
+      return value;
+  }
+}
+
+/** The chip and menu label for a filter's *selected* value — same word, no distinct "not recorded" case here. */
+export const filterOptionLabel = optionListLabel;

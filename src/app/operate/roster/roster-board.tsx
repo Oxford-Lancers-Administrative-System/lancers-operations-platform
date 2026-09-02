@@ -63,7 +63,13 @@ import {
 } from "./board-data";
 import JerseyPicker from "./jersey-picker";
 import { labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
-import { ColumnFilterMenu, FilterButton, StatusPill } from "../board-filter-controls";
+import {
+  bandBoundaryKeys,
+  ColumnFilterMenu,
+  FilterButton,
+  groupRuns,
+  StatusPill,
+} from "../board-filter-controls";
 
 const AVAILABILITY_COLOUR: Readonly<Record<string, string>> = Object.freeze({
   green: "#2e7d32",
@@ -1122,26 +1128,6 @@ function PhoneIcon() {
       />
     </Box>
   );
-}
-
-function groupRuns(columns: readonly ColumnDef[]): { band: ColumnDef["band"]; span: number }[] {
-  const runs: { band: ColumnDef["band"]; span: number }[] = [];
-  for (const column of columns) {
-    const last = runs[runs.length - 1];
-    if (last && last.band === column.band) last.span += 1;
-    else runs.push({ band: column.band, span: 1 });
-  }
-  return runs;
-}
-
-/** The key of the last column in each band's run — see the caller's own comment. */
-function bandBoundaryKeys(columns: readonly ColumnDef[]): ReadonlySet<string> {
-  const keys = new Set<string>();
-  columns.forEach((column, index) => {
-    const next = columns[index + 1];
-    if (!next || next.band !== column.band) keys.add(column.key);
-  });
-  return keys;
 }
 
 export { MISSING_DATA_ROUTE };

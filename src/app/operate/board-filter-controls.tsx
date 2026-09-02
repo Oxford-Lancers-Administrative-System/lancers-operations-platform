@@ -160,3 +160,45 @@ export function StatusPill({
 }) {
   return <Chip size="small" color={color} label={label} />;
 }
+
+/** The minimum a column needs to carry for the banding helpers below to work with it. */
+export interface BandedColumn {
+  readonly key: string;
+  readonly band: string;
+}
+
+/**
+ * Groups a column list into consecutive same-band runs, for a header's band
+ * overline row — one `colSpan`ned cell per run rather than one per column.
+ * Extracted from `../roster/roster-board.tsx` (LAN-186) alongside the rest
+ * of this module; a board with its own band set (recruitment's Person /
+ * Recruitment / one-per-event Events, in place of the roster's Person /
+ * Onboarding / Season) calls this the same way.
+ */
+export function groupRuns<TColumn extends BandedColumn>(
+  columns: readonly TColumn[],
+): { band: TColumn["band"]; span: number }[] {
+  const runs: { band: TColumn["band"]; span: number }[] = [];
+  for (const column of columns) {
+    const last = runs[runs.length - 1];
+    if (last && last.band === column.band) last.span += 1;
+    else runs.push({ band: column.band, span: 1 });
+  }
+  return runs;
+}
+
+/**
+ * The key of the last column in each band's run — the seam between two
+ * bands gets a visibly heavier border than the seam between two columns of
+ * the same band, on both the header row and every body cell.
+ */
+export function bandBoundaryKeys<TColumn extends BandedColumn>(
+  columns: readonly TColumn[],
+): ReadonlySet<string> {
+  const keys = new Set<string>();
+  columns.forEach((column, index) => {
+    const next = columns[index + 1];
+    if (!next || next.band !== column.band) keys.add(column.key);
+  });
+  return keys;
+}

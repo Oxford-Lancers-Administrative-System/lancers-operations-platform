@@ -3,7 +3,11 @@ import { PROSPECT_STATUS_LABELS, CONSENT_LABELS } from "@/lib/services/recruitme
 
 /**
  * The recruit board's column model — `W1`, LAN-204. Modelled directly on
- * `../roster/board-columns.ts`: every column is one entry here, driving which
+ * `../roster/board-columns.ts`, and reworked (2026-09-02 correction) to
+ * drive the identical banded-header machinery
+ * (`../board-filter-controls.tsx`'s `groupRuns`/`bandBoundaryKeys`) the
+ * roster board itself now imports from, rather than the board's own
+ * hand-rolled header markup: every column is one entry here, driving which
  * filter chips exist and which cells route to the person record — never a
  * column invented outside `W1`'s own table.
  *
@@ -13,8 +17,19 @@ import { PROSPECT_STATUS_LABELS, CONSENT_LABELS } from "@/lib/services/recruitme
  * (teal, this mission's own facts), and one Events band per recruitment event
  * — replace the roster's Onboarding/Season bands, because a recruit holds no
  * membership and those two describe nothing for them.
+ *
+ * Every recruitment event needs its **own** header label (the event's name),
+ * not one shared "Events" label — so unlike the roster, whose three bands are
+ * each one fixed string, an event column's `band` is the synthetic key
+ * `events:<eventId>`, one per event. `groupRuns`/`bandBoundaryKeys` group
+ * purely by string equality, so this is enough to give each event's own
+ * RSVP/Attendance pair its own run and its own boundary, with no change to
+ * either shared helper. {@link bandKind} recovers which of the three *kinds*
+ * of band a value is, for colour and column-set lookups; {@link eventIdOfBand}
+ * recovers which event.
  */
-export type Band = "person" | "recruitment" | "events";
+export type Band = "person" | "recruitment" | `events:${string}`;
+type BandKind = "person" | "recruitment" | "events";
 
 export const BAND_COLOURS: Readonly<
   Record<"person" | "recruitment", { header: string; tint: string }>
@@ -29,6 +44,22 @@ export const EVENTS_BAND_COLOUR = { header: "#0b3d91", tint: "rgba(11, 61, 145, 
 export const BAND_ROW_HEIGHT = 28;
 export const BAND_LABEL_INSET_PX = 16;
 export const RECRUIT_COLUMN_WIDTH = 200;
+
+/** Which of the three *kinds* of band a value is — see the module note. */
+export function bandKind(band: Band): BandKind {
+  return band.startsWith("events:") ? "events" : (band as BandKind);
+}
+
+/** The colours for a band value — `person`/`recruitment`'s own, or the one shared events blue. */
+export function bandColour(band: Band): { header: string; tint: string } {
+  const kind = bandKind(band);
+  return kind === "events" ? EVENTS_BAND_COLOUR : BAND_COLOURS[kind];
+}
+
+/** The event id encoded in an events-band value, or `null` for `person`/`recruitment`. */
+export function eventIdOfBand(band: Band): string | null {
+  return band.startsWith("events:") ? band.slice("events:".length) : null;
+}
 
 export type EditKind = "none" | "record" | "status";
 
@@ -214,28 +245,35 @@ export function eventColumnKey(eventId: string, cell: "rsvp" | "attendance"): st
   return `event:${eventId}:${cell}`;
 }
 
-/** Two columns per event — RSVP and Attendance, side by side, `W1`. */
+/**
+ * Two columns per event — RSVP and Attendance, side by side, `W1`. Each
+ * event's own synthetic band (`events:<eventId>`) is what gives it its own
+ * header run and its own boundary — see the module note.
+ */
 export function eventColumns(events: readonly RecruitmentEventColumn[]): readonly ColumnDef[] {
-  return events.flatMap((event) => [
-    {
-      key: eventColumnKey(event.eventId, "rsvp"),
-      label: "RSVP",
-      band: "events" as const,
-      edit: "none" as const,
-      width: 90,
-      sortable: false,
-      filterable: false,
-    },
-    {
-      key: eventColumnKey(event.eventId, "attendance"),
-      label: "Attendance",
-      band: "events" as const,
-      edit: "none" as const,
-      width: 108,
-      sortable: false,
-      filterable: false,
-    },
-  ]);
+  return events.flatMap((event) => {
+    const band: Band = `events:${event.eventId}`;
+    return [
+      {
+        key: eventColumnKey(event.eventId, "rsvp"),
+        label: "RSVP",
+        band,
+        edit: "none" as const,
+        width: 90,
+        sortable: false,
+        filterable: false,
+      },
+      {
+        key: eventColumnKey(event.eventId, "attendance"),
+        label: "Attendance",
+        band,
+        edit: "none" as const,
+        width: 108,
+        sortable: false,
+        filterable: false,
+      },
+    ];
+  });
 }
 
 export function rawValue(row: RecruitmentBoardRow, key: string): string | number | boolean | null {

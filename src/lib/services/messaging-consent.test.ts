@@ -17,6 +17,7 @@ import { closePool, isServiceError, withTransaction } from "@/lib/db";
 import {
   grantSeasonMessagingConsentIn,
   hasGrantedSeasonMessagingConsentIn,
+  hasGrantedViaSignupFormIn,
   mayReceiveWelcomeContactIn,
   readSeasonMessagingConsentIn,
   requireGrantedSeasonMessagingConsent,
@@ -199,7 +200,7 @@ describe("requireGrantedSeasonMessagingConsentIn — the seam LAN-203 calls", ()
     const personId = await insertPerson("gate-asked");
     await observer.query(
       `insert into public.season_messaging_consents (person_id, season_id, state, source)
-       values ($1::uuid, $2::uuid, 'asked', 'operator_recorded')`,
+       values ($1::uuid, $2::uuid, 'asked', null)`,
       [personId, seasonId],
     );
     await withTransaction(async (tx) => {
@@ -227,7 +228,7 @@ describe("mayReceiveWelcomeContactIn — LAN-204's one consent exception", () =>
     const personId = await insertPerson("welcome-never-asked-row");
     await observer.query(
       `insert into public.season_messaging_consents (person_id, season_id, state, source)
-       values ($1::uuid, $2::uuid, 'never_asked', 'operator_recorded')`,
+       values ($1::uuid, $2::uuid, 'never_asked', null)`,
       [personId, seasonId],
     );
     await withTransaction(async (tx) => {
@@ -239,7 +240,7 @@ describe("mayReceiveWelcomeContactIn — LAN-204's one consent exception", () =>
     const personId = await insertPerson("welcome-asked");
     await observer.query(
       `insert into public.season_messaging_consents (person_id, season_id, state, source)
-       values ($1::uuid, $2::uuid, 'asked', 'operator_recorded')`,
+       values ($1::uuid, $2::uuid, 'asked', null)`,
       [personId, seasonId],
     );
     await withTransaction(async (tx) => {
@@ -273,6 +274,53 @@ describe("mayReceiveWelcomeContactIn — LAN-204's one consent exception", () =>
       await grantSeasonMessagingConsentIn(tx, personId, seasonId);
       await withdrawSeasonMessagingConsentIn(tx, personId, seasonId);
       expect(await mayReceiveWelcomeContactIn(tx, personId, seasonId)).toBe(false);
+    });
+  });
+});
+
+/**
+ * `Q-read-back-authorises-how-much` (Brian, 2026-09-02, answered narrow): a
+ * touchline read-back's grant authorises the welcome track alone. This is
+ * the recruitment/Questionnaire-B track's own gate — narrower than a bare
+ * granted check, on purpose.
+ */
+describe("hasGrantedViaSignupFormIn — the recruitment/interest track's own narrower gate", () => {
+  it("allows a grant recorded through the sign-up form (qr_self_entry)", async () => {
+    const personId = await insertPerson("signup-qr");
+    await withTransaction(async (tx) => {
+      await grantSeasonMessagingConsentIn(tx, personId, seasonId);
+      expect(await hasGrantedViaSignupFormIn(tx, personId, seasonId)).toBe(true);
+    });
+  });
+
+  it("refuses a grant recorded at a touchline walk-up read-back", async () => {
+    const personId = await insertPerson("signup-walkup");
+    await observer.query(
+      `insert into public.season_messaging_consents (person_id, season_id, state, source)
+       values ($1::uuid, $2::uuid, 'granted', 'walk_up_read_back')`,
+      [personId, seasonId],
+    );
+    await withTransaction(async (tx) => {
+      expect(await hasGrantedViaSignupFormIn(tx, personId, seasonId)).toBe(false);
+    });
+  });
+
+  it("refuses a grant an operator typed in directly", async () => {
+    const personId = await insertPerson("signup-operator");
+    await observer.query(
+      `insert into public.season_messaging_consents (person_id, season_id, state, source)
+       values ($1::uuid, $2::uuid, 'granted', 'operator_recorded')`,
+      [personId, seasonId],
+    );
+    await withTransaction(async (tx) => {
+      expect(await hasGrantedViaSignupFormIn(tx, personId, seasonId)).toBe(false);
+    });
+  });
+
+  it("refuses a person never asked", async () => {
+    const personId = await insertPerson("signup-never-asked");
+    await withTransaction(async (tx) => {
+      expect(await hasGrantedViaSignupFormIn(tx, personId, seasonId)).toBe(false);
     });
   });
 });

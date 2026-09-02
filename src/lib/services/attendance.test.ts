@@ -694,7 +694,7 @@ describe("walk-ons", () => {
     expect(prospect.rows).toHaveLength(1);
     expect(prospect.rows[0].season_id).toBe(event.seasonId);
     expect(prospect.rows[0].status).toBe("identified");
-    expect(prospect.rows[0].source).toContain("Walk-on");
+    expect(prospect.rows[0].source).toContain("Walk-up");
     expect(prospect.rows[0].converted_membership_id).toBeNull();
 
     const memberships = await observer.query<{ count: string }>(

@@ -668,4 +668,24 @@ describe("LAN-204 — the consent deadlock, and its fix", () => {
     expect(result).toEqual({ created: [], reason: "not_consented" });
     expect(await jobsFor(personId)).toHaveLength(0);
   });
+
+  // `Q-read-back-authorises-how-much` (Brian, 2026-09-02, answered narrow):
+  // a touchline read-back's grant authorises the welcome track alone — it
+  // must not reach the interest/Questionnaire-B track.
+  it("a walk-up read-back's grant does not reach the interest track, only the welcome track", async () => {
+    const personId = await completeWelcomeRecruit();
+    await observer.query(
+      `insert into public.season_messaging_consents (person_id, season_id, state, source)
+       values ($1::uuid, $2::uuid, 'granted', 'walk_up_read_back')`,
+      [personId, seasonId],
+    );
+    const result = await withTransaction((tx) =>
+      declareRecruitmentCycleJobsIn(tx, personId, seasonId),
+    );
+    // The welcome track is already complete (`completeWelcomeRecruit`), so
+    // there is nothing left for the read-back's grant to unlock — proving
+    // the negative on the one track that matters here, the interest track.
+    expect(result).toEqual({ created: [], reason: "not_consented" });
+    expect(await jobsFor(personId)).toHaveLength(0);
+  });
 });

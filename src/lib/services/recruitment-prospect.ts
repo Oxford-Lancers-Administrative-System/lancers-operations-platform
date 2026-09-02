@@ -6,6 +6,7 @@ import { recordAudit } from "./audit";
 import { derivedEventState, type DerivedEventState, type EventStatus } from "./event-input";
 import {
   readSeasonMessagingConsentIn,
+  type SeasonMessagingConsentSource,
   type SeasonMessagingConsentState,
 } from "./messaging-consent";
 import { declareRecruitmentCycleJobsIn, type RecruitmentCycleStepName } from "./recruitment-cycle";
@@ -110,6 +111,14 @@ export interface RecruitmentProspectRecord {
   readonly committedOn: string | null;
   readonly convertedMembershipId: string | null;
   readonly consent: SeasonMessagingConsentState;
+  /**
+   * `null` unless `consent` is `granted` — the door the current grant came
+   * through. `Q-read-back-authorises-how-much`: the record's own
+   * recruitment-questionnaire SEND button reads this (not just `consent`)
+   * because a touchline `walk_up_read_back` grant does not authorise that
+   * track, only a `qr_self_entry` one does.
+   */
+  readonly consentSource: SeasonMessagingConsentSource | null;
   readonly personal: RecruitmentQuestionnaireSendState;
   readonly recruitment: RecruitmentQuestionnaireSendState;
   readonly answers: RecruitmentQuestionnaireAnswers;
@@ -283,6 +292,7 @@ export async function readRecruitmentProspectIn(
     committedOn: row.committed_on,
     convertedMembershipId: row.converted_membership_id,
     consent: consent?.state ?? "never_asked",
+    consentSource: consent?.state === "granted" ? consent.source : null,
     personal: sendState.personal,
     recruitment: sendState.recruitment,
     answers: {

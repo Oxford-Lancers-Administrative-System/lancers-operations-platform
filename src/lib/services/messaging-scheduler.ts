@@ -21,7 +21,11 @@ import {
   MAX_ATTEMPTS,
   dispatchJob,
 } from "./delivery";
-import { hasGrantedSeasonMessagingConsentIn, mayReceiveWelcomeContactIn } from "./messaging-consent";
+import {
+  hasGrantedSeasonMessagingConsentIn,
+  hasGrantedViaSignupFormIn,
+  mayReceiveWelcomeContactIn,
+} from "./messaging-consent";
 import { issuePersonTokenIn } from "./player-answer-tokens";
 import {
   readRecruitmentCycleCompletionIn,
@@ -1212,8 +1216,10 @@ function parseRecruitCycleKey(
  * terminally, exactly as `claimJobIn`'s own `not_consented` refusal never
  * retries a refusal no channel would fix. The re-check is per track, on the
  * same seam `declareRecruitmentCycleJobsIn` uses (LAN-204): the welcome
- * track's `mayReceiveWelcomeContactIn`, and the interest track's unchanged
- * `hasGrantedSeasonMessagingConsentIn`.
+ * track's `mayReceiveWelcomeContactIn`, and the interest track's
+ * `hasGrantedViaSignupFormIn` — `Q-read-back-authorises-how-much`: a
+ * touchline read-back's grant does not reach the interest track, only the
+ * recruit's own sign-up-form grant does.
  *
  * No WhatsApp-to-email fallback is built for this path this round — every
  * capture door this package builds requires a mobile number (finding 1), so
@@ -1311,7 +1317,7 @@ export async function dispatchRecruitmentCycleJob(
     const consented =
       CYCLE_COMPLETION_TRACK[step] === "welcomeStepComplete"
         ? await mayReceiveWelcomeContactIn(tx, job.person_id, seasonId)
-        : await hasGrantedSeasonMessagingConsentIn(tx, job.person_id, seasonId);
+        : await hasGrantedViaSignupFormIn(tx, job.person_id, seasonId);
     if (!consented) {
       await failClaimTerminallyIn(
         tx,

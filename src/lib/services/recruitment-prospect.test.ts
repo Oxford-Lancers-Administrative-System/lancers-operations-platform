@@ -468,10 +468,38 @@ describe("flipRecruitmentProspectToJoinedIn — W14", () => {
 });
 
 describe("sendRecruitmentQuestionnaireIn and the sweep — the 2026-09-01 amendment", () => {
-  it("creates no job for a recruit with no granted consent, and names why", async () => {
+  // LAN-204, item 9 — the consent deadlock, fixed: the personal track is the
+  // one exception, so a never-asked recruit's own SEND button now works.
+  it("creates the welcome track for a recruit with no consent at all — the personal send is how they get asked", async () => {
     const { prospectId } = await newProspect("identified");
     const result = await withTransaction((tx) =>
       sendRecruitmentQuestionnaireIn(tx, actorPersonId, prospectId, "personal"),
+    );
+    expect([...result.created].sort()).toEqual(["details_reminder", "welcome"]);
+    expect(result.reason).toBeNull();
+  });
+
+  it("creates no job for a recruit with no granted consent when the recruitment track is asked, and names why", async () => {
+    // The welcome track is complete (a full name and a mobile on file) so the
+    // welcome track's own new permissiveness cannot create anything here as
+    // a side effect — this isolates the recruitment/interest track's own
+    // still-strict gate, the thing this test is actually about.
+    const { personId, prospectId } = await newProspect("identified");
+    await withTransaction((tx) =>
+      tx.query("update public.people set family_name = 'Completewelcome' where id = $1::uuid", [
+        personId,
+      ]),
+    );
+    await withTransaction((tx) =>
+      tx.query(
+        `insert into public.contact_points
+           (person_id, kind, scope, raw_value, is_preferred, source, valid_from)
+         values ($1::uuid, 'phone', null, $2, true, 'other', current_date)`,
+        [personId, uniquePhone()],
+      ),
+    );
+    const result = await withTransaction((tx) =>
+      sendRecruitmentQuestionnaireIn(tx, actorPersonId, prospectId, "recruitment"),
     );
     expect(result).toEqual({ created: [], reason: "not_consented" });
   });

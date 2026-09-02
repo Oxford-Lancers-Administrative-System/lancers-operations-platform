@@ -168,6 +168,27 @@ export async function mayReceiveWelcomeContactIn(
 }
 
 /**
+ * `Q-read-back-authorises-how-much` (Brian, 2026-09-02, answered narrow):
+ * a touchline `walk_up_read_back` grant authorises the welcome track alone
+ * (see {@link mayReceiveWelcomeContactIn}) — it does **not** unlock the
+ * recruitment/Questionnaire-B track. That track waits until the recruit has
+ * completed the sign-up form themselves and their consent reads `granted`
+ * with `source: 'qr_self_entry'` specifically, which is what this checks.
+ * `requireGrantedSeasonMessagingConsentIn`/`hasGrantedSeasonMessagingConsentIn`
+ * are unaffected — every ordinary send still only cares that the state is
+ * `granted`, regardless of source; this is the one track that also cares
+ * *how*.
+ */
+export async function hasGrantedViaSignupFormIn(
+  tx: Tx,
+  personId: string,
+  seasonId: string,
+): Promise<boolean> {
+  const consent = await readSeasonMessagingConsentIn(tx, personId, seasonId);
+  return consent?.state === "granted" && consent.source === SELF_SERVICE_SOURCE;
+}
+
+/**
  * Records consent granted by the person's own tick on the sign-up form —
  * `qr_self_entry`, whichever door reached the form. Upserts: re-granting an
  * already-granted or previously withdrawn/refused row for the same

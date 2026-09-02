@@ -2,7 +2,7 @@ import "server-only";
 
 import { withTransaction, type Tx } from "@/lib/db";
 import { deriveEntityIdFromNaturalKey, recordAudit } from "./audit";
-import { hasGrantedSeasonMessagingConsentIn, mayReceiveWelcomeContactIn } from "./messaging-consent";
+import { hasGrantedViaSignupFormIn, mayReceiveWelcomeContactIn } from "./messaging-consent";
 
 /**
  * The recruitment cycle's own four rows. LAN-203, `REQ-recruitment-cycle`.
@@ -283,10 +283,12 @@ export interface DeclaredCycleJobs {
  *    gated on `mayReceiveWelcomeContactIn` — allowed unless the recruit has
  *    explicitly `refused` or `withdrawn` — rather than requiring consent
  *    already exist. The interest track (`interest_ask` + `interest_reminder`,
- *    Questionnaire B) keeps the strict `hasGrantedSeasonMessagingConsentIn`
- *    gate unchanged: ungranted, unasked, refused or withdrawn all create
- *    nothing for that track, the same totality LAN-202's gate already holds
- *    for an ordinary send.
+ *    Questionnaire B) is gated on `hasGrantedViaSignupFormIn`, narrower than
+ *    a bare granted check — `Q-read-back-authorises-how-much` (Brian,
+ *    2026-09-02): a touchline read-back's grant authorises the welcome track
+ *    alone, so the interest track waits for the recruit's own `granted`
+ *    *via the sign-up form* (`source: 'qr_self_entry'`), not merely `granted`
+ *    by any door.
  * 3. **Completion**, per track, independently:
  *    - Welcome track (`welcome` + `details_reminder`): skipped entirely
  *      once `welcomeStepComplete` — both or neither, matching the
@@ -340,7 +342,7 @@ export async function declareRecruitmentCycleJobsIn(
     : await mayReceiveWelcomeContactIn(tx, personId, seasonId);
   const mayInterest = completion.questionnaireBComplete
     ? false
-    : await hasGrantedSeasonMessagingConsentIn(tx, personId, seasonId);
+    : await hasGrantedViaSignupFormIn(tx, personId, seasonId);
 
   const wanted: RecruitmentCycleStepName[] = [];
   if (!completion.welcomeStepComplete && mayWelcome) {
