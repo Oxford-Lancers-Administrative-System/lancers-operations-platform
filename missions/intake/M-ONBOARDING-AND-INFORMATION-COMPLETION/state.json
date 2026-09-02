@@ -1,7 +1,7 @@
 {
   "mission_id": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
   "ledger_version": 3,
-  "stage": "assembly",
+  "stage": "merged",
   "baseline": {
     "branch": "main",
     "commit": "332bc6b3ba3028f1b79d99fc59dc1417791c2d81",
@@ -494,7 +494,7 @@
         "id": "R1b",
         "source_id": "SRC-task-10",
         "disposition": "workflow",
-        "reason": "The full checklist regenerates for everyone every season — it's about the president, not the person.",
+        "reason": "The full checklist regenerates for everyone every season \u2014 it's about the president, not the person.",
         "workflow": "W11",
         "also_referenced_by": []
       },
@@ -522,7 +522,7 @@
         "id": "R2-R",
         "source_id": "SRC-task-10",
         "disposition": "workflow",
-        "reason": "Reopen and waive are four-role with no mandatory reason, audited — the shipped constraint is unwound here.",
+        "reason": "Reopen and waive are four-role with no mandatory reason, audited \u2014 the shipped constraint is unwound here.",
         "workflow": "W6"
       },
       {
@@ -563,7 +563,7 @@
         "id": "R3-G",
         "source_id": "SRC-task-10",
         "disposition": "workflow",
-        "reason": "Nothing gates, ever — the mission's governing principle, enforced where items are resolved.",
+        "reason": "Nothing gates, ever \u2014 the mission's governing principle, enforced where items are resolved.",
         "workflow": "W6",
         "also_referenced_by": ["W4", "W10"]
       },
@@ -671,14 +671,14 @@
           "M-APP-SHELL-ACCOUNT-AND-TRUST",
           "M-ONBOARDING-AND-INFORMATION-COMPLETION"
         ],
-        "evidence": "Task 10 §7's stress-test addition makes it information provision with no completion state; wording routes to Task 07."
+        "evidence": "Task 10 \u00a77's stress-test addition makes it information provision with no completion state; wording routes to Task 07."
       },
       {
         "id": "T10-gates",
         "source_id": "SRC-task-10",
         "disposition": "delegated_to_mission_lead",
-        "reason": "The named delegated gates — Secretary, compliance owner, Kit Manager — are human validations that bind no build decision here.",
-        "evidence": "Task 10 §9 lists them as open, named and non-blocking."
+        "reason": "The named delegated gates \u2014 Secretary, compliance owner, Kit Manager \u2014 are human validations that bind no build decision here.",
+        "evidence": "Task 10 \u00a79 lists them as open, named and non-blocking."
       },
       {
         "id": "M1",
@@ -691,7 +691,7 @@
         "id": "M2",
         "source_id": "SRC-task-11",
         "disposition": "workflow",
-        "reason": "Onboarding-opened fires the welcome carrying the sign-up ask — one message class, no separate blast.",
+        "reason": "Onboarding-opened fires the welcome carrying the sign-up ask \u2014 one message class, no separate blast.",
         "workflow": "W4",
         "also_referenced_by": ["W1", "W2", "W3"]
       },
@@ -713,8 +713,8 @@
         "id": "M5",
         "source_id": "SRC-task-11",
         "disposition": "excluded",
-        "reason": "Active-membership maintenance is an active player's data going stale, which is ongoing operations rather than onboarding. Excluded here without a confirmed home elsewhere — flagged for Brian rather than assigned to a mission by guess.",
-        "evidence": "Brian, 2026-09-01, on whether the maintenance cycle belongs here: 'it seems like once they flip to active, we're fine.' Onboarding ends at activation, so the moment is out of this mission; Task 11 §2.2 keeps it defined for whichever mission later claims it."
+        "reason": "Active-membership maintenance is an active player's data going stale, which is ongoing operations rather than onboarding. Excluded here without a confirmed home elsewhere \u2014 flagged for Brian rather than assigned to a mission by guess.",
+        "evidence": "Brian, 2026-09-01, on whether the maintenance cycle belongs here: 'it seems like once they flip to active, we're fine.' Onboarding ends at activation, so the moment is out of this mission; Task 11 \u00a72.2 keeps it defined for whichever mission later claims it."
       },
       {
         "id": "M6",
@@ -819,7 +819,7 @@
         "disposition": "shared_cross_mission",
         "reason": "The Secretary owns the weekly queue review; the queue is Mission 5's surface and the chase acting on it is this mission's.",
         "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
-        "evidence": "Task 11 §7's role table assigns the weekly review to the Secretary, with the practical cadence delegated to them."
+        "evidence": "Task 11 \u00a77's role table assigns the weekly review to the Secretary, with the practical cadence delegated to them."
       },
       {
         "id": "T11-escalation-personal-data-free",
@@ -852,7 +852,7 @@
           "M-ONBOARDING-AND-INFORMATION-COMPLETION",
           "M-LEADERSHIP-REPORTING-AND-EXPORTS"
         ],
-        "evidence": "Task 11 §7 states the queue is Task 08's plus Task 10's, consumed rather than redefined."
+        "evidence": "Task 11 \u00a77 states the queue is Task 08's plus Task 10's, consumed rather than redefined."
       },
       {
         "id": "T11-visibility",
@@ -867,13 +867,13 @@
         "disposition": "other_mission",
         "reason": "Delivery callbacks are transport; this mission depends on them for Delivered-only counting but does not build them.",
         "other_mission": "M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY",
-        "evidence": "Task 11 §9 records LAN-93 delivery callbacks as a stated dependency of this loop, with no interim counting rule."
+        "evidence": "Task 11 \u00a79 records LAN-93 delivery callbacks as a stated dependency of this loop, with no interim counting rule."
       },
       {
         "id": "T11-A1",
         "source_id": "SRC-task-11",
         "disposition": "workflow",
-        "reason": "This brief is primary coverage of Mission 7 alongside Task 10 — the mission-home ruling this intake executes.",
+        "reason": "This brief is primary coverage of Mission 7 alongside Task 10 \u2014 the mission-home ruling this intake executes.",
         "workflow": "W4"
       },
       {
@@ -887,7 +887,7 @@
         "id": "T11-A3",
         "source_id": "SRC-task-11",
         "disposition": "shared_cross_mission",
-        "reason": "The compiled signed-link form is Mission 6's substrate extended here with the onboarding field set — one artifact, one open request.",
+        "reason": "The compiled signed-link form is Mission 6's substrate extended here with the onboarding field set \u2014 one artifact, one open request.",
         "shared_owners": ["M-RECRUITMENT", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
         "evidence": "Task 11 amendment 3, 2026-08-26, names the shared substrate explicitly."
       },
@@ -902,7 +902,7 @@
         "id": "D6",
         "source_id": "SRC-task-07",
         "disposition": "workflow",
-        "reason": "Consent and contact-preference capture at the onboarding form — the capture mechanics this mission was assigned.",
+        "reason": "Consent and contact-preference capture at the onboarding form \u2014 the capture mechanics this mission was assigned.",
         "workflow": "W4"
       },
       {
@@ -961,7 +961,7 @@
         "disposition": "other_mission",
         "reason": "The retention schedule is policy this mission conforms to and never sets.",
         "other_mission": "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
-        "evidence": "Task 07 §3's owner-decided defaults; the 2026-08-26 amendment keeps retention with the policy layer."
+        "evidence": "Task 07 \u00a73's owner-decided defaults; the 2026-08-26 amendment keeps retention with the policy layer."
       },
       {
         "id": "T07-retention-exec",
@@ -969,7 +969,7 @@
         "disposition": "other_mission",
         "reason": "The reviewed season-close retention run executes at the season boundary.",
         "other_mission": "M-SEASON-LIFECYCLE-ELIGIBILITY-AND-HANDOFF",
-        "evidence": "Task 07 §3 surfaces the run in the season-lifecycle brief; portfolio row 8 records the season-close run in Mission 11."
+        "evidence": "Task 07 \u00a73 surfaces the run in the season-lifecycle brief; portfolio row 8 records the season-close run in Mission 11."
       },
       {
         "id": "T07-correction",
@@ -977,7 +977,7 @@
         "disposition": "shared_cross_mission",
         "reason": "The correction workflow is operator-executable on Mission 5's surfaces; the player-side correction is this mission's.",
         "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
-        "evidence": "Task 07 §3's correction steps run on the existing person and membership surfaces, which Mission 5 shipped."
+        "evidence": "Task 07 \u00a73's correction steps run on the existing person and membership surfaces, which Mission 5 shipped."
       },
       {
         "id": "T07-erasure",
@@ -985,7 +985,7 @@
         "disposition": "other_mission",
         "reason": "Erasure, redaction and destructive person removal are the data-rights build, not onboarding.",
         "other_mission": "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
-        "evidence": "Task 07 §3 and the 2026-08-26 amendment keep erasure including destructive person removal with the policy layer."
+        "evidence": "Task 07 \u00a73 and the 2026-08-26 amendment keep erasure including destructive person removal with the policy layer."
       },
       {
         "id": "T07-sar",
@@ -993,7 +993,7 @@
         "disposition": "other_mission",
         "reason": "The per-person subject-access export is a data-rights surface.",
         "other_mission": "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
-        "evidence": "Task 07 §3's owner decision creates the export action; the 2026-08-26 amendment keeps it with Mission 8."
+        "evidence": "Task 07 \u00a73's owner decision creates the export action; the 2026-08-26 amendment keeps it with Mission 8."
       },
       {
         "id": "T07-audit-review",
@@ -1001,7 +1001,7 @@
         "disposition": "other_mission",
         "reason": "The audit-coverage review surface and its per-category count are a data-rights build.",
         "other_mission": "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
-        "evidence": "Task 07 §4 defines the read-only review surface; portfolio row 8 lists audit-coverage review."
+        "evidence": "Task 07 \u00a74 defines the read-only review surface; portfolio row 8 lists audit-coverage review."
       },
       {
         "id": "T07-cutover",
@@ -1009,7 +1009,7 @@
         "disposition": "other_mission",
         "reason": "The cutover checklist is the product side of the real-data gate.",
         "other_mission": "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
-        "evidence": "Task 07 §5 and LAN-86; the 2026-08-26 amendment keeps the cutover product side with Mission 8."
+        "evidence": "Task 07 \u00a75 and LAN-86; the 2026-08-26 amendment keeps the cutover product side with Mission 8."
       },
       {
         "id": "T07-freetext",
@@ -1021,7 +1021,7 @@
           "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
           "M-LEADERSHIP-REPORTING-AND-EXPORTS"
         ],
-        "evidence": "Task 07 §3's free-text decision restricts these fields to the four-role group and keeps them out of reports verbatim."
+        "evidence": "Task 07 \u00a73's free-text decision restricts these fields to the four-role group and keeps them out of reports verbatim."
       },
       {
         "id": "T07-merge-precedence",
@@ -1037,7 +1037,7 @@
         "disposition": "other_mission",
         "reason": "Post-restore re-application of erasures is a recovery procedure attached to the erasure path.",
         "other_mission": "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
-        "evidence": "Task 07 §3's owner decision ties it to the LAN-84 restore procedure, referenced not redefined."
+        "evidence": "Task 07 \u00a73's owner decision ties it to the LAN-84 restore procedure, referenced not redefined."
       },
       {
         "id": "T07-wording",
@@ -1045,7 +1045,7 @@
         "disposition": "other_mission",
         "reason": "Consent and privacy-notice wording is Clint's through the policy layer; this mission renders a versioned slot.",
         "other_mission": "M-CONSENT-PRIVACY-AND-DATA-RIGHTS",
-        "evidence": "Task 07 §1 delegates wording to Clint and defines a versioned slot rather than language."
+        "evidence": "Task 07 \u00a71 delegates wording to Clint and defines a versioned slot rather than language."
       },
       {
         "id": "T07-permissions",
@@ -1059,7 +1059,7 @@
         "id": "T07-A-2026-08-26",
         "source_id": "SRC-task-07",
         "disposition": "workflow",
-        "reason": "The amendment that assigns capture mechanics to Missions 6 and 7 and keeps the policy layer — the ruling this mission executes.",
+        "reason": "The amendment that assigns capture mechanics to Missions 6 and 7 and keeps the policy layer \u2014 the ruling this mission executes.",
         "workflow": "W4"
       },
       {
@@ -1095,7 +1095,7 @@
         "id": "PR7-nudges-chase",
         "source_id": "SRC-portfolio-row-7",
         "disposition": "workflow",
-        "reason": "Nudges and the bounded chase ending in exhausted — human follow-up.",
+        "reason": "Nudges and the bounded chase ending in exhausted \u2014 human follow-up.",
         "workflow": "W11",
         "also_referenced_by": ["W8", "W9"]
       },
@@ -1134,7 +1134,7 @@
         "disposition": "shared_cross_mission",
         "reason": "The operator message-and-flag direction: Mission 6 builds it for recruits, this mission extends it for members.",
         "shared_owners": ["M-RECRUITMENT", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
-        "evidence": "The Authority Manifest §5 records it as awaiting definition with this mission as candidate home; Brian settled the seam 2026-08-31."
+        "evidence": "The Authority Manifest \u00a75 records it as awaiting definition with this mission as candidate home; Brian settled the seam 2026-08-31."
       },
       {
         "id": "PR7-rides-m4",
@@ -1142,7 +1142,7 @@
         "disposition": "other_mission",
         "reason": "The row states this mission rides Mission 4's scheduler and transport verbatim.",
         "other_mission": "M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY",
-        "evidence": "Portfolio row 7's shared coverage column; Task 11 §6 reuses Task 02's contract without respecification."
+        "evidence": "Portfolio row 7's shared coverage column; Task 11 \u00a76 reuses Task 02's contract without respecification."
       },
       {
         "id": "PR7-import-at-scale",
@@ -1163,7 +1163,7 @@
         "id": "OD7-two-doors-lens",
         "source_id": "SRC-owner-2026-09-01",
         "disposition": "workflow",
-        "reason": "The two lenses — a flipped recruit and a returning player — reach the same place by the same message.",
+        "reason": "The two lenses \u2014 a flipped recruit and a returning player \u2014 reach the same place by the same message.",
         "workflow": "W3",
         "also_referenced_by": ["W1"]
       },
@@ -1229,7 +1229,7 @@
         "id": "OD7-log-by-section",
         "source_id": "SRC-owner-2026-09-01",
         "disposition": "workflow",
-        "reason": "The activity log is counted by section — how many times asked, how many times done.",
+        "reason": "The activity log is counted by section \u2014 how many times asked, how many times done.",
         "workflow": "W6"
       },
       {
@@ -1361,7 +1361,7 @@
       {
         "id": "S7",
         "name": "The welcome message",
-        "belongs": "Task 10 §8 trigger 1 and Task 07's single message-class exception; the one message the club may send to obtain agreement.",
+        "belongs": "Task 10 \u00a78 trigger 1 and Task 07's single message-class exception; the one message the club may send to obtain agreement.",
         "disposition": "workflow",
         "workflow": "W4",
         "implementation": "new",
@@ -1370,7 +1370,7 @@
       {
         "id": "S8",
         "name": "The compiled ask, one open per person ever",
-        "belongs": "Task 11 §2.3 makes it the deduplication rule of the whole loop.",
+        "belongs": "Task 11 \u00a72.3 makes it the deduplication rule of the whole loop.",
         "disposition": "workflow",
         "workflow": "W4",
         "implementation": "new",
@@ -1388,7 +1388,7 @@
       {
         "id": "S10",
         "name": "Seasonal consent capture and the re-tick",
-        "belongs": "Task 07 §2 as amended makes communication approval season-scoped; Brian, 2026-09-01: the personal-information form is the consent board.",
+        "belongs": "Task 07 \u00a72 as amended makes communication approval season-scoped; Brian, 2026-09-01: the personal-information form is the consent board.",
         "disposition": "workflow",
         "workflow": "W4",
         "implementation": "modified",
@@ -1415,7 +1415,7 @@
       {
         "id": "S13",
         "name": "The recruit's open link superseded",
-        "belongs": "Task 11 §2.3 supersedes an open prospect request on conversion; otherwise a person holds two live links.",
+        "belongs": "Task 11 \u00a72.3 supersedes an open prospect request on conversion; otherwise a person holds two live links.",
         "disposition": "workflow",
         "workflow": "W3",
         "implementation": "new",
@@ -1424,7 +1424,7 @@
       {
         "id": "S14",
         "name": "The twelve-item inventory",
-        "belongs": "Task 10 §3 as reconciled 2026-08-17; the approved Release-One checklist.",
+        "belongs": "Task 10 \u00a73 as reconciled 2026-08-17; the approved Release-One checklist.",
         "disposition": "workflow",
         "workflow": "W11",
         "implementation": "modified",
@@ -1443,7 +1443,7 @@
       {
         "id": "S16",
         "name": "The claimed state and player-claimed provenance",
-        "belongs": "Task 10 §4 requires it so a player's word never looks like a club confirmation.",
+        "belongs": "Task 10 \u00a74 requires it so a player's word never looks like a club confirmation.",
         "disposition": "workflow",
         "workflow": "W6",
         "implementation": "new",
@@ -1453,7 +1453,7 @@
       {
         "id": "S17",
         "name": "Per-item history",
-        "belongs": "Task 10 §4: item history is append-only, every transition audited.",
+        "belongs": "Task 10 \u00a74: item history is append-only, every transition audited.",
         "disposition": "workflow",
         "workflow": "W6",
         "implementation": "new",
@@ -1462,7 +1462,7 @@
       {
         "id": "S18",
         "name": "Reason-free waive and reopen",
-        "belongs": "Task 10 R2-R: four-role, no mandatory reason, audited — the committee discusses it at Monday.",
+        "belongs": "Task 10 R2-R: four-role, no mandatory reason, audited \u2014 the committee discusses it at Monday.",
         "disposition": "workflow",
         "workflow": "W6",
         "implementation": "modified",
@@ -1472,7 +1472,7 @@
       {
         "id": "S19",
         "name": "Item generation guards",
-        "belongs": "Task 10 §2's two stress-test fixes; without them a config change silently exempts people.",
+        "belongs": "Task 10 \u00a72's two stress-test fixes; without them a config change silently exempts people.",
         "disposition": "workflow",
         "workflow": "W11",
         "implementation": "new",
@@ -1485,7 +1485,7 @@
         "disposition": "workflow",
         "workflow": "W11",
         "implementation": "modified",
-        "reason": "Restores consistency with R1b — the full checklist regenerates for everyone every season.",
+        "reason": "Restores consistency with R1b \u2014 the full checklist regenerates for everyone every season.",
         "baseline": "formalwear ownership fields on the person record from M-PEOPLE-AND-ROSTER, main@332bc6b"
       },
       {
@@ -1507,13 +1507,13 @@
       {
         "id": "S23",
         "name": "Derived completeness and who is ready to activate",
-        "belongs": "Task 10 §5 and §6: the roster shows readiness; the signal is the checklist's.",
+        "belongs": "Task 10 \u00a75 and \u00a76: the roster shows readiness; the signal is the checklist's.",
         "disposition": "shared_cross_mission",
         "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
         "workflow": "W6",
         "current_side": "This mission derives completeness and readiness from item state and keeps it display-only, flipping nothing on its own.",
         "seam": "Mission 5 owns the roster and player-record surfaces that render it, delivered at main@332bc6b.",
-        "evidence": "Task 10 §5 and §6: the roster shows readiness; the signal is the checklist's.",
+        "evidence": "Task 10 \u00a75 and \u00a76: the roster shows readiness; the signal is the checklist's.",
         "reason": "One source of truth for the signal, one owner for the surface."
       },
       {
@@ -1546,7 +1546,7 @@
       {
         "id": "S26",
         "name": "Onboarding's own cadence, caps and suppression",
-        "belongs": "Task 11 §3 commits bounded automation then a human; Brian, 2026-09-01: onboarding gets its own on the messaging page.",
+        "belongs": "Task 11 \u00a73 commits bounded automation then a human; Brian, 2026-09-01: onboarding gets its own on the messaging page.",
         "disposition": "workflow",
         "workflow": "W11",
         "implementation": "modified",
@@ -1556,7 +1556,7 @@
       {
         "id": "S27",
         "name": "The cap counts only messages known to have arrived",
-        "belongs": "Task 11 §3, owner decision 2026-08-15; a failure must never burn a chase.",
+        "belongs": "Task 11 \u00a73, owner decision 2026-08-15; a failure must never burn a chase.",
         "disposition": "invariant",
         "invariant": "A notification counts against the cap only on a verified Delivered callback. Failed or unconfirmed attempts route to the failure path and consume nothing.",
         "reason": "A counting rule binding W8 and W9; LAN-93 delivery callbacks are its stated dependency."
@@ -1564,7 +1564,7 @@
       {
         "id": "S28",
         "name": "The operator nudge, single and batch",
-        "belongs": "Task 11 §3 and Task 10 §8 trigger 2: the Release-One floor for follow-up.",
+        "belongs": "Task 11 \u00a73 and Task 10 \u00a78 trigger 2: the Release-One floor for follow-up.",
         "disposition": "workflow",
         "workflow": "W8",
         "implementation": "new",
@@ -1573,19 +1573,19 @@
       {
         "id": "S29",
         "name": "The chase-and-flag surface",
-        "belongs": "The Authority Manifest §5 recorded the operator message-and-flag direction; Brian settled the seam on 2026-08-31 and confirmed this mission's half on 2026-09-01.",
+        "belongs": "The Authority Manifest \u00a75 recorded the operator message-and-flag direction; Brian settled the seam on 2026-08-31 and confirmed this mission's half on 2026-09-01.",
         "disposition": "shared_cross_mission",
         "shared_owners": ["M-RECRUITMENT", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
         "workflow": "W8",
-        "current_side": "This mission builds the member-facing half — chasing somebody for personal details or onboarding items as one action in one place.",
+        "current_side": "This mission builds the member-facing half \u2014 chasing somebody for personal details or onboarding items as one action in one place.",
         "seam": "Mission 6 builds it first for recruits at its W9; this extends rather than replaces it.",
-        "evidence": "The Authority Manifest §5 recorded the operator message-and-flag direction; Brian settled the seam on 2026-08-31 and confirmed this mission's half on 2026-09-01.",
+        "evidence": "The Authority Manifest \u00a75 recorded the operator message-and-flag direction; Brian settled the seam on 2026-08-31 and confirmed this mission's half on 2026-09-01.",
         "reason": "One surface, two audiences, built in the order the missions ship."
       },
       {
         "id": "S30",
         "name": "Exhaustion and escalation to a configured office",
-        "belongs": "Task 11 §3 and §7: the chase stops permanently and becomes a human's job.",
+        "belongs": "Task 11 \u00a73 and \u00a77: the chase stops permanently and becomes a human's job.",
         "disposition": "workflow",
         "workflow": "W9",
         "implementation": "new",
@@ -1594,7 +1594,7 @@
       {
         "id": "S31",
         "name": "The recorded human follow-up",
-        "belongs": "Task 11 §7: someone gives him a call, and the outcome belongs on the record.",
+        "belongs": "Task 11 \u00a77: someone gives him a call, and the outcome belongs on the record.",
         "disposition": "workflow",
         "workflow": "W9",
         "implementation": "new",
@@ -1603,7 +1603,7 @@
       {
         "id": "S32",
         "name": "The sectioned activity log",
-        "belongs": "Task 10 §6 and Brian, 2026-09-01: counted by section, so the record shows how often somebody was asked about a thing.",
+        "belongs": "Task 10 \u00a76 and Brian, 2026-09-01: counted by section, so the record shows how often somebody was asked about a thing.",
         "disposition": "workflow",
         "workflow": "W6",
         "implementation": "new",
@@ -1612,7 +1612,7 @@
       {
         "id": "S33",
         "name": "Provenance-ranked ingestion",
-        "belongs": "Task 11 §5: a player submission must never silently overwrite what the club confirmed.",
+        "belongs": "Task 11 \u00a75: a player submission must never silently overwrite what the club confirmed.",
         "disposition": "workflow",
         "workflow": "W5",
         "implementation": "new",
@@ -1621,7 +1621,7 @@
       {
         "id": "S34",
         "name": "Per-fact refused",
-        "belongs": "Task 11 §4: an approved request state; a person may decline a fact and stop being chased for it.",
+        "belongs": "Task 11 \u00a74: an approved request state; a person may decline a fact and stop being chased for it.",
         "disposition": "workflow",
         "workflow": "W5",
         "implementation": "new",
@@ -1630,7 +1630,7 @@
       {
         "id": "S35",
         "name": "Resolving a disputed fact",
-        "belongs": "Task 08 E3's three attributable events — flag, correction, confirmation.",
+        "belongs": "Task 08 E3's three attributable events \u2014 flag, correction, confirmation.",
         "disposition": "workflow",
         "workflow": "W7",
         "implementation": "modified",
@@ -1640,19 +1640,19 @@
       {
         "id": "S36",
         "name": "Which consent record wins on a person merge",
-        "belongs": "Task 07 §2's amendment records consent-record precedence on merge as an open item, assigned to nobody.",
+        "belongs": "Task 07 \u00a72's amendment records consent-record precedence on merge as an open item, assigned to nobody.",
         "disposition": "shared_cross_mission",
         "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
         "workflow": "W7",
         "current_side": "This mission owns the precedence rule, since consent is one row per person per season under a unique constraint and a merge collides two of them.",
         "seam": "Mission 5 owns the merge surface that executes it; Mission 8 owns any policy framing of the outcome.",
-        "evidence": "Task 07 §2's amendment records consent-record precedence on merge as an open item, assigned to nobody.",
+        "evidence": "Task 07 \u00a72's amendment records consent-record precedence on merge as an open item, assigned to nobody.",
         "reason": "An open item nobody held, surfaced by this intake and settled where the consent record lives."
       },
       {
         "id": "S37",
         "name": "Activation",
-        "belongs": "Task 10 §5 and Brian, 2026-09-01: activation just flips them to active, and it is the gate to managing them as a player.",
+        "belongs": "Task 10 \u00a75 and Brian, 2026-09-01: activation just flips them to active, and it is the gate to managing them as a player.",
         "disposition": "workflow",
         "workflow": "W10",
         "implementation": "modified",
@@ -1678,7 +1678,7 @@
       {
         "id": "S40",
         "name": "No player logins; single-person signed links",
-        "belongs": "Task 08 §3, binding every player-facing surface in Release One.",
+        "belongs": "Task 08 \u00a73, binding every player-facing surface in Release One.",
         "disposition": "invariant",
         "invariant": "Every player-facing step rides a signed, revocable, no-login link scoped to one person, carrying no session, exposing nobody else's information, with a uniform invalid page that leaks nothing.",
         "reason": "The platform rule this mission's whole player side is built on."
@@ -1702,7 +1702,7 @@
       {
         "id": "S43",
         "name": "The privacy policy at the point of collection",
-        "belongs": "Task 10 §7: every player-facing surface carries the club's policy, presented where data is collected.",
+        "belongs": "Task 10 \u00a77: every player-facing surface carries the club's policy, presented where data is collected.",
         "disposition": "shared_cross_mission",
         "shared_owners": [
           "M-APP-SHELL-ACCOUNT-AND-TRUST",
@@ -1711,8 +1711,8 @@
         "workflow": "W4",
         "current_side": "This mission requires and places the policy on every collection screen it builds.",
         "seam": "Mission 3 owns the policy surface and its rendering; Mission 8 owns the wording.",
-        "evidence": "Task 10 §7: every player-facing surface carries the club's policy, presented where data is collected.",
-        "reason": "Information provision, not a checklist item — no completion state anywhere."
+        "evidence": "Task 10 \u00a77: every player-facing surface carries the club's policy, presented where data is collected.",
+        "reason": "Information provision, not a checklist item \u2014 no completion state anywhere."
       },
       {
         "id": "S44",
@@ -1741,7 +1741,7 @@
       {
         "id": "S46",
         "name": "No real recipient before the wording exists",
-        "belongs": "Task 07 §2's consent-language slot and the LAN-86 cutover gate.",
+        "belongs": "Task 07 \u00a72's consent-language slot and the LAN-86 cutover gate.",
         "disposition": "invariant",
         "invariant": "The flow is built, walked and accepted with placeholder wording in a real versioned slot. No real recipient is messaged until Clint's approved language exists and LAN-86 opens.",
         "reason": "A rollout rule, not a build gate; it never blocks this mission's acceptance."
@@ -1752,7 +1752,7 @@
         "belongs": "Every message this mission sends rides it, so the seam must be explicit.",
         "disposition": "other_mission",
         "other_mission": "M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY",
-        "seam": "Task 11 §6 reuses Task 02's contract verbatim: five delivery states, template-only production sends, operator retry, the scheduler. This mission's collection and nudge templates join that inventory.",
+        "seam": "Task 11 \u00a76 reuses Task 02's contract verbatim: five delivery states, template-only production sends, operator retry, the scheduler. This mission's collection and nudge templates join that inventory.",
         "evidence": "Every message this mission sends rides it, so the seam must be explicit.",
         "reason": "Reused without respecification; this mission never redefines transport."
       },
@@ -1762,7 +1762,7 @@
         "belongs": "The chase acts on it and the rollup item derives from it, so it cannot be redefined here.",
         "disposition": "other_mission",
         "other_mission": "M-PEOPLE-AND-ROSTER",
-        "seam": "Task 11 §7 consumes the queue rather than redefining it; Task 10 item 9's rollup pieces ARE that queue — one source of truth, no double-counting.",
+        "seam": "Task 11 \u00a77 consumes the queue rather than redefining it; Task 10 item 9's rollup pieces ARE that queue \u2014 one source of truth, no double-counting.",
         "evidence": "The chase acts on it and the rollup item derives from it, so it cannot be redefined here.",
         "reason": "Defined and shipped by Mission 5; this mission adds the request state layered onto it."
       },
@@ -1779,11 +1779,11 @@
       {
         "id": "S50",
         "name": "Coach and committee onboarding, chasing and self-service",
-        "belongs": "Task 11 §2.1 originally put them in this loop, so their removal must be recorded rather than assumed.",
+        "belongs": "Task 11 \u00a72.1 originally put them in this loop, so their removal must be recorded rather than assumed.",
         "disposition": "other_mission",
         "other_mission": "M-FOOTBALL-ASSIGNMENTS-AND-AVAILABILITY",
         "seam": "Brian, 2026-09-01: onboarding is onboarding a player onto the team; a coach is not on the roster. Coaches and committee get their own flows in their own missions. Somebody who is both is a player here.",
-        "evidence": "Task 11 §2.1 originally put them in this loop, so their removal must be recorded rather than assumed.",
+        "evidence": "Task 11 \u00a72.1 originally put them in this loop, so their removal must be recorded rather than assumed.",
         "reason": "This narrows the self-service routing Mission 5 recorded to this mission, which named players, coaches and committee."
       },
       {
@@ -1792,18 +1792,18 @@
         "belongs": "The import writes into a season and the checklist resets at a boundary, so both seams touch this mission.",
         "disposition": "other_mission",
         "other_mission": "M-SEASON-LIFECYCLE-ELIGIBILITY-AND-HANDOFF",
-        "seam": "Brian, 2026-09-01: season creation happens in a different mission, down the line. Task 10 §2 puts the season-open configuration step in the rollover process, and Task 10 R2-E resets items only at the season boundary. Mission id coined here; no prior ledger records one.",
+        "seam": "Brian, 2026-09-01: season creation happens in a different mission, down the line. Task 10 \u00a72 puts the season-open configuration step in the rollover process, and Task 10 R2-E resets items only at the season boundary. Mission id coined here; no prior ledger records one.",
         "evidence": "The import writes into a season and the checklist resets at a boundary, so both seams touch this mission.",
         "reason": "This mission inherits a season it never creates and hands the reset to the mission that owns the boundary."
       },
       {
         "id": "S52",
         "name": "The Monday review's own surfacing of the queue and exhausted chases",
-        "belongs": "Task 11 §7 sends exhausted chases into the Monday report, which is another mission's surface.",
+        "belongs": "Task 11 \u00a77 sends exhausted chases into the Monday report, which is another mission's surface.",
         "disposition": "other_mission",
         "other_mission": "M-LEADERSHIP-REPORTING-AND-EXPORTS",
         "seam": "Task 10 R4 records that the report will evolve substantially and deliberately declines to over-specify it.",
-        "evidence": "Task 11 §7 sends exhausted chases into the Monday report, which is another mission's surface.",
+        "evidence": "Task 11 \u00a77 sends exhausted chases into the Monday report, which is another mission's surface.",
         "reason": "This mission produces the content; the report that displays it is Mission 10's."
       },
       {
@@ -1936,5 +1936,15 @@
       "shown_as": "A nine-item batch presented in full before any edit: the four already queued plus five supersessions that arose during the workflow stage."
     }
   },
-  "next_action": "Amendments applied and verified. Remaining before the PR: split scripts/intake/lib/hub.mjs onto its own branch, then open the intake-only draft PR."
+  "next_action": "Intake complete. Brian commissions the Mission Lead with /run-mission M-ONBOARDING-AND-INFORMATION-COMPLETION",
+  "merge": {
+    "pr": 135,
+    "url": "https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/pull/135",
+    "merged_at": "2026-09-02T19:16:44Z",
+    "merged_by": "Bschuster3434",
+    "merge_commit": "45cc8712362bd8747fb19c93d0d6aa6692003411",
+    "packet_version": 1,
+    "packet_status": "approved",
+    "baseline": "332bc6b3ba3028f1b79d99fc59dc1417791c2d81"
+  }
 }
