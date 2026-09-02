@@ -446,6 +446,49 @@ const WORKFLOWS = [
       ),
     ],
   },
+  {
+    id: "W7",
+    slug: "settle-a-disputed-fact",
+    name: "Settle a disputed fact",
+    grounding: "photograph",
+    lede: `W5 lets a player say the club is wrong without overwriting it. This is the other half: an
+      operator sees the club's value, the player's answer and the whole history, and decides —
+      leaving the flag, the correction and the confirmation each attributable.`,
+    legend: [
+      "<strong>The surface is the person record, not the roster record.</strong> The facts a player can contest — name, contact, college, course, date of birth — are person facts, and <code>/operate/people/[personId]</code> is where they already render",
+      "<strong>The record is further along than the roster one for this.</strong> It already has a Fact row per fact, a bordered <code>By</code> badge naming who supplied each value, and a history section filterable by field and by actor. <strong>A disputed fact is that row carrying a second value and a second badge</strong> — not a new component",
+      "<strong>Mission 5 left this seam deliberately.</strong> <code>REQ-no-disputed</code>: \"There is no contested-value field, no verification-mark field and no confidence class anywhere below — not struck out, never added\"",
+      "<strong>The losing value is retained, never deleted.</strong> Append-only, so the decision is auditable and reversible",
+      "<strong>A disputed fact gates nothing and is never chased.</strong> The person has already answered; there is nothing to ask them for",
+      "<strong><code>T07-merge-precedence</code> gets no screen.</strong> <code>season_messaging_consents</code> is unique per person per season, so merging two people who both consented must choose one. That is a write-time rule, and its only surface is one more line in Mission 5's existing merge comparison. <strong>Recommended: the most restrictive state wins, not the most recent</strong> — record-keeping must never manufacture permission a person declined",
+    ],
+    screens: [
+      P(
+        "W7-01",
+        "A disputed fact, on the record that already shows who said what",
+        `The club recorded Farrowgate; the player says Brasenose. Both values sit in the same Fact
+         row, each carrying the record's own attribution badge — the same one it already uses for
+         “intake form” and “display name”.`,
+        [
+          "<strong>The club's value and who recorded it.</strong> Both already ship; only the second value below is new",
+          "<strong>The player's answer, against it.</strong> Same row, same type, same badge. Nothing is struck out and nothing is replaced until an operator decides",
+        ],
+        "oxfordlancers.example/operate/people/a48825ac",
+      ),
+      P(
+        "W7-02",
+        "Settled — and the superseded value kept",
+        `One value stands. The other is retained rather than deleted, which is what makes the
+         decision auditable and reversible, and what the frozen inventory means by “flag, correction
+         and confirmation each attributable”.`,
+        [
+          "<strong>The value that won, and who confirmed it.</strong> The confirmation is its own attributable act, distinct from whoever originally recorded the value",
+          "<strong>And the value that lost, kept.</strong> Append-only: a superseded value survives, so nothing about this decision is irreversible",
+        ],
+        "oxfordlancers.example/operate/people/a48825ac",
+      ),
+    ],
+  },
 ];
 
 const SHOTS = JSON.parse(readFileSync(path.join(OUT, "shots", "shots.json"), "utf8"));

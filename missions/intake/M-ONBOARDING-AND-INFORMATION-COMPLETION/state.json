@@ -162,19 +162,36 @@
     {
       "id": "W6",
       "name": "One player's onboarding record",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {},
+      "approvals": {
+        "spec": {
+          "words": "Yeah, that's fine. W6 looks fine. Let's continue to the next one.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "Yeah, that's fine. W6 looks fine. Let's continue to the next one.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        },
+        "acceptance": {
+          "words": "Yeah, that's fine. W6 looks fine. Let's continue to the next one.",
+          "date": "2026-09-02",
+          "by": "Brian Schuster"
+        }
+      },
       "spec": "workflows/W6-one-players-onboarding-record.md"
     },
     {
       "id": "W7",
       "name": "Settle a disputed fact",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {},
+      "spec": "workflows/W7-settle-a-disputed-fact.md"
     },
     {
       "id": "W8",
@@ -1788,5 +1805,5 @@
     ],
     "approval": null
   },
-  "next_action": "W6 — One player's onboarding record: specification drafted and three screens shot on the shipped record; awaiting Brian, and one open decision on whether the activity log counts asks only or asks and answers."
+  "next_action": "W7 — Settle a disputed fact: specification drafted and two screens shot on the person record; one open decision on which consent record wins when two people merge."
 }

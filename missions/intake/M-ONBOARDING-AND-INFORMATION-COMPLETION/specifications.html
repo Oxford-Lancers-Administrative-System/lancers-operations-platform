@@ -438,6 +438,24 @@
               <li><a href="#s9-h12">Brian approval</a></li>
             </ol>
           </li>
+          <li>
+            <a href="#sec10">W7 — Settle a disputed fact</a>
+            <ol class="sub">
+              <li><a href="#s10-h2">Where this sits</a></li>
+              <li><a href="#s10-h3">Current main grounding</a></li>
+              <li><a href="#s10-h4">What resolving means</a></li>
+              <li><a href="#s10-h5">Which consent record wins on a merge</a></li>
+              <li><a href="#s10-h6">Required actions</a></li>
+              <li><a href="#s10-h7">State transitions</a></li>
+              <li><a href="#s10-h8">Handoffs</a></li>
+              <li><a href="#s10-h9">Dependencies and mission boundaries</a></li>
+              <li><a href="#s10-h10">Exceptions and recovery</a></li>
+              <li><a href="#s10-h11">Safety, privacy, consent, and authority boundaries</a></li>
+              <li><a href="#s10-h12">Acceptance evidence</a></li>
+              <li><a href="#s10-h13">Core decisions</a></li>
+              <li><a href="#s10-h14">Brian approval</a></li>
+            </ol>
+          </li>
         </ol>
       </nav>
       <main>
@@ -5052,7 +5070,7 @@
         <section class="doc" id="sec9">
           <header>
             <h2>W6 — One player's onboarding record</h2>
-            <span class="chip warn">draft, not approved</span>
+            <span class="chip ok">spec approved</span>
             <span class="file">workflows/W6-one-players-onboarding-record.md</span>
           </header>
           <h1 id="s9-h1">W6 — One player's onboarding record</h1>
@@ -5542,6 +5560,419 @@
             </table>
           </div>
           <h2 id="s9-h12">Brian approval</h2>
+          <ul>
+            <li>Exact words:</li>
+            <li>Date:</li>
+          </ul>
+        </section>
+        <section class="doc" id="sec10">
+          <header>
+            <h2>W7 — Settle a disputed fact</h2>
+            <span class="chip warn">draft, not approved</span>
+            <span class="file">workflows/W7-settle-a-disputed-fact.md</span>
+          </header>
+          <h1 id="s10-h1">W7 — Settle a disputed fact</h1>
+          <ul>
+            <li>
+              Purpose/intended outcome: <code>W5</code> lets a player say the club is wrong without
+              overwriting it. <strong>This is the other half</strong>: an operator sees the club's
+              value, the player's answer and the whole history, and decides — leaving the flag, the
+              correction and the confirmation each attributable.
+            </li>
+            <li>Primary actor: A four-role operator.</li>
+            <li>
+              Trigger: a fact goes to <code>disputed — awaiting verification</code> when a player's
+              answer differs from an operator-recorded value (<code>W5</code>).
+            </li>
+            <li>
+              Entry point / route: <strong><code>/operate/people/[personId]</code></strong
+              >, the person record, which ships. Reached from the missing-data queue, the roster, or
+              a link in the chase.
+            </li>
+            <li>
+              Controlling source: <code>S35</code>, <code>S36</code>; owned
+              <code>T07-merge-precedence</code>; cited
+              <code>T11-provenance</code> (<code>W5</code>), and boundary item 14.
+            </li>
+            <li>
+              User-visible result: one value stands, the other is retained, and the record says who
+              decided and when.
+            </li>
+          </ul>
+          <h2 id="s10-h2">Where this sits</h2>
+          <p>
+            <code>W5</code> raises; <code>W7</code> settles. Nothing else raises a dispute and
+            nothing else settles one.
+          </p>
+          <p>
+            The surface is the person record, not the roster record: the facts a player can contest
+            — name, contact, college, course, date of birth — are <strong>person</strong> facts, and
+            <code>/operate/people/[personId]</code> is where they already render, each already
+            carrying who supplied it.
+          </p>
+          <h2 id="s10-h3">Current <code>main</code> grounding</h2>
+          <p>The person record is further along than the roster one for this purpose.</p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>What ships at <code>/operate/people/[personId]</code></th>
+                  <th>What is missing</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>A <code>Fact</code> row per person fact</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>By</code> / <code>DerivedBy</code> — a bordered caption naming who
+                    supplied the value
+                  </td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>
+                    A <strong>history section</strong>, expandable, filterable by field and by actor
+                  </td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>A missing-required banner</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>—</td>
+                  <td><strong>the disputed state itself</strong></td>
+                </tr>
+                <tr>
+                  <td>—</td>
+                  <td><strong>a second, contested value alongside the first</strong></td>
+                </tr>
+                <tr>
+                  <td>—</td>
+                  <td><strong>a resolve control</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Mission 5 was explicit that it shipped none of the last three
+            (<code>REQ-no-disputed</code>, <code>REQ-no-verification-mark</code>): &quot;There is no
+            contested-value field, no verification-mark field and no confidence class anywhere below
+            — not struck out, never added.&quot; That is the seam this workflow fills, and the
+            attribution badge it fills it with is already there.
+          </p>
+          <h2 id="s10-h4">What resolving means</h2>
+          <p>The operator sees three things, all of which the record can already express:</p>
+          <ol>
+            <li>
+              <strong>The club's value</strong>, with the <code>By</code> badge naming who recorded
+              it.
+            </li>
+            <li>
+              <strong>The player's answer</strong>, with its own badge naming them and the date.
+            </li>
+            <li><strong>The history</strong>, which already filters by field and by actor.</li>
+          </ol>
+          <p>
+            And chooses one. Whichever loses is <strong>retained, never deleted</strong> — the audit
+            posture is append-only and a superseded value survives.
+          </p>
+          <p>
+            <strong>Three things stay attributable afterwards</strong>, which is the whole
+            requirement of the inventory's own wording:
+          </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Event</th>
+                  <th>Attributed to</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>The flag</td>
+                  <td>The player, at the moment they submitted <code>W5</code></td>
+                </tr>
+                <tr>
+                  <td>The correction</td>
+                  <td>Whoever's value was wrong, and when it was set</td>
+                </tr>
+                <tr>
+                  <td>The confirmation</td>
+                  <td>The operator who resolved it, dated</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s10-h5">Which consent record wins on a merge</h2>
+          <p>
+            <code>T07-merge-precedence</code> is this workflow's own open item, and it is a rule
+            rather than a screen.
+          </p>
+          <p>
+            <code>season_messaging_consents</code> is
+            <strong>unique on <code>(person_id, season_id)</code></strong
+            >. A merge of two people who both hold a consent row for the same season therefore
+            cannot keep both, and the database will refuse the merge outright rather than choose.
+          </p>
+          <p>
+            <strong>Recommended: the most restrictive state wins, not the most recent.</strong> If
+            either record says <code>refused</code> or <code>withdrawn</code>, the surviving person
+            is <code>refused</code> or <code>withdrawn</code>. Consent is permission to contact
+            somebody; a merge is a record-keeping operation, and record-keeping should never be able
+            to manufacture permission that a person had actually declined. The losing row is
+            retained like any other merged-away value, so the decision is auditable and reversible.
+          </p>
+          <p>
+            This has <strong>no surface of its own</strong>. Mission 5's merge comparison already
+            lists what stays with the losing record, and this is one more line in it.
+          </p>
+          <h2 id="s10-h6">Required actions</h2>
+          <ol>
+            <li>Open a person with a disputed fact.</li>
+            <li>Read both values, both attributions, and the history.</li>
+            <li>Resolve: keep the club's value, or take the player's.</li>
+            <li>Optionally record why — free text, four-role only, never in a report.</li>
+          </ol>
+          <h2 id="s10-h7">State transitions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>On</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>a fact</td>
+                  <td><code>disputed</code></td>
+                  <td><code>W5</code>, never here</td>
+                </tr>
+                <tr>
+                  <td><code>disputed</code></td>
+                  <td>resolved to the club's value</td>
+                  <td>An operator keeps what the club had</td>
+                </tr>
+                <tr>
+                  <td><code>disputed</code></td>
+                  <td>resolved to the player's</td>
+                  <td>An operator takes the player's answer</td>
+                </tr>
+                <tr>
+                  <td>the losing value</td>
+                  <td>retained</td>
+                  <td>Always. Never deleted</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <strong>A disputed fact is not a gate.</strong> <code>R3-G</code> holds: it blocks
+            nothing, and a person can train, be selected and travel with a fact in dispute
+            indefinitely.
+          </p>
+          <h2 id="s10-h8">Handoffs</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>To / from</th>
+                  <th>What crosses</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W5</code></td>
+                  <td>The dispute, with both values and both sources</td>
+                </tr>
+                <tr>
+                  <td><code>W6</code></td>
+                  <td>The resolution, into the record and the activity log</td>
+                </tr>
+                <tr>
+                  <td><code>W8</code></td>
+                  <td>
+                    A disputed fact is <strong>not</strong> outstanding and is not chased — a person
+                    already answered
+                  </td>
+                </tr>
+                <tr>
+                  <td>Mission 5</td>
+                  <td>The person record, its history section, the merge, and the missing queue</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s10-h9">Dependencies and mission boundaries</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Seam</th>
+                  <th>This mission's side</th>
+                  <th>The other side</th>
+                  <th>Blocking?</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Mission 5 · People &amp; Roster</td>
+                  <td>The disputed state and its resolution</td>
+                  <td>The record, the history, the merge, the queue</td>
+                  <td>Not blocking; shipped</td>
+                </tr>
+                <tr>
+                  <td>Mission 8 · Consent/Privacy</td>
+                  <td>Consent precedence as a merge <strong>mechanism</strong></td>
+                  <td>Correction and retention <strong>policy</strong></td>
+                  <td>Not blocking</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s10-h10">Exceptions and recovery</h2>
+          <ul>
+            <li>
+              <strong>The player changes their answer again while it is disputed.</strong> The newer
+              answer supersedes the waiting one; never more than one pending answer.
+            </li>
+            <li>
+              <strong>Both values are wrong.</strong> The operator edits the field outright through
+              the shipped path; the dispute closes as resolved by correction.
+            </li>
+            <li>
+              <strong>A disputed person is merged.</strong> The dispute travels with the surviving
+              record, because the fact does.
+            </li>
+            <li>
+              <strong>Nobody ever resolves it.</strong> It stays disputed. No timeout decides it,
+              and it never blocks anything.
+            </li>
+          </ul>
+          <h2 id="s10-h11">Safety, privacy, consent, and authority boundaries</h2>
+          <ul>
+            <li><strong>Four-role only</strong> to resolve.</li>
+            <li>
+              The player is never told which officer recorded the value they contested, and never
+              sees the resolution note.
+            </li>
+            <li>
+              <strong>Date of birth</strong> is resolvable but never displayed on any list or queue.
+            </li>
+            <li>Free text is four-role only and never reaches a report verbatim.</li>
+            <li>A merge never manufactures consent that a person declined.</li>
+          </ul>
+          <h2 id="s10-h12">Acceptance evidence</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Screen</th>
+                  <th>What it proves</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>W7-01</code></td>
+                  <td>
+                    A disputed fact on the person record: both values, both attributions, one
+                    control
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>W7-02</code></td>
+                  <td>
+                    Afterwards — flag, correction and confirmation, each attributable, in the
+                    shipped history
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Shot on <code>/operate/people/[personId]</code>, a real implemented route, both sides,
+            measured 1280 and 375. <code>T07-merge-precedence</code> gets no screen: it is a
+            write-time rule, and its only surface is one more line in Mission 5's existing merge
+            comparison.
+          </p>
+          <p>Grounding: <strong>screenshots</strong>.</p>
+          <h2 id="s10-h13">Core decisions</h2>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Decision</th>
+                  <th>Classification</th>
+                  <th>Governing evidence or recommended default</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>The surface is the person record, not the roster record</td>
+                  <td>locked</td>
+                  <td>
+                    The contestable facts are person facts, and already render there with their
+                    attribution
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Both values are shown, with both attributions</td>
+                  <td>locked</td>
+                  <td>Boundary item 14; the <code>By</code> badge already ships</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>The losing value is retained, never deleted</td>
+                  <td>locked</td>
+                  <td>Append-only audit posture</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Flag, correction and confirmation stay separately attributable</td>
+                  <td>locked</td>
+                  <td>The frozen inventory's own wording for this workflow</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>A disputed fact gates nothing and is never chased</td>
+                  <td>locked</td>
+                  <td><code>R3-G</code>; the person has already answered</td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Resolution is four-role</td>
+                  <td>locked</td>
+                  <td><code>T07-permissions</code></td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td><strong>On a merge, the most restrictive consent state wins</strong></td>
+                  <td><strong>proposed for owner approval</strong></td>
+                  <td>
+                    <code>season_messaging_consents</code> is unique per person per season, so a
+                    merge must choose. <strong>Recommended: restrictive, not recent</strong> —
+                    record-keeping must never manufacture permission a person declined
+                  </td>
+                  <td><strong>open</strong></td>
+                </tr>
+                <tr>
+                  <td>Whether resolving may carry a note</td>
+                  <td>delegated to Mission Lead</td>
+                  <td>Free text either way, restricted either way</td>
+                  <td>settled</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h2 id="s10-h14">Brian approval</h2>
           <ul>
             <li>Exact words:</li>
             <li>Date:</li>
