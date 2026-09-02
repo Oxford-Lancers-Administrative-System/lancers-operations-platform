@@ -590,6 +590,7 @@
       if (row.kind === "heading") node = sectionHeading(headingTpl, row.text);
       else if (row.kind === "pane") node = documentPane(row.paragraphs, { heading: row.heading });
       else if (row.kind === "steps") node = stepList(row.steps);
+      else if (row.kind === "outstanding") node = outstandingBySection(row.groups);
       else if (row.kind === "consent") node = consentTick(shell.chip, row);
       else if (row.kind === "note") {
         node = document.createElement("p");
@@ -715,7 +716,48 @@
   /** A pane or list dropped straight into the form's stack, via buildForm. */
   const BLOCK_KINDS = new Set(["pane", "steps"]);
 
-  // W4-03 — Step 3: the Code of Conduct, on its own page.
+  /**
+   * What is still outstanding, by section, each item a link back to the step that
+   * collects it. Owner direction, 2026-09-02: the finishing page's single
+   * sentence "is very hard to tell. It should honestly be a set of options…
+   * it should list below in dots, like a list… if they click on that link, it
+   * brings them back to the form that has that information, so they can fill it
+   * out there if they want to."
+   */
+  const outstandingBySection = (groups) => {
+    const wrap = document.createElement("div");
+    for (const group of groups) {
+      const h = document.createElement("p");
+      h.style.cssText =
+        "margin:14px 0 6px;font-size:12px;font-weight:700;letter-spacing:0.04em;" +
+        "text-transform:uppercase;color:rgba(0,0,0,0.55)";
+      h.textContent = group.section;
+      wrap.append(h);
+      const ul = document.createElement("ul");
+      ul.style.cssText = "margin:0;padding-left:22px;list-style:disc outside";
+      for (const item of group.items) {
+        const li = document.createElement("li");
+        li.style.cssText =
+          "display:list-item;list-style:disc outside;margin:0 0 6px;font-size:14px;line-height:1.6";
+        const a = document.createElement("a");
+        a.href = item.href ?? "#";
+        a.textContent = item.label;
+        a.style.cssText = "color:#1565c0;text-decoration:underline";
+        li.append(a);
+        if (item.note) {
+          const tail = document.createElement("span");
+          tail.style.cssText = "color:rgba(0,0,0,0.6)";
+          tail.textContent = ` — ${item.note}`;
+          li.append(tail);
+        }
+        ul.append(li);
+      }
+      wrap.append(ul);
+    }
+    return wrap;
+  };
+
+  // W4-03 — Step 2: the Code of Conduct, on its own page.
   //
   // Owner direction, 2026-09-01: "the code of conduct needs to be its own page
   // where we have the code of conduct on the page. We scroll to the bottom, and
@@ -732,7 +774,7 @@
 
   setChip(s.chip, "ONBOARDING · 2026–27");
   s.h1.textContent = "The Code of Conduct";
-  setLead(s.lead, "Step 3 of 5 · Read it, then agree");
+  setLead(s.lead, "Step 2 of 5 · Read it, then agree");
 
   dropEventLeftovers();
 

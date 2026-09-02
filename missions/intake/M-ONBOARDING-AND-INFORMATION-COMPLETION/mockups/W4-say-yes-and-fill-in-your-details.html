@@ -1358,10 +1358,9 @@
       <header class="page-head">
         <h1>W4 · Say yes and fill in your details</h1>
         <p>
-          The player gets one message and one link, and behind that link is a short sequence: their
-          details, then the Code of Conduct, then the photo release, then BUCS Play and Hudl. One
-          link, five steps, one open ask. This is the mission's largest workflow and its only one
-          whose actor is not an operator.
+          One link, five steps: the player's details, the Code of Conduct, the photo release, BUCS
+          Play, then Hudl. Still one open ask. This is the mission's largest workflow and its only
+          one whose actor is not an operator.
           <strong>Every screen here is a photograph on both sides</strong> — the same running page
           at <code>332bc6b</code>, differing only by the proposal evaluated into it. Where a
           screen's own route does not exist yet, it is photographed on the shell it reuses and its
@@ -1380,40 +1379,42 @@
         <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
         <div class="legend">
           <span
-            ><strong>Split into pages on Brian's direction, 2026-09-01.</strong> The Code of
-            Conduct, the photo release and the BUCS Play instructions are each their own page now,
-            not a tick on the form: "the code of conduct needs to be its own page… We scroll to the
-            bottom, and it says, 'Click I agree to the code of conduct'… You go to the next
-            page"</span
+            ><strong>Required now means required.</strong> Owner direction, 2026-09-02: "The form
+            that they're being sent for the onboarding should be required… For recruits, they are
+            not required. For onboarding, they are required." That split already exists in shipped
+            code — <code>person-required.ts</code> asks a recruit for three facts and a player for
+            ten — so the asterisks are the player tier, not an invention.
+            <strong
+              >It does collide with an approved invariant; see the decision below</strong
+            ></span
           >
           <span
-            ><strong>W4's surface does not exist on <code>main</code>.</strong> Every screen here is
-            shot on <code>/a/[token]</code>, the answer link — the nearest implemented
-            player-facing, no-login, signed-link form. The current side is that page as it ships;
-            the proposed side is the same running page transformed. Neither side is a drawing.
-            <strong>LAN-202's sign-up form is not in the baseline</strong>, so nothing here reuses
-            or assumes it</span
+            ><strong>Five pages, on Brian's direction.</strong> The Code of Conduct, the photo
+            release, BUCS Play and now Hudl are each their own page: "the instructions for Huddle
+            should also be on its own separate page"</span
           >
           <span
-            ><strong>The link is already on <code>main</code>, and it is not new.</strong>
+            ><strong>W4's surface does not exist on <code>main</code>.</strong> Every screen is shot
+            on <code>/a/[token]</code>, the answer link — the nearest implemented player-facing,
+            no-login, signed-link form. The current side is that page as it ships; the proposed side
+            is the same running page transformed. Neither side is a drawing</span
+          >
+          <span
+            ><strong>The link is already on <code>main</code>.</strong>
             <code>person_access_tokens</code> ships one live durable credential per person per
-            season, enforced by a partial unique index — which is <em>exactly</em>
-            <code>T11-one-request</code>'s "one open ask, ever". Five pages, still one link</span
+            season, enforced by a partial unique index — <code>T11-one-request</code>'s "one open
+            ask, ever". Five pages, still one link</span
           >
           <span
             ><strong>There is no way to store a document or take a signature.</strong> No storage
-            bucket is configured, no table holds a document or a blob, and the only file input in
-            the application is the event CSV import, which parses in memory and stores nothing.
-            <strong>Both are new substrate</strong>, and the e-signature question is on W4-04</span
-          >
-          <span
-            ><strong>Nothing gates.</strong> A player may finish the sequence having filled in
-            nothing at all. The gaps simply stay outstanding and stay chased</span
+            bucket, no document table, no blob column, no signature capture; the only file input in
+            the application is the event CSV import, which stores nothing. Both document steps are
+            new substrate</span
           >
           <span
             ><strong>Three doors, one sequence — with one visible difference.</strong> A flipped
             recruit sees no consent step, because <code>season_messaging_consents</code> is unique
-            per person per season and theirs already says granted. W4-02 is that difference</span
+            per person per season and theirs already says granted</span
           >
         </div>
       </header>
@@ -1434,20 +1435,20 @@
       const SCREENS = [
         {
           id: "W4-01",
-          title: "Step 1 — your details",
+          title: "Step 1 — your details, with the onboarding required set",
           disposition: "new",
           drawn: false,
-          blurb: `Merrick Thornbury arrived in this season's import. His record really does hold his name,
-         mobile, personal email and a full emergency contact, and really is missing college,
-         matriculation year, expected graduation, degree field and date of birth. <strong>The
-         emergency contact is now five fields</strong>, matching what the database actually stores.`,
+          blurb: `Merrick Thornbury arrived in this season's import. <strong>Ten fields now carry an
+         asterisk</strong> — the player tier from <code>person-required.ts</code> — and the emergency
+         contact is five fields, matching what the database stores.`,
           deltas: [
-            `<strong>The strip is now the map of the sequence</strong> — five steps behind one link, and where this person is in it. Subscriptions, kit, the squad photo and the comms groups are the club's to tick on the roster board and never appear here`,
-            `<strong>Consent, and it is still the first thing asked.</strong> Unticked, because this is the moment it is asked`,
+            `<strong>The strip is the map of the sequence</strong> — five steps behind one link, and where this person is in it. Subscriptions, kit, the squad photo and the comms groups are the club's to tick and never appear here`,
+            `<strong>Consent, still the first thing asked.</strong> Unticked, because this is the moment it is asked`,
             `<strong>What the club already holds arrives filled in.</strong> The ask is to confirm it, never to retype it`,
-            `<strong>What it does not hold is blank</strong> — and is exactly what the chase asks this person for next week`,
-            `<strong>Date of birth</strong> is collected here and never appears on any list, board or queue. Only the derived under-18 flag leaves this page`,
-            `<strong>The emergency contact, as five fields.</strong> <code>person_emergency_contacts</code> stores first name, last name, relationship, phone and email. <strong>Relationship is the fifth</strong>, not in Brian's list — it is shown so he can keep it or drop it; the table is happy either way`,
+            `<strong>What it does not hold is blank — and is now required.</strong> The player cannot finish step 1 without it`,
+            `<strong>Date of birth</strong> is required, collected here, and never appears on any list, board or queue`,
+            `<strong>The emergency contact, as five fields.</strong> First name is required because the table demands it; <strong>phone is required because a contact you cannot ring is not one</strong> — that second one is mine, not the database's, and is flagged as a decision`,
+            `<strong>The required set itself</strong>, said in the player's own terms. This is where the recruit flow and the onboarding flow part company`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
@@ -1457,19 +1458,20 @@
         },
         {
           id: "W4-02",
-          title: "Step 1 for a flipped recruit, and the one visible difference",
+          title: "Step 1 for a flipped recruit — no consent step, and the same required set",
           disposition: "new",
           drawn: false,
-          blurb: `Rosalind Penhaligon is the seed's own prospect, flipped to <code>joined</code> with a
-         membership at <code>onboarding</code> and a consent row granted at the door on 14 August —
-         the same person W3 photographed. <strong>Consent is absent from this page</strong>, and that
-         absence is the whole point of the screen.`,
+          blurb: `Rosalind Penhaligon is the seed's own prospect, flipped to <code>joined</code>, with consent
+         granted at the door on 14 August. <strong>Consent is absent</strong>; the required set is
+         not. She gave three facts at the recruit door where three was all the club asked for, and
+         onboarding now asks for ten.`,
           deltas: [
-            `<strong>Consent was given at the door</strong>, and the strip says when and where. The row is unique per person per season, so there is nothing left to ask`,
-            `<strong>Where W4-01 opens with the tick, this page opens with a sentence saying why it is not asking.</strong> No tick anywhere, and no way to reach one. Next season she is asked again, like everybody`,
-            `<strong>What the recruit door and questionnaire A already collected</strong> — confirmed here, never asked a second time`,
-            `<strong>The facts recruitment never asks anybody for</strong> — expected graduation, degree field, date of birth`,
+            `<strong>Consent was given at the door</strong>, and the strip says when and where`,
+            `<strong>Where W4-01 opens with the tick, this page opens with a sentence saying why it is not asking.</strong> No tick anywhere, and no way to reach one`,
+            `<strong>What the recruit door and questionnaire A already collected</strong> — confirmed, never asked twice`,
+            `<strong>The facts recruitment never asks for, now required</strong>: expected graduation, degree field, date of birth`,
             `<strong>And the whole emergency contact, blank in all five fields</strong>, because recruitment never asks for one at all`,
+            `<strong>The two flows, stated on the page.</strong> Three fields at the recruit door, ten at onboarding — exactly the tiers <code>person-required.ts</code> already ships`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/a/y.3ec61c6f-87cc-4c28-ba8d-46eb7d6f593a.qV_K8zqHkiwe8BrLDqCw52Cvl2UaEPL_57hWIEH3-gE",
@@ -1479,13 +1481,13 @@
         },
         {
           id: "W4-03",
-          title: "Step 3 — the Code of Conduct, on its own page",
+          title: "Step 2 — the Code of Conduct, on its own page",
           disposition: "new",
           drawn: false,
-          blurb: `Brian's direction, built. The document is on the page, it scrolls, and agreeing is only
-         possible from the end of it. The pane is shown scrolled to its end because the end is where
-         the mechanic lives. <strong>The words are placeholder and say so</strong> — the real text is
-         Clint's through Task 07, and there is nowhere on <code>main</code> to put it.`,
+          blurb: `The document is on the page, it scrolls, and agreeing is only possible from the end of it.
+         The pane is shown scrolled to its end because the end is where the mechanic lives.
+         <strong>The words are placeholder and say so</strong> — the real text is Clint's through
+         Task 07, and there is nowhere on <code>main</code> to put it.`,
           deltas: [
             `<strong>The strip carries the version</strong>, which does not exist yet. An agreement that does not name what was agreed to is not worth recording`,
             `<strong>The document, on the page.</strong> Scrolled to its end here. This is new substrate: nothing on <code>main</code> stores a document`,
@@ -1499,18 +1501,17 @@
         },
         {
           id: "W4-04",
-          title: "Step 4 — the photo release, and the signature question",
+          title: "Step 3 — the photo release, and the signature question",
           disposition: "new",
           drawn: false,
-          blurb: `Same shape as the Code of Conduct, deliberately. Brian: "Photo release should also be there
-         and should also be a signed document, I think. I don't know. Do we have a way to handle
-         signed documents right now in the thing? I don't think so." <strong>He is right — there is
+          blurb: `Same shape as the Code of Conduct, deliberately. Brian: "Do we have a way to handle signed
+         documents right now in the thing? I don't think so." <strong>He is right — there is
          none.</strong>`,
           deltas: [
             `<strong>Asked again every season</strong>, of everybody. The returner carve-out was removed at the boundary`,
             `<strong>The document, on the page</strong>, in the same pane as the Code of Conduct's. One mechanism, two documents`,
             `<strong>The agreement</strong>, in the same place and shape`,
-            `<strong>OPEN DECISION.</strong> A true signature — drawn, or a signed PDF — needs object storage and a signature control, and the application has neither. Recording the version, the moment and the person needs no new infrastructure. <strong>Recommended: the second</strong>, with e-signature additive if Brian wants it later`,
+            `<strong>OPEN DECISION.</strong> A true signature — drawn, or a signed PDF — needs object storage and a signature control, and the application has neither. Recording the version, the moment and the person needs no new infrastructure. <strong>Recommended: the second</strong>, with e-signature additive later`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
@@ -1520,18 +1521,17 @@
         },
         {
           id: "W4-05",
-          title: "Step 5 — BUCS Play as a set of steps, and Hudl alongside it",
+          title: "Step 4 — BUCS Play, as a set of steps",
           disposition: "new",
           drawn: false,
-          blurb: `Brian: "Bucs play should be a set of steps. Again, that's its own page as well." Built.
-         <strong>The steps are placeholder and say so</strong> — Stewart described this ask on
-         2026-08-11 and Task 10 deferred the copy to this mission; nobody has written it.`,
+          blurb: `Brian: "Bucs play should be a set of steps. Again, that's its own page as well." Hudl has
+         now left this page and taken its own. <strong>The steps are placeholder and say so</strong> —
+         Task 10 deferred that copy to this mission and nobody has written it.`,
           deltas: [
-            `<strong>The club records only what the player says.</strong> Nothing the player does on BUCS Play is visible to this system`,
+            `<strong>The club records only what the player says.</strong> Nothing done on BUCS Play is visible to this system`,
             `<strong>The steps</strong>, which is what makes this a page rather than a tick`,
             `<strong>The copy that does not exist yet</strong>, marked rather than invented`,
             `<strong>The player's answer records <code>claimed</code>, never <code>complete</code></strong>. A named human confirms it against the BUCS roster, on W6`,
-            `<strong>Hudl rides along here rather than taking a sixth page</strong> — it has no document and no steps of its own, and its first half is the club's job. <strong>Brian was undecided on this one</strong>; splitting it out is one line of change`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
@@ -1541,15 +1541,38 @@
         },
         {
           id: "W4-06",
-          title: "Done — what was saved, and what is still outstanding",
+          title: "Step 5 — Hudl, on its own page",
           disposition: "new",
           drawn: false,
-          blurb: `The ask moves <code>opened → submitted</code>. The page does not pretend the record is
-         finished: Merrick left his degree field blank and has not registered on BUCS Play, which
-         <code>R3-G</code> expressly permits.`,
+          blurb: `Owner direction, 2026-09-02: "the instructions for Huddle should also be on its own separate
+         page. Not tagged on." Hudl is the one checklist item whose <strong>first half is the club's
+         job</strong> — an operator invites, the player accepts — and this page has to be honest
+         about that rather than implying the player is the hold-up.`,
           deltas: [
-            `<strong>What moved, and what did not.</strong> Finishing the sequence with things outstanding is a normal outcome, not a failure state`,
-            `<strong>The same link, still open.</strong> Anything outstanding is asked for on this URL. A second ask is never created alongside it — <code>person_access_tokens</code>' own index makes that impossible`,
+            `<strong>The half the club owns, said at the top.</strong> Hudl's own roster reads <em>Pending Invite</em> between the two halves`,
+            `<strong>The steps</strong>, now that this is a page of its own`,
+            `<strong>The copy still owed.</strong> The email-invite method is assumed — Brian, 2026-09-01: "doesn't really matter for my purposes"`,
+            `<strong>"No invitation has reached me"</strong> — the answer that hands the item back to the club. Without it, a player who was never invited has no way to say so, and the queue would chase them for the club's own omission`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
+          shotRoute:
+            "/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
+          proposedRoute: "/me/[token]/hudl",
+        },
+        {
+          id: "W4-07",
+          title: "Done — what is still outstanding, by section, each one a link",
+          disposition: "new",
+          drawn: false,
+          blurb: `Owner direction, 2026-09-02: the previous draft said this in one sentence and "that line is
+         very hard to tell. It should honestly be a set of options… it should list below in dots,
+         like a list… if they click on that link, it brings them back to the form that has that
+         information."`,
+          deltas: [
+            `<strong>The strip, now covering all six things the sequence touches</strong>`,
+            `<strong>What is left, by section, in dots</strong> — and every bullet is a link back to the step that collects it. A player who wants to finish one thing goes straight to it`,
+            `<strong>The rule underneath.</strong> All of it is on the link they already hold; no second link is ever sent`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
@@ -1558,16 +1581,16 @@
           proposedRoute: "/me/[token]/details",
         },
         {
-          id: "W4-07",
+          id: "W4-08",
           title: "Already complete — the link opened with nothing left to give",
           disposition: "new",
           drawn: false,
           blurb: `The shipped answer link already has this state and its own words for it. This reuses that
-         shape rather than inventing a second way to say the same thing: the heading states the fact,
-         one line says what to do if something changes, and there is no sequence to re-enter.`,
+         shape rather than inventing a second way to say the same thing, and there is no sequence to
+         re-enter.`,
           deltas: [
             `<strong>Everything the player themselves owns is done</strong>, and the page says so rather than showing an empty form`,
-            `<strong>The club still has items outstanding against this person.</strong> None of them is the player's, so none appears on the player's page — the operator-owned half lives on W6's record`,
+            `<strong>The club still has items outstanding against this person.</strong> None is the player's, so none appears here — the operator-owned half lives on W6's record`,
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/a/y.3ec61c6f-87cc-4c28-ba8d-46eb7d6f593a.qV_K8zqHkiwe8BrLDqCw52Cvl2UaEPL_57hWIEH3-gE",
@@ -1576,16 +1599,15 @@
           proposedRoute: "/me/[token]/details",
         },
         {
-          id: "W4-08",
+          id: "W4-09",
           title: "Expired, revoked, or never real — the one uniform page",
           disposition: "new",
           drawn: false,
           blurb: `<code>/a/[token]/not-found.tsx</code> already renders one response for every unusable link:
          unknown, revoked and expired alike, at 404, with identical copy and no variant that could
-         let them diverge. W4 keeps that page. <strong>One sentence cannot come across</strong>, and
-         finding that is why this screen exists.`,
+         let them diverge. W4 keeps that page. <strong>One sentence cannot come across.</strong>`,
           deltas: [
-            `<strong>The one sentence that changes.</strong> The shipped body says "If the event has already started, response changes are closed" — the answer link's business, and untrue of a collection link`,
+            `<strong>The one sentence that changes.</strong> The shipped body talks about an event having started — the answer link's business, untrue of a collection link`,
             `<strong>And what must not change.</strong> It never says which of unknown, expired or revoked this link is, and it is the same page, at the same status code, for all three`,
           ],
           clockTag: CLOCK,

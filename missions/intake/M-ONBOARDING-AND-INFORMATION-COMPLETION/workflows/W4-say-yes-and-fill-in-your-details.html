@@ -291,17 +291,17 @@
           <li><a href="#s7-h4">The link is already on main</a></li>
           <li><a href="#s7-h5">What the substrate already gives us</a></li>
           <li><a href="#s7-h6">The screen — a sequence, not one page</a></li>
-          <li><a href="#s7-h11">What has no substrate, and is therefore new</a></li>
-          <li><a href="#s7-h12">Required actions</a></li>
-          <li><a href="#s7-h13">State transitions</a></li>
-          <li><a href="#s7-h14">Handoffs</a></li>
-          <li><a href="#s7-h15">Dependencies and mission boundaries</a></li>
-          <li><a href="#s7-h16">Exceptions and recovery</a></li>
-          <li><a href="#s7-h17">Safety, privacy, consent, and authority boundaries</a></li>
-          <li><a href="#s7-h18">Acceptance evidence</a></li>
-          <li><a href="#s7-h19">Core decisions</a></li>
-          <li><a href="#s7-h20">Owed, and not blocking</a></li>
-          <li><a href="#s7-h21">Brian approval</a></li>
+          <li><a href="#s7-h12">What has no substrate, and is therefore new</a></li>
+          <li><a href="#s7-h13">Required actions</a></li>
+          <li><a href="#s7-h14">State transitions</a></li>
+          <li><a href="#s7-h15">Handoffs</a></li>
+          <li><a href="#s7-h16">Dependencies and mission boundaries</a></li>
+          <li><a href="#s7-h17">Exceptions and recovery</a></li>
+          <li><a href="#s7-h18">Safety, privacy, consent, and authority boundaries</a></li>
+          <li><a href="#s7-h19">Acceptance evidence</a></li>
+          <li><a href="#s7-h20">Core decisions</a></li>
+          <li><a href="#s7-h21">Owed, and not blocking</a></li>
+          <li><a href="#s7-h22">Brian approval</a></li>
         </ol>
       </nav>
       <main>
@@ -657,23 +657,23 @@
                 </tr>
                 <tr>
                   <td>2</td>
-                  <td><em>(read-back)</em></td>
-                  <td>The mobile read-back, on the path that captured it</td>
-                </tr>
-                <tr>
-                  <td>3</td>
                   <td>Code of Conduct</td>
                   <td>The document, read, then agreed</td>
                 </tr>
                 <tr>
-                  <td>4</td>
+                  <td>3</td>
                   <td>Photo release</td>
                   <td>The document, read, then agreed</td>
                 </tr>
                 <tr>
-                  <td>5</td>
-                  <td>BUCS Play, then Hudl</td>
+                  <td>4</td>
+                  <td>BUCS Play</td>
                   <td>Numbered steps, then &quot;have you done it?&quot;</td>
+                </tr>
+                <tr>
+                  <td>5</td>
+                  <td>Hudl</td>
+                  <td>Its own page — owner direction, 2026-09-02</td>
                 </tr>
               </tbody>
             </table>
@@ -742,13 +742,104 @@
             BUCS Play is numbered steps followed by &quot;have you done it?&quot;, which records
             <code>claimed</code>, not <code>complete</code> (<code>R2-V</code>, owned by
             <code>W6</code>).
-            <strong>Hudl rides on the same page rather than taking a sixth</strong>: it has no
-            document and no steps of its own, and its first half is the club's job — an operator
-            invites, then the player accepts. Brian was explicitly undecided here (&quot;I do not
-            know if Huddle should be&quot;); splitting it into its own page is a one-line change if
-            he wants it.
           </p>
-          <h3 id="s7-h10">How the sequence adapts</h3>
+          <p>
+            <strong>Hudl takes its own page</strong>, on owner direction of 2026-09-02: &quot;the
+            instructions for Huddle should also be on its own separate page. Not tagged on.&quot; It
+            has one property no other item has —
+            <strong>its first half is the club's job.</strong> An operator sends the invitation; the
+            player accepts it; Hudl's own roster reads <code>Pending Invite</code> in between. So
+            that page carries a third answer the others do not:
+            <strong>&quot;No invitation has reached me.&quot;</strong> Without it, a player the club
+            never invited has no way to say so, and the queue would chase them for the club's own
+            omission.
+          </p>
+          <h3 id="s7-h10">The required set, and what &quot;required&quot; now means</h3>
+          <p>Owner direction, 2026-09-02:</p>
+          <blockquote>
+            <p>
+              &quot;The form that they're being sent for the onboarding should be required. If they
+              don't fill it in, they should be blocked from going. For recruits, they are not
+              required. For onboarding, they are required… The recruits and onboarding get separate
+              flows for that.&quot;
+            </p>
+          </blockquote>
+          <p>
+            <strong>That split is already shipped.</strong>
+            <code>src/lib/services/person-required.ts</code> holds three tiers, and an
+            <code>onboarding</code> membership maps to the player tier:
+          </p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tier</th>
+                  <th>Required</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>recruit</code></td>
+                  <td>First name · last name · mobile — <strong>three</strong></td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>player</code> (<code>onboarding</code>, <code>active</code>,
+                    <code>inactive</code>)
+                  </td>
+                  <td>
+                    those three, plus personal email, college, matriculation year, expected
+                    graduation, degree field, date of birth, emergency contact —
+                    <strong>ten</strong>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            So the asterisks on <code>W4-01</code> and <code>W4-02</code> are that table, not an
+            invention, and Mission 6's recruit door keeps its own three-field tier untouched.
+          </p>
+          <p>
+            <strong>Two details this workflow had to settle beyond the table.</strong> The emergency
+            contact is one required <em>fact</em> in <code>person-required.ts</code> but five fields
+            on the screen. <code>person_emergency_contacts</code> makes only
+            <code>given_name</code> NOT NULL, so first name is required by the substrate.
+            <strong>Phone is marked required here on this workflow's own judgement</strong> — an
+            emergency contact who cannot be rung is not one — and is recorded as a decision below
+            rather than slipped in. Last name, relationship and email stay optional.
+          </p>
+          <p>
+            <strong>This collides with <code>R3-G</code>, and the collision is real.</strong> The
+            mission's governing principle is <em>nothing gates, ever</em>, restated in the boundary
+            and the overview as &quot;no onboarding item blocks any action anywhere&quot;. A
+            required field that stops a player advancing the form is an onboarding item blocking an
+            action.
+          </p>
+          <p>The reading this specification takes, and which needs Brian's word:</p>
+          <ul>
+            <li>
+              <strong>Required blocks the form, not the player.</strong> Step 1 will not advance
+              until the ten fields are filled, exactly as <code>/operate/roster/new</code> already
+              refuses to save without its three. Nothing about training, selection, travel, event
+              invitations or membership status changes — those remain ungated, and the finishing
+              page still says so.
+            </li>
+            <li>
+              <strong>Whatever a step saved stays saved.</strong> A player who fills six of ten and
+              leaves has those six recorded; the block stops them advancing, never discards.
+            </li>
+            <li>
+              <strong>The chase still exists</strong>, because people abandon forms. A blocked
+              player is an outstanding player, and <code>W8</code> chases them exactly as before.
+            </li>
+          </ul>
+          <p>
+            If Brian means something stronger — that an incomplete player is held out of something —
+            that is a change to the approved boundary and the overview, and it returns to him rather
+            than being written here.
+          </p>
+          <h3 id="s7-h11">How the sequence adapts</h3>
           <div class="tablewrap">
             <table>
               <thead>
@@ -791,7 +882,7 @@
               </tbody>
             </table>
           </div>
-          <h2 id="s7-h11">What has no substrate, and is therefore new</h2>
+          <h2 id="s7-h12">What has no substrate, and is therefore new</h2>
           <p>
             The details in step 1 all have columns on <code>main</code>.
             <strong>The two document steps do not, and neither does a signature.</strong>
@@ -831,7 +922,7 @@
             the natural home. <strong>This workflow does not depend on the answer</strong> — it
             needs the slot to exist and be versioned, not to know who fills it.
           </p>
-          <h2 id="s7-h12">Required actions</h2>
+          <h2 id="s7-h13">Required actions</h2>
           <p><strong>Step 1 — the details page.</strong></p>
           <ol>
             <li>
@@ -861,20 +952,24 @@
             <code>W6</code>). Finish.
           </p>
           <p>
-            <strong>Nothing in the sequence is required to advance it.</strong>
-            <code>R3-G</code> governs: nothing gates, ever. A player may pass through all five steps
-            having entered nothing, declined both documents and answered neither off-system ask, and
-            every page takes it; the gaps stay outstanding and stay chased. The three required
-            fields are required to be <em>asked for</em> and to be <em>chased</em>, never to be a
-            barrier — and that includes the two documents, which are asked for and chased like
-            anything else.
+            <strong>Step 1 is required to advance; nothing else is.</strong> The ten player-tier
+            fields must be filled before step 1 continues — see <em>The required set</em> above, and
+            the open decision it carries. The two documents and the two off-system asks are not: a
+            player may decline the Code of Conduct, decline the photo release and answer neither
+            BUCS Play nor Hudl, and every one of those pages still continues. Those four stay
+            outstanding and stay chased, exactly as before.
+          </p>
+          <p>
+            <strong><code>R3-G</code> is unchanged where it governs.</strong> No onboarding item
+            blocks training, selection, travel, an event invitation or a membership status, for
+            anybody, ever. The finishing page still says so in the player's own words.
           </p>
           <p>
             <strong>Leaving part-way is normal.</strong> Whatever a step saved is saved. Returning
             to the link resumes at the first step still outstanding, and an already-agreed document
             is not re-agreed unless its version changed.
           </p>
-          <h2 id="s7-h13">State transitions</h2>
+          <h2 id="s7-h14">State transitions</h2>
           <p>
             <strong>The ask</strong> (<code>T11-states</code>, owned here, exercised by
             <code>W5</code> and <code>W8</code>):
@@ -957,7 +1052,7 @@
             complete on the player's confirmation. BUCS Play and Hudl go to <code>claimed</code>.
             All of that is <code>W6</code>'s machinery; this workflow supplies the input.
           </p>
-          <h2 id="s7-h14">Handoffs</h2>
+          <h2 id="s7-h15">Handoffs</h2>
           <div class="tablewrap">
             <table>
               <thead>
@@ -1026,7 +1121,7 @@
             <code>disputed — awaiting verification</code>. What that looks like to the player is one
             line saying the club will check — the resolution surface is <code>W7</code>'s.
           </p>
-          <h2 id="s7-h15">Dependencies and mission boundaries</h2>
+          <h2 id="s7-h16">Dependencies and mission boundaries</h2>
           <div class="tablewrap">
             <table>
               <thead>
@@ -1092,7 +1187,7 @@
             transition, a control or an acceptance here; it changes the text inside three boxes. If
             that stops being true, it returns to Brian.
           </p>
-          <h2 id="s7-h16">Exceptions and recovery</h2>
+          <h2 id="s7-h17">Exceptions and recovery</h2>
           <ul>
             <li>
               <strong>Expired or revoked link, and an unknown token.</strong> All three render one
@@ -1139,7 +1234,7 @@
               both rows.
             </li>
           </ul>
-          <h2 id="s7-h17">Safety, privacy, consent, and authority boundaries</h2>
+          <h2 id="s7-h18">Safety, privacy, consent, and authority boundaries</h2>
           <ul>
             <li>
               <strong>No login, ever.</strong> One signed, revocable, season-scoped credential per
@@ -1172,9 +1267,9 @@
               note is four-role-group only and never reaches a report verbatim.
             </li>
           </ul>
-          <h2 id="s7-h18">Acceptance evidence</h2>
+          <h2 id="s7-h19">Acceptance evidence</h2>
           <p>
-            Eight screens, each photographed on both sides at a measured 1280 and 375 against the
+            Nine screens, each photographed on both sides at a measured 1280 and 375 against the
             running application on the mission slot. Both sides of every screen come from the same
             producer.
           </p>
@@ -1190,41 +1285,55 @@
                 <tr>
                   <td><code>W4-01</code></td>
                   <td>
-                    Step 1: the strip as the map, consent first, the gaps, the emergency contact as
-                    five fields
+                    Step 1: the strip as the map, consent first,
+                    <strong>the ten-field required set</strong>, the emergency contact as five
+                    fields
                   </td>
                 </tr>
                 <tr>
                   <td><code>W4-02</code></td>
                   <td>
-                    Step 1 for a <strong>flipped recruit</strong>: pre-filled, and
-                    <strong>no consent step</strong>
+                    Step 1 for a <strong>flipped recruit</strong>: no consent step, same required
+                    set, the two flows named
                   </td>
                 </tr>
                 <tr>
                   <td><code>W4-03</code></td>
                   <td>
-                    The Code of Conduct on its own page, scrolled to the end, agreement below it
+                    Step 2: the Code of Conduct on its own page, scrolled to the end, agreement
+                    below it
                   </td>
                 </tr>
                 <tr>
                   <td><code>W4-04</code></td>
-                  <td>The photo release, same mechanism — and the e-signature decision, marked</td>
+                  <td>
+                    Step 3: the photo release, same mechanism — and the e-signature decision, marked
+                  </td>
                 </tr>
                 <tr>
                   <td><code>W4-05</code></td>
-                  <td>BUCS Play as numbered steps, then the claim; Hudl alongside</td>
+                  <td>Step 4: BUCS Play as numbered steps, then the claim</td>
                 </tr>
                 <tr>
                   <td><code>W4-06</code></td>
-                  <td>Done — what was saved, what is still outstanding</td>
+                  <td>
+                    Step 5: <strong>Hudl on its own page</strong>, including &quot;no invitation has
+                    reached me&quot;
+                  </td>
                 </tr>
                 <tr>
                   <td><code>W4-07</code></td>
-                  <td>Already complete — the link opened with nothing left to give</td>
+                  <td>
+                    Done — what is outstanding,
+                    <strong>by section, in dots, each one a link back to its step</strong>
+                  </td>
                 </tr>
                 <tr>
                   <td><code>W4-08</code></td>
+                  <td>Already complete — the link opened with nothing left to give</td>
+                </tr>
+                <tr>
+                  <td><code>W4-09</code></td>
                   <td>
                     Expired or revoked — the uniform page, and the one sentence that had to change
                   </td>
@@ -1235,17 +1344,17 @@
           <p>
             Every screen is built on the <code>/a/[token]</code> shell, a real implemented route:
             the current side photographs that page as it ships, the proposed side photographs the
-            same page transformed. <code>W4-02</code> and <code>W4-07</code> need the locally
+            same page transformed. <code>W4-02</code> and <code>W4-08</code> need the locally
             flipped recruit from <code>evidence/W4-local-walk-data.md</code>, which must be re-run
             after any <code>db:reset</code>.
           </p>
           <p>
-            The document text on <code>W4-03</code> and <code>W4-04</code>, and the four BUCS Play
-            steps on <code>W4-05</code>, are
+            The document text on <code>W4-03</code> and <code>W4-04</code>, and the steps on
+            <code>W4-05</code> and <code>W4-06</code>, are
             <strong>placeholder and labelled as such on the screens themselves</strong>.
           </p>
           <p>Grounding: <strong>screenshots</strong>.</p>
-          <h2 id="s7-h19">Core decisions</h2>
+          <h2 id="s7-h20">Core decisions</h2>
           <div class="tablewrap">
             <table>
               <thead>
@@ -1295,9 +1404,15 @@
                   <td>settled</td>
                 </tr>
                 <tr>
-                  <td>Nothing gates: a player may submit with every optional field blank</td>
+                  <td>
+                    Nothing gates the <strong>player</strong>: no onboarding item blocks training,
+                    selection, travel or invitation
+                  </td>
                   <td>locked</td>
-                  <td><code>R3-G</code></td>
+                  <td>
+                    <code>R3-G</code>, boundary, overview. Unchanged by the required set, which
+                    blocks only the form
+                  </td>
                   <td>settled</td>
                 </tr>
                 <tr>
@@ -1479,13 +1594,62 @@
                   <td><strong>open</strong></td>
                 </tr>
                 <tr>
-                  <td><strong>Whether Hudl gets its own page</strong></td>
+                  <td>Hudl gets its own page</td>
+                  <td>locked</td>
+                  <td>
+                    Owner direction, 2026-09-02: &quot;the instructions for Huddle should also be on
+                    its own separate page. Not tagged on&quot;
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>Hudl's page carries &quot;No invitation has reached me&quot;</td>
+                  <td>locked</td>
+                  <td>
+                    Its first half is the club's job. Without that answer the queue chases a player
+                    for the club's own omission
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    The finishing page lists what is outstanding by section, in dots, each a link to
+                    its step
+                  </td>
+                  <td>locked</td>
+                  <td>
+                    Owner direction, 2026-09-02: the previous sentence &quot;is very hard to
+                    tell&quot;
+                  </td>
+                  <td>settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong
+                      >The onboarding required set is <code>person-required.ts</code>'s player tier,
+                      and it blocks the form</strong
+                    >
+                  </td>
                   <td><strong>proposed for owner approval</strong></td>
                   <td>
-                    Brian: &quot;I do not know if Huddle should be.&quot;
-                    <strong>Recommended: no</strong> — it has no document and no steps, and its
-                    first half is the club's job. It rides on the BUCS Play page. Splitting it is
-                    one line
+                    Owner direction, 2026-09-02, and the tiers already ship.
+                    <strong
+                      >But it collides with <code>R3-G</code>, &quot;nothing gates,
+                      ever&quot;.</strong
+                    >
+                    This specification reads it as blocking the form and never the player, and
+                    saving whatever was entered.
+                    <strong>Brian's word is needed on that reading</strong>
+                  </td>
+                  <td><strong>open</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Whether the emergency contact's phone is required</strong></td>
+                  <td><strong>proposed for owner approval</strong></td>
+                  <td>
+                    <code>person_emergency_contacts</code> makes only <code>given_name</code> NOT
+                    NULL. Phone is marked required on this workflow's judgement — a contact who
+                    cannot be rung is not one. <strong>Recommended: keep it required</strong>
                   </td>
                   <td><strong>open</strong></td>
                 </tr>
@@ -1515,7 +1679,7 @@
               </tbody>
             </table>
           </div>
-          <h2 id="s7-h20">Owed, and not blocking</h2>
+          <h2 id="s7-h21">Owed, and not blocking</h2>
           <p>
             <strong>BUCS Play instruction copy, and Hudl's.</strong> Task 10 defers both to Task 11,
             which is this mission, and nobody has drafted either. Stewart described the BUCS Play
@@ -1536,7 +1700,7 @@
             None of these is an owner action under the five-condition test: Brian can settle each
             inside normal intake whenever he chooses to write it.
           </p>
-          <h2 id="s7-h21">Brian approval</h2>
+          <h2 id="s7-h22">Brian approval</h2>
           <ul>
             <li>Exact words:</li>
             <li>Date:</li>

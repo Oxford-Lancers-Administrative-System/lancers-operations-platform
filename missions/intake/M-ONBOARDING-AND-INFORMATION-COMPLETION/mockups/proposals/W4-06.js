@@ -590,6 +590,7 @@
       if (row.kind === "heading") node = sectionHeading(headingTpl, row.text);
       else if (row.kind === "pane") node = documentPane(row.paragraphs, { heading: row.heading });
       else if (row.kind === "steps") node = stepList(row.steps);
+      else if (row.kind === "outstanding") node = outstandingBySection(row.groups);
       else if (row.kind === "consent") node = consentTick(shell.chip, row);
       else if (row.kind === "note") {
         node = document.createElement("p");
@@ -715,63 +716,130 @@
   /** A pane or list dropped straight into the form's stack, via buildForm. */
   const BLOCK_KINDS = new Set(["pane", "steps"]);
 
-  // W4-06 — Done: what was saved, and what is still outstanding.
+  /**
+   * What is still outstanding, by section, each item a link back to the step that
+   * collects it. Owner direction, 2026-09-02: the finishing page's single
+   * sentence "is very hard to tell. It should honestly be a set of options…
+   * it should list below in dots, like a list… if they click on that link, it
+   * brings them back to the form that has that information, so they can fill it
+   * out there if they want to."
+   */
+  const outstandingBySection = (groups) => {
+    const wrap = document.createElement("div");
+    for (const group of groups) {
+      const h = document.createElement("p");
+      h.style.cssText =
+        "margin:14px 0 6px;font-size:12px;font-weight:700;letter-spacing:0.04em;" +
+        "text-transform:uppercase;color:rgba(0,0,0,0.55)";
+      h.textContent = group.section;
+      wrap.append(h);
+      const ul = document.createElement("ul");
+      ul.style.cssText = "margin:0;padding-left:22px;list-style:disc outside";
+      for (const item of group.items) {
+        const li = document.createElement("li");
+        li.style.cssText =
+          "display:list-item;list-style:disc outside;margin:0 0 6px;font-size:14px;line-height:1.6";
+        const a = document.createElement("a");
+        a.href = item.href ?? "#";
+        a.textContent = item.label;
+        a.style.cssText = "color:#1565c0;text-decoration:underline";
+        li.append(a);
+        if (item.note) {
+          const tail = document.createElement("span");
+          tail.style.cssText = "color:rgba(0,0,0,0.6)";
+          tail.textContent = ` — ${item.note}`;
+          li.append(tail);
+        }
+        ul.append(li);
+      }
+      wrap.append(ul);
+    }
+    return wrap;
+  };
+
+  // W4-06 — Step 5: Hudl, on its own page.
   //
-  // The ask moves `opened → submitted`. The page does not pretend the record is
-  // finished: Merrick left his degree field blank and has not registered on BUCS
-  // Play, which `R3-G` expressly permits. The form is gone because there is
-  // nothing left on this visit to submit.
+  // Owner direction, 2026-09-02: "the instructions for Huddle should also be on
+  // its own separate page. Not tagged on for what, however it's done here."
+  // It rode on the BUCS Play page in the previous draft; it does not now.
+  //
+  // Hudl is the one item on the whole checklist whose first half is the club's
+  // job. An operator sends the invitation; the player accepts it. Hudl's own
+  // roster reads `Pending Invite` in between, which is exactly the state this
+  // page has to be honest about — a player who has had no invitation cannot do
+  // anything here, and the page must not imply they are the hold-up.
   const s = answerShell();
 
   setChip(s.chip, "ONBOARDING · 2026–27");
-  s.h1.textContent = "That is all saved";
-  setLead(s.lead, "Merrick Thornbury · 1 September 2026");
+  s.h1.textContent = "Get into Hudl";
+  setLead(s.lead, "Step 5 of 5 · Accept your invitation");
 
   dropEventLeftovers();
 
   mark(
     setFacts(s.dl, [
-      ["Messaging consent", "Given just now", DONE],
-      ["Your details", "1 still needed", OUTSTANDING],
-      ["Code of Conduct", "Agreed just now", DONE],
-      ["Photo release", "Agreed just now", DONE],
-      ["BUCS Play", "Not yet confirmed", OUTSTANDING],
-      ["Hudl", "Confirmed just now", DONE],
+      ["BUCS Play", "Claimed just now", DONE],
+      ["Hudl invitation", "Sent by the club, 28 Aug", DONE],
+      ["Your acceptance", "Not yet confirmed", OUTSTANDING],
+      ["Instructions", "Owed — not written", OUTSTANDING],
     ]),
     1,
   );
 
   setPrivacy(
     s.privacy,
-    "This secure page shows only your own record. Nobody else's details are ever shown here, and the club's privacy policy applies to everything you give.",
+    "Hudl is run by Hudl, not by the club. The club records only that it invited you, and whether you say you are in.",
   );
 
   const a = buildForm(s, [
-    { kind: "heading", text: "What the club now has" },
     {
       kind: "note",
-      text: "Your consent, your contact details, your college and course, your date of birth and your emergency contact — along with the Code of Conduct and the photo release, each recorded against the version you saw and dated today.",
+      key: "twoparts",
+      text: "This one has two halves and the club owns the first. An operator sends your invitation; you accept it. The club has sent yours — if it never arrived, say so below rather than working around it.",
     },
-    { kind: "heading", text: "What is still outstanding" },
     {
-      kind: "note",
-      key: "left",
-      text: "Your degree field, and BUCS Play. The club will ask you for those on this same link — it will not send you a second one.",
+      kind: "steps",
+      key: "steps",
+      steps: [
+        "PLACEHOLDER STEP. Look for an invitation email from Hudl, sent to the address the club holds for you.",
+        "PLACEHOLDER STEP. Follow the link in it and set up your Hudl account.",
+        "PLACEHOLDER STEP. Confirm you can see the Oxford Lancers team once you are in.",
+      ],
     },
-    { kind: "heading", text: "If something here is wrong" },
     {
       kind: "note",
-      text: "Open this link again at any time and change it. If you correct something the club has confirmed from elsewhere, it is not overwritten silently — somebody looks at it first.",
+      key: "owed",
+      text: 'PLACEHOLDER. The email-invite method is assumed — Brian, 2026-09-01: "doesn\'t really matter for my purposes". The real instruction copy is owed by this mission and nobody has written it.',
+    },
+    { kind: "heading", text: "Are you in?" },
+    {
+      kind: "consent",
+      key: "claim",
+      checked: false,
+      label: "Yes — I have accepted the invitation and I can see the team.",
+      note: "Records claimed, not complete, like BUCS Play.",
+    },
+    {
+      kind: "consent",
+      key: "noinvite",
+      checked: false,
+      label: "No invitation has reached me.",
+      note: "This puts the item back on the club, not on you. Nothing about it is counted against you until an invitation has actually gone out.",
     },
   ]);
 
-  // 2 — the same link, still open. New outstanding facts join this ask rather
-  //     than starting a second one; person_access_tokens' index makes a second
-  //     live durable credential impossible.
-  mark(a.left, 2);
+  // 2 — the half the club owns, said plainly at the top.
+  mark(a.twoparts, 2);
+  // 3 — the steps, now that this is a page of its own.
+  mark(a.steps, 3);
+  // 4 — the copy still owed.
+  mark(a.owed, 4);
+  // 5 — and the answer that hands the item back to the club rather than leaving
+  //     the player looking like the hold-up.
+  mark(a.noinvite, 5);
 
-  setSubmit(s.submit, "Close");
-  setSecondary("Nothing on your checklist ever blocks you from training, playing or travelling.");
+  setSubmit(s.submit, "Finish");
+  setSecondary("If you have not got in yet, finish anyway. The club will ask you again.");
 
   await settle();
 })();

@@ -590,6 +590,7 @@
       if (row.kind === "heading") node = sectionHeading(headingTpl, row.text);
       else if (row.kind === "pane") node = documentPane(row.paragraphs, { heading: row.heading });
       else if (row.kind === "steps") node = stepList(row.steps);
+      else if (row.kind === "outstanding") node = outstandingBySection(row.groups);
       else if (row.kind === "consent") node = consentTick(shell.chip, row);
       else if (row.kind === "note") {
         node = document.createElement("p");
@@ -715,6 +716,47 @@
   /** A pane or list dropped straight into the form's stack, via buildForm. */
   const BLOCK_KINDS = new Set(["pane", "steps"]);
 
+  /**
+   * What is still outstanding, by section, each item a link back to the step that
+   * collects it. Owner direction, 2026-09-02: the finishing page's single
+   * sentence "is very hard to tell. It should honestly be a set of options…
+   * it should list below in dots, like a list… if they click on that link, it
+   * brings them back to the form that has that information, so they can fill it
+   * out there if they want to."
+   */
+  const outstandingBySection = (groups) => {
+    const wrap = document.createElement("div");
+    for (const group of groups) {
+      const h = document.createElement("p");
+      h.style.cssText =
+        "margin:14px 0 6px;font-size:12px;font-weight:700;letter-spacing:0.04em;" +
+        "text-transform:uppercase;color:rgba(0,0,0,0.55)";
+      h.textContent = group.section;
+      wrap.append(h);
+      const ul = document.createElement("ul");
+      ul.style.cssText = "margin:0;padding-left:22px;list-style:disc outside";
+      for (const item of group.items) {
+        const li = document.createElement("li");
+        li.style.cssText =
+          "display:list-item;list-style:disc outside;margin:0 0 6px;font-size:14px;line-height:1.6";
+        const a = document.createElement("a");
+        a.href = item.href ?? "#";
+        a.textContent = item.label;
+        a.style.cssText = "color:#1565c0;text-decoration:underline";
+        li.append(a);
+        if (item.note) {
+          const tail = document.createElement("span");
+          tail.style.cssText = "color:rgba(0,0,0,0.6)";
+          tail.textContent = ` — ${item.note}`;
+          li.append(tail);
+        }
+        ul.append(li);
+      }
+      wrap.append(ul);
+    }
+    return wrap;
+  };
+
   // W4-01 — Step 1: your details.
   //
   // Owner direction, 2026-09-01: the form is split. The Code of Conduct, the
@@ -737,9 +779,10 @@
   mark(
     setFacts(s.dl, [
       ["Your details", "5 still needed", OUTSTANDING],
-      ["Code of Conduct", "Step 3", OUTSTANDING],
-      ["Photo release", "Step 4", OUTSTANDING],
-      ["BUCS Play & Hudl", "Step 5", OUTSTANDING],
+      ["Code of Conduct", "Step 2", OUTSTANDING],
+      ["Photo release", "Step 3", OUTSTANDING],
+      ["BUCS Play", "Step 4", OUTSTANDING],
+      ["Hudl", "Step 5", OUTSTANDING],
     ]),
     1,
   );
@@ -759,6 +802,11 @@
       note: "Asked again every season. If you want the club to stop, ask and an operator will switch it off — this form has no way to untick it.",
     },
 
+    {
+      kind: "note",
+      key: "required",
+      text: "Everything marked * is required to finish onboarding. The recruit sign-up form asks for three things and lets the rest go; this one does not — it is the form the club runs a season on.",
+    },
     { kind: "heading", text: "Who you are" },
     { key: "given", label: "First name", value: "Merrick", required: true },
     { label: "Last name", value: "Thornbury", required: true },
@@ -768,23 +816,28 @@
       required: true,
       help: "We will read this back to you before saving it.",
     },
-    { label: "Personal email", value: "merrick.thornbury@farrowgate.ox.ac.example" },
+    {
+      label: "Personal email",
+      value: "merrick.thornbury@farrowgate.ox.ac.example",
+      required: true,
+    },
 
     { kind: "heading", text: "Where you study" },
-    { key: "gap", label: "College" },
-    { label: "Matriculation year" },
-    { label: "Expected graduation" },
-    { label: "Degree field" },
+    { key: "gap", label: "College", required: true },
+    { label: "Matriculation year", required: true },
+    { label: "Expected graduation", required: true },
+    { label: "Degree field", required: true },
 
     { kind: "heading", text: "Kept private" },
     {
       key: "dob",
       label: "Date of birth",
+      required: true,
       help: "Never appears on any list, board or queue. Only whether you are under 18 is derived from it.",
     },
 
     { kind: "heading", text: "Emergency contact" },
-    { key: "emergency", label: "Emergency contact first name", value: "Lucian" },
+    { key: "emergency", label: "Emergency contact first name", value: "Lucian", required: true },
     { label: "Emergency contact last name", value: "Thornbury" },
     {
       key: "relationship",
@@ -792,7 +845,7 @@
       value: "Partner",
       help: "The fifth column person_emergency_contacts already stores. Drop it and the table keeps it blank.",
     },
-    { label: "Emergency contact phone", value: "07700 900138" },
+    { label: "Emergency contact phone", value: "07700 900138", required: true },
     { label: "Emergency contact email", value: "lucian.38@mail.example" },
   ]);
 
@@ -807,11 +860,11 @@
   mark(a.dob, 5);
   // 6 — the emergency contact, as five fields rather than one line.
   mark(a.emergency, 6);
+  // 7 — and the required set itself: the player tier, not the recruit tier.
+  mark(a.required, 7);
 
   setSubmit(s.submit, "Save and continue");
-  setSecondary(
-    "Nothing here is required to continue. Anything you leave blank simply stays outstanding.",
-  );
+  setSecondary("You can leave and come back to this link. What you have entered is kept.");
 
   await settle();
 })();

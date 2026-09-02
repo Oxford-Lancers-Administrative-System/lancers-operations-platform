@@ -590,6 +590,7 @@
       if (row.kind === "heading") node = sectionHeading(headingTpl, row.text);
       else if (row.kind === "pane") node = documentPane(row.paragraphs, { heading: row.heading });
       else if (row.kind === "steps") node = stepList(row.steps);
+      else if (row.kind === "outstanding") node = outstandingBySection(row.groups);
       else if (row.kind === "consent") node = consentTick(shell.chip, row);
       else if (row.kind === "note") {
         node = document.createElement("p");
@@ -715,28 +716,74 @@
   /** A pane or list dropped straight into the form's stack, via buildForm. */
   const BLOCK_KINDS = new Set(["pane", "steps"]);
 
-  // W4-07 — Already complete: the link opened with nothing left to give.
+  /**
+   * What is still outstanding, by section, each item a link back to the step that
+   * collects it. Owner direction, 2026-09-02: the finishing page's single
+   * sentence "is very hard to tell. It should honestly be a set of options…
+   * it should list below in dots, like a list… if they click on that link, it
+   * brings them back to the form that has that information, so they can fill it
+   * out there if they want to."
+   */
+  const outstandingBySection = (groups) => {
+    const wrap = document.createElement("div");
+    for (const group of groups) {
+      const h = document.createElement("p");
+      h.style.cssText =
+        "margin:14px 0 6px;font-size:12px;font-weight:700;letter-spacing:0.04em;" +
+        "text-transform:uppercase;color:rgba(0,0,0,0.55)";
+      h.textContent = group.section;
+      wrap.append(h);
+      const ul = document.createElement("ul");
+      ul.style.cssText = "margin:0;padding-left:22px;list-style:disc outside";
+      for (const item of group.items) {
+        const li = document.createElement("li");
+        li.style.cssText =
+          "display:list-item;list-style:disc outside;margin:0 0 6px;font-size:14px;line-height:1.6";
+        const a = document.createElement("a");
+        a.href = item.href ?? "#";
+        a.textContent = item.label;
+        a.style.cssText = "color:#1565c0;text-decoration:underline";
+        li.append(a);
+        if (item.note) {
+          const tail = document.createElement("span");
+          tail.style.cssText = "color:rgba(0,0,0,0.6)";
+          tail.textContent = ` — ${item.note}`;
+          li.append(tail);
+        }
+        ul.append(li);
+      }
+      wrap.append(ul);
+    }
+    return wrap;
+  };
+
+  // W4-07 — Done: what was saved, and what is still outstanding, by section.
   //
-  // The shipped answer link already has this state and its own words for it. This
-  // reuses that shape rather than inventing a second way to say the same thing:
-  // the heading states the fact, one line says what to do if something changes,
-  // and there is no form and no sequence to re-enter.
+  // Owner direction, 2026-09-02: the previous draft said what was left in one
+  // sentence. "That line is very hard to tell. It should honestly be a set of
+  // options... It should list at the very top, like the bullet list on personal
+  // information, and it should list below in dots, like a list... if they click
+  // on that link, it brings them back to the form that has that information, so
+  // they can fill it out there if they want to."
+  //
+  // So: grouped by section, one bullet per outstanding thing, and every bullet is
+  // a link back to the step that collects it.
   const s = answerShell();
 
   setChip(s.chip, "ONBOARDING · 2026–27");
-  s.h1.textContent = "There is nothing left to fill in";
-  setLead(s.lead, "Rosalind Penhaligon · everything you can give us, we have");
+  s.h1.textContent = "That is all saved";
+  setLead(s.lead, "Merrick Thornbury · 2 September 2026");
 
   dropEventLeftovers();
 
   mark(
     setFacts(s.dl, [
-      ["Messaging consent", "Given 14 Aug", DONE],
-      ["Your details", "Complete", DONE],
-      ["Code of Conduct", "Agreed 1 Sep", DONE],
-      ["Photo release", "Agreed 1 Sep", DONE],
-      ["BUCS Play", "Confirmed 1 Sep", DONE],
-      ["Hudl", "Confirmed 1 Sep", DONE],
+      ["Messaging consent", "Given just now", DONE],
+      ["Your details", "2 still needed", OUTSTANDING],
+      ["Code of Conduct", "Agreed just now", DONE],
+      ["Photo release", "Agreed just now", DONE],
+      ["BUCS Play", "Not yet confirmed", OUTSTANDING],
+      ["Hudl", "Claimed just now", DONE],
     ]),
     1,
   );
@@ -747,20 +794,53 @@
   );
 
   const a = buildForm(s, [
+    { kind: "heading", text: "Still outstanding" },
     {
-      kind: "note",
-      key: "rest",
-      text: "Subscriptions, kit, the squad photo and the messaging groups are the club's to tick off, not yours. You will not be asked about them here.",
+      kind: "outstanding",
+      key: "list",
+      groups: [
+        {
+          section: "Your details",
+          items: [
+            { label: "Degree field", href: "#step-1", note: "step 1" },
+            { label: "Emergency contact email", href: "#step-1", note: "step 1, optional" },
+          ],
+        },
+        {
+          section: "BUCS Play",
+          items: [
+            {
+              label: "Confirm you have registered",
+              href: "#step-4",
+              note: "step 4",
+            },
+          ],
+        },
+      ],
     },
     {
       kind: "note",
-      text: "If something on your record has changed, open this link again and correct it. It stays yours for the whole season, and it is the only link the club will ever send you.",
+      key: "same",
+      text: "Every one of these is on the link you are already holding. The club will ask you for them here — it will not send you a second link.",
+    },
+    { kind: "heading", text: "What the club now has" },
+    {
+      kind: "note",
+      text: "Your consent, your contact details, your college and course, your date of birth and your emergency contact — along with the Code of Conduct and the photo release, each recorded against the version you saw and dated today.",
+    },
+    { kind: "heading", text: "If something here is wrong" },
+    {
+      kind: "note",
+      text: "Open this link again at any time and change it. If you correct something the club has confirmed from elsewhere, it is not overwritten silently — somebody looks at it first.",
     },
   ]);
 
-  // 2 — the club still has items outstanding against this person. None of them
-  //     is the player's, so none of them appears on the player's page.
-  mark(a.rest, 2);
+  // 2 — what is left, by section, in dots, each one a link back to the step that
+  //     collects it. Replaces a sentence nobody could act on.
+  mark(a.list, 2);
+  // 3 — and the rule underneath it: the same link, always. No second ask is ever
+  //     created alongside this one.
+  mark(a.same, 3);
 
   setSubmit(s.submit, "Close");
   setSecondary("Nothing on your checklist ever blocks you from training, playing or travelling.");

@@ -1,4 +1,4 @@
-// W4-04 — Step 4: the photo release, on its own page.
+// W4-04 — Step 3: the photo release, on its own page.
 //
 // Same shape as the Code of Conduct, deliberately. Brian, 2026-09-01: "Photo
 // release should also be there and should also be a signed document, I think.
@@ -15,7 +15,7 @@ const s = answerShell();
 
 setChip(s.chip, "ONBOARDING · 2026–27");
 s.h1.textContent = "The photo release";
-setLead(s.lead, "Step 4 of 5 · Read it, then sign");
+setLead(s.lead, "Step 3 of 5 · Read it, then sign");
 
 dropEventLeftovers();
 

@@ -1,36 +1,51 @@
-// W4-08 — Expired, revoked, or never real: the one uniform page.
+// W4-08 — Already complete: the link opened with nothing left to give.
 //
-// `/a/[token]/not-found.tsx` already renders one response for every unusable
-// link: unknown, revoked and expired alike, at 404, with identical copy and no
-// variant that could let them diverge. W4 keeps that page — its heading, its
-// privacy line, its single Close, its status code.
-//
-// One sentence cannot come across. The shipped body says "If the event has
-// already started, response changes are closed", which is the answer link's own
-// business and not true of a collection link. That sentence is the whole change
-// on this screen, and it is why this workflow does not get to claim the page is
-// reused verbatim.
-const card = must($(".MuiPaper-root"), "the dead-link page has no card");
-must(
-  $$("h1").find((h) => /link can.t be used/i.test(h.textContent)),
-  "this is not the uniform dead-link page",
-);
-const privacy = must(
-  $$("p").find((p) => /can.t provide more information about this link/i.test(p.textContent)),
-  "the dead-link page has lost its privacy line",
-);
-const body = must(
-  $$("p").find((p) => /request the latest message from the club/i.test(p.textContent)),
-  "the dead-link page has lost its body line",
+// The shipped answer link already has this state and its own words for it. This
+// reuses that shape rather than inventing a second way to say the same thing:
+// the heading states the fact, one line says what to do if something changes,
+// and there is no form and no sequence to re-enter.
+const s = answerShell();
+
+setChip(s.chip, "ONBOARDING · 2026–27");
+s.h1.textContent = "There is nothing left to fill in";
+setLead(s.lead, "Rosalind Penhaligon · everything you can give us, we have");
+
+dropEventLeftovers();
+
+mark(
+  setFacts(s.dl, [
+    ["Messaging consent", "Given 14 Aug", DONE],
+    ["Your details", "Complete", DONE],
+    ["Code of Conduct", "Agreed 1 Sep", DONE],
+    ["Photo release", "Agreed 1 Sep", DONE],
+    ["BUCS Play", "Confirmed 1 Sep", DONE],
+    ["Hudl", "Confirmed 1 Sep", DONE],
+  ]),
+  1,
 );
 
-// 1 — the one sentence that changes.
-body.textContent =
-  "Request the latest message from the club. Whenever the club sends you a new one it carries your current link.";
-mark(body, 1);
+setPrivacy(
+  s.privacy,
+  "This secure page shows only your own record. Nobody else's details are ever shown here, and the club's privacy policy applies to everything you give.",
+);
 
-// 2 — and the two things that must not change: it never says which of unknown,
-//     expired or revoked this link is, and it is one page for all three.
-mark(privacy, 2);
+const a = buildForm(s, [
+  {
+    kind: "note",
+    key: "rest",
+    text: "Subscriptions, kit, the squad photo and the messaging groups are the club's to tick off, not yours. You will not be asked about them here.",
+  },
+  {
+    kind: "note",
+    text: "If something on your record has changed, open this link again and correct it. It stays yours for the whole season, and it is the only link the club will ever send you.",
+  },
+]);
+
+// 2 — the club still has items outstanding against this person. None of them
+//     is the player's, so none of them appears on the player's page.
+mark(a.rest, 2);
+
+setSubmit(s.submit, "Close");
+setSecondary("Nothing on your checklist ever blocks you from training, playing or travelling.");
 
 await settle();

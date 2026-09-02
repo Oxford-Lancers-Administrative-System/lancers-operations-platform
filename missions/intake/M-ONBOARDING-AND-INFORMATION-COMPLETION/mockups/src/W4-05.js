@@ -1,19 +1,19 @@
-// W4-05 — Step 5: BUCS Play, as a set of steps on its own page.
+// W4-05 — Step 4: BUCS Play, as a set of steps on its own page.
 //
 // Owner direction, 2026-09-01: "Bucs play should be a set of steps. Again,
-// that's its own page as well."
+// that's its own page as well." Hudl left this page on 2026-09-02: "the
+// instructions for Huddle should also be on its own separate page."
 //
 // **The steps are placeholder and are marked as such.** Stewart described this
 // ask on 2026-08-11 — "giving Jamie Carter the App Store download link for the
 // app. He downloads it. He fills it out with some instructions in the text
 // message that say do this this this" — and Task 10 deferred that copy to Task
-// 11, which is this mission. Nobody has written it. The page shape is
-// reviewable now; the words are owed.
+// 11, which is this mission. Nobody has written it.
 const s = answerShell();
 
 setChip(s.chip, "ONBOARDING · 2026–27");
 s.h1.textContent = "Register on BUCS Play";
-setLead(s.lead, "Step 5 of 5 · Do these, then tell us");
+setLead(s.lead, "Step 4 of 5 · Do these, then tell us");
 
 dropEventLeftovers();
 
@@ -56,14 +56,6 @@ const a = buildForm(s, [
     label: "Yes — I have registered on BUCS Play and selected Oxford Lancers.",
     note: "This records claimed, not complete. The compliance owner confirms it against the BUCS roster, and W6 is where that happens.",
   },
-  { kind: "heading", text: "And Hudl" },
-  {
-    kind: "consent",
-    key: "hudl",
-    checked: false,
-    label: "Yes — I have accepted the Hudl invitation and I can see the team.",
-    note: "Two parts, and the club owns the first: an operator invites you, then you accept. If no invitation has reached you, leave this and the club will chase its own half.",
-  },
 ]);
 
 // 2 — the steps, which is what makes this a page rather than a tick.
@@ -72,11 +64,8 @@ mark(a.steps, 2);
 mark(a.owed, 3);
 // 4 — the player's own answer records `claimed`, never `complete`.
 mark(a.claim, 4);
-// 5 — Hudl rides along here rather than taking a sixth page: it has no document
-//     and no steps of its own, and its first half is the club's job, not yours.
-mark(a.hudl, 5);
 
-setSubmit(s.submit, "Finish");
-setSecondary("If you have not done either yet, finish anyway. The club will ask you again.");
+setSubmit(s.submit, "Continue");
+setSecondary("If you have not done it yet, continue anyway. The club will ask you again.");
 
 await settle();

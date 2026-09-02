@@ -20,8 +20,8 @@ mark(
   setFacts(s.dl, [
     ["Your details", "4 still needed", OUTSTANDING],
     ["Messaging consent", "Given 14 Aug, at the door", DONE],
-    ["Code of Conduct", "Step 3", OUTSTANDING],
-    ["Photo release", "Step 4", OUTSTANDING],
+    ["Code of Conduct", "Step 2", OUTSTANDING],
+    ["Photo release", "Step 3", OUTSTANDING],
   ]),
   1,
 );
@@ -38,6 +38,11 @@ const a = buildForm(s, [
     text: "You agreed at the taster session on 14 August that the club may message you. That agreement runs for the whole 2026–27 season, so this page does not ask you again — you will be asked once more next season.",
   },
 
+  {
+    kind: "note",
+    key: "required",
+    text: "Everything marked * is required to finish onboarding. Rosalind gave three of these at the recruit door, where they were all the club asked for. Onboarding asks for the rest, and this is the flow that asks.",
+  },
   { kind: "heading", text: "Who you are" },
   { key: "carried", label: "First name", value: "Rosalind", required: true },
   { label: "Last name", value: "Penhaligon", required: true },
@@ -47,25 +52,26 @@ const a = buildForm(s, [
     required: true,
     help: "We will read this back to you before saving it.",
   },
-  { label: "Personal email", value: "rosalind.penhaligon@brasenose.ox.ac.example" },
+  { label: "Personal email", value: "rosalind.penhaligon@brasenose.ox.ac.example", required: true },
 
   { kind: "heading", text: "Where you study" },
-  { label: "College", value: "Brasenose" },
-  { label: "Matriculation year", value: "2024" },
-  { key: "gap", label: "Expected graduation" },
-  { label: "Degree field" },
+  { label: "College", value: "Brasenose", required: true },
+  { label: "Matriculation year", value: "2024", required: true },
+  { key: "gap", label: "Expected graduation", required: true },
+  { label: "Degree field", required: true },
 
   { kind: "heading", text: "Kept private" },
   {
     label: "Date of birth",
+    required: true,
     help: "Never appears on any list, board or queue. Only whether you are under 18 is derived from it.",
   },
 
   { kind: "heading", text: "Emergency contact" },
-  { key: "emergency", label: "Emergency contact first name" },
+  { key: "emergency", label: "Emergency contact first name", required: true },
   { label: "Emergency contact last name" },
   { label: "Relationship to you" },
-  { label: "Emergency contact phone" },
+  { label: "Emergency contact phone", required: true },
   { label: "Emergency contact email" },
 ]);
 
@@ -78,8 +84,12 @@ mark(a.carried, 3);
 mark(a.gap, 4);
 // 5 — including the whole emergency contact, blank in all five fields.
 mark(a.emergency, 5);
+// 6 — and what changed: these are required now. The recruit door asked for
+//     three things; onboarding asks for ten, and this is where the two flows
+//     part company.
+mark(a.required, 6);
 
 setSubmit(s.submit, "Save and continue");
-setSecondary("Nothing here is required to continue. Anything you leave blank simply stays outstanding.");
+setSecondary("You can leave and come back to this link. What you have entered is kept.");
 
 await settle();

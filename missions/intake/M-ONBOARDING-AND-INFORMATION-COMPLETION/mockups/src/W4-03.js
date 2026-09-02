@@ -1,4 +1,4 @@
-// W4-03 — Step 3: the Code of Conduct, on its own page.
+// W4-03 — Step 2: the Code of Conduct, on its own page.
 //
 // Owner direction, 2026-09-01: "the code of conduct needs to be its own page
 // where we have the code of conduct on the page. We scroll to the bottom, and
@@ -15,7 +15,7 @@ const s = answerShell();
 
 setChip(s.chip, "ONBOARDING · 2026–27");
 s.h1.textContent = "The Code of Conduct";
-setLead(s.lead, "Step 3 of 5 · Read it, then agree");
+setLead(s.lead, "Step 2 of 5 · Read it, then agree");
 
 dropEventLeftovers();
 

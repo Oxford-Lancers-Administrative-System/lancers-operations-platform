@@ -590,6 +590,7 @@
       if (row.kind === "heading") node = sectionHeading(headingTpl, row.text);
       else if (row.kind === "pane") node = documentPane(row.paragraphs, { heading: row.heading });
       else if (row.kind === "steps") node = stepList(row.steps);
+      else if (row.kind === "outstanding") node = outstandingBySection(row.groups);
       else if (row.kind === "consent") node = consentTick(shell.chip, row);
       else if (row.kind === "note") {
         node = document.createElement("p");
@@ -715,22 +716,63 @@
   /** A pane or list dropped straight into the form's stack, via buildForm. */
   const BLOCK_KINDS = new Set(["pane", "steps"]);
 
-  // W4-05 — Step 5: BUCS Play, as a set of steps on its own page.
+  /**
+   * What is still outstanding, by section, each item a link back to the step that
+   * collects it. Owner direction, 2026-09-02: the finishing page's single
+   * sentence "is very hard to tell. It should honestly be a set of options…
+   * it should list below in dots, like a list… if they click on that link, it
+   * brings them back to the form that has that information, so they can fill it
+   * out there if they want to."
+   */
+  const outstandingBySection = (groups) => {
+    const wrap = document.createElement("div");
+    for (const group of groups) {
+      const h = document.createElement("p");
+      h.style.cssText =
+        "margin:14px 0 6px;font-size:12px;font-weight:700;letter-spacing:0.04em;" +
+        "text-transform:uppercase;color:rgba(0,0,0,0.55)";
+      h.textContent = group.section;
+      wrap.append(h);
+      const ul = document.createElement("ul");
+      ul.style.cssText = "margin:0;padding-left:22px;list-style:disc outside";
+      for (const item of group.items) {
+        const li = document.createElement("li");
+        li.style.cssText =
+          "display:list-item;list-style:disc outside;margin:0 0 6px;font-size:14px;line-height:1.6";
+        const a = document.createElement("a");
+        a.href = item.href ?? "#";
+        a.textContent = item.label;
+        a.style.cssText = "color:#1565c0;text-decoration:underline";
+        li.append(a);
+        if (item.note) {
+          const tail = document.createElement("span");
+          tail.style.cssText = "color:rgba(0,0,0,0.6)";
+          tail.textContent = ` — ${item.note}`;
+          li.append(tail);
+        }
+        ul.append(li);
+      }
+      wrap.append(ul);
+    }
+    return wrap;
+  };
+
+  // W4-05 — Step 4: BUCS Play, as a set of steps on its own page.
   //
   // Owner direction, 2026-09-01: "Bucs play should be a set of steps. Again,
-  // that's its own page as well."
+  // that's its own page as well." Hudl left this page on 2026-09-02: "the
+  // instructions for Huddle should also be on its own separate page."
   //
   // **The steps are placeholder and are marked as such.** Stewart described this
   // ask on 2026-08-11 — "giving Jamie Carter the App Store download link for the
   // app. He downloads it. He fills it out with some instructions in the text
   // message that say do this this this" — and Task 10 deferred that copy to Task
-  // 11, which is this mission. Nobody has written it. The page shape is
-  // reviewable now; the words are owed.
+  // 11, which is this mission. Nobody has written it.
   const s = answerShell();
 
   setChip(s.chip, "ONBOARDING · 2026–27");
   s.h1.textContent = "Register on BUCS Play";
-  setLead(s.lead, "Step 5 of 5 · Do these, then tell us");
+  setLead(s.lead, "Step 4 of 5 · Do these, then tell us");
 
   dropEventLeftovers();
 
@@ -773,14 +815,6 @@
       label: "Yes — I have registered on BUCS Play and selected Oxford Lancers.",
       note: "This records claimed, not complete. The compliance owner confirms it against the BUCS roster, and W6 is where that happens.",
     },
-    { kind: "heading", text: "And Hudl" },
-    {
-      kind: "consent",
-      key: "hudl",
-      checked: false,
-      label: "Yes — I have accepted the Hudl invitation and I can see the team.",
-      note: "Two parts, and the club owns the first: an operator invites you, then you accept. If no invitation has reached you, leave this and the club will chase its own half.",
-    },
   ]);
 
   // 2 — the steps, which is what makes this a page rather than a tick.
@@ -789,12 +823,9 @@
   mark(a.owed, 3);
   // 4 — the player's own answer records `claimed`, never `complete`.
   mark(a.claim, 4);
-  // 5 — Hudl rides along here rather than taking a sixth page: it has no document
-  //     and no steps of its own, and its first half is the club's job, not yours.
-  mark(a.hudl, 5);
 
-  setSubmit(s.submit, "Finish");
-  setSecondary("If you have not done either yet, finish anyway. The club will ask you again.");
+  setSubmit(s.submit, "Continue");
+  setSecondary("If you have not done it yet, continue anyway. The club will ask you again.");
 
   await settle();
 })();

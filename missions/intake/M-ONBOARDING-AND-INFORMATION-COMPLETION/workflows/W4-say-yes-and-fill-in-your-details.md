@@ -145,13 +145,13 @@ Brian split it:
 this: `person_access_tokens` holds one live durable credential per person per
 season, and the sequence lives behind it. Nothing here creates a second link.
 
-| Step | Page                   | What it is                                                                 |
-| ---- | ---------------------- | ---------------------------------------------------------------------------- |
-| 1    | Your details           | Consent, name and contact, academic facts, date of birth, emergency contact |
-| 2    | *(read-back)*          | The mobile read-back, on the path that captured it                          |
-| 3    | Code of Conduct        | The document, read, then agreed                                             |
-| 4    | Photo release          | The document, read, then agreed                                             |
-| 5    | BUCS Play, then Hudl   | Numbered steps, then "have you done it?"                                    |
+| Step | Page            | What it is                                                                  |
+| ---- | --------------- | ----------------------------------------------------------------------------- |
+| 1    | Your details    | Consent, name and contact, academic facts, date of birth, emergency contact |
+| 2    | Code of Conduct | The document, read, then agreed                                             |
+| 3    | Photo release   | The document, read, then agreed                                             |
+| 4    | BUCS Play       | Numbered steps, then "have you done it?"                                    |
+| 5    | Hudl            | Its own page — owner direction, 2026-09-02                                  |
 
 `R4-P`'s minimal checklist strip sits at the top of every step and doubles as
 the map: what is outstanding, and where in the sequence this person is.
@@ -181,11 +181,65 @@ rather than a tick.
 ### Step 5 — BUCS Play, and Hudl
 
 BUCS Play is numbered steps followed by "have you done it?", which records
-`claimed`, not `complete` (`R2-V`, owned by `W6`). **Hudl rides on the same page
-rather than taking a sixth**: it has no document and no steps of its own, and
-its first half is the club's job — an operator invites, then the player accepts.
-Brian was explicitly undecided here ("I do not know if Huddle should be");
-splitting it into its own page is a one-line change if he wants it.
+`claimed`, not `complete` (`R2-V`, owned by `W6`).
+
+**Hudl takes its own page**, on owner direction of 2026-09-02: "the instructions
+for Huddle should also be on its own separate page. Not tagged on." It has one
+property no other item has — **its first half is the club's job.** An operator
+sends the invitation; the player accepts it; Hudl's own roster reads
+`Pending Invite` in between. So that page carries a third answer the others do
+not: **"No invitation has reached me."** Without it, a player the club never
+invited has no way to say so, and the queue would chase them for the club's own
+omission.
+
+### The required set, and what "required" now means
+
+Owner direction, 2026-09-02:
+
+> "The form that they're being sent for the onboarding should be required. If
+> they don't fill it in, they should be blocked from going. For recruits, they
+> are not required. For onboarding, they are required… The recruits and
+> onboarding get separate flows for that."
+
+**That split is already shipped.** `src/lib/services/person-required.ts` holds
+three tiers, and an `onboarding` membership maps to the player tier:
+
+| Tier                                        | Required                                                                                         |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `recruit`                                   | First name · last name · mobile — **three**                                                        |
+| `player` (`onboarding`, `active`, `inactive`) | those three, plus personal email, college, matriculation year, expected graduation, degree field, date of birth, emergency contact — **ten** |
+
+So the asterisks on `W4-01` and `W4-02` are that table, not an invention, and
+Mission 6's recruit door keeps its own three-field tier untouched.
+
+**Two details this workflow had to settle beyond the table.** The emergency
+contact is one required *fact* in `person-required.ts` but five fields on the
+screen. `person_emergency_contacts` makes only `given_name` NOT NULL, so first
+name is required by the substrate. **Phone is marked required here on this
+workflow's own judgement** — an emergency contact who cannot be rung is not one
+— and is recorded as a decision below rather than slipped in. Last name,
+relationship and email stay optional.
+
+**This collides with `R3-G`, and the collision is real.** The mission's
+governing principle is *nothing gates, ever*, restated in the boundary and the
+overview as "no onboarding item blocks any action anywhere". A required field
+that stops a player advancing the form is an onboarding item blocking an action.
+
+The reading this specification takes, and which needs Brian's word:
+
+- **Required blocks the form, not the player.** Step 1 will not advance until
+  the ten fields are filled, exactly as `/operate/roster/new` already refuses to
+  save without its three. Nothing about training, selection, travel, event
+  invitations or membership status changes — those remain ungated, and the
+  finishing page still says so.
+- **Whatever a step saved stays saved.** A player who fills six of ten and
+  leaves has those six recorded; the block stops them advancing, never discards.
+- **The chase still exists**, because people abandon forms. A blocked player is
+  an outstanding player, and `W8` chases them exactly as before.
+
+If Brian means something stronger — that an incomplete player is held out of
+something — that is a change to the approved boundary and the overview, and it
+returns to him rather than being written here.
 
 ### How the sequence adapts
 
@@ -242,13 +296,16 @@ moment, and continues to the next step.
 "have you done it?"; answer the Hudl question. Both record `claimed`, not
 `complete` (`R2-V`, owned by `W6`). Finish.
 
-**Nothing in the sequence is required to advance it.** `R3-G` governs: nothing
-gates, ever. A player may pass through all five steps having entered nothing,
-declined both documents and answered neither off-system ask, and every page
-takes it; the gaps stay outstanding and stay chased. The three required fields
-are required to be _asked for_ and to be _chased_, never to be a barrier — and
-that includes the two documents, which are asked for and chased like anything
-else.
+**Step 1 is required to advance; nothing else is.** The ten player-tier fields
+must be filled before step 1 continues — see _The required set_ above, and the
+open decision it carries. The two documents and the two off-system asks are not:
+a player may decline the Code of Conduct, decline the photo release and answer
+neither BUCS Play nor Hudl, and every one of those pages still continues. Those
+four stay outstanding and stay chased, exactly as before.
+
+**`R3-G` is unchanged where it governs.** No onboarding item blocks training,
+selection, travel, an event invitation or a membership status, for anybody, ever.
+The finishing page still says so in the player's own words.
 
 **Leaving part-way is normal.** Whatever a step saved is saved. Returning to the
 link resumes at the first step still outstanding, and an already-agreed document
@@ -368,29 +425,30 @@ inside three boxes. If that stops being true, it returns to Brian.
 
 ## Acceptance evidence
 
-Eight screens, each photographed on both sides at a measured 1280 and 375
+Nine screens, each photographed on both sides at a measured 1280 and 375
 against the running application on the mission slot. Both sides of every screen
 come from the same producer.
 
-| Screen  | What it proves                                                                              |
-| ------- | --------------------------------------------------------------------------------------------- |
-| `W4-01` | Step 1: the strip as the map, consent first, the gaps, the emergency contact as five fields |
-| `W4-02` | Step 1 for a **flipped recruit**: pre-filled, and **no consent step**                       |
-| `W4-03` | The Code of Conduct on its own page, scrolled to the end, agreement below it                |
-| `W4-04` | The photo release, same mechanism — and the e-signature decision, marked                    |
-| `W4-05` | BUCS Play as numbered steps, then the claim; Hudl alongside                                 |
-| `W4-06` | Done — what was saved, what is still outstanding                                            |
-| `W4-07` | Already complete — the link opened with nothing left to give                                |
-| `W4-08` | Expired or revoked — the uniform page, and the one sentence that had to change              |
+| Screen  | What it proves                                                                           |
+| ------- | ------------------------------------------------------------------------------------------ |
+| `W4-01` | Step 1: the strip as the map, consent first, **the ten-field required set**, the emergency contact as five fields |
+| `W4-02` | Step 1 for a **flipped recruit**: no consent step, same required set, the two flows named |
+| `W4-03` | Step 2: the Code of Conduct on its own page, scrolled to the end, agreement below it      |
+| `W4-04` | Step 3: the photo release, same mechanism — and the e-signature decision, marked          |
+| `W4-05` | Step 4: BUCS Play as numbered steps, then the claim                                       |
+| `W4-06` | Step 5: **Hudl on its own page**, including "no invitation has reached me"                |
+| `W4-07` | Done — what is outstanding, **by section, in dots, each one a link back to its step**     |
+| `W4-08` | Already complete — the link opened with nothing left to give                              |
+| `W4-09` | Expired or revoked — the uniform page, and the one sentence that had to change            |
 
 Every screen is built on the `/a/[token]` shell, a real implemented route: the
 current side photographs that page as it ships, the proposed side photographs
-the same page transformed. `W4-02` and `W4-07` need the locally flipped recruit
+the same page transformed. `W4-02` and `W4-08` need the locally flipped recruit
 from `evidence/W4-local-walk-data.md`, which must be re-run after any
 `db:reset`.
 
-The document text on `W4-03` and `W4-04`, and the four BUCS Play steps on
-`W4-05`, are **placeholder and labelled as such on the screens themselves**.
+The document text on `W4-03` and `W4-04`, and the steps on `W4-05` and
+`W4-06`, are **placeholder and labelled as such on the screens themselves**.
 
 Grounding: **screenshots**.
 
@@ -403,7 +461,7 @@ Grounding: **screenshots**.
 | A flipped recruit sees no consent step this season                                      | locked                          | `season_messaging_consents` unique per person per season; `W3` acceptance                                                                                                      | settled  |
 | What is asked, and in what order                                                        | locked                          | Approved `item-and-ask-inventory.md`; cited, not re-decided                                                                                                                    | settled  |
 | First name, last name and mobile are the required set                                   | locked                          | Brian 2026-09-01, and `person-required.ts` on `main`                                                                                                                           | settled  |
-| Nothing gates: a player may submit with every optional field blank                      | locked                          | `R3-G`                                                                                                                                                                         | settled  |
+| Nothing gates the **player**: no onboarding item blocks training, selection, travel or invitation | locked                          | `R3-G`, boundary, overview. Unchanged by the required set, which blocks only the form                                                                                          | settled  |
 | One welcome template for every door                                                     | locked                          | `OD7-same-message`, `M2`                                                                                                                                                       | settled  |
 | The welcome is the single message permitted before consent exists                       | locked                          | `T07-exception`, `T07-enforce`, `T11-consent-gate`                                                                                                                             | settled  |
 | A minimal checklist strip at the top of every step, doubling as the map of the sequence | locked                          | `R4-P`, and Brian's direction of 2026-09-01 to split the form into pages                                                                                                       | settled  |
@@ -422,7 +480,11 @@ Grounding: **screenshots**.
 | **Whether `relationship` is asked for**                                                 | **proposed for owner approval** | Brian named four fields; the table stores a fifth. Shown on `W4-01` so it can be kept or dropped. **Recommended: keep it** — it is the field that makes the contact usable in an emergency, and the column already exists | **open** |
 | **The two documents are a versioned text plus a dated per-person acceptance, not an uploaded or e-signed file** | **proposed for owner approval** | Brian asked directly, and the answer is that the application has no object storage, no document table and no signature capture of any kind. Version + moment + person needs none of that; a drawn or PDF signature needs all of it. **Recommended: the versioned-agreement mechanism**, with e-signature additive later | **open** |
 | **Where the document text is administered**                                             | **proposed for owner approval** | Brian: "there probably needs to be an administration page to handle that. I don't really want to think about that right now." **Recommended: `W11`**, which already owns per-season checklist configuration. W4 needs only that the slot exists and is versioned, so this does not block it | **open** |
-| **Whether Hudl gets its own page**                                                      | **proposed for owner approval** | Brian: "I do not know if Huddle should be." **Recommended: no** — it has no document and no steps, and its first half is the club's job. It rides on the BUCS Play page. Splitting it is one line | **open** |
+| Hudl gets its own page                                                                  | locked                          | Owner direction, 2026-09-02: "the instructions for Huddle should also be on its own separate page. Not tagged on"                                                                               | settled  |
+| Hudl's page carries "No invitation has reached me"                                      | locked                          | Its first half is the club's job. Without that answer the queue chases a player for the club's own omission                                                                                     | settled  |
+| The finishing page lists what is outstanding by section, in dots, each a link to its step | locked                        | Owner direction, 2026-09-02: the previous sentence "is very hard to tell"                                                                                                                      | settled  |
+| **The onboarding required set is `person-required.ts`'s player tier, and it blocks the form** | **proposed for owner approval** | Owner direction, 2026-09-02, and the tiers already ship. **But it collides with `R3-G`, "nothing gates, ever".** This specification reads it as blocking the form and never the player, and saving whatever was entered. **Brian's word is needed on that reading** | **open** |
+| **Whether the emergency contact's phone is required**                                   | **proposed for owner approval** | `person_emergency_contacts` makes only `given_name` NOT NULL. Phone is marked required on this workflow's judgement — a contact who cannot be rung is not one. **Recommended: keep it required** | **open** |
 | Whether a document page shows its version number to the player                          | delegated to Mission Lead       | The version is recorded either way; showing it is presentation                                                                                                                 | settled  |
 | Field-level validation and error wording beyond the shipped `BUSY_MESSAGE`              | delegated to Mission Lead       | No approved source constrains it; nothing gates regardless                                                                                                                     | settled  |
 | The exact `messaging_consent_source` value for a self-served page                       | delegated to Mission Lead       | The enum ships with three values; the shape is a source, not a policy                                                                                                          | settled  |

@@ -590,6 +590,7 @@
       if (row.kind === "heading") node = sectionHeading(headingTpl, row.text);
       else if (row.kind === "pane") node = documentPane(row.paragraphs, { heading: row.heading });
       else if (row.kind === "steps") node = stepList(row.steps);
+      else if (row.kind === "outstanding") node = outstandingBySection(row.groups);
       else if (row.kind === "consent") node = consentTick(shell.chip, row);
       else if (row.kind === "note") {
         node = document.createElement("p");
@@ -715,6 +716,47 @@
   /** A pane or list dropped straight into the form's stack, via buildForm. */
   const BLOCK_KINDS = new Set(["pane", "steps"]);
 
+  /**
+   * What is still outstanding, by section, each item a link back to the step that
+   * collects it. Owner direction, 2026-09-02: the finishing page's single
+   * sentence "is very hard to tell. It should honestly be a set of options…
+   * it should list below in dots, like a list… if they click on that link, it
+   * brings them back to the form that has that information, so they can fill it
+   * out there if they want to."
+   */
+  const outstandingBySection = (groups) => {
+    const wrap = document.createElement("div");
+    for (const group of groups) {
+      const h = document.createElement("p");
+      h.style.cssText =
+        "margin:14px 0 6px;font-size:12px;font-weight:700;letter-spacing:0.04em;" +
+        "text-transform:uppercase;color:rgba(0,0,0,0.55)";
+      h.textContent = group.section;
+      wrap.append(h);
+      const ul = document.createElement("ul");
+      ul.style.cssText = "margin:0;padding-left:22px;list-style:disc outside";
+      for (const item of group.items) {
+        const li = document.createElement("li");
+        li.style.cssText =
+          "display:list-item;list-style:disc outside;margin:0 0 6px;font-size:14px;line-height:1.6";
+        const a = document.createElement("a");
+        a.href = item.href ?? "#";
+        a.textContent = item.label;
+        a.style.cssText = "color:#1565c0;text-decoration:underline";
+        li.append(a);
+        if (item.note) {
+          const tail = document.createElement("span");
+          tail.style.cssText = "color:rgba(0,0,0,0.6)";
+          tail.textContent = ` — ${item.note}`;
+          li.append(tail);
+        }
+        ul.append(li);
+      }
+      wrap.append(ul);
+    }
+    return wrap;
+  };
+
   // W4-02 — Step 1 for a flipped recruit, and the one visible difference.
   //
   // Rosalind Penhaligon is the seed's own prospect, flipped to `joined` with a
@@ -737,8 +779,8 @@
     setFacts(s.dl, [
       ["Your details", "4 still needed", OUTSTANDING],
       ["Messaging consent", "Given 14 Aug, at the door", DONE],
-      ["Code of Conduct", "Step 3", OUTSTANDING],
-      ["Photo release", "Step 4", OUTSTANDING],
+      ["Code of Conduct", "Step 2", OUTSTANDING],
+      ["Photo release", "Step 3", OUTSTANDING],
     ]),
     1,
   );
@@ -755,6 +797,11 @@
       text: "You agreed at the taster session on 14 August that the club may message you. That agreement runs for the whole 2026–27 season, so this page does not ask you again — you will be asked once more next season.",
     },
 
+    {
+      kind: "note",
+      key: "required",
+      text: "Everything marked * is required to finish onboarding. Rosalind gave three of these at the recruit door, where they were all the club asked for. Onboarding asks for the rest, and this is the flow that asks.",
+    },
     { kind: "heading", text: "Who you are" },
     { key: "carried", label: "First name", value: "Rosalind", required: true },
     { label: "Last name", value: "Penhaligon", required: true },
@@ -764,25 +811,30 @@
       required: true,
       help: "We will read this back to you before saving it.",
     },
-    { label: "Personal email", value: "rosalind.penhaligon@brasenose.ox.ac.example" },
+    {
+      label: "Personal email",
+      value: "rosalind.penhaligon@brasenose.ox.ac.example",
+      required: true,
+    },
 
     { kind: "heading", text: "Where you study" },
-    { label: "College", value: "Brasenose" },
-    { label: "Matriculation year", value: "2024" },
-    { key: "gap", label: "Expected graduation" },
-    { label: "Degree field" },
+    { label: "College", value: "Brasenose", required: true },
+    { label: "Matriculation year", value: "2024", required: true },
+    { key: "gap", label: "Expected graduation", required: true },
+    { label: "Degree field", required: true },
 
     { kind: "heading", text: "Kept private" },
     {
       label: "Date of birth",
+      required: true,
       help: "Never appears on any list, board or queue. Only whether you are under 18 is derived from it.",
     },
 
     { kind: "heading", text: "Emergency contact" },
-    { key: "emergency", label: "Emergency contact first name" },
+    { key: "emergency", label: "Emergency contact first name", required: true },
     { label: "Emergency contact last name" },
     { label: "Relationship to you" },
-    { label: "Emergency contact phone" },
+    { label: "Emergency contact phone", required: true },
     { label: "Emergency contact email" },
   ]);
 
@@ -795,11 +847,13 @@
   mark(a.gap, 4);
   // 5 — including the whole emergency contact, blank in all five fields.
   mark(a.emergency, 5);
+  // 6 — and what changed: these are required now. The recruit door asked for
+  //     three things; onboarding asks for ten, and this is where the two flows
+  //     part company.
+  mark(a.required, 6);
 
   setSubmit(s.submit, "Save and continue");
-  setSecondary(
-    "Nothing here is required to continue. Anything you leave blank simply stays outstanding.",
-  );
+  setSecondary("You can leave and come back to this link. What you have entered is kept.");
 
   await settle();
 })();
