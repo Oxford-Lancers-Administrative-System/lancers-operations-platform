@@ -288,16 +288,16 @@
         <ol>
           <li><a href="#s14-h2">What the object is</a></li>
           <li><a href="#s14-h3">The three numbers</a></li>
-          <li><a href="#s14-h4">The table this has to go in</a></li>
-          <li><a href="#s14-h6">The checklist rules this workflow now carries</a></li>
-          <li><a href="#s14-h7">Required actions</a></li>
-          <li><a href="#s14-h8">Handoffs</a></li>
-          <li><a href="#s14-h9">Dependencies and mission boundaries</a></li>
-          <li><a href="#s14-h10">Exceptions and recovery</a></li>
-          <li><a href="#s14-h11">Safety, privacy, consent, and authority boundaries</a></li>
-          <li><a href="#s14-h12">Acceptance evidence</a></li>
-          <li><a href="#s14-h13">Core decisions</a></li>
-          <li><a href="#s14-h14">Brian approval</a></li>
+          <li><a href="#s14-h4">Where it goes</a></li>
+          <li><a href="#s14-h5">The checklist rules this workflow now carries</a></li>
+          <li><a href="#s14-h6">Required actions</a></li>
+          <li><a href="#s14-h7">Handoffs</a></li>
+          <li><a href="#s14-h8">Dependencies and mission boundaries</a></li>
+          <li><a href="#s14-h9">Exceptions and recovery</a></li>
+          <li><a href="#s14-h10">Safety, privacy, consent, and authority boundaries</a></li>
+          <li><a href="#s14-h11">Acceptance evidence</a></li>
+          <li><a href="#s14-h12">Core decisions</a></li>
+          <li><a href="#s14-h13">Brian approval</a></li>
         </ol>
       </nav>
       <main>
@@ -426,38 +426,23 @@
             runs out the chase is simply <strong>exhausted</strong>; what happens next is
             <code>W9</code>'s.
           </p>
-          <h2 id="s14-h4">The table this has to go in</h2>
+          <h2 id="s14-h4">Where it goes</h2>
           <p>
-            <code>messaging_schedules</code> is keyed by <strong><code>event_type</code></strong> —
-            one row each for practice, strength and conditioning, chalk, game, social. Onboarding's
-            chase is not a property of a practice or a game: it has a delay from joining, a count
-            and an interval, and none of those varies by event type.
+            The app already has the structure for this: a page where the club sets how it messages
+            people about a thing, one section per thing, each with a lead time, a count and a
+            cadence. <strong>Onboarding needs the same treatment for its one packet</strong>, and
+            that is the whole of what this workflow asks for.
           </p>
           <p>
-            <code>OD7-own-cadence</code> settles the <strong>surface</strong> — onboarding gets its
-            own entry on the messaging page, in the same grammar every other row uses. It does not
-            settle the <strong>shape</strong> underneath, which is the open decision below.
+            <code>OD7-own-cadence</code>: onboarding gets its own section on that page. Everything
+            already on it — the event types and their settings — is untouched by this mission.
           </p>
-          <h3 id="s14-h5">Verified against <code>main</code>, 2026-09-02</h3>
           <p>
-            The shape of this depends on what is actually built, so it was checked rather than
-            assumed:
+            <strong>How it is stored is not this workflow's business.</strong> There is no
+            onboarding cadence anywhere in the application today, so something has to be added; what
+            shape that takes is a technical decision for implementation, not a product one.
           </p>
-          <ul>
-            <li>
-              <strong>No onboarding cadence exists anywhere in <code>src/</code>.</strong> Nothing
-              reads, writes or renders one.
-            </li>
-            <li>
-              The messaging page renders <strong>one row per <code>event_type</code></strong> and
-              nothing else.
-            </li>
-            <li>
-              <code>escalation_hours</code> and its &quot;President is told&quot; label are the
-              <strong>event RSVP escalation</strong>, not an onboarding one.
-            </li>
-          </ul>
-          <h2 id="s14-h6">The checklist rules this workflow now carries</h2>
+          <h2 id="s14-h5">The checklist rules this workflow now carries</h2>
           <p>Folded in from the removed workflow, and unchanged by the fold:</p>
           <ul>
             <li>
@@ -488,7 +473,7 @@
               and constitutional membership derives from the paid one.
             </li>
           </ul>
-          <h2 id="s14-h7">Required actions</h2>
+          <h2 id="s14-h6">Required actions</h2>
           <ol>
             <li>Open the messaging schedule.</li>
             <li>
@@ -497,7 +482,7 @@
             </li>
             <li>Save. The chase runs to that from the next message onwards.</li>
           </ol>
-          <h2 id="s14-h8">Handoffs</h2>
+          <h2 id="s14-h7">Handoffs</h2>
           <div class="tablewrap">
             <table>
               <thead>
@@ -532,7 +517,7 @@
               </tbody>
             </table>
           </div>
-          <h2 id="s14-h9">Dependencies and mission boundaries</h2>
+          <h2 id="s14-h8">Dependencies and mission boundaries</h2>
           <div class="tablewrap">
             <table>
               <thead>
@@ -559,7 +544,7 @@
               </tbody>
             </table>
           </div>
-          <h2 id="s14-h10">Exceptions and recovery</h2>
+          <h2 id="s14-h9">Exceptions and recovery</h2>
           <ul>
             <li>
               <strong>A cap of zero.</strong> No automated chase at all; the welcome still goes, and
@@ -579,7 +564,7 @@
               &quot;nobody needs chasing&quot;.
             </li>
           </ul>
-          <h2 id="s14-h11">Safety, privacy, consent, and authority boundaries</h2>
+          <h2 id="s14-h10">Safety, privacy, consent, and authority boundaries</h2>
           <ul>
             <li><strong>Four-role only.</strong></li>
             <li>Configuration carries no personal data.</li>
@@ -592,7 +577,7 @@
               somebody with no recorded basis.
             </li>
           </ul>
-          <h2 id="s14-h12">Acceptance evidence</h2>
+          <h2 id="s14-h11">Acceptance evidence</h2>
           <div class="tablewrap">
             <table>
               <thead>
@@ -604,10 +589,7 @@
               <tbody>
                 <tr>
                   <td><code>W11-01</code></td>
-                  <td>
-                    Onboarding's chase: the delay from joining, the count and the interval, in the
-                    page's own grammar
-                  </td>
+                  <td>One new section on the messaging page, and nothing else on it changed</td>
                 </tr>
               </tbody>
             </table>
@@ -617,7 +599,7 @@
             measured 1280 and 375.
           </p>
           <p>Grounding: <strong>screenshots</strong>.</p>
-          <h2 id="s14-h13">Core decisions</h2>
+          <h2 id="s14-h12">Core decisions</h2>
           <div class="tablewrap">
             <table>
               <thead>
@@ -732,17 +714,6 @@
                   <td>settled</td>
                 </tr>
                 <tr>
-                  <td><strong>Where onboarding's chase lives in the schema</strong></td>
-                  <td><strong>proposed for owner approval</strong></td>
-                  <td>
-                    <code>messaging_schedules</code> is keyed by <code>event_type</code>, and
-                    onboarding's chase is not a property of a practice.
-                    <strong>Recommended: a small table of its own</strong> — one row of club policy,
-                    keyed by nothing
-                  </td>
-                  <td><strong>open</strong></td>
-                </tr>
-                <tr>
                   <td>A cap of zero is legal</td>
                   <td>delegated to Mission Lead</td>
                   <td>It means &quot;no automated chase&quot;; the welcome is unaffected</td>
@@ -751,7 +722,7 @@
               </tbody>
             </table>
           </div>
-          <h2 id="s14-h14">Brian approval</h2>
+          <h2 id="s14-h13">Brian approval</h2>
           <ul>
             <li>Exact words:</li>
             <li>Date:</li>

@@ -502,58 +502,67 @@
     }
   };
 
-  // W11-01 — Onboarding's chase, in the grammar the messaging page already uses.
+  /**
+   * Add one new configuration section to the page, leaving every shipped row
+   * exactly as it is.
+   *
+   * The first version of W11-01 repurposed real event rows into onboarding rows
+   * and marked one of them. That page was an invention, and it implied this
+   * mission was changing how practices are messaged. It is not touching events at
+   * all — so the proposal adds, and changes nothing.
+   */
+  const addSection = ({ label, fields, button }) => {
+    const rows = scheduleRows();
+    const template = rows[0].cloneNode(true);
+    rows[0].before(template);
+    configureRow(template, { label, fields, button });
+    return template;
+  };
+
+  // W11-01 — Onboarding's chase, added to the page that already sets how the club
+  // messages people.
   //
-  // The page's own shape is a lead time, a cadence and a count per row. This uses
-  // exactly that: how long after joining the first chase goes, how many times it
-  // asks, and how far apart. Owner direction, 2026-09-02.
+  // The app already has this structure: a section per thing the club messages
+  // about, each with a lead time, a count and a cadence. Onboarding needs the same
+  // treatment. So this proposal ADDS one section and changes nothing else — every
+  // shipped row below it is untouched, unmarked, and none of this mission's
+  // business.
   //
-  // What is deliberately absent: any "give up after" value, because it is
-  // count × interval and setting it twice invites the two to disagree; and any
-  // escalation field, because what happens after the chase runs out is W9's, not
-  // a number on this page.
+  // The previous draft repurposed real event rows into onboarding rows and marked
+  // one of them, which implied this mission was changing how practices are
+  // messaged. It is not touching events at all.
   setAdminHeading("Messaging schedule · 2026-27");
-  setAdminIntro({
-    subtitle: "Onboarding",
-    intro:
-      "How long after somebody joins the club first chases them about their onboarding checklist, how many times it asks, and how far apart.",
-    note: "The count is only spent when a message actually arrives, so a failure costs nothing. There are no quiet hours. An arriving submission clears whatever was pending; a partial one resets the timer but never the count.",
-  });
 
-  const rows = keepRows(2);
-
-  configureRow(rows[0], {
+  const onboarding = addSection({
     label: "Onboarding checklist",
     fields: [
-      ["First chase after", "2 hours", "From joining. Long enough that the welcome lands first."],
+      [
+        "First chase after",
+        "2 hours",
+        "From joining. Long enough that the welcome carrying the link lands first.",
+      ],
       ["Ask this many times", "5", "Counted only when a message actually arrives."],
-      ["Every", "3 days", "The gap between one chase and the next."],
+      [
+        "Every",
+        "3 days",
+        "The gap between one chase and the next. When the count runs out the chase is exhausted.",
+      ],
     ],
     button: "Save onboarding checklist",
   });
 
-  configureRow(rows[1], {
-    label: "Practice",
-    fields: [
-      ["First invitation", "5 days", "Before the event starts."],
-      ["WhatsApp", "2", "Messages sent, including the invitation."],
-      ["Cadence", "24 hours", "The gap between one reminder and the next."],
-    ],
-    button: "Save practice",
-  });
+  // 1 — the whole of this mission's change to this page: one new section, for the
+  //     one packet onboarding sends.
+  mark(onboarding, 1);
 
-  // 1 — how long after joining. The one value this page did not have and needs:
-  //     a delay, so the chase never overtakes the welcome that carries the link.
-  mark($$(".MuiTextField-root", rows[0])[0], 1);
+  // 2 — how long after joining. The one value the page has no equivalent of: a
+  //     delay measured from a person joining rather than from an event starting.
+  mark($$(".MuiTextField-root", onboarding)[0], 2);
 
-  // 2 — how many times, and how far apart. Two numbers, and the chase is over
-  //     when the count runs out. There is no third number to disagree with them.
-  mark($$(".MuiTextField-root", rows[0])[1], 2);
-  mark($$(".MuiTextField-root", rows[0])[2], 3);
-
-  // 4 — and the grammar it borrows: a lead time, a count, a cadence, which is how
-  //     every other row on this page already reads.
-  mark(rowLabel(rows[1]), 4);
+  // 3 — how many times, and how far apart. There is no third number: the chase is
+  //     over when the count runs out.
+  mark($$(".MuiTextField-root", onboarding)[1], 3);
+  mark($$(".MuiTextField-root", onboarding)[2], 4);
 
   await settle();
 })();

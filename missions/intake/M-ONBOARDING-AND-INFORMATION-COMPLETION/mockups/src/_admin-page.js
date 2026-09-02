@@ -145,3 +145,20 @@ const setAdminIntro = ({ subtitle, intro, note }) => {
     if (el) el.textContent = note;
   }
 };
+
+/**
+ * Add one new configuration section to the page, leaving every shipped row
+ * exactly as it is.
+ *
+ * The first version of W11-01 repurposed real event rows into onboarding rows
+ * and marked one of them. That page was an invention, and it implied this
+ * mission was changing how practices are messaged. It is not touching events at
+ * all — so the proposal adds, and changes nothing.
+ */
+const addSection = ({ label, fields, button }) => {
+  const rows = scheduleRows();
+  const template = rows[0].cloneNode(true);
+  rows[0].before(template);
+  configureRow(template, { label, fields, button });
+  return template;
+};

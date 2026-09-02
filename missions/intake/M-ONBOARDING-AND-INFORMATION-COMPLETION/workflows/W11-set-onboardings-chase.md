@@ -67,27 +67,20 @@ President" field. That was borrowed from the event schedule's own
 told"* — which is the **event RSVP escalation** and does not belong here. When
 the count runs out the chase is simply **exhausted**; what happens next is `W9`'s.
 
-## The table this has to go in
+## Where it goes
 
-`messaging_schedules` is keyed by **`event_type`** — one row each for practice,
-strength and conditioning, chalk, game, social. Onboarding's chase is not a
-property of a practice or a game: it has a delay from joining, a count and an
-interval, and none of those varies by event type.
+The app already has the structure for this: a page where the club sets how it
+messages people about a thing, one section per thing, each with a lead time, a
+count and a cadence. **Onboarding needs the same treatment for its one packet**,
+and that is the whole of what this workflow asks for.
 
-`OD7-own-cadence` settles the **surface** — onboarding gets its own entry on the
-messaging page, in the same grammar every other row uses. It does not settle the
-**shape** underneath, which is the open decision below.
+`OD7-own-cadence`: onboarding gets its own section on that page. Everything
+already on it — the event types and their settings — is untouched by this
+mission.
 
-### Verified against `main`, 2026-09-02
-
-The shape of this depends on what is actually built, so it was checked rather
-than assumed:
-
-- **No onboarding cadence exists anywhere in `src/`.** Nothing reads, writes or
-  renders one.
-- The messaging page renders **one row per `event_type`** and nothing else.
-- `escalation_hours` and its "President is told" label are the **event RSVP
-  escalation**, not an onboarding one.
+**How it is stored is not this workflow's business.** There is no onboarding
+cadence anywhere in the application today, so something has to be added; what
+shape that takes is a technical decision for implementation, not a product one.
 
 
 ## The checklist rules this workflow now carries
@@ -156,7 +149,7 @@ Folded in from the removed workflow, and unchanged by the fold:
 
 | Screen   | What it proves                                                                  |
 | -------- | --------------------------------------------------------------------------------- |
-| `W11-01` | Onboarding's chase: the delay from joining, the count and the interval, in the page's own grammar |
+| `W11-01` | One new section on the messaging page, and nothing else on it changed |
 
 Shot on `/operate/admin/messaging`, a real implemented route, both sides,
 measured 1280 and 375.
@@ -181,7 +174,6 @@ Grounding: **screenshots**.
 | No mid-season expiry; a lapse is a manual reopen                     | locked                          | `R2-E`                                                                                                                    | settled  |
 | An empty configuration never reads as "everybody is complete"        | locked                          | `T10-entry-guards`                                                                                                        | settled  |
 | The escalation office is read from the club's roles, never configured | locked                          | `roles` ships `president` as a constitutional office with `role_assignments` naming its holder. Nothing to set                | settled  |
-| **Where onboarding's chase lives in the schema**                     | **proposed for owner approval** | `messaging_schedules` is keyed by `event_type`, and onboarding's chase is not a property of a practice. **Recommended: a small table of its own** — one row of club policy, keyed by nothing | **open** |
 | A cap of zero is legal                                               | delegated to Mission Lead       | It means "no automated chase"; the welcome is unaffected                                                                  | settled  |
 
 ## Brian approval

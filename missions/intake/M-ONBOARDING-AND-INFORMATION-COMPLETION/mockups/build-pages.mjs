@@ -637,28 +637,29 @@ const WORKFLOWS = [
     slug: "set-onboardings-chase",
     name: "Set onboarding's chase",
     grounding: "photograph",
-    lede: `The onboarding checklist is one packet. This workflow says <strong>how long after joining
-      the club first chases somebody about it, how many times it asks, and how far apart</strong> —
-      in the grammar the messaging page already uses.`,
+    lede: `The app already has the structure for this: a page where the club sets how it messages
+      people about a thing. <strong>Onboarding needs the same treatment for its one packet</strong> —
+      how long after joining the first chase goes, how many times it asks, and how far apart.`,
     legend: [
-      "<strong>Three values, and no fourth.</strong> There is deliberately no “give up after”: it is the count times the interval, and setting it separately invites the two to disagree. The chase is over when the count runs out",
-      "<strong>Nothing on this page escalates.</strong> The previous draft carried a “tell the President” field borrowed from the event schedule's own <code>escalation_hours</code> — that is the <em>event RSVP</em> escalation and does not belong here. When the count runs out the chase is simply exhausted, and what happens next is W9's",
-      "<strong>Verified against <code>main</code>:</strong> no onboarding cadence exists anywhere in <code>src/</code> — nothing reads, writes or renders one. The messaging page renders one row per <code>event_type</code> and nothing else",
-      "<strong>The count is spent on delivery.</strong> A message that failed consumes nothing, which is what makes “exhausted” a fact rather than a guess — and why LAN-93 is a dependency rather than an option",
+      "<strong>This adds one section and changes nothing else.</strong> Every shipped row on that page — the event types and their settings — is untouched by this mission and is neither altered nor marked below",
+      "<strong>Three values, and no fourth.</strong> There is deliberately no \u201cgive up after\u201d: it is the count times the interval, and setting it separately invites the two to disagree. When the count runs out, the chase is exhausted",
+      "<strong>Nothing on this page escalates.</strong> What happens after a chase runs out is W9\u2019s \u2014 and the office it goes to needs no configuring, because <code>roles</code> already ships <code>president</code> with <code>role_assignments</code> naming its holder",
+      "<strong>The count is spent on delivery.</strong> A message that failed consumes nothing, which is what makes \u201cexhausted\u201d a fact rather than a guess",
       "<strong>There are no quiet hours</strong>, and the shipped page already says so in its own standing note",
-      "<strong>The checklist itself is fixed</strong> — the approved item-and-ask inventory — and nobody configures which items are on it or who owns one. <code>R1</code>, <code>R2</code> and <code>R2-V2</code> are superseded",
+      "<strong>The checklist itself is fixed</strong> \u2014 the approved item-and-ask inventory \u2014 and nobody configures which items are on it or who owns one. <code>R1</code>, <code>R2</code> and <code>R2-V2</code> are superseded",
     ],
     screens: [
       P(
         "W11-01",
-        "Onboarding's chase, in the grammar the page already uses",
-        `Every other row on this page is a lead time, a count and a cadence. This is the same three
-         things, measured from joining rather than from an event.`,
+        "One new section, on the page that already sets how the club messages people",
+        `The whole of this mission\u2019s change to this page. What sits below it is the real shipped
+         configuration for events, untouched \u2014 this mission is not changing how practices are
+         messaged and does not mark them.`,
         [
-          "<strong>How long after joining.</strong> The one value this page did not have and needs — a delay, so the chase never overtakes the welcome that carries the link",
+          "<strong>The one new section</strong>, for the one packet onboarding sends",
+          "<strong>How long after joining.</strong> The one value this page has no equivalent of \u2014 a delay measured from a person joining rather than from an event starting, so the chase never overtakes the welcome carrying the link",
           "<strong>How many times it asks</strong>, spent only when a message actually arrives",
-          "<strong>And how far apart.</strong> Two numbers, and the chase is over when the count runs out — no third number to disagree with them",
-          "<strong>The grammar it borrows.</strong> A lead time, a count, a cadence: how every other row on this page already reads",
+          "<strong>And how far apart.</strong> No third number to disagree with these two",
         ],
         "oxfordlancers.example/operate/admin/messaging",
       ),
