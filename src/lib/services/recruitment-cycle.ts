@@ -2,7 +2,10 @@ import "server-only";
 
 import { withTransaction, type Tx } from "@/lib/db";
 import { deriveEntityIdFromNaturalKey, recordAudit } from "./audit";
-import { hasGrantedSeasonMessagingConsentIn, readSeasonMessagingConsentIn } from "./messaging-consent";
+import {
+  hasGrantedSeasonMessagingConsentIn,
+  readSeasonMessagingConsentIn,
+} from "./messaging-consent";
 
 /**
  * The recruitment cycle's own four rows. LAN-203, `REQ-recruitment-cycle`.

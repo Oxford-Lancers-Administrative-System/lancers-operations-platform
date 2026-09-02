@@ -513,8 +513,9 @@ async function cleanUp(): Promise<void> {
     [personIds],
   );
   const jobIds = await ids(
-    "select id from public.notification_jobs where event_id = any($1::uuid[])",
-    [eventIds],
+    `select id from public.notification_jobs
+      where event_id = any($1::uuid[]) or person_id = any($2::uuid[])`,
+    [eventIds, personIds],
   );
   const invitationIds = await ids(
     "select id from public.invitations where event_id = any($1::uuid[])",
@@ -559,6 +560,9 @@ async function cleanUp(): Promise<void> {
   // flag goes before the job, because it may name the escalation that job is.
   await purge("public.nonresponse_flags", "invitation_id", invitationIds);
   await purge("public.notification_jobs", "event_id", eventIds);
+  // LAN-205: a walk-up also declares the recruitment cycle's jobs, keyed by
+  // `person_id` alone (no `event_id`), so the sweep above never reaches them.
+  await purge("public.notification_jobs", "person_id", personIds);
   await purge("public.event_messaging_plans", "event_id", eventIds);
   await purge("public.attendance_records", "event_id", eventIds);
   await purge("public.rsvp_responses", "invitation_id", invitationIds);
@@ -597,6 +601,9 @@ async function cleanUp(): Promise<void> {
   await purge("public.season_membership_status_events", "season_membership_id", membershipIds);
   await purge("public.season_memberships", "id", membershipIds);
   await purge("public.recruitment_prospects", "person_id", personIds);
+  // LAN-205: the walk-up's own read-back consent grant, `on delete restrict`
+  // from `people`.
+  await purge("public.season_messaging_consents", "person_id", personIds);
   await purge("public.role_assignments", "person_id", personIds);
   await purge("public.contact_points", "person_id", personIds);
   await purge("public.person_aliases", "person_id", personIds);

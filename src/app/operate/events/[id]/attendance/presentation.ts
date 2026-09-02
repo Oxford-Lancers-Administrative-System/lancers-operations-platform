@@ -324,7 +324,7 @@ export const NOT_MARKED = "Not marked";
  * that jumped to another section under the recorder's thumb, mid-register, at
  * the side of a pitch, is how the wrong person gets marked.
  */
-export type ParticipantGroupKey = "attending" | "everyone_else" | "walk_ups";
+export type ParticipantGroupKey = "recruits" | "attending" | "everyone_else" | "walk_ups";
 
 export interface ParticipantGroup {
   key: ParticipantGroupKey;
@@ -340,6 +340,16 @@ export const EVERYONE_ELSE_GROUP_LABEL = "Everyone else";
 export const EVERYONE_ELSE_GROUP_DETAIL = "Not attending, and no response";
 export const WALK_UP_GROUP_LABEL = "Walk-ups";
 export const WALK_UP_GROUP_DETAIL = "Turned up uninvited, recorded present, to reconcile";
+
+/**
+ * The fourth group, at the top of a recruitment event's sheet only — W12,
+ * D11, LAN-205. Copy taken verbatim from the running fidelity mockup
+ * (`chore/recruitment-fidelity-mockup`, `attendance-sheet.tsx`), the
+ * authoritative source for this surface's structure and copy alike.
+ */
+export const RECRUITS_GROUP_LABEL = "Recruits";
+export const RECRUITS_GROUP_DETAIL =
+  "Every recruit on the board this season, the ones who said yes first.";
 
 /**
  * Sorted by name, within each group.
@@ -360,13 +370,53 @@ function byName(left: AttendanceParticipant, right: AttendanceParticipant): numb
   return name !== 0 ? name : left.key.localeCompare(right.key);
 }
 
-/** The board's three groups, in reading order, each sorted by name. */
-export function groupParticipants(participants: AttendanceParticipant[]): ParticipantGroup[] {
-  // Tested first, and everywhere: a walk-up is never in either RSVP group, even
-  // though `rsvp` is null on one and could be anything on a future one.
-  const invited = participants.filter((participant) => !participant.isWalkUp);
+/**
+ * The board's groups, in reading order, each sorted by name.
+ *
+ * ## Recruits first, on a recruitment event only — W12, D11, LAN-205
+ *
+ * `eventType` decides whether a **Recruits** group is drawn at all — Brian,
+ * 2026-08-31: the whole point is a coach looking at a recruitment event's own
+ * sheet, and a recruit-capacity row has no structural reason to appear on any
+ * other event type today. Where it is drawn, every `capacity === "recruit"`
+ * row that is not flagged `isWalkUp` joins it, whether or not this specific
+ * event actually invited or recorded them — `readAttendanceBoard`'s own
+ * `RECRUIT_ROSTER_QUERY` is what makes "every recruit on the board this
+ * season" true of the rows this function receives, not a filter here. A
+ * walk-up stays in **Walk-ups** even when they happen to carry recruit
+ * capacity (every walk-up does): "it should be its own separate group", not a
+ * second appearance of the same row.
+ */
+export function groupParticipants(
+  participants: AttendanceParticipant[],
+  eventType: string,
+): ParticipantGroup[] {
+  const isRecruitmentEvent = eventType === "recruitment";
+  const recruits = isRecruitmentEvent
+    ? participants
+        .filter((participant) => participant.capacity === "recruit" && !participant.isWalkUp)
+        .sort(byName)
+    : [];
+  const recruitKeys = new Set(recruits.map((participant) => participant.key));
 
-  return [
+  // Tested first, and everywhere: a walk-up is never in either RSVP group, even
+  // though `rsvp` is null on one and could be anything on a future one. A
+  // recruit already placed in the group above is excluded the same way, so a
+  // recruitment event never shows one row twice.
+  const invited = participants.filter(
+    (participant) => !participant.isWalkUp && !recruitKeys.has(participant.key),
+  );
+
+  const groups: ParticipantGroup[] = [];
+  if (isRecruitmentEvent) {
+    groups.push({
+      key: "recruits" as const,
+      label: RECRUITS_GROUP_LABEL,
+      detail: RECRUITS_GROUP_DETAIL,
+      participants: recruits,
+    });
+  }
+  groups.push(
     {
       key: "attending" as const,
       label: ATTENDING_GROUP_LABEL,
@@ -385,7 +435,8 @@ export function groupParticipants(participants: AttendanceParticipant[]): Partic
       detail: WALK_UP_GROUP_DETAIL,
       participants: participants.filter((participant) => participant.isWalkUp).sort(byName),
     },
-  ];
+  );
+  return groups;
 }
 
 export const NOBODY_INVITED =
@@ -439,7 +490,8 @@ export function describeCommitted(
 // UX-73 / UX-97 — the walk-up
 // ---------------------------------------------------------------------------
 
-export const WALK_UP_HEADLINE = "Add a walk-on";
+/** Brian locked *walk-up* as the word, 2026-08-31 — never "walk-on". */
+export const WALK_UP_HEADLINE = "Add a walk-up";
 
 export const WALK_UP_DETAIL = "Somebody who turned up and is not on the roster.";
 
@@ -488,7 +540,27 @@ export const WALK_UP_EMAIL_LABEL = "Email";
 export const WALK_UP_ALWAYS_PRESENT =
   "Recorded as Present. Correct it on their row afterwards if you need to.";
 
-export const WALK_UP_SUBMIT = "Add walk-on";
+export const WALK_UP_SUBMIT = "Add walk-up";
 
 /** The reconciliation flag, in the club's words. Derived, never a column. */
-export const WALK_UP_CHIP = "Walk-on · in recruitment";
+export const WALK_UP_CHIP = "Walk-up · in recruitment";
+
+/**
+ * What saving actually does that the reconciliation note above does not say —
+ * LAN-205, packet amendment 1. The read-back is the whole of this door's
+ * consent model, so the operator has to be told, on the form, that pressing
+ * save sends a real WhatsApp message to the number just typed, and to read it
+ * back before doing so. Copy taken from the fidelity mockup verbatim.
+ */
+export const WALK_UP_SEND_NOTE =
+  "Saving sends them one WhatsApp message: the sign-up form, prefilled, on a link that is theirs. " +
+  "Read the number back before you save.";
+
+/**
+ * The recorded confirmation — Brian, 2026-08-31: "I think a smaller text box
+ * that says 'Walkup added' is perfectly fine." A short label, not a
+ * paragraph, replacing the sheet's own former "Walk-on recorded…" sentence —
+ * `docs/ux/standards.md`'s no-narrative-text rule applies here as much as
+ * anywhere else on this surface.
+ */
+export const WALK_UP_ADDED = "Walk-up added";

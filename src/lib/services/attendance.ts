@@ -21,6 +21,8 @@ import {
 import { isRegisterAvailable, isRegisterOpen, registerOpensAt } from "./attendance-window";
 import { lockEventIn, readEventIn, type EventDetail } from "./events";
 import { type EventStatus } from "./event-input";
+import { validatePhoneNumber } from "./person-validation";
+import { declareRecruitmentCycleJobsIn } from "./recruitment-cycle";
 import { personDisplayNameSql as displayName } from "./sql-text";
 
 /**
@@ -299,6 +301,54 @@ const PARTICIPANT_QUERY = `
     left join public.people rp on rp.id = rec.recorded_by_person_id
    order by inv.invitation_id is null, display_name, coalesce(inv.capacity, rec.capacity)`;
 
+/**
+ * Every recruit on the board this season, for a recruitment event's sheet
+ * only — Brian, 2026-09-01, on the running fidelity mockup (LAN-200):
+ * "if a recruit is already in our system and we're at a recruitment event,
+ * all recruits should already be on the page for the event. If they happen
+ * to show up, I'll mark them as present, even if they didn't RSVP." — W12's
+ * own "recruits first" is therefore not an invitation filter the way a
+ * player's row is; a recruit belongs on the sheet by virtue of being an open
+ * or recently-exited prospect for this season, invited to this particular
+ * event or not.
+ *
+ * `joined` is excluded — a converted prospect is a player now, tracked by
+ * their season membership like anybody else, and would otherwise show twice.
+ * `void` is excluded on the schema's own steer (`prospect_status`'s comment:
+ * "whether a void record shows on the board is a display rule … decided by a
+ * later package" — this one): a void row says the record itself is wrong,
+ * never a fact about the person, so it names nobody to put on a sheet.
+ * Every other status stays, `declined` and `disengaged` included — "an exit
+ * status is not a gate on the door: somebody who declined can still turn up,
+ * and the club records that they did."
+ *
+ * Left-joined against this event's own invitations and attendance so
+ * {@link readAttendanceBoard} can tell which recruits `PARTICIPANT_QUERY`
+ * above has already produced a row for (`already_on_sheet`) and skip them —
+ * a recruit invited to or recorded at this event keeps that row, with its
+ * real RSVP and presence, rather than being duplicated by this query's own
+ * always-null pair.
+ */
+const RECRUIT_ROSTER_QUERY = `
+  select rp.person_id,
+         ${displayName("p")} as display_name,
+         (i.id is not null or a.id is not null) as already_on_sheet
+    from public.recruitment_prospects rp
+    join public.people p on p.id = rp.person_id
+    left join public.invitations i
+      on i.event_id = $1 and i.capacity = 'recruit' and i.person_id = rp.person_id
+    left join public.attendance_records a
+      on a.event_id = $1 and a.capacity = 'recruit' and a.person_id = rp.person_id
+   where rp.season_id = $2
+     and rp.status not in ('joined', 'void')
+   order by display_name`;
+
+interface RecruitRosterRow {
+  person_id: string;
+  display_name: string | null;
+  already_on_sheet: boolean;
+}
+
 interface MismatchRow {
   season_membership_id: string | null;
   person_id: string | null;
@@ -470,6 +520,32 @@ export async function readAttendanceBoard(
       } satisfies AttendanceParticipant;
     });
 
+    // W12, D11 — every recruit on the board joins a recruitment event's sheet,
+    // invited to this event or not. Only the ones `PARTICIPANT_QUERY` has not
+    // already produced a row for; a recruit that query already found (an
+    // invitation, an attendance record, or both) keeps that real row rather
+    // than gaining a second, always-blank one.
+    if (event.eventType === "recruitment") {
+      const onBoard = await tx.query<RecruitRosterRow>(RECRUIT_ROSTER_QUERY, [
+        eventId,
+        event.seasonId,
+      ]);
+      for (const row of onBoard.rows) {
+        if (row.already_on_sheet) continue;
+        participants.push({
+          key: participantKey("recruit", null, row.person_id),
+          displayName: row.display_name ?? "Unnamed participant",
+          capacity: "recruit",
+          rsvp: null,
+          isWalkUp: false,
+          presence: null,
+          recordedAt: null,
+          recordedByName: null,
+          mismatch: null,
+        });
+      }
+    }
+
     const summary = summariseAttendance(participants);
 
     return {
@@ -619,7 +695,7 @@ export async function recordAttendance(
 
   return withTransaction(async (tx) => {
     const event = await requireOpenRegister(tx, eventId, now);
-    const target = await resolveParticipant(tx, eventId, participantKeyValue);
+    const target = await resolveParticipant(tx, event, participantKeyValue);
 
     return writeAttendance(tx, {
       actorPersonId,
@@ -634,13 +710,10 @@ export async function recordAttendance(
 export const WALK_UP_GIVEN_NAME_REQUIRED = "Enter a first name.";
 
 export const WALK_UP_FAMILY_NAME_REQUIRED =
-  "Enter a last name. A walk-on has to be findable afterwards.";
+  "Enter a last name. A walk-up has to be findable afterwards.";
 
 export const WALK_UP_PHONE_REQUIRED =
   "Enter a phone number. It is how the club follows this person up.";
-
-export const WALK_UP_PHONE_SHAPE =
-  "This does not look like a phone number. Enter it as it was given.";
 
 export const WALK_UP_EMAIL_SHAPE =
   "This does not look like an email address. Enter it as it was given, including the @, " +
@@ -698,7 +771,22 @@ export const WALK_UP_EMAIL_SHAPE =
  * existing membership at `player` capacity, and Brian removed it — "they know
  * who's on their roster, there are only 40 people". A walk-on is now always a
  * new person; a duplicate is reconciliation's problem, which is what the
- * prospect record exists for.
+ * prospect record exists for. There is deliberately no duplicate check of any
+ * other shape either — LAN-205, packet amendment 1: "the three operator-facing
+ * doors hold three deliberate postures, and the touchline checks nothing."
+ *
+ * ## The door's one send — LAN-205, corrected 2026-09-01
+ *
+ * Consent here is the verbal read-back at the touchline, not a tick a recruit
+ * enters themselves, and it authorises exactly one message: the signed,
+ * prefilled link to the sign-up form (`recruit_welcome`), never the welcome
+ * this function's own name might suggest and never a second template.
+ * {@link authoriseWalkUpMessagingIn}, below, is the whole of that wiring —
+ * granting `walk_up_read_back` consent and declaring the recruitment cycle's
+ * jobs. The phone was already required at this door (above); what changes is
+ * that it is now validated and normalised to E.164 (`requirePhoneE164`)
+ * rather than merely checked for enough digits, so the one send this door
+ * makes cannot fail on a malformed number.
  */
 export async function recordWalkUpAttendance(
   actorPersonId: string,
@@ -716,13 +804,23 @@ export async function recordWalkUpAttendance(
     "family_name",
   );
   const phone = requireWalkUpField(input.phone, WALK_UP_PHONE_REQUIRED, "phone");
-  requirePhoneShape(phone);
+  const phoneE164 = requirePhoneE164(phone);
   const email = input.email === null || input.email.trim() === "" ? null : input.email.trim();
   if (email !== null) requireEmailShape(email);
 
   return withTransaction(async (tx) => {
     const event = await requireOpenRegister(tx, eventId, now);
-    const target = await mintWalkUpProspect(tx, event, { givenName, familyName, phone, email });
+    const target = await mintWalkUpProspect(tx, event, {
+      givenName,
+      familyName,
+      phone,
+      phoneE164,
+      email,
+    });
+    // `mintWalkUpProspect` always anchors a walk-up to a freshly minted
+    // person, never a membership — `target.personId` is `string | null` only
+    // because `ResolvedTarget` is shared with every other capacity.
+    await authoriseWalkUpMessagingIn(tx, event, actorPersonId, target.personId as string);
 
     return writeAttendance(tx, {
       actorPersonId,
@@ -732,6 +830,57 @@ export async function recordWalkUpAttendance(
       action: "attendance.walk_up_recorded",
     });
   });
+}
+
+/**
+ * The door's one send, wired end to end — the amendment to LAN-205, Brian
+ * 2026-09-01: "a package that introduces a message builds the whole path for
+ * it." Two acts, both inside the walk-up's own transaction so the recruit,
+ * their consent and the cycle's jobs are one atomic write:
+ *
+ *   1. **Records the opt-in.** The verbal read-back at the touchline is this
+ *      door's whole consent model — `messaging-consent.ts`'s own module note
+ *      names `walk_up_read_back` as a source that module deliberately never
+ *      writes, "a different package's own write". This is that write: granted,
+ *      dated now, attributed to the operator who took the read-back.
+ *   2. **Declares the cycle's jobs.** `declareRecruitmentCycleJobsIn`
+ *      (LAN-203) turns the now-granted consent into `notification_jobs` rows
+ *      for whichever tracks are still incomplete — never a second template
+ *      registry, never a second send loop, per the amendment's own words. A
+ *      brand new walk-up recruit has just been granted consent via
+ *      `walk_up_read_back`, so `readRecruitmentCycleCompletionIn`'s
+ *      `welcomeStepComplete` reads false for them (LAN-205's own fix to that
+ *      function) and the welcome track is declared — the one template this
+ *      door's read-back authorises. Nothing else is ever declared here: a
+ *      recruit already through the sign-up form is not created by this
+ *      function, and the questionnaire track waits on Questionnaire B, which
+ *      this door does not ask.
+ *
+ * Declaring a job is not sending one — `runMessagingSweep`'s own scheduled
+ * sweep claims and dispatches it later, same as every other message in the
+ * product. Nothing here calls a provider, so a walk-up capture never blocks on
+ * a network round trip, and a recruit whose number cannot be delivered to is
+ * still fully captured — the job simply fails at dispatch time, terminally,
+ * exactly as `dispatchRecruitmentCycleJob` already handles for every other
+ * unreachable recipient.
+ */
+async function authoriseWalkUpMessagingIn(
+  tx: Tx,
+  event: EventDetail,
+  actorPersonId: string,
+  personId: string,
+): Promise<void> {
+  await tx.query(
+    `insert into public.season_messaging_consents
+       (person_id, season_id, state, source, changed_at, recorded_by_person_id)
+     values ($1::uuid, $2::uuid, 'granted', 'walk_up_read_back', now(), $3::uuid)
+     on conflict (person_id, season_id) do update
+       set state = 'granted', source = excluded.source, changed_at = now(),
+           recorded_by_person_id = excluded.recorded_by_person_id`,
+    [personId, event.seasonId, actorPersonId],
+  );
+
+  await declareRecruitmentCycleJobsIn(tx, personId, event.seasonId);
 }
 
 /**
@@ -754,7 +903,7 @@ export async function removeAttendance(
 
   return withTransaction(async (tx) => {
     const event = await requireOpenRegister(tx, eventId, now);
-    const target = await resolveParticipant(tx, eventId, participantKeyValue);
+    const target = await resolveParticipant(tx, event, participantKeyValue);
 
     const removed = await tx.query<{ id: string; presence: string }>(
       // `is not distinct from` on both anchors rather than `=`: exactly one of
@@ -957,7 +1106,19 @@ async function requireOpenRegister(
  * write an attendance record for a person who was never at the event, and the
  * capacity would be whatever the browser said it was.
  */
-async function resolveParticipant(tx: Tx, eventId: string, key: string): Promise<ResolvedTarget> {
+/**
+ * Turns a posted key into an anchor.
+ *
+ * `event` is passed (rather than just `eventId`) so a recruitment event's
+ * fallback below can read `seasonId` and `eventType` without a second round
+ * trip — both callers already hold it, from the same `requireOpenRegister`
+ * this module's header describes.
+ */
+async function resolveParticipant(
+  tx: Tx,
+  event: EventDetail,
+  key: string,
+): Promise<ResolvedTarget> {
   const separator = key.indexOf(":");
   const capacity = separator === -1 ? "" : key.slice(0, separator);
   const anchorId = separator === -1 ? "" : key.slice(separator + 1);
@@ -982,19 +1143,41 @@ async function resolveParticipant(tx: Tx, eventId: string, key: string): Promise
       where capacity::text = $2
         and coalesce(season_membership_id, person_id)::text = $3
       limit 1`,
-    [eventId, capacity, anchorId],
+    [event.id, capacity, anchorId],
   );
 
   const row = result.rows[0];
-  if (!row) {
-    throw new NotFound(PARTICIPANT_NOT_FOUND_MESSAGE, { rule: "attendance_participant_unknown" });
+  if (row) {
+    return {
+      capacity: row.capacity,
+      membershipId: row.season_membership_id,
+      personId: row.person_id,
+    };
   }
 
-  return {
-    capacity: row.capacity,
-    membershipId: row.season_membership_id,
-    personId: row.person_id,
-  };
+  // W12, D11's own fallback: a recruit shown on a recruitment event's sheet
+  // because they are on the board this season, never because this event
+  // invited or recorded them, has neither row above to be found by — the
+  // exact gap `readAttendanceBoard`'s `RECRUIT_ROSTER_QUERY` fills for
+  // reading. Recording their first attendance is the same gap on the write
+  // side, so it asks the same table the board read from, narrowed to a
+  // recruit this event could actually have shown: on the board, this season,
+  // not `joined` or `void`. Anybody else — a key naming no such prospect —
+  // still falls through to the refusal below.
+  if (capacity === "recruit" && event.eventType === "recruitment") {
+    const prospect = await tx.query<{ person_id: string }>(
+      `select person_id from public.recruitment_prospects
+        where season_id = $1::uuid and person_id = $2::uuid
+          and status not in ('joined', 'void')
+        limit 1`,
+      [event.seasonId, anchorId],
+    );
+    if (prospect.rows[0]) {
+      return { capacity: "recruit", membershipId: null, personId: prospect.rows[0].person_id };
+    }
+  }
+
+  throw new NotFound(PARTICIPANT_NOT_FOUND_MESSAGE, { rule: "attendance_participant_unknown" });
 }
 
 /**
@@ -1013,7 +1196,13 @@ async function resolveParticipant(tx: Tx, eventId: string, key: string): Promise
 async function mintWalkUpProspect(
   tx: Tx,
   event: EventDetail,
-  input: { givenName: string; familyName: string; phone: string; email: string | null },
+  input: {
+    givenName: string;
+    familyName: string;
+    phone: string;
+    phoneE164: string;
+    email: string | null;
+  },
 ): Promise<ResolvedTarget> {
   const person = await tx.query<{ id: string }>(
     `insert into public.people (given_name, family_name) values ($1, $2) returning id`,
@@ -1022,13 +1211,16 @@ async function mintWalkUpProspect(
   const personId = person.rows[0].id;
 
   // The phone is preferred because it is the one the club insisted on and the
-  // one somebody will actually use. `normalised_value` stays null for the same
-  // reason it does at intake: normalisation is a separate, reversible step, and
-  // a phone-format policy does not belong beside a pitch.
+  // one somebody will actually use. `raw_value` is exactly as typed, per that
+  // column's own comment; `normalised_value` is the same number's E.164
+  // digits, already validated by `requirePhoneE164` — Brian, 2026-09-01:
+  // mobile is mandatory at this door precisely so `selectMobileNumber`
+  // (`src/lib/delivery/phone.ts`) never has to guess at send time.
   await tx.query(
-    `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
-     values ($1::uuid, 'phone', $2, true, 'walk-on attendance')`,
-    [personId, input.phone],
+    `insert into public.contact_points
+       (person_id, kind, raw_value, normalised_value, is_preferred, source)
+     values ($1::uuid, 'phone', $2, $3, true, 'walk-on attendance')`,
+    [personId, input.phone, input.phoneE164],
   );
 
   if (input.email !== null) {
@@ -1069,10 +1261,30 @@ function requireWalkUpField(value: string, message: string, rule: string): strin
  * catch a slip at the keyboard — an address with no `@`, a number with no
  * digits — and let everything else through exactly as typed.
  */
-function requirePhoneShape(value: string): void {
-  if (value.replace(/\D/g, "").length < 7) {
-    throw new ConstraintViolated(WALK_UP_PHONE_SHAPE, { rule: "walk_up_phone_shape" });
+/**
+ * Validates and normalises the walk-up's mobile number — Brian, 2026-09-01.
+ *
+ * A stricter gate than the returner intake's own `requirePhoneShape` used to
+ * be (a bare "at least seven digits" check, which "07700 90010" — one digit
+ * short of a real UK number — survived). Mobile is mandatory at this door and
+ * the number this door captures is the one address the walk-up's whole cycle
+ * sends to, so the same shared validator LAN-202's sign-up form uses
+ * (`person-validation.ts`'s `validatePhoneNumber`, LAN-183) is reused here
+ * rather than re-derived, on the same reasoning that module's own note gives:
+ * a wrong guess sends a working link to a stranger, and this door's one send
+ * is exactly that link.
+ *
+ * Returns the E.164 digits (no `+`), stored as the phone contact point's
+ * `normalised_value` so `selectMobileNumber` (`src/lib/delivery/phone.ts`)
+ * never has to guess at send time — the raw text stays exactly as typed in
+ * `raw_value`, unvalidated, per that column's own comment.
+ */
+function requirePhoneE164(value: string): string {
+  const validation = validatePhoneNumber(value);
+  if (!validation.valid || !validation.e164) {
+    throw new ConstraintViolated(validation.message, { rule: `walk_up_${validation.rule}` });
   }
+  return validation.e164;
 }
 
 function requireEmailShape(value: string): void {
