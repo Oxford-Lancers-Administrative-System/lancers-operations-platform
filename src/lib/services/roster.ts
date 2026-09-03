@@ -3,6 +3,7 @@ import "server-only";
 import { Conflict, ConstraintViolated, NotFound, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
 import { generateOnboardingItems } from "./membership";
+import { emitOnboardingOpenedWelcomeIn } from "./onboarding-welcome";
 import { personDisplayAliasSql } from "./sql-text";
 
 /**
@@ -69,6 +70,15 @@ export interface ReturnerIntakeInput {
   email?: string | null;
   /** Stored verbatim if supplied. Never normalised to E.164 — out of scope. */
   phone?: string | null;
+  /**
+   * LAN-215, `roster-import.ts`'s own addition to this shared write: the two
+   * optional columns the CSV import carries beyond what UX-10's form ever
+   * asked for. Written **only** for a person this call mints — see
+   * `insertPerson`. UX-10 never supplies either, so this changes nothing
+   * about the shipped returner-intake path.
+   */
+  college?: string | null;
+  matriculationYear?: number | null;
 }
 
 /** Why a candidate surfaced. Shown to the operator so the choice is informed. */
@@ -124,6 +134,14 @@ export interface ReturnerIntakeResult {
   /** The contact points this submission wrote, in the order written. */
   contactsRecorded: RecordedContact[];
   confirmedOn: string;
+  /**
+   * LAN-215, W2's own addition: the welcome queued in the same transaction as
+   * the membership. `false` only for the "already queued" idempotent replay
+   * this function's own transaction never actually produces (a membership is
+   * always freshly created here) — carried as a result field rather than
+   * assumed, so a caller reads what happened instead of re-deriving it.
+   */
+  welcomeQueued: boolean;
 }
 
 export interface RecordedContact {
@@ -166,6 +184,8 @@ interface NormalisedInput {
   knownAs: string | null;
   email: { raw: string; compare: string } | null;
   phone: { raw: string; compare: string } | null;
+  college: string | null;
+  matriculationYear: number | null;
 }
 
 function normaliseInput(input: ReturnerIntakeInput): NormalisedInput {
@@ -188,6 +208,8 @@ function normaliseInput(input: ReturnerIntakeInput): NormalisedInput {
     knownAs: trimmedOrNull(input.knownAs),
     email: email === null ? null : { raw: email, compare: email.trim() },
     phone: phone === null ? null : { raw: phone, compare: phone.trim() },
+    college: trimmedOrNull(input.college ?? null),
+    matriculationYear: input.matriculationYear ?? null,
   };
 }
 
@@ -517,6 +539,20 @@ export async function enterReturningPlayer(params: {
     // configured types is a no-op rather than a failure.
     await generateOnboardingItems(tx, membershipId, season.id);
 
+    // LAN-215, `REQ-one-welcome`: the welcome queued in the same transaction
+    // as the membership and the checklist — W2's own addition, and the one
+    // thing that used to distinguish "the surface exists" from "the surface
+    // opens onto onboarding". A person who has explicitly refused or
+    // withdrawn messaging consent throws here (`InvalidTransition`), and the
+    // whole transaction rolls back with them — "a person on the roster who
+    // was never told" is the failure this exists to prevent, matching W2's
+    // own exceptions table.
+    const welcome = await emitOnboardingOpenedWelcomeIn(tx, {
+      membershipId,
+      personId,
+      seasonId: season.id,
+    });
+
     if (personCreated) {
       await recordAudit(tx, {
         actorPersonId,
@@ -563,6 +599,7 @@ export async function enterReturningPlayer(params: {
       aliasCreated,
       contactsRecorded,
       confirmedOn,
+      welcomeQueued: welcome.queued,
     };
   });
 }
@@ -630,10 +667,10 @@ async function refuseExistingMembership(
 
 async function insertPerson(tx: Tx, input: NormalisedInput): Promise<string> {
   const result = await tx.query<{ id: string }>(
-    `insert into public.people (given_name, family_name)
-     values ($1, $2)
+    `insert into public.people (given_name, family_name, college, matriculation_year)
+     values ($1, $2, $3, $4)
      returning id`,
-    [input.givenName, input.familyName],
+    [input.givenName, input.familyName, input.college, input.matriculationYear],
   );
   return result.rows[0].id;
 }

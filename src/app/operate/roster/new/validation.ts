@@ -46,6 +46,19 @@ export const EMPTY_VALUES: IntakeFormValues = {
 // not the operator's, and conflating them is how a rename reaches the schema.
 export const GIVEN_NAME_REQUIRED = "Enter a first name. It is the one name the club always has.";
 
+/**
+ * LAN-215, W2's locked decision: "Last name and mobile become required,
+ * joining first name" — the approved item-and-ask inventory and
+ * `person-required.ts`'s own recruit tier, which already requires all three
+ * at every rung. The form was behind the required set it feeds; today only
+ * first name was enforced.
+ */
+export const FAMILY_NAME_REQUIRED =
+  "Enter a last name. It is required for every player, at every stage.";
+
+export const MOBILE_REQUIRED =
+  "Enter a mobile number. The welcome link is sent to it, and it is required for every player.";
+
 export const EMAIL_SHAPE =
   "This does not look like an email address. Enter it as it was given, including the @, " +
   "or leave it blank.";
@@ -87,8 +100,13 @@ export function validateIntake(values: IntakeFormValues): IntakeFieldErrors {
   const errors: IntakeFieldErrors = {};
 
   if (values.givenName.trim() === "") errors.givenName = GIVEN_NAME_REQUIRED;
+  if (values.familyName.trim() === "") errors.familyName = FAMILY_NAME_REQUIRED;
+  if (values.phone.trim() === "") {
+    errors.phone = MOBILE_REQUIRED;
+  } else if (!looksLikePhone(values.phone)) {
+    errors.phone = PHONE_SHAPE;
+  }
   if (values.email.trim() !== "" && !looksLikeEmail(values.email)) errors.email = EMAIL_SHAPE;
-  if (values.phone.trim() !== "" && !looksLikePhone(values.phone)) errors.phone = PHONE_SHAPE;
 
   return errors;
 }

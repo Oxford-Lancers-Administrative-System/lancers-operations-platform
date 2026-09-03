@@ -26,6 +26,7 @@ import { runMessagingSweep } from "./messaging-scheduler";
 import {
   addRecruitmentProspectNoteIn,
   flipRecruitmentProspectToJoinedIn,
+  RECRUIT_LINK_SUPERSEDED_BY_FLIP_REASON,
   readRecruitmentProspectIn,
   sendRecruitmentQuestionnaireIn,
   updateRecruitmentProspectStatusIn,
@@ -148,6 +149,16 @@ afterEach(async () => {
   );
   await observer.query(
     `delete from public.onboarding_items
+      where season_membership_id in (select id from public.season_memberships where person_id in ${people})`,
+    [MARKER],
+  );
+  // LAN-215: the flip now also queues the welcome, which
+  // `emitOnboardingOpenedWelcomeIn` logs as the membership's first
+  // `onboarding_activity_log` entry — `onboarding_activity_log_membership_season`
+  // refuses to let the membership go while it exists, on the identical reason
+  // `onboarding_items` is deleted first above.
+  await observer.query(
+    `delete from public.onboarding_activity_log
       where season_membership_id in (select id from public.season_memberships where person_id in ${people})`,
     [MARKER],
   );
@@ -499,6 +510,99 @@ describe("flipRecruitmentProspectToJoinedIn — W14", () => {
       flipRecruitmentProspectToJoinedIn(tx, actorPersonId, prospectId),
     );
     expect(result.membershipId).toBeTruthy();
+  });
+
+  // LAN-215, `WP-arrival-doors`. The far side of the flip: the welcome fires,
+  // the recruit's open link is superseded and audited, and consent is
+  // touched by nothing — all four inside this one transaction test.
+  describe("LAN-215 — the welcome, the superseded ask, and consent left alone", () => {
+    it("fires onboarding-opened: the same welcome emitter W1 and W2 queue, keyed to this membership", async () => {
+      const { personId, prospectId } = await newProspect("committed");
+      await grantConsentViaWalkUp(personId);
+
+      const result = await withTransaction((tx) =>
+        flipRecruitmentProspectToJoinedIn(tx, actorPersonId, prospectId),
+      );
+
+      const job = await observer.query<{ status: string; person_id: string }>(
+        `select status::text as status, person_id from public.notification_jobs
+          where idempotency_key = $1`,
+        [`onboarding-welcome:${result.membershipId}`],
+      );
+      expect(job.rows).toHaveLength(1);
+      expect(job.rows[0].status).toBe("pending");
+      expect(job.rows[0].person_id).toBe(personId);
+    });
+
+    it("supersedes the recruit's open link, and audits it, inside the flip's own transaction", async () => {
+      const { personId, prospectId } = await newProspect("committed");
+      await grantConsentViaWalkUp(personId);
+
+      const openLink = await observer.query<{ id: string }>(
+        `insert into public.person_access_tokens (person_id, season_id, token_hash, single_use)
+         values ($1::uuid, $2::uuid, $3, false)
+         returning id`,
+        [personId, seasonId, crypto.randomUUID().replaceAll("-", "").padEnd(64, "0")],
+      );
+
+      await withTransaction((tx) =>
+        flipRecruitmentProspectToJoinedIn(tx, actorPersonId, prospectId),
+      );
+
+      const token = await observer.query<{
+        revoked_at: Date | null;
+        revoked_reason: string | null;
+      }>("select revoked_at, revoked_reason from public.person_access_tokens where id = $1::uuid", [
+        openLink.rows[0].id,
+      ]);
+      expect(token.rows[0].revoked_at).not.toBeNull();
+      expect(token.rows[0].revoked_reason).toBe(RECRUIT_LINK_SUPERSEDED_BY_FLIP_REASON);
+
+      const audit = await observer.query<{ n: string }>(
+        `select count(*)::text as n from public.audit_events
+          where entity_id = $1::uuid and action = 'recruitment_prospect.ask_superseded'
+            and context ->> 'supersededCount' = '1'`,
+        [prospectId],
+      );
+      expect(audit.rows[0].n).toBe("1");
+    });
+
+    it("audits the supersession as zero when the recruit held no open link at all", async () => {
+      // "Nothing to supersede" is a legitimate outcome, recorded as one
+      // rather than skipped — see `recruitment-prospect.ts`'s own doc comment.
+      const { prospectId } = await newProspect("committed");
+      await withTransaction((tx) =>
+        flipRecruitmentProspectToJoinedIn(tx, actorPersonId, prospectId),
+      );
+      const audit = await observer.query<{ n: string }>(
+        `select count(*)::text as n from public.audit_events
+          where entity_id = $1::uuid and action = 'recruitment_prospect.ask_superseded'
+            and context ->> 'supersededCount' = '0'`,
+        [prospectId],
+      );
+      expect(audit.rows[0].n).toBe("1");
+    });
+
+    it("copies and re-asks no consent — the door's own grant is the same row, untouched by the flip", async () => {
+      const { personId, prospectId } = await newProspect("committed");
+      await grantConsentViaWalkUp(personId);
+
+      const before = await observer.query<{ id: string; source: string; changed_at: Date }>(
+        "select id, source::text as source, changed_at from public.season_messaging_consents where person_id = $1::uuid and season_id = $2::uuid",
+        [personId, seasonId],
+      );
+
+      await withTransaction((tx) =>
+        flipRecruitmentProspectToJoinedIn(tx, actorPersonId, prospectId),
+      );
+
+      const after = await observer.query<{ id: string; source: string; changed_at: Date }>(
+        "select id, source::text as source, changed_at from public.season_messaging_consents where person_id = $1::uuid and season_id = $2::uuid",
+        [personId, seasonId],
+      );
+      expect(after.rows).toHaveLength(1);
+      expect(after.rows[0]).toEqual(before.rows[0]);
+    });
   });
 });
 

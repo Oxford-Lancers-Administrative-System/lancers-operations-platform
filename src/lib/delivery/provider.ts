@@ -72,7 +72,16 @@ export type MessageKind =
   | "recruit_details_reminder"
   | "recruit_interest_ask"
   /** Off by default (`recruitment_cycle_steps`); submitted to Meta anyway per LAN-199. */
-  | "recruit_interest_reminder";
+  | "recruit_interest_reminder"
+  /**
+   * LAN-215, `REQ-one-welcome`. The one message every arrival — imported,
+   * added by hand, or flipped from the recruit board — receives, whichever
+   * door it came through. One template, door-independent, and the only
+   * message the club may send before a messaging basis exists: its purpose
+   * is to obtain one. Declared in `onboarding-welcome.ts` (LAN-214) and
+   * dispatched here on Mission 4's pipeline, exactly as `recruit_welcome` is.
+   */
+  | "onboarding_welcome";
 
 /**
  * One message, reduced to what any channel would need to send it.

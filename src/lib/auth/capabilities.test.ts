@@ -624,6 +624,7 @@ describe("row 8 — the map is the single source of truth, and is not editable a
         "membership_activation",
         "person_record_authority",
         "role_management",
+        "roster_bulk_import",
       ].sort(),
     );
   });

@@ -1,5 +1,6 @@
 /**
- * The intake form's shape checks. LAN-74, matrix row 10.
+ * The intake form's shape checks. LAN-74, matrix row 10; LAN-215 (`W2`)
+ * amended the required set.
  *
  * The interesting assertions here are the ones that prove these checks are
  * *permissive*. A validator that rejects a reversed top-level domain or a phone
@@ -9,14 +10,19 @@
  * refuses to store is a contact the club loses.
  *
  * So each check has a test for what it catches and a test for what it must let
- * through, and the second is the one that matters.
+ * through, and the second is the one that matters — except first name, last
+ * name and mobile, which `W2`'s locked decision makes required at every tier
+ * (`person-required.ts`'s recruit tier), joining first name as the form's own
+ * required set.
  */
 import { describe, expect, it } from "vitest";
 
 import {
   EMAIL_SHAPE,
   EMPTY_VALUES,
+  FAMILY_NAME_REQUIRED,
   GIVEN_NAME_REQUIRED,
+  MOBILE_REQUIRED,
   PHONE_SHAPE,
   firstInvalidField,
   readIntakeValues,
@@ -24,8 +30,15 @@ import {
   type IntakeFormValues,
 } from "./validation";
 
+/** Every required field filled with a valid value, so a test can override just the one it is about. */
 function values(overrides: Partial<IntakeFormValues> = {}): IntakeFormValues {
-  return { ...EMPTY_VALUES, givenName: "Avery", ...overrides };
+  return {
+    ...EMPTY_VALUES,
+    givenName: "Avery",
+    familyName: "Fielding",
+    phone: "07700 900101",
+    ...overrides,
+  };
 }
 
 describe("the first name", () => {
@@ -40,10 +53,24 @@ describe("the first name", () => {
       givenName: GIVEN_NAME_REQUIRED,
     });
   });
+});
 
-  it("is the only required field", () => {
-    // 26% of the club's records are first-name-only. A required surname would
-    // reject a quarter of the real squad at the door.
+describe("the last name", () => {
+  it("is required — LAN-215, W2's locked decision", () => {
+    expect(validateIntake(values({ familyName: "" }))).toEqual({
+      familyName: FAMILY_NAME_REQUIRED,
+    });
+  });
+
+  it("is not satisfied by whitespace", () => {
+    expect(validateIntake(values({ familyName: "   " }))).toEqual({
+      familyName: FAMILY_NAME_REQUIRED,
+    });
+  });
+});
+
+describe("first name, last name and mobile, filled in", () => {
+  it("is enough — nothing else the form asks for is required", () => {
     expect(validateIntake(values())).toEqual({});
   });
 });
@@ -79,8 +106,8 @@ describe("the email", () => {
 });
 
 describe("the phone", () => {
-  it("is optional", () => {
-    expect(validateIntake(values({ phone: "" }))).toEqual({});
+  it("is required — LAN-215, W2's locked decision", () => {
+    expect(validateIntake(values({ phone: "" }))).toEqual({ phone: MOBILE_REQUIRED });
   });
 
   it("catches something with no digits in it", () => {

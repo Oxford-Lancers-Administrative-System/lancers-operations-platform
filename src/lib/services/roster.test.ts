@@ -159,6 +159,19 @@ async function cleanUp(): Promise<void> {
         where p.given_name like $1 or (m.person_id = $2::uuid and m.season_id = $3::uuid))`,
     [`%${MARKER}%`, withoutMembership.id, openSeasonId],
   );
+  // LAN-215: confirmation now also queues the welcome, which
+  // `emitOnboardingOpenedWelcomeIn` logs as the membership's first
+  // `onboarding_activity_log` entry — `onboarding_activity_log_membership_season`
+  // refuses to let the membership go while it exists, on the identical reason
+  // `onboarding_items` is deleted first above.
+  await observer.query(
+    `delete from public.onboarding_activity_log
+      where season_membership_id in (
+        select m.id from public.season_memberships m
+        left join public.people p on p.id = m.person_id
+        where p.given_name like $1 or (m.person_id = $2::uuid and m.season_id = $3::uuid))`,
+    [`%${MARKER}%`, withoutMembership.id, openSeasonId],
+  );
   await observer.query(
     `delete from public.season_memberships
       where person_id in (select id from public.people where given_name like $1)
@@ -186,6 +199,18 @@ async function cleanUp(): Promise<void> {
         and (person_id in (select id from public.people where given_name like $1)
              or person_id = $2::uuid)`,
     [`%${MARKER}%`, withoutMembership.id],
+  );
+  // LAN-215: confirmation now also queues the welcome, which is a
+  // `notification_jobs` row keyed on `person_id` — `person_id references
+  // public.people (id) on delete restrict` refuses the final delete below
+  // while it exists. `withoutMembership` keeps its own seeded jobs, so this
+  // is scoped to this suite's own people only, exactly as every other step
+  // above is.
+  await observer.query(
+    `delete from public.notification_jobs
+      where idempotency_key like 'onboarding-welcome:%'
+        and person_id in (select id from public.people where given_name like $1)`,
+    [`%${MARKER}%`],
   );
   await observer.query("delete from public.people where given_name like $1", [`%${MARKER}%`]);
 }

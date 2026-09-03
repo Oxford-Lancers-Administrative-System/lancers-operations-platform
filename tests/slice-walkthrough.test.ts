@@ -598,6 +598,12 @@ async function cleanUp(): Promise<void> {
 
   // Identity and membership.
   await purge("public.onboarding_items", "season_membership_id", membershipIds);
+  // LAN-215: `enterReturningPlayer` now also queues the welcome, which
+  // `emitOnboardingOpenedWelcomeIn` logs as the membership's first
+  // `onboarding_activity_log` entry — `onboarding_activity_log_membership_season`
+  // refuses to let the membership go while it exists, on the identical reason
+  // `onboarding_items` is purged first above.
+  await purge("public.onboarding_activity_log", "season_membership_id", membershipIds);
   await purge("public.season_membership_status_events", "season_membership_id", membershipIds);
   await purge("public.season_memberships", "id", membershipIds);
   await purge("public.recruitment_prospects", "person_id", personIds);
