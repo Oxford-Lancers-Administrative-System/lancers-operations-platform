@@ -49,6 +49,21 @@ const uuid = makeUuidFactory(random);
 // this replaced.
 const RECRUIT_SEED = 20260902;
 const recruitRandom = makeRandom(RECRUIT_SEED);
+// LAN-214, correction round 1 (F-001/L-001 injection run): the same failure
+// `recruitId`'s own comment describes, reproduced and confirmed live —
+// drawing the four newly-approved checklist items' ids from the shared
+// `uuid()`/`random` stream shifted every later random draw (jerseys,
+// positions, …) by four extra `uuid()` calls per season, and
+// `player-record.test.ts`'s "not another season's" jersey-holder assertion
+// and `roster-board.test.ts`'s jersey-17 fixture broke exactly as that
+// comment predicts. A third independent seeded stream, never
+// `random`/`uuid` or `recruitRandom`. The **original seven** item types
+// below still draw from the shared stream, unchanged and at their original
+// position, so nothing downstream of *them* moves either — only the four
+// new ones are isolated here.
+const ONBOARDING_ITEM_TYPE_SEED = 20260903;
+const onboardingItemTypeRandom = makeRandom(ONBOARDING_ITEM_TYPE_SEED);
+const onboardingItemTypeId = makeUuidFactory(onboardingItemTypeRandom);
 
 /**
  * The frame this run seeds in — see `./lib/seed-clock.mjs` for the whole rule.
@@ -1077,31 +1092,72 @@ assignRole("defence_coach", defenceCoach, seasonCurrent, "2026-09-01");
 
 // --- Memberships -----------------------------------------------------------
 
+// LAN-214, correction round 1 (L-001): the approved item-and-ask inventory
+// (`missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/item-and-ask-inventory.md`)
+// names eleven checklist items; the shipped seed carried only seven. This is
+// this mission's only migration/seed owner, so nobody downstream can add the
+// missing four — this is transcription of the frozen inventory, not new
+// product content. Item 5 (BPS) is deliberately absent: it left the checklist
+// for the roster (`bps_selections`, this same migration) on Brian's own
+// 2026-09-01 direction.
+//
+// `verification_class` is `'trust'` only for BUCS Play and Hudl — "BUCS Play
+// and Hudl answers record claimed, not complete" (W4's locked decision) — and
+// `'direct'` for everything else, including the three derived items and the
+// two read-then-confirm/sign player items, none of which pause in `claimed`
+// awaiting a named human's confirmation.
 const ONBOARDING_TYPES = [
-  ["subs_invoiced", "Subscription invoiced", true, false],
-  ["subs_paid", "Subscription paid", false, true],
-  ["kit_sorted", "Kit sorted", true, false],
-  ["bucs_play", "BUCS Play registration", true, false],
-  ["hudl_access", "Hudl access", false, false],
-  ["photo", "Squad photo", false, false],
-  ["comms_groups", "Comms groups joined", true, false],
+  ["subs_invoiced", "Subscription invoiced", true, false, "direct"],
+  ["subs_paid", "Subscription paid", false, true, "direct"],
+  ["kit_sorted", "Kit sorted", true, false, "direct"],
+  ["bucs_play", "BUCS Play registration", true, false, "trust"],
+  ["hudl_access", "Hudl access", false, false, "trust"],
+  ["photo", "Squad photo", false, false, "direct"],
+  ["comms_groups", "Comms groups joined", true, false, "direct"],
+  // Item 9 — derived; completes when every required field on the person's
+  // record is present. "This item is the form, and its missing pieces are
+  // the queue" (the inventory's own words).
+  ["contact_academic_details", "Contact & academic details", true, false, "direct"],
+  // Item 10 — player; reads the Code of Conduct on its own page, then
+  // confirms having read and understood it. Dated, stored as theirs.
+  ["code_of_conduct", "Code of Conduct", true, false, "direct"],
+  // Item 11 — player; reads the release on its own page and signs it.
+  // Seasonal — asked of everyone every season.
+  ["photo_release", "Photo release", true, false, "direct"],
+  // Item 12 — derived; two things (has the welcome gone out, and have they
+  // approved) — approval is what completes it.
+  ["season_welcome_consent", "Season welcome & consent", true, false, "direct"],
 ];
+
+// LAN-214, correction round 1 (L-001). Only these four draw from
+// `onboardingItemTypeId` — see that constant's own comment — so the
+// original seven keep drawing from the shared `uuid()` stream, at their
+// original position, unchanged.
+const ONBOARDING_ITEM_TYPE_CODES_ADDED_LAN214 = new Set([
+  "contact_academic_details",
+  "code_of_conduct",
+  "photo_release",
+  "season_welcome_consent",
+]);
 
 const itemTypesBySeason = {};
 for (const season of [seasonPrevious, seasonCurrent]) {
-  itemTypesBySeason[season.id] = ONBOARDING_TYPES.map(([code, label, required, isSubs], order) => {
-    const type = {
-      id: uuid(),
-      season_id: season.id,
-      code,
-      label,
-      is_required: required,
-      is_subscription: isSubs,
-      sort_order: order,
-    };
-    add("onboarding_item_types", type);
-    return type;
-  });
+  itemTypesBySeason[season.id] = ONBOARDING_TYPES.map(
+    ([code, label, required, isSubs, verificationClass], order) => {
+      const type = {
+        id: ONBOARDING_ITEM_TYPE_CODES_ADDED_LAN214.has(code) ? onboardingItemTypeId() : uuid(),
+        season_id: season.id,
+        code,
+        label,
+        is_required: required,
+        is_subscription: isSubs,
+        sort_order: order,
+        verification_class: verificationClass,
+      };
+      add("onboarding_item_types", type);
+      return type;
+    },
+  );
 }
 
 /** Records a membership status transition into the typed lifecycle history. */
@@ -4735,7 +4791,16 @@ const WRITE_PLAN = [
   ],
   [
     "public.onboarding_item_types",
-    ["id", "season_id", "code", "label", "is_required", "is_subscription", "sort_order"],
+    [
+      "id",
+      "season_id",
+      "code",
+      "label",
+      "is_required",
+      "is_subscription",
+      "sort_order",
+      "verification_class",
+    ],
     "onboarding_item_types",
   ],
   [

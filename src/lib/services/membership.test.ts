@@ -336,7 +336,42 @@ afterAll(async () => {
 // Row 1 and 2 — generation, and generating twice
 // ---------------------------------------------------------------------------
 
+/**
+ * Correction round 1, L-001 (regression). The approved item-and-ask
+ * inventory (`missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/item-and-ask-inventory.md`)
+ * names exactly these eleven checklist items — item 5, BPS, deliberately left
+ * the checklist for the roster (`bps_selections`) and is not one of them.
+ * Hardcoded rather than read back from `seasonTypes` (which is itself read
+ * from the seed): the whole point is to catch the seed silently reverting to
+ * the shipped seven, which a comparison against the same seed's own read
+ * could not.
+ */
+const APPROVED_CHECKLIST_CODES = [
+  "subs_invoiced",
+  "subs_paid",
+  "kit_sorted",
+  "bucs_play",
+  "hudl_access",
+  "photo",
+  "comms_groups",
+  "contact_academic_details",
+  "code_of_conduct",
+  "photo_release",
+  "season_welcome_consent",
+];
+
 describe("generateOnboardingItems", () => {
+  it("generates the full eleven-item approved checklist for a new season membership", async () => {
+    const membershipId = await givenMembership("onboarding", { generateItems: false });
+
+    await withTransaction((tx) => generateOnboardingItems(tx, membershipId, openSeasonId));
+
+    const membership = await readMembership(membershipId);
+    expect(membership.onboardingItems.map((item) => item.code).sort()).toEqual(
+      [...APPROVED_CHECKLIST_CODES].sort(),
+    );
+  });
+
   it("creates exactly the season's configured types, all pending", async () => {
     const membershipId = await givenMembership("onboarding", { generateItems: false });
 
@@ -793,6 +828,45 @@ describe("resolveOnboardingItem", () => {
     expect(updated.status).toBe("waived");
     expect(updated.waivedReason).toBe("Hardship waiver agreed by the committee");
     expect(updated.waivedByName).not.toBeNull();
+  });
+
+  /**
+   * Correction round 1, F-001 (regression). Re-waiving an already-waived item
+   * with a corrected reason is a real correction, not a no-op — the comment
+   * on the already-in-that-state guard says so in terms: "an operator who
+   * typo'd one has to be able to fix it without routing through another
+   * status." Before the fix this threw `onboarding_item_history_is_a_real_change`
+   * (23514) from inside the transaction, because the unconditional history
+   * write ran with `fromStatus === toStatus === 'waived'`.
+   */
+  it("re-waives an already-waived item with a corrected reason, saving it with no error and no spurious history row", async () => {
+    const membershipId = await givenMembership("onboarding");
+    const item = await firstItem(membershipId);
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: item.id,
+      status: "waived",
+      reason: "Reason A",
+    });
+
+    const membership = await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: item.id,
+      status: "waived",
+      reason: "Reason B",
+    });
+
+    const updated = membership.onboardingItems.find((each) => each.id === item.id)!;
+    expect(updated.status).toBe("waived");
+    expect(updated.waivedReason).toBe("Reason B");
+
+    // Exactly one history row — the real transition into `waived` — and none
+    // for the reason-only correction, which is not a state change.
+    const history = await withTransaction((tx) => readOnboardingItemHistoryIn(tx, item.id));
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({ fromStatus: "pending", toStatus: "waived" });
   });
 
   /**

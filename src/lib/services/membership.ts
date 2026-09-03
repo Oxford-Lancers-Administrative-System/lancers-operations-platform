@@ -931,15 +931,28 @@ export async function resolveOnboardingItem(params: {
       [itemId, toStatus, reason, actorPersonId],
     );
 
-    await writeOnboardingItemHistoryIn(tx, {
-      onboardingItemId: itemId,
-      seasonMembershipId: membershipId,
-      fromStatus: item.status,
-      toStatus,
-      actorKind: "operator",
-      actorPersonId,
-      reason,
-    });
+    // Correction round 1, F-001: a reason-only correction to an already-waived
+    // item reaches here with `item.status === toStatus` (both `waived`) —
+    // `sameReason` above is what let it past the already-in-that-state guard,
+    // precisely so the typo-fix path in that guard's own comment keeps
+    // working. It is not a transition: nothing about the item's *state*
+    // changed, only the reason text. `onboarding_item_history_is_a_real_change`
+    // refuses a row whose `from_status` and `to_status` are equal (and rightly
+    // so — REQ-item-history's history is a state-pair record, not a reason
+    // log), so the history write is skipped for exactly this case. The
+    // `audit_events` row below still records the correction, same as before
+    // this package existed.
+    if (item.status !== toStatus) {
+      await writeOnboardingItemHistoryIn(tx, {
+        onboardingItemId: itemId,
+        seasonMembershipId: membershipId,
+        fromStatus: item.status,
+        toStatus,
+        actorKind: "operator",
+        actorPersonId,
+        reason,
+      });
+    }
 
     await recordAudit(tx, {
       actorPersonId,
