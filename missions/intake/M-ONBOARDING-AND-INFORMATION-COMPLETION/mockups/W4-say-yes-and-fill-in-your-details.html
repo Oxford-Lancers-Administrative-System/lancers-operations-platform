@@ -1,0 +1,1703 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W4 · Say yes and fill in your details</title>
+    <style>
+      /* ------------------------------------------------------------------ *
+       * Token provenance. Everything visual here is taken from the running
+       * application at `main` @ ceff8ef, not invented:
+       *
+       *   src/theme.ts              primary #0b3d91, radius 8, MUI light
+       *                             palette, typography scale
+       *   MUI v9 defaults           Paper (outlined), Button, Chip, Alert,
+       *                             TextField (small), Table (small)
+       *   src/app/operate/layout.tsx        the shell head and sign-out
+       *   src/app/operate/shell-nav.tsx     the grey.900 sidebar, its phone
+       *                                     bottom bar, the signed-in block
+       *   src/app/operate/roster/page.tsx   the list idiom: outlined table
+       *                                     from md up, cards below it
+       *   src/app/operate/list-filters.tsx  the search bar, the phone
+       *                                     "Filters" collapse
+       *
+       * Nothing here is a redesign. Where this drawing and the application
+       * disagree on a visual treatment, the application decides.
+       * ------------------------------------------------------------------ */
+      :root {
+        --primary: #0b3d91;
+        --primary-hover: #082c69;
+        --primary-outline: rgba(11, 61, 145, 0.5);
+        --primary-tint: rgba(11, 61, 145, 0.04);
+        --text-primary: rgba(0, 0, 0, 0.87);
+        --text-secondary: rgba(0, 0, 0, 0.6);
+        --text-disabled: rgba(0, 0, 0, 0.38);
+        --divider: rgba(0, 0, 0, 0.12);
+        --outline: rgba(0, 0, 0, 0.23);
+        --paper: #ffffff;
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --grey200: #eeeeee;
+        --grey400: #bdbdbd;
+        --grey800: #424242;
+        --grey900: #212121;
+        --info-bg: #e5f6fd;
+        --info-text: #014361;
+        --info-icon: #0288d1;
+        --warn-bg: #fff4e5;
+        --warn-text: #663c00;
+        --warn-icon: #ed6c02;
+        --radius: 8px;
+        --shadow-1:
+          0 3px 1px -2px rgba(0, 0, 0, 0.2), 0 2px 2px 0 rgba(0, 0, 0, 0.14),
+          0 1px 5px 0 rgba(0, 0, 0, 0.12);
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "Geist Sans", system-ui, "Helvetica Neue",
+          Arial, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+
+      body {
+        margin: 0;
+        background: #e7e9ee;
+        font-family: var(--font);
+        color: var(--text-primary);
+      }
+
+      /* ---------------------------- page frame --------------------------- */
+
+      .page {
+        max-width: 1560px;
+        margin: 0 auto;
+        padding: 40px 32px 96px;
+      }
+
+      .page-head {
+        margin-bottom: 40px;
+        max-width: 900px;
+      }
+
+      .page-head h1 {
+        font-size: 1.75rem;
+        line-height: 1.3;
+        font-weight: 800;
+        margin: 0 0 8px;
+      }
+
+      .page-head p {
+        margin: 0 0 8px;
+        font-size: 0.9375rem;
+        line-height: 1.55;
+        color: var(--text-secondary);
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 16px;
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid rgba(0, 0, 0, 0.14);
+      }
+
+      .legend span {
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      /* ------------------------------ screens ---------------------------- */
+
+      .screen {
+        margin-top: 64px;
+      }
+
+      .screen-head {
+        position: relative;
+        border-top: 2px solid var(--grey900);
+        padding-top: 26px;
+        margin-bottom: 20px;
+        max-width: 1180px;
+      }
+
+      /* the corner tab */
+      .screen-head .tab {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform: translateY(-100%);
+        background: var(--grey900);
+        color: #fff;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        padding: 6px 14px;
+        border-radius: 6px 6px 0 0;
+      }
+
+      .screen-head h2 {
+        font-size: 1.125rem;
+        font-weight: 700;
+        margin: 0 0 6px;
+      }
+
+      .screen-head p {
+        margin: 0;
+        font-size: 0.875rem;
+        line-height: 1.55;
+        color: var(--text-secondary);
+        max-width: 82ch;
+      }
+
+      .screen-head .clock {
+        display: inline-block;
+        margin-top: 10px;
+        font-size: 0.75rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 999px;
+        padding: 4px 12px;
+      }
+
+      .pair {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 32px;
+      }
+
+      .frame {
+        background: var(--paper);
+        border: 1px solid rgba(0, 0, 0, 0.18);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 12px 32px rgba(16, 24, 40, 0.12);
+      }
+
+      .frame.desktop {
+        width: 922px;
+        max-width: 100%;
+      }
+
+      .frame.phone {
+        width: 377px;
+        border-radius: 20px;
+      }
+
+      .chrome {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 34px;
+        padding: 0 12px;
+        background: var(--grey100);
+        border-bottom: 1px solid var(--divider);
+      }
+
+      .dots {
+        display: flex;
+        gap: 5px;
+      }
+
+      .dots i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--grey400);
+        display: block;
+      }
+
+      .url {
+        flex: 1;
+        min-width: 0;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 999px;
+        font-size: 0.6875rem;
+        color: var(--text-secondary);
+        padding: 3px 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .frame-badge {
+        font-size: 0.625rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        color: var(--text-secondary);
+        white-space: nowrap;
+      }
+
+      .viewport {
+        overflow: hidden;
+      }
+
+      .viewport.desktop-vp {
+        width: 1280px;
+        zoom: 0.72;
+      }
+
+      .viewport.phone-vp {
+        width: 375px;
+      }
+
+      /* --------------------------- the app shell ------------------------- */
+
+      .app {
+        display: flex;
+        align-items: stretch;
+        min-height: 760px;
+        background: #fff;
+        font-size: 16px;
+      }
+
+      .phone .app {
+        flex-direction: column;
+        min-height: 700px;
+      }
+
+      nav.shell {
+        background: var(--grey900);
+        color: #fff;
+        flex-shrink: 0;
+        width: 226px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .phone nav.shell {
+        width: 100%;
+        order: 2;
+        position: sticky;
+        bottom: 0;
+      }
+
+      .nav-head {
+        padding: 24px 24px 16px;
+      }
+
+      .phone .nav-head {
+        display: none;
+      }
+
+      .nav-head .over {
+        font-size: 0.75rem;
+        letter-spacing: 0.08333em;
+        text-transform: uppercase;
+        line-height: 1.4;
+        color: var(--grey400);
+      }
+
+      .nav-head .sec {
+        font-size: 1.25rem;
+        font-weight: 700;
+        line-height: 1.6;
+      }
+
+      ul.nav-list {
+        list-style: none;
+        margin: 0;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        width: 100%;
+      }
+
+      .phone ul.nav-list {
+        flex-direction: row;
+        padding: 0;
+        gap: 0;
+      }
+
+      ul.nav-list li {
+        display: flex;
+      }
+
+      ul.nav-list a {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 48px;
+        width: 100%;
+        padding: 6px 16px;
+        border-radius: 8px;
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .phone ul.nav-list li {
+        flex: 1;
+      }
+
+      .phone ul.nav-list a {
+        align-items: center;
+        border-radius: 0;
+        padding: 6px 8px;
+      }
+
+      ul.nav-list a.sel {
+        background: var(--grey800);
+      }
+
+      .nav-label {
+        font-size: 1rem;
+        line-height: 1.5;
+      }
+
+      .nav-detail {
+        font-size: 0.875rem;
+        line-height: 1.43;
+        color: var(--grey400);
+      }
+
+      .phone .nav-detail {
+        display: none;
+      }
+
+      main.shell {
+        flex-grow: 1;
+        min-width: 0;
+        padding: 32px 32px 32px;
+      }
+
+      .phone main.shell {
+        order: 1;
+        padding: 24px 16px 24px;
+      }
+
+      .shell-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      .phone .shell-head {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .shell-head .brand {
+        font-size: 1.5rem;
+        line-height: 1.334;
+        font-weight: 800;
+      }
+
+      .content {
+        max-width: 900px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+
+      /* --------------------------- MUI primitives ------------------------ */
+
+      .h5 {
+        font-size: 1.5rem;
+        line-height: 1.334;
+        font-weight: 700;
+        margin: 0;
+      }
+
+      .h6 {
+        font-size: 1.25rem;
+        line-height: 1.6;
+        font-weight: 500;
+        margin: 0;
+      }
+
+      .body1 {
+        font-size: 1rem;
+        line-height: 1.5;
+        margin: 0;
+      }
+
+      .body2 {
+        font-size: 0.875rem;
+        line-height: 1.43;
+        margin: 0;
+      }
+
+      .sec {
+        color: var(--text-secondary);
+      }
+
+      .bold {
+        font-weight: 600;
+      }
+
+      .over {
+        font-size: 0.75rem;
+        line-height: 2.66;
+        letter-spacing: 0.08333em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        margin: 0;
+      }
+
+      .paper {
+        background: var(--paper);
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        padding: 24px;
+      }
+
+      .phone .paper {
+        padding: 16px;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .g1 {
+        gap: 8px;
+      }
+      .g2 {
+        gap: 16px;
+      }
+      .g3 {
+        gap: 24px;
+      }
+
+      .row {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .grid2 {
+        display: grid;
+        gap: 24px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid2tight {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid3 {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .phone .grid2,
+      .phone .grid2tight,
+      .phone .grid3 {
+        grid-template-columns: 1fr;
+      }
+
+      .metrics {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(2, minmax(0, 160px));
+      }
+
+      .phone .metrics {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .divider {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        margin: 0;
+        width: 100%;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-family: inherit;
+        font-size: 0.875rem;
+        font-weight: 500;
+        letter-spacing: 0.02857em;
+        text-transform: uppercase;
+        line-height: 1.75;
+        padding: 6px 16px;
+        min-height: 44px;
+        border-radius: var(--radius);
+        cursor: pointer;
+        text-decoration: none;
+      }
+
+      .btn-contained {
+        background: var(--primary);
+        color: #fff;
+        border: none;
+        box-shadow: var(--shadow-1);
+      }
+
+      .btn-outlined {
+        background: transparent;
+        color: var(--primary);
+        border: 1px solid var(--primary-outline);
+      }
+
+      .btn-text {
+        background: transparent;
+        color: var(--primary);
+        border: none;
+        padding: 6px 8px;
+      }
+
+      .btn-text.danger {
+        color: #d32f2f;
+      }
+
+      .btn-sm {
+        min-height: 36px;
+      }
+
+      .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        max-width: 420px;
+      }
+
+      .btn-row {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .phone .btn-row {
+        flex-direction: column;
+      }
+
+      /* A pair of short actions stays side by side at 375 — Brian, 2026-08-21:
+         "if buttons can be side by side, they generally should be". */
+      .phone .btn-row.inline {
+        flex-direction: row;
+        gap: 8px;
+      }
+
+      .phone .btn-row.inline .btn {
+        width: auto;
+        flex: 1;
+      }
+
+      .phone .btn-row .btn {
+        width: 100%;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        height: 24px;
+        padding: 0 10px;
+        border-radius: 16px;
+        background: rgba(0, 0, 0, 0.08);
+        font-size: 0.8125rem;
+        line-height: 1;
+        color: var(--text-primary);
+        white-space: nowrap;
+      }
+
+      .chip-outline {
+        background: transparent;
+        border: 1px solid var(--outline);
+      }
+
+      .chip-warn {
+        background: transparent;
+        border: 1px solid rgba(237, 108, 2, 0.6);
+        color: var(--warn-text);
+      }
+
+      .chip-info {
+        background: transparent;
+        border: 1px solid rgba(2, 136, 209, 0.5);
+        color: var(--info-text);
+      }
+
+      .chip-proposed {
+        background: transparent;
+        border: 1px dashed var(--outline);
+        color: var(--text-secondary);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-size: 0.6875rem;
+        font-weight: 600;
+      }
+
+      .alert {
+        display: flex;
+        gap: 12px;
+        padding: 8px 16px;
+        border-radius: var(--radius);
+        font-size: 0.875rem;
+        line-height: 1.43;
+      }
+
+      .alert svg {
+        flex-shrink: 0;
+        margin-top: 7px;
+      }
+
+      .alert-info {
+        background: var(--info-bg);
+        color: var(--info-text);
+      }
+
+      .alert-info svg {
+        fill: var(--info-icon);
+      }
+
+      .alert-warn {
+        background: var(--warn-bg);
+        color: var(--warn-text);
+      }
+
+      .alert-warn svg {
+        fill: var(--warn-icon);
+      }
+
+      /* text field / select / switch, as MUI outlined controls */
+
+      .field {
+        position: relative;
+        border: 1px solid var(--outline);
+        border-radius: var(--radius);
+        padding: 14px;
+        font-size: 1rem;
+        line-height: 1.4375;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 56px;
+      }
+
+      .field .lab {
+        position: absolute;
+        top: -9px;
+        left: 9px;
+        background: #fff;
+        padding: 0 6px;
+        font-size: 0.75rem;
+        line-height: 1;
+        color: var(--text-secondary);
+      }
+
+      .field.focused {
+        border: 2px solid var(--primary);
+        padding: 13px;
+      }
+
+      .field.focused .lab {
+        color: var(--primary);
+      }
+
+      .field.disabled {
+        background: var(--grey50);
+        border-color: var(--divider);
+        color: var(--text-secondary);
+      }
+
+      .field .caret {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+      }
+
+      .radio {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        cursor: default;
+      }
+
+      .radio .dot {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 2px solid var(--text-secondary);
+        flex-shrink: 0;
+        margin-top: 1px;
+        position: relative;
+      }
+
+      .radio.on .dot {
+        border-color: var(--primary);
+      }
+
+      .radio.on .dot::after {
+        content: "";
+        position: absolute;
+        inset: 3px;
+        border-radius: 50%;
+        background: var(--primary);
+      }
+
+      .switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .track {
+        width: 34px;
+        height: 14px;
+        border-radius: 7px;
+        background: rgba(0, 0, 0, 0.38);
+        position: relative;
+        flex-shrink: 0;
+      }
+
+      .thumb {
+        position: absolute;
+        top: -3px;
+        left: -1px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #fafafa;
+        box-shadow: var(--shadow-1);
+      }
+
+      .switch.on .track {
+        background: rgba(11, 61, 145, 0.5);
+      }
+
+      .switch.on .thumb {
+        left: 15px;
+        background: var(--primary);
+      }
+
+      .qbox {
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        padding: 16px;
+        background: var(--grey50);
+      }
+
+      .truncation {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--text-secondary);
+        font-size: 0.8125rem;
+        font-style: italic;
+      }
+
+      .truncation::before,
+      .truncation::after {
+        content: "";
+        flex: 1;
+        border-top: 1px dashed var(--outline);
+      }
+      /* --- The breakpoint layer. `.viewport` is the query container, so a
+             frame switches between the wide table and the phone cards on its
+             own width rather than the browser window's. --- */
+      .viewport {
+        container-type: inline-size;
+      }
+      .scroll-x {
+        overflow-x: auto;
+      }
+      .narrow-only {
+        display: none;
+      }
+      @container (max-width: 760px) {
+        .wide-only {
+          display: none;
+        }
+        .narrow-only {
+          display: block;
+        }
+      }
+      .tbl {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .tbl th,
+      .tbl td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--divider);
+        vertical-align: top;
+      }
+      .tbl thead th {
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .tbl tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      .tbl .num,
+      .tbl th.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .tile {
+        border-radius: 4px;
+        padding: 5px 7px;
+        margin-bottom: 4px;
+      }
+      .field-inline {
+        display: inline-flex;
+        align-items: center;
+        padding: 7px 12px;
+        border: 1px solid var(--outline);
+        border-radius: var(--radius);
+        font-size: 13px;
+        color: var(--text-secondary);
+        background: var(--paper);
+      }
+      .fact {
+        min-width: 0;
+      }
+      }
+      /* --- W2 additions: the disposition banding required by
+             mockup-conventions.md § 1. Current and proposed are labelled
+             identically on every screen and banded in their own colour. --- */
+      .side {
+        border-radius: 8px;
+        padding: 10px 10px 12px;
+      }
+      .side.current {
+        background: #eceff1;
+        border: 1px solid #90a4ae;
+      }
+      .side.proposed {
+        background: #e8f0fe;
+        border: 1px solid var(--primary-outline);
+      }
+      .side-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 3px 9px;
+        border-radius: 999px;
+        margin-bottom: 8px;
+      }
+      .side.current .side-label {
+        background: #90a4ae;
+        color: #fff;
+      }
+      .side.proposed .side-label {
+        background: var(--primary);
+        color: #fff;
+      }
+      .side .none {
+        border: 1px dashed #90a4ae;
+        border-radius: 6px;
+        padding: 22px 14px;
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 13px;
+        background: #fff;
+      }
+      .disposition {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 3px 9px;
+        border-radius: 4px;
+        border: 1px solid var(--outline);
+        color: var(--text-secondary);
+        margin-left: 8px;
+      }
+      .disposition.new {
+        background: #e8f0fe;
+        border-color: var(--primary);
+        color: var(--primary);
+      }
+      .disposition.modified {
+        background: #fff4e5;
+        border-color: #ed6c02;
+        color: #663c00;
+      }
+      .deltas {
+        margin: 10px 0 0;
+        padding-left: 18px;
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+      .deltas li {
+        margin: 3px 0;
+      }
+      .subpanel {
+        border: 1px solid var(--divider);
+        border-radius: 8px;
+        padding: 14px;
+        background: #fff;
+      }
+
+      /* --- W1 additions. Built from the tokens above; no new colour, and no
+             component the application does not already render. --- */
+
+      /* The sidebar's Administration group and signed-in block, both of which
+         shell-nav.tsx draws and the earlier mission's mockups omitted. */
+      .nav-rule {
+        border-top: 1px solid var(--grey800);
+        margin: 8px 8px 6px;
+      }
+      .nav-group {
+        color: var(--grey400);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 0 16px 4px;
+      }
+      .nav-foot {
+        margin-top: auto;
+        border-top: 1px solid var(--grey800);
+        padding: 14px 22px;
+      }
+      .nav-foot .who {
+        font-size: 0.875rem;
+        font-weight: 600;
+      }
+      .nav-foot .cap {
+        font-size: 0.75rem;
+        color: var(--grey400);
+      }
+      .phone .nav-rule,
+      .phone .nav-group,
+      .phone .nav-foot {
+        display: none;
+      }
+
+      /* A field's source and confidence class. Task 08 §4 names four; they are
+         a caption beside the value, never colour on its own. */
+      .prov {
+        display: inline-block;
+        font-size: 11px;
+        line-height: 1.5;
+        letter-spacing: 0.02em;
+        color: var(--text-secondary);
+        border: 1px solid var(--divider);
+        border-radius: 4px;
+        padding: 0 5px;
+        white-space: nowrap;
+      }
+      .prov.derived {
+        border-style: dashed;
+      }
+
+      /* `not recorded` is explicit, visible and never defaulted. */
+      .notrec {
+        color: var(--text-disabled);
+        font-style: italic;
+      }
+      .disputed {
+        color: var(--warn-text);
+        font-weight: 600;
+      }
+
+      /* One labelled fact on the person record. */
+      .frow {
+        display: grid;
+        grid-template-columns: 190px 1fr;
+        gap: 4px 16px;
+        padding: 9px 0;
+        border-bottom: 1px solid var(--divider);
+        align-items: baseline;
+      }
+      .frow:last-child {
+        border-bottom: 0;
+      }
+      .frow .flab {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+      }
+      .frow .fval {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 8px;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      .phone .frow {
+        grid-template-columns: 1fr;
+        gap: 2px;
+      }
+
+      /* The section head inside an outlined Paper. */
+      .shead {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 6px;
+      }
+      .shead h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 700;
+      }
+
+      /* Sortable column header — a link, as the roster's already is. */
+      .sortable {
+        color: inherit;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .sortable .arw {
+        opacity: 0;
+        font-size: 10px;
+      }
+      .sortable.on .arw {
+        opacity: 1;
+      }
+      .sortable.on {
+        color: var(--text-primary);
+      }
+
+      /* The phone list card, matching roster/page.tsx's MemberCard. */
+      .percard {
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        background: #fff;
+        padding: 14px;
+        margin-bottom: 10px;
+      }
+      .percard:last-child {
+        margin-bottom: 0;
+      }
+      .percard .pname {
+        font-size: 0.875rem;
+        font-weight: 700;
+      }
+      .chiprow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      /* The alias a search matched, and the widened-view banner. */
+      .aka {
+        color: var(--text-secondary);
+        font-size: 0.8125rem;
+      }
+      .widened {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        border: 1px solid var(--outline);
+        border-radius: var(--radius);
+        background: var(--grey50);
+        padding: 10px 14px;
+      }
+      .seasonrow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--divider);
+      }
+      .seasonrow:last-child {
+        border-bottom: 0;
+      }
+      a.golink {
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.875rem;
+        white-space: nowrap;
+      }
+
+      /* The roster's own status chips are MUI filled colour chips, not the
+         outlined ones the earlier mockups used: roster/page.tsx passes
+         `color={membershipStatusColour(status)}` to a small `Chip`. Same
+         mapping here — active success, onboarding info, inactive warning,
+         everything else default. Colour never carries the state on its own;
+         the label always says it. */
+      .chip.ok {
+        background: #2e7d32;
+        color: #fff;
+      }
+      .chip.inf {
+        background: #0288d1;
+        color: #fff;
+      }
+      .chip.wrn {
+        background: #ed6c02;
+        color: #fff;
+      }
+
+      /* Six destinations in a 375px bottom bar. `shell-nav.tsx` gives each
+         entry `flex: 1` and centres it, so they share the width rather than
+         overflowing — which is what this shows, including how little room
+         "Operators" is left. That consequence is real and belongs on the
+         screen rather than being drawn away. */
+      .phone ul.nav-list li {
+        flex: 1 1 0;
+        min-width: 0;
+      }
+      .phone ul.nav-list a {
+        padding: 0 2px;
+        text-align: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+      .phone .nav-label {
+        font-size: 11px;
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        width: 100%;
+      }
+
+      /* Verified reads as a mark, not a label among labels. */
+      .prov.verified {
+        border-color: rgba(46, 125, 50, 0.5);
+        color: #1b5e20;
+      }
+
+      /* A history entry's before-value. Struck through and muted, because the
+         entry has to read as one thing that happened rather than two values. */
+      .chg-line {
+        font-size: 0.875rem;
+        overflow-wrap: anywhere;
+      }
+      .was {
+        color: var(--text-secondary);
+        text-decoration: line-through;
+      }
+
+      /* Photographed screens: the image is the whole frame, at its natural
+         aspect. Nothing here restyles what was captured. */
+      .shotbox {
+        overflow: hidden;
+        background: #fff;
+      }
+      .shotbox img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      .frame.desktop .shotbox {
+        width: 100%;
+      }
+      .frame.phone .shotbox {
+        width: 375px;
+        max-width: 100%;
+      }
+      .grounding {
+        display: inline-block;
+        margin-top: 8px;
+        font-size: 0.75rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #1b5e20;
+        border: 1px solid rgba(46, 125, 50, 0.5);
+        border-radius: 4px;
+        padding: 2px 8px;
+      }
+
+      /* Capped frames — LAN intake feedback, 2026-08-31. A full-page shot of a
+         long record ran to several thousand pixels, so a page of them could not
+         be scanned. The shot is unchanged; the box it sits in is scrollable. */
+      .shotbox {
+        max-height: 520px;
+        overflow: auto;
+        /* NOT `contain`. Scroll chaining is what lets the page keep moving once
+           a shot reaches its own end; `contain` froze the page wherever the
+           cursor sat over a frame, which on a five-screen review is almost
+           everywhere. Brian, 2026-09-01: "W403 through W405 are not on this
+           page." They were on it; they could not be reached. */
+        overscroll-behavior: auto;
+        position: relative;
+      }
+      /* And a way to reach any screen without scrolling to it at all. */
+      .screenindex {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: baseline;
+        margin: 22px 0 8px;
+        padding: 12px 14px;
+        background: #f4f7f6;
+        border-left: 3px solid #00695c;
+        border-radius: 0 4px 4px 0;
+        font-size: 12.5px;
+      }
+      .screenindex strong {
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 11px;
+        color: rgba(0, 0, 0, 0.55);
+        margin-right: 4px;
+      }
+      .screenindex a {
+        color: #00695c;
+        text-decoration: none;
+        border: 1px solid rgba(0, 105, 92, 0.35);
+        border-radius: 4px;
+        padding: 3px 9px;
+        background: #fff;
+      }
+      .screenindex a:hover { background: #00695c; color: #fff; }
+      section.screen { scroll-margin-top: 12px; }
+      .frame.phone .shotbox { max-height: 620px; }
+      .shotbox img { display: block; }
+      .scrollnote {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(0, 0, 0, 0.4);
+        padding: 4px 10px 0;
+      }
+      .placard {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        min-height: 220px;
+        padding: 32px 24px;
+        background: repeating-linear-gradient(
+          45deg,
+          #f7f7f5,
+          #f7f7f5 10px,
+          #f2f2ef 10px,
+          #f2f2ef 20px
+        );
+        border-radius: 6px;
+      }
+      /* The template's legend is a flex row of short chips. This mission's legend
+         items are sentences, and flex-wrap laid them out as ragged columns that
+         read as a broken table. Stack them. */
+      .legend {
+        display: block;
+      }
+      .legend span {
+        display: block;
+        margin-bottom: 7px;
+        line-height: 1.6;
+      }
+      .noscreens {
+        font-size: 13px;
+        line-height: 1.65;
+        color: rgba(0, 0, 0, 0.78);
+        background: #f4f7f6;
+        border-left: 3px solid #00695c;
+        padding: 14px 16px;
+        margin: 12px 0 4px;
+        border-radius: 0 4px 4px 0;
+      }
+      .noscreens ul { margin: 8px 0 0; padding-left: 20px; }
+      .noscreens li { margin-bottom: 5px; }
+      .provenance {
+        font-size: 12.5px;
+        line-height: 1.6;
+        color: rgba(0, 0, 0, 0.72);
+        background: #fff4f7;
+        border-left: 3px solid #c2185b;
+        padding: 9px 12px;
+        margin: 10px 0 4px;
+        border-radius: 0 4px 4px 0;
+      }
+      .deltas.numbered li { list-style: none; position: relative; padding-left: 30px; }
+      .deltas.numbered { padding-left: 0; }
+      .pin {
+        position: absolute;
+        left: 0;
+        top: 1px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #c2185b;
+        color: #fff;
+        font: 700 11px/20px system-ui, sans-serif;
+        text-align: center;
+      }
+      .pin.inline { position: static; display: inline-block; vertical-align: -5px; }
+      .pinnote { font-size: 12px; color: rgba(0, 0, 0, 0.5); margin: 12px 0 0; line-height: 1.9; }
+      .placard strong { font-size: 14px; color: rgba(0, 0, 0, 0.68); }
+      .placard span { font-size: 12.5px; color: rgba(0, 0, 0, 0.5); margin-top: 6px; max-width: 42ch; line-height: 1.55; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-head">
+        <h1>W4 · Say yes and fill in your details</h1>
+        <p>
+          One link, five steps: the player's details, the Code of Conduct, the photo release, BUCS
+          Play, then Hudl. Still one open ask. This is the mission's largest workflow and its only
+          one whose actor is not an operator.
+          <strong>Every screen here is a photograph on both sides</strong> — the same running page
+          at <code>332bc6b</code>, differing only by the proposal evaluated into it. Where a
+          screen's own route does not exist yet, it is photographed on the shell it reuses and its
+          head says so; the URL bar always shows what was really photographed.
+        </p>
+        <p>
+          <strong>Reading this review.</strong>
+          <span class="side-label" style="background: #90a4ae; color: #fff"
+            >Current — on main today</span
+          >
+          and
+          <span class="side-label" style="background: var(--primary); color: #fff"
+            >Proposed — this mission</span
+          >. Nothing on this page is approved.
+        </p>
+        <span class="grounding">Grounding: photographs · measured 1280 and 375</span>
+        <div class="legend">
+          <span
+            ><strong>Required now means required.</strong> Owner direction, 2026-09-02: "The form
+            that they're being sent for the onboarding should be required… For recruits, they are
+            not required. For onboarding, they are required." That split already exists in shipped
+            code — <code>person-required.ts</code> asks a recruit for three facts and a player for
+            ten — so the asterisks are the player tier, not an invention.
+            <strong
+              >It does collide with an approved invariant; see the decision below</strong
+            ></span
+          >
+          <span
+            ><strong>Five pages, on Brian's direction.</strong> The Code of Conduct, the photo
+            release, BUCS Play and now Hudl are each their own page: "the instructions for Huddle
+            should also be on its own separate page"</span
+          >
+          <span
+            ><strong>W4's surface does not exist on <code>main</code>.</strong> Every screen is shot
+            on <code>/a/[token]</code>, the answer link — the nearest implemented player-facing,
+            no-login, signed-link form. The current side is that page as it ships; the proposed side
+            is the same running page transformed. Neither side is a drawing</span
+          >
+          <span
+            ><strong>The link is already on <code>main</code>.</strong>
+            <code>person_access_tokens</code> ships one live durable credential per person per
+            season, enforced by a partial unique index — <code>T11-one-request</code>'s "one open
+            ask, ever". Five pages, still one link</span
+          >
+          <span
+            ><strong>There is no way to store a document or take a signature.</strong> No storage
+            bucket, no document table, no blob column, no signature capture; the only file input in
+            the application is the event CSV import, which stores nothing. Both document steps are
+            new substrate</span
+          >
+          <span
+            ><strong>Three doors, one sequence — with one visible difference.</strong> A flipped
+            recruit sees no consent step, because <code>season_messaging_consents</code> is unique
+            per person per season and theirs already says granted</span
+          >
+        </div>
+      </header>
+      <div id="screens"></div>
+    </div>
+    <script>
+      const CLOCK = "Baseline: main@332bc6b · seeded synthetic data";
+      const S = (id, title, blurb, deltas, url) => ({
+        id,
+        title,
+        disposition: "modified",
+        blurb,
+        deltas,
+        clockTag: CLOCK,
+        url,
+      });
+
+      const SCREENS = [
+        {
+          id: "W4-01",
+          title: "Step 1 — your details, with the onboarding required set",
+          disposition: "new",
+          drawn: false,
+          blurb: `Merrick Thornbury arrived in this season's import. <strong>Ten fields now carry an
+         asterisk</strong> — the player tier from <code>person-required.ts</code> — and the emergency
+         contact is five fields, matching what the database stores.`,
+          deltas: [
+            `<strong>The strip is the map of the sequence</strong> — five steps behind one link, and where this person is in it. Subscriptions, kit, the squad photo and the comms groups are the club's to tick and never appear here`,
+            `<strong>Consent, still the first thing asked.</strong> Unticked, because this is the moment it is asked`,
+            `<strong>What the club already holds arrives filled in.</strong> The ask is to confirm it, never to retype it`,
+            `<strong>What it does not hold is blank — and is now required.</strong> The player cannot finish step 1 without it`,
+            `<strong>Date of birth</strong> is required, collected here, and never appears on any list, board or queue`,
+            `<strong>The emergency contact, as five fields.</strong> First name is required because the table demands it; <strong>phone is required because a contact you cannot ring is not one</strong> — that second one is mine, not the database's, and is flagged as a decision`,
+            `<strong>The required set itself</strong>, said in the player's own terms. This is where the recruit flow and the onboarding flow part company`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
+          shotRoute:
+            "/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
+          proposedRoute: "/me/[token]/details",
+        },
+        {
+          id: "W4-02",
+          title: "Step 1 for a flipped recruit — no consent step, and the same required set",
+          disposition: "new",
+          drawn: false,
+          blurb: `Rosalind Penhaligon is the seed's own prospect, flipped to <code>joined</code>, with consent
+         granted at the door on 14 August. <strong>Consent is absent</strong>; the required set is
+         not. She gave three facts at the recruit door where three was all the club asked for, and
+         onboarding now asks for ten.`,
+          deltas: [
+            `<strong>Consent was given at the door</strong>, and the strip says when and where`,
+            `<strong>Where W4-01 opens with the tick, this page opens with a sentence saying why it is not asking.</strong> No tick anywhere, and no way to reach one`,
+            `<strong>What the recruit door and questionnaire A already collected</strong> — confirmed, never asked twice`,
+            `<strong>The facts recruitment never asks for, now required</strong>: expected graduation, degree field, date of birth`,
+            `<strong>And the whole emergency contact, blank in all five fields</strong>, because recruitment never asks for one at all`,
+            `<strong>The two flows, stated on the page.</strong> Three fields at the recruit door, ten at onboarding — exactly the tiers <code>person-required.ts</code> already ships`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/a/y.3ec61c6f-87cc-4c28-ba8d-46eb7d6f593a.qV_K8zqHkiwe8BrLDqCw52Cvl2UaEPL_57hWIEH3-gE",
+          shotRoute:
+            "/a/y.3ec61c6f-87cc-4c28-ba8d-46eb7d6f593a.qV_K8zqHkiwe8BrLDqCw52Cvl2UaEPL_57hWIEH3-gE",
+          proposedRoute: "/me/[token]/details",
+        },
+        {
+          id: "W4-03",
+          title: "Step 2 — the Code of Conduct, on its own page",
+          disposition: "new",
+          drawn: false,
+          blurb: `The document is on the page, it scrolls, and agreeing is only possible from the end of it.
+         The pane is shown scrolled to its end because the end is where the mechanic lives.
+         <strong>The words are placeholder and say so</strong> — the real text is Clint's through
+         Task 07, and there is nowhere on <code>main</code> to put it.`,
+          deltas: [
+            `<strong>The strip carries the version</strong>, which does not exist yet. An agreement that does not name what was agreed to is not worth recording`,
+            `<strong>The document, on the page.</strong> Scrolled to its end here. This is new substrate: nothing on <code>main</code> stores a document`,
+            `<strong>The agreement, reachable only from the bottom.</strong> Dated, recorded against that version, and stored as theirs`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
+          shotRoute:
+            "/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
+          proposedRoute: "/me/[token]/code-of-conduct",
+        },
+        {
+          id: "W4-04",
+          title: "Step 3 — the photo release, and the signature question",
+          disposition: "new",
+          drawn: false,
+          blurb: `Same shape as the Code of Conduct, deliberately. Brian: "Do we have a way to handle signed
+         documents right now in the thing? I don't think so." <strong>He is right — there is
+         none.</strong>`,
+          deltas: [
+            `<strong>Asked again every season</strong>, of everybody. The returner carve-out was removed at the boundary`,
+            `<strong>The document, on the page</strong>, in the same pane as the Code of Conduct's. One mechanism, two documents`,
+            `<strong>The agreement</strong>, in the same place and shape`,
+            `<strong>OPEN DECISION.</strong> A true signature — drawn, or a signed PDF — needs object storage and a signature control, and the application has neither. Recording the version, the moment and the person needs no new infrastructure. <strong>Recommended: the second</strong>, with e-signature additive later`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
+          shotRoute:
+            "/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
+          proposedRoute: "/me/[token]/photo-release",
+        },
+        {
+          id: "W4-05",
+          title: "Step 4 — BUCS Play, as a set of steps",
+          disposition: "new",
+          drawn: false,
+          blurb: `Brian: "Bucs play should be a set of steps. Again, that's its own page as well." Hudl has
+         now left this page and taken its own. <strong>The steps are placeholder and say so</strong> —
+         Task 10 deferred that copy to this mission and nobody has written it.`,
+          deltas: [
+            `<strong>The club records only what the player says.</strong> Nothing done on BUCS Play is visible to this system`,
+            `<strong>The steps</strong>, which is what makes this a page rather than a tick`,
+            `<strong>The copy that does not exist yet</strong>, marked rather than invented`,
+            `<strong>The player's answer records <code>claimed</code>, never <code>complete</code></strong>. A named human confirms it against the BUCS roster, on W6`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
+          shotRoute:
+            "/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
+          proposedRoute: "/me/[token]/bucs-play",
+        },
+        {
+          id: "W4-06",
+          title: "Step 5 — Hudl, on its own page",
+          disposition: "new",
+          drawn: false,
+          blurb: `Owner direction, 2026-09-02: "the instructions for Huddle should also be on its own separate
+         page. Not tagged on." Hudl is the one checklist item whose <strong>first half is the club's
+         job</strong> — an operator invites, the player accepts — and this page has to be honest
+         about that rather than implying the player is the hold-up.`,
+          deltas: [
+            `<strong>The half the club owns, said at the top.</strong> Hudl's own roster reads <em>Pending Invite</em> between the two halves`,
+            `<strong>The steps</strong>, now that this is a page of its own`,
+            `<strong>The copy still owed.</strong> The email-invite method is assumed — Brian, 2026-09-01: "doesn't really matter for my purposes"`,
+            `<strong>"No invitation has reached me"</strong> — the answer that hands the item back to the club. Without it, a player who was never invited has no way to say so, and the queue would chase them for the club's own omission`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
+          shotRoute:
+            "/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
+          proposedRoute: "/me/[token]/hudl",
+        },
+        {
+          id: "W4-07",
+          title: "Done — what is still outstanding, by section, each one a link",
+          disposition: "new",
+          drawn: false,
+          blurb: `Owner direction, 2026-09-02: the previous draft said this in one sentence and "that line is
+         very hard to tell. It should honestly be a set of options… it should list below in dots,
+         like a list… if they click on that link, it brings them back to the form that has that
+         information."`,
+          deltas: [
+            `<strong>The strip, now covering all six things the sequence touches</strong>`,
+            `<strong>What is left, by section, in dots</strong> — and every bullet is a link back to the step that collects it. A player who wants to finish one thing goes straight to it`,
+            `<strong>The rule underneath.</strong> All of it is on the link they already hold; no second link is ever sent`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
+          shotRoute:
+            "/a/y.f7ee136f-e632-48a0-9192-66e6a2543f35.V0zIiPy1z6BO0Ifg9L4_sEoqaPDp64Hmc1xhsVTtqzQ",
+          proposedRoute: "/me/[token]/details",
+        },
+        {
+          id: "W4-08",
+          title: "Already complete — the link opened with nothing left to give",
+          disposition: "new",
+          drawn: false,
+          blurb: `The shipped answer link already has this state and its own words for it. This reuses that
+         shape rather than inventing a second way to say the same thing, and there is no sequence to
+         re-enter.`,
+          deltas: [
+            `<strong>Everything the player themselves owns is done</strong>, and the page says so rather than showing an empty form`,
+            `<strong>The club still has items outstanding against this person.</strong> None is the player's, so none appears here — the operator-owned half lives on W6's record`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/a/y.3ec61c6f-87cc-4c28-ba8d-46eb7d6f593a.qV_K8zqHkiwe8BrLDqCw52Cvl2UaEPL_57hWIEH3-gE",
+          shotRoute:
+            "/a/y.3ec61c6f-87cc-4c28-ba8d-46eb7d6f593a.qV_K8zqHkiwe8BrLDqCw52Cvl2UaEPL_57hWIEH3-gE",
+          proposedRoute: "/me/[token]/details",
+        },
+        {
+          id: "W4-09",
+          title: "Expired, revoked, or never real — the one uniform page",
+          disposition: "new",
+          drawn: false,
+          blurb: `<code>/a/[token]/not-found.tsx</code> already renders one response for every unusable link:
+         unknown, revoked and expired alike, at 404, with identical copy and no variant that could
+         let them diverge. W4 keeps that page. <strong>One sentence cannot come across.</strong>`,
+          deltas: [
+            `<strong>The one sentence that changes.</strong> The shipped body talks about an event having started — the answer link's business, untrue of a collection link`,
+            `<strong>And what must not change.</strong> It never says which of unknown, expired or revoked this link is, and it is the same page, at the same status code, for all three`,
+          ],
+          clockTag: CLOCK,
+          url: "oxfordlancers.example/a/y.153f0efc-f344-46c1-b4e9-ff5ff1359cbb.4ZgGogEred5qpmsZWlA-3ht0rqB8pl9Xuc39rPGnC4c",
+          shotRoute:
+            "/a/y.153f0efc-f344-46c1-b4e9-ff5ff1359cbb.4ZgGogEred5qpmsZWlA-3ht0rqB8pl9Xuc39rPGnC4c",
+          proposedRoute: "/me/[token]/details",
+        },
+      ];
+
+      /* ------------------------------ frames ----------------------------- */
+
+      /*
+       * These screens are photographs, not drawings. Both sides come out of the
+       * same running application at a browser-measured width, differing only by
+       * the proposal that was evaluated into the page — so the frame here wraps
+       * an image rather than markup, and no styling of ours can leak into what
+       * the reviewer is comparing.
+       */
+      const shot = (screen, side, kind) => {
+        const file = `shots/${screen.id}-${side}-${kind === "desktop" ? "desktop" : "phone375"}.png`;
+        return `
+        <div class="frame ${kind}">
+          <div class="chrome">
+            ${kind === "desktop" ? `<span class="dots"><i></i><i></i><i></i></span>` : ""}
+            <span class="url">${screen.url}</span>
+            <span class="frame-badge">${screen.id} · ${kind === "desktop" ? "DESKTOP 1280" : "375"}</span>
+          </div>
+          <div class="scrollnote">scroll inside to see the rest</div><div class="shotbox"><img src="${file}" alt="${screen.id} ${side} ${kind}" loading="lazy" /></div>
+        </div>`;
+      };
+
+      const sideBlock = (screen, which) => {
+        const label = which === "current" ? "Current — on main today" : "Proposed — this mission";
+        if (screen.drawn && which === "current") {
+          return `
+          <div class="side current">
+            <span class="side-label">New surface, nothing to compare</span>
+            <div class="placard">
+              <strong>This surface does not exist on <code>main</code></strong>
+              <span>There is nothing to photograph, so both sides are drawn. The proposal below is a
+              drawing, not a picture of running code — and its acceptance grounding is
+              <code>code-only</code>.</span>
+            </div>
+          </div>`;
+        }
+        return `
+          <div class="side ${which}">
+            <span class="side-label">${label}</span>
+            <div class="pair">${shot(screen, which, "desktop")}${shot(screen, which, "phone")}</div>
+          </div>`;
+      };
+
+      document.getElementById("screens").innerHTML = SCREENS.map(
+        (screen) => `
+        <section class="screen">
+          <div class="screen-head">
+            <span class="tab">${screen.id}</span>
+            <h2>${screen.id} · ${screen.title}<span class="disposition ${screen.disposition}">${screen.disposition}</span></h2>
+            <p>${screen.blurb}</p>
+            ${screen.proposedRoute ? `<p class="provenance"><strong>Proposed route <code>${screen.proposedRoute}</code> does not exist on <code>main</code>.</strong> The frames below are the real <code>${screen.shotRoute}</code>, the shell this reuses, with the proposal evaluated into it. The URL bar shows what was photographed, not what is proposed.</p>` : ""}
+            <ul class="deltas numbered">${screen.deltas.map((d, i) => `<li><span class="pin">${i + 1}</span>${d}</li>`).join("")}</ul>
+            ${screen.drawn ? "" : `<p class="pinnote">Each number above is drawn as a <span class="pin inline">n</span> outline on the region it describes, inside the <em>Proposed</em> shot. The shots are whole pages and scroll inside their box.</p>`}
+            ${screen.clockTag ? `<span class="clock">${screen.clockTag}</span>` : ""}
+          </div>
+          ${sideBlock(screen, "current")}
+          <div style="height:12px"></div>
+          ${sideBlock(screen, "proposed")}
+        </section>`,
+      ).join("");
+    </script>
+    <script>
+      (function () {
+        var host = document.getElementById("screens");
+        if (!host) return;
+        var sections = [].slice.call(host.querySelectorAll("section.screen"));
+        if (!sections.length) return;
+        var nav = document.createElement("nav");
+        nav.className = "screenindex";
+        var parts = ["<strong>Screens<\/strong>"];
+        sections.forEach(function (section) {
+          var tab = section.querySelector(".tab");
+          var id = (tab ? tab.textContent : "").trim();
+          if (!id) return;
+          if (!section.id) section.id = id;
+          parts.push('<a href="#' + id + '">' + id + "<\/a>");
+        });
+        nav.innerHTML = parts.join("");
+        host.parentNode.insertBefore(nav, host);
+      })();
+    </script>
+  </body>
+</html>
