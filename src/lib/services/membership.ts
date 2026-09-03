@@ -9,6 +9,7 @@ import {
 } from "@/lib/db";
 import { recordAudit } from "./audit";
 import { actorRequirement } from "./actor";
+import { writeOnboardingItemHistoryIn } from "./onboarding-item-history";
 import { readCurrentSeasonIn, type Season } from "./seasons";
 import { escapeLikePattern, personDisplayAliasSql } from "./sql-text";
 
@@ -111,8 +112,17 @@ export const MEMBERSHIP_STATUSES: readonly MembershipStatus[] = Object.freeze([
 // Onboarding items
 // ---------------------------------------------------------------------------
 
-/** `public.onboarding_item_status`. */
-export type OnboardingItemStatus = "pending" | "invited" | "complete" | "waived" | "not_applicable";
+/**
+ * `public.onboarding_item_status`. `claimed` joined it under LAN-214
+ * (`REQ-item-states`, W6's own `R2-V`): the player says done and awaits
+ * confirmation. It is a live, unresolved state — {@link RESOLVED_ITEM_STATUSES}
+ * deliberately excludes it, the same way `invited` is excluded: a
+ * verify-class item that nobody has confirmed still needs something from
+ * somebody, and outstanding-item counts (activation's own, and the roster's
+ * `required_outstanding`) must keep counting it.
+ */
+export type OnboardingItemStatus =
+  "pending" | "invited" | "claimed" | "complete" | "waived" | "not_applicable";
 
 /** The statuses that mean an item needs nothing further from anybody. */
 export const RESOLVED_ITEM_STATUSES: readonly OnboardingItemStatus[] = Object.freeze([
@@ -120,6 +130,9 @@ export const RESOLVED_ITEM_STATUSES: readonly OnboardingItemStatus[] = Object.fr
   "waived",
   "not_applicable",
 ]) as readonly OnboardingItemStatus[];
+
+/** The terminal states `reopen` is offered from — `R2-R`, `R4-T`: reopen is never automatic and never applies to a live item. */
+export const TERMINAL_ITEM_STATUSES: readonly OnboardingItemStatus[] = RESOLVED_ITEM_STATUSES;
 
 /**
  * The club's words for an item's state, for refusals the operator reads.
@@ -131,17 +144,31 @@ export const RESOLVED_ITEM_STATUSES: readonly OnboardingItemStatus[] = Object.fr
 const ONBOARDING_STATUS_WORDS: Readonly<Record<string, string>> = Object.freeze({
   pending: "pending",
   invited: "invited",
+  claimed: "claimed",
   complete: "complete",
   waived: "waived",
   not_applicable: "not applicable",
 });
 
+/**
+ * What an operator may ask `resolveOnboardingItem` to do — `R2-R`'s four
+ * resolutions. Not the same set as {@link OnboardingItemStatus}: `reopen` is
+ * an action, not a state an item can be *in* — it always writes `pending` —
+ * and `claimed` never appears here at all, because a player's own word is
+ * `claimOnboardingItem`'s action, never an operator's resolution.
+ */
+export type OnboardingItemResolution = "complete" | "waived" | "not_applicable" | "reopen";
+
 /** The resolutions an operator may set from the membership detail screen. */
-export const OPERATOR_ITEM_RESOLUTIONS: readonly OnboardingItemStatus[] = Object.freeze([
+export const OPERATOR_ITEM_RESOLUTIONS: readonly OnboardingItemResolution[] = Object.freeze([
   "complete",
   "waived",
   "not_applicable",
-]) as readonly OnboardingItemStatus[];
+  "reopen",
+]) as readonly OnboardingItemResolution[];
+
+/** `reopen`'s one destination — back to outstanding, from any terminal state (`R2-R`, `R4-T`). */
+const REOPEN_TARGET_STATUS: OnboardingItemStatus = "pending";
 
 export interface OnboardingItem {
   id: string;
@@ -788,24 +815,36 @@ export async function setMembershipStatus(params: {
 // ---------------------------------------------------------------------------
 
 /**
- * Marks one onboarding item complete, waived or not applicable.
+ * Marks one onboarding item complete, waived, not applicable, or reopens it
+ * — `R2-R`'s four four-role resolutions, `reopen` added under LAN-214.
  *
- * An onboarding item has no typed history table of its own — `onboarding_items`
- * carries only its current state — so unlike a membership transition this one
- * *does* write an `audit_events` row for the change itself. Register D9 refuses
- * duplication where a typed home exists; here there is none, so this is the
- * only record that the item moved, and it names the operator who moved it.
+ * `public.onboarding_item_history` (LAN-214, `onboarding-item-history.ts`) is
+ * now the typed home `REQ-item-history` asks for, and this writes it in the
+ * same transaction as the state change — Register D9's "where a typed home
+ * exists, that table is the record" applied to the table this package built.
+ * The `audit_events` row alongside it is unchanged from LAN-75: this
+ * codebase's own precedent (`setMembershipStatus`, above) keeps a typed
+ * table's write and an `audit_events` row together rather than choosing one,
+ * and nothing about adding the typed table here is a reason to remove a
+ * search surface other tooling may already read.
  *
- * The schema's `onboarding_items_waiver_is_justified` constraint requires a
- * waiver to carry both an author and a reason. Both are supplied here, and the
- * missing-reason case is refused before it reaches the database so the operator
- * gets a sentence rather than an integrity error.
+ * `REQ-reason-free-waive` (LAN-214) unwound the schema's
+ * `onboarding_items_waiver_is_justified` constraint: the author stays
+ * mandatory — `actorPersonId` always is one — and the reason stops being. The
+ * refusal this function used to throw for a reasonless waiver is gone; a
+ * waiver with no reason is now accepted, exactly as a waiver with one always
+ * was.
+ *
+ * `reopen` always writes `pending` and is only offered from a terminal state
+ * (`complete`, `waived`, `not_applicable`) — never automatic, never from a
+ * live item (`pending`, `invited`, `claimed`), which is what "reopen" would
+ * even mean applied to one.
  */
 export async function resolveOnboardingItem(params: {
   actorPersonId: string;
   membershipId: string;
   itemId: string;
-  status: OnboardingItemStatus;
+  status: OnboardingItemResolution;
   reason?: string | null;
 }): Promise<MembershipRecord> {
   const { actorPersonId, membershipId, itemId } = params;
@@ -817,11 +856,9 @@ export async function resolveOnboardingItem(params: {
       rule: "onboarding_item_resolution_not_offered",
     });
   }
-  if (params.status === "waived" && reason === null) {
-    throw new ConstraintViolated("A waiver has to say why it was granted.", {
-      rule: "onboarding_items_waiver_is_justified",
-    });
-  }
+
+  const toStatus: OnboardingItemStatus =
+    params.status === "reopen" ? REOPEN_TARGET_STATUS : params.status;
 
   return withTransaction(async (tx) => {
     // Scoped to the membership as well as the item: the item id arrives from a
@@ -848,6 +885,14 @@ export async function resolveOnboardingItem(params: {
       });
     }
 
+    // `reopen` is offered from a terminal state only — `R4-T`: a human reopens
+    // a *resolved* item; there is nothing to reopen on one still outstanding.
+    if (params.status === "reopen" && !TERMINAL_ITEM_STATUSES.includes(item.status)) {
+      throw new InvalidTransition(`${item.label} is not resolved, so there is nothing to reopen.`, {
+        rule: "onboarding_item_reopen_requires_a_resolved_item",
+      });
+    }
+
     /**
      * Saving the status an item already has is not a change, and must not be
      * recorded as one.
@@ -868,9 +913,9 @@ export async function resolveOnboardingItem(params: {
     // another status and writing audit rows for changes that did not happen.
     const sameReason =
       params.status !== "waived" || (item.waived_reason ?? null) === (reason ?? null);
-    if (item.status === params.status && sameReason) {
+    if (item.status === toStatus && sameReason) {
       throw new InvalidTransition(
-        `${item.label} is already ${ONBOARDING_STATUS_WORDS[params.status] ?? params.status}.`,
+        `${item.label} is already ${ONBOARDING_STATUS_WORDS[toStatus] ?? toStatus}.`,
         { rule: "onboarding_item_already_in_that_state" },
       );
     }
@@ -883,16 +928,26 @@ export async function resolveOnboardingItem(params: {
               waived_by_person_id = case when $2 = 'waived' then $4::uuid else null end,
               updated_at = now()
         where id = $1::uuid`,
-      [itemId, params.status, reason, actorPersonId],
+      [itemId, toStatus, reason, actorPersonId],
     );
+
+    await writeOnboardingItemHistoryIn(tx, {
+      onboardingItemId: itemId,
+      seasonMembershipId: membershipId,
+      fromStatus: item.status,
+      toStatus,
+      actorKind: "operator",
+      actorPersonId,
+      reason,
+    });
 
     await recordAudit(tx, {
       actorPersonId,
-      action: "onboarding_item_resolved",
+      action: params.status === "reopen" ? "onboarding_item_reopened" : "onboarding_item_resolved",
       entityTable: "onboarding_items",
       entityId: itemId,
       fromState: item.status,
-      toState: params.status,
+      toState: toStatus,
       reason,
       context: {
         issue: "LAN-75",
@@ -900,6 +955,92 @@ export async function resolveOnboardingItem(params: {
         item_code: item.code,
         item_label: item.label,
       },
+    });
+
+    return readMembershipIn(tx, membershipId);
+  });
+}
+
+/**
+ * The player's own trust-class claim — `R2-V`: "the player says done and
+ * awaits confirmation." LAN-214. Only offered on an item whose type is
+ * `verification_class = 'trust'` (BUCS Play, Hudl, per the item-and-ask
+ * inventory) and only from `pending` or `invited` — an item already
+ * `claimed`, or resolved, has nothing left for a claim to do; the operator's
+ * `resolveOnboardingItem` (`reopen`) is what moves a resolved item back to
+ * `pending` before it can be claimed again.
+ *
+ * `actorPersonId` here is the player themselves — the same person the
+ * membership belongs to — not an operator. Authorization (that the caller
+ * really is holding this person's own signed link) is the caller's job,
+ * exactly as `src/lib/services/README.md` rule 1 asks of every service
+ * function; this one only names who it was told made the claim.
+ */
+export async function claimOnboardingItem(params: {
+  actorPersonId: string;
+  membershipId: string;
+  itemId: string;
+}): Promise<MembershipRecord> {
+  const { actorPersonId, membershipId, itemId } = params;
+  requireActor(actorPersonId);
+
+  return withTransaction(async (tx) => {
+    const existing = await tx.query<{
+      status: OnboardingItemStatus;
+      label: string;
+      verification_class: "direct" | "trust";
+    }>(
+      `select i.status::text as status, t.label, t.verification_class::text as verification_class
+         from public.onboarding_items i
+         join public.onboarding_item_types t on t.id = i.item_type_id
+        where i.id = $1::uuid and i.season_membership_id = $2::uuid
+        for update of i`,
+      [itemId, membershipId],
+    );
+
+    const item = existing.rows[0];
+    if (!item) {
+      throw new NotFound("That onboarding item is not on this membership.", {
+        rule: "onboarding_items_not_found",
+      });
+    }
+    if (item.verification_class !== "trust") {
+      throw new ConstraintViolated(
+        `${item.label} does not accept a player claim — it completes directly.`,
+        { rule: "onboarding_item_claim_requires_trust_class" },
+      );
+    }
+    if (item.status !== "pending" && item.status !== "invited") {
+      throw new InvalidTransition(
+        `${item.label} is already ${ONBOARDING_STATUS_WORDS[item.status] ?? item.status}.`,
+        { rule: "onboarding_item_already_in_that_state" },
+      );
+    }
+
+    await tx.query(
+      `update public.onboarding_items
+          set status = 'claimed'::public.onboarding_item_status, updated_at = now()
+        where id = $1::uuid`,
+      [itemId],
+    );
+
+    await writeOnboardingItemHistoryIn(tx, {
+      onboardingItemId: itemId,
+      seasonMembershipId: membershipId,
+      fromStatus: item.status,
+      toStatus: "claimed",
+      actorKind: "player",
+      actorPersonId,
+    });
+
+    await recordAudit(tx, {
+      actorPersonId,
+      action: "onboarding_item_claimed",
+      entityTable: "onboarding_items",
+      entityId: itemId,
+      fromState: item.status,
+      toState: "claimed",
+      context: { issue: "LAN-214", season_membership_id: membershipId },
     });
 
     return readMembershipIn(tx, membershipId);

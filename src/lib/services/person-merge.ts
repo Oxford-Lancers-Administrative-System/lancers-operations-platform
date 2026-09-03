@@ -645,10 +645,21 @@ export const PERSON_REFERENCE_COLUMNS: ReadonlyArray<{ table: string; column: st
   { table: "nonresponse_flags", column: "resolved_by_person_id" },
   { table: "notification_jobs", column: "held_by_person_id" },
   { table: "notification_jobs", column: "person_id" },
+  // LAN-214 (WP-onboarding-substrate). Actor columns with no per-person
+  // uniqueness to collide on — the same shape `audit_events.actor_person_id`
+  // already re-points blindly.
+  { table: "bps_selections", column: "recorded_by_person_id" },
+  { table: "onboarding_activity_log", column: "actor_person_id" },
+  { table: "onboarding_item_history", column: "actor_person_id" },
   { table: "onboarding_items", column: "waived_by_person_id" },
   { table: "person_access_tokens", column: "issued_by_person_id" },
   { table: "person_access_tokens", column: "person_id" },
   { table: "person_emergency_contacts", column: "recorded_by_person_id" },
+  // LAN-214. The four-role operator who raised or resolved a disputed
+  // fact — an actor column, not the dispute's subject (`person_id`, excluded
+  // below).
+  { table: "person_fact_disputes", column: "raised_by_person_id" },
+  { table: "person_fact_disputes", column: "resolved_by_person_id" },
   { table: "position_assignments", column: "recorded_by_person_id" },
   // LAN-201 (WP-recruitment-schema). Each is an actor/author column with no
   // per-season uniqueness to collide on — the same shape
@@ -718,6 +729,25 @@ export const PERSON_REFERENCE_COLUMNS_EXCLUDED: ReadonlyArray<{
       "keyed (person_id, season_id) like recruitment_prospects, but LAN-201 does not yet combine " +
       "two identities' consent for the same season before re-pointing — known limitation, left " +
       "for the package that builds consent behaviour on this table",
+  },
+  {
+    table: "onboarding_agreements",
+    column: "person_id",
+    reason:
+      "keyed (person_id, season_id, agreement_type) — LAN-214 does not combine two identities' " +
+      "agreements for the same season before re-pointing, the same known limitation " +
+      "season_messaging_consents.person_id already carries, left for the package that builds " +
+      "merge behaviour on this table",
+  },
+  {
+    table: "person_fact_disputes",
+    column: "person_id",
+    reason:
+      "the dispute's subject, with at most one OPEN row per (person_id, field) — a blind " +
+      "re-point could collide with the survivor's own open dispute on the same field. LAN-214 " +
+      "does not combine two identities' disputes before re-pointing; left for the package that " +
+      "builds merge behaviour on this table, the same posture season_messaging_consents.person_id " +
+      "already carries",
   },
   {
     table: "season_memberships",
