@@ -292,10 +292,10 @@ came from Brian's own eyes on the running app. Full quotes and reasoning are
 in the PR body; this section records what changed in the contract.
 
 **Scope widened, with explicit authorisation.** V-7/V-8/V-9 land on
-LAN-204's merged surfaces. Brian, 2026-09-02: *"I don't care. It's a fucking
+LAN-204's merged surfaces. Brian, 2026-09-02: _"I don't care. It's a fucking
 regression. Items 7, 8, and 9 might be regressions, but that's fine. We're
-building on the previous work."* `board-columns.ts` and its column
-*definitions* stayed untouched; only the board's own header rendering
+building on the previous work."_ `board-columns.ts` and its column
+_definitions_ stayed untouched; only the board's own header rendering
 changed.
 
 - **V-1 — inline validation.** Mobile and email now validate on the field,
