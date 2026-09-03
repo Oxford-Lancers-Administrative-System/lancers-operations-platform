@@ -214,26 +214,80 @@ describe("the status-change boundary", () => {
 
 describe("resolving an onboarding item", () => {
   /**
-   * Deliberately *not* Exec/GM. UX-21's audience is "Authorized roster
-   * operator": marking the kit sorted is roster work.
+   * LAN-214 correction round 2, `F-NEW-001`. Four-role only — the same
+   * `person_record_authority` gate `setMembershipStatusAction` uses, above.
+   * Until this correction the gate was `requireGeneralOperator()`, on the
+   * reading that marking the kit sorted is ordinary roster work; `OD7-four-
+   * role-only` (Brian, 2026-09-02) and `REQ-reason-free-waive` supersede
+   * that — "only the four-role group ever resolves an item… a kit manager
+   * who needs to hand out kit goes and does it," waive and reopen named
+   * explicitly. Every resolution the action offers is covered, not only
+   * `complete`: nothing here ever branched on `status`, so the defect this
+   * regression test catches was never partial.
    */
-  it("is open to a linked operator holding no seat at all", async () => {
-    givenAccess({ state: "active", operator: actor([]) });
+  const RESOLUTIONS = ["complete", "waived", "not_applicable", "reopen"] as const;
 
-    const state = await resolveOnboardingItemAction(
-      EMPTY_MEMBERSHIP_ACTION_STATE,
-      form({ membershipId: MEMBERSHIP_ID, itemId: ITEM_ID, status: "complete", reason: "" }),
-    );
+  for (const role of ACTIVATION_ROLES) {
+    for (const status of RESOLUTIONS) {
+      it(`lets the ${role} resolve an item to ${status}`, async () => {
+        givenAccess({ state: "active", operator: actor([role]) });
 
-    expect(state).toEqual({ error: null });
-    expect(resolveOnboardingItem).toHaveBeenCalledWith({
-      actorPersonId: OPERATOR_PERSON_ID,
-      membershipId: MEMBERSHIP_ID,
-      itemId: ITEM_ID,
-      status: "complete",
-      reason: "",
+        const state = await resolveOnboardingItemAction(
+          EMPTY_MEMBERSHIP_ACTION_STATE,
+          form({ membershipId: MEMBERSHIP_ID, itemId: ITEM_ID, status, reason: "" }),
+        );
+
+        expect(state).toEqual({ error: null });
+        expect(resolveOnboardingItem).toHaveBeenCalledWith({
+          actorPersonId: OPERATOR_PERSON_ID,
+          membershipId: MEMBERSHIP_ID,
+          itemId: ITEM_ID,
+          status,
+          reason: "",
+        });
+      });
+    }
+  }
+
+  for (const status of RESOLUTIONS) {
+    it(`refuses the kit_manager resolving an item to ${status}, and never reaches the service`, async () => {
+      givenAccess({ state: "active", operator: actor(["kit_manager"]) });
+
+      const failure = await resolveOnboardingItemAction(
+        EMPTY_MEMBERSHIP_ACTION_STATE,
+        form({ membershipId: MEMBERSHIP_ID, itemId: ITEM_ID, status, reason: "" }),
+      ).catch((error: unknown) => error);
+
+      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expect(resolveOnboardingItem).not.toHaveBeenCalled();
     });
-  });
+
+    it(`refuses an operator holding no seat at all resolving an item to ${status}`, async () => {
+      givenAccess({ state: "active", operator: actor([]) });
+
+      const failure = await resolveOnboardingItemAction(
+        EMPTY_MEMBERSHIP_ACTION_STATE,
+        form({ membershipId: MEMBERSHIP_ID, itemId: ITEM_ID, status, reason: "" }),
+      ).catch((error: unknown) => error);
+
+      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expect(resolveOnboardingItem).not.toHaveBeenCalled();
+    });
+  }
+
+  for (const role of OTHER_ROLES) {
+    it(`refuses the ${role}, and never reaches the service`, async () => {
+      givenAccess({ state: "active", operator: actor([role]) });
+
+      const failure = await resolveOnboardingItemAction(
+        EMPTY_MEMBERSHIP_ACTION_STATE,
+        form({ membershipId: MEMBERSHIP_ID, itemId: ITEM_ID, status: "complete" }),
+      ).catch((error: unknown) => error);
+
+      expect(isServiceError(failure) && failure.kind).toBe("not_permitted");
+      expect(resolveOnboardingItem).not.toHaveBeenCalled();
+    });
+  }
 
   for (const state of ["unlinked", "inactive", "no_session"] as const) {
     it(`is still refused to a ${state} caller`, async () => {

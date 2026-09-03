@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCapability, requireGeneralOperator } from "@/lib/auth/guards";
+import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import {
   resolveOnboardingItem,
@@ -39,12 +39,16 @@ import type { BoardActionState } from "../board-action-state";
  * reflected on the board without a manual refresh, and vice versa.
  *
  * `REQ-authority` again, at the write boundary and not only the read one:
- * every season-fact wrapper opens with `requireCapability("person_record_authority")` —
- * the same four-role gate the board's own actions and this page's own read
- * gate use. `resolveOnboardingItemAction` keeps the board's existing,
- * deliberately wider boundary — `requireGeneralOperator()` — because
- * resolving an onboarding item was never Exec-only work; only changing Status
- * is.
+ * every season-fact wrapper — `recordResolveOnboardingItemAction` included, as
+ * of LAN-214 correction round 2 (`F-NEW-001`) — opens with
+ * `requireCapability("person_record_authority")`, the same four-role gate
+ * this page's own read gate uses (`page.tsx`). `recordResolveOnboardingItemAction`
+ * previously called `requireGeneralOperator()`, on the reading that resolving
+ * an onboarding item was ordinary roster work rather than Exec-only; `OD7-four-
+ * role-only` (Brian, 2026-09-02) and `REQ-reason-free-waive` supersede that —
+ * only the four-role group ever resolves an item, waive and reopen
+ * explicitly included, and the physical act (handing out kit, say) is
+ * anyone's without that meaning they record it here.
  */
 
 function refresh(membershipId: string): void {
@@ -203,9 +207,11 @@ export async function recordCommitAvailabilityAction(params: {
  * One onboarding item, resolved in place — `REQ-player-detail`'s retirement
  * of the per-item `Resolve … ▾` / `SAVE` pair. Calls the same
  * `resolveOnboardingItem()` the shipped `OnboardingItemForm` always has;
- * only the control above it changed. A waiver's reason is still required by
- * the schema (`onboarding_items_waiver_is_justified`) and still checked here
- * first, so a missing one reads as a sentence rather than an integrity error.
+ * only the control above it changed. Four-role only (`person_record_authority`),
+ * `F-NEW-001` — `REQ-checklist-fixed`: "only the four-role group resolves
+ * anything." A waiver's reason is optional (`REQ-reason-free-waive`); the
+ * author is still required, and `resolveOnboardingItem()` supplies it from
+ * the verified operator this gate resolves.
  */
 export async function recordResolveOnboardingItemAction(params: {
   membershipId: string;
@@ -213,7 +219,7 @@ export async function recordResolveOnboardingItemAction(params: {
   status: "complete" | "waived" | "not_applicable";
   reason?: string;
 }): Promise<BoardActionState> {
-  const operator = await requireGeneralOperator();
+  const operator = await requireCapability("person_record_authority");
   try {
     await resolveOnboardingItem({
       actorPersonId: operator.personId,

@@ -22,6 +22,7 @@ import type { Client } from "pg";
 import { closePool, isServiceError, withTransaction } from "@/lib/db";
 import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
 import {
+  claimOnboardingItem,
   generateOnboardingItems,
   listCurrentSeasonRoster,
   readMembership,
@@ -29,6 +30,7 @@ import {
   setMembershipStatus,
   type MembershipStatus,
 } from "./membership";
+import { readOnboardingItemHistoryIn } from "./onboarding-item-history";
 import { enterReturningPlayer, resolveOpenSeason } from "./roster";
 
 /** This suite's namespace. Never shared — parallel suites share one database. */
@@ -56,6 +58,17 @@ let observer: Client;
 let actorPersonId: string;
 let openSeasonId: string;
 let openSeasonLabel: string;
+/**
+ * A season this suite owns outright, private to `claimOnboardingItem`'s
+ * trust-class tests — never the shared open season. A new item *type*
+ * belongs to a season's whole catalogue, not one membership, so creating one
+ * against `openSeasonId` would grow `onboarding_item_types` for every other
+ * membership that season and desynchronise `seasonTypes` (captured once,
+ * above) from what the database actually holds for the rest of this file's
+ * tests. A private season side-steps that instead of racing this suite's own
+ * cleanup against its own later tests.
+ */
+let trustSeasonId: string;
 /** Every configured item type in the open season, as the seed left it. */
 let seasonTypes: {
   id: string;
@@ -229,6 +242,25 @@ beforeAll(async () => {
     seasonTypes.some((type) => type.isRequired && !type.isSubscription),
     "the open season has no required non-subscription item",
   ).toBe(true);
+
+  const vocabulary = await observer.query<{ id: string }>(
+    "select id from public.position_vocabularies order by adopted_on desc limit 1",
+  );
+  // `archived`, not `open` — `resolveOpenSeason()` (below, `enterReturningPlayer`'s
+  // own path) refuses outright when more than one season carries `status = 'open'`,
+  // and `readCurrentSeasonIn` only ever considers `open`/`active`/`closing`
+  // (`OPERATING_SEASON_STATUSES`). This season exists only as somewhere for a
+  // `season_memberships` row to point at; it must never be a candidate for
+  // "the" current season.
+  const trustSeason = await observer.query<{ id: string }>(
+    `insert into public.seasons
+       (label, status, position_vocabulary_id, starts_on, ends_on,
+        opened_at, opened_by_person_id, closed_at, closed_by_person_id)
+     values ($1, 'archived', $2, '2018-09-01', '2019-06-01', now(), $3, now(), $3)
+     returning id`,
+    [`${MARKER} trust season`, vocabulary.rows[0].id, actorPersonId],
+  );
+  trustSeasonId = trustSeason.rows[0].id;
 });
 
 async function cleanUp(): Promise<void> {
@@ -249,6 +281,17 @@ async function cleanUp(): Promise<void> {
        where p.given_name like $1)`,
     [`${MARKER}%`],
   );
+  // `onboarding_item_history` is `on delete restrict` against
+  // `onboarding_items` (LAN-214) — its own rows have to go first, or this
+  // suite's items cannot be deleted at all.
+  await observer.query(
+    `delete from public.onboarding_item_history
+      where season_membership_id in (
+        select m.id from public.season_memberships m
+        join public.people p on p.id = m.person_id
+       where p.given_name like $1)`,
+    [`${MARKER}%`],
+  );
   await observer.query(
     `delete from public.onboarding_items
       where season_membership_id in (
@@ -257,6 +300,13 @@ async function cleanUp(): Promise<void> {
        where p.given_name like $1)`,
     [`${MARKER}%`],
   );
+  // `claimOnboardingItem`'s own trust-class item types, on this suite's
+  // private `trustSeasonId` — never the shared open season, so this can
+  // never grow `openSeasonId`'s catalogue or move `seasonTypes` (captured
+  // once, above) out of step with what the database actually holds.
+  await observer.query(`delete from public.onboarding_item_types where season_id = $1`, [
+    trustSeasonId,
+  ]);
   await observer.query(
     `delete from public.season_membership_status_events
       where season_membership_id in (
@@ -277,6 +327,7 @@ afterEach(cleanUp);
 
 afterAll(async () => {
   await cleanUp();
+  await observer.query("delete from public.seasons where id = $1::uuid", [trustSeasonId]);
   await observer.end();
   await closePool();
 });
@@ -285,7 +336,42 @@ afterAll(async () => {
 // Row 1 and 2 — generation, and generating twice
 // ---------------------------------------------------------------------------
 
+/**
+ * Correction round 1, L-001 (regression). The approved item-and-ask
+ * inventory (`missions/intake/M-ONBOARDING-AND-INFORMATION-COMPLETION/item-and-ask-inventory.md`)
+ * names exactly these eleven checklist items — item 5, BPS, deliberately left
+ * the checklist for the roster (`bps_selections`) and is not one of them.
+ * Hardcoded rather than read back from `seasonTypes` (which is itself read
+ * from the seed): the whole point is to catch the seed silently reverting to
+ * the shipped seven, which a comparison against the same seed's own read
+ * could not.
+ */
+const APPROVED_CHECKLIST_CODES = [
+  "subs_invoiced",
+  "subs_paid",
+  "kit_sorted",
+  "bucs_play",
+  "hudl_access",
+  "photo",
+  "comms_groups",
+  "contact_academic_details",
+  "code_of_conduct",
+  "photo_release",
+  "season_welcome_consent",
+];
+
 describe("generateOnboardingItems", () => {
+  it("generates the full eleven-item approved checklist for a new season membership", async () => {
+    const membershipId = await givenMembership("onboarding", { generateItems: false });
+
+    await withTransaction((tx) => generateOnboardingItems(tx, membershipId, openSeasonId));
+
+    const membership = await readMembership(membershipId);
+    expect(membership.onboardingItems.map((item) => item.code).sort()).toEqual(
+      [...APPROVED_CHECKLIST_CODES].sort(),
+    );
+  });
+
   it("creates exactly the season's configured types, all pending", async () => {
     const membershipId = await givenMembership("onboarding", { generateItems: false });
 
@@ -744,19 +830,83 @@ describe("resolveOnboardingItem", () => {
     expect(updated.waivedByName).not.toBeNull();
   });
 
-  it("refuses a waiver with no reason, before the database has to", async () => {
+  /**
+   * Correction round 1, F-001 (regression). Re-waiving an already-waived item
+   * with a corrected reason is a real correction, not a no-op — the comment
+   * on the already-in-that-state guard says so in terms: "an operator who
+   * typo'd one has to be able to fix it without routing through another
+   * status." Before the fix this threw `onboarding_item_history_is_a_real_change`
+   * (23514) from inside the transaction, because the unconditional history
+   * write ran with `fromStatus === toStatus === 'waived'`.
+   */
+  it("re-waives an already-waived item with a corrected reason, saving it with no error and no spurious history row", async () => {
+    const membershipId = await givenMembership("onboarding");
+    const item = await firstItem(membershipId);
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: item.id,
+      status: "waived",
+      reason: "Reason A",
+    });
+
+    const membership = await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: item.id,
+      status: "waived",
+      reason: "Reason B",
+    });
+
+    const updated = membership.onboardingItems.find((each) => each.id === item.id)!;
+    expect(updated.status).toBe("waived");
+    expect(updated.waivedReason).toBe("Reason B");
+
+    // Exactly one history row — the real transition into `waived` — and none
+    // for the reason-only correction, which is not a state change.
+    const history = await withTransaction((tx) => readOnboardingItemHistoryIn(tx, item.id));
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({ fromStatus: "pending", toStatus: "waived" });
+  });
+
+  /**
+   * `REQ-reason-free-waive` (LAN-214): the shipped `onboarding_items_waiver_is_justified`
+   * constraint demanded both an author and a reason. It is unwound —
+   * `onboarding_items_waiver_author_required` keeps the author, and a waiver
+   * with no reason is now accepted rather than refused.
+   */
+  it("accepts a waiver with an author and no reason", async () => {
     const membershipId = await givenMembership("onboarding");
     const item = await firstItem(membershipId);
 
-    const failure = await resolveOnboardingItem({
+    const membership = await resolveOnboardingItem({
       actorPersonId,
       membershipId,
       itemId: item.id,
       status: "waived",
       reason: "  ",
-    }).catch((error: unknown) => error);
+    });
 
-    expect(isServiceError(failure) && failure.rule).toBe("onboarding_items_waiver_is_justified");
+    const updated = membership.onboardingItems.find((each) => each.id === item.id)!;
+    expect(updated.status).toBe("waived");
+    expect(updated.waivedReason).toBeNull();
+    expect(updated.waivedByName).not.toBeNull();
+  });
+
+  /** The author half of `onboarding_items_waiver_author_required` still refuses — proved against the database itself, not the (now-removed) app-level check. */
+  it("still refuses a waiver with no author, at the database", async () => {
+    const membershipId = await givenMembership("onboarding");
+    const item = await firstItem(membershipId);
+
+    const failure = await observer
+      .query(
+        `update public.onboarding_items set status = 'waived', waived_by_person_id = null
+          where id = $1::uuid`,
+        [item.id],
+      )
+      .catch((error: unknown) => error);
+
+    expect(String((failure as Error).message)).toMatch(/onboarding_items_waiver_author_required/);
   });
 
   it("clears the completion when an item becomes not applicable", async () => {
@@ -875,7 +1025,226 @@ describe("resolveOnboardingItem", () => {
       "pending",
     );
   });
+
+  // ---------------------------------------------------------------------
+  // reopen — R2-R, R4-T, LAN-214
+  // ---------------------------------------------------------------------
+
+  it("reopens a resolved item back to pending, never automatically", async () => {
+    const membershipId = await givenMembership("onboarding");
+    const item = await firstItem(membershipId);
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: item.id,
+      status: "complete",
+    });
+
+    const membership = await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: item.id,
+      status: "reopen",
+    });
+
+    const updated = membership.onboardingItems.find((each) => each.id === item.id)!;
+    expect(updated.status).toBe("pending");
+    expect(updated.completedOn).toBeNull();
+  });
+
+  it("reopens from every terminal state — waived and not_applicable, not only complete", async () => {
+    const membershipId = await givenMembership("onboarding");
+    const [waivedItem, naItem] = (await readMembership(membershipId)).onboardingItems;
+
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: waivedItem.id,
+      status: "waived",
+    });
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: naItem.id,
+      status: "not_applicable",
+    });
+
+    const reopenedWaived = await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: waivedItem.id,
+      status: "reopen",
+    });
+    const reopenedNa = await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: naItem.id,
+      status: "reopen",
+    });
+
+    expect(reopenedWaived.onboardingItems.find((i) => i.id === waivedItem.id)?.status).toBe(
+      "pending",
+    );
+    expect(reopenedNa.onboardingItems.find((i) => i.id === naItem.id)?.status).toBe("pending");
+  });
+
+  it("refuses to reopen a live item — nothing resolved, nothing to reopen", async () => {
+    const membershipId = await givenMembership("onboarding");
+    const item = await firstItem(membershipId);
+
+    const failure = await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: item.id,
+      status: "reopen",
+    }).catch((error: unknown) => error);
+
+    expect(isServiceError(failure) && failure.rule).toBe(
+      "onboarding_item_reopen_requires_a_resolved_item",
+    );
+  });
+
+  // ---------------------------------------------------------------------
+  // Per-item history — REQ-item-history, LAN-214
+  // ---------------------------------------------------------------------
+
+  it("writes an append-only history row for every real transition, with actor, date and the state pair", async () => {
+    const membershipId = await givenMembership("onboarding");
+    const item = await firstItem(membershipId);
+
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: item.id,
+      status: "complete",
+    });
+    await resolveOnboardingItem({ actorPersonId, membershipId, itemId: item.id, status: "reopen" });
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: item.id,
+      status: "waived",
+      reason: "Hardship",
+    });
+
+    const history = await withTransaction((tx) => readOnboardingItemHistoryIn(tx, item.id));
+    expect(history.map((h) => [h.fromStatus, h.toStatus])).toEqual([
+      ["pending", "complete"],
+      ["complete", "pending"],
+      ["pending", "waived"],
+    ]);
+    for (const entry of history) {
+      expect(entry.actorKind).toBe("operator");
+      expect(entry.actorPersonId).toBe(actorPersonId);
+      expect(entry.occurredAt).toBeInstanceOf(Date);
+    }
+    expect(history[2].reason).toBe("Hardship");
+  });
+
+  // `REQ-item-history`'s own acceptance criterion — "Prove it with a test
+  // that attempts an overwrite" — is proved in
+  // `tests/schema-onboarding-substrate.test.ts`, which connects the way the
+  // application actually does (`set local role service_role`); this suite's
+  // `observer` connects as the `postgres` superuser and bypasses every grant,
+  // so a permission-denied assertion here would prove nothing.
 });
+
+// ---------------------------------------------------------------------------
+// claimOnboardingItem — R2-V, LAN-214
+// ---------------------------------------------------------------------------
+
+describe("claimOnboardingItem", () => {
+  /**
+   * A person, a membership, and one trust-class item type — all on
+   * `trustSeasonId`, this suite's own private season, so inserting a new item
+   * *type* here never touches `openSeasonId`'s catalogue or the `seasonTypes`
+   * snapshot every other describe block in this file compares against.
+   */
+  async function givenTrustClassMembership(): Promise<{ membershipId: string; itemId: string }> {
+    const givenName = unique("TrustPerson");
+    const person = await observer.query<{ id: string }>(
+      "insert into public.people (given_name, family_name) values ($1, 'Testcase') returning id",
+      [givenName],
+    );
+    const membership = await observer.query<{ id: string }>(
+      `insert into public.season_memberships (person_id, season_id, status, entry, confirmed_on)
+       values ($1::uuid, $2::uuid, 'onboarding', 'new', current_date) returning id`,
+      [person.rows[0].id, trustSeasonId],
+    );
+    const typeId = await observer.query<{ id: string }>(
+      `insert into public.onboarding_item_types
+         (season_id, code, label, is_required, verification_class, sort_order)
+       values ($1::uuid, $2, 'BUCS Play registration', true, 'trust', 999)
+       returning id`,
+      [trustSeasonId, unique("trust-type")],
+    );
+    const item = await observer.query<{ id: string }>(
+      `insert into public.onboarding_items (season_membership_id, season_id, item_type_id, status)
+       values ($1::uuid, $2::uuid, $3::uuid, 'pending') returning id`,
+      [membership.rows[0].id, trustSeasonId, typeId.rows[0].id],
+    );
+    return { membershipId: membership.rows[0].id, itemId: item.rows[0].id };
+  }
+
+  /** The direct (non-trust-class) case still uses the shared open season — no new item type is created for it. */
+  it("moves a trust-class item to claimed, with player provenance", async () => {
+    const { membershipId, itemId } = await givenTrustClassMembership();
+    const playerPersonId = (await readMembership(membershipId)).personId;
+
+    const membership = await claimOnboardingItem({
+      actorPersonId: playerPersonId,
+      membershipId,
+      itemId,
+    });
+
+    const item = membership.onboardingItems.find((each) => each.id === itemId)!;
+    expect(item.status).toBe("claimed");
+
+    const history = await withTransaction((tx) => readOnboardingItemHistoryIn(tx, itemId));
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({
+      fromStatus: "pending",
+      toStatus: "claimed",
+      actorKind: "player",
+      actorPersonId: playerPersonId,
+    });
+  });
+
+  it("refuses to claim a direct (non-trust-class) item", async () => {
+    const membershipId = await givenMembership("onboarding");
+    const item = await firstItem(membershipId);
+    const playerPersonId = (await readMembership(membershipId)).personId;
+
+    const failure = await claimOnboardingItem({
+      actorPersonId: playerPersonId,
+      membershipId,
+      itemId: item.id,
+    }).catch((error: unknown) => error);
+
+    expect(isServiceError(failure) && failure.rule).toBe(
+      "onboarding_item_claim_requires_trust_class",
+    );
+  });
+
+  it("refuses to claim an item that is already claimed", async () => {
+    const { membershipId, itemId } = await givenTrustClassMembership();
+    const playerPersonId = (await readMembership(membershipId)).personId;
+    await claimOnboardingItem({ actorPersonId: playerPersonId, membershipId, itemId });
+
+    const failure = await claimOnboardingItem({
+      actorPersonId: playerPersonId,
+      membershipId,
+      itemId,
+    }).catch((error: unknown) => error);
+
+    expect(isServiceError(failure) && failure.rule).toBe("onboarding_item_already_in_that_state");
+  });
+});
+
+async function firstItem(membershipId: string) {
+  const membership = await readMembership(membershipId);
+  return membership.onboardingItems[0];
+}
 
 // ---------------------------------------------------------------------------
 // Row 11 — the roster read model

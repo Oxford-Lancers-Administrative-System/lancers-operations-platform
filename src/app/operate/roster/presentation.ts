@@ -40,6 +40,12 @@ export const ONBOARDING_ITEM_LABELS: Readonly<Record<OnboardingItemStatus, strin
   {
     pending: "Pending",
     invited: "Invited",
+    // LAN-214: `claimed` joined the enum this label map is keyed on. The word
+    // itself is not this package's to place on a screen — W6 owns where it
+    // sits visually against `complete` (delegated to the Mission Lead) — this
+    // entry exists only so the map stays total over `OnboardingItemStatus`
+    // and this route keeps compiling.
+    claimed: "Claimed",
     complete: "Complete",
     waived: "Waived",
     not_applicable: "Not applicable",

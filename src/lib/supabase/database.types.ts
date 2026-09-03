@@ -348,6 +348,62 @@ export type Database = {
           },
         ]
       }
+      bps_selections: {
+        Row: {
+          id: string
+          is_selected: boolean
+          recorded_by_person_id: string | null
+          season_id: string
+          season_membership_id: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          is_selected?: boolean
+          recorded_by_person_id?: string | null
+          season_id: string
+          season_membership_id: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          is_selected?: boolean
+          recorded_by_person_id?: string | null
+          season_id?: string
+          season_membership_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bps_selections_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "constitutional_membership"
+            referencedColumns: ["season_membership_id", "season_id"]
+          },
+          {
+            foreignKeyName: "bps_selections_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "season_memberships"
+            referencedColumns: ["id", "season_id"]
+          },
+          {
+            foreignKeyName: "bps_selections_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bps_selections_recorded_by_person_id_fkey"
+            columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
       club_link_tokens: {
         Row: {
           event_id: string
@@ -2018,6 +2074,266 @@ export type Database = {
           },
         ]
       }
+      onboarding_activity_log: {
+        Row: {
+          actor_label: string | null
+          actor_person_id: string | null
+          channel: string
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["onboarding_activity_kind"]
+          occurred_at: string
+          season_id: string
+          season_membership_id: string
+          section: string
+        }
+        Insert: {
+          actor_label?: string | null
+          actor_person_id?: string | null
+          channel: string
+          created_at?: string
+          id?: string
+          kind: Database["public"]["Enums"]["onboarding_activity_kind"]
+          occurred_at?: string
+          season_id: string
+          season_membership_id: string
+          section: string
+        }
+        Update: {
+          actor_label?: string | null
+          actor_person_id?: string | null
+          channel?: string
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["onboarding_activity_kind"]
+          occurred_at?: string
+          season_id?: string
+          season_membership_id?: string
+          section?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_activity_log_actor_person_id_fkey"
+            columns: ["actor_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_activity_log_actor_person_id_fkey"
+            columns: ["actor_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "onboarding_activity_log_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "constitutional_membership"
+            referencedColumns: ["season_membership_id", "season_id"]
+          },
+          {
+            foreignKeyName: "onboarding_activity_log_membership_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "season_memberships"
+            referencedColumns: ["id", "season_id"]
+          },
+        ]
+      }
+      onboarding_agreement_versions: {
+        Row: {
+          agreement_type: Database["public"]["Enums"]["onboarding_agreement_type"]
+          body: string
+          created_at: string
+          effective_from: string
+          id: string
+          version_label: string
+        }
+        Insert: {
+          agreement_type: Database["public"]["Enums"]["onboarding_agreement_type"]
+          body: string
+          created_at?: string
+          effective_from?: string
+          id?: string
+          version_label: string
+        }
+        Update: {
+          agreement_type?: Database["public"]["Enums"]["onboarding_agreement_type"]
+          body?: string
+          created_at?: string
+          effective_from?: string
+          id?: string
+          version_label?: string
+        }
+        Relationships: []
+      }
+      onboarding_agreements: {
+        Row: {
+          agreed_at: string
+          agreement_type: Database["public"]["Enums"]["onboarding_agreement_type"]
+          agreement_version_id: string
+          id: string
+          person_id: string
+          season_id: string
+        }
+        Insert: {
+          agreed_at?: string
+          agreement_type: Database["public"]["Enums"]["onboarding_agreement_type"]
+          agreement_version_id: string
+          id?: string
+          person_id: string
+          season_id: string
+        }
+        Update: {
+          agreed_at?: string
+          agreement_type?: Database["public"]["Enums"]["onboarding_agreement_type"]
+          agreement_version_id?: string
+          id?: string
+          person_id?: string
+          season_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_agreements_agreement_version_id_fkey"
+            columns: ["agreement_version_id"]
+            isOneToOne: false
+            referencedRelation: "onboarding_agreement_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_agreements_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_agreements_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "onboarding_agreements_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_agreements_version_is_the_right_type"
+            columns: ["agreement_version_id", "agreement_type"]
+            isOneToOne: false
+            referencedRelation: "onboarding_agreement_versions"
+            referencedColumns: ["id", "agreement_type"]
+          },
+        ]
+      }
+      onboarding_chase_settings: {
+        Row: {
+          chase_count: number
+          chase_interval_days: number
+          first_chase_after_hours: number
+          id: boolean
+          updated_at: string
+        }
+        Insert: {
+          chase_count: number
+          chase_interval_days: number
+          first_chase_after_hours: number
+          id?: boolean
+          updated_at?: string
+        }
+        Update: {
+          chase_count?: number
+          chase_interval_days?: number
+          first_chase_after_hours?: number
+          id?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      onboarding_item_history: {
+        Row: {
+          actor_kind: Database["public"]["Enums"]["onboarding_actor_kind"]
+          actor_person_id: string | null
+          from_status:
+            | Database["public"]["Enums"]["onboarding_item_status"]
+            | null
+          id: string
+          occurred_at: string
+          onboarding_item_id: string
+          reason: string | null
+          season_membership_id: string
+          to_status: Database["public"]["Enums"]["onboarding_item_status"]
+        }
+        Insert: {
+          actor_kind: Database["public"]["Enums"]["onboarding_actor_kind"]
+          actor_person_id?: string | null
+          from_status?:
+            | Database["public"]["Enums"]["onboarding_item_status"]
+            | null
+          id?: string
+          occurred_at?: string
+          onboarding_item_id: string
+          reason?: string | null
+          season_membership_id: string
+          to_status: Database["public"]["Enums"]["onboarding_item_status"]
+        }
+        Update: {
+          actor_kind?: Database["public"]["Enums"]["onboarding_actor_kind"]
+          actor_person_id?: string | null
+          from_status?:
+            | Database["public"]["Enums"]["onboarding_item_status"]
+            | null
+          id?: string
+          occurred_at?: string
+          onboarding_item_id?: string
+          reason?: string | null
+          season_membership_id?: string
+          to_status?: Database["public"]["Enums"]["onboarding_item_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_item_history_actor_person_id_fkey"
+            columns: ["actor_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_item_history_actor_person_id_fkey"
+            columns: ["actor_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "onboarding_item_history_membership_season"
+            columns: ["season_membership_id"]
+            isOneToOne: false
+            referencedRelation: "constitutional_membership"
+            referencedColumns: ["season_membership_id"]
+          },
+          {
+            foreignKeyName: "onboarding_item_history_membership_season"
+            columns: ["season_membership_id"]
+            isOneToOne: false
+            referencedRelation: "season_memberships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_item_history_onboarding_item_id_fkey"
+            columns: ["onboarding_item_id"]
+            isOneToOne: false
+            referencedRelation: "onboarding_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       onboarding_item_types: {
         Row: {
           code: string
@@ -2027,6 +2343,7 @@ export type Database = {
           label: string
           season_id: string
           sort_order: number
+          verification_class: Database["public"]["Enums"]["onboarding_item_verification_class"]
         }
         Insert: {
           code: string
@@ -2036,6 +2353,7 @@ export type Database = {
           label: string
           season_id: string
           sort_order?: number
+          verification_class?: Database["public"]["Enums"]["onboarding_item_verification_class"]
         }
         Update: {
           code?: string
@@ -2045,6 +2363,7 @@ export type Database = {
           label?: string
           season_id?: string
           sort_order?: number
+          verification_class?: Database["public"]["Enums"]["onboarding_item_verification_class"]
         }
         Relationships: [
           {
@@ -2474,6 +2793,91 @@ export type Database = {
           {
             foreignKeyName: "person_emergency_contacts_recorded_by_person_id_fkey"
             columns: ["recorded_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
+      person_fact_disputes: {
+        Row: {
+          club_value: string | null
+          field: string
+          id: string
+          person_id: string
+          player_value: string
+          raised_at: string
+          raised_by_person_id: string | null
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by_person_id: string | null
+          status: Database["public"]["Enums"]["person_fact_dispute_status"]
+        }
+        Insert: {
+          club_value?: string | null
+          field: string
+          id?: string
+          person_id: string
+          player_value: string
+          raised_at?: string
+          raised_by_person_id?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by_person_id?: string | null
+          status?: Database["public"]["Enums"]["person_fact_dispute_status"]
+        }
+        Update: {
+          club_value?: string | null
+          field?: string
+          id?: string
+          person_id?: string
+          player_value?: string
+          raised_at?: string
+          raised_by_person_id?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by_person_id?: string | null
+          status?: Database["public"]["Enums"]["person_fact_dispute_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_fact_disputes_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_fact_disputes_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "person_fact_disputes_raised_by_person_id_fkey"
+            columns: ["raised_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_fact_disputes_raised_by_person_id_fkey"
+            columns: ["raised_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "person_fact_disputes_resolved_by_person_id_fkey"
+            columns: ["resolved_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_fact_disputes_resolved_by_person_id_fkey"
+            columns: ["resolved_by_person_id"]
             isOneToOne: false
             referencedRelation: "person_standing"
             referencedColumns: ["person_id"]
@@ -4479,13 +4883,22 @@ export type Database = {
         | "schedule_change_notice"
         | "escalation"
         | "other"
+      onboarding_activity_kind: "ask" | "answer"
+      onboarding_actor_kind: "operator" | "player" | "system"
+      onboarding_agreement_type: "code_of_conduct" | "photo_release"
       onboarding_item_status:
         | "pending"
         | "invited"
         | "complete"
         | "waived"
         | "not_applicable"
+        | "claimed"
+      onboarding_item_verification_class: "direct" | "trust"
       person_access_token_purpose: "recruit_interest_request"
+      person_fact_dispute_status:
+        | "open"
+        | "resolved_kept_club"
+        | "resolved_took_player"
       position_side: "offence" | "defence" | "special_teams"
       position_slot:
         | "offence"
@@ -4738,14 +5151,24 @@ export const Constants = {
         "escalation",
         "other",
       ],
+      onboarding_activity_kind: ["ask", "answer"],
+      onboarding_actor_kind: ["operator", "player", "system"],
+      onboarding_agreement_type: ["code_of_conduct", "photo_release"],
       onboarding_item_status: [
         "pending",
         "invited",
         "complete",
         "waived",
         "not_applicable",
+        "claimed",
       ],
+      onboarding_item_verification_class: ["direct", "trust"],
       person_access_token_purpose: ["recruit_interest_request"],
+      person_fact_dispute_status: [
+        "open",
+        "resolved_kept_club",
+        "resolved_took_player",
+      ],
       position_side: ["offence", "defence", "special_teams"],
       position_slot: [
         "offence",
