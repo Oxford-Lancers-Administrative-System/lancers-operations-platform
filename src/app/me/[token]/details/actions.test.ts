@@ -60,6 +60,7 @@ import {
   type QuestionnaireView,
 } from "@/lib/services/player-questionnaire";
 import { agreeDocument, saveDetails, submitTrustStep } from "./actions";
+import { EMPTY_DETAILS_VALUES, type DetailsFormState } from "./validation";
 
 const TOKEN = "durable-token-plaintext-000000000000000000000";
 const PERSON_ID = "00000000-0000-4000-8000-000000000001";
@@ -70,6 +71,28 @@ const MEMBERSHIP_ID = "00000000-0000-4000-8000-000000000003";
 // that they are never even attempted against this one.
 const OTHER_PERSON_ID = "00000000-0000-4000-8000-000000000099";
 
+// A submission that clears `validateRequiredDetails` on every field, so an
+// F-001 identity test (which is about who a write lands on, not about
+// validation) reaches `saveDetailsStep` exactly as it did before B-009 added
+// a required check ahead of it.
+const VALID_FIELDS: Record<string, string> = {
+  given_name: "Jordan",
+  family_name: "Ashworth",
+  mobile: "07700 900000",
+  personal_email: "jordan@example.com",
+  college: "St Peter's",
+  matriculation_year: "2023",
+  expected_graduation_year: "2026",
+  degree_field: "Engineering",
+  date_of_birth: "2004-01-01",
+  ec_given_name: "Alex",
+  ec_family_name: "Ashworth",
+  ec_phone: "07700 900001",
+  ec_email: "alex@example.com",
+};
+
+const INITIAL_STATE: DetailsFormState = { values: EMPTY_DETAILS_VALUES, errors: {} };
+
 function formFor(fields: Record<string, string> = {}): FormData {
   const form = new FormData();
   form.set("token", TOKEN);
@@ -77,7 +100,7 @@ function formFor(fields: Record<string, string> = {}): FormData {
   return form;
 }
 
-async function redirectFrom(run: () => Promise<void>): Promise<string> {
+async function redirectFrom(run: () => Promise<unknown>): Promise<string> {
   try {
     await run();
   } catch (error) {
@@ -108,13 +131,13 @@ beforeEach(() => {
 describe("saveDetails", () => {
   it("saves against the re-resolved person, season and membership — never a submitted identity (F-001)", async () => {
     const form = formFor({
+      ...VALID_FIELDS,
       personId: OTHER_PERSON_ID,
       seasonId: "not-the-real-season",
       membershipId: "not-the-real-membership",
-      given_name: "Jordan",
     });
 
-    await redirectFrom(() => saveDetails(form));
+    await redirectFrom(() => saveDetails(INITIAL_STATE, form));
 
     expect(saveDetailsStep).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -126,25 +149,22 @@ describe("saveDetails", () => {
   });
 
   it("writes nothing to the crafted other person named in the form (F-001)", async () => {
-    await redirectFrom(() => saveDetails(formFor({ personId: OTHER_PERSON_ID })));
+    await redirectFrom(() =>
+      saveDetails(INITIAL_STATE, formFor({ ...VALID_FIELDS, personId: OTHER_PERSON_ID })),
+    );
 
+    expect(saveDetailsStep).toHaveBeenCalled();
     expect(saveDetailsStep).not.toHaveBeenCalledWith(
       expect.objectContaining({ personId: OTHER_PERSON_ID }),
     );
   });
 
-  it("redirects to the field-error banner and writes nothing further when the service reports a shape error", async () => {
-    vi.mocked(saveDetailsStep).mockResolvedValueOnce({ errors: { mobile: "bad" }, outcomes: {} });
-
-    const target = await redirectFrom(() => saveDetails(formFor()));
-
-    expect(target).toBe(`/me/${encodeURIComponent(TOKEN)}/details?step=details&fieldError=1`);
-  });
-
   it("refuses uniformly and writes nothing when the token no longer resolves", async () => {
     vi.mocked(resolvePersonTokenIn).mockResolvedValue({ state: "unknown", resolved: null });
 
-    const target = await redirectFrom(() => saveDetails(formFor({ personId: OTHER_PERSON_ID })));
+    const target = await redirectFrom(() =>
+      saveDetails(INITIAL_STATE, formFor({ personId: OTHER_PERSON_ID })),
+    );
 
     expect(saveDetailsStep).not.toHaveBeenCalled();
     expect(target).toBe(`/me/${encodeURIComponent(TOKEN)}/details`);
@@ -152,15 +172,102 @@ describe("saveDetails", () => {
 
   it("refuses further writes once the link's own allowance is spent, without ever resolving the token again", async () => {
     for (let attempt = 0; attempt < 240; attempt += 1) {
-      await redirectFrom(() => saveDetails(formFor()));
+      await redirectFrom(() => saveDetails(INITIAL_STATE, formFor(VALID_FIELDS)));
     }
     vi.mocked(saveDetailsStep).mockClear();
     vi.mocked(resolvePersonTokenIn).mockClear();
 
-    await redirectFrom(() => saveDetails(formFor()));
+    await redirectFrom(() => saveDetails(INITIAL_STATE, formFor(VALID_FIELDS)));
 
     expect(resolvePersonTokenIn).not.toHaveBeenCalled();
     expect(saveDetailsStep).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * B-009 (LAN-216, correction round 2) — Brian's screenshot: a 6-digit mobile
+ * and a junk email sitting accepted, with Chrome's own "Please fill out this
+ * field" bubble pointing at an unrelated field. `./details-form.tsx` now
+ * carries `noValidate`, so nothing stops a bad submission from reaching this
+ * action; this suite is the proof that the action itself now catches what the
+ * browser used to.
+ */
+describe("saveDetails — field validation (B-009)", () => {
+  it("returns a required error for every one of the thirteen validated fields when the form is blank, and calls the service for none of them", async () => {
+    const result = await saveDetails(INITIAL_STATE, formFor());
+
+    expect(saveDetailsStep).not.toHaveBeenCalled();
+    for (const field of [
+      "given_name",
+      "family_name",
+      "mobile",
+      "personal_email",
+      "college",
+      "matriculation_year",
+      "expected_graduation_year",
+      "degree_field",
+      "date_of_birth",
+      "ec_given_name",
+      "ec_family_name",
+      "ec_phone",
+      "ec_email",
+    ] as const) {
+      expect(result.errors[field]).toEqual(expect.stringContaining("is required"));
+    }
+    // Never required — the form has never asked it of the player, and this
+    // correction adds no such requirement.
+    expect(result.errors.ec_relationship).toBeUndefined();
+  });
+
+  it("never asks for a required field that was actually filled in — the service runs and the sequence advances", async () => {
+    await redirectFrom(() => saveDetails(INITIAL_STATE, formFor(VALID_FIELDS)));
+
+    expect(saveDetailsStep).toHaveBeenCalled();
+  });
+
+  it("maps the service's camelCase `personalEmail` shape error onto this form's `personal_email` field", async () => {
+    vi.mocked(saveDetailsStep).mockResolvedValueOnce({
+      errors: { personalEmail: "This does not look like an email address." },
+      outcomes: {},
+    });
+
+    const result = await saveDetails(INITIAL_STATE, formFor(VALID_FIELDS));
+
+    expect(result.errors.personal_email).toBe("This does not look like an email address.");
+    expect((result.errors as Record<string, string>).personalEmail).toBeUndefined();
+  });
+
+  it("renders the mobile and email shape errors under their own field, saying what is wrong with the value", async () => {
+    vi.mocked(saveDetailsStep).mockResolvedValueOnce({
+      errors: {
+        mobile: "This does not look like a phone number.",
+        ec_email: "This does not look like an email address.",
+      },
+      outcomes: {},
+    });
+
+    const result = await saveDetails(INITIAL_STATE, formFor(VALID_FIELDS));
+
+    expect(result.errors.mobile).toBe("This does not look like a phone number.");
+    expect(result.errors.ec_email).toBe("This does not look like an email address.");
+  });
+
+  it("never calls the service at all when a required field is blank — nothing is attempted, matching REQ-required-set", async () => {
+    const result = await saveDetails(INITIAL_STATE, formFor({ ...VALID_FIELDS, ec_email: "" }));
+
+    expect(saveDetailsStep).not.toHaveBeenCalled();
+    expect(result.errors.ec_email).toEqual(expect.stringContaining("is required"));
+  });
+
+  it("returns every value the player typed, unchanged, on a failed submit — nothing they entered is lost", async () => {
+    vi.mocked(saveDetailsStep).mockResolvedValueOnce({ errors: { mobile: "bad" }, outcomes: {} });
+    const typed = { ...VALID_FIELDS, mobile: "398393", personal_email: "b@b.com" };
+
+    const result = await saveDetails(INITIAL_STATE, formFor(typed));
+
+    for (const [field, value] of Object.entries(typed)) {
+      expect(result.values[field as keyof typeof result.values]).toBe(value);
+    }
   });
 });
 

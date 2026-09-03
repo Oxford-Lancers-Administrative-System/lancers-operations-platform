@@ -2,10 +2,7 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import FormHelperText from "@mui/material/FormHelperText";
 import Paper from "@mui/material/Paper";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import Alert from "@mui/material/Alert";
 
@@ -25,8 +22,10 @@ import {
 } from "@/lib/services/player-questionnaire";
 import type { OnboardingAgreementType } from "@/lib/services/onboarding-agreements";
 
-import { agreeDocument, saveDetails, submitTrustStep } from "./actions";
+import { agreeDocument, submitTrustStep } from "./actions";
 import { CheckboxField } from "./checkbox-field";
+import { DetailsForm } from "./details-form";
+import type { DetailsFormValues } from "./validation";
 import {
   AGREE_AND_CONTINUE,
   ALREADY_COMPLETE_CHANGE_NOTE,
@@ -43,31 +42,13 @@ import {
   CODE_OF_CONDUCT_AGREE_LABEL,
   CODE_OF_CONDUCT_HEADING,
   CODE_OF_CONDUCT_LEAD,
-  CONSENT_ALREADY_GRANTED,
-  CONSENT_HEADING,
-  CONSENT_LABEL,
   CONTINUE,
   DETAILS_HEADING,
   DETAILS_LEAD_RETURNING,
   DETAILS_LEAD_STEP,
   DETAILS_SECONDARY,
-  DISPUTED_NOTICE,
   DOCUMENT_PRIVACY_NOTE,
   DONE_HEADING,
-  FIELD_COLLEGE,
-  FIELD_DATE_OF_BIRTH,
-  FIELD_DEGREE_FIELD,
-  FIELD_EC_EMAIL,
-  FIELD_EC_FAMILY_NAME,
-  FIELD_EC_GIVEN_NAME,
-  FIELD_EC_PHONE,
-  FIELD_EC_RELATIONSHIP,
-  FIELD_EXPECTED_GRADUATION,
-  FIELD_FAMILY_NAME,
-  FIELD_GIVEN_NAME,
-  FIELD_MATRICULATION_YEAR,
-  FIELD_MOBILE,
-  FIELD_PERSONAL_EMAIL,
   FINISH,
   HUDL_ARE_YOU_IN,
   HUDL_CLAIM_LABEL,
@@ -85,13 +66,6 @@ import {
   PHOTO_RELEASE_LEAD,
   PLACEHOLDER_LABEL,
   PRIVACY_NOTE,
-  REQUIRED_NOTE,
-  SAVE_AND_CONTINUE,
-  SAVE_CHANGES,
-  SECTION_EMERGENCY_CONTACT,
-  SECTION_KEPT_PRIVATE,
-  SECTION_WHERE_YOU_STUDY,
-  SECTION_WHO_YOU_ARE,
   sourceLine,
   stepLabel,
 } from "./presentation";
@@ -120,7 +94,6 @@ export default async function PlayerDetailsPage({ params, searchParams }: PagePr
   const { token } = await params;
   const query = await searchParams;
   const requestedStep = first(query.step);
-  const fieldError = first(query.fieldError) !== null;
   const agreeError = first(query.agreeError) !== null;
   const busy = first(query.error) === "busy";
 
@@ -206,7 +179,7 @@ export default async function PlayerDetailsPage({ params, searchParams }: PagePr
         ) : page === "done" ? (
           <DonePage view={view} token={token} />
         ) : page === "details" ? (
-          <DetailsStepPage view={view} token={token} fieldError={fieldError} />
+          <DetailsStepPage view={view} token={token} />
         ) : page === "code_of_conduct" || page === "photo_release" ? (
           <DocumentStepPage
             view={view}
@@ -318,47 +291,6 @@ function Shell({
 // Step 1 — the details
 // ---------------------------------------------------------------------------
 
-function FieldWithSource({
-  name,
-  label,
-  defaultValue,
-  required,
-  help,
-  source,
-  type = "text",
-  disputed = false,
-}: {
-  name: string;
-  label: string;
-  defaultValue: string;
-  required?: boolean;
-  help?: string;
-  source?: string | null;
-  type?: string;
-  disputed?: boolean;
-}) {
-  return (
-    <Box>
-      <TextField
-        name={name}
-        label={label}
-        defaultValue={defaultValue}
-        required={required}
-        fullWidth
-        type={type}
-        slotProps={type === "date" ? { inputLabel: { shrink: true } } : undefined}
-      />
-      {help ? <FormHelperText>{help}</FormHelperText> : null}
-      {source ? <FormHelperText>{source}</FormHelperText> : null}
-      {disputed ? (
-        <Alert severity="info" sx={{ mt: 0.75 }}>
-          {DISPUTED_NOTICE}
-        </Alert>
-      ) : null}
-    </Box>
-  );
-}
-
 function currentContact(view: QuestionnaireView, kind: "phone" | "email"): string {
   const contact = view.person.contacts.find(
     (c) => c.kind === kind && c.validUntil === null && (kind === "phone" || c.scope === "personal"),
@@ -366,18 +298,36 @@ function currentContact(view: QuestionnaireView, kind: "phone" | "email"): strin
   return contact?.rawValue ?? "";
 }
 
-function DetailsStepPage({
-  view,
-  token,
-  fieldError,
-}: {
-  view: QuestionnaireView;
-  token: string;
-  fieldError: boolean;
-}) {
+/**
+ * B-009 (LAN-216, correction round 2): the field-level rendering — errors
+ * under each field, values surviving a failed submit, focus on the first
+ * invalid control — lives in `./details-form.tsx`, a client component, because
+ * only a client component can hold `saveDetails`'s returned state without a
+ * navigation. Everything computed here is plain data the server already has:
+ * the values a fresh page load starts from, and the source/dispute badges
+ * that come from `view` rather than from anything the player just typed.
+ */
+function DetailsStepPage({ view, token }: { view: QuestionnaireView; token: string }) {
   const p = view.person;
   const ec = view.emergencyContact;
   const isReturning = p.givenNameSource !== null || p.collegeSource !== null;
+
+  const initialValues: DetailsFormValues = {
+    given_name: p.givenName,
+    family_name: p.familyName ?? "",
+    mobile: currentContact(view, "phone"),
+    personal_email: currentContact(view, "email"),
+    college: p.college ?? "",
+    matriculation_year: p.matriculationYear?.toString() ?? "",
+    expected_graduation_year: p.expectedGraduationYear?.toString() ?? "",
+    degree_field: p.degreeField ?? "",
+    date_of_birth: p.dateOfBirth ?? "",
+    ec_given_name: ec?.givenName ?? "",
+    ec_family_name: ec?.familyName ?? "",
+    ec_relationship: ec?.relationship ?? "",
+    ec_phone: ec?.phone ?? "",
+    ec_email: ec?.email ?? "",
+  };
 
   return (
     <Shell
@@ -387,147 +337,42 @@ function DetailsStepPage({
       lead={isReturning ? DETAILS_LEAD_RETURNING : DETAILS_LEAD_STEP}
     >
       <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
-        {fieldError ? (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            One of the values entered was not in a shape the club can save. Check the highlighted
-            fields and try again.
-          </Alert>
-        ) : null}
-        <Box component="form" action={saveDetails}>
-          <input type="hidden" name="token" value={token} />
-          <Stack spacing={2.5}>
-            {view.needsConsentStep ? (
-              <Box>
-                <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: 1 }}>
-                  {CONSENT_HEADING}
-                </Typography>
-                <CheckboxField name="consent" label={CONSENT_LABEL} />
-              </Box>
-            ) : (
-              <Alert severity="success">{CONSENT_ALREADY_GRANTED}</Alert>
-            )}
-
-            <FormHelperText sx={{ fontSize: 13 }}>{REQUIRED_NOTE}</FormHelperText>
-
-            <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700 }}>
-              {SECTION_WHO_YOU_ARE}
-            </Typography>
-            <FieldWithSource
-              name="given_name"
-              label={FIELD_GIVEN_NAME}
-              defaultValue={p.givenName}
-              required
-              source={p.givenNameSource ? sourceLine("you", null) : null}
-              disputed={view.openDisputedFields.has("given_name")}
-            />
-            <FieldWithSource
-              name="family_name"
-              label={FIELD_FAMILY_NAME}
-              defaultValue={p.familyName ?? ""}
-              required
-              source={p.familyNameSource ? sourceLine("you", null) : null}
-              disputed={view.openDisputedFields.has("family_name")}
-            />
-            <FieldWithSource
-              name="mobile"
-              label={FIELD_MOBILE}
-              defaultValue={currentContact(view, "phone")}
-              required
-            />
-            <FieldWithSource
-              name="personal_email"
-              label={FIELD_PERSONAL_EMAIL}
-              defaultValue={currentContact(view, "email")}
-              required
-            />
-
-            <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700 }}>
-              {SECTION_WHERE_YOU_STUDY}
-            </Typography>
-            <FieldWithSource
-              name="college"
-              label={FIELD_COLLEGE}
-              defaultValue={p.college ?? ""}
-              required
-              source={p.collegeSource ? sourceLine("club", null) : null}
-              disputed={view.openDisputedFields.has("college")}
-            />
-            <FieldWithSource
-              name="matriculation_year"
-              label={FIELD_MATRICULATION_YEAR}
-              defaultValue={p.matriculationYear?.toString() ?? ""}
-              required
-              source={p.matriculationYearSource ? sourceLine("club", null) : null}
-              disputed={view.openDisputedFields.has("matriculation_year")}
-            />
-            <FieldWithSource
-              name="expected_graduation_year"
-              label={FIELD_EXPECTED_GRADUATION}
-              defaultValue={p.expectedGraduationYear?.toString() ?? ""}
-              required
-              source={p.expectedGraduationYearSource ? sourceLine("you", null) : null}
-              disputed={view.openDisputedFields.has("expected_graduation_year")}
-            />
-            <FieldWithSource
-              name="degree_field"
-              label={FIELD_DEGREE_FIELD}
-              defaultValue={p.degreeField ?? ""}
-              required
-              source={p.degreeFieldSource ? sourceLine("you", null) : null}
-              disputed={view.openDisputedFields.has("degree_field")}
-            />
-
-            <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700 }}>
-              {SECTION_KEPT_PRIVATE}
-            </Typography>
-            <FieldWithSource
-              name="date_of_birth"
-              label={FIELD_DATE_OF_BIRTH}
-              defaultValue={p.dateOfBirth ?? ""}
-              required
-              type="date"
-              source={p.dateOfBirthSource ? sourceLine("you", null) : null}
-              disputed={view.openDisputedFields.has("date_of_birth")}
-            />
-
-            <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700 }}>
-              {SECTION_EMERGENCY_CONTACT}
-            </Typography>
-            <FieldWithSource
-              name="ec_given_name"
-              label={FIELD_EC_GIVEN_NAME}
-              defaultValue={ec?.givenName ?? ""}
-              required
-            />
-            <FieldWithSource
-              name="ec_family_name"
-              label={FIELD_EC_FAMILY_NAME}
-              defaultValue={ec?.familyName ?? ""}
-              required
-            />
-            <FieldWithSource
-              name="ec_relationship"
-              label={FIELD_EC_RELATIONSHIP}
-              defaultValue={ec?.relationship ?? ""}
-            />
-            <FieldWithSource
-              name="ec_phone"
-              label={FIELD_EC_PHONE}
-              defaultValue={ec?.phone ?? ""}
-              required
-            />
-            <FieldWithSource
-              name="ec_email"
-              label={FIELD_EC_EMAIL}
-              defaultValue={ec?.email ?? ""}
-              required
-            />
-
-            <Button type="submit" variant="contained" sx={{ minHeight: 48 }}>
-              {isReturning ? SAVE_CHANGES : SAVE_AND_CONTINUE}
-            </Button>
-          </Stack>
-        </Box>
+        <DetailsForm
+          token={token}
+          needsConsentStep={view.needsConsentStep}
+          isReturning={isReturning}
+          initialValues={initialValues}
+          meta={{
+            given_name: {
+              source: p.givenNameSource ? sourceLine("you", null) : null,
+              disputed: view.openDisputedFields.has("given_name"),
+            },
+            family_name: {
+              source: p.familyNameSource ? sourceLine("you", null) : null,
+              disputed: view.openDisputedFields.has("family_name"),
+            },
+            college: {
+              source: p.collegeSource ? sourceLine("club", null) : null,
+              disputed: view.openDisputedFields.has("college"),
+            },
+            matriculation_year: {
+              source: p.matriculationYearSource ? sourceLine("club", null) : null,
+              disputed: view.openDisputedFields.has("matriculation_year"),
+            },
+            expected_graduation_year: {
+              source: p.expectedGraduationYearSource ? sourceLine("you", null) : null,
+              disputed: view.openDisputedFields.has("expected_graduation_year"),
+            },
+            degree_field: {
+              source: p.degreeFieldSource ? sourceLine("you", null) : null,
+              disputed: view.openDisputedFields.has("degree_field"),
+            },
+            date_of_birth: {
+              source: p.dateOfBirthSource ? sourceLine("you", null) : null,
+              disputed: view.openDisputedFields.has("date_of_birth"),
+            },
+          }}
+        />
         <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 2 }}>
           {DETAILS_SECONDARY}
         </Typography>

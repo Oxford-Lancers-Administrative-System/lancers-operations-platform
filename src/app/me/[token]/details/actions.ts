@@ -23,6 +23,12 @@ import {
   type QuestionnaireStep,
 } from "@/lib/services/player-questionnaire";
 import type { OnboardingAgreementType } from "@/lib/services/onboarding-agreements";
+import {
+  mapServiceErrors,
+  readDetailsValues,
+  validateRequiredDetails,
+  type DetailsFormState,
+} from "./validation";
 
 /**
  * Every write `/me/[token]/details` makes — LAN-216.
@@ -119,9 +125,25 @@ function literalNextStepUrl(token: string, current: QuestionnaireStep): string {
 // Step 1 — the details
 // ---------------------------------------------------------------------------
 
-export async function saveDetails(form: FormData): Promise<void> {
+/**
+ * B-009 (LAN-216, correction round 2): with `noValidate` now on the form
+ * (`./details-form.tsx`), every submission reaches this action regardless of
+ * what was or was not typed — the browser no longer refuses a blank required
+ * field before this code ever runs. This is therefore where "required" is
+ * actually enforced from now on: `validateRequiredDetails` runs first, and
+ * only a submission that clears it is ever handed to `saveDetailsStep` for
+ * its own shape checks. Either check failing returns the same shape — the
+ * player's own typed values plus a per-field error map — for
+ * `useActionState` to redraw the form with, rather than a redirect: nothing
+ * written, nothing lost, no navigation.
+ */
+export async function saveDetails(
+  _previous: DetailsFormState,
+  form: FormData,
+): Promise<DetailsFormState> {
   const startedAt = startUniformClock();
   const token = str(form, "token");
+  const values = readDetailsValues(form);
 
   if (await throttled(token)) await refuse(detailsUrl(token), startedAt);
 
@@ -132,34 +154,39 @@ export async function saveDetails(form: FormData): Promise<void> {
     return refuse(detailsUrl(token), startedAt);
   }
 
+  const requiredErrors = validateRequiredDetails(values);
+  if (Object.keys(requiredErrors).length > 0) {
+    return { values, errors: requiredErrors };
+  }
+
   const input: DetailsStepInput = {
     personId: resolution.personId,
     seasonId: resolution.seasonId,
     membershipId: resolution.membershipId,
     grantConsent: checked(form, "consent"),
     fields: {
-      given_name: str(form, "given_name"),
-      family_name: str(form, "family_name"),
-      college: str(form, "college"),
-      matriculation_year: str(form, "matriculation_year"),
-      expected_graduation_year: str(form, "expected_graduation_year"),
-      degree_field: str(form, "degree_field"),
-      date_of_birth: str(form, "date_of_birth"),
+      given_name: values.given_name,
+      family_name: values.family_name,
+      college: values.college,
+      matriculation_year: values.matriculation_year,
+      expected_graduation_year: values.expected_graduation_year,
+      degree_field: values.degree_field,
+      date_of_birth: values.date_of_birth,
     },
-    mobile: str(form, "mobile"),
-    personalEmail: str(form, "personal_email"),
+    mobile: values.mobile,
+    personalEmail: values.personal_email,
     emergencyContact: {
-      givenName: str(form, "ec_given_name"),
-      familyName: str(form, "ec_family_name"),
-      relationship: str(form, "ec_relationship"),
-      phone: str(form, "ec_phone"),
-      email: str(form, "ec_email"),
+      givenName: values.ec_given_name,
+      familyName: values.ec_family_name,
+      relationship: values.ec_relationship,
+      phone: values.ec_phone,
+      email: values.ec_email,
     },
   };
 
   const result = await saveDetailsStep(input);
   if (Object.keys(result.errors).length > 0) {
-    return redirect(detailsUrl(token, "details", "fieldError=1"));
+    return { values, errors: mapServiceErrors(result.errors) };
   }
 
   redirect(await nextStepUrl(token, resolution));
