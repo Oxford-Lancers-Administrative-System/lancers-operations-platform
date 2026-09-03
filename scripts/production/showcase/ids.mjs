@@ -39,9 +39,21 @@
  * distinguishes them is the manifest and these identifiers, not the row itself.
  * That is Brian's decision of 15 August 2026, and the reason the runbook's
  * rollback step matters more here than it does for a `scripts/pilot/` scenario.
+ *
+ * ## LAN-221 — tokens
+ *
+ * Tester week needs a handful of *live* links — Brian's own RSVP link, his own
+ * player page — written into a checklist before the load and resolving after
+ * it. A link is a token, and a token is stored only as its SHA-256 digest, so
+ * the loader has to be able to produce the plaintext deterministically. It
+ * cannot do that from the public namespace alone: anyone with this repository
+ * could then compute a live credential from its key. So every token is an
+ * HMAC over the key with a secret Brian supplies in the private parameter file
+ * (`tokenSecret`), which never leaves his machine. The digest the database
+ * holds is the same `sha256(token)` the application computes.
  */
 
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 
 /**
  * The showcase's own namespace UUID.
@@ -121,4 +133,43 @@ export function id(table, ...parts) {
  */
 export function personKey(fullName) {
   return fullName.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/**
+ * A deterministic plaintext token, in the exact shape the application mints —
+ * 43 base64url characters, the encoding of 32 bytes (`TOKEN_PATTERN` in
+ * `src/lib/services/rsvp-tokens.ts`, and the same in `club-link.ts`).
+ *
+ * HMAC-SHA256 over the namespaced key, keyed by the private `tokenSecret`. The
+ * secret is required rather than defaulted: a default would be a public
+ * constant, and a token computable from public constants is not a credential.
+ */
+export function token(secret, table, ...parts) {
+  if (typeof secret !== "string" || secret.length < 16) {
+    throw new Error(
+      "The private parameter file must carry `tokenSecret`, at least 16 characters, " +
+        "before any token can be computed. See OWNER-RUNBOOK.md § The private parameter file.",
+    );
+  }
+  return createHmac("sha256", secret)
+    .update(`${SHOWCASE_NAMESPACE}${SEPARATOR}${table}${SEPARATOR}${parts.join(SEPARATOR)}`)
+    .digest("base64url")
+    .slice(0, 43);
+}
+
+/** The digest every token table stores: lowercase hex SHA-256 of the plaintext. */
+export function tokenHash(plaintext) {
+  return createHash("sha256").update(plaintext, "utf8").digest("hex");
+}
+
+/**
+ * A recruitment sign-up code, in the application's own shape — 12 base64url
+ * characters, the encoding of 9 bytes (`recruitment-signup-codes.ts`). Not a
+ * credential: the QR is public by design, so it needs no secret.
+ */
+export function signupCode(...parts) {
+  return createHash("sha256")
+    .update(`${SHOWCASE_NAMESPACE}${SEPARATOR}signup${SEPARATOR}${parts.join(SEPARATOR)}`)
+    .digest("base64url")
+    .slice(0, 12);
 }

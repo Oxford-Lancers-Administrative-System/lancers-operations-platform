@@ -136,20 +136,27 @@ audit evidence it writes is read back by the application's own history screens.
 
 ## `showcase.mjs` and `showcase/`
 
-The Monday showcase loader — LAN-124. Reads the club's two workbooks and loads a
-season's worth of data into a database, with `preflight`, `preview`, `load`,
-`verify`, `manifest` and `rollback` phases.
+The tester-week loader — LAN-221, extending LAN-124's Monday showcase. Loads an
+invented squad, a full term of events and every data state the workflow map
+names into a database, with `preflight`, `preview`, `load`, `report`, `verify`,
+`manifest`, `checklists` and `rollback` phases.
 
-Same rules as everything else here: Brian runs it by hand, a hosted run names the
-project with `--confirm-target`, and nothing automated may invoke it. A local run
-needs no confirmation because the loopback check refuses anything else.
+Same rules as everything else here: Brian runs it by hand, a hosted run names
+the project with `--confirm-target`, and nothing automated may invoke it. A
+local run needs no confirmation because the loopback check refuses anything
+else.
 
 The procedure a human follows is [`OWNER-RUNBOOK.md`](../../OWNER-RUNBOOK.md) at
-the repository root, not this file. What it loads and how those rows are
-identified is recorded in
-[`docs/pilot-data-manifest.md`](../../docs/pilot-data-manifest.md) § The Monday
-showcase — worth reading before running it, because these rows carry no
-`PILOT-` sentinel and no sweep will find them.
+the repository root, not this file. The map it loads against is
+`showcase/map.mjs`, rendered at `docs/tester-week/`. What it loads and how those
+rows are identified is recorded in
+[`docs/pilot-data-manifest.md`](../../docs/pilot-data-manifest.md) § Tester
+week — worth reading before running it, because these rows carry no `PILOT-`
+sentinel and no sweep will find them.
+
+Two things it never does: write a job the automatic sweep would dispatch, or a
+live link for anybody the private parameters do not name. `verify` fails closed
+on either, across the whole hosted database.
 
 ## `connection-smoke-test.mjs`
 

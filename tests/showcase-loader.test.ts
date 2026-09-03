@@ -1,73 +1,71 @@
 // @vitest-environment node
 /**
- * The showcase loader, against local Supabase — LAN-124.
+ * The tester-week loader, against local Supabase — LAN-221 (extending LAN-124).
  *
- * LAN-124 requires an automated test proving, against a **local** database,
- * that the load is repeatable, that rollback removes only its own rows and is
- * repeatable, and that durable identities and audit history survive it. This is
- * that test.
+ * Proves, against a real database, what the map and the plan can only
+ * promise: the load is repeatable and duplicates nothing; the report files
+ * and reconciles with the application's own computation; every state the
+ * map names exists and passes its predicate; nothing the sweep would send
+ * and no live link beyond the named tester's is left behind, and verify fails
+ * closed when one is; the checklists resolve to rows the load created and
+ * cover every workflow; rollback removes exactly what the load created plus
+ * the strays the parameters name, keeps history and its actors, refuses
+ * application-created attachments and clears them with --force; and the
+ * append-only and no-delete lists are what the catalogue says.
  *
- * It builds its own workbooks in memory rather than reading the club's, for the
- * same reason every other showcase suite does: the real files carry forty-two
- * students' names and this repository is public. What is exercised here is the
- * loader's machinery — adoption, idempotency, targeted rollback — which is
- * independent of whose names are in the spreadsheet.
- *
- * The loader was separately run against the club's real files during
- * implementation: 1,138 rows planned, 1,101 written with 37 adopted, a second
- * run creating 0 and updating 1,099, every verification check passing, and
- * rollback removing exactly the 1,099 it wrote.
+ * It uses its own season labels and its own vocabulary, marked archived, so
+ * its rows are invisible to every "current season" query the rest of the
+ * suite makes — the same island `delivery.test.ts` builds.
  */
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { workbook } from "./helpers/xlsx-builder.mjs";
+vi.mock("server-only", () => ({}));
+
+import { withTransaction } from "@/lib/db";
+import { computeReportContent } from "@/lib/services/weekly-report";
 import { openLocalClient, type Client } from "./helpers/domain-fixture";
+import { testParams } from "./helpers/showcase-fixture.mjs";
+import { APPEND_ONLY_TABLES, NO_DELETE_TABLES } from "../scripts/production/showcase/db.mjs";
+import { STATES, TESTERS, WORKFLOWS, routePattern } from "../scripts/production/showcase/map.mjs";
+import { reportIds } from "../scripts/production/showcase/report.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const LOADER = path.join(ROOT, "scripts/production/showcase.mjs");
 
-/** Names invented for this suite, and unlike anything the club's file holds. */
-const PLAYERS = [
-  "Quilliam Fetherstonhaugh",
-  "Ondine Marchetti-Vale",
-  "Bartholomew Ashgrove",
-  "Perpetua Nkemdirim",
-  "Caspar Wyndham-Fell",
-];
+type Row = { table: string; columns: Record<string, unknown> };
+type Plan = Awaited<ReturnType<typeof plan>>;
+type Workflow = { id: string; name: string; routes: string[]; notAWorkflow?: boolean };
+const workflows = WORKFLOWS as unknown as readonly Workflow[];
+type Season = Parameters<typeof computeReportContent>[1];
+type State = { key: string; arrivesWith?: string };
+const states = STATES as unknown as readonly State[];
 
 let directory: string;
 let client: Client;
-let rosterPath: string;
-let termCardPath: string;
 let paramsPath: string;
 
-const cell = (value: string) =>
-  `t="inlineStr"><is><t>${value.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</t></is></c>`;
-
-/** Runs one loader phase and returns its output. */
-function run(phase: string, extra: string[] = []) {
-  return execFileSync(
-    process.execPath,
-    [
-      LOADER,
-      phase,
-      "--roster",
-      rosterPath,
-      "--termcard",
-      termCardPath,
-      "--params",
-      paramsPath,
-      ...extra,
-    ],
-    { cwd: ROOT, encoding: "utf8", env: { ...process.env, CI: "", VITEST: "" } },
-  );
+function run(phase: string, extra: string[] = [], params = paramsPath) {
+  return execFileSync(process.execPath, [LOADER, phase, "--params", params, ...extra], {
+    cwd: ROOT,
+    encoding: "utf8",
+    env: { ...process.env, CI: "", VITEST: "" },
+  });
 }
 
-/** How many of the given identifiers are actually in the table. */
+function runExpectingFailure(phase: string, extra: string[] = [], params = paramsPath) {
+  try {
+    run(phase, extra, params);
+  } catch (error) {
+    const failure = error as { stdout?: string; stderr?: string };
+    return `${failure.stdout ?? ""}\n${failure.stderr ?? ""}`;
+  }
+  throw new Error(`${phase} should have failed`);
+}
+
 async function present(table: string, ids: string[]) {
   if (ids.length === 0) return 0;
   const result = await client.query<{ n: number }>(
@@ -77,104 +75,34 @@ async function present(table: string, ids: string[]) {
   return result.rows[0].n;
 }
 
-/** The plan, as the loader itself computes it. */
-async function plan() {
-  const { buildPlan } = await import("../scripts/production/showcase/plan.mjs");
-  const { readRoster, readTermCard } = await import("../scripts/production/showcase/sources.mjs");
-  const { readWorkbook } = await import("../scripts/production/showcase/workbook.mjs");
+/** The plan, as the loader itself computes it against this database. */
+async function plan(params = paramsPath) {
+  const { buildPlan, todayInLondon } = await import("../scripts/production/showcase/plan.mjs");
+  const { syntheticTermCard } = await import("../scripts/production/showcase/sources.mjs");
   const { readExisting } = await import("../scripts/production/showcase/db.mjs");
-
   return buildPlan({
-    players: readRoster(readWorkbook(rosterPath)),
-    termCard: readTermCard(readWorkbook(termCardPath), { year: 2026 }),
-    params: JSON.parse(
-      (await import("node:fs")).readFileSync(paramsPath, "utf8") as unknown as string,
-    ),
+    termCard: syntheticTermCard(),
+    params: JSON.parse(readFileSync(params, "utf8")),
     existing: await readExisting(client),
+    anchor: todayInLondon(),
   });
 }
 
+const idsOf = (current: Plan, table: string) =>
+  (current.rows as Row[])
+    .filter((row) => row.table === table)
+    .map((row) => row.columns.id as string);
+
 beforeAll(async () => {
-  directory = mkdtempSync(path.join(tmpdir(), "lancers-showcase-"));
+  directory = mkdtempSync(path.join(tmpdir(), "lancers-tester-week-"));
   client = await openLocalClient();
-
-  const rosterRows: [string, string][] = [
-    ["A1", cell("Name")],
-    ["E1", cell("Kitted")],
-  ];
-  PLAYERS.forEach((name, index) => {
-    const row = index + 3;
-    rosterRows.push([`A${row}`, cell(name)]);
-    rosterRows.push([`E${row}`, cell(index % 2 === 0 ? "Yes" : "No")]);
-    rosterRows.push([`I${row}`, cell(["QB", "WR", "T", "G", "C"][index])]);
-    rosterRows.push([`J${row}`, cell(["S", "CB", "LB", "E", "S"][index])]);
-  });
-
-  rosterPath = path.join(directory, "roster.xlsx");
-  writeFileSync(rosterPath, workbook({ "Players Databank": rosterRows }));
-
-  termCardPath = path.join(directory, "termcard.xlsx");
-  writeFileSync(
-    termCardPath,
-    workbook({
-      MT26: [
-        ["B7", cell("1st (11th-17th Oct)")],
-        ["C7", cell("Team Practice, University Parks, 10:00-13:00")],
-        ["H7", cell("Team Practice, Iffley Road Astro, 20:00-22:31")],
-        ["B11", cell("5th (8th-14th Nov)")],
-        ["C11", cell("Lancers vs TBD, TBD, TBD")],
-      ],
-    }),
-  );
-
   paramsPath = path.join(directory, "params.json");
-  writeFileSync(
-    paramsPath,
-    JSON.stringify({
-      brian: {
-        givenName: "Showcase",
-        familyName: "Owner",
-        phone: "07700 900901",
-        roles: ["it_officer"],
-      },
-      stewart: {
-        givenName: "Showcase",
-        familyName: "Manager",
-        phone: "07700 900902",
-        // Not `general_manager`, which the real manifest names, because LAN-128
-        // made that seat single-holder and the seeded local club already has a
-        // current General Manager — so the loader would be refused here for a
-        // reason that has nothing to do with the loader. Hosted has no holder
-        // and no such collision. Which seat is named is incidental to
-        // everything this suite asserts; that a seat is adopted from the
-        // catalogue, assigned, and provenanced is not.
-        roles: ["kit_manager"],
-      },
-      accessEndsOn: "2026-09-30",
-      // Its own reference island. The loader commits — that is what it is for —
-      // and the seeded current season is read by `listCurrentSeasonRoster` and
-      // by the LAN-93 pilot scenario's refusals. Loading into it changed a
-      // roster total and a vocabulary's season count in two other suites, which
-      // is a real defect in this test rather than in them.
-      //
-      // `archived` keeps every "current season" query blind to these rows,
-      // which is the same reason `delivery.test.ts` builds an archived season
-      // of its own.
-      labels: {
-        currentSeason: "Showcase test current",
-        archivedSeason: "Showcase test archived",
-        vocabularyCode: "showcase_test_vocab",
-        seasonStatus: "archived",
-      },
-    }),
-  );
+  writeFileSync(paramsPath, JSON.stringify(testParams({ liveLinksFor: ["brian"] })));
 }, 60_000);
 
 afterAll(async () => {
-  // Always roll back, so this suite leaves the shared local stack as it found
-  // it even when an assertion above failed.
   try {
-    run("rollback");
+    run("rollback", ["--force"]);
   } catch {
     // Reported by whichever test failed; nothing useful to add here.
   }
@@ -183,681 +111,402 @@ afterAll(async () => {
 });
 
 describe("preflight and preview write nothing", () => {
-  it("preflight passes and creates no row", async () => {
-    const before = await present(
-      "public.people",
-      (await plan()).rows
-        .filter((row: { table: string }) => row.table === "public.people")
-        .map((row: { columns: { id: string } }) => row.columns.id),
-    );
-
+  it("preflight passes, says what it found, and creates no row", async () => {
+    const people = idsOf(await plan(), "public.people");
+    const before = await present("public.people", people);
     const output = run("preflight");
-
     expect(output).toMatch(/Preflight passed/);
     expect(output).toMatch(/Nothing was written/);
-    const after = await present(
-      "public.people",
-      (await plan()).rows
-        .filter((row: { table: string }) => row.table === "public.people")
-        .map((row: { columns: { id: string } }) => row.columns.id),
-    );
-    expect(after).toBe(before);
+    expect(output).toMatch(/Term card: \d+ entries \(synthetic/);
+    expect(output).toMatch(/token secret: present/);
+    expect(output).toMatch(/Privileges:/);
+    expect(await present("public.people", people)).toBe(before);
   });
 
   it("preview reports what it would do, and does none of it", async () => {
     const output = run("preview");
-
     expect(output).toMatch(/Nothing was written/);
-    expect(output).toMatch(/public\.season_memberships/);
+    expect(output).toMatch(/public\.notification_jobs/);
+    expect(await present("public.events", idsOf(await plan(), "public.events"))).toBe(0);
+  });
 
-    const current = await plan();
-    const eventIds = current.rows
-      .filter((row: { table: string }) => row.table === "public.events")
-      .map((row: { columns: { id: string } }) => row.columns.id);
-    expect(await present("public.events", eventIds)).toBe(0);
+  it("refuses a parameter file without the token secret", () => {
+    const bad = path.join(directory, "params-no-secret.json");
+    writeFileSync(bad, JSON.stringify(testParams({ tokenSecret: undefined })));
+    expect(runExpectingFailure("preflight", [], bad)).toMatch(/tokenSecret/);
   });
 });
 
 describe("loading", () => {
-  it("writes every row the plan names", async () => {
+  it("writes every row the plan names, in one transaction", async () => {
     const output = run("load");
-    expect(output).toMatch(/Created \d+, updated 0/);
-
+    // `updated 1` when this suite has run before on this database: rollback
+    // keeps the actor the loader's audit rows name, so a second first-load
+    // finds his Person and converges on it rather than duplicating it.
+    expect(output).toMatch(/Created \d+, updated [01],/);
     const current = await plan();
-    for (const table of [
-      "public.people",
-      "public.season_memberships",
-      "public.events",
-      "public.invitations",
-    ]) {
-      const ids = current.rows
-        .filter((row: { table: string }) => row.table === table)
-        .map((row: { columns: { id: string } }) => row.columns.id);
+    for (const [table, ids] of current.byTable as Map<string, string[]>) {
       expect(await present(table, ids), table).toBe(ids.length);
     }
-  }, 60_000);
+  }, 120_000);
 
   it("is repeatable — a second run creates nothing and duplicates nothing", async () => {
     const before = await plan();
-    const peopleIds = before.rows
-      .filter((row: { table: string }) => row.table === "public.people")
-      .map((row: { columns: { id: string } }) => row.columns.id);
-
+    const people = idsOf(before, "public.people");
     const output = run("load");
-
-    // The property LAN-124 states: no duplicates, deterministic updates.
     expect(output).toMatch(/Created 0, updated \d+/);
-    expect(await present("public.people", peopleIds)).toBe(peopleIds.length);
+    expect(await present("public.people", people)).toBe(people.length);
+    const first = before.examples.get("person.player.first") as string;
+    const all = await client.query<{ n: number }>(
+      "select count(*)::int as n from public.people where id = $1",
+      [first],
+    );
+    expect(all.rows[0].n).toBe(1);
+  }, 120_000);
+
+  it("files the report from the loaded data, and files it once", async () => {
+    expect(run("report")).toMatch(/Filed the .* report \(8 new rows\)/);
+    expect(run("report")).toMatch(/\(0 new rows\)/);
+    const ids = reportIds(await plan());
+    expect(await present("public.weekly_reports", [ids.v1, ids.v2])).toBe(2);
   }, 60_000);
 
-  it("gives every source player both an archived and a current membership", async () => {
-    const current = await plan();
-    const memberships = current.rows.filter(
-      (row: { table: string }) => row.table === "public.season_memberships",
-    );
-    // Two each, and no more.
-    expect(memberships.length).toBe(PLAYERS.length * 2);
-    expect(
-      await present(
-        "public.season_memberships",
-        memberships.map((row: { columns: { id: string } }) => row.columns.id),
-      ),
-    ).toBe(PLAYERS.length * 2);
-  });
-
-  it("leaves every term-card event a draft, with no audience and no invitation", async () => {
-    // LAN-124: uncertain entries stay draft and are never approved or invited.
-    // The loader must not approve *any* of them, tentative or not.
-    const current = await plan();
-    const termCardIds = current.rows
-      .filter(
-        (row: { table: string; columns: { term_id: string | null } }) =>
-          row.table === "public.events" && row.columns.term_id !== null,
-      )
-      .map((row: { columns: { id: string } }) => row.columns.id);
-
-    expect(termCardIds.length).toBeGreaterThan(0);
-
-    const notDraft = await client.query<{ n: number }>(
-      "select count(*)::int as n from public.events where id = any($1) and status <> 'draft'",
-      [termCardIds],
-    );
-    expect(notDraft.rows[0].n).toBe(0);
-
-    const invited = await client.query<{ n: number }>(
-      "select count(*)::int as n from public.invitations where event_id = any($1)",
-      [termCardIds],
-    );
-    expect(invited.rows[0].n).toBe(0);
-  });
-
-  it("normalises the drifted minute and keeps the raw value in the manifest", async () => {
+  it("writes a manifest carrying states, and no name, number or token", async () => {
     const manifestPath = path.join(directory, "manifest.json");
     run("manifest", ["--out", manifestPath]);
-
-    const { readFileSync } = await import("node:fs");
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    const drifted = manifest.records.find(
-      (record: { note?: string }) => record.note?.includes("22:31") ?? false,
-    );
-
-    expect(drifted, "no provenance record mentions the drifted time").toBeDefined();
-    expect(drifted.note).toMatch(/loaded 22:30/);
-  });
-
-  it("writes a manifest carrying no name and no telephone number", async () => {
-    const manifestPath = path.join(directory, "manifest-privacy.json");
-    run("manifest", ["--out", manifestPath]);
-
-    const { readFileSync } = await import("node:fs");
     const raw = readFileSync(manifestPath, "utf8");
-
-    // The manifest is the artifact that records provenance, and it is the one
-    // most likely to be pasted somewhere. It records cells and identifiers.
-    for (const name of PLAYERS) {
-      expect(raw, `the manifest names ${name.split(" ")[0]}`).not.toContain(name);
-    }
-    expect(raw).not.toContain("07700 900901");
+    const manifest = JSON.parse(raw) as {
+      counts: { states: number };
+      records: { states?: string[] }[];
+    };
+    expect(manifest.counts.states).toBeGreaterThan(100);
+    expect(manifest.records.some((record) => record.states?.includes("job.held"))).toBe(true);
+    expect(raw).not.toContain("Alaric");
     expect(raw).not.toContain("900901");
+    expect(raw).not.toMatch(
+      /(?=[A-Za-z0-9_-]*[a-z])(?=[A-Za-z0-9_-]*[A-Z])(?=[A-Za-z0-9_-]*\d)\b[A-Za-z0-9_-]{43}\b/,
+    );
   });
 });
 
 describe("verification", () => {
-  it("passes against a loaded database", () => {
+  it("passes against a loaded database, every state present", () => {
     const output = run("verify");
     expect(output).toMatch(/Everything reconciles/);
     expect(output).not.toMatch(/^FAIL/m);
+    for (const state of states) {
+      if (state.arrivesWith) expect(output).toContain(`LATER state ${state.key}`);
+      else
+        expect(output, state.key).toMatch(
+          new RegExp(`^PASS  state ${state.key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:`, "m"),
+        );
+    }
   });
 
-  it("proves nothing the loader wrote is deliverable", () => {
-    // The loader creates invitations and answers. It must create no job and no
-    // live link: only the walkthrough itself, performed by a human, does that.
+  it("proves nothing the sweep would send, and no live link but Brian's, is left behind", () => {
     const output = run("verify");
-    expect(output).toMatch(/notification jobs against showcase invitations \(0 expected\): 0/);
-    expect(output).toMatch(/live RSVP tokens against showcase invitations \(0 expected\): 0/);
+    expect(output).toMatch(
+      /notification jobs the automatic sweep would dispatch, this dataset \(0 expected\): 0/,
+    );
+    expect(output).toMatch(
+      /notification jobs pending or ready and not held, this dataset \(0 expected\): 0/,
+    );
+    expect(output).toMatch(
+      /live RSVP links for anybody but the named testers, this dataset \(0 expected\): 0/,
+    );
+    expect(output).toMatch(
+      /live player-page links for anybody but the named testers, this dataset \(0 expected\): 0/,
+    );
+    expect(output).toMatch(
+      /single-use answer links neither spent nor revoked, this dataset \(0 expected\): 0/,
+    );
+  });
+
+  it("reconciles the filed report with the application's own computation", async () => {
+    const current = await plan();
+    const ids = reportIds(current);
+    const stored = await client.query<{ content: unknown }>(
+      "select content from public.weekly_reports where id = $1",
+      [ids.v2],
+    );
+    const season = {
+      id: ids.seasonId,
+      label: current.context.labels.currentSeason,
+      status: "archived",
+      startsOn: null,
+      endsOn: null,
+    } as unknown as Season;
+    const fresh = await withTransaction((tx) =>
+      computeReportContent(tx, season, current.context.anchor),
+    );
+    expect(JSON.parse(JSON.stringify(stored.rows[0].content))).toEqual(
+      JSON.parse(JSON.stringify(fresh)),
+    );
+    expect((fresh as { lastWeek: unknown[] }).lastWeek.length).toBeGreaterThan(0);
+    expect((fresh as { onboarding: { rows: unknown[] } }).onboarding.rows.length).toBeGreaterThan(
+      0,
+    );
+  });
+
+  it("fails closed when a job the sweep would send is injected", async () => {
+    const invitation = idsOf(await plan(), "public.invitations")[0];
+    await client.query(
+      `insert into public.notification_jobs (idempotency_key, job_type, status, invitation_id, channel, scheduled_for)
+       values ('tester-week-test-live', 'reminder', 'pending', $1, 'whatsapp', now() - interval '1 hour')`,
+      [invitation],
+    );
+    const output = runExpectingFailure("verify");
+    expect(output).toMatch(
+      /FAIL  notification jobs the automatic sweep would dispatch, this dataset \(0 expected\): 1/,
+    );
+    expect(output).toMatch(/STOP\. Verification did not reconcile/);
+    await client.query(
+      "delete from public.notification_jobs where idempotency_key = 'tester-week-test-live'",
+    );
+  });
+
+  it("fails closed when a live link for somebody who is not a named tester is injected", async () => {
+    const current = await plan();
+    const player = (current.context.players as { personId: string }[])[0];
+    await client.query(
+      `insert into public.person_access_tokens (person_id, season_id, token_hash, single_use)
+       values ($1, $2, repeat('b', 64), false)`,
+      [player.personId, current.context.seasonId],
+    );
+    const output = runExpectingFailure("verify");
+    expect(output).toMatch(
+      /FAIL  live player-page links for anybody but the named testers, this dataset \(0 expected\): 1/,
+    );
+    await client.query(
+      "delete from public.person_access_tokens where token_hash = repeat('b', 64)",
+    );
+  });
+});
+
+describe("checklists", () => {
+  it("writes one per tester, every link a row this load created, together covering every workflow", async () => {
+    const out = path.join(directory, "checklists");
+    const output = run("checklists", [
+      "--out",
+      out,
+      "--base-url",
+      "https://app.example",
+      "--form-url",
+      "https://forms.example/qa",
+    ]);
+    expect(output).toMatch(/hand each file to its tester only/);
+    const files = readdirSync(out).sort();
+    expect(files).toEqual(
+      Object.values(TESTERS)
+        .map((tester) => tester.file)
+        .sort(),
+    );
+
+    const current = await plan();
+    const known = new Set((current.rows as Row[]).map((row) => row.columns.id as string));
+    // Role pages are addressed by the catalogue's own identifiers, adopted.
+    for (const row of (await client.query<{ id: string }>("select id from public.roles")).rows)
+      known.add(row.id);
+    const covered = new Set<string>();
+    const unresolved = new Set<string>();
+    for (const file of files) {
+      const text = readFileSync(path.join(out, file), "utf8");
+      expect(text).toContain("https://forms.example/qa");
+      for (const line of text.split("\n")) {
+        const link = /Open https:\/\/app\.example(\/\S+)/.exec(line);
+        const skipped = /no example row for `([^`]+)`/.exec(line);
+        if (skipped) unresolved.add(skipped[1]);
+        if (!link) continue;
+        const route = link[1];
+        for (const id of route.match(
+          /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
+        ) ?? []) {
+          expect(known.has(id), `${file}: ${route} names a row the load did not create`).toBe(true);
+        }
+      }
+      for (const workflow of workflows) {
+        if (text.includes(`. ${workflow.name}`)) covered.add(workflow.id);
+      }
+    }
+    expect([...unresolved]).toEqual(["operator.brian"]);
+    for (const workflow of workflows.filter((w) => !w.notAWorkflow)) {
+      expect(covered.has(workflow.id), `${workflow.id} is on nobody's checklist`).toBe(true);
+    }
+  });
+
+  it("gives Brian his own live links and nobody else's", async () => {
+    const out = path.join(directory, "checklists");
+    const brian = readFileSync(path.join(out, "brian.md"), "utf8");
+    const current = await plan();
+    expect(brian).toContain(`/rsvp/${current.examples.get("link.rsvp.brian")}`);
+    expect(brian).toContain(`/me/${current.examples.get("link.me.brian")}`);
+    for (const file of ["stewart.md", "clint.md", "coach.md"]) {
+      const text = readFileSync(path.join(out, file), "utf8");
+      expect(text).not.toContain(current.examples.get("link.rsvp.brian") as string);
+      expect(text).not.toContain(current.examples.get("link.me.brian") as string);
+    }
+    // Every routed link is a page the application serves.
+    for (const workflow of WORKFLOWS)
+      for (const template of workflow.routes) expect(routePattern(template)).toMatch(/^\//);
+  });
+});
+
+describe("the append-only and no-delete lists are what the catalogue says", () => {
+  it("names exactly the tables the application role cannot update, and cannot delete from", async () => {
+    const grants = await client.query<{ table_name: string; privileges: string }>(
+      `select table_name, string_agg(privilege_type, ',' order by privilege_type) as privileges
+         from information_schema.role_table_grants
+        where table_schema = 'public' and grantee = 'service_role'
+        group by table_name`,
+    );
+    const written = new Set((await plan()).byTable.keys() as Iterable<string>);
+    written.add("public.weekly_reports");
+    written.add("public.follow_up_actions");
+    const noUpdate = grants.rows
+      .filter(
+        (row) => !row.privileges.includes("UPDATE") && written.has(`public.${row.table_name}`),
+      )
+      .map((row) => `public.${row.table_name}`)
+      .sort();
+    const noDelete = grants.rows
+      .filter(
+        (row) => !row.privileges.includes("DELETE") && written.has(`public.${row.table_name}`),
+      )
+      .map((row) => `public.${row.table_name}`)
+      .sort();
+    expect([...APPEND_ONLY_TABLES].filter((table) => written.has(table)).sort()).toEqual(noUpdate);
+    expect([...NO_DELETE_TABLES].filter((table) => written.has(table)).sort()).toEqual(noDelete);
   });
 });
 
 describe("rollback", () => {
-  it("removes exactly what it wrote, and leaves a bystander alone", async () => {
-    // A row the loader did not create, in a table it writes heavily.
-    const bystander = await client.query<{ id: string }>(
-      `insert into public.people (given_name, family_name)
-       values ('Showcase', 'Bystander') returning id`,
-    );
-    const bystanderId = bystander.rows[0].id;
-
-    const before = await plan();
-    const peopleIds = before.rows
-      .filter((row: { table: string }) => row.table === "public.people")
-      .map((row: { columns: { id: string } }) => row.columns.id);
-
-    run("rollback");
-
-    expect(await present("public.people", peopleIds)).toBe(0);
-    expect(await present("public.people", [bystanderId])).toBe(1);
-
-    await client.query("delete from public.people where id = $1", [bystanderId]);
-  }, 60_000);
-
-  it("leaves the reference data it adopted rather than created", async () => {
-    // Roles, the season and the position vocabulary were already there and were
-    // adopted. Rollback must not remove them — they are not the loader's.
-    const roles = await client.query<{ n: number }>("select count(*)::int as n from public.roles");
-    expect(roles.rows[0].n).toBeGreaterThan(0);
-
-    const seasons = await client.query<{ n: number }>(
-      "select count(*)::int as n from public.seasons",
-    );
-    expect(seasons.rows[0].n).toBeGreaterThan(0);
-  });
-
-  it("is repeatable — a second rollback removes nothing and fails at nothing", () => {
-    const output = run("rollback");
-    expect(output).toMatch(/Removed 0 rows/);
-  }, 60_000);
-
-  it("leaves audit history behind", async () => {
-    // `audit_events` is append-only at the privilege level and an actor it
-    // references must stay resolvable, so rollback never names one.
-    //
-    // This assertion was `toBeGreaterThanOrEqual(0)`, which is true of every
-    // possible number and could not fail. Independent review caught it. It now
-    // counts the rows attributed to a showcase person specifically, and proves
-    // rollback did not remove them.
-    const current = await plan();
-    const peopleIds = current.rows
-      .filter((row: { table: string }) => row.table === "public.people")
-      .map((row: { columns: { id: string } }) => row.columns.id);
-
-    run("load");
-
-    const actor = peopleIds[0];
-    await client.query(
-      `insert into public.audit_events
-         (actor_person_id, actor_label, action, entity_table, entity_id)
-       values ($1, 'test', 'showcase.test', 'people', $1)`,
-      [actor],
-    );
-
-    const before = await client.query<{ n: number }>(
-      "select count(*)::int as n from public.audit_events where actor_person_id = $1",
-      [actor],
-    );
-    expect(before.rows[0].n).toBeGreaterThan(0);
-
-    // Rollback must now refuse: an audit row references a person it would
-    // delete, under `on delete restrict`.
-    expect(() => run("rollback")).toThrow();
-
-    const after = await client.query<{ n: number }>(
-      "select count(*)::int as n from public.audit_events where actor_person_id = $1",
-      [actor],
-    );
-    expect(after.rows[0].n).toBe(before.rows[0].n);
-
-    await client.query("delete from public.audit_events where action = 'showcase.test'");
-    run("rollback");
-  }, 60_000);
-});
-
-describe("adopting a durable identity that already exists", () => {
-  /**
-   * The path had no automated coverage at all, and independent review found it
-   * aborted a load that preflight had just passed — the exact failure the
-   * adoption was written to prevent.
-   *
-   * `docs/pilot-data-manifest.md` binds the loader to inventorying rather than
-   * duplicating an existing Auth user, Person and operator link. Brian's hosted
-   * Auth user already exists, so this is Monday's path, not a hypothetical.
-   */
-  let authUserId: string;
-  let existingPersonId: string;
-  let adoptParams: string;
-
-  beforeAll(async () => {
-    const person = await client.query<{ id: string }>(
-      `insert into public.people (given_name, family_name)
-       values ('Adopted', 'Owner') returning id`,
-    );
-    existingPersonId = person.rows[0].id;
-
-    // A preferred phone already on file. This is what collided.
-    await client.query(
-      `insert into public.contact_points (person_id, kind, raw_value, is_preferred)
-       values ($1, 'phone', '07700 900950', true)`,
-      [existingPersonId],
-    );
-
-    const auth = await client.query<{ id: string }>(
-      `insert into auth.users (id, instance_id, aud, role, email)
-       values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
-               'authenticated', 'authenticated', 'adopted.owner@lancers.local')
-       returning id`,
-    );
-    authUserId = auth.rows[0].id;
-
-    await client.query(
-      "insert into public.operator_accounts (auth_user_id, person_id) values ($1, $2)",
-      [authUserId, existingPersonId],
-    );
-
-    adoptParams = path.join(directory, "params-adopt.json");
-    writeFileSync(
-      adoptParams,
-      JSON.stringify({
-        brian: {
-          givenName: "Adopted",
-          familyName: "Owner",
-          authUserId,
-          phone: "07700 900951",
-          roles: ["it_officer"],
-        },
-        labels: {
-          currentSeason: "Adoption test current",
-          archivedSeason: "Adoption test archived",
-          vocabularyCode: "adoption_test_vocab",
-          seasonStatus: "archived",
-        },
-      }),
-    );
-  }, 60_000);
-
-  const runAdopt = (phase: string, extra: string[] = []) =>
-    execFileSync(
-      process.execPath,
-      [
-        LOADER,
-        phase,
-        "--roster",
-        rosterPath,
-        "--termcard",
-        termCardPath,
-        "--params",
-        adoptParams,
-        ...extra,
-      ],
-      { cwd: ROOT, encoding: "utf8", env: { ...process.env, CI: "", VITEST: "" } },
-    );
-
-  it("loads without colliding with the preferred phone already on file", () => {
-    // `contact_points_one_preferred_per_kind` is a *partial* unique index, which
-    // `on conflict (id)` does not cover. The loader wrote a second preferred
-    // phone and the whole transaction aborted — after preflight passed.
-    const output = runAdopt("load");
-    expect(output).toMatch(/Created \d+, updated 0/);
-  }, 60_000);
-
-  it("creates no second Person for a human who already has one", async () => {
-    const people = await client.query<{ n: number }>(
-      "select count(*)::int as n from public.people where given_name = 'Adopted'",
-    );
-    expect(people.rows[0].n, "a second Person was created").toBe(1);
-  });
-
-  it("leaves the existing operator link pointing where it did", async () => {
-    const link = await client.query<{ person_id: string; n: number }>(
-      `select person_id, count(*) over ()::int as n
-         from public.operator_accounts where auth_user_id = $1`,
-      [authUserId],
-    );
-    expect(link.rows[0].n).toBe(1);
-    expect(link.rows[0].person_id).toBe(existingPersonId);
-  });
-
-  it("keeps the club's own preferred number preferred", async () => {
-    const preferred = await client.query<{ raw_value: string }>(
-      `select raw_value from public.contact_points
-        where person_id = $1 and kind = 'phone' and is_preferred`,
-      [existingPersonId],
-    );
-    expect(preferred.rowCount).toBe(1);
-    expect(preferred.rows[0].raw_value).toBe("07700 900950");
-  });
-
-  it("rollback leaves the adopted Person and their own contact behind", async () => {
-    runAdopt("rollback", ["--force"]);
-
-    const person = await client.query<{ n: number }>(
-      "select count(*)::int as n from public.people where id = $1",
-      [existingPersonId],
-    );
-    expect(person.rows[0].n, "the adopted Person was deleted").toBe(1);
-
-    const contact = await client.query<{ n: number }>(
-      "select count(*)::int as n from public.contact_points where person_id = $1",
-      [existingPersonId],
-    );
-    expect(contact.rows[0].n, "the pre-existing contact was deleted").toBe(1);
-
-    const link = await client.query<{ n: number }>(
-      "select count(*)::int as n from public.operator_accounts where auth_user_id = $1",
-      [authUserId],
-    );
-    expect(link.rows[0].n, "the pre-existing operator link was deleted").toBe(1);
-  }, 60_000);
-
-  afterAll(async () => {
-    try {
-      runAdopt("rollback", ["--force"]);
-    } catch {
-      // Reported by whichever assertion failed.
-    }
-    await client.query("delete from public.operator_accounts where auth_user_id = $1", [
-      authUserId,
-    ]);
-    await client.query("delete from public.contact_points where person_id = $1", [
-      existingPersonId,
-    ]);
-    await client.query("delete from public.people where id = $1", [existingPersonId]);
-    await client.query("delete from auth.users where id = $1", [authUserId]);
-  });
-});
-
-describe("rollback against a database the walkthrough has been performed on", () => {
-  /**
-   * The case that was missing, and the one that matters most.
-   *
-   * `OWNER-RUNBOOK.md` § 10 has Brian approve an event, send a message, take an
-   * answer and regenerate the report — and § 11 then tells him rollback is the
-   * default closing move. Every one of those writes rows the *application*
-   * creates, carrying identifiers the loader never computed, hanging off rows it
-   * did. Some restrict, so the delete aborts and removes nothing; two cascade,
-   * so the delete silently takes rows the loader never created.
-   *
-   * The original suite only ever rolled back a clean database — the one state in
-   * which none of this can happen.
-   */
-  it("refuses by name rather than failing on a constraint", async () => {
-    run("load");
-    const current = await plan();
-
-    const invitationId = current.rows.find(
-      (row: { table: string }) => row.table === "public.invitations",
-    )?.columns.id;
-    expect(invitationId, "the plan writes no invitation to attach to").toBeDefined();
-
-    // Exactly what approving an event and messaging somebody produces.
-    await client.query(
-      `insert into public.notification_jobs
-         (idempotency_key, job_type, status, invitation_id, channel)
-       values ('showcase-test-foreign', 'invitation', 'completed', $1, 'whatsapp')`,
-      [invitationId],
-    );
-
-    let output = "";
-    try {
-      run("rollback");
-      throw new Error("rollback should have refused");
-    } catch (error) {
-      output = String((error as { stdout?: string; stderr?: string }).stderr ?? "");
-    }
-
-    // It names the table and the column, not a PostgreSQL constraint name.
-    expect(output).toMatch(/STOP\./);
-    expect(output).toMatch(/notification_jobs\.invitation_id/);
-    expect(output).toMatch(/Nothing was deleted/);
-
-    // And it really did delete nothing.
-    const survived = await client.query<{ n: number }>(
-      "select count(*)::int as n from public.invitations where id = $1",
-      [invitationId],
-    );
-    expect(survived.rows[0].n).toBe(1);
-
-    // `--force` removes them deliberately, which is the documented way out.
-    run("rollback", ["--force"]);
-
-    const gone = await client.query<{ n: number }>(
-      "select count(*)::int as n from public.notification_jobs where idempotency_key = $1",
-      ["showcase-test-foreign"],
-    );
-    expect(gone.rows[0].n).toBe(0);
-  }, 60_000);
-
-  it("ignores a staging row, which is neither the loader's nor the walkthrough's", async () => {
-    // `staging.legacy_roster_rows.matched_person_id → public.people` is
-    // `ON DELETE SET NULL`. PostgreSQL resolves it by nulling the reference and
-    // letting the delete through, so it can never block a rollback.
-    //
-    // The discovery walk bounded only its *parent* namespace, so it followed
-    // this edge out of `public`, refused a rollback over a row the walkthrough
-    // never produced, and then let `--force` delete a legacy-import provenance
-    // row — worse than what the constraint itself asked for.
-    //
-    // Two clauses fixed it, and this pins the *behaviour* rather than either
-    // one: in this schema each is independently sufficient — the only two
-    // foreign keys into `public` from outside it are both SET NULL — so
-    // removing either alone leaves this green, and removing both turns it red.
-    // Checked by injection in all three combinations. A future non-`public`
-    // child with a blocking delete rule would separate them; none exists today.
-    run("load");
-    const current = await plan();
-    const person = current.rows.find((row: { table: string }) => row.table === "public.people")
-      ?.columns.id;
-
-    const legacy = await client.query<{ id: string }>(
-      `insert into public.people (given_name) values ('Unused') returning id`,
-    );
-    // Guard: if the staging table is absent this test is vacuous, and should say
-    // so rather than pass.
-    const staging = await client.query<{ n: number }>(
-      `select count(*)::int as n from information_schema.tables
-        where table_schema = 'staging' and table_name = 'legacy_roster_rows'`,
-    );
-    expect(staging.rows[0].n, "staging.legacy_roster_rows is absent").toBe(1);
-
-    await client.query(
-      `insert into staging.legacy_roster_rows
-         (import_batch, source_file, normalisation_status, matched_person_id)
-       values ('showcase-test', 'showcase-test', 'normalised', $1)`,
-      [person],
-    );
-
-    // No refusal: the edge cannot block, so it must not be reported.
-    const output = run("rollback");
-    expect(output).not.toMatch(/STOP\./);
-    expect(output).not.toMatch(/staging/);
-
-    // And the staging row survives, with its reference nulled by the database.
-    const survived = await client.query<{ n: number; matched: string | null }>(
-      `select count(*)::int as n, min(matched_person_id::text) as matched
-         from staging.legacy_roster_rows where source_file = 'showcase-test'`,
-    );
-    expect(survived.rows[0].n, "the staging row was deleted").toBe(1);
-    expect(survived.rows[0].matched).toBeNull();
-
-    await client.query(
-      "delete from staging.legacy_roster_rows where source_file = 'showcase-test'",
-    );
-    await client.query("delete from public.people where id = $1", [legacy.rows[0].id]);
-  }, 60_000);
-
-  it("--force clears a notification job that has its own delivery attempt", async () => {
-    // The case independent review executed and this suite's fixture missed:
-    // sending the message writes a job *and* an attempt, and
-    // `delivery_attempts.notification_job_id` restricts. A single pass over a
-    // hand-ordered list collected the job after it had already looked for the
-    // job's children, so the attempt was never found and `--force` aborted.
-    // Dependencies are now followed transitively, which is what this pins.
-    run("load");
-    const current = await plan();
-    const invitationId = current.rows.find(
-      (row: { table: string }) => row.table === "public.invitations",
-    )?.columns.id;
-
+  it("refuses by name when the application has attached rows, and --force clears them", async () => {
+    const invitation = idsOf(await plan(), "public.invitations")[0];
     const job = await client.query<{ id: string }>(
-      `insert into public.notification_jobs
-         (idempotency_key, job_type, status, invitation_id, channel)
-       values ('showcase-test-transitive', 'invitation', 'completed', $1, 'whatsapp')
-       returning id`,
-      [invitationId],
+      `insert into public.notification_jobs (idempotency_key, job_type, status, invitation_id, channel)
+       values ('tester-week-test-attached', 'invitation', 'completed', $1, 'whatsapp') returning id`,
+      [invitation],
     );
     await client.query(
-      `insert into public.delivery_attempts
-         (notification_job_id, attempt_number, channel, provider)
+      `insert into public.delivery_attempts (notification_job_id, attempt_number, channel, provider)
        values ($1, 1, 'whatsapp', 'whatsapp_cloud')`,
       [job.rows[0].id],
     );
+    const refusal = runExpectingFailure("rollback");
+    expect(refusal).toMatch(/STOP\./);
+    expect(refusal).toMatch(/notification_jobs\.invitation_id/);
+    expect(refusal).toMatch(/Nothing was deleted/);
+    expect(await present("public.invitations", [invitation])).toBe(1);
 
     run("rollback", ["--force"]);
-
-    const attempts = await client.query<{ n: number }>(
-      "select count(*)::int as n from public.delivery_attempts where notification_job_id = $1",
-      [job.rows[0].id],
-    );
-    expect(attempts.rows[0].n, "the transitive child survived --force").toBe(0);
-
-    const jobs = await client.query<{ n: number }>(
-      "select count(*)::int as n from public.notification_jobs where idempotency_key = $1",
-      ["showcase-test-transitive"],
-    );
-    expect(jobs.rows[0].n).toBe(0);
-  }, 60_000);
-
-  it("--force removes a weekly report, which the rollback order must include", async () => {
-    // The first version of `--force` collected ids from `weekly_reports`,
-    // `audit_events` and `event_questions` and then never deleted them, because
-    // none of those tables was in ROLLBACK_ORDER. The restrict constraint fired
-    // exactly as it would have without `--force`, so the documented way out of a
-    // refusal did not work. This is the case that catches that.
-    run("load");
-    const current = await plan();
-    const season = current.rows.find((row: { table: string }) => row.table === "public.seasons")
-      ?.columns.id;
-    const person = current.rows.find((row: { table: string }) => row.table === "public.people")
-      ?.columns.id;
-    expect(season, "the plan adopts every season, so there is none to attach to").toBeDefined();
-
-    await client.query(
-      `insert into public.weekly_reports
-         (season_id, report_on, generated_by_person_id, metric_definition_version,
-          data_as_of, content)
-       values ($1, current_date, $2, 'test', now(), '{}'::jsonb)`,
-      [season, person],
-    );
-
-    let stderr = "";
-    try {
-      run("rollback");
-    } catch (error) {
-      stderr = String((error as { stderr?: string }).stderr ?? "");
-    }
-    expect(stderr).toMatch(/weekly_reports/);
-
-    run("rollback", ["--force"]);
-
     const gone = await client.query<{ n: number }>(
-      "select count(*)::int as n from public.weekly_reports where season_id = $1",
-      [season],
+      "select count(*)::int as n from public.notification_jobs where idempotency_key = 'tester-week-test-attached'",
     );
     expect(gone.rows[0].n).toBe(0);
-  }, 60_000);
+  }, 120_000);
 
-  it("--force still refuses to delete audit history, and keeps the actor", async () => {
-    // Invariant M2: an actor named by history stays resolvable. So a Person an
-    // audit row names cannot be removed even with `--force` — that is a limit,
-    // not an omission, and everything else must still roll back around it.
+  it("removes exactly what it wrote, keeps history and the actor it names, and leaves a bystander alone", async () => {
     run("load");
+    run("report");
+    const bystander = await client.query<{ id: string }>(
+      `insert into public.people (given_name, family_name) values ('Showcase', 'Bystander') returning id`,
+    );
     const current = await plan();
-    const person = current.rows.find((row: { table: string }) => row.table === "public.people")
-      ?.columns.id;
+    const people = idsOf(current, "public.people");
+    const audit = idsOf(current, "public.audit_events");
+    const actor = current.context.actorPersonId as string;
 
-    await client.query(
-      `insert into public.audit_events
-         (actor_person_id, actor_label, action, entity_table, entity_id)
-       values ($1, 'test', 'showcase.preserved', 'people', $1)`,
-      [person],
-    );
-
-    run("rollback", ["--force"]);
-
-    const audit = await client.query<{ n: number }>(
-      "select count(*)::int as n from public.audit_events where action = 'showcase.preserved'",
-    );
-    expect(audit.rows[0].n, "audit history was deleted").toBe(1);
-
-    const actor = await client.query<{ n: number }>(
-      "select count(*)::int as n from public.people where id = $1",
-      [person],
-    );
-    expect(actor.rows[0].n, "the actor an audit row names was deleted").toBe(1);
-
-    await client.query("delete from public.audit_events where action = 'showcase.preserved'");
-    run("rollback", ["--force"]);
-  }, 60_000);
-
-  it("does not let a cascade quietly remove an audience row it did not create", async () => {
-    // `event_audience_members.event_id` cascades. Without the check, deleting a
-    // showcase event would take an audience row somebody added afterwards with
-    // no error and no record — the widening the pilot runbook exists to refuse.
-    run("load");
-    const current = await plan();
-
-    const event = current.rows.find(
-      (row: { table: string; columns: { status: string } }) =>
-        row.table === "public.events" && row.columns.status === "draft",
-    );
-    // The membership has to be in the event's own season —
-    // `event_audience_members_membership_same_season` is a composite key, not
-    // two independent ones.
-    const membership = current.rows.find(
-      (row: { table: string; columns: { season_id: string } }) =>
-        row.table === "public.season_memberships" &&
-        row.columns.season_id === event.columns.season_id,
-    );
-    expect(event).toBeDefined();
-    expect(membership, "no membership in the event's season").toBeDefined();
-
-    const added = await client.query<{ id: string }>(
-      `insert into public.event_audience_members
-         (event_id, season_id, capacity, season_membership_id)
-       values ($1, $2, 'player', $3) returning id`,
-      [event.columns.id, event.columns.season_id, membership.columns.id],
-    );
-
-    let stderr = "";
-    try {
-      run("rollback");
-    } catch (error) {
-      stderr = String((error as { stderr?: string }).stderr ?? "");
+    const output = run("rollback");
+    expect(output).toMatch(/Removed \d+ rows/);
+    expect(
+      await present(
+        "public.people",
+        people.filter((id) => id !== actor),
+      ),
+    ).toBe(0);
+    expect(await present("public.people", [actor]), "the actor history names was deleted").toBe(1);
+    expect(await present("public.audit_events", audit), "history was deleted").toBe(audit.length);
+    expect(await present("public.people", [bystander.rows[0].id])).toBe(1);
+    for (const table of [
+      "public.events",
+      "public.notification_jobs",
+      "public.rsvp_access_tokens",
+      "public.weekly_reports",
+      "public.onboarding_item_history",
+    ]) {
+      expect(
+        await present(table, [
+          ...idsOf(current, table),
+          ...(table === "public.weekly_reports"
+            ? [reportIds(current).v1, reportIds(current).v2]
+            : []),
+        ]),
+        table,
+      ).toBe(0);
     }
-    // The table, not a particular column. Dependencies are discovered from
-    // `pg_constraint` and followed breadth-first, so whichever edge reaches this
-    // row first is the one named — here `season_membership_id` rather than
-    // `event_id`, an edge the original hand-written list did not have at all.
-    // What matters is that the row is found and named, not by which route.
-    expect(stderr).toMatch(/event_audience_members/);
+    await client.query("delete from public.people where id = $1", [bystander.rows[0].id]);
 
-    const survived = await client.query<{ n: number }>(
-      "select count(*)::int as n from public.event_audience_members where id = $1",
-      [added.rows[0].id],
-    );
-    expect(survived.rows[0].n).toBe(1);
+    expect(run("verify", ["--after-rollback"])).toMatch(/Everything reconciles/);
+  }, 120_000);
 
-    await client.query("delete from public.event_audience_members where id = $1", [
-      added.rows[0].id,
-    ]);
-    run("rollback");
+  it("is repeatable — a second rollback removes nothing and fails at nothing", () => {
+    expect(run("rollback")).toMatch(/Removed 0 rows/);
   }, 60_000);
+
+  it("removes the stray Person rows the parameters name, and refuses one that holds an operator account", async () => {
+    const stray = await client.query<{ id: string }>(
+      `insert into public.people (given_name, family_name, created_at) values ('Invitation', 'Testrow', '2026-08-21T10:00:00Z') returning id`,
+    );
+    await client.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred) values ($1, 'phone', '07700 900998', true)`,
+      [stray.rows[0].id],
+    );
+    const withStray = path.join(directory, "params-stray.json");
+    writeFileSync(
+      withStray,
+      JSON.stringify(
+        testParams({ liveLinksFor: ["brian"], strays: { personIds: [stray.rows[0].id] } }),
+      ),
+    );
+
+    expect(run("preflight", [], withStray)).toMatch(/Strays: 1 of 1 named Person rows are present/);
+    run("load", [], withStray);
+    run("rollback", [], withStray);
+    expect(await present("public.people", [stray.rows[0].id]), "the stray survived").toBe(0);
+    expect(run("verify", ["--after-rollback"], withStray)).toMatch(
+      /stray Person rows remaining \(0 expected\): 0/,
+    );
+
+    // An operator is never a stray.
+    const keeper = await client.query<{ id: string }>(
+      `insert into public.people (given_name) values ('Keeper') returning id`,
+    );
+    const auth = await client.query<{ id: string }>(
+      `insert into auth.users (id, instance_id, aud, role, email)
+       values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'tester-week-keeper@lancers.local') returning id`,
+    );
+    await client.query(
+      "insert into public.operator_accounts (auth_user_id, person_id) values ($1, $2)",
+      [auth.rows[0].id, keeper.rows[0].id],
+    );
+    const withOperator = path.join(directory, "params-operator-stray.json");
+    writeFileSync(
+      withOperator,
+      JSON.stringify(
+        testParams({ liveLinksFor: ["brian"], strays: { personIds: [keeper.rows[0].id] } }),
+      ),
+    );
+    expect(runExpectingFailure("preflight", [], withOperator)).toMatch(/hold an operator account/);
+    run("load", [], withOperator);
+    expect(runExpectingFailure("rollback", [], withOperator)).toMatch(
+      /will not remove an operator/,
+    );
+    expect(await present("public.people", [keeper.rows[0].id])).toBe(1);
+    run("rollback", [], paramsPath);
+    await client.query("delete from public.operator_accounts where person_id = $1", [
+      keeper.rows[0].id,
+    ]);
+    await client.query("delete from public.people where id = $1", [keeper.rows[0].id]);
+    await client.query("delete from auth.users where id = $1", [auth.rows[0].id]);
+  }, 180_000);
 });
