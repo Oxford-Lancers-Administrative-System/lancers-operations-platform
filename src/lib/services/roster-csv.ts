@@ -37,7 +37,23 @@
  * confirmation form the operator is looking at, exactly as `./event-csv.ts`'s
  * own doc comment states for events. Anything the confirmation renders has to
  * be reachable without `pg`.
+ *
+ * ## The mobile shape check, since LAN-215's B-007
+ *
+ * `mobile` used to be checked by a private, deliberately loose rule — any
+ * value with seven or more digits — because the club's real files contain
+ * numbers one digit short, and rejecting the whole row lost the contact
+ * entirely. Brian's correction is that the club's spreadsheet defects and a
+ * form a person is typing into are different problems: this file still
+ * refuses only the *one row* a bad number appears on, by its own reason,
+ * naming the phone — every other row still lands — so tightening the rule
+ * costs nothing an operator cannot see and fix. The check itself is now
+ * `src/lib/validation/contact.ts`'s `looksLikePhone`, the same predicate
+ * `/operate/roster/new` uses, so a number this importer accepts is a number
+ * that could actually receive the welcome.
  */
+
+import { looksLikeEmail, looksLikePhone } from "@/lib/validation/contact";
 
 import { isEmptyCsvRow, parseCsv, type CsvTable } from "./csv";
 
@@ -123,15 +139,6 @@ function parseMatriculationYear(cell: string, reasons: string[]): number | null 
     return null;
   }
   return value;
-}
-
-/** A crude, deliberately loose check — the club's real numbers are messy, and `roster.ts`'s own intake accepts the same shape. */
-function looksLikePhone(value: string): boolean {
-  return value.replace(/\D/g, "").length >= 7;
-}
-
-function looksLikeEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+$/.test(value.trim());
 }
 
 function cellsOf(row: readonly string[], index: HeaderIndex): Record<ImportColumn, string> {

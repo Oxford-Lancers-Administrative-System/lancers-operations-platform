@@ -4,6 +4,7 @@ import { Conflict, ConstraintViolated, NotFound, withTransaction, type Tx } from
 import { recordAudit } from "./audit";
 import { generateOnboardingItems } from "./membership";
 import { emitOnboardingOpenedWelcomeIn } from "./onboarding-welcome";
+import { commitAvailability } from "./roster-board";
 import { personDisplayAliasSql } from "./sql-text";
 
 /**
@@ -455,9 +456,10 @@ function toCandidate(row: CandidateRow): PersonCandidate {
  * Records one returning player, in one transaction.
  *
  * Everything below commits together or not at all: the person, the alias, both
- * contact points, the membership, both status-history rows and both audit
- * rows. A failure at any statement leaves nothing behind — not a person without
- * a membership, and not a membership whose history is missing its first
+ * contact points, the membership, both status-history rows, the queued
+ * welcome, the availability row LAN-215's B-008 adds, and both audit rows. A
+ * failure at any statement leaves nothing behind — not a person without a
+ * membership, and not a membership whose history is missing its first
  * transition.
  *
  * The status sequence is the frozen model's §2.1 machine as LAN-182 rebuilt it,
@@ -551,6 +553,24 @@ export async function enterReturningPlayer(params: {
       membershipId,
       personId,
       seasonId: season.id,
+    });
+
+    // Brian, this session (LAN-215, B-008): "When a player gets added into
+    // the board, their availability should be flipped to green by default."
+    // In the same transaction as the membership, via `commitAvailability` —
+    // never a hand-written insert. `availability_statuses_green_records_its_
+    // confirmer` requires a confirmer on every green row even though an
+    // arrival is not "a return to full availability" in Requirement 8's
+    // sense; the operator performing this arrival is recorded as both
+    // reporter and confirmer, because they are the one asserting the player
+    // is available. `commitAvailability` joins this transaction rather than
+    // opening its own — see `src/lib/db/transaction.ts`'s join semantics.
+    // `effectiveFrom` is `confirmedOn`, the membership's own joining date.
+    await commitAvailability({
+      actorPersonId,
+      membershipId,
+      level: "green",
+      effectiveFrom: confirmedOn,
     });
 
     if (personCreated) {

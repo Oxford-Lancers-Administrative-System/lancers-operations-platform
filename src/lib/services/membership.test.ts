@@ -328,6 +328,18 @@ async function cleanUp(): Promise<void> {
        where p.given_name like $1)`,
     [`${MARKER}%`],
   );
+  // LAN-215, B-008: arrival now also sets availability to Green, in the same
+  // transaction, via `commitAvailability` — `availability_statuses` restricts
+  // its own deletion of `season_memberships`, on the identical reason the two
+  // blocks above do.
+  await observer.query(
+    `delete from public.availability_statuses
+      where season_membership_id in (
+        select m.id from public.season_memberships m
+        join public.people p on p.id = m.person_id
+       where p.given_name like $1)`,
+    [`${MARKER}%`],
+  );
   await observer.query(
     `delete from public.season_memberships
       where person_id in (select id from public.people where given_name like $1)`,

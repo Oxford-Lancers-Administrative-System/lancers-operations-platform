@@ -92,6 +92,13 @@ async function cleanUp(): Promise<void> {
   await observer.query(
     `delete from public.audit_events where entity_id in (select id from public.season_memberships where person_id in ${people}) or entity_id in ${people}`,
   );
+  // LAN-215, B-008: arrival now also sets availability to Green, in the same
+  // transaction, via `commitAvailability` — `availability_statuses` restricts
+  // its own deletion of `season_memberships`, on the identical reason the
+  // blocks above do.
+  await observer.query(
+    `delete from public.availability_statuses where season_membership_id in (select id from public.season_memberships where person_id in ${people})`,
+  );
   await observer.query(`delete from public.season_memberships where person_id in ${people}`);
   await observer.query(`delete from public.contact_points where person_id in ${people}`);
   await observer.query(`delete from public.person_aliases where person_id in ${people}`);
@@ -437,6 +444,41 @@ describe("applyRosterImport", () => {
     const welcome = await welcomeQueuedFor(person.rows[0].id);
     expect(welcome.queued).toBe(true);
     expect(welcome.sent).toBe(false);
+  });
+
+  it("B-008 — sets availability to green, in the same transaction, for a bulk-imported arrival", async () => {
+    // Brian, this session: "When a player gets added into the board, their
+    // availability should be flipped to green by default." The import door
+    // reuses `enterReturningPlayer` per row, so this proves the same code
+    // path B-008 wires there also fires here.
+    const first = givenNameFor("AvailabilityImported");
+    const csvText = csvOf([
+      { firstName: first, lastName: familyNameFor("AvailabilityImported"), mobile: mobileFor() },
+    ]);
+    const proposal = await planRosterImport({ csvText });
+    expect(proposal.ok).toBe(true);
+    if (!proposal.ok) return;
+
+    await applyRosterImport({ csvText, digest: proposal.plan.digest });
+
+    const person = await observer.query<{ id: string }>(
+      "select id from public.people where given_name = $1",
+      [first],
+    );
+    const row = await observer.query<{
+      level: string;
+      reported_by_person_id: string;
+      confirmed_by_person_id: string | null;
+    }>(
+      `select level::text as level, reported_by_person_id, confirmed_by_person_id
+         from public.availability_statuses av
+         join public.season_memberships m on m.id = av.season_membership_id
+        where m.person_id = $1::uuid`,
+      [person.rows[0].id],
+    );
+    expect(row.rows).toHaveLength(1);
+    expect(row.rows[0].level).toBe("green");
+    expect(row.rows[0].confirmed_by_person_id).toBe(row.rows[0].reported_by_person_id);
   });
 
   it("never overwrites a carried-forward person's own facts", async () => {

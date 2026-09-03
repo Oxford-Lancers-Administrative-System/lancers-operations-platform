@@ -604,6 +604,11 @@ async function cleanUp(): Promise<void> {
   // refuses to let the membership go while it exists, on the identical reason
   // `onboarding_items` is purged first above.
   await purge("public.onboarding_activity_log", "season_membership_id", membershipIds);
+  // LAN-215, B-008: arrival now also sets availability to Green, in the same
+  // transaction, via `commitAvailability` — `availability_statuses` restricts
+  // its own deletion of `season_memberships`, on the identical reason the
+  // block above does.
+  await purge("public.availability_statuses", "season_membership_id", membershipIds);
   await purge("public.season_membership_status_events", "season_membership_id", membershipIds);
   await purge("public.season_memberships", "id", membershipIds);
   await purge("public.recruitment_prospects", "person_id", personIds);

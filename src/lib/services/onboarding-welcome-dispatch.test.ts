@@ -120,6 +120,14 @@ afterEach(async () => {
   await observer.query(`delete from public.person_access_tokens where person_id in ${people}`, [
     `${MARKER}%`,
   ]);
+  // LAN-215, B-008: arrival now also sets availability to Green, in the same
+  // transaction, via `commitAvailability` — `availability_statuses` restricts
+  // its own deletion of `season_memberships`, on the identical reason the
+  // blocks above do.
+  await observer.query(
+    `delete from public.availability_statuses where season_membership_id in (select id from public.season_memberships where person_id in ${people})`,
+    [`${MARKER}%`],
+  );
   await observer.query(`delete from public.season_memberships where person_id in ${people}`, [
     `${MARKER}%`,
   ]);

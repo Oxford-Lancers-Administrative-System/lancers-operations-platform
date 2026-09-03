@@ -1,10 +1,12 @@
 /**
- * The roster CSV's pure shape checks. LAN-215, `WP-arrival-doors`, `W1`.
+ * The roster CSV's pure shape checks. LAN-215, `WP-arrival-doors`, `W1`;
+ * B-007 tightened the mobile check.
  *
  * Mirrors `./event-csv.test.ts`'s own posture: this module decides what a
- * row's shape means before anybody asks the database anything, and the tests
- * that matter most are the ones proving it lets through what the club's real
- * files actually contain.
+ * row's shape means before anybody asks the database anything. `mobile` since
+ * B-007 is stricter than the rest: a number that cannot become E.164 is
+ * refused, on its own row, naming the phone, while the rest of the file still
+ * lands — proved below alongside every format that does convert.
  */
 import { describe, expect, it } from "vitest";
 
@@ -115,13 +117,31 @@ describe("readRosterImport — one row's shape", () => {
     expect(result.read.rows[0].reasons.join(" ")).toContain("mobile");
   });
 
-  it("accepts every phone format the club actually writes", () => {
-    for (const mobile of ["07700 900312", "+44 7700 900312", "(07700) 900312", "0770 900312"]) {
+  it("accepts every phone format that converts to a real UK mobile", () => {
+    for (const mobile of ["07700 900312", "+44 7700 900312", "(07700) 900312"]) {
       const result = readRosterImport({ csvText: csv(`Rosalind,Penhaligon,${mobile},,,`) });
       expect(result.ok).toBe(true);
       if (!result.ok) continue;
       expect(result.read.rows[0].reasons).toEqual([]);
     }
+  });
+
+  it("refuses a mobile one digit short, naming the phone, and lands every other row — LAN-215, B-007", () => {
+    // The club's real files contain this shape (Source Data Analysis §11.1).
+    // Before B-007 this row was accepted; a number that cannot become E.164
+    // can never receive the welcome, so it is now refused — but only this
+    // row, by its own reason, so the rest of the file still lands.
+    const result = readRosterImport({
+      csvText: csv("Rosalind,Penhaligon,0770 900312,,,", "Tobias,Wrenfield,07700 900313,,,"),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.read.rows[0].reasons.join(" ")).toContain("mobile");
+    expect(result.read.rows[0].reasons.join(" ")).toContain("0770 900312");
+    expect(result.read.rows[0].mobile).toBeNull();
+    // The second row is untouched by the first row's refusal.
+    expect(result.read.rows[1].reasons).toEqual([]);
+    expect(result.read.rows[1].mobile).toBe("07700 900313");
   });
 
   it("refuses an email that does not look like one", () => {

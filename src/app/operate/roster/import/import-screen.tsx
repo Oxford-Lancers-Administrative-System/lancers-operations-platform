@@ -159,7 +159,7 @@ function StartHere(
 
       <Box component="ol" sx={{ pl: 2.5, mt: 1.5, mb: 0 }}>
         {[
-          "Download the template. Six columns; three of them required.",
+          "Download template",
           "Fill it from the club's own spreadsheet. First name, last name and mobile on every row.",
           "Import it here. You will see exactly who is about to be added, and who might already be on record.",
           "Answer any possible duplicates, then confirm. Nothing is written until you do.",
@@ -177,7 +177,7 @@ function StartHere(
       >
         <input type="hidden" name="intent" value="propose" />
         <Button variant="contained" size="small" component="label" disabled={props.pending}>
-          {props.pending ? "Reading the file…" : "Choose the squad file"}
+          {props.pending ? "Reading the file…" : "Upload squad file"}
           <input
             type="file"
             name="file"

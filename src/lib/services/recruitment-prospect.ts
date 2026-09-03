@@ -17,6 +17,7 @@ import {
 import { generateOnboardingItems } from "./membership";
 import { emitOnboardingOpenedWelcomeIn } from "./onboarding-welcome";
 import { revokePersonTokenIn } from "./player-answer-tokens";
+import { commitAvailability } from "./roster-board";
 import { readSeasonLabelIn } from "./seasons";
 import {
   QUESTIONNAIRE_B_CODE,
@@ -605,10 +606,19 @@ export const RECRUIT_LINK_SUPERSEDED_BY_FLIP_REASON =
  *
  * ## LAN-215, `W3` — the far side of the flip
  *
- * Three more things happen here, inside this same transaction, none of them
+ * Four more things happen here, inside this same transaction, none of them
  * drawing a new surface (`acceptance/W3.md`, "this workflow draws no new
  * surface and no new card"):
  *
+ *   * **Availability is set to Green** — B-008, Brian this session: "When a
+ *     player gets added into the board, their availability should be flipped
+ *     to green by default." Via `commitAvailability`, never a hand-written
+ *     insert; the operator performing the flip is recorded as both reporter
+ *     and confirmer, `availability_statuses_green_records_its_confirmer`'s
+ *     unconditional requirement. `effectiveFrom` is `committedOn`, not
+ *     necessarily today — a prospect's `committed_on` can predate the flip
+ *     itself, and the availability row has to carry the same joining date the
+ *     membership does.
  *   * **The recruit's open link is superseded, audited** — `S13`,
  *     `T11-supersede-on-conversion`, and the one-open-ask-per-person
  *     invariant. Whatever durable, non-purposed `person_access_tokens` row
@@ -682,6 +692,17 @@ export async function flipRecruitmentProspectToJoinedIn(
   );
 
   await generateOnboardingItems(tx, membershipId, row.season_id);
+
+  // LAN-215, B-008: arrival sets availability to Green, in this same
+  // transaction, via `commitAvailability`. See this function's own doc
+  // comment for the confirmer interpretation and why `effectiveFrom` is
+  // `committedOn` rather than today.
+  await commitAvailability({
+    actorPersonId,
+    membershipId,
+    level: "green",
+    effectiveFrom: committedOn,
+  });
 
   // LAN-215, `W3`: supersede whatever durable link this recruit was holding,
   // and audit it — `revokePersonTokenIn` requires a reason and is a no-op

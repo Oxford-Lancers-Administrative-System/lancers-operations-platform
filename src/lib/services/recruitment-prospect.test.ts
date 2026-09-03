@@ -162,6 +162,15 @@ afterEach(async () => {
       where season_membership_id in (select id from public.season_memberships where person_id in ${people})`,
     [MARKER],
   );
+  // LAN-215, B-008: the flip now also sets availability to Green, in the same
+  // transaction, via `commitAvailability` — `availability_statuses` restricts
+  // its own deletion of `season_memberships`, on the identical reason the
+  // block above does.
+  await observer.query(
+    `delete from public.availability_statuses
+      where season_membership_id in (select id from public.season_memberships where person_id in ${people})`,
+    [MARKER],
+  );
   await observer.query(`delete from public.season_memberships where person_id in ${people}`, [
     MARKER,
   ]);
@@ -532,6 +541,40 @@ describe("flipRecruitmentProspectToJoinedIn — W14", () => {
       expect(job.rows).toHaveLength(1);
       expect(job.rows[0].status).toBe("pending");
       expect(job.rows[0].person_id).toBe(personId);
+    });
+
+    it("B-008 — sets availability to green, in this same transaction, dated the joining date", async () => {
+      // Brian, this session: "When a player gets added into the board, their
+      // availability should be flipped to green by default." `newProspect`
+      // stamps `committed_on` at 2019-10-01, well before today — proving
+      // `effective_from` reads that date, not the day the flip executes,
+      // is what would catch a regression back to `commitAvailability`'s own
+      // default of "today".
+      const { prospectId } = await newProspect("committed");
+
+      const result = await withTransaction((tx) =>
+        flipRecruitmentProspectToJoinedIn(tx, actorPersonId, prospectId),
+      );
+
+      const row = await observer.query<{
+        level: string;
+        effective_from: string;
+        reported_by_person_id: string;
+        confirmed_by_person_id: string | null;
+      }>(
+        `select level::text as level, to_char(effective_from, 'YYYY-MM-DD') as effective_from,
+                reported_by_person_id, confirmed_by_person_id
+           from public.availability_statuses
+          where season_membership_id = $1::uuid`,
+        [result.membershipId],
+      );
+      expect(row.rows).toHaveLength(1);
+      expect(row.rows[0]).toMatchObject({
+        level: "green",
+        effective_from: "2019-10-01",
+        reported_by_person_id: actorPersonId,
+        confirmed_by_person_id: actorPersonId,
+      });
     });
 
     it("supersedes the recruit's open link, and audits it, inside the flip's own transaction", async () => {
