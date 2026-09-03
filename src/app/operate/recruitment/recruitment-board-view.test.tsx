@@ -178,4 +178,61 @@ describe("the per-event RSVP and Attendance columns — sortable (Brian, 2026-09
     fireEvent.click(screen.getByRole("button", { name: "Attendance" }));
     expect(rowOrder()).toEqual(["a", "b"]); // second click reverses, the shared idiom
   });
+
+  // W-2, walk correction: `present`/`yes` rendered raw and lower-case,
+  // sitting beside the correctly capitalised "Not recorded" — this fails
+  // against the pre-fix `String(value)` pass-through and passes once these
+  // cells render through the same `RSVP_LABEL`/`ATTENDANCE_LABEL` the record
+  // page already uses.
+  it("capitalises the RSVP and Attendance cells instead of the raw database enum", () => {
+    renderWithEvent(eventRows());
+    const rowA = within(screen.getByTestId("recruitment-row-a"));
+    expect(rowA.getByText("Yes")).toBeInTheDocument();
+    expect(rowA.getByText("Present")).toBeInTheDocument();
+    expect(rowA.queryByText("yes")).toBeNull();
+    expect(rowA.queryByText("present")).toBeNull();
+
+    const rowB = within(screen.getByTestId("recruitment-row-b"));
+    // `personalSent`/`recruitmentSent` also read "No" for this row (already
+    // correctly capitalised, through `displayOf`'s own boolean case), so
+    // "No" is asserted present rather than unique.
+    expect(rowB.getAllByText("No").length).toBeGreaterThanOrEqual(1);
+    expect(rowB.getByText("Absent")).toBeInTheDocument();
+    expect(rowB.queryByText("no")).toBeNull();
+    expect(rowB.queryByText("absent")).toBeNull();
+  });
+
+  it("renders 'Not recorded' for an event this recruit has no RSVP/attendance cell for", () => {
+    renderWithEvent([row({ prospectId: "c", displayName: "Cassius Wren", events: {} })]);
+    const rowC = within(screen.getByTestId("recruitment-row-c"));
+    expect(rowC.getAllByText("Not recorded").length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("W-2, walk correction — Played before / Watched before are capitalised", () => {
+  it("renders 'Yes'/'No', not the raw 'yes'/'no' database enum", () => {
+    // `personalSent`/`recruitmentSent` also render "Yes"/"No" (already
+    // correctly capitalised, through `displayOf`'s own boolean case) —
+    // pinned true here so this test's "Yes"/"No" assertions read
+    // unambiguously off `playedBefore`/`watchedBefore` alone.
+    renderBoard([
+      row({
+        playedBefore: "yes",
+        watchedBefore: "no",
+        personalSent: true,
+        recruitmentSent: true,
+      }),
+    ]);
+    const boardRow = within(screen.getByTestId("recruitment-row-prospect-1"));
+    expect(boardRow.getAllByText("Yes").length).toBeGreaterThanOrEqual(1);
+    expect(boardRow.getByText("No")).toBeInTheDocument();
+    expect(boardRow.queryByText("yes")).toBeNull();
+    expect(boardRow.queryByText("no")).toBeNull();
+  });
+
+  it("renders 'Not recorded' once no answer is on file, unchanged", () => {
+    renderBoard([row({ playedBefore: null, watchedBefore: null })]);
+    const boardRow = within(screen.getByTestId("recruitment-row-prospect-1"));
+    expect(boardRow.getAllByText("Not recorded").length).toBeGreaterThanOrEqual(2);
+  });
 });

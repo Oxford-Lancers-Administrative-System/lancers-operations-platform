@@ -21,19 +21,32 @@ const REASON_LABEL: Readonly<Record<string, string>> = Object.freeze({
   not_consented: "Messaging consent has not been granted for this season.",
   not_eligible: "The club will not message a recruit at this status.",
   already_complete: "Already answered.",
+  // F-206-01. An outstanding, unanswered request already has a queued job —
+  // never reported as "Already answered.", which was a false status on a
+  // reachable path.
+  outstanding: "Already queued and not yet answered — made due again now.",
 });
 
 /**
  * `W2`'s SEND / RESEND button — one per questionnaire.
  *
  * `W2-04` (Brian, 2026-08-31 — "the pop-up... should be the answer at the
- * moment of action") is why this button is never natively `disabled`: a
- * disabled HTML button fires no `onClick` at all, so a control that cannot
- * be pressed cannot open a dialog either — correction round 1's
- * F-LAN204-005. The button always opens the dialog; the dialog is what
- * refuses, in words, and it refuses at the moment of action whether the
- * service layer would have refused anyway (an unconsented or ineligible
- * recruit) or the operator confirms a real send.
+ * moment of action") is why this button is never natively `disabled` for an
+ * *unconsented or ineligible* recruit: a disabled HTML button fires no
+ * `onClick` at all, so a control that cannot be pressed cannot open a
+ * dialog either — correction round 1's F-LAN204-005. For those reasons the
+ * button always opens the dialog; the dialog is what refuses, in words, at
+ * the moment of action, whether the service layer would have refused anyway
+ * or the operator confirms a real send.
+ *
+ * Walk correction (W-1): a `declined` recruit is different — `declined`
+ * already carries its own top-of-record banner (`record-view.tsx`'s
+ * `bannerDetail`) stating the refusal before either button is ever reached,
+ * so there is no explanation left for the dialog to be the sole place
+ * holding. Discovering the refusal one click into a confirm dialog instead
+ * of up front is exactly the gap the walk found, so `declined` is the one
+ * case this button is natively `disabled` for — `blockedByDecline`, passed
+ * by the caller.
  */
 export default function SendQuestionnaireButton({
   prospectId,
@@ -42,6 +55,7 @@ export default function SendQuestionnaireButton({
   lastSentAt,
   canSend,
   disabledReason,
+  blockedByDecline = false,
 }: {
   prospectId: string;
   track: RecruitmentQuestionnaireTrack;
@@ -49,6 +63,7 @@ export default function SendQuestionnaireButton({
   lastSentAt: string | null;
   canSend: boolean;
   disabledReason: string | null;
+  blockedByDecline?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -70,6 +85,8 @@ export default function SendQuestionnaireButton({
       <Button
         variant="contained"
         size="small"
+        disabled={blockedByDecline}
+        title={blockedByDecline && disabledReason ? disabledReason : undefined}
         onClick={() => {
           setResult(null);
           setOpen(true);

@@ -42,8 +42,8 @@ const BASE_RECORD: RecruitmentProspectRecord = {
   convertedMembershipId: null,
   consent: "never_asked",
   consentSource: null,
-  personal: { lastSentAt: null },
-  recruitment: { lastSentAt: null },
+  personal: { lastSentAt: null, queuedFor: null },
+  recruitment: { lastSentAt: null, queuedFor: null },
   answers: {
     playedBefore: null,
     watchedBefore: null,
@@ -210,5 +210,114 @@ describe("the Person and Recruitment bands — stacked, not side by side (Brian,
     const container = person.parentElement as HTMLElement;
     const children = Array.from(container.children);
     expect(children.indexOf(person)).toBeLessThan(children.indexOf(recruitment));
+  });
+});
+
+describe("V-7, correction round 2 — the status pill names its subject", () => {
+  // Brian: the pill read "Engaged" alone, with nothing saying what was
+  // engaged. Reverting to the bare `PROSPECT_STATUS_LABELS[record.status]`
+  // label reproduces exactly that — this assertion fails against it.
+  it("reads 'Recruit status · Engaged', not the bare status word", () => {
+    render(<RecruitmentRecordView record={BASE_RECORD} person={NO_PERSON} />);
+    // The pill in the header's own top-right corner, specifically — not the
+    // headline strip's separate "Recruit status" Headline below it, which
+    // (like the player record's own Headline) pairs a bare value with its
+    // own caption underneath rather than a colon-joined string.
+    expect(screen.getByText("Recruit status · Engaged")).not.toBeNull();
+  });
+});
+
+describe("V-8, correction round 2 — the header follows the shipped player record's shape", () => {
+  // The player record's own header carries "{season} membership · {entry} ·
+  // {status}" under the name. This is the same rhythm over what a recruit's
+  // record actually has.
+  it("carries a season-and-status subtitle under the name", () => {
+    render(<RecruitmentRecordView record={BASE_RECORD} person={NO_PERSON} />);
+    expect(screen.getByTestId("recruitment-subtitle").textContent).toBe(
+      "2026-27 recruitment · Engaged",
+    );
+  });
+
+  // The player record's own "strip of labelled facts above the bands" —
+  // brought into this record's own shape as four Headline items.
+  it("renders a headline strip above the Person/Recruitment bands, with status, consent and both sends", () => {
+    render(<RecruitmentRecordView record={BASE_RECORD} person={NO_PERSON} />);
+    const strip = screen.getByTestId("recruitment-headline-strip");
+    expect(strip.textContent).toContain("Recruit status");
+    expect(strip.textContent).toContain("WhatsApp consent");
+    expect(strip.textContent).toContain("Personal questionnaire");
+    expect(strip.textContent).toContain("Recruitment questionnaire");
+  });
+});
+
+describe("W-1, walk correction — a declined recruit's SEND buttons are disabled up front", () => {
+  // Before the fix, both buttons rendered as ordinary active buttons for a
+  // `declined` recruit and only reported the refusal one click later, inside
+  // the confirm dialog — this fails against that shipped behaviour and
+  // passes once `blockedByDecline` reaches the native `disabled` attribute.
+  it("disables the personal questionnaire SEND button for a declined recruit", () => {
+    render(
+      <RecruitmentRecordView record={{ ...BASE_RECORD, status: "declined" }} person={NO_PERSON} />,
+    );
+    expect(screen.getByTestId("recruitment-send-personal")).toBeDisabled();
+  });
+
+  it("disables the recruitment questionnaire SEND button for a declined recruit", () => {
+    render(
+      <RecruitmentRecordView record={{ ...BASE_RECORD, status: "declined" }} person={NO_PERSON} />,
+    );
+    expect(screen.getByTestId("recruitment-send-recruitment")).toBeDisabled();
+  });
+
+  it("leaves both buttons enabled for a non-declined recruit the club will not message", () => {
+    // Guards against over-broadening the fix to every refusal reason —
+    // `refused` consent keeps the dialog-reachable pattern F-LAN204-005 shipped.
+    render(
+      <RecruitmentRecordView record={{ ...BASE_RECORD, consent: "refused" }} person={NO_PERSON} />,
+    );
+    expect(screen.getByTestId("recruitment-send-personal")).toBeEnabled();
+  });
+});
+
+describe("V-6, correction round 2 — sending says something happened", () => {
+  // Reverting the caption to always read "Not sent" once `lastSentAt` is
+  // null — ignoring `queuedFor` — reproduces the defect Brian found: nothing
+  // says a send was queued. This assertion fails against that.
+  it("reads 'Queued for …' once a job is outstanding, not 'Not sent'", () => {
+    render(
+      <RecruitmentRecordView
+        record={{
+          ...BASE_RECORD,
+          personal: { lastSentAt: null, queuedFor: "2026-09-05T12:00:00.000Z" },
+        }}
+        person={NO_PERSON}
+      />,
+    );
+    const caption = screen.getByTestId("personal-send-caption");
+    expect(caption.textContent).toMatch(/^Queued for/);
+    expect(caption.textContent).not.toBe("Not sent");
+  });
+
+  it("reads 'Sent — last sent …' once a delivery is accepted, even if a later job is also queued", () => {
+    render(
+      <RecruitmentRecordView
+        record={{
+          ...BASE_RECORD,
+          recruitment: {
+            lastSentAt: "2026-09-01T09:00:00.000Z",
+            queuedFor: "2026-09-08T09:00:00.000Z",
+          },
+        }}
+        person={NO_PERSON}
+      />,
+    );
+    const caption = screen.getByTestId("recruitment-send-caption");
+    expect(caption.textContent).toMatch(/^Sent — last sent/);
+  });
+
+  it("still reads 'Not sent' when nothing has been queued or sent at all", () => {
+    render(<RecruitmentRecordView record={BASE_RECORD} person={NO_PERSON} />);
+    expect(screen.getByTestId("personal-send-caption").textContent).toBe("Not sent");
+    expect(screen.getByTestId("recruitment-send-caption").textContent).toBe("Not sent");
   });
 });

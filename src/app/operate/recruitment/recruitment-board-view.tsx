@@ -23,7 +23,12 @@ import TableSortLabel from "@mui/material/TableSortLabel";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import type { RecruitmentBoardRow, RecruitmentEventColumn } from "@/lib/services/recruitment-board";
-import { CONSENT_LABELS, PROSPECT_STATUS_LABELS } from "@/lib/services/recruitment-vocabulary";
+import {
+  ATTENDANCE_LABEL,
+  CONSENT_LABELS,
+  PROSPECT_STATUS_LABELS,
+  RSVP_LABEL,
+} from "@/lib/services/recruitment-vocabulary";
 import type { Season } from "@/lib/services/seasons";
 import {
   bandBoundaryKeys,
@@ -430,7 +435,18 @@ export default function RecruitmentBoardView({
                         key={column.key}
                         sx={{
                           top: BAND_ROW_HEIGHT,
-                          bgcolor: colours.tint,
+                          // V-9, correction round 2: `colours.tint` is a ~5%-alpha
+                          // wash, correct for a body cell (`RecruitCell` below,
+                          // unchanged) that never sits over scrolling content, but
+                          // this cell is the sticky header's own second row —
+                          // Brian's own board screenshot: "row text bleeds into
+                          // the header." A translucent `bgcolor` here lets exactly
+                          // that show through. `backgroundColor` paints first, the
+                          // tint's own `backgroundImage` layer paints over it, so
+                          // the result reads identically to the old tint but is
+                          // fully opaque at every scroll position.
+                          backgroundColor: "background.paper",
+                          backgroundImage: `linear-gradient(${colours.tint}, ${colours.tint})`,
                           minWidth: column.width,
                           width: column.width,
                           verticalAlign: "bottom",
@@ -704,8 +720,34 @@ function RecruitCell({
   );
 }
 
+/**
+ * Walk correction (W-2): the RSVP/Attendance and yes/no answer columns were
+ * rendering their raw database enum (`present`, `yes`) through the generic
+ * `displayOf`'s bare `String(value)`, while `NOT_RECORDED` alongside them
+ * read correctly capitalised — the inconsistency the walk caught side by
+ * side. The record page (`record-view.tsx`) already renders these same
+ * values through `RSVP_LABEL`/`ATTENDANCE_LABEL`; this reuses that mapping
+ * rather than writing a third one. Rendering only — `rawValue` and the
+ * column definitions are unchanged.
+ */
 function displayText(row: RecruitmentBoardRow, column: ColumnDef): string {
   if (column.key === "consent") return CONSENT_LABELS[row.consent];
+  if (column.key === "playedBefore") {
+    return row.playedBefore ? RSVP_LABEL[row.playedBefore] : NOT_RECORDED;
+  }
+  if (column.key === "watchedBefore") {
+    return row.watchedBefore ? RSVP_LABEL[row.watchedBefore] : NOT_RECORDED;
+  }
+  if (column.key.startsWith("event:")) {
+    const [, eventId, cell] = column.key.split(":");
+    const eventCell = row.events[eventId];
+    if (eventCell) {
+      if (cell === "rsvp") return eventCell.rsvp ? RSVP_LABEL[eventCell.rsvp] : NOT_RECORDED;
+      if (cell === "attendance") {
+        return eventCell.attendance ? ATTENDANCE_LABEL[eventCell.attendance] : NOT_RECORDED;
+      }
+    }
+  }
   return displayOf(rawValue(row, column.key));
 }
 

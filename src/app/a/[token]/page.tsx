@@ -23,10 +23,14 @@ import {
   type PlayerAnswer,
 } from "@/lib/services/player-answer-tokens";
 import { readSignedRsvpPageIn, type SignedRsvpPage } from "@/lib/services/rsvp";
+import { TOKEN_PATTERN } from "@/lib/services/rsvp-tokens";
+import { resolveRecruitmentInterestTokenIn } from "@/lib/services/recruitment-interest-tokens";
+import { readRecruitmentProspectIn } from "@/lib/services/recruitment-prospect";
 import { formatDeadline, formatEventDate, formatEventTime } from "@/app/rsvp/[token]/presentation";
 
 import { AutoSubmitOnInteraction } from "./auto-submit";
 import { QuestionField } from "./question-field";
+import { QuestionnaireBScreen } from "./interest-questionnaire";
 import { submitAnswer } from "./actions";
 import { ANSWER_FORM_ID, ERROR_PARAM } from "./params";
 import {
@@ -92,9 +96,56 @@ interface Resolved {
   readonly landing: PlayerAnswerLanding | null;
 }
 
+/**
+ * Questionnaire B's own credential — LAN-206 — is a bare, opaque token
+ * (`TOKEN_PATTERN`: 43 URL-safe characters, no dots), a shape the answer
+ * token below can never produce (`ANSWER_TOKEN_PATTERN` always carries two
+ * literal dots and a leading `y`/`n`). Trying this resolution first can
+ * therefore never intercept an RSVP link; falling through to the unchanged
+ * RSVP resolution below is exactly what happens for every token that is not
+ * this shape, `TOKEN_PATTERN` match or not.
+ */
+async function tryQuestionnaireB(token: string, saved: boolean, edit: boolean) {
+  if (!TOKEN_PATTERN.test(token)) return null;
+
+  return withTransaction(async (tx) => {
+    const resolution = await resolveRecruitmentInterestTokenIn(tx, token);
+    if (resolution.state !== "valid" || !resolution.resolved) return { found: false as const };
+
+    const prospect = await readRecruitmentProspectIn(tx, resolution.resolved.prospectId);
+    if (!prospect) return { found: false as const };
+
+    const hasAnyAnswer = Object.values(prospect.answers).some((value) => value !== null);
+
+    return {
+      found: true as const,
+      screen: (
+        <QuestionnaireBScreen
+          token={token}
+          displayName={prospect.displayName}
+          answers={prospect.answers}
+          saved={saved}
+          edit={edit}
+          hasAnyAnswer={hasAnyAnswer}
+        />
+      ),
+    };
+  });
+}
+
 export default async function AnswerLinkPage({ params, searchParams }: PageProps) {
   const { token } = await params;
   const query = await searchParams;
+
+  const questionnaireB = await tryQuestionnaireB(
+    token,
+    firstValue(query.saved) === "1",
+    firstValue(query.edit) === "1",
+  );
+  if (questionnaireB) {
+    if (!questionnaireB.found) notFound();
+    return questionnaireB.screen;
+  }
 
   const resolved = await withUniformTerminalTiming<Resolved>(
     async () => {

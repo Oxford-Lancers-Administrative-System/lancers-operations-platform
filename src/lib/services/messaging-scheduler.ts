@@ -27,6 +27,7 @@ import {
   mayReceiveWelcomeContactIn,
 } from "./messaging-consent";
 import { issuePersonTokenIn } from "./player-answer-tokens";
+import { issueRecruitmentInterestTokenIn } from "./recruitment-interest-tokens";
 import {
   readRecruitmentCycleCompletionIn,
   type RecruitmentCycleStepName,
@@ -1415,9 +1416,30 @@ export async function dispatchRecruitmentCycleJob(
     // cannot be recovered), the same reason `claimJobIn` mints the
     // invitation's yes/no tokens inside its own claim rather than at
     // `scheduleEventLadderIn` time.
-    const issued = await issuePersonTokenIn(tx, job.person_id, seasonId, { actorPersonId: null });
-    const formUrl = `${context.appBaseUrl}/me/join/${issued.token}`;
-    const stopUrl = `${context.appBaseUrl}/me/stop/${issued.token}`;
+    //
+    // The opt-out link is always the durable, season-scoped credential —
+    // one mechanism for "stop messaging me", independent of which specific
+    // form a message happens to carry. The welcome track's own link is that
+    // same credential (LAN-202's sign-up form, `/me/join/[token]`,
+    // `resolvePersonTokenIn`); the questionnaire track's link is LAN-206's
+    // own purpose-tagged credential (`/a/[token]`,
+    // `resolveRecruitmentInterestTokenIn`) — a different page, and per
+    // W4/`REQ-two-questionnaires`'s "one open request per person, ever", a
+    // different substrate, so both are minted here rather than reusing one
+    // token for two unrelated pages.
+    const stopIssued = await issuePersonTokenIn(tx, job.person_id, seasonId, {
+      actorPersonId: null,
+    });
+    const stopUrl = `${context.appBaseUrl}/me/stop/${stopIssued.token}`;
+    let formUrl: string;
+    if (CYCLE_COMPLETION_TRACK[step] === "questionnaireBComplete") {
+      const formIssued = await issueRecruitmentInterestTokenIn(tx, job.person_id, seasonId, {
+        actorPersonId: null,
+      });
+      formUrl = `${context.appBaseUrl}/a/${formIssued.token}`;
+    } else {
+      formUrl = `${context.appBaseUrl}/me/join/${stopIssued.token}`;
+    }
 
     const attempt = await tx.query<{ id: string }>(
       `insert into public.delivery_attempts

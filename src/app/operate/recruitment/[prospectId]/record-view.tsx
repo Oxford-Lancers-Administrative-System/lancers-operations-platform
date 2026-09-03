@@ -4,6 +4,7 @@ import Alert from "@mui/material/Alert";
 import AlertTitle from "@mui/material/AlertTitle";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
 import Grid from "@mui/material/Grid";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
@@ -12,6 +13,7 @@ import TableCell from "@mui/material/TableCell";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
+import type { ReactNode } from "react";
 import type { PersonRecord } from "@/lib/services/person-record";
 import {
   ATTENDANCE_LABEL,
@@ -134,6 +136,15 @@ export default function RecruitmentRecordView({
           <Typography variant="h5" component="h1">
             {record.displayName}
           </Typography>
+          {/* V-8, correction round 2 — Brian, pointing at the shipped player
+              record: "Should be more similar to this." That record's own
+              header carries "{season} membership · {entry} · {status}" under
+              the name; a recruit has no entry, so this is the same rhythm
+              over what a recruit's own record actually has: the season and
+              the status. */}
+          <Typography color="text.secondary" sx={{ mt: 0.5 }} data-testid="recruitment-subtitle">
+            {`${record.seasonLabel} recruitment · ${PROSPECT_STATUS_LABELS[record.status]}`}
+          </Typography>
           {record.convertedMembershipId ? (
             <Typography variant="body2" color="text.secondary">
               Joined —{" "}
@@ -141,11 +152,50 @@ export default function RecruitmentRecordView({
             </Typography>
           ) : null}
         </Box>
-        {/* A glance-only pill, same as the roster record's own headline —
-            the interactive control lives in the Recruitment card below. */}
+        {/* V-7, correction round 2: the pill named only the value, never its
+            subject — "Engaged" alone does not say what is engaged. A
+            glance-only pill, same as the roster record's own headline — the
+            interactive control lives in the Recruitment card below. */}
         <StatusPill
           color={STATUS_COLOUR_FOR_PILL[record.status]}
-          label={PROSPECT_STATUS_LABELS[record.status]}
+          label={`Recruit status · ${PROSPECT_STATUS_LABELS[record.status]}`}
+        />
+      </Stack>
+
+      {/* V-8, correction round 2: the player record's own "strip of labelled
+          facts above the bands" (`Headline`, `../../roster/[membershipId]/record-view.tsx`).
+          Brought into this record's own shape rather than that file's
+          component reused directly — that file is LAN-204's own roster
+          surface, and this correction round is authorised to change what
+          the three named findings touch, not to import from a shipped
+          record it does not otherwise depend on. */}
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={2}
+        sx={{ flexWrap: "wrap", gap: 2, mb: 3 }}
+        data-testid="recruitment-headline-strip"
+      >
+        <Headline
+          value={PROSPECT_STATUS_LABELS[record.status]}
+          label="Recruit status"
+          colour={STATUS_COLOUR_FOR_PILL[record.status]}
+        />
+        <Headline value={CONSENT_LABELS[record.consent]} label="WhatsApp consent" />
+        <Headline
+          value={
+            record.personal.lastSentAt ? "Sent" : record.personal.queuedFor ? "Queued" : "Not sent"
+          }
+          label="Personal questionnaire"
+        />
+        <Headline
+          value={
+            record.recruitment.lastSentAt
+              ? "Sent"
+              : record.recruitment.queuedFor
+                ? "Queued"
+                : "Not sent"
+          }
+          label="Recruitment questionnaire"
         />
       </Stack>
 
@@ -180,11 +230,19 @@ export default function RecruitmentRecordView({
               lastSentAt={record.personal.lastSentAt}
               canSend={canSendPersonal}
               disabledReason={personalDisabledReason}
+              blockedByDecline={blockedByStatus}
             />
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ display: "block", mt: 0.5 }}
+              data-testid="personal-send-caption"
+            >
               {record.personal.lastSentAt
-                ? `Last sent ${formatWhen(new Date(record.personal.lastSentAt))}`
-                : "Not sent"}
+                ? `Sent — last sent ${formatWhen(new Date(record.personal.lastSentAt))}`
+                : record.personal.queuedFor
+                  ? `Queued for ${formatWhen(new Date(record.personal.queuedFor))}`
+                  : "Not sent"}
             </Typography>
           </Box>
         </Section>
@@ -231,11 +289,19 @@ export default function RecruitmentRecordView({
               lastSentAt={record.recruitment.lastSentAt}
               canSend={canSendRecruitment}
               disabledReason={recruitmentDisabledReason}
+              blockedByDecline={blockedByStatus}
             />
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ display: "block", mt: 0.5 }}
+              data-testid="recruitment-send-caption"
+            >
               {record.recruitment.lastSentAt
-                ? `Last sent ${formatWhen(new Date(record.recruitment.lastSentAt))}`
-                : "Not sent"}
+                ? `Sent — last sent ${formatWhen(new Date(record.recruitment.lastSentAt))}`
+                : record.recruitment.queuedFor
+                  ? `Queued for ${formatWhen(new Date(record.recruitment.queuedFor))}`
+                  : "Not sent"}
             </Typography>
           </Box>
         </Section>
@@ -333,6 +399,39 @@ export default function RecruitmentRecordView({
       <Button variant="outlined" href="/operate/recruitment" sx={{ mt: 3, minHeight: 44 }}>
         BACK TO RECRUITMENT
       </Button>
+    </Box>
+  );
+}
+
+/**
+ * V-8, correction round 2 — the shipped player record's own "strip of
+ * labelled facts" (`Headline`, `../../roster/[membershipId]/record-view.tsx`),
+ * brought into this record's own shape. A local copy rather than an import:
+ * that file is a separate LAN-204 surface this correction is not otherwise
+ * touching, and the two components' own value/colour shapes have already
+ * diverged (this one's `colour` is `STATUS_COLOUR_FOR_PILL`'s own wider set).
+ */
+function Headline({
+  value,
+  label,
+  colour,
+}: {
+  value: ReactNode;
+  label: string;
+  colour?: "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning";
+}) {
+  return (
+    <Box>
+      {colour ? (
+        <Chip size="small" label={value} color={colour} />
+      ) : (
+        <Typography variant="body1" sx={{ fontWeight: 700 }}>
+          {value}
+        </Typography>
+      )}
+      <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 0.5 }}>
+        {label}
+      </Typography>
     </Box>
   );
 }

@@ -545,6 +545,19 @@ Notification Job that carries a message. What it had no home for was **when**.
   fresh plaintext is needed — its earlier plaintext is gone the moment it was
   handed to the caller that minted it, the same as `rsvp_access_tokens`.
 
+  `WP-recruit-forms` (LAN-206) adds `purpose`, a nullable closed vocabulary
+  (`person_access_token_purpose`; one value today, `recruit_interest_request`,
+  for Questionnaire B's own ask and reminder). Every row this migration does
+  not mint — every durable player-page credential and every RSVP one-time
+  answer token — keeps `purpose is null` and is untouched by it. A second
+  partial unique index, `person_access_tokens_one_open_purpose_request` on
+  `(person_id, purpose)` where the row is single-use, tagged, unrevoked and
+  unconsumed, is the substrate for "at most one open request per person,
+  ever" (`REQ-two-questionnaires`, W4's own core-decisions table) — enforced
+  once, here, rather than by each caller remembering to check, so Missions 7
+  and 8 inherit it for their own signed-link asks by adding their own
+  `purpose` value rather than re-deriving the rule.
+
 - **`nonresponse_flags`** — `unique (invitation_id, threshold)` is what makes
   the escalation idempotent under reruns, and it has to be the constraint rather
   than a check-then-insert because two scheduler instances can cross a threshold

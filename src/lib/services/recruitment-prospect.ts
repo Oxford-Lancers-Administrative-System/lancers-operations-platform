@@ -9,7 +9,11 @@ import {
   type SeasonMessagingConsentSource,
   type SeasonMessagingConsentState,
 } from "./messaging-consent";
-import { declareRecruitmentCycleJobsIn, type RecruitmentCycleStepName } from "./recruitment-cycle";
+import {
+  declareRecruitmentCycleJobsIn,
+  readRecruitmentCycleCompletionIn,
+  type RecruitmentCycleStepName,
+} from "./recruitment-cycle";
 import { generateOnboardingItems } from "./membership";
 import { readSeasonLabelIn } from "./seasons";
 import {
@@ -63,6 +67,15 @@ export type RecruitmentQuestionnaireTrack = "personal" | "recruitment";
 
 export interface RecruitmentQuestionnaireSendState {
   readonly lastSentAt: string | null;
+  /**
+   * V-6, correction round 2 (Brian: "it should say that something was, at
+   * the very least, queued… it should be clear coded for this date, and
+   * then, when it actually goes out, it should send"). The soonest
+   * `scheduled_for` among this track's own job rows that has not yet been
+   * accepted by a delivery attempt — `null` once `lastSentAt` is set (there
+   * is nothing left to queue) or when no job for this track exists yet.
+   */
+  readonly queuedFor: string | null;
 }
 
 export interface RecruitmentProspectNote {
@@ -163,9 +176,44 @@ async function readSendStateIn(
     if (dates.length === 0) return null;
     return new Date(Math.max(...dates.map((d) => d.getTime()))).toISOString();
   };
+
+  // V-6, correction round 2: the soonest still-outstanding job's own
+  // `scheduled_for`, per track — a job counts only while it genuinely might
+  // still go out (`pending`/`ready`/`processing`) and has not already been
+  // accepted (an accepted job's step already shows in `acceptedByStep`
+  // above, which is what `lastSentAt` reads, so there is nothing left to
+  // queue for that step).
+  const queued = await tx.query<{ idempotency_key: string; scheduled_for: Date }>(
+    `select nj.idempotency_key, nj.scheduled_for
+       from public.notification_jobs nj
+      where nj.idempotency_key = any($1::text[])
+        and nj.status in ('pending', 'ready', 'processing')
+        and not exists (
+          select 1 from public.delivery_attempts da
+           where da.notification_job_id = nj.id and da.accepted_at is not null
+        )`,
+    [keys],
+  );
+  const queuedByStep = new Map<string, Date>();
+  for (const row of queued.rows) {
+    const step = row.idempotency_key.split(":")[1];
+    queuedByStep.set(step, row.scheduled_for);
+  }
+  const soonestQueued = (steps: readonly string[]): string | null => {
+    const dates = steps.map((step) => queuedByStep.get(step)).filter((d): d is Date => Boolean(d));
+    if (dates.length === 0) return null;
+    return new Date(Math.min(...dates.map((d) => d.getTime()))).toISOString();
+  };
+
   return {
-    personal: { lastSentAt: latest(SENT_STEP_KEYS.personal) },
-    recruitment: { lastSentAt: latest(SENT_STEP_KEYS.recruitment) },
+    personal: {
+      lastSentAt: latest(SENT_STEP_KEYS.personal),
+      queuedFor: soonestQueued(SENT_STEP_KEYS.personal),
+    },
+    recruitment: {
+      lastSentAt: latest(SENT_STEP_KEYS.recruitment),
+      queuedFor: soonestQueued(SENT_STEP_KEYS.recruitment),
+    },
   };
 }
 
@@ -633,7 +681,19 @@ export async function flipRecruitmentProspectToJoined(
 
 export interface SendRecruitmentQuestionnaireResult {
   readonly created: readonly RecruitmentCycleStepName[];
-  readonly reason: "not_consented" | "not_eligible" | "already_complete" | null;
+  /**
+   * `"outstanding"` — F-206-01. `declareRecruitmentCycleJobsIn`'s own
+   * `already_complete` covers two different facts with one word: the track
+   * is genuinely answered, or this track's job row already exists and simply
+   * was not re-created by this idempotent re-declare (`on conflict do
+   * nothing`). Conflating them told an operator pressing SEND/RESEND on an
+   * outstanding, unanswered request "Already answered." — a false status on
+   * a reachable path. This module distinguishes them by re-reading
+   * completion directly whenever declare reports nothing created; the
+   * `declareRecruitmentCycleJobsIn` contract itself, and its own existing
+   * callers and tests, are unchanged.
+   */
+  readonly reason: "not_consented" | "not_eligible" | "already_complete" | "outstanding" | null;
 }
 
 /**
@@ -662,6 +722,48 @@ export async function sendRecruitmentQuestionnaireIn(
   const relevantSteps = SENT_STEP_KEYS[track];
   const created = result.created.filter((step) => relevantSteps.includes(step));
 
+  let reason: SendRecruitmentQuestionnaireResult["reason"] =
+    created.length > 0 ? null : result.reason;
+
+  // F-206-01. Nothing new was created and declare's own reason is the
+  // ambiguous "already_complete" — re-read completion directly rather than
+  // trust that word for what it does not distinguish. An outstanding
+  // request's own job row already exists (which is exactly why the
+  // idempotent re-declare created nothing), so this never inserts a third
+  // row for either step and the two-ask cap is untouched; it only makes the
+  // existing, still-open row immediately eligible again — resend means
+  // resend, not "wait for the offset that already passed once."  Whichever
+  // token that row's own dispatch mints next (`dispatchRecruitmentCycleJob`)
+  // is a fresh one that supersedes whatever was open before it —
+  // `issueRecruitmentInterestTokenIn`'s own revoke-then-insert, unchanged
+  // here — which is what keeps the one-open-request substrate satisfied.
+  if (created.length === 0 && reason === "already_complete") {
+    const completion = await readRecruitmentCycleCompletionIn(
+      tx,
+      row.person_id,
+      row.season_id,
+      prospectId,
+    );
+    const trackComplete =
+      track === "personal" ? completion.welcomeStepComplete : completion.questionnaireBComplete;
+    if (!trackComplete) {
+      reason = "outstanding";
+      await tx.query(
+        `update public.notification_jobs
+            set scheduled_for = now(),
+                status = case when status = 'failed' then 'pending' else status end,
+                updated_at = now()
+          where person_id = $1::uuid
+            and idempotency_key = any($2::text[])
+            and status in ('pending', 'ready', 'failed')`,
+        [
+          row.person_id,
+          relevantSteps.map((step) => `recruit-cycle:${step}:${row.person_id}:${row.season_id}`),
+        ],
+      );
+    }
+  }
+
   await recordAudit(tx, {
     actorPersonId,
     action:
@@ -670,10 +772,10 @@ export async function sendRecruitmentQuestionnaireIn(
         : "recruitment_prospect.recruitment_questionnaire_send_requested",
     entityTable: "recruitment_prospects",
     entityId: prospectId,
-    context: { created, declaredReason: result.reason },
+    context: { created, declaredReason: result.reason, reportedReason: reason },
   });
 
-  return { created, reason: created.length > 0 ? null : result.reason };
+  return { created, reason };
 }
 
 export async function sendRecruitmentQuestionnaire(

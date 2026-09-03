@@ -2285,6 +2285,9 @@ export type Database = {
           issued_by_person_id: string | null
           last_used_at: string | null
           person_id: string
+          purpose:
+            | Database["public"]["Enums"]["person_access_token_purpose"]
+            | null
           revoked_at: string | null
           revoked_reason: string | null
           season_id: string
@@ -2300,6 +2303,9 @@ export type Database = {
           issued_by_person_id?: string | null
           last_used_at?: string | null
           person_id: string
+          purpose?:
+            | Database["public"]["Enums"]["person_access_token_purpose"]
+            | null
           revoked_at?: string | null
           revoked_reason?: string | null
           season_id: string
@@ -2315,6 +2321,9 @@ export type Database = {
           issued_by_person_id?: string | null
           last_used_at?: string | null
           person_id?: string
+          purpose?:
+            | Database["public"]["Enums"]["person_access_token_purpose"]
+            | null
           revoked_at?: string | null
           revoked_reason?: string | null
           season_id?: string
@@ -4476,6 +4485,7 @@ export type Database = {
         | "complete"
         | "waived"
         | "not_applicable"
+      person_access_token_purpose: "recruit_interest_request"
       position_side: "offence" | "defence" | "special_teams"
       position_slot:
         | "offence"
@@ -4735,6 +4745,7 @@ export const Constants = {
         "waived",
         "not_applicable",
       ],
+      person_access_token_purpose: ["recruit_interest_request"],
       position_side: ["offence", "defence", "special_teams"],
       position_slot: [
         "offence",

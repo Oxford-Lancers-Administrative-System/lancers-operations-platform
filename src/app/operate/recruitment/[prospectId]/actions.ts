@@ -47,7 +47,7 @@ export async function sendRecruitmentQuestionnaireAction(params: {
 }): Promise<
   RecruitmentActionState & {
     created: readonly string[];
-    reason: "not_consented" | "not_eligible" | "already_complete" | null;
+    reason: "not_consented" | "not_eligible" | "already_complete" | "outstanding" | null;
   }
 > {
   const operator = await requireCapability("person_record_authority");
