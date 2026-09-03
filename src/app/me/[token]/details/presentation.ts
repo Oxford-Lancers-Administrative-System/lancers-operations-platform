@@ -68,8 +68,6 @@ export const DETAILS_LEAD_RETURNING = "Change anything that has changed";
 
 export const CONSENT_HEADING = "Messaging consent";
 export const CONSENT_LABEL = "Yes, Oxford Lancers may message me about the club this season.";
-export const CONSENT_NOTE =
-  "Asked again every season. Only an operator can withdraw it once given.";
 export const CONSENT_ALREADY_GRANTED = "Messaging consent: Already agreed.";
 
 export const REQUIRED_NOTE = "* is required. This is the required form.";

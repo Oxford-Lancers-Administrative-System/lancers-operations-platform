@@ -46,7 +46,6 @@ import {
   CONSENT_ALREADY_GRANTED,
   CONSENT_HEADING,
   CONSENT_LABEL,
-  CONSENT_NOTE,
   CONTINUE,
   DETAILS_HEADING,
   DETAILS_LEAD_RETURNING,
@@ -403,7 +402,6 @@ function DetailsStepPage({
                   {CONSENT_HEADING}
                 </Typography>
                 <CheckboxField name="consent" label={CONSENT_LABEL} />
-                <FormHelperText>{CONSENT_NOTE}</FormHelperText>
               </Box>
             ) : (
               <Alert severity="success">{CONSENT_ALREADY_GRANTED}</Alert>
