@@ -72,7 +72,7 @@ describe("nothing deliverable to a real person", () => {
       if (row.columns.kind === "phone") {
         expect(value, value).toMatch(/^(\+44 ?|0)?7700 ?90\d{3,4}$|^\+1 555 01\d{2}$/);
       } else {
-        expect(value, value).toMatch(/\.example$|\.exmaple$/);
+        expect(value, value).toMatch(/\.example$/);
       }
     }
     const emergency = plan.rows.filter(

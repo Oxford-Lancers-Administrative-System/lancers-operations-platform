@@ -12,9 +12,20 @@
 import pg from "pg";
 
 /** Opens a client against the resolved target. Never logs the string. */
-export async function connect(target) {
+export async function connect(target, env = process.env) {
   const client = new pg.Client({ connectionString: target.connectionString });
   await client.connect();
+  // A local rehearsal can run as the role hosted connects as, so the grants —
+  // and above all the tables that role may not delete from — are exercised
+  // before anybody points the loader at production. Local only: the hosted
+  // connection is already that role, and a superuser is the one thing that
+  // could make this lie.
+  if (env.SHOWCASE_SET_ROLE && target.kind === "local") {
+    if (!/^[a-z_]+$/.test(env.SHOWCASE_SET_ROLE)) {
+      throw new Error("SHOWCASE_SET_ROLE must be a plain role name.");
+    }
+    await client.query(`set role ${env.SHOWCASE_SET_ROLE}`);
+  }
   return client;
 }
 

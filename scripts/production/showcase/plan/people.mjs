@@ -294,8 +294,10 @@ export function buildPeople(ctx, reference) {
           person_id: personId,
           kind: "email",
           scope: index % 2 === 0 ? "college" : "personal",
+          // The malformed one is malformed in its local part — a double dot —
+          // and stays inside the reserved domain, as every address here must.
           raw_value: typo
-            ? exampleEmail(local).replace("ox.ac.example", "ox.ac.exmaple")
+            ? exampleEmail(`${givenName.toLowerCase()}..${index}`)
             : exampleEmail(local, index % 2 === 0 ? "college" : "personal"),
           normalised_value: typo
             ? null

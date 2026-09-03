@@ -332,9 +332,12 @@ scenario will meet them too.
 tables — results, attempts, status events, notes, answers, tokens, the report.
 That is deliberate and stays. A loader connecting as that login therefore
 cannot remove everything it wrote. Rather than fail halfway, it checks the
-privilege it holds, deletes what it may, and writes the remainder as exact
-`delete … where id in (…)` statements — identifiers only — for Brian to run as
-the owner in the SQL editor. `verify --after-rollback` then proves nothing but
+privilege it holds, holds back the rows it may not delete **and every parent
+those rows still reference** (a delivery result pins its job, the job its
+invitation, the invitation its event and its person), deletes the rest, and
+writes the held-back rows as exact `delete … where id in (…)` statements in
+children-first order — identifiers only — for Brian to run as the owner in the
+SQL editor. `verify --after-rollback` then proves nothing but
 application-written history and adopted identities remains. A scenario that writes into a
 no-delete table follows the same shape, or does not write there.
 

@@ -62,7 +62,7 @@ import {
   ROLLBACK_ORDER,
   writePlan,
 } from "./showcase/db.mjs";
-import { buildPlan, todayInLondon } from "./showcase/plan.mjs";
+import { buildPlan, todayUtc } from "./showcase/plan.mjs";
 import { readTermCard, syntheticTermCard } from "./showcase/sources.mjs";
 import { resolveTarget } from "./showcase/target.mjs";
 import { readWorkbook } from "./showcase/workbook.mjs";
@@ -426,7 +426,12 @@ function canonical(value) {
   );
 }
 
-async function verify(client, plan, params, { afterRollback = false, wholeDatabase = false } = {}) {
+async function verify(
+  client,
+  plan,
+  params,
+  { afterRollback = false, wholeDatabase = false, residuePath = null } = {},
+) {
   const checks = [];
   const check = (label, actual, expected, { detail = null } = {}) =>
     checks.push({ label, actual, expected, ok: actual === expected, detail });
@@ -434,15 +439,30 @@ async function verify(client, plan, params, { afterRollback = false, wholeDataba
   const ids = (table) => plan.byTable.get(table) ?? [];
 
   if (afterRollback) {
-    // Only history and residue may remain.
+    // Only the residue rollback named may remain, until the owner has run it.
+    const expected = new Set();
+    if (residuePath) {
+      let sql = "";
+      try {
+        sql = readFileSync(residuePath, "utf8");
+      } catch {
+        // No file: nothing is expected to remain.
+      }
+      for (const id of sql.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g) ??
+        [])
+        expected.add(id);
+    }
     const remaining = [];
     for (const [table, owned] of plan.byTable) {
-      const present = await count(
-        `select count(*)::int as count from ${table} where id = any($1)`,
-        [owned],
-      );
-      if (present === 0) continue;
-      remaining.push({ table, present, residue: NO_DELETE_TABLES.includes(table) });
+      const present = (
+        await client.query(`select id from ${table} where id = any($1)`, [owned])
+      ).rows.map((row) => row.id);
+      if (present.length === 0) continue;
+      const unexpected = present.filter((id) => !expected.has(id));
+      if (unexpected.length > 0)
+        remaining.push({ table, present: unexpected.length, residue: false });
+      if (unexpected.length < present.length)
+        remaining.push({ table, present: present.length - unexpected.length, residue: true });
     }
     const rids = reportIds(plan);
     const reports = await count(
@@ -450,13 +470,21 @@ async function verify(client, plan, params, { afterRollback = false, wholeDataba
       [[rids.v1, rids.v2]],
     );
     if (reports > 0)
-      remaining.push({ table: "public.weekly_reports", present: reports, residue: true });
+      remaining.push({
+        table: "public.weekly_reports",
+        present: reports,
+        residue: expected.has(rids.v2),
+      });
     const reportAudit = await count(
       "select count(*)::int as count from public.audit_events where id = $1",
       [rids.audit],
     );
     if (reportAudit > 0)
-      remaining.push({ table: "public.audit_events", present: reportAudit, residue: true });
+      remaining.push({
+        table: "public.audit_events",
+        present: reportAudit,
+        residue: expected.has(rids.audit),
+      });
     const hard = remaining.filter((entry) => !entry.residue);
     check("loader rows remaining outside residue tables (0 expected)", hard.length, 0, {
       detail: hard.map((e) => `${e.table}:${e.present}`).join(", ") || null,
@@ -942,20 +970,68 @@ async function rollback(client, plan, params, { force = false, residuePath }) {
     for (const [table] of removable) if (!ROLLBACK_ORDER.includes(table)) discovered.push(table);
   }
 
-  // What the connected role may actually delete.
+  // What the connected role may actually delete — and what it therefore
+  // may not. A row in a table the role cannot delete from still points at
+  // its parents, so deleting those parents would fail the whole transaction;
+  // every parent a residue row references is held back too, transitively,
+  // and the residue file removes them in children-first order. Found by
+  // independent review (round 1, F1): the first version deleted
+  // notification_jobs while the no-delete delivery rows still pointed at
+  // them, and on hosted that aborted with nothing removed and no residue
+  // written.
   const privileges = await readPrivileges(client, [...byTable.keys()]);
-  const residue = [];
+  const residue = new Map();
+  const holdBack = (table, ids) => {
+    if (!residue.has(table)) residue.set(table, new Set());
+    const set = residue.get(table);
+    const fresh = ids.filter((id) => !set.has(id));
+    for (const id of fresh) set.add(id);
+    return fresh;
+  };
+  // child table → the parents it references, from the same catalogue walk.
+  const parentsOf = new Map();
+  for (const [parent, edges] of dependencies) {
+    for (const edge of edges) {
+      if (!parentsOf.has(edge.child)) parentsOf.set(edge.child, []);
+      parentsOf.get(edge.child).push({ parent, column: edge.column });
+    }
+  }
+  let frontier = [];
+  for (const [table, ids] of byTable) {
+    if (ids.length === 0 || privileges.get(table)?.delete) continue;
+    const present = await client.query(`select id from ${table} where id = any($1)`, [ids]);
+    const held = holdBack(
+      table,
+      present.rows.map((row) => row.id),
+    );
+    if (held.length > 0) frontier.push([table, held]);
+  }
+  while (frontier.length > 0) {
+    const next = [];
+    for (const [table, ids] of frontier) {
+      for (const { parent, column } of parentsOf.get(table) ?? []) {
+        if (parent === table || !byTable.has(parent)) continue;
+        const referenced = await client.query(
+          `select distinct ${column} as id from ${table} where id = any($1) and ${column} = any($2)`,
+          [ids, byTable.get(parent)],
+        );
+        const held = holdBack(
+          parent,
+          referenced.rows.map((row) => row.id),
+        );
+        if (held.length > 0) next.push([parent, held]);
+      }
+    }
+    frontier = next;
+  }
+
   let removed = 0;
   await client.query("begin");
   try {
     for (const table of [...discovered, ...ROLLBACK_ORDER]) {
-      const ids = byTable.get(table);
-      if (!ids || ids.length === 0) continue;
-      if (!privileges.get(table)?.delete) {
-        const present = await client.query(`select id from ${table} where id = any($1)`, [ids]);
-        if (present.rowCount > 0) residue.push({ table, ids: present.rows.map((row) => row.id) });
-        continue;
-      }
+      const held = residue.get(table) ?? new Set();
+      const ids = (byTable.get(table) ?? []).filter((id) => !held.has(id));
+      if (ids.length === 0) continue;
       const result = await client.query(`delete from ${table} where id = any($1)`, [ids]);
       if (result.rowCount > 0) {
         console.log(`  ${String(result.rowCount).padStart(6)}  ${table}`);
@@ -973,21 +1049,24 @@ async function rollback(client, plan, params, { force = false, residuePath }) {
       "history the application wrote, are untouched.",
   );
 
-  if (residue.length > 0) {
-    const statements = residue.map(
-      ({ table, ids }) =>
-        `-- ${ids.length} row(s)\ndelete from ${table} where id in (\n${ids.map((id) => `  '${id}'`).join(",\n")}\n);`,
+  const residueTables = [...discovered, ...ROLLBACK_ORDER].filter(
+    (table) => (residue.get(table)?.size ?? 0) > 0,
+  );
+  if (residueTables.length > 0) {
+    const total = residueTables.reduce((sum, table) => sum + residue.get(table).size, 0);
+    const statements = residueTables.map(
+      (table) =>
+        `-- ${residue.get(table).size} row(s)\ndelete from ${table} where id in (\n${[...residue.get(table)].map((id) => `  '${id}'`).join(",\n")}\n);`,
     );
-    const sql = `-- Tester-week rollback residue — LAN-221. Run as the database owner, in the\n-- Supabase SQL editor, in this order. Identifiers only; no personal data.\nbegin;\n${statements.join("\n")}\ncommit;\n`;
+    const sql = `-- Tester-week rollback residue — LAN-221. Run as the database owner, in the\n-- Supabase SQL editor, whole: one transaction, children first. Identifiers\n-- only; no personal data.\nbegin;\n${statements.join("\n")}\ncommit;\n`;
     writeFileSync(residuePath, sql);
     console.log(
-      `\n${residue.reduce((total, entry) => total + entry.ids.length, 0)} rows in ${residue.length} table(s) could not be deleted by the connected role and were written to ${residuePath}. ` +
-        "Run that file as the owner in the SQL editor, then `verify --after-rollback`. See OWNER-RUNBOOK.md § Afterwards.",
+      `\n${total} rows in ${residueTables.length} table(s) could not be deleted by the connected role — ` +
+        `the history tables it may not delete from, and everything those rows still point at — and were written to ${residuePath}. ` +
+        "Run that file as the owner in the SQL editor, then `verify --after-rollback --residue <that file>`. See OWNER-RUNBOOK.md § Afterwards.",
     );
-    // Deleting the parents those rows still point at would have failed, so
-    // those parents are residue too; the file above is what removes them.
   }
-  return { removed, blockers: [], residue };
+  return { removed, blockers: [], residue: residueTables };
 }
 
 // ---------------------------------------------------------------------------
@@ -1006,7 +1085,7 @@ async function main() {
   const target = resolveTarget(argv.slice(1));
   const params = readParameters(option(argv, "params"));
   const sources = readSources(argv);
-  const anchor = option(argv, "anchor", todayInLondon());
+  const anchor = option(argv, "anchor", todayUtc());
 
   console.log(`\nShowcase ${phase} — ${target.describe()}`);
 
@@ -1046,6 +1125,7 @@ async function main() {
       const { failed } = await verify(client, plan, params, {
         afterRollback: argv.includes("--after-rollback"),
         wholeDatabase: target.kind === "hosted" || argv.includes("--whole-database"),
+        residuePath: option(argv, "residue"),
       });
       if (failed) {
         console.error("\nSTOP. Verification did not reconcile. Do not hand out the checklists.");

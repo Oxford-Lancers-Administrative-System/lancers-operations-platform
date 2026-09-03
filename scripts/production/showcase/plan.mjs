@@ -47,14 +47,17 @@ export { CURRENT_SEASON_LABEL, ARCHIVED_SEASON_LABEL };
 /** A database with no reference data at all — which a fresh hosted project is. */
 const EMPTY_EXISTING = Object.freeze({ openCommitteeYear: null });
 
-/** Today, in the club's own timezone, as the default anchor. */
-export function todayInLondon(now = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/London",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
+/**
+ * Today, as a UTC date, as the default anchor.
+ *
+ * UTC rather than the club's own timezone on purpose: everything the plan
+ * places "before now" — expired links, sent reminders, closed deadlines — is
+ * placed before the anchor's midnight UTC, and the database compares against
+ * `now()`. A London date can be one ahead of UTC for an hour each night, and
+ * in that hour a London anchor puts those rows a few minutes into the future.
+ */
+export function todayUtc(now = new Date()) {
+  return now.toISOString().slice(0, 10);
 }
 
 /**
@@ -66,12 +69,7 @@ export function todayInLondon(now = new Date()) {
  * @param {object} [input.existing] from `readExisting` — reference data to adopt
  * @param {string} [input.anchor]   the tester-week date everything is placed around
  */
-export function buildPlan({
-  termCard,
-  params,
-  existing = EMPTY_EXISTING,
-  anchor = todayInLondon(),
-}) {
+export function buildPlan({ termCard, params, existing = EMPTY_EXISTING, anchor = todayUtc() }) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(anchor))
     throw new Error(`The anchor must be a date, not ${anchor}.`);
 

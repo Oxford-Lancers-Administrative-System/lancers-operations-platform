@@ -383,21 +383,25 @@ node scripts/production/showcase.mjs rollback --force --confirm-target fggbgerai
 On hosted the loader connects as the application's own login, which is
 deliberately granted no `DELETE` on the history tables — results, attempts,
 status events, notes, answers, tokens, the report, and so on. Rollback deletes
-everything it may and writes the rest to `~/tester-week-residue.sql` as exact
-`delete … where id in (…)` statements: identifiers only, no personal data.
+everything it may and writes the rest to `~/tester-week-residue.sql`: those
+rows, **and everything they still point at** (jobs, invitations, events,
+memberships, people), as exact `delete … where id in (…)` statements in the
+right order. Identifiers only, no personal data. Expect it to be long.
 
 - [ ] Open the Supabase dashboard's **SQL editor**, which runs as the owner,
       paste the file whole, and run it. It is one transaction.
-- [ ] Then run the rollback once more (it now removes the parents the residue
-      was holding), and confirm:
+- [ ] Confirm:
 
 ```
 node scripts/production/showcase.mjs verify --after-rollback --confirm-target fggbgeraiadetyiyjlvb --params ~/lancers-tester-week-params.json
 ```
 
 **Expect** `loader rows remaining outside residue tables (0 expected): 0`,
-`stray Person rows remaining (0 expected): 0`, and `Everything reconciles.` Any
-`RESIDUE` line names rows still to be deleted by hand.
+`stray Person rows remaining (0 expected): 0`, and `Everything reconciles.`
+(Before the SQL editor step, the same command with
+`--residue ~/tester-week-residue.sql` on the end reports those rows as
+`RESIDUE` rather than `FAIL`, so you can check the loader itself left nothing
+else behind.)
 
 **What is never removed:** identities the loader adopted rather than created
 (you, Stewart, Clint, the coach seat), reference rows that were already there,

@@ -77,14 +77,14 @@ async function present(table: string, ids: string[]) {
 
 /** The plan, as the loader itself computes it against this database. */
 async function plan(params = paramsPath) {
-  const { buildPlan, todayInLondon } = await import("../scripts/production/showcase/plan.mjs");
+  const { buildPlan, todayUtc } = await import("../scripts/production/showcase/plan.mjs");
   const { syntheticTermCard } = await import("../scripts/production/showcase/sources.mjs");
   const { readExisting } = await import("../scripts/production/showcase/db.mjs");
   return buildPlan({
     termCard: syntheticTermCard(),
     params: JSON.parse(readFileSync(params, "utf8")),
     existing: await readExisting(client),
-    anchor: todayInLondon(),
+    anchor: todayUtc(),
   });
 }
 
@@ -466,6 +466,78 @@ describe("rollback", () => {
     await client.query("delete from public.audit_events where action = 'showcase.preserved'");
     run("rollback", ["--force"]);
   }, 120_000);
+
+  it("as the role hosted connects as, holds back what it may not delete and everything it references, and the residue file finishes the job", async () => {
+    // The hosted login has no DELETE on the history tables. Rehearsed here by
+    // running rollback as `service_role`, which carries exactly those grants:
+    // the transaction must not abort on a job a delivery row still points
+    // at (independent review, round 1, F1), the residue file must name the
+    // held-back rows children-first, and running it as the owner must leave
+    // nothing behind.
+    run("load");
+    run("report");
+    const current = await plan();
+    const residuePath = path.join(directory, "residue.sql");
+    const output = execFileSync(
+      process.execPath,
+      [LOADER, "rollback", "--params", paramsPath, "--residue", residuePath],
+      {
+        cwd: ROOT,
+        encoding: "utf8",
+        env: { ...process.env, CI: "", VITEST: "", SHOWCASE_SET_ROLE: "service_role" },
+      },
+    );
+    expect(output).toMatch(/Removed \d+ rows/);
+    expect(output).toMatch(/could not be deleted by the connected role/);
+
+    // A delivery row it could not delete still points at its job, which
+    // still points at its invitation: those are held back. Jobs nothing
+    // references any more — cancelled and held reminders — are deleted.
+    const jobs = idsOf(current, "public.notification_jobs");
+    const results = idsOf(current, "public.delivery_results");
+    expect(await present("public.delivery_results", results)).toBe(results.length);
+    const orphanedResults = await client.query<{ n: number }>(
+      `select count(*)::int as n from public.delivery_results r
+        where r.id = any($1) and not exists (select 1 from public.notification_jobs j where j.id = r.notification_job_id)`,
+      [results],
+    );
+    expect(orphanedResults.rows[0].n, "a held-back result lost its job").toBe(0);
+    const remainingJobs = await present("public.notification_jobs", jobs);
+    expect(remainingJobs).toBeGreaterThan(0);
+    expect(remainingJobs).toBeLessThan(jobs.length);
+    expect(await present("public.invitations", idsOf(current, "public.invitations"))).toBe(
+      idsOf(current, "public.invitations").length,
+    );
+    // While the leaves nothing references were removed.
+    expect(
+      await present("public.question_responses", idsOf(current, "public.question_responses")),
+    ).toBe(0);
+
+    const sql = readFileSync(residuePath, "utf8");
+    const order = [...sql.matchAll(/^delete from (public\.[a-z_]+) where id in/gm)].map(
+      (match) => match[1],
+    );
+    expect(order.indexOf("public.delivery_results")).toBeLessThan(
+      order.indexOf("public.notification_jobs"),
+    );
+    expect(order.indexOf("public.notification_jobs")).toBeLessThan(
+      order.indexOf("public.invitations"),
+    );
+    expect(order.indexOf("public.invitations")).toBeLessThan(order.indexOf("public.events"));
+    expect(sql).not.toMatch(/07700 900\d{3}/);
+
+    expect(run("verify", ["--after-rollback", "--residue", residuePath])).toMatch(
+      /RESIDUE {2}residue in public\.notification_jobs/,
+    );
+    expect(runExpectingFailure("verify", ["--after-rollback"])).toMatch(
+      /FAIL {2}loader rows remaining outside residue tables/,
+    );
+
+    // The owner runs the file whole.
+    await client.query(sql);
+    expect(run("verify", ["--after-rollback"])).toMatch(/Everything reconciles/);
+    expect(run("rollback")).toMatch(/Removed 0 rows/);
+  }, 180_000);
 
   it("is repeatable — a second rollback removes nothing and fails at nothing", () => {
     expect(run("rollback")).toMatch(/Removed 0 rows/);
