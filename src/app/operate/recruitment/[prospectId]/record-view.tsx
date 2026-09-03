@@ -230,6 +230,7 @@ export default function RecruitmentRecordView({
               lastSentAt={record.personal.lastSentAt}
               canSend={canSendPersonal}
               disabledReason={personalDisabledReason}
+              blockedByDecline={blockedByStatus}
             />
             <Typography
               variant="caption"
@@ -288,6 +289,7 @@ export default function RecruitmentRecordView({
               lastSentAt={record.recruitment.lastSentAt}
               canSend={canSendRecruitment}
               disabledReason={recruitmentDisabledReason}
+              blockedByDecline={blockedByStatus}
             />
             <Typography
               variant="caption"

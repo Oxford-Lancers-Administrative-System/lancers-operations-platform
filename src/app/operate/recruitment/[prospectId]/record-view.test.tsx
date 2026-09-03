@@ -250,6 +250,35 @@ describe("V-8, correction round 2 — the header follows the shipped player reco
   });
 });
 
+describe("W-1, walk correction — a declined recruit's SEND buttons are disabled up front", () => {
+  // Before the fix, both buttons rendered as ordinary active buttons for a
+  // `declined` recruit and only reported the refusal one click later, inside
+  // the confirm dialog — this fails against that shipped behaviour and
+  // passes once `blockedByDecline` reaches the native `disabled` attribute.
+  it("disables the personal questionnaire SEND button for a declined recruit", () => {
+    render(
+      <RecruitmentRecordView record={{ ...BASE_RECORD, status: "declined" }} person={NO_PERSON} />,
+    );
+    expect(screen.getByTestId("recruitment-send-personal")).toBeDisabled();
+  });
+
+  it("disables the recruitment questionnaire SEND button for a declined recruit", () => {
+    render(
+      <RecruitmentRecordView record={{ ...BASE_RECORD, status: "declined" }} person={NO_PERSON} />,
+    );
+    expect(screen.getByTestId("recruitment-send-recruitment")).toBeDisabled();
+  });
+
+  it("leaves both buttons enabled for a non-declined recruit the club will not message", () => {
+    // Guards against over-broadening the fix to every refusal reason —
+    // `refused` consent keeps the dialog-reachable pattern F-LAN204-005 shipped.
+    render(
+      <RecruitmentRecordView record={{ ...BASE_RECORD, consent: "refused" }} person={NO_PERSON} />,
+    );
+    expect(screen.getByTestId("recruitment-send-personal")).toBeEnabled();
+  });
+});
+
 describe("V-6, correction round 2 — sending says something happened", () => {
   // Reverting the caption to always read "Not sent" once `lastSentAt` is
   // null — ignoring `queuedFor` — reproduces the defect Brian found: nothing
