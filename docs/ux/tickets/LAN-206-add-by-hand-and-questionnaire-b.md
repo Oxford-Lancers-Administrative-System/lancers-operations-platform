@@ -285,24 +285,80 @@ Proved by a regression test cited to F-206-01 in
 `recruitment-cycle-dispatch.test.ts`, observed to fail with the defect
 restored and pass with the fix.
 
+## Correction round 2 — Brian's own walkthrough, ten findings
+
+The machine review was **clear** at round 1's head, so every one of these
+came from Brian's own eyes on the running app. Full quotes and reasoning are
+in the PR body; this section records what changed in the contract.
+
+**Scope widened, with explicit authorisation.** V-7/V-8/V-9 land on
+LAN-204's merged surfaces. Brian, 2026-09-02: *"I don't care. It's a fucking
+regression. Items 7, 8, and 9 might be regressions, but that's fine. We're
+building on the previous work."* `board-columns.ts` and its column
+*definitions* stayed untouched; only the board's own header rendering
+changed.
+
+- **V-1 — inline validation.** Mobile and email now validate on the field,
+  live, with `person-validation.ts`'s own shared functions — the same idiom
+  `signup-form.tsx` already uses for the identical two fields. A malformed
+  value shows its own message inline and disables Check for duplicates /
+  Create until corrected.
+- **V-2 — the widened field set.** Known as, expected graduation, degree
+  field, date of birth and a full emergency contact
+  (`edit-person-form.tsx`'s own "Restricted" grouping) join college and
+  matriculation year, all optional.
+- **V-3 / V-4 — "This is them" resolves cleanly.** A player match now
+  renders one dedicated confirmation screen — a normal outcome, no warning
+  styling — instead of a `formError` banner stacked on the still-visible
+  form.
+- **V-5 — the real dropdown.** Positions and gear are an outlined
+  `TextField select` with tick boxes in its own menu
+  (`slotProps.select.multiple`, `Checkbox` inside `MenuItem`,
+  `ListSubheader` per position group) — `questionnaire-b.tsx` on the
+  fidelity mockup branch, exactly. Round 1's bare inline checkbox list is
+  gone; the option sets are unchanged.
+- **V-6 — sending says something happened.** The record's own caption reads
+  "Queued for `<date>`" while a job is outstanding and "Sent — last sent
+  `<date>`" once accepted, never a static "Not sent" throughout.
+- **V-7 — the pill names its subject.** "Recruit status · Engaged", not
+  "Engaged" alone.
+- **V-8 — the header follows the player record.** A season-and-status
+  subtitle under the name, and a labelled-facts strip above the bands —
+  the player record's own `Headline` shape, brought into this record as a
+  local component.
+- **V-9 — the sticky board header is opaque at every scroll position.** A
+  ~5%-alpha wash correct for a body cell was being used on the sticky
+  column-header row; fixed with an opaque `backgroundColor` under the same
+  tint as a layered `backgroundImage`. Confirmed live, scrolled, before and
+  after. `roster-board.tsx` carries its own, separate sticky-header
+  implementation — this fix reaches nothing there.
+- **V-10 — the opt-in evidence explains itself.** Brian's own explicit,
+  scoped exception to the no-narrative-text rule for this one surface: both
+  fields keep their exact prior machinery (the consent gate) with
+  plain-language labels and one short paragraph above them.
+
 ## Visual evidence
 
-`/operate/recruitment/new` (empty, with the restored "In your own words"
-field visible) and Questionnaire B at `/a/[token]` (the multi-select form,
-empty and prefilled with several selections each; the "Already completed"
-summary) were proved at desktop (1440px) and a Playwright-measured 375px —
-`npm run visual:preflight` against the real login, at this correction
-round's own head. See the package receipt for the exact routes and the
-ignored evidence path.
+Round 1: `/operate/recruitment/new` (empty, with the restored "In your own
+words" field visible) and Questionnaire B at `/a/[token]` (the multi-select
+form, empty and prefilled with several selections each; the "Already
+completed" summary).
 
-**Declared limitation.** The add-recruit door's duplicate-resolution state
-— the candidates panel, and its "This is somebody new"/"Go back and change
-the details" controls — has no rendered screenshot in this round. Reaching
-it needs an authenticated, interactive session (fill the four fields, submit
-the check); `npm run visual:preflight` only navigates to and screenshots a
-GET route, so it cannot reach a state that exists only after a form
-submission, and entering the protected local review password into a browser
-by hand is outside what this round's agent does. Its correctness is
-established instead by direct review of the diff against the mockup
-(control-for-control) and by `actions.test.ts`'s coverage of the candidates
-and dismiss branches at the server-action layer.
+Round 2, at this correction's own exact final head: the add-recruit door
+empty (V-1's inline errors once a malformed value is typed, V-2's widened
+fields, V-10's explanation, all in one screenshot); the "This is them"
+already-a-member confirmation screen (V-3/V-4), reached against a real
+seeded player; the opened positions dropdown with a mixed selection and its
+`ListSubheader` groups (V-5); two real recruit records — one with an
+outstanding personal-questionnaire job, one with an accepted delivery — for
+V-6/V-7/V-8; and the recruitment board scrolled, before and after, for V-9.
+
+All of the above proved at desktop (1440px) and a Playwright-measured
+375px — `npm run visual:preflight` against the real login for every
+GET-reachable state; the two states that exist only after a form submission
+(the duplicate-resolution panel behind "This is them", and the opened
+dropdown menu) were captured with a purpose-written script using the same
+sanctioned local-review-account mechanism `visual-preflight.mjs` itself
+uses, since the shared tool only navigates to and screenshots a route. Every
+screenshot inspected directly. See the package receipt for the exact routes
+and the ignored evidence path.
