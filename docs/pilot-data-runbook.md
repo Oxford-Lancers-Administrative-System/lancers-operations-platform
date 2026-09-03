@@ -335,7 +335,7 @@ cannot remove everything it wrote. Rather than fail halfway, it checks the
 privilege it holds, deletes what it may, and writes the remainder as exact
 `delete … where id in (…)` statements — identifiers only — for Brian to run as
 the owner in the SQL editor. `verify --after-rollback` then proves nothing but
-history and adopted identities remains. A scenario that writes into a
+application-written history and adopted identities remains. A scenario that writes into a
 no-delete table follows the same shape, or does not write there.
 
 **Strays.** Rows created through the deployed application on 2026-08-21 while

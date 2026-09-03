@@ -140,10 +140,7 @@ describe("preflight and preview write nothing", () => {
 describe("loading", () => {
   it("writes every row the plan names, in one transaction", async () => {
     const output = run("load");
-    // `updated 1` when this suite has run before on this database: rollback
-    // keeps the actor the loader's audit rows name, so a second first-load
-    // finds his Person and converges on it rather than duplicating it.
-    expect(output).toMatch(/Created \d+, updated [01],/);
+    expect(output).toMatch(/Created \d+, updated 0, skipped 0/);
     const current = await plan();
     for (const [table, ids] of current.byTable as Map<string, string[]>) {
       expect(await present(table, ids), table).toBe(ids.length);
@@ -405,7 +402,7 @@ describe("rollback", () => {
     expect(gone.rows[0].n).toBe(0);
   }, 120_000);
 
-  it("removes exactly what it wrote, keeps history and the actor it names, and leaves a bystander alone", async () => {
+  it("removes exactly what it wrote — its own audit rows included — and leaves a bystander alone", async () => {
     run("load");
     run("report");
     const bystander = await client.query<{ id: string }>(
@@ -414,39 +411,60 @@ describe("rollback", () => {
     const current = await plan();
     const people = idsOf(current, "public.people");
     const audit = idsOf(current, "public.audit_events");
-    const actor = current.context.actorPersonId as string;
+    const rids = reportIds(current);
 
     const output = run("rollback");
     expect(output).toMatch(/Removed \d+ rows/);
+    expect(await present("public.people", people)).toBe(0);
     expect(
-      await present(
-        "public.people",
-        people.filter((id) => id !== actor),
-      ),
+      await present("public.audit_events", [...audit, rids.audit]),
+      "fabricated history survived",
     ).toBe(0);
-    expect(await present("public.people", [actor]), "the actor history names was deleted").toBe(1);
-    expect(await present("public.audit_events", audit), "history was deleted").toBe(audit.length);
     expect(await present("public.people", [bystander.rows[0].id])).toBe(1);
     for (const table of [
       "public.events",
       "public.notification_jobs",
       "public.rsvp_access_tokens",
-      "public.weekly_reports",
       "public.onboarding_item_history",
     ]) {
-      expect(
-        await present(table, [
-          ...idsOf(current, table),
-          ...(table === "public.weekly_reports"
-            ? [reportIds(current).v1, reportIds(current).v2]
-            : []),
-        ]),
-        table,
-      ).toBe(0);
+      expect(await present(table, idsOf(current, table)), table).toBe(0);
     }
+    expect(await present("public.weekly_reports", [rids.v1, rids.v2])).toBe(0);
     await client.query("delete from public.people where id = $1", [bystander.rows[0].id]);
 
     expect(run("verify", ["--after-rollback"])).toMatch(/Everything reconciles/);
+  }, 120_000);
+
+  it("keeps history the application wrote, and the actor it names, even with --force", async () => {
+    // Invariant M2: an actor named by real history stays resolvable. So a
+    // Person an application audit row names cannot be removed at all — that is
+    // a limit, not an omission, and everything else still rolls back.
+    run("load");
+    const current = await plan();
+    const actor = idsOf(current, "public.people")[3];
+    await client.query(
+      `insert into public.audit_events (actor_person_id, actor_label, action, entity_table, entity_id)
+       values ($1, 'test', 'showcase.preserved', 'people', $1)`,
+      [actor],
+    );
+    expect(runExpectingFailure("rollback")).toMatch(/audit_events\.actor_person_id/);
+    run("rollback", ["--force"]);
+    const kept = await client.query<{ n: number }>(
+      "select count(*)::int as n from public.audit_events where action = 'showcase.preserved'",
+    );
+    expect(kept.rows[0].n, "application history was deleted").toBe(1);
+    expect(
+      await present("public.people", [actor]),
+      "the actor real history names was deleted",
+    ).toBe(1);
+    expect(
+      await present(
+        "public.people",
+        idsOf(current, "public.people").filter((id) => id !== actor),
+      ),
+    ).toBe(0);
+    await client.query("delete from public.audit_events where action = 'showcase.preserved'");
+    run("rollback", ["--force"]);
   }, 120_000);
 
   it("is repeatable — a second rollback removes nothing and fails at nothing", () => {

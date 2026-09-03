@@ -175,7 +175,7 @@ export DATABASE_URL="$(gcloud secrets versions access latest --secret=database-u
       LAN-221 merged, using your old parameter file and the two workbooks:
 
 ```
-git worktree add /tmp/showcase-lan124 $(git log --format=%H -1 --before=2026-09-03 -- scripts/production/showcase/plan.mjs) && node /tmp/showcase-lan124/scripts/production/showcase.mjs rollback --force --confirm-target fggbgeraiadetyiyjlvb --roster "$HOME/Downloads/OULAFC Master Table.xlsx" --termcard "$HOME/Downloads/260720 OULAFC MT26 Term Card v0.xlsx" --params ~/lancers-showcase-params.json
+git worktree add /tmp/showcase-lan124 4a3efa9 && node /tmp/showcase-lan124/scripts/production/showcase.mjs rollback --force --confirm-target fggbgeraiadetyiyjlvb --roster "$HOME/Downloads/OULAFC Master Table.xlsx" --termcard "$HOME/Downloads/260720 OULAFC MT26 Term Card v0.xlsx" --params ~/lancers-showcase-params.json
 ```
 
       If it stops with `permission denied for table …`, the old runbook's
@@ -395,15 +395,16 @@ everything it may and writes the rest to `~/tester-week-residue.sql` as exact
 node scripts/production/showcase.mjs verify --after-rollback --confirm-target fggbgeraiadetyiyjlvb --params ~/lancers-tester-week-params.json
 ```
 
-**Expect** `audit lineage kept: true`, `loader rows remaining outside residue
-tables (0 expected): 0`, `stray Person rows remaining (0 expected): 0`, and
-`Everything reconciles.` Any `RESIDUE` line names rows still to be deleted by
-hand.
+**Expect** `loader rows remaining outside residue tables (0 expected): 0`,
+`stray Person rows remaining (0 expected): 0`, and `Everything reconciles.` Any
+`RESIDUE` line names rows still to be deleted by hand.
 
 **What is never removed:** identities the loader adopted rather than created
 (you, Stewart, Clint, the coach seat), reference rows that were already there,
-and the audit history — including the audit rows the loader wrote, which name
-your Person as actor. History that can be deleted to tidy up is not history.
+and history the **application** wrote — a tester's approval, a correction, a
+generated report — together with whatever that history names. History that
+can be deleted to tidy up is not history. The loader's own audit rows are not
+history; they go with the dataset.
 
 **Auth users are not removed by rollback.** Deleting a tester's login is a
 dashboard action and yours to decide.

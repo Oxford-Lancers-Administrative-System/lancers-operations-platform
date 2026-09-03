@@ -715,12 +715,12 @@ export const ROLLBACK_ORDER = Object.freeze([
   "public.person_aliases",
   "public.contact_points",
   "public.operator_accounts",
-  // `audit_events` is deliberately absent. The loader writes audit rows so the
-  // history screens have something to show, every one of them naming Brian's
-  // adopted Person as actor, and rollback keeps them: "only the durable
-  // identities and audit lineage remain" is what LAN-221 asks a post-rollback
-  // verify to prove. An audit row's `entity_id` carries no foreign key, so the
-  // rows it describes can go while the record that they existed stays.
+  // The loader's own audit rows are what `load` created and go with the rest —
+  // fabricated history is not history. Rows the *application* wrote stay:
+  // `PRESERVED_TABLES` keeps any audit row the loader did not create, and
+  // whatever it names. Before `people`, because an audit row's actor is a
+  // foreign key onto it.
+  "public.audit_events",
   // Before `people`: a season records who opened and who closed it, so deleting
   // the actor first violates `seasons_opened_by_person_id_fkey`. This only
   // shows up when the loader created the seasons rather than adopting them —

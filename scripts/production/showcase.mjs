@@ -442,28 +442,7 @@ async function verify(client, plan, params, { afterRollback = false, wholeDataba
         [owned],
       );
       if (present === 0) continue;
-      if (PRESERVED_TABLES.includes(table)) continue;
       remaining.push({ table, present, residue: NO_DELETE_TABLES.includes(table) });
-    }
-    const audit = await count(
-      "select count(*)::int as count from public.audit_events where id = any($1)",
-      [ids("public.audit_events")],
-    );
-    check("audit lineage kept", audit > 0, true, { detail: `${audit} rows` });
-    const actors = (
-      await client.query(
-        "select distinct actor_person_id as id from public.audit_events where id = any($1) and actor_person_id is not null",
-        [ids("public.audit_events")],
-      )
-    ).rows.map((row) => row.id);
-    const peopleLeft = remaining.find((entry) => entry.table === "public.people");
-    if (peopleLeft) {
-      const others = await count(
-        "select count(*)::int as count from public.people where id = any($1) and id <> all($2::uuid[])",
-        [ids("public.people"), actors],
-      );
-      check("people remaining beyond the actors history names (0 expected)", others, 0);
-      remaining.splice(remaining.indexOf(peopleLeft), 1);
     }
     const rids = reportIds(plan);
     const reports = await count(
@@ -472,6 +451,12 @@ async function verify(client, plan, params, { afterRollback = false, wholeDataba
     );
     if (reports > 0)
       remaining.push({ table: "public.weekly_reports", present: reports, residue: true });
+    const reportAudit = await count(
+      "select count(*)::int as count from public.audit_events where id = $1",
+      [rids.audit],
+    );
+    if (reportAudit > 0)
+      remaining.push({ table: "public.audit_events", present: reportAudit, residue: true });
     const hard = remaining.filter((entry) => !entry.residue);
     check("loader rows remaining outside residue tables (0 expected)", hard.length, 0, {
       detail: hard.map((e) => `${e.table}:${e.present}`).join(", ") || null,
@@ -834,11 +819,11 @@ async function rollback(client, plan, params, { force = false, residuePath }) {
   const discovered = [];
   const byTable = new Map();
   for (const row of plan.rows) {
-    if (PRESERVED_TABLES.includes(row.table)) continue; // history stays
     if (!byTable.has(row.table)) byTable.set(row.table, []);
     byTable.get(row.table).push(row.columns.id);
   }
   const rids = reportIds(plan);
+  byTable.set("public.audit_events", [...(byTable.get("public.audit_events") ?? []), rids.audit]);
   byTable.set("public.follow_up_actions", [
     ...(byTable.get("public.follow_up_actions") ?? []),
     ...rids.followUps,
@@ -877,30 +862,8 @@ async function rollback(client, plan, params, { force = false, residuePath }) {
     byTable.set("public.people", [...(byTable.get("public.people") ?? []), ...strays]);
   }
 
-  // People named as actor by the loader's own audit rows stay: history is
-  // kept, and an actor history names must stay resolvable (invariant M2). On
-  // hosted that is Brian's adopted Person, never created here; in a rehearsal
-  // without an Auth user it is the Person the loader made for him.
-  const ownedAudit = plan.byTable.get("public.audit_events") ?? [];
-  const keptActors = new Set(
-    (
-      await client.query(
-        "select distinct actor_person_id as id from public.audit_events where id = any($1) and actor_person_id is not null",
-        [ownedAudit],
-      )
-    ).rows.map((row) => row.id),
-  );
-  if (keptActors.size > 0) {
-    byTable.set(
-      "public.people",
-      (byTable.get("public.people") ?? []).filter((id) => !keptActors.has(id)),
-    );
-  }
-
   const dependencies = await readDependencies(client);
-  const walkerOwned = new Map(byTable);
-  walkerOwned.set("public.audit_events", ownedAudit);
-  const { blockers, attached } = await findAttachedRows(client, walkerOwned, dependencies);
+  const { blockers, attached } = await findAttachedRows(client, byTable, dependencies);
 
   // Rows attached to the strays are the strays' own — a contact point typed
   // with them, a consent row — and go with them without --force. Everything
@@ -960,9 +923,12 @@ async function rollback(client, plan, params, { force = false, residuePath }) {
           "\n  History that can be deleted to tidy up is not history.",
       );
       for (const blocker of preservedBlockers) {
+        // Only rows the loader does not own count: its own audit rows are
+        // about to be deleted and must not exempt the actor they name.
         const keep = await client.query(
-          `select ${blocker.column} as id from ${blocker.table} where ${blocker.column} = any($1)`,
-          [byTable.get(blocker.target) ?? []],
+          `select ${blocker.column} as id from ${blocker.table}
+            where ${blocker.column} = any($1) and id <> all($2::uuid[])`,
+          [byTable.get(blocker.target) ?? [], byTable.get(blocker.table) ?? []],
         );
         const kept = new Set(keep.rows.map((row) => row.id));
         byTable.set(
@@ -1003,8 +969,8 @@ async function rollback(client, plan, params, { force = false, residuePath }) {
   }
 
   console.log(
-    `\nRemoved ${removed} rows. Approved identities the loader adopted rather than created, the audit history` +
-      `${keptActors.size > 0 ? `, and the ${keptActors.size} Person row(s) that history names as actor` : ""}, are untouched.`,
+    `\nRemoved ${removed} rows. Approved identities the loader adopted rather than created, and ` +
+      "history the application wrote, are untouched.",
   );
 
   if (residue.length > 0) {
