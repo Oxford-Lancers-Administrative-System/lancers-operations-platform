@@ -54,3 +54,10 @@ next-env.d.ts
 # Firebase CLI deploy cache
 .firebase/
 supabase/scenarios.json
+
+# Tester-week loader outputs — LAN-221. The manifest carries row identifiers
+# only, but the checklists carry live links and the residue file names hosted
+# rows; none of them belongs in the repository.
+showcase-manifest.json
+showcase-checklists/
+showcase-rollback-residue.sql

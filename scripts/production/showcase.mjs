@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * The Monday showcase loader — LAN-124. **Owner-run. Brian runs this by hand.**
+ * The tester-week loader — LAN-221, extending LAN-124. **Owner-run. Brian
+ * runs this by hand.**
  *
  * Nothing invokes it: not CI, not a migration, not an npm script, not an agent.
  * `tests/production-smoke-contract.test.ts` fails if anything starts to, and
@@ -11,24 +12,32 @@
  *
  * Phases, in the order they are run:
  *
- *     preflight   read-only. Checks the target, the schema, the parameters and
- *                 the workbooks, and writes nothing at all.
+ *     preflight   read-only. Checks the target, the schema, the privileges,
+ *                 the parameters and the term card, and writes nothing.
  *     preview     read-only. Prints what the load would create and update.
  *     load        writes, in one transaction. Idempotent.
- *     verify      read-only. Counts what is there and checks it reconciles.
- *     manifest    read-only. Writes the source-to-record manifest to a file.
- *     rollback    deletes exactly the rows this loader would create, and
- *                 refuses when rows it did not create are attached to them.
+ *     report      files the Monday report from what was loaded. Idempotent.
+ *     verify      read-only. Proves every state the map names exists, that
+ *                 the pages reconcile, and that nothing live is left behind.
+ *     manifest    read-only. Writes the provenance manifest to a file.
+ *     checklists  read-only. Writes one checklist per tester, links filled in.
+ *     rollback    deletes exactly the rows this loader would create, and the
+ *                 stray rows the parameters name; refuses when rows it did not
+ *                 create are attached, and writes residue SQL for the tables
+ *                 the connected role may not delete from.
  *
  * Options:
  *
- *     --roster <path>          the Players Databank workbook
- *     --termcard <path>        the Michaelmas term-card workbook
  *     --params <path>          the private parameter file (never committed)
- *     --anchor <YYYY-MM-DD>    the walkthrough date; defaults to 17 Aug 2026
- *     --out <path>             where `manifest` writes
- *     --force                  rollback only: also remove the rows the
- *                              walkthrough itself created
+ *     --termcard <path>        the Michaelmas term-card workbook (optional)
+ *     --anchor <YYYY-MM-DD>    the tester-week date; defaults to today
+ *     --out <path>             where `manifest` writes, or the directory
+ *                              `checklists` writes into
+ *     --base-url <url>         the deployed origin the checklists link to
+ *     --form-url <url>         the report form the checklists point at
+ *     --after-rollback         verify: expect only history to remain
+ *     --force                  rollback: also remove attached rows the
+ *                              application created
  *     --database-url <url>     a loopback database, for a local rehearsal
  *     --confirm-target <ref>   the hosted project, named out loud
  *
@@ -37,25 +46,47 @@
  * by the same functions the connection smoke test uses.
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import {
   connect,
   findAttachedRows,
   newLedger,
+  NO_DELETE_TABLES,
   PRESERVED_TABLES,
   readDependencies,
   readExisting,
+  readPrivileges,
   ROLLBACK_ORDER,
-  upsert,
+  writePlan,
 } from "./showcase/db.mjs";
-import { buildPlan } from "./showcase/plan.mjs";
-import { readRoster, readTermCard } from "./showcase/sources.mjs";
+import { buildPlan, todayUtc } from "./showcase/plan.mjs";
+import { readTermCard, syntheticTermCard } from "./showcase/sources.mjs";
 import { resolveTarget } from "./showcase/target.mjs";
 import { readWorkbook } from "./showcase/workbook.mjs";
+import { STATES, TESTERS, WORKFLOWS } from "./showcase/map.mjs";
+import { renderChecklists } from "./showcase/checklists.mjs";
+import {
+  computeReportContent,
+  fileReport,
+  readFiledReport,
+  reportIds,
+} from "./showcase/report.mjs";
 
-const PHASES = ["preflight", "preview", "load", "verify", "manifest", "rollback"];
+const PHASES = [
+  "preflight",
+  "preview",
+  "load",
+  "report",
+  "verify",
+  "manifest",
+  "checklists",
+  "rollback",
+];
+const DEFAULT_BASE_URL = "https://app.oxfordlancers.com";
+export const MAX_ATTEMPTS = 5;
 
 /** Reads `--flag value` out of argv. */
 function option(argv, name, fallback = null) {
@@ -64,41 +95,53 @@ function option(argv, name, fallback = null) {
 }
 
 /**
- * The private parameters: who Brian and Stewart are, and how to reach them.
+ * The private parameters: who the testers are, how to reach Brian and
+ * Stewart, the secret every live link is derived from, and the stray rows
+ * rollback should also remove.
  *
- * Never committed, never echoed. The file holds real telephone numbers and real
- * Auth user identifiers, so this function reports its *shape* and never its
- * contents — see `describeParameters`.
+ * Never committed, never echoed. This function reports its *shape* and never
+ * its contents — see `describeParameters`.
  */
-function readParameters(path) {
-  if (!path) {
+function readParameters(pathname) {
+  if (!pathname) {
     throw new Error(
-      "No --params file. It carries the Auth user identifiers and the two real " +
-        "telephone numbers, and it is the one input that must never be committed. " +
-        "See OWNER-RUNBOOK.md § The private parameter file.",
+      "No --params file. It carries the Auth user identifiers, the real telephone " +
+        "numbers and the token secret, and it is the one input that must never be " +
+        "committed. See OWNER-RUNBOOK.md § The private parameter file.",
     );
   }
-
   let parsed;
   try {
-    parsed = JSON.parse(readFileSync(path, "utf8"));
+    parsed = JSON.parse(readFileSync(pathname, "utf8"));
   } catch (error) {
-    throw new Error(`Cannot read --params ${path}: ${error.message}`);
+    throw new Error(`Cannot read --params ${pathname}: ${error.message}`);
   }
-
   if (!parsed.brian?.givenName) {
     throw new Error("The parameter file must describe `brian`, who owns every audit trail here.");
   }
-
+  if (typeof parsed.tokenSecret !== "string" || parsed.tokenSecret.length < 16) {
+    throw new Error(
+      "The parameter file must carry `tokenSecret` — at least 16 characters, never " +
+        "committed — from which every live link is derived. See OWNER-RUNBOOK.md § The " +
+        "private parameter file.",
+    );
+  }
   return parsed;
 }
 
 /** Says what the parameters contain without saying what any of it is. */
 function describeParameters(params) {
-  return ["brian", "stewart", "coach"]
-    .filter((key) => params[key])
+  const people = [
+    "brian",
+    "stewart",
+    "clint",
+    "coach",
+    ...(params.others ?? []).map((p) => p.key ?? "other"),
+  ];
+  return people
+    .filter((key) => params[key] || (params.others ?? []).some((p) => (p.key ?? "other") === key))
     .map((key) => {
-      const person = params[key];
+      const person = params[key] ?? (params.others ?? []).find((p) => (p.key ?? "other") === key);
       const has = [
         person.authUserId ? "auth user" : null,
         person.phone ? "telephone number" : null,
@@ -106,60 +149,74 @@ function describeParameters(params) {
       ].filter(Boolean);
       return `  ${key}: ${has.length === 0 ? "name only" : has.join(", ")}`;
     })
+    .concat([
+      `  live links for: ${(params.liveLinksFor ?? ["brian", "stewart"]).join(", ") || "nobody"}`,
+      `  strays to remove on rollback: ${params.strays?.personIds?.length ?? 0}`,
+      `  token secret: ${params.tokenSecret ? "present" : "absent"}`,
+    ])
     .join("\n");
 }
 
-/** Loads and parses both workbooks. */
+/** The term card: the club's workbook when given, a synthetic one otherwise. */
 function readSources(argv) {
-  const rosterPath = option(argv, "roster");
   const termCardPath = option(argv, "termcard");
-
-  if (!rosterPath || !termCardPath) {
-    throw new Error(
-      "Both --roster and --termcard are required. They live outside this repository " +
-        "and are never committed.",
-    );
-  }
-
-  const players = readRoster(readWorkbook(rosterPath));
-  const termCard = readTermCard(readWorkbook(termCardPath), { year: 2026 });
-  return { players, termCard };
+  if (!termCardPath)
+    return { termCard: syntheticTermCard({ year: 2026 }), termCardSource: "synthetic" };
+  return {
+    termCard: readTermCard(readWorkbook(termCardPath), { year: 2026 }),
+    termCardSource: termCardPath,
+  };
 }
 
-/**
- * Checks everything that can be checked without writing.
- *
- * Fails closed on each of the four things LAN-124 names: the target, the
- * schema, the private parameters, and the notification allowlist.
- */
-async function preflight(client, target, params, sources) {
+/** The tables the plan writes, plus the report phase's. */
+function plannedTables(plan) {
+  return [
+    ...new Set([
+      ...plan.rows.map((row) => row.table),
+      "public.weekly_reports",
+      "public.follow_up_actions",
+      "public.audit_events",
+    ]),
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// preflight
+// ---------------------------------------------------------------------------
+
+async function preflight(client, target, params, sources, plan) {
   const problems = [];
   const notes = [];
-
   notes.push(`Target: ${target.describe()}`);
 
-  // Schema. Not a migration check — the loader never migrates — but a refusal
-  // to write into a shape it does not recognise.
-  const tables = await client.query(
-    `select table_name from information_schema.tables
-      where table_schema = 'public' and table_name = any($1)`,
-    [["people", "seasons", "events", "invitations", "season_memberships", "roles"]],
-  );
-  const found = new Set(tables.rows.map((row) => row.table_name));
-  for (const table of [
+  const required = [
     "people",
     "seasons",
     "events",
     "invitations",
     "season_memberships",
     "roles",
-  ]) {
-    if (!found.has(table)) problems.push(`The database has no public.${table}. Migrations first.`);
+    "notification_jobs",
+    "onboarding_item_history",
+    "person_fact_disputes",
+    "recruitment_prospects",
+  ];
+  const tables = await client.query(
+    `select table_name from information_schema.tables where table_schema = 'public' and table_name = any($1)`,
+    [required],
+  );
+  const found = new Set(tables.rows.map((row) => row.table_name));
+  for (const table of required) {
+    if (!found.has(table))
+      problems.push(
+        `The database has no public.${table}. Migrations first — LAN-214's onboarding substrate included.`,
+      );
   }
 
-  // The reference gap LAN-73 recorded: hosted has no roles at all.
   const roles = await client.query("select count(*)::int as count from public.roles");
   notes.push(`Roles already present: ${roles.rows[0].count}`);
+  if (roles.rows[0].count === 0)
+    problems.push("public.roles is empty. Apply the role-catalogue migration first.");
 
   const seasons = await client.query(
     "select label, status from public.seasons order by created_at",
@@ -170,226 +227,340 @@ async function preflight(client, target, params, sources) {
       : `Seasons already present: ${seasons.rows.map((row) => `${row.label} (${row.status})`).join(", ")}`,
   );
 
-  // Parameters.
   notes.push(`Parameters supplied:\n${describeParameters(params)}`);
   if (!params.brian?.authUserId) {
     notes.push(
-      "  note: brian has no authUserId, so no operator account will be linked. " +
-        "Create the Auth user in Supabase first if you intend to sign in as him.",
+      "  note: brian has no authUserId, so no operator account will be linked. Run the LAN-138 bootstrap first if you intend to sign in as him.",
     );
   }
 
-  // Durable identities. The manifest binds the loader to inventorying rather
-  // than duplicating these, so preflight says out loud what is already there —
-  // "Preflight passed. Nothing was written." must not be the last thing Brian
-  // reads before a load discovers an existing link and aborts.
-  const authUserIds = ["brian", "stewart", "coach"]
+  // Durable identities — inventoried, never duplicated.
+  const authUserIds = ["brian", "stewart", "clint", "coach"]
     .map((key) => params[key]?.authUserId)
     .filter(Boolean);
-
-  if (authUserIds.length === 0) {
-    notes.push(
-      "No authUserId supplied for anybody. Nobody will be able to sign in, and no " +
-        "operator account will be created or adopted.",
-    );
-  } else {
+  if (authUserIds.length > 0) {
     const linked = await client.query(
       `select oa.auth_user_id, oa.is_active, p.given_name, p.family_name
-         from public.operator_accounts oa
-         join public.people p on p.id = oa.person_id
+         from public.operator_accounts oa join public.people p on p.id = oa.person_id
         where oa.auth_user_id = any($1)`,
       [authUserIds],
     );
-
     notes.push(
-      `Durable identities: ${linked.rowCount} of ${authUserIds.length} supplied Auth ` +
-        "users already resolve to a Person. Those are adopted, not duplicated.",
+      `Durable identities: ${linked.rowCount} of ${authUserIds.length} supplied Auth users already resolve to a Person. Those are adopted, not duplicated.`,
     );
-
     for (const row of linked.rows) {
-      const key = ["brian", "stewart", "coach"].find(
+      const key = ["brian", "stewart", "clint", "coach"].find(
         (candidate) => params[candidate]?.authUserId === row.auth_user_id,
       );
       const supplied = `${params[key].givenName} ${params[key].familyName ?? ""}`.trim();
       const actual = `${row.given_name} ${row.family_name ?? ""}`.trim();
       if (supplied.toLowerCase() !== actual.toLowerCase()) {
         problems.push(
-          `The Auth user supplied as \`${key}\` is already linked to a different ` +
-            "Person than the parameters describe. Resolve that by hand before loading — " +
-            "the loader will not repoint somebody's login.",
+          `The Auth user supplied as \`${key}\` is already linked to a different Person than the parameters describe. Resolve that by hand before loading.`,
         );
       }
-      if (!row.is_active) {
+      if (!row.is_active)
         problems.push(
-          `The operator account for \`${key}\` exists but is deactivated. Reactivate it ` +
-            "in the database before loading; the loader does not.",
+          `The operator account for \`${key}\` exists but is deactivated. Reactivate it in the application before loading.`,
         );
-      }
     }
-  }
-
-  // The notification allowlist. The loader does not send anything, but it
-  // creates the rows an operator can then act on, so an unsafe allowlist is a
-  // reason to stop before loading rather than after.
-  const allowlist = (process.env.DELIVERY_RECIPIENT_ALLOWLIST ?? "").trim();
-  if (allowlist === "") {
-    notes.push(
-      "DELIVERY_RECIPIENT_ALLOWLIST is not set in this shell. That is fine for the " +
-        "loader, which sends nothing — but the deployed application will send to " +
-        "nobody until it is set there.",
-    );
   } else {
-    const entries = allowlist.split(/[,;\n]+/).filter((entry) => entry.trim() !== "").length;
-    notes.push(`DELIVERY_RECIPIENT_ALLOWLIST names ${entries} recipient(s) in this shell.`);
-  }
-
-  // Sources.
-  notes.push(`Roster: ${sources.players.length} players`);
-  notes.push(`Term card: ${sources.termCard.length} entries`);
-  if (sources.players.length === 0) problems.push("The roster workbook produced no players.");
-  if (sources.termCard.length === 0) problems.push("The term-card workbook produced no entries.");
-
-  const future = sources.termCard.filter((entry) => entry.scheduledOn <= "2026-08-17");
-  if (future.length > 0) {
-    problems.push(
-      `${future.length} term-card entries are not in the future. Check the year: the ` +
-        "loader dates events from the week labels, and a wrong year is the usual cause.",
+    notes.push(
+      "No authUserId supplied for anybody. Nobody will be able to sign in, and no operator account will be created or adopted.",
     );
   }
+
+  // Privileges: the load must not abort partway on a table the role cannot write.
+  const privileges = await readPrivileges(client, plannedTables(plan));
+  const cannotInsert = [...privileges].filter(([, p]) => !p.insert).map(([table]) => table);
+  const cannotDelete = [...privileges].filter(([, p]) => !p.delete).map(([table]) => table);
+  if (cannotInsert.length > 0)
+    problems.push(`The connected role cannot INSERT into: ${cannotInsert.join(", ")}.`);
+  notes.push(
+    cannotDelete.length === 0
+      ? "Privileges: the connected role can delete from every table the plan writes — rollback will be complete on its own."
+      : `Privileges: the connected role cannot DELETE from ${cannotDelete.length} table(s) the plan writes; rollback will write residue SQL for those. Expected on hosted.`,
+  );
+  const unexpected = cannotDelete.filter(
+    (table) => !NO_DELETE_TABLES.includes(table) && !PRESERVED_TABLES.includes(table),
+  );
+  if (unexpected.length > 0)
+    problems.push(
+      `Tables without DELETE that the loader did not expect: ${unexpected.join(", ")}. Update NO_DELETE_TABLES before loading.`,
+    );
+
+  // Reference rows the plan adopts.
+  if ((plan.context && !plan.context.seasonId) || false) problems.push("No season resolved.");
+  const agreements = await client.query(
+    "select count(*)::int as count from public.onboarding_agreement_versions",
+  );
+  if (agreements.rows[0].count === 0)
+    problems.push(
+      "public.onboarding_agreement_versions is empty. Apply LAN-214's migration, which seeds the placeholder versions.",
+    );
+  const schedules = await client.query(
+    "select count(*)::int as count from public.messaging_schedules",
+  );
+  if (schedules.rows[0].count === 0)
+    problems.push(
+      "public.messaging_schedules is empty. Apply the messaging-schedule migration first.",
+    );
+
+  // Strays: the parameters name them; preflight only hints at candidates.
+  const strays = params.strays?.personIds ?? [];
+  if (strays.length > 0) {
+    const linked = await client.query(
+      "select count(*)::int as count from public.operator_accounts where person_id = any($1)",
+      [strays],
+    );
+    if (linked.rows[0].count > 0)
+      problems.push(
+        `${linked.rows[0].count} of the stray Person ids named in the parameters hold an operator account. Rollback will refuse them; take them out of the list.`,
+      );
+    const present = await client.query(
+      "select count(*)::int as count from public.people where id = any($1)",
+      [strays],
+    );
+    notes.push(
+      `Strays: ${present.rows[0].count} of ${strays.length} named Person rows are present.`,
+    );
+  }
+  const candidates = await client.query(
+    `select count(*)::int as count from public.people p
+      where p.created_at::date = '2026-08-21'
+        and not exists (select 1 from public.operator_accounts oa where oa.person_id = p.id)
+        and not exists (select 1 from public.season_memberships m where m.person_id = p.id)`,
+  );
+  if (candidates.rows[0].count > 0) {
+    notes.push(
+      `Hint: ${candidates.rows[0].count} Person row(s) were created on 2026-08-21 with no membership and no operator link — the invitation-testing rows LAN-196 names. Put their ids in the parameter file's strays.personIds and rollback removes them; the loader never guesses.`,
+    );
+  }
+
+  notes.push(
+    `Term card: ${sources.termCard.length} entries (${sources.termCardSource === "synthetic" ? "synthetic — no workbook supplied" : sources.termCardSource})`,
+  );
+  if (sources.termCard.length === 0) problems.push("The term card produced no entries.");
+  notes.push(
+    `Anchor: ${plan.context.anchor}. Plan: ${plan.rows.length} rows, ${plan.states.size} states, ${plan.examples.size} examples.`,
+  );
+  for (const note of plan.notes) notes.push(`  note: ${note}`);
 
   return { problems, notes };
 }
 
-/** Prints the plan without writing it. */
+// ---------------------------------------------------------------------------
+// preview / load / report
+// ---------------------------------------------------------------------------
+
 async function preview(client, plan) {
   const ledger = newLedger();
-  for (const row of plan.rows) {
-    await upsert(client, ledger, row.table, row.columns, { dryRun: true });
-  }
-
+  await writePlan(client, ledger, plan, { dryRun: true });
   const byTable = new Map();
-  for (const row of plan.rows) {
-    byTable.set(row.table, (byTable.get(row.table) ?? 0) + 1);
-  }
-
+  for (const row of plan.rows) byTable.set(row.table, (byTable.get(row.table) ?? 0) + 1);
   console.log("\nProposed rows, by table:");
-  for (const [table, count] of [...byTable].sort()) {
-    console.log(`  ${String(count).padStart(5)}  ${table}`);
-  }
+  for (const [table, count] of [...byTable].sort())
+    console.log(`  ${String(count).padStart(6)}  ${table}`);
   console.log(`\n  create: ${ledger.created}   update: ${ledger.updated}`);
   console.log(
-    "\nNothing was written. `update` means the loader already owns that identifier — " +
-      "rerunning converges rather than duplicating.",
+    "\nNothing was written. `update` means the loader already owns that identifier — rerunning converges rather than duplicating.",
   );
   return ledger;
 }
 
-/** Writes the plan, in one transaction. */
 async function load(client, plan) {
   const ledger = newLedger();
   await client.query("begin");
   try {
-    for (const row of plan.rows) {
-      await upsert(client, ledger, row.table, row.columns);
-    }
+    await writePlan(client, ledger, plan);
     await client.query("commit");
   } catch (error) {
     await client.query("rollback");
     throw error;
   }
-
   console.log(
-    `\nCreated ${ledger.created}, updated ${ledger.updated}, skipped ${ledger.skipped}. ` +
-      "Nothing else was touched.",
+    `\nCreated ${ledger.created}, updated ${ledger.updated}, skipped ${ledger.skipped}. Nothing else was touched.`,
   );
   if (ledger.skipped > 0) {
     console.log(
-      "  Skipped rows are append-only — an answer, an availability record, an operator " +
-        "link. They were already there and this loader may not rewrite them.",
+      "  Skipped rows are append-only — history, answers, results. They were already there and this loader may not rewrite them.",
     );
   }
+  console.log("\nNext: `report`, then `verify`.");
   return ledger;
 }
 
-/**
- * Counts what is there, and checks it reconciles.
- *
- * Fails closed: a non-zero exit means do not proceed with the walkthrough.
- */
-async function verify(client, plan) {
+async function report(client, plan) {
+  await client.query("begin");
+  let result;
+  try {
+    result = await fileReport(client, plan, { actorPersonId: plan.context.actorPersonId });
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  }
+  console.log(
+    `\nFiled the ${plan.context.anchor} report (${result.created} new rows): ` +
+      `${result.content.lastWeek.length} events last week, ${result.content.nextWeek.length} next week, ` +
+      `${result.content.grid.rows.length} people to chase, ${result.content.onboarding.rows.length} onboarding, ` +
+      `${result.content.recruitment.length} recruits, ${result.content.walkUps.length} walk-ups.`,
+  );
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// verify
+// ---------------------------------------------------------------------------
+
+/** JSON with sorted keys, so two equal objects compare equal whatever order they were built in. */
+function canonical(value) {
+  return JSON.stringify(value, (key, inner) =>
+    inner && typeof inner === "object" && !Array.isArray(inner)
+      ? Object.fromEntries(
+          Object.keys(inner)
+            .sort()
+            .map((k) => [k, inner[k]]),
+        )
+      : inner,
+  );
+}
+
+async function verify(
+  client,
+  plan,
+  params,
+  { afterRollback = false, wholeDatabase = false, residuePath = null } = {},
+) {
   const checks = [];
-  const check = (label, actual, expected) =>
-    checks.push({ label, actual, expected, ok: actual === expected });
-
+  const check = (label, actual, expected, { detail = null } = {}) =>
+    checks.push({ label, actual, expected, ok: actual === expected, detail });
   const count = async (sql, values = []) => Number((await client.query(sql, values)).rows[0].count);
+  const ids = (table) => plan.byTable.get(table) ?? [];
 
-  /**
-   * The identifiers the plan owns, by table.
-   *
-   * Everything below counts *these*, never "every row in the season". The
-   * showcase can share a season with rows it did not write — the local rehearsal
-   * does exactly that, adopting the seeded season — and a verifier that counted
-   * the season would report a failure that is really somebody else's data. Worse,
-   * on hosted it would quietly pass by counting rows the loader is not
-   * responsible for.
-   */
-  const owned = new Map();
-  for (const row of plan.rows) {
-    if (!owned.has(row.table)) owned.set(row.table, []);
-    owned.get(row.table).push(row.columns.id);
+  if (afterRollback) {
+    // Only the residue rollback named may remain, until the owner has run it.
+    const expected = new Set();
+    if (residuePath) {
+      let sql = "";
+      try {
+        sql = readFileSync(residuePath, "utf8");
+      } catch {
+        // No file: nothing is expected to remain.
+      }
+      for (const id of sql.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g) ??
+        [])
+        expected.add(id);
+    }
+    const remaining = [];
+    for (const [table, owned] of plan.byTable) {
+      const present = (
+        await client.query(`select id from ${table} where id = any($1)`, [owned])
+      ).rows.map((row) => row.id);
+      if (present.length === 0) continue;
+      const unexpected = present.filter((id) => !expected.has(id));
+      if (unexpected.length > 0)
+        remaining.push({ table, present: unexpected.length, residue: false });
+      if (unexpected.length < present.length)
+        remaining.push({ table, present: present.length - unexpected.length, residue: true });
+    }
+    const rids = reportIds(plan);
+    const reports = await count(
+      "select count(*)::int as count from public.weekly_reports where id = any($1)",
+      [[rids.v1, rids.v2]],
+    );
+    if (reports > 0)
+      remaining.push({
+        table: "public.weekly_reports",
+        present: reports,
+        residue: expected.has(rids.v2),
+      });
+    const reportAudit = await count(
+      "select count(*)::int as count from public.audit_events where id = $1",
+      [rids.audit],
+    );
+    if (reportAudit > 0)
+      remaining.push({
+        table: "public.audit_events",
+        present: reportAudit,
+        residue: expected.has(rids.audit),
+      });
+    const hard = remaining.filter((entry) => !entry.residue);
+    check("loader rows remaining outside residue tables (0 expected)", hard.length, 0, {
+      detail: hard.map((e) => `${e.table}:${e.present}`).join(", ") || null,
+    });
+    for (const entry of remaining.filter((e) => e.residue)) {
+      checks.push({
+        label: `residue in ${entry.table}`,
+        actual: entry.present,
+        expected: entry.present,
+        ok: true,
+        residue: true,
+      });
+    }
+    const strays = params.strays?.personIds ?? [];
+    if (strays.length > 0) {
+      check(
+        "stray Person rows remaining (0 expected)",
+        await count("select count(*)::int as count from public.people where id = any($1)", [
+          strays,
+        ]),
+        0,
+      );
+    }
+    return finish(checks);
   }
-  const ids = (table) => owned.get(table) ?? [];
 
-  const present = async (table) =>
-    count(`select count(*)::int as count from ${table} where id = any($1)`, [ids(table)]);
-
-  for (const table of [
-    "public.people",
-    "public.season_memberships",
-    "public.events",
-    "public.event_audience_members",
-    "public.invitations",
-    "public.rsvp_responses",
-    "public.attendance_records",
-    "public.availability_statuses",
-    "public.onboarding_items",
-    "public.position_assignments",
-    "public.recruitment_prospects",
-    "public.recruitment_prospect_notes",
-  ]) {
-    check(`${table.replace("public.", "")} written`, await present(table), ids(table).length);
+  // 1. Every planned row is present.
+  for (const [table, owned] of plan.byTable) {
+    check(
+      `${table.replace("public.", "")} written`,
+      await count(`select count(*)::int as count from ${table} where id = any($1)`, [owned]),
+      owned.length,
+    );
   }
 
-  // Both seasons of membership for every source player, which is the roster
-  // criterion LAN-124 states.
-  const players = plan.context.memberships.length;
-  check(
-    "every source player has a current membership",
-    await count(
-      `select count(*)::int as count from public.season_memberships
-        where season_id = $1 and person_id = any($2)`,
-      [plan.context.seasonId, plan.context.memberships.map((entry) => entry.player.personId)],
-    ),
-    players,
-  );
-  check(
-    "every source player has an archived membership",
-    await count(
-      `select count(*)::int as count from public.season_memberships
-        where season_id = $1 and person_id = any($2)`,
-      [
-        plan.context.archivedSeasonId,
-        plan.context.memberships.map((entry) => entry.player.personId),
-      ],
-    ),
-    players,
-  );
+  // 2. Every state the map names: each tagged row present and satisfying its
+  //    predicate, and the floor met.
+  for (const state of STATES) {
+    if (state.arrivesWith) {
+      checks.push({
+        label: `state ${state.key} — arrives with ${state.arrivesWith}`,
+        actual: "later",
+        expected: "later",
+        ok: true,
+        later: true,
+      });
+      continue;
+    }
+    // The report phase's rows are not in the plan; their identifiers are.
+    const filedIds = reportIds(plan);
+    const tagged =
+      state.key === "report.filed"
+        ? [filedIds.v2]
+        : state.key === "follow-up.open"
+          ? filedIds.followUpsOpen
+          : state.key === "follow-up.closed"
+            ? filedIds.followUpsClosed
+            : (plan.states.get(state.key) ?? []);
+    const satisfied =
+      tagged.length === 0
+        ? 0
+        : await count(
+            `select count(*)::int as count from ${state.table} t where t.id = any($1) and (${state.where})`,
+            [tagged],
+          );
+    check(`state ${state.key}: ${state.label}`, satisfied, tagged.length, {
+      detail: `${satisfied} of ${tagged.length} tagged`,
+    });
+    if (tagged.length < state.min)
+      check(`state ${state.key} floor ${state.min}`, tagged.length, state.min);
+  }
 
-  // The refusals. These are the ones that stop a walkthrough.
+  // 3. Term-card refusals.
   const termCardIds = plan.rows
     .filter((row) => row.table === "public.events" && row.columns.term_id !== null)
     .map((row) => row.columns.id);
-
   check(
     "term-card events that are not draft (0 expected)",
     await count(
@@ -398,71 +569,233 @@ async function verify(client, plan) {
     ),
     0,
   );
-
   check(
     "term-card events carrying an audience (0 expected)",
     await count(
-      `select count(*)::int as count from public.event_audience_members where event_id = any($1)`,
+      "select count(*)::int as count from public.event_audience_members where event_id = any($1)",
       [termCardIds],
     ),
     0,
   );
 
-  // Nothing the loader wrote may be deliverable. Only the walkthrough itself,
-  // performed by a human afterwards, creates a job or a live link.
+  // 4. Nothing live. The claim predicate is the dispatcher's own (`claimJobIn`,
+  //    src/lib/services/delivery.ts). On hosted the check covers the whole
+  //    database, which is the invariant tester week actually needs: the day
+  //    WHATSAPP_PHONE_NUMBER_ID is set, nothing anywhere may start sending.
+  //    Locally the seed keeps a live ladder by design, so the check is scoped
+  //    to the dataset's own season and people unless --whole-database is given.
+  const scope = wholeDatabase ? "whole database" : "this dataset";
+  const seasonId = plan.context.seasonId;
+  const people = [
+    ...new Set(
+      plan.rows.filter((row) => row.table === "public.people").map((row) => row.columns.id),
+    ),
+  ];
+  const jobScope = wholeDatabase
+    ? "true"
+    : `(j.event_id in (select id from public.events where season_id = $1)
+        or j.invitation_id in (select id from public.invitations where season_id = $1)
+        or j.person_id = any($2::uuid[]))`;
+  const jobArgs = wholeDatabase ? [] : [seasonId, people];
+  // The sweep's own selection (`messaging-scheduler.ts`): pending or ready and
+  // due, or failed with a retry scheduled — never held, never at the ceiling.
   check(
-    "notification jobs against showcase invitations (0 expected)",
+    `notification jobs the automatic sweep would dispatch, ${scope} (0 expected)`,
     await count(
-      `select count(*)::int as count from public.notification_jobs where invitation_id = any($1)`,
-      [ids("public.invitations")],
+      `select count(*)::int as count from public.notification_jobs j where ${jobScope} and j.held_at is null and j.attempt_count < ${MAX_ATTEMPTS} and (j.status in ('pending','ready') or (j.status = 'failed' and j.next_attempt_at is not null))`,
+      jobArgs,
+    ),
+    0,
+  );
+  check(
+    `notification jobs pending or ready and not held, ${scope} (0 expected)`,
+    await count(
+      `select count(*)::int as count from public.notification_jobs j where ${jobScope} and j.status in ('pending','ready') and j.held_at is null`,
+      jobArgs,
+    ),
+    0,
+  );
+  const livePeople = plan.context.operators
+    .filter((operator) => plan.context.liveLinksFor.includes(operator.key))
+    .map((operator) => operator.personId);
+  const tokenScope = wholeDatabase ? "true" : "i.season_id = $2";
+  const tokenArgs = wholeDatabase ? [livePeople] : [livePeople, seasonId];
+  check(
+    `live RSVP links for anybody but the named testers, ${scope} (0 expected)`,
+    await count(
+      `select count(*)::int as count from public.rsvp_access_tokens t
+         join public.invitations i on i.id = t.invitation_id
+         left join public.season_memberships m on m.id = i.season_membership_id
+        where ${tokenScope} and t.revoked_at is null and t.expires_at > now()
+          and coalesce(i.person_id, m.person_id) <> all($1::uuid[])`,
+      tokenArgs,
+    ),
+    0,
+  );
+  const personTokenScope = wholeDatabase ? "true" : "t.season_id = $2";
+  check(
+    `live player-page links for anybody but the named testers, ${scope} (0 expected)`,
+    await count(
+      `select count(*)::int as count from public.person_access_tokens t where ${personTokenScope} and not t.single_use and t.revoked_at is null and t.person_id <> all($1::uuid[])`,
+      tokenArgs,
+    ),
+    0,
+  );
+  check(
+    `single-use answer links neither spent nor revoked, ${scope} (0 expected)`,
+    await count(
+      `select count(*)::int as count from public.person_access_tokens t where ${wholeDatabase ? "true" : "t.season_id = $1"} and t.single_use and t.single_use_at is null and t.revoked_at is null`,
+      wholeDatabase ? [] : [seasonId],
     ),
     0,
   );
 
-  check(
-    "live RSVP tokens against showcase invitations (0 expected)",
-    await count(
-      `select count(*)::int as count from public.rsvp_access_tokens
-        where invitation_id = any($1) and revoked_at is null and expires_at > now()`,
-      [ids("public.invitations")],
-    ),
-    0,
-  );
-
-  // Cross-page parity: every answer belongs to an invitation the loader wrote,
-  // and every register entry to an event it wrote.
+  // 5. Cross-page parity.
   check(
     "answers whose invitation is missing (0 expected)",
     await count(
-      `select count(*)::int as count from public.rsvp_responses r
-        where r.id = any($1)
-          and not exists (select 1 from public.invitations i where i.id = r.invitation_id)`,
+      `select count(*)::int as count from public.rsvp_responses r where r.id = any($1) and not exists (select 1 from public.invitations i where i.id = r.invitation_id)`,
       [ids("public.rsvp_responses")],
     ),
     0,
   );
+  check(
+    "jobs whose invitation is missing (0 expected)",
+    await count(
+      `select count(*)::int as count from public.notification_jobs j where j.id = any($1) and j.invitation_id is not null and not exists (select 1 from public.invitations i where i.id = j.invitation_id)`,
+      [ids("public.notification_jobs")],
+    ),
+    0,
+  );
+  check(
+    "delivery results without a job (0 expected)",
+    await count(
+      `select count(*)::int as count from public.delivery_results d where d.id = any($1) and not exists (select 1 from public.notification_jobs j where j.id = d.notification_job_id)`,
+      [ids("public.delivery_results")],
+    ),
+    0,
+  );
+  check(
+    "current memberships without a full checklist (0 expected)",
+    await count(
+      `select count(*)::int as count from public.season_memberships m where m.id = any($1) and m.season_id = $2 and (select count(*) from public.onboarding_items i where i.season_membership_id = m.id) <> 11`,
+      [ids("public.season_memberships"), plan.context.seasonId],
+    ),
+    0,
+  );
 
+  // 6. The report reconciles with the pages.
+  const rids = reportIds(plan);
+  const filed = await readFiledReport(client, plan);
+  check("report filed as version 2", filed?.version ?? 0, 2);
+  if (filed) {
+    const fresh = await computeReportContent(
+      client,
+      { id: rids.seasonId, label: plan.context.labels.currentSeason },
+      plan.context.anchor,
+    );
+    const stored = filed.content;
+    const same = (label, a, b) => check(`report reconciles: ${label}`, canonical(a), canonical(b));
+    same(
+      "last week's events",
+      stored.lastWeek.map((e) => [
+        e.id,
+        e.invited,
+        e.respondedYes,
+        e.respondedNo,
+        e.present,
+        e.late,
+        e.excused,
+        e.absent,
+        e.walkUps,
+      ]),
+      fresh.lastWeek.map((e) => [
+        e.id,
+        e.invited,
+        e.respondedYes,
+        e.respondedNo,
+        e.present,
+        e.late,
+        e.excused,
+        e.absent,
+        e.walkUps,
+      ]),
+    );
+    same(
+      "next week's events",
+      stored.nextWeek.map((e) => [e.id, e.invited, e.answered]),
+      fresh.nextWeek.map((e) => [e.id, e.invited, e.answered]),
+    );
+    same("attendance totals", stored.attendance, fresh.attendance);
+    same("availability counts", stored.availabilityCounts, fresh.availabilityCounts);
+    same("people to chase", stored.grid.rows.length, fresh.grid.rows.length);
+    same("onboarding rows", stored.onboarding.rows.length, fresh.onboarding.rows.length);
+    same("recruits", stored.recruitment.length, fresh.recruitment.length);
+    check(
+      "report sections populated",
+      [
+        "lastWeek",
+        "nextWeek",
+        "grid",
+        "availability",
+        "walkUps",
+        "recruitment",
+        "onboarding",
+      ].filter(
+        (key) =>
+          (Array.isArray(stored[key]) ? stored[key].length : (stored[key].rows ?? []).length) > 0,
+      ).length,
+      7,
+    );
+  }
+  check(
+    "follow-up actions filed",
+    await count("select count(*)::int as count from public.follow_up_actions where id = any($1)", [
+      rids.followUps,
+    ]),
+    rids.followUps.length,
+  );
+
+  return finish(checks);
+}
+
+function finish(checks) {
   console.log("");
   let failed = false;
   for (const entry of checks) {
+    if (entry.later) {
+      console.log(`LATER ${entry.label}`);
+      continue;
+    }
+    if (entry.residue) {
+      console.log(
+        `RESIDUE  ${entry.label}: ${entry.actual} row(s) the connected role could not delete — run the residue SQL as the owner`,
+      );
+      continue;
+    }
     if (!entry.ok) failed = true;
     console.log(
-      `${entry.ok ? "PASS" : "FAIL"}  ${entry.label}: ${entry.actual}` +
-        (entry.ok ? "" : ` (expected ${entry.expected})`),
+      `${entry.ok ? "PASS" : "FAIL"}  ${entry.label}: ${entry.actual}${entry.ok ? "" : ` (expected ${entry.expected})`}${entry.detail && !entry.ok ? ` — ${entry.detail}` : ""}`,
     );
   }
-
+  const later = checks.filter((entry) => entry.later).length;
+  if (later > 0) console.log(`\n${later} state(s) arrive with later packages and are not counted.`);
   return { checks, failed };
 }
 
-/** Writes the source-to-record manifest. */
-function manifest(plan, path) {
+// ---------------------------------------------------------------------------
+// manifest / checklists
+// ---------------------------------------------------------------------------
+
+function manifest(plan, sources, pathname) {
   const document = {
-    issue: "LAN-124",
+    issue: "LAN-221",
     anchor: plan.context.anchor,
     generatedFrom: {
-      roster: "OULAFC Master Table.xlsx / Players Databank",
-      termCard: "260720 OULAFC MT26 Term Card v0.xlsx",
+      termCard:
+        sources.termCardSource === "synthetic"
+          ? "synthetic term card"
+          : "260720 OULAFC MT26 Term Card v0.xlsx",
     },
     counts: {
       total: plan.provenance.length,
@@ -470,89 +803,146 @@ function manifest(plan, path) {
         .length,
       illustrative: plan.provenance.filter((entry) => entry.classification === "illustrative")
         .length,
+      states: plan.states.size,
     },
-    // Deliberately no names and no telephone numbers: this file records which
-    // cell produced which row identifier, which is provenance, not personal
-    // data. It is safe to keep and safe to show.
+    // Deliberately no names, no telephone numbers and no tokens: this file
+    // records which row carries which state and where it came from.
     records: plan.provenance,
+    report: reportIds(plan),
   };
-
-  writeFileSync(path, `${JSON.stringify(document, null, 2)}\n`);
+  writeFileSync(pathname, `${JSON.stringify(document, null, 2)}\n`);
   console.log(
-    `\nWrote ${document.counts.total} provenance records to ${path} ` +
-      `(${document.counts.sourceDerived} source-derived, ${document.counts.illustrative} illustrative).`,
+    `\nWrote ${document.counts.total} provenance records to ${pathname} (${document.counts.sourceDerived} source-derived, ${document.counts.illustrative} illustrative).`,
   );
   return document;
 }
 
-/**
- * Deletes exactly what the loader would create.
- *
- * Every statement names identifiers computed from the plan. There is no pattern
- * match anywhere, which is why this cannot remove a row it did not write.
- */
-async function rollback(client, plan, { force = false } = {}) {
-  /**
-   * Tables `--force` discovered that `ROLLBACK_ORDER` does not name.
-   *
-   * Deleted before the fixed order, and in the order the walk produced —
-   * `findAttachedRows` already returns deepest-first, so reversing it here
-   * inverted the ordering it had just computed. Local rather than module-level,
-   * so a second `rollback` in one process cannot accumulate or re-flip it.
-   */
-  const discovered = [];
+function checklists(plan, params, argv) {
+  const directory = option(argv, "out", "showcase-checklists");
+  const baseUrl = option(argv, "base-url", DEFAULT_BASE_URL).replace(/\/$/, "");
+  const formUrl = option(argv, "form-url", params.formUrl ?? null);
+  mkdirSync(directory, { recursive: true });
+  const rendered = renderChecklists({ plan, baseUrl, formUrl, logins: params.logins ?? {} });
+  for (const [tester, markdown] of rendered) {
+    const target = path.join(directory, TESTERS[tester].file);
+    writeFileSync(target, markdown);
+    console.log(
+      `  wrote ${target} (${WORKFLOWS.filter((w) => w.tester === tester).length} workflows)`,
+    );
+  }
+  if (!formUrl)
+    console.log(
+      "\nNo --form-url given: the checklists say the form link is to follow. Re-run with --form-url once the Notion form is live.",
+    );
+  console.log(
+    `\nLinks point at ${baseUrl}. They contain live credentials for the named testers — hand each file to its tester only, and never commit them.`,
+  );
+}
 
+// ---------------------------------------------------------------------------
+// rollback
+// ---------------------------------------------------------------------------
+
+async function rollback(client, plan, params, { force = false, residuePath }) {
+  const discovered = [];
   const byTable = new Map();
   for (const row of plan.rows) {
     if (!byTable.has(row.table)) byTable.set(row.table, []);
     byTable.get(row.table).push(row.columns.id);
   }
+  const rids = reportIds(plan);
+  byTable.set("public.audit_events", [...(byTable.get("public.audit_events") ?? []), rids.audit]);
+  byTable.set("public.follow_up_actions", [
+    ...(byTable.get("public.follow_up_actions") ?? []),
+    ...rids.followUps,
+  ]);
+  byTable.set("public.weekly_reports", [
+    ...(byTable.get("public.weekly_reports") ?? []),
+    rids.v2,
+    rids.v1,
+  ]);
 
-  // Refuse before deleting, rather than aborting on a constraint name.
-  //
-  // After the walkthrough this is the normal case, not an edge: approving an
-  // event mints a token and queues a job, an answer writes a response, and
-  // pressing Show report writes a report and an audit row against the showcase
-  // person. Some of those foreign keys restrict — the delete would fail and
-  // remove nothing — and some cascade, where it would silently remove rows the
-  // loader never created. Both are reasons to stop and say so.
-  //
-  // What is attached is discovered from `pg_constraint` and followed
-  // transitively, not read off a list. See `readDependencies`.
+  // The strays: Person rows the parameters name, removed with everything
+  // hanging off them, never an operator.
+  const strays = params.strays?.personIds ?? [];
+  if (strays.length > 0) {
+    const linked = await client.query(
+      "select person_id from public.operator_accounts where person_id = any($1)",
+      [strays],
+    );
+    if (linked.rowCount > 0) {
+      console.error(
+        `\nSTOP. ${linked.rowCount} of the stray Person ids named in the parameters hold an operator account. The loader will not remove an operator; take them out of strays.personIds.`,
+      );
+      return {
+        removed: 0,
+        blockers: [
+          {
+            table: "public.operator_accounts",
+            column: "person_id",
+            target: "strays",
+            count: linked.rowCount,
+            sample: "(withheld)",
+          },
+        ],
+      };
+    }
+    byTable.set("public.people", [...(byTable.get("public.people") ?? []), ...strays]);
+  }
+
   const dependencies = await readDependencies(client);
   const { blockers, attached } = await findAttachedRows(client, byTable, dependencies);
 
-  if (blockers.length > 0 && !force) {
+  // Rows attached to the strays are the strays' own — a contact point typed
+  // with them, a consent row — and go with them without --force. Everything
+  // else attached is the application's, and the usual refusal applies.
+  const strayOwned = new Set();
+  if (strays.length > 0) {
+    const straySet = new Set(strays);
+    for (const [table, rows] of attached) {
+      for (const rowId of rows) {
+        const parent = await client
+          .query(`select 1 from ${table} where id = $1 and person_id = any($2)`, [rowId, strays])
+          .catch(() => ({ rowCount: 0 }));
+        if (parent.rowCount > 0) strayOwned.add(`${table}:${rowId}`);
+      }
+    }
+    void straySet;
+  }
+  const realBlockers = blockers.filter(
+    (blocker) =>
+      !(
+        strays.length > 0 &&
+        blocker.target === "public.people" &&
+        blocker.count ===
+          [...strayOwned].filter((key) => key.startsWith(`${blocker.table}:`)).length
+      ),
+  );
+
+  if (realBlockers.length > 0 && !force) {
     console.error("\nSTOP. Rows this loader did not create are attached to rows it did:\n");
-    for (const blocker of blockers) {
+    for (const blocker of realBlockers) {
       console.error(
-        `  ${String(blocker.count).padStart(5)}  ${blocker.table}.${blocker.column} ` +
-          `→ ${blocker.target}   (for example ${blocker.sample})`,
+        `  ${String(blocker.count).padStart(5)}  ${blocker.table}.${blocker.column} → ${blocker.target}   (for example ${blocker.sample})`,
       );
     }
     console.error(
-      "\nNothing was deleted. This is what the walkthrough itself produces — an " +
-        "approval, a message, an answer, a generated report — and removing the showcase " +
-        "underneath it would either fail halfway or take those rows with it.\n" +
-        "\nSee OWNER-RUNBOOK.md § 11. Once you have kept whatever evidence you want " +
-        "from those rows, re-run with --force to remove them along with the showcase.",
+      "\nNothing was deleted. This is what tester week itself produces — approvals, answers, " +
+        "reports, corrections — and removing the dataset underneath them would either fail " +
+        "halfway or take those rows with it.\n\nSee OWNER-RUNBOOK.md § Afterwards. Once you have " +
+        "kept whatever evidence you want from those rows, re-run with --force to remove them along with the dataset.",
     );
-    return { removed: 0, blockers };
+    return { removed: 0, blockers: realBlockers };
   }
 
-  if (blockers.length > 0) {
+  const removable = attached.filter(([table]) => !PRESERVED_TABLES.includes(table));
+  if (attached.length > 0) {
     const preservedBlockers = blockers.filter((b) => PRESERVED_TABLES.includes(b.table));
-    const removable = attached.filter(([table]) => !PRESERVED_TABLES.includes(table));
-
-    console.log(
-      `\n--force: removing ${removable.reduce((total, [, ids]) => total + ids.length, 0)} ` +
-        "attached rows the walkthrough created, as well as the showcase.",
-    );
-
+    if (force)
+      console.log(
+        `\n--force: removing ${removable.reduce((total, [, ids]) => total + ids.length, 0)} attached rows the application created, as well as the dataset.`,
+      );
     if (preservedBlockers.length > 0) {
-      // Not an omission. `audit_events` is append-only and invariant M2 requires
-      // an actor named by history to stay resolvable, so a row an audit entry
-      // names cannot be removed at all. Everything else still goes.
       console.log(
         "\nKept, and so is whatever they point at:\n" +
           preservedBlockers
@@ -560,13 +950,13 @@ async function rollback(client, plan, { force = false } = {}) {
             .join("\n") +
           "\n  History that can be deleted to tidy up is not history.",
       );
-
-      // A row an audit entry names cannot be deleted either, so it comes out of
-      // the plan rather than being attempted and failing.
       for (const blocker of preservedBlockers) {
+        // Only rows the loader does not own count: its own audit rows are
+        // about to be deleted and must not exempt the actor they name.
         const keep = await client.query(
-          `select ${blocker.column} as id from ${blocker.table} where ${blocker.column} = any($1)`,
-          [byTable.get(blocker.target) ?? []],
+          `select ${blocker.column} as id from ${blocker.table}
+            where ${blocker.column} = any($1) and id <> all($2::uuid[])`,
+          [byTable.get(blocker.target) ?? [], byTable.get(blocker.table) ?? []],
         );
         const kept = new Set(keep.rows.map((row) => row.id));
         byTable.set(
@@ -575,25 +965,76 @@ async function rollback(client, plan, { force = false } = {}) {
         );
       }
     }
-
-    // Deepest first, so a child is gone before its parent is attempted.
-    for (const [table, ids] of removable) {
+    for (const [table, ids] of removable)
       byTable.set(table, [...new Set([...(byTable.get(table) ?? []), ...ids])]);
+    for (const [table] of removable) if (!ROLLBACK_ORDER.includes(table)) discovered.push(table);
+  }
+
+  // What the connected role may actually delete — and what it therefore
+  // may not. A row in a table the role cannot delete from still points at
+  // its parents, so deleting those parents would fail the whole transaction;
+  // every parent a residue row references is held back too, transitively,
+  // and the residue file removes them in children-first order. Found by
+  // independent review (round 1, F1): the first version deleted
+  // notification_jobs while the no-delete delivery rows still pointed at
+  // them, and on hosted that aborted with nothing removed and no residue
+  // written.
+  const privileges = await readPrivileges(client, [...byTable.keys()]);
+  const residue = new Map();
+  const holdBack = (table, ids) => {
+    if (!residue.has(table)) residue.set(table, new Set());
+    const set = residue.get(table);
+    const fresh = ids.filter((id) => !set.has(id));
+    for (const id of fresh) set.add(id);
+    return fresh;
+  };
+  // child table → the parents it references, from the same catalogue walk.
+  const parentsOf = new Map();
+  for (const [parent, edges] of dependencies) {
+    for (const edge of edges) {
+      if (!parentsOf.has(edge.child)) parentsOf.set(edge.child, []);
+      parentsOf.get(edge.child).push({ parent, column: edge.column });
     }
-    for (const [table] of removable) {
-      if (!ROLLBACK_ORDER.includes(table)) discovered.push(table);
+  }
+  let frontier = [];
+  for (const [table, ids] of byTable) {
+    if (ids.length === 0 || privileges.get(table)?.delete) continue;
+    const present = await client.query(`select id from ${table} where id = any($1)`, [ids]);
+    const held = holdBack(
+      table,
+      present.rows.map((row) => row.id),
+    );
+    if (held.length > 0) frontier.push([table, held]);
+  }
+  while (frontier.length > 0) {
+    const next = [];
+    for (const [table, ids] of frontier) {
+      for (const { parent, column } of parentsOf.get(table) ?? []) {
+        if (parent === table || !byTable.has(parent)) continue;
+        const referenced = await client.query(
+          `select distinct ${column} as id from ${table} where id = any($1) and ${column} = any($2)`,
+          [ids, byTable.get(parent)],
+        );
+        const held = holdBack(
+          parent,
+          referenced.rows.map((row) => row.id),
+        );
+        if (held.length > 0) next.push([parent, held]);
+      }
     }
+    frontier = next;
   }
 
   let removed = 0;
   await client.query("begin");
   try {
     for (const table of [...discovered, ...ROLLBACK_ORDER]) {
-      const ids = byTable.get(table);
-      if (!ids || ids.length === 0) continue;
+      const held = residue.get(table) ?? new Set();
+      const ids = (byTable.get(table) ?? []).filter((id) => !held.has(id));
+      if (ids.length === 0) continue;
       const result = await client.query(`delete from ${table} where id = any($1)`, [ids]);
       if (result.rowCount > 0) {
-        console.log(`  ${String(result.rowCount).padStart(5)}  ${table}`);
+        console.log(`  ${String(result.rowCount).padStart(6)}  ${table}`);
         removed += result.rowCount;
       }
     }
@@ -604,16 +1045,37 @@ async function rollback(client, plan, { force = false } = {}) {
   }
 
   console.log(
-    `\nRemoved ${removed} rows. Approved identities the loader adopted rather than ` +
-      "created are untouched.",
+    `\nRemoved ${removed} rows. Approved identities the loader adopted rather than created, and ` +
+      "history the application wrote, are untouched.",
   );
-  return { removed, blockers: [] };
+
+  const residueTables = [...discovered, ...ROLLBACK_ORDER].filter(
+    (table) => (residue.get(table)?.size ?? 0) > 0,
+  );
+  if (residueTables.length > 0) {
+    const total = residueTables.reduce((sum, table) => sum + residue.get(table).size, 0);
+    const statements = residueTables.map(
+      (table) =>
+        `-- ${residue.get(table).size} row(s)\ndelete from ${table} where id in (\n${[...residue.get(table)].map((id) => `  '${id}'`).join(",\n")}\n);`,
+    );
+    const sql = `-- Tester-week rollback residue — LAN-221. Run as the database owner, in the\n-- Supabase SQL editor, whole: one transaction, children first. Identifiers\n-- only; no personal data.\nbegin;\n${statements.join("\n")}\ncommit;\n`;
+    writeFileSync(residuePath, sql);
+    console.log(
+      `\n${total} rows in ${residueTables.length} table(s) could not be deleted by the connected role — ` +
+        `the history tables it may not delete from, and everything those rows still point at — and were written to ${residuePath}. ` +
+        "Run that file as the owner in the SQL editor, then `verify --after-rollback --residue <that file>`. See OWNER-RUNBOOK.md § Afterwards.",
+    );
+  }
+  return { removed, blockers: [], residue: residueTables };
 }
+
+// ---------------------------------------------------------------------------
+// main
+// ---------------------------------------------------------------------------
 
 async function main() {
   const argv = process.argv.slice(2);
   const phase = argv[0];
-
   if (!PHASES.includes(phase)) {
     console.error(`Usage: node scripts/production/showcase.mjs <${PHASES.join("|")}> [options]`);
     process.exitCode = 1;
@@ -623,35 +1085,28 @@ async function main() {
   const target = resolveTarget(argv.slice(1));
   const params = readParameters(option(argv, "params"));
   const sources = readSources(argv);
-  const anchor = option(argv, "anchor", "2026-08-17");
+  const anchor = option(argv, "anchor", todayUtc());
 
   console.log(`\nShowcase ${phase} — ${target.describe()}`);
 
   const client = await connect(target);
   try {
-    // Read before planning. The plan adopts whatever reference data is already
-    // present rather than inserting a competing copy, so it is a pure function
-    // of (workbooks, parameters, what is there) — and the preview stays honest
-    // because it is built from exactly the same three things as the load.
-    const authUserIds = ["brian", "stewart", "coach"]
+    const authUserIds = ["brian", "stewart", "clint", "coach"]
       .map((key) => params[key]?.authUserId)
       .filter(Boolean);
     const existing = await readExisting(client, { authUserIds });
     const plan = buildPlan({ ...sources, params, existing, anchor });
-
     const adopted = plan.provenance.filter((entry) => entry.note?.startsWith("adopted")).length;
     console.log(
-      `Plan: ${plan.rows.length} rows to write, ${adopted} existing rows adopted, ` +
-        `${plan.provenance.length} provenance records.`,
+      `Plan: ${plan.rows.length} rows to write, ${adopted} existing rows adopted, ${plan.states.size} states, anchor ${anchor}.`,
     );
 
-    if (phase === "manifest") {
-      manifest(plan, option(argv, "out", "showcase-manifest.json"));
-      return;
-    }
+    if (phase === "manifest")
+      return void manifest(plan, sources, option(argv, "out", "showcase-manifest.json"));
+    if (phase === "checklists") return void checklists(plan, params, argv);
 
     if (phase === "preflight") {
-      const { problems, notes } = await preflight(client, target, params, sources);
+      const { problems, notes } = await preflight(client, target, params, sources, plan);
       console.log("");
       for (const note of notes) console.log(note);
       if (problems.length > 0) {
@@ -663,30 +1118,28 @@ async function main() {
       }
       return;
     }
-
-    if (phase === "preview") {
-      await preview(client, plan);
-      return;
-    }
-
-    if (phase === "load") {
-      await load(client, plan);
-      return;
-    }
-
+    if (phase === "preview") return void (await preview(client, plan));
+    if (phase === "load") return void (await load(client, plan));
+    if (phase === "report") return void (await report(client, plan));
     if (phase === "verify") {
-      const { failed } = await verify(client, plan);
+      const { failed } = await verify(client, plan, params, {
+        afterRollback: argv.includes("--after-rollback"),
+        wholeDatabase: target.kind === "hosted" || argv.includes("--whole-database"),
+        residuePath: option(argv, "residue"),
+      });
       if (failed) {
-        console.error("\nSTOP. Verification did not reconcile. Do not run the walkthrough.");
+        console.error("\nSTOP. Verification did not reconcile. Do not hand out the checklists.");
         process.exitCode = 1;
       } else {
         console.log("\nEverything reconciles.");
       }
       return;
     }
-
     if (phase === "rollback") {
-      const { blockers } = await rollback(client, plan, { force: argv.includes("--force") });
+      const { blockers } = await rollback(client, plan, params, {
+        force: argv.includes("--force"),
+        residuePath: option(argv, "residue", "showcase-rollback-residue.sql"),
+      });
       if (blockers.length > 0) process.exitCode = 1;
     }
   } finally {
@@ -694,8 +1147,6 @@ async function main() {
   }
 }
 
-// Only when run directly, mirroring `connection-smoke-test.mjs`. Importing this
-// module — which a test does — must never open a connection or write anything.
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   await main();
 }

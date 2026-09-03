@@ -12,9 +12,20 @@
 import pg from "pg";
 
 /** Opens a client against the resolved target. Never logs the string. */
-export async function connect(target) {
+export async function connect(target, env = process.env) {
   const client = new pg.Client({ connectionString: target.connectionString });
   await client.connect();
+  // A local rehearsal can run as the role hosted connects as, so the grants —
+  // and above all the tables that role may not delete from — are exercised
+  // before anybody points the loader at production. Local only: the hosted
+  // connection is already that role, and a superuser is the one thing that
+  // could make this lie.
+  if (env.SHOWCASE_SET_ROLE && target.kind === "local") {
+    if (!/^[a-z_]+$/.test(env.SHOWCASE_SET_ROLE)) {
+      throw new Error("SHOWCASE_SET_ROLE must be a plain role name.");
+    }
+    await client.query(`set role ${env.SHOWCASE_SET_ROLE}`);
+  }
   return client;
 }
 
@@ -67,8 +78,42 @@ export async function readExisting(client, { authUserIds = [] } = {}) {
     }
   }
 
+  // Currently effective holders of every seat, keyed by role code. A seat the
+  // catalogue makes single-holder or a constitutional office refuses a second
+  // overlapping assignment outright (`role_assignments_one_holder_per_office`),
+  // so a loader that always inserted would abort on any database where LAN-138's
+  // bootstrap has already seated Clint, Stewart or Brian. The plan adopts a seat
+  // the named person already holds and declines one somebody else holds.
+  const assignments = new Map();
+  const held = await client.query(
+    `select ra.id, ra.person_id, r.code
+       from public.role_assignments ra
+       join public.roles r on r.id = ra.role_id
+      where ra.effective_from <= current_date
+        and (ra.effective_to is null or ra.effective_to > current_date)`,
+  );
+  for (const row of held.rows) {
+    if (!assignments.has(row.code)) assignments.set(row.code, []);
+    assignments.get(row.code).push({ id: row.id, personId: row.person_id });
+  }
+
+  // Reference rows the migrations own and the loader may only read.
+  const schedules = await client.query("select * from public.messaging_schedules");
+  const agreementVersions = await client.query(
+    `select distinct on (agreement_type) id, agreement_type::text as agreement_type
+       from public.onboarding_agreement_versions
+      order by agreement_type, effective_from desc`,
+  );
+  const chase = await client.query(
+    "select first_chase_after_hours, chase_count, chase_interval_days from public.onboarding_chase_settings",
+  );
+
   return {
     operators,
+    assignments,
+    messagingSchedules: new Map(schedules.rows.map((row) => [row.event_type, row])),
+    agreementVersions: new Map(agreementVersions.rows.map((row) => [row.agreement_type, row.id])),
+    chaseSettings: chase.rows[0] ?? null,
     // Whole rows, not just identifiers: since LAN-128 the catalogue is created
     // by migration and the loader adopts it outright, so an assignment needs
     // the seat's scope and both cardinality facts to be truthful about the
@@ -151,9 +196,9 @@ export function newLedger() {
  * Tables the loader may insert into but must never rewrite.
  *
  * These are append-only by decision, and the hosted runtime role is granted
- * `INSERT` on them and nothing else — no `UPDATE`, no `DELETE`. An RSVP answer
- * and an availability record are history: the application is not allowed to
- * rewrite one, and neither is this.
+ * `INSERT` on them and no `UPDATE`. An RSVP answer, an availability record, a
+ * delivery result, a status-history row, an audit row: history that the
+ * application is not allowed to rewrite, and neither is this.
  *
  * That matters here because `on conflict (id) do update` requires the `UPDATE`
  * privilege *even when nothing conflicts*, so the ordinary upsert was refused
@@ -166,13 +211,96 @@ export function newLedger() {
  *
  * Discovered by running the load against the hosted project on 17 August 2026 —
  * it failed on `availability_statuses`, in a transaction, having written
- * nothing.
+ * nothing. LAN-221 widened the list to every table the migrations grant without
+ * `UPDATE`; `tests/showcase-loader.test.ts` pins it against the catalogue.
  */
 export const APPEND_ONLY_TABLES = Object.freeze([
+  "public.audit_events",
   "public.availability_statuses",
-  "public.rsvp_responses",
+  "public.delivery_callbacks",
+  "public.delivery_results",
+  "public.onboarding_activity_log",
+  "public.onboarding_agreement_versions",
+  "public.onboarding_agreements",
+  "public.onboarding_item_history",
   "public.operator_accounts",
+  "public.recruitment_prospect_notes",
+  "public.recruitment_prospect_status_events",
+  "public.rsvp_responses",
+  "public.schedule_changes",
+  "public.season_membership_status_events",
+  "public.weekly_reports",
 ]);
+
+/**
+ * Tables the hosted runtime role cannot delete from at all.
+ *
+ * The application's login is granted `select, insert` on these and no `delete`,
+ * deliberately, so that "correct an answer" or "tidy the history" can never be
+ * implemented as a delete. The loader connects as that same login and inherits
+ * the refusal — which means `rollback` on hosted cannot remove the rows it
+ * wrote into them.
+ *
+ * Rather than fail halfway, `rollback` checks the privilege it actually holds,
+ * deletes what it may, and writes the remainder to a residue file as exact
+ * `delete … where id in (…)` statements — identifiers only, no names — for
+ * Brian to run as the database owner. Locally, where the tests connect as the
+ * owner, the same rollback removes everything and the residue file is empty,
+ * which is how the test proves the statements are the right ones.
+ */
+export const NO_DELETE_TABLES = Object.freeze([
+  "public.audit_events",
+  "public.availability_statuses",
+  "public.bps_selections",
+  "public.club_link_tokens",
+  "public.delivery_attempts",
+  "public.delivery_callbacks",
+  "public.delivery_results",
+  "public.event_messaging_plans",
+  "public.nonresponse_flags",
+  "public.onboarding_activity_log",
+  "public.onboarding_agreement_versions",
+  "public.onboarding_agreements",
+  "public.onboarding_item_history",
+  "public.operator_accounts",
+  "public.person_access_tokens",
+  "public.person_fact_disputes",
+  "public.recruitment_prospect_notes",
+  "public.recruitment_prospect_status_events",
+  "public.recruitment_questionnaire_responses",
+  "public.recruitment_signup_codes",
+  "public.rsvp_access_tokens",
+  "public.rsvp_responses",
+  "public.schedule_changes",
+  "public.season_membership_status_events",
+  "public.season_messaging_consents",
+  "public.weekly_reports",
+]);
+
+/**
+ * Which of `INSERT` / `UPDATE` / `DELETE` the connected role really holds on
+ * each table, from the catalogue rather than from the two lists above.
+ *
+ * Preflight uses it to refuse a load the target would abort partway, and
+ * rollback uses it to decide what it can delete itself and what it has to
+ * hand to a human as residue SQL.
+ */
+export async function readPrivileges(client, tables) {
+  const result = await client.query(
+    `select t as "table",
+            has_table_privilege(current_user, t, 'INSERT') as can_insert,
+            has_table_privilege(current_user, t, 'UPDATE') as can_update,
+            has_table_privilege(current_user, t, 'DELETE') as can_delete
+       from unnest($1::text[]) as t`,
+    [tables],
+  );
+  return new Map(
+    result.rows.map((row) => [
+      row.table,
+      { insert: row.can_insert, update: row.can_update, delete: row.can_delete },
+    ]),
+  );
+}
 
 /**
  * Inserts a row, or updates it if the loader already owns that identifier.
@@ -229,6 +357,117 @@ export async function upsert(client, ledger, table, columns, { dryRun = false } 
   else ledger.updated += 1;
 
   return { id: columns.id, action: inserted ? "create" : "update" };
+}
+
+/**
+ * Writes a whole plan, table by table in foreign-key order, in batches.
+ *
+ * LAN-124 wrote one row per statement, which was fine for a thousand rows and
+ * is not for twenty-two thousand over a pooled hosted connection. The plan's
+ * rows are grouped by table, the tables are ordered so that every parent is
+ * written before its children — the order is computed from `pg_constraint`
+ * rather than assumed, with the plan's own first-appearance order as the
+ * tie-break — and each table is written in multi-row statements.
+ *
+ * Within a table the plan's order is kept, which is what self-references
+ * (`season_memberships.carried_forward_from_id`, `people.merged_into_person_id`)
+ * rely on. `rsvp_access_tokens.superseded_by_token_id` is deferrable and is
+ * checked at commit.
+ *
+ * `dryRun` reads existence instead of writing, so `preview` stays honest.
+ */
+export async function writePlan(client, ledger, plan, { dryRun = false } = {}) {
+  const tables = [];
+  const rowsByTable = new Map();
+  for (const row of plan.rows) {
+    if (!rowsByTable.has(row.table)) {
+      rowsByTable.set(row.table, []);
+      tables.push(row.table);
+    }
+    rowsByTable.get(row.table).push(row.columns);
+  }
+
+  const dependencies = await readDependencies(client);
+  const parentsOf = new Map(tables.map((table) => [table, new Set()]));
+  for (const [parent, edges] of dependencies) {
+    for (const edge of edges) {
+      if (edge.child !== parent && parentsOf.has(edge.child) && parentsOf.has(parent)) {
+        parentsOf.get(edge.child).add(parent);
+      }
+    }
+  }
+  // Kahn's algorithm, first appearance breaking ties, so the order is stable.
+  const ordered = [];
+  const done = new Set();
+  while (ordered.length < tables.length) {
+    const next = tables.find(
+      (table) => !done.has(table) && [...parentsOf.get(table)].every((parent) => done.has(parent)),
+    );
+    if (!next) {
+      throw new Error(
+        "The plan's tables form a cycle in the foreign-key graph: " +
+          tables.filter((table) => !done.has(table)).join(", "),
+      );
+    }
+    ordered.push(next);
+    done.add(next);
+  }
+
+  for (const table of ordered) {
+    const rows = rowsByTable.get(table);
+    const appendOnly = APPEND_ONLY_TABLES.includes(table);
+    // Rows of one table can carry different column sets; group by signature.
+    const groups = new Map();
+    for (const columns of rows) {
+      const signature = Object.keys(columns).join(",");
+      if (!groups.has(signature)) groups.set(signature, []);
+      groups.get(signature).push(columns);
+    }
+    for (const [signature, group] of groups) {
+      const keys = signature.split(",");
+      if (!keys.includes("id"))
+        throw new Error(`Refusing to write ${table} without a deterministic id.`);
+      const chunkSize = Math.max(1, Math.floor(20000 / keys.length));
+      for (let start = 0; start < group.length; start += chunkSize) {
+        const chunk = group.slice(start, start + chunkSize);
+        for (const columns of chunk) ledger.rows.push({ table, id: columns.id });
+
+        if (dryRun) {
+          const existing = await client.query(`select id from ${table} where id = any($1)`, [
+            chunk.map((columns) => columns.id),
+          ]);
+          ledger.updated += existing.rowCount;
+          ledger.created += chunk.length - existing.rowCount;
+          continue;
+        }
+
+        const values = [];
+        const placeholders = chunk.map((columns, rowIndex) => {
+          const cells = keys.map((key, keyIndex) => {
+            values.push(columns[key]);
+            return `$${rowIndex * keys.length + keyIndex + 1}`;
+          });
+          return `(${cells.join(", ")})`;
+        });
+        const updatable = keys.filter((key) => key !== "id");
+        const conflict = appendOnly
+          ? "do nothing"
+          : `do update set ${updatable.map((key) => `${key} = excluded.${key}`).join(", ")}`;
+        const result = await client.query(
+          `insert into ${table} (${keys.join(", ")})
+           values ${placeholders.join(",\n")}
+           on conflict (id) ${conflict}
+           returning (xmax = 0) as inserted`,
+          values,
+        );
+        const inserted = result.rows.filter((row) => row.inserted === true).length;
+        ledger.created += inserted;
+        ledger.updated += result.rowCount - inserted;
+        ledger.skipped += chunk.length - result.rowCount;
+      }
+    }
+  }
+  return ordered;
 }
 
 /**
@@ -435,29 +674,64 @@ export async function findAttachedRows(client, ownedIdsByTable, dependencies) {
 }
 
 export const ROLLBACK_ORDER = Object.freeze([
-  "public.attendance_records",
-  "public.rsvp_responses",
+  // Leaves first: rows that reference something below and that nothing
+  // references in turn.
+  "public.delivery_callbacks",
+  "public.delivery_results",
   "public.delivery_attempts",
+  "public.nonresponse_flags",
   "public.notification_jobs",
+  "public.question_responses",
+  "public.rsvp_responses",
   "public.rsvp_access_tokens",
+  "public.club_link_tokens",
+  "public.attendance_records",
   "public.invitations",
   "public.event_audience_members",
+  "public.event_messaging_plans",
+  "public.schedule_changes",
   // Cascades off `events`, so it is deleted deliberately rather than silently.
   "public.event_questions",
+  "public.follow_up_actions",
   "public.events",
+  "public.alternative_groups",
+  "public.event_series",
   // LAN-201: notes moved off `recruitment_prospects` onto their own attributed
   // table, `on delete restrict` back to it — delete before the prospect row.
   "public.recruitment_prospect_notes",
+  "public.recruitment_prospect_status_events",
+  "public.recruitment_questionnaire_responses",
   "public.recruitment_prospects",
-  "public.availability_statuses",
+  "public.recruitment_signup_codes",
+  "public.person_access_tokens",
+  "public.season_messaging_consents",
+  "public.onboarding_item_history",
+  "public.onboarding_activity_log",
+  "public.onboarding_agreements",
   "public.onboarding_items",
+  "public.bps_selections",
+  "public.person_fact_disputes",
+  "public.availability_statuses",
   "public.position_assignments",
+  "public.jersey_assignments",
+  "public.coach_group_assignments",
+  "public.formalwear_records",
+  "public.blues_awards",
+  "public.eligibility_records",
   "public.season_membership_status_events",
   "public.season_memberships",
   "public.onboarding_item_types",
   "public.role_assignments",
+  "public.person_emergency_contacts",
+  "public.person_aliases",
   "public.contact_points",
   "public.operator_accounts",
+  // The loader's own audit rows are what `load` created and go with the rest —
+  // fabricated history is not history. Rows the *application* wrote stay:
+  // `PRESERVED_TABLES` keeps any audit row the loader did not create, and
+  // whatever it names. Before `people`, because an audit row's actor is a
+  // foreign key onto it.
+  "public.audit_events",
   // Before `people`: a season records who opened and who closed it, so deleting
   // the actor first violates `seasons_opened_by_person_id_fkey`. This only
   // shows up when the loader created the seasons rather than adopting them —

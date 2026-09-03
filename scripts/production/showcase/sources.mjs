@@ -6,25 +6,13 @@
  * name, so provenance lives in the manifest instead, and a row in the hosted
  * database is traceable to a spreadsheet cell or it is not defensible at all.
  *
- * ## What is deliberately not read
+ * ## The roster is not read at all
  *
- * From `Players Databank`, the loader takes names, kit signal and positions.
- * It does **not** take:
- *
- *   * **Phone numbers** (column B, 31 of 42 populated). Real students' mobile
- *     numbers, and the showcase replaces them with unroutable demonstration
- *     values. Only Brian and Stewart get real endpoints, supplied at execution
- *     time and never through this file.
- *   * **Email** (column C). Empty in the source anyway — the column has a
- *     header and nothing else — which is worth knowing before somebody goes
- *     looking for it.
- *   * **Activity** (column D). Its vocabulary is Active / Inactive / **Injured**,
- *     and `Injured` is a health indicator. The schema deliberately cannot hold
- *     one and `tests/schema-security.test.ts` scans for a column that could.
- *     So the source's own status column is unusable, which is why the
- *     showcase's membership distribution is illustrative rather than derived.
- *   * **Attendance** (column G). A percentage computed by the spreadsheet.
- *   * **Number** (column F). Empty in the source.
+ * LAN-124 read the club's Players Databank for forty-two real names. LAN-221
+ * replaced them with invented ones (Brian, 2026-09-03), so the only workbook
+ * this file still reads is the term card — and even that is optional: without
+ * one, `syntheticTermCard` produces a Michaelmas of the same shape, flagged as
+ * illustrative in the manifest, so the loader is self-contained.
  *
  * ## The term card, and the drift that is really there
  *
@@ -40,128 +28,7 @@
  */
 
 import { cellsInReadingOrder, cellText_, columnLetters } from "./workbook.mjs";
-import { id, personKey } from "./ids.mjs";
-
-// ---------------------------------------------------------------------------
-// Roster
-// ---------------------------------------------------------------------------
-
-const ROSTER_SHEET = "Players Databank";
-
-/** Column letters in `Players Databank`, as the club's file lays them out. */
-const ROSTER_COLUMNS = Object.freeze({
-  name: "A",
-  kitted: "E",
-  offencePosition: "I",
-  defencePosition: "J",
-});
-
-/**
- * Splits a full name into given and family parts.
- *
- * Everything before the last space is the given name. That is wrong for some
- * naming conventions and right for this file, whose forty-two entries are all
- * "Given Family" — and being wrong in a *visible*, correctable way beats a
- * cleverer rule that silently mangles one person. A single-token name keeps the
- * whole string as the given name and leaves the family name null, which the
- * schema permits and which the synthetic seed already models.
- */
-export function splitName(fullName) {
-  const parts = fullName.trim().replace(/\s+/g, " ").split(" ");
-  if (parts.length === 1) return { givenName: parts[0], familyName: null };
-  return { givenName: parts.slice(0, -1).join(" "), familyName: parts.at(-1) };
-}
-
-/**
- * Reads the roster.
- *
- * Rows are discovered by walking column A rather than assuming a fixed range —
- * the club's file has 42 names in rows 3 to 44 today, and a 43rd added next
- * week should be read rather than ignored. Row 1 is the header and row 2 is
- * blank in the source.
- */
-export function readRoster(workbook) {
-  const sheet = workbook.sheets.get(ROSTER_SHEET);
-  if (!sheet) {
-    throw new Error(
-      `The roster workbook has no "${ROSTER_SHEET}" sheet. Sheets found: ` +
-        `${[...workbook.sheets.keys()].join(", ")}.`,
-    );
-  }
-
-  const header = cellText_(sheet, `${ROSTER_COLUMNS.name}1`);
-  if (header !== "Name") {
-    throw new Error(
-      `Refusing to read the roster: cell A1 says ${JSON.stringify(header)}, not "Name". ` +
-        "The columns may have moved, and reading the wrong one would import the wrong data.",
-    );
-  }
-
-  const players = [];
-  const seen = new Map();
-
-  for (const cell of cellsInReadingOrder(sheet)) {
-    if (cell.column !== 1 || cell.row < 3) continue;
-
-    const fullName = cell.text.trim().replace(/\s+/g, " ");
-    if (fullName === "") continue;
-
-    const key = personKey(fullName);
-    if (seen.has(key)) {
-      // Two rows for one person would otherwise become one row silently,
-      // because the identifier is derived from the name.
-      throw new Error(
-        `The roster names ${JSON.stringify(fullName)} twice, at ${seen.get(key)} and ` +
-          `${cell.address}. Resolve it in the workbook — the loader will not guess.`,
-      );
-    }
-    seen.set(key, cell.address);
-
-    const kitted = cellText_(sheet, `${ROSTER_COLUMNS.kitted}${cell.row}`);
-    const offence = cellText_(sheet, `${ROSTER_COLUMNS.offencePosition}${cell.row}`);
-    const defence = cellText_(sheet, `${ROSTER_COLUMNS.defencePosition}${cell.row}`);
-
-    players.push({
-      ...splitName(fullName),
-      fullName,
-      key,
-      personId: id("people", key),
-      // "Yes" / "No" in the source. Anything else — a blank, a stray note — is
-      // read as "not recorded" rather than as "no", because those differ.
-      kitIssued: kitted === null ? null : /^yes$/i.test(kitted),
-      offencePosition: normalisePosition(offence),
-      defencePosition: normalisePosition(defence),
-      source: {
-        sheet: ROSTER_SHEET,
-        nameCell: cell.address,
-        kittedCell: `${ROSTER_COLUMNS.kitted}${cell.row}`,
-        offenceCell: `${ROSTER_COLUMNS.offencePosition}${cell.row}`,
-        defenceCell: `${ROSTER_COLUMNS.defencePosition}${cell.row}`,
-        rawKitted: kitted,
-        rawOffence: offence,
-        rawDefence: defence,
-      },
-    });
-  }
-
-  return players;
-}
-
-/**
- * Cleans a position code.
- *
- * The club's dropdown vocabulary is short — QB, RB, WR, T, G, C, TE, FB, WB for
- * offence; E, N/T, S, LB, CB for defence — plus the literal "None". Anything
- * unrecognised is kept verbatim rather than dropped, because the loader records
- * the raw value in the manifest and a position it does not know about is
- * information, not noise.
- */
-function normalisePosition(value) {
-  if (value === null) return null;
-  const cleaned = value.trim();
-  if (cleaned === "" || /^none$/i.test(cleaned)) return null;
-  return cleaned;
-}
+import { id } from "./ids.mjs";
 
 // ---------------------------------------------------------------------------
 // Term card
@@ -445,4 +312,49 @@ function readEntry({ raw, week, starts, offset, address, sheet }) {
       normalisation: [start.note, end.note].filter(Boolean),
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// A term card with no workbook behind it
+// ---------------------------------------------------------------------------
+
+/**
+ * The shape `readTermCard` produces, invented rather than read.
+ *
+ * Michaelmas 2026: week −1 to week 8, Sunday practices, Wednesday practices,
+ * Tuesday S&C, four fixtures with two still "vs TBD", a chalk talk, a social
+ * and a taster. Every entry becomes a draft event exactly as a real import
+ * would, and every one is marked illustrative in the manifest because no cell
+ * produced it.
+ */
+export function syntheticTermCard({ year = 2026 } = {}) {
+  // Week -1 starts on the Sunday before 0th week: 2026-09-27.
+  const weekMinusOne = new Date(Date.UTC(year, 8, 27));
+  const entries = [];
+  const push = (week, offset, raw, slot = "a") => {
+    const address = `synthetic:W${week}:D${offset}${slot}`;
+    entries.push(
+      readEntry({
+        raw,
+        week,
+        starts: new Date(weekMinusOne.getTime() + (week + 1) * 7 * 86400000),
+        offset,
+        address,
+        sheet: "synthetic term card",
+      }),
+    );
+  };
+  for (let week = -1; week <= 8; week += 1) {
+    push(week, 0, "Team Practice, University Parks, 14:00-16:30");
+    push(week, 3, "Team Practice, Iffley Road Astro, 20:00-22:30");
+    if (week >= 0) push(week, 2, "S&C, Blues Gym, TBD, 07:00-08:00");
+    if (week === -1) push(week, 6, "Rookie Taster + Team Practice, University Parks, 11:00-13:00");
+    if (week === 1) push(week, 2, "Chalk Talk, Microsoft Teams, 18:00-19:00", "b");
+    if (week === 2) push(week, 6, "Lancers vs Cambridge Pythons, Iffley Road, 13:00-16:00");
+    if (week === 4) push(week, 6, "Lancers vs TBD, TBD, TBD");
+    if (week === 5) push(week, 4, "Curry night, Cowley Road, 19:30");
+    if (week === 6) push(week, 6, "Lancers vs Nottingham Outlaws, Away, 12:00-15:00");
+    if (week === 8) push(week, 6, "Lancers vs TBD, TBD, TBD");
+  }
+  return entries.sort((a, b) => a.scheduledOn.localeCompare(b.scheduledOn));
 }

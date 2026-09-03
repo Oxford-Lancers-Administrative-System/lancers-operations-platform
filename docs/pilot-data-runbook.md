@@ -322,6 +322,35 @@ deployment clone with a connection he established himself:
 An aborted script leaves nothing behind. That is the intended failure mode, and
 it is worth more than a script that succeeds at all costs.
 
+## Rollback residue, and rows nobody marked
+
+Two things LAN-221 added to this procedure, both for the tester-week loader
+(`scripts/production/showcase.mjs`) and both recorded here because a later
+scenario will meet them too.
+
+**Residue.** The hosted runtime login is granted no `DELETE` on the history
+tables — results, attempts, status events, notes, answers, tokens, the report.
+That is deliberate and stays. A loader connecting as that login therefore
+cannot remove everything it wrote. Rather than fail halfway, it checks the
+privilege it holds, holds back the rows it may not delete **and every parent
+those rows still reference** (a delivery result pins its job, the job its
+invitation, the invitation its event and its person), deletes the rest, and
+writes the held-back rows as exact `delete … where id in (…)` statements in
+children-first order — identifiers only — for Brian to run as the owner in the
+SQL editor. `verify --after-rollback` then proves nothing but
+application-written history and adopted identities remains. A scenario that writes into a
+no-delete table follows the same shape, or does not write there.
+
+**Strays.** Rows created through the deployed application on 2026-08-21 while
+testing operator invitations carry no sentinel and no deterministic id — they
+were typed into a form that has neither. Nothing committed can name them. So
+they are named by Brian, in the private parameter file, and rollback removes
+exactly those identifiers with what hangs off them, refusing any that holds an
+operator account. Preflight prints how many candidates it can see (people
+created that day with no membership and no operator link) and never acts on
+the hint. This is the general rule: an application-created row nobody marked is
+removed by a human naming it, not by a script guessing.
+
 ## Retention policy
 
 **Do not clean hosted pilot data after every ticket.** This reverses the natural
