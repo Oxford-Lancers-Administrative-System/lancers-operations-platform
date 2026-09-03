@@ -17,9 +17,11 @@ vi.mock("server-only", () => ({}));
 
 import type { Client } from "pg";
 
+import { EMAIL_SHAPE, PHONE_SHAPE } from "@/app/operate/roster/new/validation";
 import { closePool, withTransaction } from "@/lib/db";
 import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
 import { generateOnboardingItems } from "./membership";
+import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
 import { resolveOpenSeason } from "./roster";
 import { updatePersonField } from "./person-write";
 import { readOpenPersonFactDisputesIn } from "./person-fact-dispute";
@@ -343,6 +345,25 @@ describe("saveDetailsStep", () => {
     expect(view?.openDisputedFields.has("college")).toBe(false);
   });
 
+  it("leaves consent granted after a grantConsent:false resubmission by an already-granted person — F-002, REQ-consent-one-way", async () => {
+    // This is the review's own defect: an `else` branch calling the withdraw
+    // function whenever `grantConsent` arrives false. Nothing in this module
+    // ever imports that function — `season_messaging_consents` can only move
+    // forward through this surface — but until now nothing asserted the
+    // read-back that would catch it if that stopped being true.
+    const { personId, membershipId } = await givenPlayer();
+    await saveDetailsStep(baseDetailsInput(personId, openSeasonId, membershipId));
+
+    await saveDetailsStep(
+      baseDetailsInput(personId, openSeasonId, membershipId, { grantConsent: false }),
+    );
+
+    const stillGranted = await withTransaction((tx) =>
+      hasGrantedSeasonMessagingConsentIn(tx, personId, openSeasonId),
+    );
+    expect(stillGranted).toBe(true);
+  });
+
   it("raises a dispute rather than silently overwriting an operator-recorded value", async () => {
     const { personId, membershipId } = await givenPlayer();
     // An operator recorded this college — a different actor from the subject.
@@ -413,6 +434,83 @@ describe("saveDetailsStep", () => {
     expect(view?.detailsComplete).toBe(false);
     expect(view?.emergencyContact?.givenName).toBe("Casey");
     expect(view?.emergencyContact?.phone).toBeNull();
+  });
+
+  // B-001 (LAN-216 round 1): "There is no form validation on the mobile phone
+  // or the email... Should be the same as all other form validations we
+  // have." All four fields below share exactly one idiom —
+  // `src/app/operate/roster/new/validation.ts`'s own `looksLikePhone`/
+  // `looksLikeEmail` — imported, not duplicated. A blank value is never
+  // rejected here; only a value that was actually typed and does not look
+  // like its kind is.
+  it("rejects an unshaped mobile number and accepts a well-shaped one", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    const bad = await saveDetailsStep(
+      baseDetailsInput(personId, openSeasonId, membershipId, { mobile: "not a phone number" }),
+    );
+    expect(bad.errors.mobile).toBe(PHONE_SHAPE);
+
+    const good = await saveDetailsStep(
+      baseDetailsInput(personId, openSeasonId, membershipId, { mobile: "07700 900999" }),
+    );
+    expect(good.errors.mobile).toBeUndefined();
+  });
+
+  it("rejects an unshaped personal email and accepts a well-shaped one", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    const bad = await saveDetailsStep(
+      baseDetailsInput(personId, openSeasonId, membershipId, { personalEmail: "not an email" }),
+    );
+    expect(bad.errors.personalEmail).toBe(EMAIL_SHAPE);
+
+    const good = await saveDetailsStep(
+      baseDetailsInput(personId, openSeasonId, membershipId, {
+        personalEmail: `${unique("player-ok")}@example.ox.ac.uk`,
+      }),
+    );
+    expect(good.errors.personalEmail).toBeUndefined();
+  });
+
+  it("rejects an unshaped emergency-contact phone and accepts a well-shaped one", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    const bad = await saveDetailsStep(
+      baseDetailsInput(personId, openSeasonId, membershipId, {
+        emergencyContact: {
+          givenName: "Casey",
+          familyName: "Ashworth",
+          relationship: "Parent",
+          phone: "not a phone number",
+          email: `${unique("ec")}@example.com`,
+        },
+      }),
+    );
+    expect(bad.errors.ec_phone).toBe(PHONE_SHAPE);
+
+    const good = await saveDetailsStep(baseDetailsInput(personId, openSeasonId, membershipId));
+    expect(good.errors.ec_phone).toBeUndefined();
+  });
+
+  it("rejects an unshaped emergency-contact email and accepts a well-shaped one", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    const bad = await saveDetailsStep(
+      baseDetailsInput(personId, openSeasonId, membershipId, {
+        emergencyContact: {
+          givenName: "Casey",
+          familyName: "Ashworth",
+          relationship: "Parent",
+          phone: "07700 900456",
+          email: "not an email",
+        },
+      }),
+    );
+    expect(bad.errors.ec_email).toBe(EMAIL_SHAPE);
+
+    const good = await saveDetailsStep(baseDetailsInput(personId, openSeasonId, membershipId));
+    expect(good.errors.ec_email).toBeUndefined();
   });
 });
 

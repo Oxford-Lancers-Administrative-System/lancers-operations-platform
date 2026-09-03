@@ -66,15 +66,13 @@ export const DETAILS_HEADING = "Welcome to the team";
 export const DETAILS_LEAD_STEP = "Step 1 of 5 · Your details";
 export const DETAILS_LEAD_RETURNING = "Change anything that has changed";
 
-export const CONSENT_HEADING = "First — may the club message you this season?";
+export const CONSENT_HEADING = "Messaging consent";
 export const CONSENT_LABEL = "Yes, Oxford Lancers may message me about the club this season.";
 export const CONSENT_NOTE =
-  "Asked again every season. If you want the club to stop, ask and an operator will switch it off — this form has no way to untick it.";
-export const CONSENT_ALREADY_GRANTED =
-  "You already agreed the club may message you this season, so this page does not ask again.";
+  "Asked again every season. Only an operator can withdraw it once given.";
+export const CONSENT_ALREADY_GRANTED = "Messaging consent: Already agreed.";
 
-export const REQUIRED_NOTE =
-  "Everything marked * is required to finish onboarding, the emergency contact included. Nothing on your checklist ever blocks you from training, playing or travelling — this is only what the form itself needs before it will move on.";
+export const REQUIRED_NOTE = "* is required. This is the required form.";
 
 export const SECTION_WHO_YOU_ARE = "Who you are";
 export const SECTION_WHERE_YOU_STUDY = "Where you study";
@@ -84,20 +82,16 @@ export const SECTION_EMERGENCY_CONTACT = "Emergency contact";
 export const FIELD_GIVEN_NAME = "First name";
 export const FIELD_FAMILY_NAME = "Last name";
 export const FIELD_MOBILE = "Mobile phone";
-export const FIELD_MOBILE_HELP = "We will read this back to you before saving it.";
 export const FIELD_PERSONAL_EMAIL = "Personal email";
 export const FIELD_COLLEGE = "College";
 export const FIELD_MATRICULATION_YEAR = "Matriculation year";
 export const FIELD_EXPECTED_GRADUATION = "Expected graduation";
 export const FIELD_DEGREE_FIELD = "Degree field";
 export const FIELD_DATE_OF_BIRTH = "Date of birth";
-export const FIELD_DATE_OF_BIRTH_HELP =
-  "Never appears on any list, board or queue. Only whether you are under 18 is derived from it.";
 
 export const FIELD_EC_GIVEN_NAME = "Emergency contact first name";
 export const FIELD_EC_FAMILY_NAME = "Emergency contact last name";
 export const FIELD_EC_RELATIONSHIP = "Relationship to you";
-export const FIELD_EC_RELATIONSHIP_HELP = "The only optional field here.";
 export const FIELD_EC_PHONE = "Emergency contact phone";
 export const FIELD_EC_EMAIL = "Emergency contact email";
 
@@ -124,19 +118,13 @@ export const DISPUTED_NOTICE =
 export const CODE_OF_CONDUCT_HEADING = "The Code of Conduct";
 export const CODE_OF_CONDUCT_LEAD = "Step 2 of 5 · Read it, then agree";
 export const CODE_OF_CONDUCT_AGREE_LABEL = "I have read and I agree to the Code of Conduct.";
-export const CODE_OF_CONDUCT_AGREE_NOTE =
-  "Recorded against this version, dated, and stored as yours.";
 
 export const PHOTO_RELEASE_HEADING = "The photo release";
 export const PHOTO_RELEASE_LEAD = "Step 3 of 5 · Read it, then agree";
 export const PHOTO_RELEASE_AGREE_LABEL =
   "I have read the photo release and I agree to it for this season.";
-export const PHOTO_RELEASE_AGREE_NOTE =
-  "Recorded against this version, dated, and stored as yours. This is a dated agreement, not a drawn or cryptographic signature.";
 
 export const AGREE_AND_CONTINUE = "I agree — continue";
-export const DOCUMENT_SECONDARY =
-  "You can reopen this page later to see which version you agreed to, and when.";
 export const MUST_AGREE_ERROR = "Read the document, then tick the box to continue.";
 
 export const PLACEHOLDER_LABEL = "PLACEHOLDER WORDING — the real text is owed under LAN-213";
@@ -157,11 +145,7 @@ export const BUCS_OWED_NOTE =
   "PLACEHOLDER. These steps stand in for instruction copy this mission owes and nobody has written yet (LAN-213). They block no build and no walk; they block a real send.";
 export const BUCS_HAVE_YOU_DONE_IT = "Have you done it?";
 export const BUCS_CLAIM_LABEL = "Yes — I have registered on BUCS Play and selected Oxford Lancers.";
-export const BUCS_CLAIM_NOTE =
-  "This records claimed, not complete. The compliance owner confirms it against the BUCS roster.";
 export const CONTINUE = "Continue";
-export const BUCS_SECONDARY =
-  "If you have not done it yet, continue anyway. The club will ask you again.";
 
 // ---------------------------------------------------------------------------
 // Step 5 — Hudl
@@ -180,13 +164,8 @@ export const HUDL_OWED_NOTE =
   "PLACEHOLDER. The email-invite method is assumed. The real instruction copy is owed under LAN-213 and nobody has written it.";
 export const HUDL_ARE_YOU_IN = "Are you in?";
 export const HUDL_CLAIM_LABEL = "Yes — I have accepted the invitation and I can see the team.";
-export const HUDL_CLAIM_NOTE = "Records claimed, not complete, like BUCS Play.";
 export const HUDL_NO_INVITATION_LABEL = "No invitation has reached me.";
-export const HUDL_NO_INVITATION_NOTE =
-  "This puts the item back on the club, not on you. Nothing about it is counted against you until an invitation has actually gone out.";
 export const FINISH = "Finish";
-export const HUDL_SECONDARY =
-  "If you have not got in yet, finish anyway. The club will ask you again.";
 
 // ---------------------------------------------------------------------------
 // Done — outstanding by section
@@ -196,9 +175,6 @@ export const DONE_HEADING = "That is all saved";
 export const OUTSTANDING_HEADING = "Still outstanding";
 export const OUTSTANDING_SAME_LINK_NOTE =
   "Every one of these is on the link you are already holding. The club will ask you for them here — it will not send you a second link.";
-export const NOTHING_GATES_NOTE =
-  "Nothing on your checklist ever blocks you from training, playing or travelling.";
-export const CLOSE_ACTION = "Close";
 
 // ---------------------------------------------------------------------------
 // Already complete — nothing outstanding, no sequence

@@ -61,7 +61,7 @@ export const FIELD_ORDER: readonly (keyof IntakeFormValues)[] = [
   "phone",
 ];
 
-function looksLikeEmail(value: string): boolean {
+export function looksLikeEmail(value: string): boolean {
   const trimmed = value.trim();
   // One `@`, something before it, something after it, and no internal spaces.
   // Deliberately not a full RFC address parser: the strict ones reject real
@@ -69,7 +69,7 @@ function looksLikeEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+$/.test(trimmed);
 }
 
-function looksLikePhone(value: string): boolean {
+export function looksLikePhone(value: string): boolean {
   const digits = value.replace(/\D/g, "");
   // Seven is the shortest thing anybody writes down as a contactable number,
   // and the club's files contain numbers one digit short of correct, which

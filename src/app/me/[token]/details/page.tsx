@@ -34,17 +34,13 @@ import {
   ALREADY_COMPLETE_REST_NOTE,
   BANNER,
   BUCS_CLAIM_LABEL,
-  BUCS_CLAIM_NOTE,
   BUCS_HAVE_YOU_DONE_IT,
   BUCS_HEADING,
   BUCS_LEAD,
   BUCS_OWED_NOTE,
-  BUCS_SECONDARY,
   BUCS_STEPS,
   BUSY_MESSAGE,
-  CLOSE_ACTION,
   CODE_OF_CONDUCT_AGREE_LABEL,
-  CODE_OF_CONDUCT_AGREE_NOTE,
   CODE_OF_CONDUCT_HEADING,
   CODE_OF_CONDUCT_LEAD,
   CONSENT_ALREADY_GRANTED,
@@ -58,43 +54,34 @@ import {
   DETAILS_SECONDARY,
   DISPUTED_NOTICE,
   DOCUMENT_PRIVACY_NOTE,
-  DOCUMENT_SECONDARY,
   DONE_HEADING,
   FIELD_COLLEGE,
   FIELD_DATE_OF_BIRTH,
-  FIELD_DATE_OF_BIRTH_HELP,
   FIELD_DEGREE_FIELD,
   FIELD_EC_EMAIL,
   FIELD_EC_FAMILY_NAME,
   FIELD_EC_GIVEN_NAME,
   FIELD_EC_PHONE,
   FIELD_EC_RELATIONSHIP,
-  FIELD_EC_RELATIONSHIP_HELP,
   FIELD_EXPECTED_GRADUATION,
   FIELD_FAMILY_NAME,
   FIELD_GIVEN_NAME,
   FIELD_MATRICULATION_YEAR,
   FIELD_MOBILE,
-  FIELD_MOBILE_HELP,
   FIELD_PERSONAL_EMAIL,
   FINISH,
   HUDL_ARE_YOU_IN,
   HUDL_CLAIM_LABEL,
-  HUDL_CLAIM_NOTE,
   HUDL_HEADING,
   HUDL_LEAD,
   HUDL_NO_INVITATION_LABEL,
-  HUDL_NO_INVITATION_NOTE,
   HUDL_OWED_NOTE,
-  HUDL_SECONDARY,
   HUDL_STEPS,
   HUDL_TWO_PARTS_NOTE,
   MUST_AGREE_ERROR,
-  NOTHING_GATES_NOTE,
   OUTSTANDING_HEADING,
   OUTSTANDING_SAME_LINK_NOTE,
   PHOTO_RELEASE_AGREE_LABEL,
-  PHOTO_RELEASE_AGREE_NOTE,
   PHOTO_RELEASE_HEADING,
   PHOTO_RELEASE_LEAD,
   PLACEHOLDER_LABEL,
@@ -216,7 +203,7 @@ export default async function PlayerDetailsPage({ params, searchParams }: PagePr
         ) : null}
 
         {page === "already-complete" ? (
-          <AlreadyCompletePage token={token} />
+          <AlreadyCompletePage />
         ) : page === "done" ? (
           <DonePage view={view} token={token} />
         ) : page === "details" ? (
@@ -448,7 +435,6 @@ function DetailsStepPage({
               label={FIELD_MOBILE}
               defaultValue={currentContact(view, "phone")}
               required
-              help={FIELD_MOBILE_HELP}
             />
             <FieldWithSource
               name="personal_email"
@@ -502,7 +488,6 @@ function DetailsStepPage({
               defaultValue={p.dateOfBirth ?? ""}
               required
               type="date"
-              help={FIELD_DATE_OF_BIRTH_HELP}
               source={p.dateOfBirthSource ? sourceLine("you", null) : null}
               disputed={view.openDisputedFields.has("date_of_birth")}
             />
@@ -526,7 +511,6 @@ function DetailsStepPage({
               name="ec_relationship"
               label={FIELD_EC_RELATIONSHIP}
               defaultValue={ec?.relationship ?? ""}
-              help={FIELD_EC_RELATIONSHIP_HELP}
             />
             <FieldWithSource
               name="ec_phone"
@@ -574,7 +558,6 @@ function DocumentStepPage({
   const heading = isCodeOfConduct ? CODE_OF_CONDUCT_HEADING : PHOTO_RELEASE_HEADING;
   const lead = isCodeOfConduct ? CODE_OF_CONDUCT_LEAD : PHOTO_RELEASE_LEAD;
   const agreeLabel = isCodeOfConduct ? CODE_OF_CONDUCT_AGREE_LABEL : PHOTO_RELEASE_AGREE_LABEL;
-  const agreeNote = isCodeOfConduct ? CODE_OF_CONDUCT_AGREE_NOTE : PHOTO_RELEASE_AGREE_NOTE;
 
   return (
     <Shell
@@ -619,16 +602,12 @@ function DocumentStepPage({
           <input type="hidden" name="token" value={token} />
           <input type="hidden" name="agreementType" value={agreementType} />
           <CheckboxField name="agree" label={agreeLabel} />
-          <FormHelperText>{agreeNote}</FormHelperText>
           <Box sx={{ mt: 2 }}>
             <Button type="submit" variant="contained" sx={{ minHeight: 48 }}>
               {AGREE_AND_CONTINUE}
             </Button>
           </Box>
         </Box>
-        <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 2 }}>
-          {DOCUMENT_SECONDARY}
-        </Typography>
       </Paper>
     </Shell>
   );
@@ -661,15 +640,11 @@ function BucsStepPage({ view, token }: { view: QuestionnaireView; token: string 
         {BUCS_HAVE_YOU_DONE_IT}
       </Typography>
       <CheckboxField name="claim" label={BUCS_CLAIM_LABEL} />
-      <FormHelperText>{BUCS_CLAIM_NOTE}</FormHelperText>
       <Box sx={{ mt: 2 }}>
         <Button type="submit" variant="contained" sx={{ minHeight: 48 }}>
           {CONTINUE}
         </Button>
       </Box>
-      <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 2 }}>
-        {BUCS_SECONDARY}
-      </Typography>
     </BucsHudlShell>
   );
 }
@@ -705,17 +680,12 @@ function HudlStepPage({ view, token }: { view: QuestionnaireView; token: string 
         {HUDL_ARE_YOU_IN}
       </Typography>
       <CheckboxField name="claim" label={HUDL_CLAIM_LABEL} />
-      <FormHelperText>{HUDL_CLAIM_NOTE}</FormHelperText>
       <CheckboxField name="no_invitation" label={HUDL_NO_INVITATION_LABEL} />
-      <FormHelperText>{HUDL_NO_INVITATION_NOTE}</FormHelperText>
       <Box sx={{ mt: 2 }}>
         <Button type="submit" variant="contained" sx={{ minHeight: 48 }}>
           {FINISH}
         </Button>
       </Box>
-      <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 2 }}>
-        {HUDL_SECONDARY}
-      </Typography>
     </BucsHudlShell>
   );
 }
@@ -816,19 +786,6 @@ function DonePage({ view, token }: { view: QuestionnaireView; token: string }) {
           </Typography>
         </Paper>
       ) : null}
-      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
-        <Button
-          href={`/me/${encodeURIComponent(token)}`}
-          variant="contained"
-          fullWidth
-          sx={{ minHeight: 48 }}
-        >
-          {CLOSE_ACTION}
-        </Button>
-        <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 2 }}>
-          {NOTHING_GATES_NOTE}
-        </Typography>
-      </Paper>
     </>
   );
 }
@@ -837,7 +794,7 @@ function DonePage({ view, token }: { view: QuestionnaireView; token: string }) {
 // Already complete — nothing outstanding, no sequence
 // ---------------------------------------------------------------------------
 
-function AlreadyCompletePage({ token }: { token: string }) {
+function AlreadyCompletePage() {
   return (
     <>
       <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
@@ -851,17 +808,6 @@ function AlreadyCompletePage({ token }: { token: string }) {
       <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
         <Typography sx={{ fontSize: 14, mb: 2 }}>{ALREADY_COMPLETE_REST_NOTE}</Typography>
         <Typography sx={{ fontSize: 14 }}>{ALREADY_COMPLETE_CHANGE_NOTE}</Typography>
-        <Button
-          href={`/me/${encodeURIComponent(token)}`}
-          variant="contained"
-          fullWidth
-          sx={{ minHeight: 48, mt: 3 }}
-        >
-          {CLOSE_ACTION}
-        </Button>
-        <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 2 }}>
-          {NOTHING_GATES_NOTE}
-        </Typography>
       </Paper>
     </>
   );

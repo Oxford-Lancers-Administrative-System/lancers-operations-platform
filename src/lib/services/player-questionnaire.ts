@@ -35,12 +35,14 @@ import {
   type EmergencyContactFieldUpdate,
   type PersonFieldUpdate,
 } from "./person-write";
-import {
-  validateAcademicYear,
-  validateEmailAddress,
-  validatePhoneNumber,
-} from "./person-validation";
+import { validateAcademicYear } from "./person-validation";
 import { readSeasonLabelIn } from "./seasons";
+import {
+  EMAIL_SHAPE,
+  looksLikeEmail,
+  looksLikePhone,
+  PHONE_SHAPE,
+} from "@/app/operate/roster/new/validation";
 
 /**
  * The player-facing questionnaire's own domain logic — `WP-player-questionnaire`,
@@ -674,16 +676,23 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
   const current = await readPersonRecord(input.personId);
   const errors: Record<string, string> = {};
 
+  // Mobile, personal email and the two emergency-contact fields all share one
+  // shape idiom — `src/app/operate/roster/new/validation.ts`'s own
+  // `looksLikePhone`/`looksLikeEmail` — rather than each inventing its own,
+  // per Brian's correction (B-001, LAN-216 round 1): "Should be the same as
+  // all other form validations we have." A blank value is never rejected here
+  // — required-ness is a separate check (`missingRequiredFields`) — this only
+  // catches a value that was actually typed and does not look like its kind.
   const mobileChanged = input.mobile.trim() !== "" && needsMobileWrite(current, input.mobile);
-  if (mobileChanged) {
-    const validation = validatePhoneNumber(input.mobile);
-    if (!validation.valid) errors.mobile = validation.message;
-  }
+  if (mobileChanged && !looksLikePhone(input.mobile)) errors.mobile = PHONE_SHAPE;
   const emailChanged =
     input.personalEmail.trim() !== "" && needsPersonalEmailWrite(current, input.personalEmail);
-  if (emailChanged) {
-    const validation = validateEmailAddress(input.personalEmail);
-    if (!validation.valid) errors.personalEmail = validation.message;
+  if (emailChanged && !looksLikeEmail(input.personalEmail)) errors.personalEmail = EMAIL_SHAPE;
+  if (input.emergencyContact.phone.trim() !== "" && !looksLikePhone(input.emergencyContact.phone)) {
+    errors.ec_phone = PHONE_SHAPE;
+  }
+  if (input.emergencyContact.email.trim() !== "" && !looksLikeEmail(input.emergencyContact.email)) {
+    errors.ec_email = EMAIL_SHAPE;
   }
   if (input.fields.matriculation_year) {
     const validation = validateAcademicYear(input.fields.matriculation_year, "Matriculation year");
