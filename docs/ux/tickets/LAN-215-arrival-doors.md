@@ -19,12 +19,12 @@ inventory at `.../item-and-ask-inventory.md`, and the approved photographs at
 
 ## Owned screens and routes
 
-| Screen           | Route/surface                                       | Audience                                                      |
-| ---------------- | ---------------------------------------------------- | --------------------------------------------------------------- |
-| `W1-01`…`W1-04`  | `/operate/roster/import` (new)                       | Four-role (`roster_bulk_import`): President, Vice-President, Secretary, Treasurer, General Manager, IT Officer |
-| —                | The roster board's **Add players** menu (new control on `/operate/roster`) | Same as `/operate/roster` itself (`person_record_authority`) |
-| `W2-01`…`W2-03`  | `/operate/roster/new` (LAN-74, unchanged as a route)  | The shipped general-operator floor — any linked, active operator who is not a coaching assignment |
-| `W3-01`          | `/operate/roster/[membershipId]` (LAN-186/187, unchanged as a route) | Whoever already opens that record |
+| Screen          | Route/surface                                                              | Audience                                                                                                       |
+| --------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `W1-01`…`W1-04` | `/operate/roster/import` (new)                                             | Four-role (`roster_bulk_import`): President, Vice-President, Secretary, Treasurer, General Manager, IT Officer |
+| —               | The roster board's **Add players** menu (new control on `/operate/roster`) | Same as `/operate/roster` itself (`person_record_authority`)                                                   |
+| `W2-01`…`W2-03` | `/operate/roster/new` (LAN-74, unchanged as a route)                       | The shipped general-operator floor — any linked, active operator who is not a coaching assignment              |
+| `W3-01`         | `/operate/roster/[membershipId]` (LAN-186/187, unchanged as a route)       | Whoever already opens that record                                                                              |
 
 `W3` draws no route and no card of its own — its whole content is what Mission
 6's flip transaction additionally does, read afterwards on the existing
