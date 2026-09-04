@@ -86,25 +86,36 @@ try {
 
 const client = await connectLocal(databaseUrl);
 
-/** One WhatsApp send, recorded as already concluded — never offered to a provider. */
-async function recordAttempt(client, jobId, attemptNumber, outcome, occurredAt) {
+/**
+ * One WhatsApp send, recorded as already concluded — never offered to a
+ * provider. `detail` is the provider-neutral reason a real failed attempt
+ * would carry (`delivery_results.detail`, `C-5`'s own read) — `null` for a
+ * delivered attempt, which has none.
+ */
+async function recordAttempt(client, jobId, attemptNumber, outcome, occurredAt, detail) {
   const attempt = await client.query(
     `insert into public.delivery_attempts
        (notification_job_id, attempt_number, channel, provider, requested_at, accepted_at,
-        concluded_at, provider_message_id)
+        concluded_at, provider_message_id, failure_reason)
      values ($1, $2, 'whatsapp', 'meta_whatsapp_cloud', $3::timestamptz, $3::timestamptz,
-             $3::timestamptz, $4)
+             $3::timestamptz, $4, $5)
      on conflict (notification_job_id, attempt_number) do nothing
      returning id`,
-    [jobId, attemptNumber, occurredAt, `LAN218-seed-${jobId}-${attemptNumber}`],
+    [jobId, attemptNumber, occurredAt, `LAN218-seed-${jobId}-${attemptNumber}`, detail],
   );
   await client.query(
     `insert into public.delivery_results
-       (notification_job_id, attempt_number, outcome, channel, provider, occurred_at)
-     values ($1, $2, $3::public.delivery_outcome, 'whatsapp', 'meta_whatsapp_cloud', $4::timestamptz)
+       (notification_job_id, attempt_number, outcome, channel, provider, detail, occurred_at)
+     values ($1, $2, $3::public.delivery_outcome, 'whatsapp', 'meta_whatsapp_cloud', $4, $5::timestamptz)
      on conflict (notification_job_id, attempt_number) do nothing`,
-    [jobId, attemptNumber, outcome, occurredAt],
+    [jobId, attemptNumber, outcome, detail, occurredAt],
   );
+  if (detail !== null) {
+    await client.query(`update public.notification_jobs set last_error = $2 where id = $1`, [
+      jobId,
+      detail,
+    ]);
+  }
   return attempt.rows[0]?.id ?? null;
 }
 
@@ -122,6 +133,7 @@ async function seedChase(
     occurredAt,
     outcome,
     attemptCount,
+    failureDetail = null,
   },
 ) {
   const job = await client.query(
@@ -135,7 +147,7 @@ async function seedChase(
     [key, outcome === "delivered" ? "completed" : "failed", personId, occurredAt, attemptCount],
   );
   const jobId = job.rows[0].id;
-  await recordAttempt(client, jobId, attemptCount, outcome, occurredAt);
+  await recordAttempt(client, jobId, attemptCount, outcome, occurredAt, failureDetail);
 
   await client.query(
     `insert into public.onboarding_activity_log
@@ -290,6 +302,11 @@ try {
   });
   // MAX_ATTEMPTS (delivery.ts) is 5 — attempt_count reaching it with no
   // delivered outcome is what `currentAttemptTerminallyFailed` reads.
+  //
+  // `failureDetail` is correction round 1, C-5 — the exact sentence
+  // `whatsapp-cloud.ts`'s own `PROVIDER_REASONS[131026]` would have stored,
+  // so the queue's "Delivery failed · …" row shows real, plain-worded text
+  // rather than the defensive "reason was not recorded" fallback.
   await seedChase(client, {
     membershipId: lucian.membership_id,
     personId: lucian.person_id,
@@ -301,6 +318,7 @@ try {
     occurredAt: "2026-08-19T09:00:00Z",
     outcome: "rejected",
     attemptCount: 5,
+    failureDetail: "WhatsApp could not deliver to this number — it may not be a WhatsApp account.",
   });
 
   // --- Merrick Thornbury: left mid-onboarding -------------------------------
