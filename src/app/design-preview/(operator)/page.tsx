@@ -89,7 +89,7 @@ const DECISIONS = [
   ["Buttons", "Sentence case (§4.5)."],
   [
     "The root page",
-    "B8 taken (Brian, 4 Sep 2026): / redirects to /login; the bootstrap scaffold is gone.",
+    "B8 taken (Brian, 4 Sep 2026): / is the sign-in screen; the bootstrap scaffold is gone.",
   ],
   [
     "Product findings taken",

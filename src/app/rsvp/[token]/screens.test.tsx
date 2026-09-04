@@ -369,8 +369,8 @@ describe("UX-63, UX-64 and UX-65 — one response for every unusable link", () =
     // from an operator sign-in, which this ticket forbids. Asserting on the
     // immediate href was not enough to catch that, so "/" is named here too.
     // It was then the bootstrap scaffold, carrying **Sign in** and **Protected
-    // page** buttons; since LAN-225 took audit B8 it redirects straight to
-    // `/login`, so the rule holds for a more direct reason than before.
+    // page** buttons; since LAN-225 took audit B8 it is the sign-in screen
+    // itself, so the rule holds for a more direct reason than before.
     for (const link of Array.from(container.querySelectorAll("a"))) {
       const href = link.getAttribute("href") ?? "";
       expect(href).not.toMatch(/\/operate|\/login|\/dashboard/);

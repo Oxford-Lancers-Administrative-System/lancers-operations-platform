@@ -77,7 +77,7 @@ RSVP is a direct scoped journey at `/rsvp/[token]`; it never enters `/operate` a
 
 | Route                             | Purpose                                                                    |
 | --------------------------------- | -------------------------------------------------------------------------- |
-| `/`                               | Redirects to `/login`; there is no separate landing page (LAN-225, B8)     |
+| `/`                               | The sign-in screen; there is no separate landing page (LAN-225, B8)        |
 | `/login`                          | Operator authentication                                                    |
 | `/forgot-password`                | Request a password-reset link (LAN-125 amendment below)                    |
 | `/reset-password`                 | Choose a new password from a recovery link (LAN-125 amendment below)       |

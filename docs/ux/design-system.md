@@ -160,14 +160,15 @@ They take the tokens and the band colours and are otherwise untouched.
   the name, on every page reached without a session.
 - The crest file is `public/brand/crest.svg`, supplied by Brian from the Figma;
   the wordmark is set in Geist unless the export brings one.
-- **The root is the sign-in page.** `/` redirects to `/login`; there is no
+- **The root is the sign-in page.** `/` renders the sign-in screen; there is no
   separate landing page. What stood at `/` was LAN-71's bootstrap scaffold,
   which described the repository as an "infrastructure scaffold" whose only job
   was to prove the deployment loop, and offered buttons to `/dashboard` and
   `/login`. Audit finding B8, taken on Brian's decision at the 4 September 2026
-  visual review. `/login` remains the one canonical sign-in route — the proxy,
-  the recovery emails and the route contract all name it — so the root
-  redirects rather than carrying a second copy of the form.
+  visual review. `/` and `/login` render one shared component, so there is one
+  screen and not two; `/login` stays a real route because the proxy redirects
+  to it with `?redirectTo=`, the recovery emails link to it, and the route
+  contract names it.
 
 ## 7. What this does not decide
 
