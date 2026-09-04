@@ -8,7 +8,7 @@
  * plan.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -26,11 +26,18 @@ vi.mock("@/lib/services/recruitment-cycle", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/recruitment-cycle")>();
   return { ...actual, listRecruitmentCycleSteps: vi.fn() };
 });
+vi.mock("@/lib/services/onboarding-chase", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/onboarding-chase")>();
+  return { ...actual, readOnboardingChaseSettings: vi.fn() };
+});
 vi.mock("./actions", () => ({
   updateOneMessagingScheduleAction: vi.fn(() =>
     Promise.resolve({ notice: null, error: null, refusal: null, candidates: null }),
   ),
   updateRecruitmentCycleStepsAction: vi.fn(() =>
+    Promise.resolve({ notice: null, error: null, refusal: null, candidates: null }),
+  ),
+  updateOnboardingChaseSettingsAction: vi.fn(() =>
     Promise.resolve({ notice: null, error: null, refusal: null, candidates: null }),
   ),
 }));
@@ -46,6 +53,10 @@ import {
   listRecruitmentCycleSteps,
   type RecruitmentCycleStep,
 } from "@/lib/services/recruitment-cycle";
+import {
+  readOnboardingChaseSettings,
+  type OnboardingChaseSettings,
+} from "@/lib/services/onboarding-chase";
 import MessagingSchedulePage from "./page";
 
 function administrator(seat = "president"): ResolvedOperator {
@@ -179,12 +190,25 @@ function cycleSteps(): RecruitmentCycleStep[] {
   ];
 }
 
+function onboardingChaseSettings(
+  overrides: Partial<OnboardingChaseSettings> = {},
+): OnboardingChaseSettings {
+  return {
+    firstChaseAfterHours: 48,
+    chaseCount: 4,
+    chaseIntervalDays: 3,
+    updatedAt: new Date("2026-08-25T00:00:00Z"),
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   cleanup();
   signedIn(administrator());
   vi.mocked(listMessagingSchedulesWithPreview).mockResolvedValue(rows());
   vi.mocked(listRecruitmentCycleSteps).mockResolvedValue(cycleSteps());
+  vi.mocked(readOnboardingChaseSettings).mockResolvedValue(onboardingChaseSettings());
 });
 
 describe("who may open the messaging schedule", () => {
@@ -355,11 +379,11 @@ describe("one save button per row — OWNER-LAN171-04", () => {
 
     // Seven event types, plus LAN-203's two recruitment cycle rows
     // (`cycle-step-row`, Brian 2026-09-01: Welcome and its details reminder
-    // collapsed onto one row) — each is its own form on the same
-    // one-row-one-save law, so the total grows with the cycle rather than
-    // staying fixed at seven.
+    // collapsed onto one row), plus LAN-218's own Onboarding row — each is
+    // its own form on the same one-row-one-save law, so the total grows with
+    // the page rather than staying fixed at seven.
     const forms = container.querySelectorAll("form");
-    expect(forms).toHaveLength(9);
+    expect(forms).toHaveLength(10);
     const cycleRows = screen.getAllByTestId("cycle-step-row");
     expect(cycleRows).toHaveLength(2);
     for (const row of cycleRows) expect(row.tagName).toBe("FORM");
@@ -397,12 +421,25 @@ describe("the page's three sections — W10, Brian 2026-08-31", () => {
     ]);
   });
 
-  it("Onboarding says plainly that it is not built yet, and carries no rows", async () => {
+  it("configures exactly three values — no give-up value, no quiet hours, no escalation office", async () => {
+    vi.mocked(readOnboardingChaseSettings).mockResolvedValue(
+      onboardingChaseSettings({ firstChaseAfterHours: 48, chaseCount: 4, chaseIntervalDays: 3 }),
+    );
     render(await MessagingSchedulePage());
 
     const section = screen.getByTestId("onboarding-section");
-    expect(section.textContent).toMatch(/not built yet/i);
-    expect(section.querySelectorAll("form")).toHaveLength(0);
+    expect(section.textContent).not.toMatch(/not built yet/i);
+    expect(section.querySelectorAll("form")).toHaveLength(1);
+
+    expect(within(section).getByLabelText("First chase after joining")).toHaveValue(48);
+    expect(within(section).getByLabelText("Ask this many times")).toHaveValue(4);
+    expect(within(section).getByLabelText("Every")).toHaveValue(3);
+
+    // No give-up value, no quiet hours, no per-item owner, no escalation
+    // office — `OD7-cadence-is-the-config`'s own boundary.
+    expect(section.textContent).not.toMatch(/give up/i);
+    expect(section.textContent).not.toMatch(/quiet hours/i);
+    expect(section.textContent).not.toMatch(/president/i);
   });
 
   it("the QR code is not on this page at all — W10: 'This workflow is the cycle and nothing else'", async () => {

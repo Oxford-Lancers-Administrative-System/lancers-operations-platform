@@ -17,6 +17,17 @@ vi.mock("@/lib/services/people-directory", () => ({
   DEFAULT_MISSING_SORT: "missing",
   MISSING_QUEUE_SORT_COLUMNS: ["missing", "name"],
 }));
+vi.mock("@/lib/db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/db")>();
+  // This suite renders the page with no real database behind it; the chase
+  // columns' own read (`readOnboardingChaseQueueInfoIn`, mocked below) never
+  // touches the transaction it is handed, so a stub is all `withTransaction`
+  // needs to provide here.
+  return { ...actual, withTransaction: vi.fn((fn: (tx: unknown) => unknown) => fn({})) };
+});
+vi.mock("@/lib/services/onboarding-chase", () => ({
+  readOnboardingChaseQueueInfoIn: vi.fn().mockResolvedValue(new Map()),
+}));
 
 import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator";
 import { listMissingDataQueue } from "@/lib/services/people-directory";
@@ -76,7 +87,7 @@ describe("the missing-data queue, for an authorized operator", () => {
       ],
     });
 
-    const { container } = render(await MissingDataPage(pageProps()));
+    const { container } = render(await MissingDataPage(pageProps({ players: "all" })));
 
     // jsdom does not evaluate MUI's `sx` breakpoints (`roster/screens.test.tsx`'s
     // own documented limitation), so both the desktop table row and the phone
@@ -107,7 +118,7 @@ describe("the missing-data queue, for an authorized operator", () => {
       ],
     });
 
-    render(await MissingDataPage(pageProps({ fact: "emergency_contact" })));
+    render(await MissingDataPage(pageProps({ fact: "emergency_contact", players: "all" })));
 
     expect(screen.getAllByRole("link", { name: "Correct" })[0]).toHaveAttribute(
       "href",
@@ -134,7 +145,9 @@ describe("the missing-data queue, for an authorized operator", () => {
       totalMissing: 5,
       entries: [],
     });
-    const filtered = render(await MissingDataPage(pageProps({ q: "Nobody Named This" })));
+    const filtered = render(
+      await MissingDataPage(pageProps({ q: "Nobody Named This", players: "all" })),
+    );
     expect(filtered.getByTestId("missing-filter-empty")).toBeVisible();
   });
 });
@@ -160,7 +173,7 @@ describe("the desktop table's Missing column — W7-01, correcting F1", () => {
       ],
     });
 
-    render(await MissingDataPage(pageProps()));
+    render(await MissingDataPage(pageProps({ players: "all" })));
 
     // The approved W7-01 mockup draws five columns — Name, Status, To the
     // club, Missing, action — with sorting reached through the Missing
@@ -195,7 +208,7 @@ describe("the desktop table's Missing column — W7-01, correcting F1", () => {
       ],
     });
 
-    render(await MissingDataPage(pageProps({ sort: "name", dir: "asc" })));
+    render(await MissingDataPage(pageProps({ sort: "name", dir: "asc", players: "all" })));
     const table = screen.getByRole("table", { name: "Missing data" });
     expect(within(table).getByRole("link", { name: /Missing/ })).toHaveAttribute(
       "href",
@@ -227,7 +240,7 @@ describe("the desktop table's Missing column — W7-01, correcting F1", () => {
       ],
     });
 
-    render(await MissingDataPage(pageProps({ sort: "missing", dir: "desc" })));
+    render(await MissingDataPage(pageProps({ sort: "missing", dir: "desc", players: "all" })));
     const table = screen.getByRole("table", { name: "Missing data" });
     expect(within(table).getByRole("link", { name: /Name/ })).toHaveAttribute(
       "href",

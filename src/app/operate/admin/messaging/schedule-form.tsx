@@ -11,10 +11,16 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import type { RecruitmentCycleStep } from "@/lib/services/recruitment-cycle";
+import type { OnboardingChaseSettings } from "@/lib/services/onboarding-chase";
 import { EMPTY_ADMIN_ACTION_STATE } from "../action-state";
 import AdminOutcome from "../outcome";
-import { updateOneMessagingScheduleAction, updateRecruitmentCycleStepsAction } from "./actions";
+import {
+  updateOneMessagingScheduleAction,
+  updateOnboardingChaseSettingsAction,
+  updateRecruitmentCycleStepsAction,
+} from "./actions";
 import { CYCLE_STEP_FIELDS, CYCLE_STEP_LABELS } from "./cycle-validation";
+import { ONBOARDING_CHASE_FIELDS } from "./onboarding-chase-validation";
 import {
   CYCLE_STEP_TIMING_UNIT,
   EVENT_MESSAGING_SECTION_HEADING,
@@ -23,8 +29,10 @@ import {
   MESSAGING_SCHEDULE_FOOTER,
   MESSAGING_SCHEDULE_RULE_DETAIL,
   MESSAGING_SCHEDULE_RULE_HEADLINE,
+  ONBOARDING_CHASE_ROW_LABEL,
+  ONBOARDING_CHASE_SAVE_LABEL,
+  ONBOARDING_CHASE_SECTION_NOTE,
   ONBOARDING_SECTION_HEADING,
-  ONBOARDING_SECTION_NOTE,
   RECRUITMENT_SECTION_HEADING,
   RECRUITMENT_SECTION_INTRO,
   RECRUITS_GROUP_HEADING,
@@ -84,9 +92,11 @@ const LADDER_FIELDS: readonly FieldBoundsShape[] = SCHEDULE_FIELDS.slice(3, 6);
 export default function MessagingScheduleForm({
   rows,
   cycleSteps,
+  onboardingChase,
 }: {
   rows: readonly ScheduleRowData[];
   cycleSteps: readonly RecruitmentCycleStep[];
+  onboardingChase: OnboardingChaseSettings;
 }) {
   const stepsByName = new Map(cycleSteps.map((step) => [step.step, step]));
   const welcome = stepsByName.get("welcome");
@@ -142,11 +152,9 @@ export default function MessagingScheduleForm({
         </Typography>
       </Stack>
 
-      <Stack spacing={1} data-testid="onboarding-section">
-        <SectionHeading title={ONBOARDING_SECTION_HEADING} note={null} />
-        <Typography variant="body2" color="text.secondary">
-          {ONBOARDING_SECTION_NOTE}
-        </Typography>
+      <Stack spacing={1.5} data-testid="onboarding-section">
+        <SectionHeading title={ONBOARDING_SECTION_HEADING} note={ONBOARDING_CHASE_SECTION_NOTE} />
+        <OnboardingChaseRow settings={onboardingChase} />
       </Stack>
     </Stack>
   );
@@ -247,6 +255,71 @@ function CycleStepRow({
         <Stack direction="row" sx={{ justifyContent: "flex-end" }}>
           <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
             {saveLabel}
+          </Button>
+        </Stack>
+
+        <AdminOutcome state={state} />
+      </Stack>
+    </Paper>
+  );
+}
+
+/**
+ * The Onboarding section's one row — LAN-218, `W11-01`. Cloned in idiom, not
+ * in code, from {@link CycleStepRow}: one Paper, one form, three narrow
+ * fields and one SAVE — "how many times, how often, and the first delay" and
+ * nothing else. No give-up value, no quiet hours, no per-item owner, no
+ * escalation-office field — `OD7-cadence-is-the-config`'s own boundary; there
+ * is nothing here to draw for any of them.
+ */
+function OnboardingChaseRow({ settings }: { settings: OnboardingChaseSettings }) {
+  const [state, formAction, pending] = useActionState(
+    updateOnboardingChaseSettingsAction,
+    EMPTY_ADMIN_ACTION_STATE,
+  );
+
+  return (
+    <Paper
+      component="form"
+      action={formAction}
+      variant="outlined"
+      sx={{ p: 2 }}
+      data-testid="onboarding-chase-row"
+    >
+      <Typography
+        variant="subtitle2"
+        sx={{ fontWeight: 700 }}
+        data-testid="onboarding-chase-row-label"
+      >
+        {ONBOARDING_CHASE_ROW_LABEL}
+      </Typography>
+
+      <Stack spacing={2} sx={{ mt: 0.5 }}>
+        <Box sx={{ display: "flex", gap: 3, flexWrap: "wrap", alignItems: "flex-end" }}>
+          {ONBOARDING_CHASE_FIELDS.map((field) => (
+            <Box key={field.key} data-field={field.key} sx={{ minWidth: 0 }}>
+              <TextField
+                name={field.key}
+                id={`onboarding.${field.key}`}
+                label={field.label}
+                type="number"
+                size="small"
+                defaultValue={settings[field.key]}
+                sx={{ width: 220 }}
+                slotProps={{
+                  htmlInput: { min: field.min, max: field.max, step: 1 },
+                  input: field.unit
+                    ? { endAdornment: <InputAdornment position="end">{field.unit}</InputAdornment> }
+                    : undefined,
+                }}
+              />
+            </Box>
+          ))}
+        </Box>
+
+        <Stack direction="row" sx={{ justifyContent: "flex-end" }}>
+          <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
+            {ONBOARDING_CHASE_SAVE_LABEL}
           </Button>
         </Stack>
 

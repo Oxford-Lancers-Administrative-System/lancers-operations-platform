@@ -1,34 +1,40 @@
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Card from "@mui/material/Card";
-import Chip from "@mui/material/Chip";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import TableSortLabel from "@mui/material/TableSortLabel";
 import Typography from "@mui/material/Typography";
-import { isServiceError } from "@/lib/db";
+import { isServiceError, withTransaction } from "@/lib/db";
 import {
   DEFAULT_MISSING_SORT,
   listMissingDataQueue,
   type MissingQueue,
   type PeopleScope,
-  type PersonListEntry,
 } from "@/lib/services/people-directory";
 import { REQUIRED_FIELD_LABELS, type RequiredField } from "@/lib/services/person-required";
+import {
+  readOnboardingChaseQueueInfoIn,
+  type OnboardingChaseQueueInfo,
+} from "@/lib/services/onboarding-chase";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../../gate";
 import MissingFilters from "./missing-filters";
 import { labelFor, statusColour, STATUS_LABELS } from "../presentation";
+import {
+  chaseNeedsAHuman,
+  formatChaseNext,
+  formatLastContact,
+  isNudgeable,
+} from "./chase-presentation";
+import QueueBoard, { type QueueRowView } from "./queue-board";
 
 /**
  * `W7-01` … `W7-05`, `W7-07` — the missing-data queue. LAN-184,
- * `REQ-missing-queue`.
+ * `REQ-missing-queue`. Extended by `W8`/`W9`/`W11` (LAN-218) with two columns
+ * — when each person was last contacted and what kind it was, and when the
+ * machine will next write, or that it will not — and one action: select one
+ * person or several, and nudge.
  *
  * Every person tied to the season in view (or, widened, outside it) with at
  * least one required fact absent, naming which facts per row and never a
@@ -36,6 +42,13 @@ import { labelFor, statusColour, STATUS_LABELS } from "../presentation";
  * `refused` or `not applicable` state here, so a departed alumnus with no
  * personal email — `W7-07` — sits in this queue indefinitely until Mission 7
  * builds the state that would retire the row.
+ *
+ * `W8`'s own locked recommendation: this page defaults to onboarding players
+ * only, with Mission 5's full shipped scope one click away
+ * (`?players=all`) — a second, independent widen from the existing
+ * in-season/outside-season one, because "everybody with missing data" and
+ * "everybody, including people outside this season" answer different
+ * questions.
  */
 
 function first(value: string | string[] | undefined): string {
@@ -70,9 +83,11 @@ export default async function MissingDataPage({
   const status = first(params.status);
   const factParam = first(params.fact);
   const fact: RequiredField | null = isRequiredField(factParam) ? factParam : null;
-  const sort = first(params.sort) || DEFAULT_MISSING_SORT;
+  const explicitSort = first(params.sort);
+  const sort = explicitSort || DEFAULT_MISSING_SORT;
   const direction = first(params.dir) || (sort === "missing" ? "desc" : "asc");
   const scope: PeopleScope = first(params.scope) === "outside" ? "outside_season" : "in_season";
+  const onboardingOnly = first(params.players) !== "all";
   const filtered = search !== "" || status !== "" || fact !== null;
 
   let queue: MissingQueue;
@@ -84,6 +99,7 @@ export default async function MissingDataPage({
       fact,
       sort,
       direction,
+      onlyOnboardingPlayers: onboardingOnly,
     });
   } catch (error) {
     if (!isServiceError(error)) throw error;
@@ -96,25 +112,80 @@ export default async function MissingDataPage({
     );
   }
 
+  const totalMissing = queue.totalMissing;
+  let entries = queue.entries;
+
+  // `W8`'s own delegated sort — longest-waiting first, never-contacted at the
+  // top — applies only on first open of the onboarding-only view; an
+  // operator's own explicit `sort` choice (Name/Missing, from the shipped
+  // headers below) always wins once made.
+  const chaseInfo: ReadonlyMap<string, OnboardingChaseQueueInfo> =
+    entries.length > 0
+      ? await withTransaction((tx) =>
+          readOnboardingChaseQueueInfoIn(
+            tx,
+            entries
+              .map((entry) => entry.membershipId)
+              .filter((id): id is string => typeof id === "string"),
+          ),
+        )
+      : new Map();
+
+  if (onboardingOnly && explicitSort === "") {
+    entries = [...entries].sort((a, b) => {
+      const aWhen = a.membershipId ? chaseInfo.get(a.membershipId)?.lastContact?.occurredAt : null;
+      const bWhen = b.membershipId ? chaseInfo.get(b.membershipId)?.lastContact?.occurredAt : null;
+      const aTime = aWhen ? aWhen.getTime() : -Infinity;
+      const bTime = bWhen ? bWhen.getTime() : -Infinity;
+      if (aTime !== bTime) return aTime - bTime;
+      return a.displayName.localeCompare(b.displayName);
+    });
+  }
+
+  const rows: QueueRowView[] = entries.map((entry) => {
+    const info = entry.membershipId ? chaseInfo.get(entry.membershipId) : undefined;
+    const isOnboarding = entry.status === "onboarding";
+    const next = isOnboarding && info ? info.next : null;
+    return {
+      personId: entry.personId,
+      membershipId: isOnboarding ? (entry.membershipId ?? null) : null,
+      displayName: entry.displayName,
+      statusLabel: entry.status === null ? null : labelFor(STATUS_LABELS, entry.status),
+      statusColour: statusColour(entry.status),
+      clubRoleSummary: entry.clubRoleSummary,
+      missingFieldLabels: entry.missingRequiredFields.map((field) => REQUIRED_FIELD_LABELS[field]),
+      correctHref: `/operate/people/${entry.personId}/edit?from=missing`,
+      personHref: `/operate/people/${entry.personId}`,
+      lastContactLabel: isOnboarding ? formatLastContact(info?.lastContact ?? null) : null,
+      nextLabel: next ? formatChaseNext(next) : null,
+      nextNeedsAHuman: next ? chaseNeedsAHuman(next) : false,
+      nudgeable: next ? isNudgeable(next) : false,
+    };
+  });
+
   const basePath = "/operate/people/missing";
-  const outsideHref = `${basePath}?scope=outside`;
-  const backHref = basePath;
-  const totalFactsMissing = queue.entries.reduce(
+  const outsideHref = withPlayersParam(`${basePath}?scope=outside`, onboardingOnly);
+  const backHref = withPlayersParam(basePath, onboardingOnly);
+  const widenPlayersHref = withScopeParam(`${basePath}?players=all`, scope);
+  const narrowPlayersHref = withScopeParam(basePath, scope);
+  const totalFactsMissing = entries.reduce(
     (sum, entry) => sum + entry.missingRequiredFields.length,
     0,
   );
 
-  const countLabel = `${queue.totalMissing} of ${queue.totalMissing} ${
-    queue.totalMissing === 1 ? "person" : "people"
-  }`;
+  const scopeLabel =
+    scope === "in_season"
+      ? `Season ${queue.season.label}`
+      : `Outside the ${queue.season.label} season`;
+  const playersLabel = onboardingOnly ? "onboarding players" : "everybody with missing data";
+
+  const countLabel = `${totalMissing} of ${totalMissing} ${totalMissing === 1 ? "person" : "people"}`;
   const subline =
-    queue.totalMissing === 0
-      ? scope === "in_season"
-        ? `Season ${queue.season.label} · nothing missing`
-        : `Outside the ${queue.season.label} season · nothing missing`
+    totalMissing === 0
+      ? `${scopeLabel} · nothing missing among ${playersLabel}`
       : filtered
-        ? `${scope === "in_season" ? `Season ${queue.season.label}` : `Outside the ${queue.season.label} season`} · ${queue.entries.length} of ${queue.totalMissing} people · ${totalFactsMissing} facts`
-        : `${scope === "in_season" ? `Season ${queue.season.label}` : `Outside the ${queue.season.label} season`} · ${countLabel} · ${totalFactsMissing} facts`;
+        ? `${scopeLabel} · ${entries.length} of ${totalMissing} people · ${totalFactsMissing} facts`
+        : `${scopeLabel} · ${countLabel} · ${totalFactsMissing} facts`;
 
   return (
     <Stack spacing={3}>
@@ -131,17 +202,38 @@ export default async function MissingDataPage({
             {subline}
           </Typography>
         </Box>
-        {queue.entries.length > 0 || queue.totalMissing === 0 ? (
-          scope === "in_season" ? (
-            <Button variant="outlined" href={outsideHref} sx={{ minHeight: 44 }}>
-              See people outside this season
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+          {onboardingOnly ? (
+            <Button
+              variant="text"
+              href={widenPlayersHref}
+              sx={{ minHeight: 44 }}
+              data-testid="see-everyone-with-missing-data"
+            >
+              See everybody with missing data
             </Button>
           ) : (
-            <Button variant="outlined" href={backHref} sx={{ minHeight: 44 }}>
-              Back to this season
+            <Button
+              variant="text"
+              href={narrowPlayersHref}
+              sx={{ minHeight: 44 }}
+              data-testid="see-onboarding-players-only"
+            >
+              Onboarding players only
             </Button>
-          )
-        ) : null}
+          )}
+          {entries.length > 0 || totalMissing === 0 ? (
+            scope === "in_season" ? (
+              <Button variant="outlined" href={outsideHref} sx={{ minHeight: 44 }}>
+                See people outside this season
+              </Button>
+            ) : (
+              <Button variant="outlined" href={backHref} sx={{ minHeight: 44 }}>
+                Back to this season
+              </Button>
+            )
+          ) : null}
+        </Stack>
       </Stack>
 
       <MissingFilters
@@ -155,54 +247,89 @@ export default async function MissingDataPage({
         direction={direction}
       />
 
-      {queue.entries.length === 0 ? (
-        <EmptyQueue totalMissing={queue.totalMissing} scope={scope} outsideHref={outsideHref} />
+      {entries.length === 0 ? (
+        <EmptyQueue totalMissing={totalMissing} scope={scope} outsideHref={outsideHref} />
       ) : (
-        <>
-          <TableContainer
-            component={Paper}
-            variant="outlined"
-            sx={{ display: { xs: "none", md: "block" } }}
-          >
-            <Table size="small" aria-label="Missing data">
-              <TableHead>
-                <TableRow>
-                  <SortableHeader
-                    column="name"
-                    label="Name"
-                    sort={sort}
-                    direction={direction}
-                    query={params}
-                  />
-                  <TableCell>Status</TableCell>
-                  <TableCell>To the club</TableCell>
-                  <SortableHeader
-                    column="missing"
-                    label="Missing"
-                    sort={sort}
-                    direction={direction}
-                    query={params}
-                  />
-                  <TableCell />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {queue.entries.map((person) => (
-                  <QueueRow key={person.personId} person={person} />
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          <Stack spacing={2} sx={{ display: { xs: "flex", md: "none" } }}>
-            {queue.entries.map((person) => (
-              <QueueCard key={person.personId} person={person} />
-            ))}
-          </Stack>
-        </>
+        <QueueBoard
+          rows={rows}
+          nameHeader={
+            <SortableHeader
+              column="name"
+              label="Name"
+              sort={sort}
+              direction={direction}
+              query={params}
+            />
+          }
+          missingHeader={
+            <SortableHeader
+              column="missing"
+              label="Missing"
+              sort={sort}
+              direction={direction}
+              query={params}
+            />
+          }
+        />
       )}
     </Stack>
   );
+}
+
+function SortableHeader({
+  column,
+  label,
+  sort,
+  direction,
+  query,
+}: {
+  column: string;
+  label: string;
+  sort: string;
+  direction: string;
+  query: Record<string, string | string[] | undefined>;
+}) {
+  const active = sort === column;
+  const next = active
+    ? direction === "asc"
+      ? "desc"
+      : "asc"
+    : column === "missing"
+      ? "desc"
+      : "asc";
+
+  const params = new URLSearchParams();
+  for (const key of ["q", "status", "fact", "scope", "players"]) {
+    const value = first(query[key]);
+    if (value !== "") params.set(key, value);
+  }
+  params.set("sort", column);
+  params.set("dir", next);
+
+  return (
+    <TableCell sortDirection={active ? (direction === "asc" ? "asc" : "desc") : false}>
+      <TableSortLabel
+        active={active}
+        direction={active && direction === "desc" ? "desc" : "asc"}
+        href={`/operate/people/missing?${params.toString()}`}
+        component="a"
+      >
+        {label}
+      </TableSortLabel>
+    </TableCell>
+  );
+}
+
+function withPlayersParam(href: string, onboardingOnly: boolean): string {
+  if (onboardingOnly) return href;
+  const joiner = href.includes("?") ? "&" : "?";
+  return `${href}${joiner}players=all`;
+}
+
+function withScopeParam(href: string, scope: PeopleScope): string {
+  if (scope !== "outside_season") return href;
+  const joiner = href.includes("?") ? "&" : "?";
+  return `${href}${joiner}scope=outside`;
 }
 
 /**
@@ -255,152 +382,5 @@ function EmptyQueue({
         </Stack>
       </Stack>
     </Paper>
-  );
-}
-
-function SortableHeader({
-  column,
-  label,
-  sort,
-  direction,
-  query,
-}: {
-  column: string;
-  label: string;
-  sort: string;
-  direction: string;
-  query: Record<string, string | string[] | undefined>;
-}) {
-  const active = sort === column;
-  const next = active
-    ? direction === "asc"
-      ? "desc"
-      : "asc"
-    : column === "missing"
-      ? "desc"
-      : "asc";
-
-  const params = new URLSearchParams();
-  for (const key of ["q", "status", "fact", "scope"]) {
-    const value = first(query[key]);
-    if (value !== "") params.set(key, value);
-  }
-  params.set("sort", column);
-  params.set("dir", next);
-
-  return (
-    <TableCell sortDirection={active ? (direction === "asc" ? "asc" : "desc") : false}>
-      <TableSortLabel
-        active={active}
-        direction={active && direction === "desc" ? "desc" : "asc"}
-        href={`/operate/people/missing?${params.toString()}`}
-        component="a"
-      >
-        {label}
-      </TableSortLabel>
-    </TableCell>
-  );
-}
-
-/** A row names which facts are absent — the queue shows an absence, never a value. */
-function GapsCell({ person }: { person: PersonListEntry }) {
-  return (
-    <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-      {person.missingRequiredFields.map((field) => (
-        <Chip
-          key={field}
-          size="small"
-          variant="outlined"
-          color="warning"
-          label={REQUIRED_FIELD_LABELS[field]}
-        />
-      ))}
-    </Stack>
-  );
-}
-
-function QueueRow({ person }: { person: PersonListEntry }) {
-  return (
-    <TableRow hover data-testid="missing-row">
-      <TableCell>
-        <Button
-          href={`/operate/people/${person.personId}`}
-          sx={{
-            textAlign: "left",
-            justifyContent: "flex-start",
-            p: 0,
-            textTransform: "none",
-            fontWeight: 600,
-          }}
-        >
-          {person.displayName}
-        </Button>
-      </TableCell>
-      <TableCell>
-        {person.status === null ? (
-          <Typography color="text.secondary">—</Typography>
-        ) : (
-          <Chip
-            size="small"
-            label={labelFor(STATUS_LABELS, person.status)}
-            color={statusColour(person.status)}
-          />
-        )}
-      </TableCell>
-      <TableCell>
-        {person.clubRoleSummary ?? <Typography color="text.secondary">—</Typography>}
-      </TableCell>
-      <TableCell>
-        <GapsCell person={person} />
-      </TableCell>
-      <TableCell>
-        {/* LAN-185 builds `/operate/people/[personId]/edit`; this routes to
-            correction and, once that surface writes a redirect back here, will
-            return the operator to the next row — `W7`'s own handoff. */}
-        <Button
-          variant="outlined"
-          size="small"
-          href={`/operate/people/${person.personId}/edit?from=missing`}
-          sx={{ minHeight: 36 }}
-        >
-          Correct
-        </Button>
-      </TableCell>
-    </TableRow>
-  );
-}
-
-function QueueCard({ person }: { person: PersonListEntry }) {
-  return (
-    <Card variant="outlined" data-testid="missing-card" sx={{ p: 2 }}>
-      <Stack spacing={1}>
-        <Button
-          href={`/operate/people/${person.personId}`}
-          sx={{
-            textAlign: "left",
-            justifyContent: "flex-start",
-            p: 0,
-            textTransform: "none",
-            fontWeight: 700,
-          }}
-        >
-          {person.displayName}
-        </Button>
-        <Typography variant="caption" color="text.secondary">
-          {person.clubRoleSummary ?? "—"}
-        </Typography>
-        <GapsCell person={person} />
-        <Box>
-          <Button
-            variant="outlined"
-            size="small"
-            href={`/operate/people/${person.personId}/edit?from=missing`}
-            sx={{ minHeight: 44 }}
-          >
-            Correct
-          </Button>
-        </Box>
-      </Stack>
-    </Card>
   );
 }
