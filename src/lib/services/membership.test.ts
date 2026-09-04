@@ -1182,11 +1182,11 @@ describe("resolveOnboardingItem", () => {
   // `observer` connects as the `postgres` superuser and bypasses every grant,
   // so a permission-denied assertion here would prove nothing.
 
-  // B-002 (correction round 2, Brian): "Kit Distributed" (renamed from "Kit
+  // B-001 (correction round 2, Brian): "Kit Distributed" (renamed from "Kit
   // sorted") is reduced to yes/no. `waived` and `not_applicable` never apply
   // to this one item; every other item keeps the full four-resolution set
   // proved above.
-  describe("Kit Distributed is binary — B-002", () => {
+  describe("Kit Distributed is binary — B-001", () => {
     async function kitItem(membershipId: string) {
       const membership = await readMembership(membershipId);
       return membership.onboardingItems.find((item) => item.code === "kit_sorted")!;

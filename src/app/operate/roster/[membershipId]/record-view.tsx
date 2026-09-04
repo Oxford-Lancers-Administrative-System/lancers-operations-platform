@@ -85,7 +85,7 @@ import {
 const ITEM_RESOLUTIONS = Object.freeze(["complete", "waived", "not_applicable", "reopen"] as const);
 
 /**
- * B-002 (correction round 2, Brian): "Kit sorted" is renamed "Kit
+ * B-001 (correction round 2, Brian): "Kit sorted" is renamed "Kit
  * Distributed" and reduced to yes/no — has the kit been distributed or not.
  * No waived, no claimed, no reopen on this one item; every other item keeps
  * the full state set above. There is no new schema value for "not

@@ -473,6 +473,26 @@ describe("mergePersons — the successful merge", () => {
     expect(audit.rows[0].reason).toBe("Same person, entered twice");
   });
 
+  // B-004 (correction round 2, Brian: "When it says not recorded, it's not
+  // recorded. It doesn't defer. It just is not there.") — pre-existing from
+  // LAN-185, fixed here as one comparison: a field compared against an
+  // absent (null) value on either side must not draw the "differs" warning.
+  it("never flags a field as differing when one side has no value at all — B-004", async () => {
+    const survivorId = await insertPerson({ givenName: unique("Survivor") });
+    const loserId = await insertPerson({ givenName: unique("Loser") });
+    await observer.query(`update public.people set college = 'Merton' where id = $1::uuid`, [
+      loserId,
+    ]);
+    // The survivor's own college is left null — genuinely absent, not a
+    // second value to disagree with the loser's.
+
+    const preview = await previewPersonMerge(survivorId, loserId);
+    const collegeField = preview.fields.find((field) => field.field === "college")!;
+    expect(collegeField.survivorValue).toBeNull();
+    expect(collegeField.loserValue).toBe("Merton");
+    expect(collegeField.differs).toBe(false);
+  });
+
   it("combines a duplicate prospect pair onto the survivor: earliest contact, furthest-along status", async () => {
     const survivorId = await insertPerson({ givenName: unique("Survivor") });
     const loserId = await insertPerson({ givenName: unique("Loser") });

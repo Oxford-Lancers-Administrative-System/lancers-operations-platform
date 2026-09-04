@@ -170,7 +170,7 @@ export const OPERATOR_ITEM_RESOLUTIONS: readonly OnboardingItemResolution[] = Ob
 /** `reopen`'s one destination — back to outstanding, from any terminal state (`R2-R`, `R4-T`). */
 const REOPEN_TARGET_STATUS: OnboardingItemStatus = "pending";
 
-/** B-002 (correction round 2): the one item reduced to yes/no — never waived, never not-applicable. */
+/** B-001 (correction round 2): the one item reduced to yes/no — never waived, never not-applicable. */
 const KIT_DISTRIBUTED_ITEM_CODE = "kit_sorted";
 
 export interface OnboardingItem {
@@ -888,7 +888,7 @@ export async function resolveOnboardingItem(params: {
       });
     }
 
-    // B-002 (correction round 2, Brian): Kit Distributed is binary — yes or
+    // B-001 (correction round 2, Brian): Kit Distributed is binary — yes or
     // no, has the kit been distributed. `waived` and `not_applicable` never
     // apply to this one item; `reopen` still reaches the same `pending` a
     // "No" answer needs, so that stays available, just never as a menu

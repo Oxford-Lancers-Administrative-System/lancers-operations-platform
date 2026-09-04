@@ -374,11 +374,11 @@ describe("W6 — the resolve control's own Reopen option", () => {
   });
 });
 
-// B-002 (correction round 2, Brian): "Kit sorted" is renamed "Kit
+// B-001 (correction round 2, Brian): "Kit sorted" is renamed "Kit
 // Distributed" and reduced to yes/no — no waived, no claimed, no reopen
 // offered on this one item; every other item keeps the full set proved
 // above.
-describe("B-002 — Kit Distributed is binary", () => {
+describe("B-001 — Kit Distributed is binary", () => {
   it("shows Yes/No only, never Waived or Not applicable or a Reopen option", async () => {
     givenRecord({
       onboardingItems: [

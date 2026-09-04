@@ -576,7 +576,7 @@ describe("onboardingItems — the roster board's own onboarding columns", () => 
     expect(afterRow.onboardingItems["subs_invoiced"]).toMatchObject({ status: "pending" });
   });
 
-  it("refuses Kit Distributed a waiver — B-002's binary reduction holds through the board's own action", async () => {
+  it("refuses Kit Distributed a waiver — B-001's binary reduction holds through the board's own action", async () => {
     const board = await listRosterBoard();
     const row = board.rows.find((entry) => entry.membershipId === membershipId)!;
     const kitItemId = row.onboardingItems["kit_sorted"]?.id;
