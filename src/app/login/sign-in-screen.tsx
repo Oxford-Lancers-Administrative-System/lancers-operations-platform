@@ -16,7 +16,7 @@ export default function SignInScreen({
   redirectTo,
   justReset,
 }: {
-  redirectTo?: string;
+  redirectTo: string;
   justReset: boolean;
 }) {
   return (
