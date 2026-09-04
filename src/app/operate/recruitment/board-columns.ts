@@ -1,5 +1,6 @@
 import type { RecruitmentBoardRow, RecruitmentEventColumn } from "@/lib/services/recruitment-board";
 import { PROSPECT_STATUS_LABELS, CONSENT_LABELS } from "@/lib/services/recruitment-vocabulary";
+import { BAND_COLOURS as KIT_BANDS } from "@/components/section";
 
 /**
  * The recruit board's column model — `W1`, LAN-204. Modelled directly on
@@ -34,12 +35,13 @@ type BandKind = "person" | "recruitment" | "events";
 export const BAND_COLOURS: Readonly<
   Record<"person" | "recruitment", { header: string; tint: string }>
 > = Object.freeze({
-  person: { header: "#455a64", tint: "rgba(69, 90, 100, 0.045)" },
-  recruitment: { header: "#00695c", tint: "rgba(0, 105, 92, 0.05)" },
+  // LAN-225: the club palette from the kit — tokens only, no board behaviour change.
+  person: { header: KIT_BANDS.person.header, tint: KIT_BANDS.person.tint },
+  recruitment: { header: KIT_BANDS.recruitment.header, tint: KIT_BANDS.recruitment.tint },
 });
 
 /** The Events band reuses the Season band's own blue, `W1`'s own reasoning. */
-export const EVENTS_BAND_COLOUR = { header: "#0b3d91", tint: "rgba(11, 61, 145, 0.04)" };
+export const EVENTS_BAND_COLOUR = { header: KIT_BANDS.season.header, tint: KIT_BANDS.season.tint };
 
 export const BAND_ROW_HEIGHT = 28;
 export const BAND_LABEL_INSET_PX = 16;

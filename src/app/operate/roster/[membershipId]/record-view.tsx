@@ -47,6 +47,7 @@ import {
   type BandDef,
 } from "../board-columns";
 import JerseyPicker from "../jersey-picker";
+import { BAND_COLOURS as KIT_BANDS } from "@/components/section";
 import { NOT_RECORDED, NotRecorded, RecordField, Row, Section } from "../../record-shell";
 import AttendanceSection from "./attendance-section";
 import {
@@ -667,8 +668,9 @@ function Headline({
  * percentage, and a traffic-light hue would read as a verdict on the number.
  */
 const ATTENDANCE_BAND: Pick<BandDef, "header" | "tint"> = Object.freeze({
-  header: "#4527a0",
-  tint: "rgba(69, 39, 160, 0.05)",
+  // LAN-225 (brief §1.5): the purple goes; attendance reads on the neutral band.
+  header: KIT_BANDS.attendance.header,
+  tint: KIT_BANDS.attendance.tint,
 });
 
 /**

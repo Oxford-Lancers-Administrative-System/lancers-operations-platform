@@ -2,6 +2,8 @@ import { roleCodesPermit } from "@/lib/auth/capabilities";
 import type { PositionOptions, RosterBoardRow } from "@/lib/services/roster-board";
 import { MEMBERSHIP_STATUS_LABELS } from "./presentation";
 
+// LAN-225: the three bands take the club palette from the kit — tokens only, no board behaviour change.
+import { BAND_COLOURS } from "@/components/section";
 /**
  * The board's column model — LAN-186. What `chore/roster-fidelity-mockup`'s
  * `columns.ts` demonstrated, built for real: every column is one entry here,
@@ -59,23 +61,17 @@ export const BANDS: readonly BandDef[] = Object.freeze([
   Object.freeze({
     key: "person" as const,
     label: "Person",
-    header: "#455a64",
-    tint: "rgba(69, 90, 100, 0.045)",
-    solid: "#f4f5f6",
+    ...BAND_COLOURS.person,
   }),
   Object.freeze({
     key: "onboarding" as const,
     label: "Onboarding",
-    header: "#b26a00",
-    tint: "rgba(178, 106, 0, 0.055)",
-    solid: "#fbf6ef",
+    ...BAND_COLOURS.onboarding,
   }),
   Object.freeze({
     key: "season" as const,
     label: "Season",
-    header: "#0b3d91",
-    tint: "rgba(11, 61, 145, 0.04)",
-    solid: "#f4f6fa",
+    ...BAND_COLOURS.season,
   }),
 ]);
 

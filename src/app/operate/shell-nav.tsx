@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Box from "@mui/material/Box";
@@ -11,6 +17,13 @@ import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
 import Typography from "@mui/material/Typography";
 import { ADMINISTRATION_SECTION, type Destination } from "./destinations";
+import { BrandMark } from "@/components/brand-mark";
+import { CLUB, LAYOUT } from "@/theme";
+
+/** Sidebar secondary text: Sky Blue on Oxford Blue, 10.67 (theme.ts contrast block). */
+const SIDEBAR_MUTED = CLUB.skyBlue;
+/** The rule between sidebar groups and above the account block. */
+const SIDEBAR_RULE = "rgba(255, 255, 255, 0.18)";
 
 /**
  * The shell's navigation — LAN-195. One element set, laid out two ways by CSS
@@ -97,6 +110,7 @@ export default function ShellNav({
   administration = [],
   sectionLabel,
   roleCaption,
+  accountAction,
 }: {
   operatorName: string;
   destinations: readonly Destination[];
@@ -113,6 +127,13 @@ export default function ShellNav({
   sectionLabel: string;
   /** The line under the signed-in name: "Authorized operator", or "Head Coach". */
   roleCaption: string;
+  /**
+   * LAN-225 (audit B3): the sign-out form, rendered in the account block so a
+   * phone never spends 180px of its first screen on the account before the
+   * page title. A slot rather than an import, because the action is a server
+   * function and this is a client component.
+   */
+  accountAction?: ReactNode;
 }) {
   const pathname = usePathname();
   // Deliberately viewport-independent — see the doc comment above. Closed on
@@ -152,8 +173,11 @@ export default function ShellNav({
           justifyContent: "flex-start",
           minHeight: 48,
           color: "inherit",
-          "&.Mui-selected": { bgcolor: "grey.800" },
-          "&.Mui-selected:hover": { bgcolor: "grey.800" },
+          // LAN-225 (audit B1): the active item is a Sky Blue tint with Oxford
+          // Blue text (10.67), never Royal Blue on Oxford Blue (1.82).
+          "&:hover": { bgcolor: "rgba(255, 255, 255, 0.08)" },
+          "&.Mui-selected": { bgcolor: CLUB.skyBlue, color: "primary.main" },
+          "&.Mui-selected:hover": { bgcolor: CLUB.skyBlue },
         }}
       >
         <ListItemText
@@ -166,7 +190,7 @@ export default function ShellNav({
           secondary={destination.detail}
           slotProps={{
             primary: { sx: { fontWeight: current ? 700 : 500 } },
-            secondary: { sx: { color: "grey.400" } },
+            secondary: { sx: { color: current ? "primary.main" : SIDEBAR_MUTED } },
           }}
         />
       </ListItemButton>
@@ -191,15 +215,23 @@ export default function ShellNav({
           right: 0,
           height: 56,
           alignItems: "center",
-          bgcolor: "grey.900",
+          bgcolor: "primary.main",
           color: "common.white",
           px: 1,
+          gap: 0.5,
           zIndex: (theme) => theme.zIndex.appBar,
         }}
       >
         <IconButton aria-label="Open navigation" onClick={openDrawer} sx={{ color: "inherit" }}>
           <MenuGlyph />
         </IconButton>
+        {/*
+          LAN-225, delta S0-d. LAN-195's choice 1 kept this bar to the hamburger
+          because the main content's own heading said "Lancers Operations"
+          beneath it. Audit B2 removes that heading, so the crest and the name
+          move here. Brian may revert to the bare hamburger at visual review.
+        */}
+        <BrandMark tone="onDark" size={24} testId="phone-brand" />
       </Box>
 
       {/*
@@ -230,10 +262,10 @@ export default function ShellNav({
         }}
         sx={[
           {
-            bgcolor: "grey.900",
+            bgcolor: "primary.main",
             color: "common.white",
             flexShrink: 0,
-            width: { xs: 280, md: 226 },
+            width: { xs: LAYOUT.drawerWidth, md: LAYOUT.sidebarWidth },
             maxWidth: { xs: "85vw", md: "none" },
             position: { xs: "fixed", md: "sticky" },
             top: 0,
@@ -305,14 +337,8 @@ export default function ShellNav({
             pb: 2,
           }}
         >
-          <Box>
-            <Typography variant="overline" sx={{ color: "grey.400", lineHeight: 1.4 }}>
-              Lancers
-            </Typography>
-            <Typography component="p" variant="h6" sx={{ fontWeight: 700 }}>
-              {sectionLabel}
-            </Typography>
-          </Box>
+          {/* LAN-225 (audit B1): the crest, the club's name, the section caption. */}
+          <BrandMark tone="onDark" size={32} caption={sectionLabel} testId="sidebar-brand" />
           {/*
             The first of the three approved dismiss paths. Hidden at `md`,
             where there is nothing to dismiss.
@@ -331,13 +357,13 @@ export default function ShellNav({
           {destinations.map(renderDestination)}
 
           {administration.length > 0 ? (
-            <Divider aria-hidden sx={{ borderColor: "grey.800", mx: 1, my: 1 }} />
+            <Divider aria-hidden sx={{ borderColor: SIDEBAR_RULE, mx: 1, my: 1 }} />
           ) : null}
           {administration.length > 0 ? (
             <Typography
               component="li"
               variant="overline"
-              sx={{ color: "grey.400", px: 2, lineHeight: 1.6 }}
+              sx={{ color: SIDEBAR_MUTED, px: 2, lineHeight: 1.6 }}
             >
               {ADMINISTRATION_SECTION}
             </Typography>
@@ -345,13 +371,19 @@ export default function ShellNav({
           {administration.map(renderDestination)}
         </List>
 
-        <Box sx={{ borderTop: 1, borderColor: "grey.800", mt: "auto", px: 3, py: 2 }}>
+        <Box sx={{ borderTop: 1, borderColor: SIDEBAR_RULE, mt: "auto", px: 3, py: 2 }}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
             {operatorName}
           </Typography>
-          <Typography variant="caption" sx={{ color: "grey.400" }} data-testid="shell-role-caption">
+          <Typography
+            variant="caption"
+            component="p"
+            sx={{ color: SIDEBAR_MUTED }}
+            data-testid="shell-role-caption"
+          >
             {roleCaption}
           </Typography>
+          {accountAction ? <Box sx={{ mt: 1.5 }}>{accountAction}</Box> : null}
         </Box>
       </Box>
     </>
