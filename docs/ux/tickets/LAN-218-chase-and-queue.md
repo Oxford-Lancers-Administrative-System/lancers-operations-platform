@@ -20,11 +20,11 @@ rest at `main@332bc6b`).
 
 ## Owned screens and routes
 
-| Screen                   | Route/surface                                    | Audience                                                                                |
-| ------------------------ | ------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `W11-01`                 | `/operate/admin/messaging` (LAN-171, unchanged as a route) | `delivery_administration`                                                          |
-| `W8-01`…`W8-03`, `W9-01` | `/operate/people/missing` (LAN-184, unchanged as a route)  | `person_record_authority`: President, Vice-President, Secretary, General Manager, IT Officer |
-| `W9-02`                  | `/operate/roster/[membershipId]` (LAN-186/187, unchanged) | Whoever already opens that record — a concurrently shipped package's own surface, not touched here |
+| Screen                   | Route/surface                                              | Audience                                                                                           |
+| ------------------------ | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `W11-01`                 | `/operate/admin/messaging` (LAN-171, unchanged as a route) | `delivery_administration`                                                                          |
+| `W8-01`…`W8-03`, `W9-01` | `/operate/people/missing` (LAN-184, unchanged as a route)  | `person_record_authority`: President, Vice-President, Secretary, General Manager, IT Officer       |
+| `W9-02`                  | `/operate/roster/[membershipId]` (LAN-186/187, unchanged)  | Whoever already opens that record — a concurrently shipped package's own surface, not touched here |
 
 `W9`'s escalation message itself draws no screen anywhere — it is a message,
 over WhatsApp or email, to whoever currently holds the configured office; its
@@ -110,12 +110,12 @@ dropped, per the locked recommendation.
 Every fact this package shows is derived from `notification_jobs` and its own
 idempotency-key shape (`onboarding-chase:`, `onboarding-nudge:`,
 `onboarding-chase-exhausted:`, `onboarding-chase-escalation:`), on
-`emitOnboardingOpenedWelcomeIn`'s own idiom. "Exhausted" is `deliveredCount
->= chaseCount`, never a stored flag; "terminal delivery failure" is a chase
-attempt whose own retry ceiling is reached with no delivered outcome; "next
-automated contact" is computed from the configured cadence and the last
-delivered attempt (or joining, for the first). Nothing here adds a column, a
-table, or a new domain concept.
+`emitOnboardingOpenedWelcomeIn`'s own idiom. "Exhausted" is a delivered-attempt
+count reaching the configured cap, never a stored flag; "terminal delivery
+failure" is a chase attempt whose own retry ceiling is reached with no
+delivered outcome; "next automated contact" is computed from the configured
+cadence and the last delivered attempt (or joining, for the first). Nothing
+here adds a column, a table, or a new domain concept.
 
 ## Explicitly not in this ticket
 
