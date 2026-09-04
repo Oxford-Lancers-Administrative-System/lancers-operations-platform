@@ -232,12 +232,23 @@ export interface OnboardingChaseProgress {
    * membership's cap has *not* run out, delivery to it has.
    */
   readonly currentAttemptTerminallyFailed: boolean;
+  /**
+   * Correction round 1, C-5 (Brian, 2026-09-03 walkthrough): the same
+   * provider-neutral sentence `delivery.ts`'s own event-delivery reader shows
+   * an operator (`DeliveryRow.failureReason`, itself `notification_jobs.last_error`)
+   * — read here from the identical failed attempt's `delivery_results.detail`
+   * rather than reimplemented, so the two surfaces can never describe the same
+   * failure two different ways. `null` unless {@link currentAttemptTerminallyFailed}
+   * is true.
+   */
+  readonly terminalFailureReason: string | null;
 }
 
 const NO_PROGRESS: OnboardingChaseProgress = Object.freeze({
   deliveredCount: 0,
   lastDeliveredAt: null,
   currentAttemptTerminallyFailed: false,
+  terminalFailureReason: null,
 });
 
 /**
@@ -267,7 +278,7 @@ export async function readOnboardingChaseProgressIn(
   const membershipIdPattern = `^${ONBOARDING_CHASE_KEY_PREFIX}([0-9a-f-]+):`;
   const latestAttemptJoin = `
     left join lateral (
-      select r.outcome::text as outcome, r.occurred_at
+      select r.outcome::text as outcome, r.occurred_at, r.detail
         from public.delivery_results r
        where r.notification_job_id = j.id
        order by r.attempt_number desc
@@ -292,12 +303,14 @@ export async function readOnboardingChaseProgressIn(
       status: string;
       attempt_count: number;
       outcome: string | null;
+      detail: string | null;
     }>(
       `select distinct on (membership_id)
           substring(j.idempotency_key from '${membershipIdPattern}') as membership_id,
           j.status::text as status,
           j.attempt_count,
-          latest.outcome
+          latest.outcome,
+          latest.detail
         from public.notification_jobs j
         ${latestAttemptJoin}
        where j.idempotency_key like '${ONBOARDING_CHASE_KEY_PREFIX}%'
@@ -309,6 +322,7 @@ export async function readOnboardingChaseProgressIn(
   ]);
 
   const terminallyFailed = new Set<string>();
+  const terminalFailureReasons = new Map<string, string | null>();
   for (const row of latest.rows) {
     if (!row.membership_id) continue;
     if (
@@ -317,15 +331,20 @@ export async function readOnboardingChaseProgressIn(
       row.attempt_count >= MAX_ATTEMPTS
     ) {
       terminallyFailed.add(row.membership_id);
+      terminalFailureReasons.set(row.membership_id, row.detail);
     }
   }
 
   for (const row of delivered.rows) {
     if (!row.membership_id) continue;
+    const isTerminallyFailed = terminallyFailed.has(row.membership_id);
     progress.set(row.membership_id, {
       deliveredCount: row.delivered_count,
       lastDeliveredAt: row.last_delivered_at,
-      currentAttemptTerminallyFailed: terminallyFailed.has(row.membership_id),
+      currentAttemptTerminallyFailed: isTerminallyFailed,
+      terminalFailureReason: isTerminallyFailed
+        ? (terminalFailureReasons.get(row.membership_id) ?? null)
+        : null,
     });
   }
   // A membership with a terminal-failure marker but zero delivered attempts
@@ -334,7 +353,11 @@ export async function readOnboardingChaseProgressIn(
   // but belt and braces: a membership present only in `latest` is folded in).
   for (const membershipId of terminallyFailed) {
     if (!progress.has(membershipId)) {
-      progress.set(membershipId, { ...NO_PROGRESS, currentAttemptTerminallyFailed: true });
+      progress.set(membershipId, {
+        ...NO_PROGRESS,
+        currentAttemptTerminallyFailed: true,
+        terminalFailureReason: terminalFailureReasons.get(membershipId) ?? null,
+      });
     }
   }
 
@@ -351,9 +374,25 @@ export interface OnboardingChaseCandidate {
   readonly deliveredCount: number;
   readonly lastDeliveredAt: Date | null;
   readonly currentAttemptTerminallyFailed: boolean;
+  /** {@link OnboardingChaseProgress.terminalFailureReason}, carried through unchanged. */
+  readonly terminalFailureReason: string | null;
   /** From the compiled ask — a missing required field or an unresolved checklist item, either counts. */
   readonly hasOutstanding: boolean;
   readonly hasConsent: boolean;
+  /**
+   * Correction round 1, C-1/C-2 (Brian, 2026-09-03 walkthrough — Jorvik
+   * Kirkbride and Kenelm Netherby, an email and no phone, "nudge reported
+   * failed"). Read off the identical compiled ask {@link hasOutstanding}
+   * already reads (`ask.missingRequiredFields`) rather than a second query —
+   * `mobile` is required at every tier `person-required.ts` defines, so its
+   * absence there is exactly "no reachable number", the same fact the
+   * missing-data queue's own Missing column already names. `true` when the
+   * compiled ask could not be read at all (a vanishingly rare race between
+   * this read and the membership's own deletion) — the benign default
+   * {@link hasOutstanding} already takes in that case, rather than a second,
+   * differently-defaulted unknown.
+   */
+  readonly hasReachableNumber: boolean;
   readonly isUnder18: boolean;
 }
 
@@ -398,6 +437,7 @@ async function buildCandidatesIn(
     ]);
     const hasOutstanding =
       ask !== null && (ask.missingRequiredFields.length > 0 || ask.outstandingItems.length > 0);
+    const hasReachableNumber = ask === null || !ask.missingRequiredFields.includes("mobile");
     const p = progress.get(row.id) ?? NO_PROGRESS;
 
     candidates.push({
@@ -408,8 +448,10 @@ async function buildCandidatesIn(
       deliveredCount: p.deliveredCount,
       lastDeliveredAt: p.lastDeliveredAt,
       currentAttemptTerminallyFailed: p.currentAttemptTerminallyFailed,
+      terminalFailureReason: p.terminalFailureReason,
       hasOutstanding,
       hasConsent,
+      hasReachableNumber,
       isUnder18,
     });
   }
@@ -450,12 +492,19 @@ export async function readOnboardingChaseCandidatesForMembershipsIn(
   return new Map(candidates.map((candidate) => [candidate.membershipId, candidate]));
 }
 
-/** What the queue's "Next" column says, per `T11-visibility` / `REQ-queue-visibility`. */
+/**
+ * What the queue's "Next" column says, per `T11-visibility` / `REQ-queue-visibility`.
+ *
+ * `reason: "no_consent"` is gone as of correction round 1, `C-4` (Q-11,
+ * recorded against `LAN-218`) — see the paragraph in
+ * {@link describeOnboardingChaseNext}'s own comment below. `reason:
+ * "no_channel"` is new, `C-1` of the same round.
+ */
 export type OnboardingChaseNext =
   | { readonly kind: "scheduled"; readonly at: Date }
   | { readonly kind: "exhausted" }
-  | { readonly kind: "unmessageable"; readonly reason: "no_consent" | "under_18" }
-  | { readonly kind: "terminal_failure" }
+  | { readonly kind: "unmessageable"; readonly reason: "no_channel" | "under_18" }
+  | { readonly kind: "terminal_failure"; readonly reason: string | null }
   | { readonly kind: "no_automated_chase" };
 
 /**
@@ -468,9 +517,37 @@ export type OnboardingChaseNext =
  * Order matters and is deliberate: a chase that has run its full course
  * (`exhausted`) is reported before a person's messageability is even
  * considered, because `W9`'s exhaustion is permanent and does not become
- * "unmessageable" retroactively if consent is later withdrawn — and an
- * under-18 flag is checked before consent, because a person can hold granted
- * consent and still be unmessageable by the stricter rule.
+ * "unmessageable" retroactively if a number is later added or consent later
+ * withdrawn. `under_18` is checked next and stays exactly where it was — an
+ * absolute rule, unaffected by anything below it. `no_channel` — no reachable
+ * mobile number — is checked immediately after, and deliberately *before*
+ * `terminal_failure`: a missing number is a structural, not-fixable-by-retry
+ * defect exactly like `under_18`, so it must never be masked by a generic
+ * "ran out of retries" verdict once the automated chase has actually burned
+ * through its attempts against it (`C-1`/`C-2`/`C-3`, Brian's 2026-09-03
+ * walkthrough — Jorvik Kirkbride and Kenelm Netherby, an email and no phone,
+ * "his nudge reported failed").
+ *
+ * ## `no_consent` — removed, not narrowed (`C-4`, Q-11)
+ *
+ * This reader's only population is `season_memberships.status = 'onboarding'`
+ * — a person already on the team, never a recruit still deciding whether to
+ * join one (`onboarding-chase.ts`'s own module note: recruits carry no
+ * membership row at all, so they never reach this list). Brian, 2026-09-03:
+ * "Only a recruit may decline messaging, and only while a recruit… A team
+ * member without consent is not unmessageable — they still receive the
+ * onboarding and consent form, which is the first page of onboarding." The
+ * approved `W8-01` mockup's wording ("Unmessageable · no consent") was
+ * therefore superseded in session ("then amend it") rather than found to be a
+ * departure from it: consent not yet granted is this population's ordinary,
+ * expected starting state, not a refusal, and this function no longer treats
+ * it as a reason to withhold the schedule it would otherwise report. Nothing
+ * about `mayReceiveWelcomeContactIn`'s own refuse-without-basis check
+ * (`messaging-consent.ts`, `REQ-transport`) changes — the welcome still goes
+ * regardless of a basis, and a genuine `refused`/`withdrawn` consent still
+ * stops it there — this function simply stops modelling a second, queue-only
+ * copy of that state. No departure is triggered here or anywhere this
+ * correction round touches; that stays the human matter Brian named it.
  */
 export function describeOnboardingChaseNext(
   candidate: Pick<
@@ -478,9 +555,10 @@ export function describeOnboardingChaseNext(
     | "deliveredCount"
     | "lastDeliveredAt"
     | "joinedAt"
-    | "hasConsent"
+    | "hasReachableNumber"
     | "isUnder18"
     | "currentAttemptTerminallyFailed"
+    | "terminalFailureReason"
   >,
   settings: Pick<
     OnboardingChaseSettings,
@@ -490,8 +568,10 @@ export function describeOnboardingChaseNext(
   if (settings.chaseCount === 0) return { kind: "no_automated_chase" };
   if (candidate.deliveredCount >= settings.chaseCount) return { kind: "exhausted" };
   if (candidate.isUnder18) return { kind: "unmessageable", reason: "under_18" };
-  if (!candidate.hasConsent) return { kind: "unmessageable", reason: "no_consent" };
-  if (candidate.currentAttemptTerminallyFailed) return { kind: "terminal_failure" };
+  if (!candidate.hasReachableNumber) return { kind: "unmessageable", reason: "no_channel" };
+  if (candidate.currentAttemptTerminallyFailed) {
+    return { kind: "terminal_failure", reason: candidate.terminalFailureReason };
+  }
 
   const base =
     candidate.deliveredCount === 0

@@ -10,12 +10,12 @@
  * Merrick Thornbury, Odile Marchmont) with no messaging consent recorded for
  * anyone at all — a true, unremarkable state for a mission this package's
  * predecessors never needed consent to exist. This script grants consent for
- * three of them and gives each a chase history, so the missing-data queue's
+ * four of them and gives each a chase history, so the missing-data queue's
  * three new columns have something real to show without inventing new
  * people: `seed-local.mjs`'s own deterministic dataset stays exactly as
  * every other suite already depends on it.
  *
- * Four states, on four people already in the fixture:
+ * Five states, on five people already in the fixture:
  *
  *   - **Jorvik Kirkbride** — mid-chase. Welcome, one delivered follow-up, the
  *     next due on the configured interval.
@@ -30,11 +30,27 @@
  *     follow-up. `OD7-depart-stops`: the membership moves to `departed`, the
  *     prior chase history is left exactly as it was, and nothing further is
  *     ever declared for it.
+ *   - **Odile Marchmont** — correction round 1, `C-1` (Brian, 2026-09-03
+ *     walkthrough): consent granted and a personal email on file, but no
+ *     phone contact at all — `seed-local.mjs`'s own recruit-sourced arrivals
+ *     carry no contact points until the club adds one, which is exactly
+ *     Jorvik and Kenelm's own real shape the day Brian hit this ("an email
+ *     and no phone"). Nothing is declared or attempted for her; the row's
+ *     whole point is what the queue says about a person nobody has ever
+ *     tried to message yet, not a chase history.
  *
- * A fifth state — `chase_count = 0`, "no automated chase at all" — is
+ * **Lysander Croft is deliberately left untouched** — no consent, no contact
+ * point of any kind — the "genuinely never asked, and also unreachable"
+ * case, on the same footing as before this correction: this queue reports
+ * the unreachable number ahead of the consent state (see
+ * `onboarding-chase.ts`'s own comment on the two states' priority), so his
+ * row reads identically to Odile's despite reaching that state by a
+ * different route.
+ *
+ * A sixth state — `chase_count = 0`, "no automated chase at all" — is
  * deliberately **not** written here: `onboarding_chase_settings` is one row
  * shared by the whole club, and setting it to zero live would silence the
- * automated chase for the four people above, erasing every other state this
+ * automated chase for the people above, erasing every other state this
  * script exists to show. It is proved instead by the Onboarding section's
  * own form on `/operate/admin/messaging`, which accepts and saves zero
  * (`onboarding-chase-validation.test.ts`, `onboarding-chase.test.ts`) — an
@@ -44,7 +60,9 @@
  * key or is guarded by an existence check, so a second run changes nothing.
  * Synthetic only, on the same seeded people every other suite already reads;
  * no real member data, no real send — every delivery outcome here is written
- * directly to `delivery_results`, never sent to a provider.
+ * directly to `delivery_results`, never sent to a provider, and the one email
+ * address added below is the same `@mail.example` synthetic shape
+ * `seed-local.mjs` already uses throughout.
  */
 import { config } from "dotenv";
 import { resolve, dirname } from "node:path";
@@ -332,13 +350,34 @@ try {
     );
   }
 
+  // --- Odile Marchmont: consent granted, no reachable number (C-1) ---------
+  // Correction round 1, C-1 (Brian, 2026-09-03 walkthrough): Jorvik Kirkbride
+  // and Kenelm Netherby, "an email and no phone" — both already carry a
+  // mobile number in this fixture (they had to, to have a chase history
+  // above), so neither can show the defect Brian actually hit any more.
+  // Odile arrived through `seed-local.mjs`'s recruit path with no contact
+  // point at all; granting consent and adding only a personal email
+  // reproduces the exact shape without touching anyone else's history.
+  const odile = await personByGivenName(client, "Odile");
+  await grantConsent(client, odile.person_id, odile.season_id);
+  await client.query(
+    `insert into public.contact_points (person_id, kind, raw_value, is_preferred, scope)
+     select $1::uuid, 'email', $2, true, 'personal'
+      where not exists (
+        select 1 from public.contact_points
+         where person_id = $1::uuid and kind = 'email' and scope = 'personal'
+      )`,
+    [odile.person_id, "odile.marchmont@mail.example"],
+  );
+
   await client.query("commit");
 
-  console.log("Seeded the onboarding chase's four review states:");
+  console.log("Seeded the onboarding chase's five review states:");
   console.log("  Jorvik Kirkbride   — mid-chase");
   console.log("  Kenelm Netherby    — exhausted");
   console.log("  Lucian             — terminal delivery failure");
   console.log("  Merrick Thornbury  — left mid-onboarding");
+  console.log("  Odile Marchmont    — consent granted, no reachable number (C-1)");
   console.log(
     "A chase_count of zero is provable on the Onboarding form itself; see the module note.",
   );

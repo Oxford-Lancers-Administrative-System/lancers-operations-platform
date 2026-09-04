@@ -37,6 +37,7 @@ import {
   describeOnboardingChaseNext,
   listOnboardingChaseCandidatesIn,
   readOnboardingChaseProgressIn,
+  readOnboardingChaseSettingsIn,
   setOnboardingChaseSettingsIn,
 } from "./onboarding-chase";
 import { setMembershipStatus } from "./membership";
@@ -402,19 +403,27 @@ describe("REQ-cap-delivered — the count is spent only on delivered messages", 
       readOnboardingChaseProgressIn(tx, [failedMembershipId]),
     );
     expect(terminalProgress.get(failedMembershipId)?.currentAttemptTerminallyFailed).toBe(true);
+    // C-5 (correction round 1): the same "undeliverable" the provider
+    // callback recorded above is read back here, off `delivery_results`,
+    // rather than a generic marker — proving the reason survives the
+    // progress read before the presentation layer ever sees it.
+    expect(terminalProgress.get(failedMembershipId)?.terminalFailureReason).toBe("undeliverable");
 
+    const terminalFailureReason =
+      terminalProgress.get(failedMembershipId)?.terminalFailureReason ?? null;
     const next = describeOnboardingChaseNext(
       {
         deliveredCount: 0,
         lastDeliveredAt: null,
         joinedAt: new Date(0),
-        hasConsent: true,
+        hasReachableNumber: true,
         isUnder18: false,
         currentAttemptTerminallyFailed: true,
+        terminalFailureReason,
       },
       { chaseCount: 4, firstChaseAfterHours: 48, chaseIntervalDays: 3 },
     );
-    expect(next).toEqual({ kind: "terminal_failure" });
+    expect(next).toEqual({ kind: "terminal_failure", reason: "undeliverable" });
 
     // And no automated chase advances to ordinal 2 in its place.
     const { transport: sweepAgain } = acceptingTransport();
@@ -429,9 +438,10 @@ describe("describeOnboardingChaseNext — the pure derivation", () => {
     deliveredCount: 0,
     lastDeliveredAt: null as Date | null,
     joinedAt: new Date("2026-08-01T00:00:00Z"),
-    hasConsent: true,
+    hasReachableNumber: true,
     isUnder18: false,
     currentAttemptTerminallyFailed: false,
+    terminalFailureReason: null as string | null,
   };
 
   it("reports exhausted once delivered attempts reach the configured count", () => {
@@ -440,16 +450,36 @@ describe("describeOnboardingChaseNext — the pure derivation", () => {
     });
   });
 
-  it("reports unmessageable — under 18 — before consent is even considered", () => {
+  it("reports unmessageable — under 18 — before a missing number is even considered", () => {
     expect(
-      describeOnboardingChaseNext({ ...base, isUnder18: true, hasConsent: false }, settings),
+      describeOnboardingChaseNext(
+        { ...base, isUnder18: true, hasReachableNumber: false },
+        settings,
+      ),
     ).toEqual({ kind: "unmessageable", reason: "under_18" });
   });
 
-  it("reports unmessageable — no consent — for a person who is not under 18", () => {
-    expect(describeOnboardingChaseNext({ ...base, hasConsent: false }, settings)).toEqual({
+  // Correction round 1, C-1 (Brian, 2026-09-03 walkthrough): Jorvik
+  // Kirkbride and Kenelm Netherby, an email and no phone, "his nudge
+  // reported failed" — a person who holds consent but has no mobile number
+  // must be refused, not classed messageable. Restore the pre-correction
+  // behaviour (drop the `hasReachableNumber` check) and this fails: the
+  // person is reported as `scheduled` for a chase that can never send.
+  it("reports unmessageable — no channel — for a person with no reachable number, C-1", () => {
+    expect(describeOnboardingChaseNext({ ...base, hasReachableNumber: false }, settings)).toEqual({
       kind: "unmessageable",
-      reason: "no_consent",
+      reason: "no_channel",
+    });
+  });
+
+  // Correction round 1, C-4 (Q-11): a team member without granted consent is
+  // no longer unmessageable at all — the approved W8-01 wording was
+  // superseded in session. Restore the dropped `!hasConsent` check and this
+  // fails: the person reports `unmessageable` instead of the schedule below.
+  it("no longer reports unmessageable for a person who has not granted consent, C-4/Q-11", () => {
+    expect(describeOnboardingChaseNext({ ...base }, settings)).toEqual({
+      kind: "scheduled",
+      at: new Date(base.joinedAt.getTime() + 48 * 3_600_000),
     });
   });
 
@@ -475,6 +505,30 @@ describe("describeOnboardingChaseNext — the pure derivation", () => {
       kind: "scheduled",
       at: new Date(lastDeliveredAt.getTime() + 3 * 24 * 3_600_000),
     });
+  });
+
+  // Correction round 1, C-5: the terminal-failure verdict carries the real
+  // reason through, and no_channel still outranks it (a structural defect is
+  // reported precisely, never masked by a generic retry-ceiling message).
+  it("carries the real failure reason through, and reports no_channel ahead of it, C-5", () => {
+    expect(
+      describeOnboardingChaseNext(
+        { ...base, currentAttemptTerminallyFailed: true, terminalFailureReason: "blocked" },
+        settings,
+      ),
+    ).toEqual({ kind: "terminal_failure", reason: "blocked" });
+
+    expect(
+      describeOnboardingChaseNext(
+        {
+          ...base,
+          hasReachableNumber: false,
+          currentAttemptTerminallyFailed: true,
+          terminalFailureReason: "blocked",
+        },
+        settings,
+      ),
+    ).toEqual({ kind: "unmessageable", reason: "no_channel" });
   });
 });
 
@@ -759,7 +813,7 @@ describe("W9 — exhaustion escalates once, to the configured office", () => {
 });
 
 describe("listOnboardingChaseCandidatesIn", () => {
-  it("carries every onboarding membership's outstanding, consent and under-18 state", async () => {
+  it("carries every onboarding membership's outstanding, consent, channel and under-18 state", async () => {
     const { personId, membershipId } = await createArrival();
     await grantConsent(personId);
 
@@ -768,7 +822,42 @@ describe("listOnboardingChaseCandidatesIn", () => {
     expect(mine).toBeTruthy();
     expect(mine?.hasOutstanding).toBe(true);
     expect(mine?.hasConsent).toBe(true);
+    expect(mine?.hasReachableNumber).toBe(true);
     expect(mine?.isUnder18).toBe(false);
+  });
+
+  // Correction round 1, C-1, end to end: `createArrival` seeds a real mobile
+  // number, so this is the identical arrival Jorvik Kirkbride and Kenelm
+  // Netherby were missing — invalidating it here reproduces the real defect
+  // Brian hit. Restore the pre-correction `describeOnboardingChaseNext` (no
+  // `hasReachableNumber` check) and the final assertion fails: this person
+  // reports `scheduled`, exactly as it did when the nudge silently failed.
+  it("reports no reachable number once the person's only phone contact is no longer current, C-1", async () => {
+    const { personId, membershipId } = await createArrival();
+    await grantConsent(personId);
+
+    // `contact_points_preferred_must_be_current` refuses a preferred contact
+    // with an end date — `createArrival`'s own seeded phone is preferred, so
+    // it must be demoted in the same statement that retires it.
+    await observer.query(
+      `update public.contact_points set valid_until = current_date, is_preferred = false
+        where person_id = $1 and kind = 'phone'`,
+      [personId],
+    );
+
+    const candidates = await withTransaction((tx) => listOnboardingChaseCandidatesIn(tx));
+    const mine = candidates.find((c) => c.membershipId === membershipId);
+    expect(mine).toBeTruthy();
+    if (!mine) throw new Error("unreachable — asserted above");
+    expect(mine.hasConsent).toBe(true);
+    expect(mine.hasReachableNumber).toBe(false);
+
+    await setChase({ firstChaseAfterHours: 48, chaseCount: 4, chaseIntervalDays: 3 });
+    const settings = await withTransaction((tx) => readOnboardingChaseSettingsIn(tx));
+    expect(describeOnboardingChaseNext(mine, settings)).toEqual({
+      kind: "unmessageable",
+      reason: "no_channel",
+    });
   });
 
   it("never lists a membership once it leaves onboarding", async () => {

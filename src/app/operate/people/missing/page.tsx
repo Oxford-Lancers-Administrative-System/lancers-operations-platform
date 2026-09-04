@@ -49,6 +49,10 @@ import QueueBoard, { type QueueRowView } from "./queue-board";
  * in-season/outside-season one, because "everybody with missing data" and
  * "everybody, including people outside this season" answer different
  * questions.
+ *
+ * Correction round 1, `C-2` (Brian, 2026-09-03 walkthrough): no reachable
+ * mobile number ranks first, above every other ordering this page applies —
+ * see the comment beside the reachability sort below.
  */
 
 function first(value: string | string[] | undefined): string {
@@ -141,6 +145,20 @@ export default async function MissingDataPage({
       return a.displayName.localeCompare(b.displayName);
     });
   }
+
+  // Correction round 1, `C-2` (Brian, 2026-09-03 walkthrough): "a missing
+  // number, an incorrect number, or a number we can't contact means they're
+  // out of the loop. That's a terrible problem" — a class-1 issue, because
+  // everything runs on WhatsApp, and one the plain "how much is missing"
+  // count already buries no higher than a missing degree subject. Applied
+  // last, after every other ordering above (the operator's own explicit
+  // Name/Missing sort, or the onboarding-only default), as a stable
+  // partition — nobody with no reachable number's relative order among
+  // themselves, or a fully-reachable person's, ever changes; only the two
+  // groups swap which comes first. `Array.prototype.sort` has been a stable
+  // sort since ES2019, so this is safe without a second key.
+  const reachabilityRank = (entry: (typeof entries)[number]) => (entry.hasMobile ? 1 : 0);
+  entries = [...entries].sort((a, b) => reachabilityRank(a) - reachabilityRank(b));
 
   const rows: QueueRowView[] = entries.map((entry) => {
     const info = entry.membershipId ? chaseInfo.get(entry.membershipId) : undefined;
