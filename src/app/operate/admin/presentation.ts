@@ -1,3 +1,4 @@
+import { SHORT_MONTHS } from "@/lib/services/event-vocabulary";
 import {
   describeLeadershipLimits,
   describeRoleCapabilities,
@@ -526,9 +527,10 @@ export function formatDay(value: Date | string): string {
 
   const moment = toInstant(value);
   if (!moment) return UNREADABLE_DATE;
-  return `${part(moment, { day: "numeric" })} ${part(moment, { month: "short" })} ${part(moment, {
-    year: "numeric",
-  })}`;
+  // LAN-225, audit A6: one short-month form for the whole application. ICU
+  // renders September as "Sept" on some builds; the vocabulary's own list does not.
+  const month = SHORT_MONTHS[Number(part(moment, { month: "numeric" })) - 1] ?? "";
+  return `${part(moment, { day: "numeric" })} ${month} ${part(moment, { year: "numeric" })}`;
 }
 
 /** "18 Aug 2026, 14:22" — a recorded moment, in the club's own time. */

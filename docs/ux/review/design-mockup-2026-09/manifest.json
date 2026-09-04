@@ -1,0 +1,304 @@
+{
+  "headSha": "3aa807d7cd537c10fdec749ddbe2405bf9a3191e",
+  "at": "2026-09-04T14:58:52.319Z",
+  "captures": [
+    {
+      "id": "S1-roster",
+      "route": "/design-preview/roster",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S1-roster--desktop.png",
+      "pageHeight": 900,
+      "ms": 1913
+    },
+    {
+      "id": "S2-player",
+      "route": "/design-preview/player",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S2-player--desktop.png",
+      "pageHeight": 4794,
+      "ms": 3982
+    },
+    {
+      "id": "S3-event",
+      "route": "/design-preview/event",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S3-event--desktop.png",
+      "pageHeight": 3735,
+      "ms": 7645
+    },
+    {
+      "id": "S4-event-new",
+      "route": "/design-preview/event-new",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S4-event-new--desktop.png",
+      "pageHeight": 1597,
+      "ms": 3380
+    },
+    {
+      "id": "S5-rsvp",
+      "route": "/design-preview/rsvp",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S5-rsvp--desktop.png",
+      "pageHeight": 900,
+      "ms": 4039
+    },
+    {
+      "id": "S5-rsvp-unusable",
+      "route": "/design-preview/rsvp-unusable",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S5-rsvp-unusable--desktop.png",
+      "pageHeight": 900,
+      "ms": 1596
+    },
+    {
+      "id": "S6-report",
+      "route": "/design-preview/report",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S6-report--desktop.png",
+      "pageHeight": 4936,
+      "ms": 5517
+    },
+    {
+      "id": "S7-login",
+      "route": "/design-preview/login",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S7-login--desktop.png",
+      "pageHeight": 900,
+      "ms": 3620
+    },
+    {
+      "id": "S8-operators",
+      "route": "/design-preview/operators",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S8-operators--desktop.png",
+      "pageHeight": 900,
+      "ms": 2294
+    },
+    {
+      "id": "S8-operator",
+      "route": "/design-preview/operator",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S8-operator--desktop.png",
+      "pageHeight": 900,
+      "ms": 2709
+    },
+    {
+      "id": "K-kit",
+      "route": "/design-preview/kit",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "K-kit--desktop.png",
+      "pageHeight": 5050,
+      "ms": 4334
+    },
+    {
+      "id": "index",
+      "route": "/design-preview",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "index--desktop.png",
+      "pageHeight": 1163,
+      "ms": 2877
+    },
+    {
+      "id": "S1-roster",
+      "route": "/design-preview/roster",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S1-roster--phone.png",
+      "pageHeight": 5124,
+      "ms": 3924
+    },
+    {
+      "id": "S2-player",
+      "route": "/design-preview/player",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S2-player--phone.png",
+      "pageHeight": 11478,
+      "ms": 6261
+    },
+    {
+      "id": "S3-event",
+      "route": "/design-preview/event",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S3-event--phone.png",
+      "pageHeight": 9040,
+      "ms": 10373
+    },
+    {
+      "id": "S4-event-new",
+      "route": "/design-preview/event-new",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S4-event-new--phone.png",
+      "pageHeight": 2127,
+      "ms": 4070
+    },
+    {
+      "id": "S5-rsvp",
+      "route": "/design-preview/rsvp",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S5-rsvp--phone.png",
+      "pageHeight": 812,
+      "ms": 4801
+    },
+    {
+      "id": "S5-rsvp-unusable",
+      "route": "/design-preview/rsvp-unusable",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S5-rsvp-unusable--phone.png",
+      "pageHeight": 812,
+      "ms": 2133
+    },
+    {
+      "id": "S6-report",
+      "route": "/design-preview/report",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S6-report--phone.png",
+      "pageHeight": 7002,
+      "ms": 8180
+    },
+    {
+      "id": "S7-login",
+      "route": "/design-preview/login",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S7-login--phone.png",
+      "pageHeight": 812,
+      "ms": 2536
+    },
+    {
+      "id": "S8-operators",
+      "route": "/design-preview/operators",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S8-operators--phone.png",
+      "pageHeight": 868,
+      "ms": 3785
+    },
+    {
+      "id": "S8-operator",
+      "route": "/design-preview/operator",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S8-operator--phone.png",
+      "pageHeight": 1071,
+      "ms": 2554
+    },
+    {
+      "id": "K-kit",
+      "route": "/design-preview/kit",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "K-kit--phone.png",
+      "pageHeight": 6914,
+      "ms": 2438
+    },
+    {
+      "id": "index",
+      "route": "/design-preview",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "index--phone.png",
+      "pageHeight": 1701,
+      "ms": 1978
+    },
+    {
+      "id": "S0-drawer",
+      "route": "/design-preview/roster (drawer open)",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S0-drawer--phone.png"
+    }
+  ]
+}

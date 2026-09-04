@@ -32,7 +32,9 @@ export function ActionBar({
       sx={{
         position: { xs: "sticky", md: "static" },
         bottom: 0,
-        zIndex: (theme) => theme.zIndex.appBar - 1,
+        // A number, not a theme function: this is a Server Component and a function
+        // inside `sx` cannot cross to the client. MUI's appBar is 1100.
+        zIndex: 1099,
         bgcolor: { xs: "background.paper", md: "transparent" },
         borderTop: { xs: 1, md: 0 },
         borderColor: "divider",

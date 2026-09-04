@@ -175,7 +175,7 @@ const SCREENS = [
     deltas: [
       "PageHeader with the guide link in the subtitle slot; Invite operator top right (B5, B6 placement only).",
       "Account status as StatusChip on one vocabulary; RowCards on a phone (E4).",
-      "A6 (taken) — dates read 4 Sep, never 4 Sept.",
+      "A6 (taken, in part) — recorded instants read 4 Sep 2026; calendar dates still go through formatClubDay and read Sept until the implementation mission moves that formatter.",
       "H8 (the operator in two groups) is untouched — Brian's.",
     ],
   },
