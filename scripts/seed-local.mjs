@@ -1109,7 +1109,7 @@ assignRole("defence_coach", defenceCoach, seasonCurrent, "2026-09-01");
 const ONBOARDING_TYPES = [
   ["subs_invoiced", "Subscription invoiced", true, false, "direct"],
   ["subs_paid", "Subscription paid", false, true, "direct"],
-  ["kit_sorted", "Kit sorted", true, false, "direct"],
+  ["kit_sorted", "Kit Distributed", true, false, "direct"],
   ["bucs_play", "BUCS Play registration", true, false, "trust"],
   ["hudl_access", "Hudl access", false, false, "trust"],
   ["photo", "Squad photo", false, false, "direct"],

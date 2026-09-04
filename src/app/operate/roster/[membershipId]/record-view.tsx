@@ -85,6 +85,18 @@ import {
 const ITEM_RESOLUTIONS = Object.freeze(["complete", "waived", "not_applicable", "reopen"] as const);
 
 /**
+ * B-002 (correction round 2, Brian): "Kit sorted" is renamed "Kit
+ * Distributed" and reduced to yes/no — has the kit been distributed or not.
+ * No waived, no claimed, no reopen on this one item; every other item keeps
+ * the full state set above. There is no new schema value for "not
+ * distributed" — it is the item's own ordinary `pending`, reached the same
+ * way `reopen` already reaches it for every other item, just never offered
+ * to the operator as a labelled option of its own on this one row.
+ */
+const KIT_DISTRIBUTED_CODE = "kit_sorted";
+const KIT_DISTRIBUTED_RESOLUTIONS = Object.freeze(["complete", "reopen"] as const);
+
+/**
  * `/operate/roster/[membershipId]` — W6, rebuilt. LAN-187.
  *
  * The client half of the redesigned record: every season fact edits in
@@ -952,6 +964,17 @@ function OnboardingRow({
   onResolve: (status: OnboardingItemResolution) => void;
 }) {
   const editable = !readOnly;
+  const isKitDistributed = item.code === KIT_DISTRIBUTED_CODE;
+  const resolutions = isKitDistributed ? KIT_DISTRIBUTED_RESOLUTIONS : ITEM_RESOLUTIONS;
+  const closedLabel = isKitDistributed
+    ? item.status === "complete"
+      ? "Yes"
+      : "No"
+    : labelFor(ONBOARDING_ITEM_LABELS, item.status);
+  const optionLabel = (status: (typeof resolutions)[number]): string => {
+    if (isKitDistributed) return status === "complete" ? "Yes" : "No";
+    return status === "reopen" ? "Reopen" : labelFor(ONBOARDING_ITEM_LABELS, status);
+  };
 
   return (
     <Row label={item.label} note={provenanceNote(item)}>
@@ -974,12 +997,12 @@ function OnboardingRow({
           displayEmpty
           onClose={onClose}
           onChange={(event) => onResolve(event.target.value as OnboardingItemResolution)}
-          renderValue={() => labelFor(ONBOARDING_ITEM_LABELS, item.status)}
+          renderValue={() => closedLabel}
           sx={{ minWidth: 220 }}
         >
-          {ITEM_RESOLUTIONS.map((status) => (
+          {resolutions.map((status) => (
             <MenuItem key={status} value={status}>
-              {status === "reopen" ? "Reopen" : labelFor(ONBOARDING_ITEM_LABELS, status)}
+              {optionLabel(status)}
             </MenuItem>
           ))}
         </Select>
@@ -1004,7 +1027,7 @@ function OnboardingRow({
               textDecorationColor: "rgba(0,0,0,0.25)",
             }}
           >
-            {labelFor(ONBOARDING_ITEM_LABELS, item.status)}
+            {closedLabel}
           </Typography>
         </Box>
       )}

@@ -38,6 +38,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     eligibility: "eligible",
     availability: "green",
     bps: "No",
+    onboardingItems: {},
     ...overrides,
   };
 }
@@ -107,9 +108,11 @@ describe("buildColumns — positions are sourced from the season vocabulary pass
     expect(widerOffence?.options).toEqual(["QB", "RB"]);
   });
 
-  it("is exactly twenty-one columns including Player", () => {
+  it("is exactly twenty-eight columns including Player", () => {
+    // Correction round 2, item 5 (WP-operator-record, LAN-217) added seven
+    // onboarding-item columns to the twenty-one this test used to name.
     const columns = buildColumns(POSITION_OPTIONS);
-    expect(columns.length + 1).toBe(21);
+    expect(columns.length + 1).toBe(28);
   });
 });
 

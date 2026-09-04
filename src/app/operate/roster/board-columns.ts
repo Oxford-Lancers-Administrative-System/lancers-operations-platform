@@ -98,7 +98,17 @@ export function bandOf(key: Band): BandDef {
  * the one in-cell dropdown Brian asked for, in place of the three bespoke
  * controls the board used to render for it.
  */
-export type EditKind = "none" | "record" | "select" | "multiselect" | "jersey";
+/**
+ * `onboarding` joined under correction round 2, item 5
+ * (`WP-operator-record`, LAN-217): one of the seven operator-ticked
+ * onboarding items, cloning the record page's own asymmetric row — the
+ * closed cell shows the item's real status (`Pending`/`Claimed`/…), the open
+ * one offers the resolution words (`complete`/`waived`/`not_applicable`/
+ * `reopen`) rather than the status vocabulary itself, exactly as
+ * `record-view.tsx`'s `OnboardingRow` already does, because the two are not
+ * the same set (`reopen` is an action, not a status a row can be *in*).
+ */
+export type EditKind = "none" | "record" | "select" | "multiselect" | "jersey" | "onboarding";
 
 export interface ColumnDef {
   readonly key: string;
@@ -108,12 +118,27 @@ export interface ColumnDef {
   readonly options?: readonly string[];
   readonly optionLabels?: Readonly<Record<string, string>>;
   readonly kit?: "blue" | "white";
+  /** `edit: "onboarding"` only — the `onboarding_item_types.code` this column edits, keying `row.onboardingItems`. */
+  readonly itemCode?: string;
+  /** `edit: "onboarding"` only — Kit Distributed's own binary reduction (correction round 2, item 2): Yes/No, never Waived/Not applicable, `reopen` reachable only as "No". */
+  readonly binary?: boolean;
   readonly width: number;
   readonly sortable: boolean;
   readonly filterable: boolean;
   /** The capability a viewer must hold for this column to render at all. */
   readonly requires: "person_record_authority";
 }
+
+/** The four resolutions every onboarding column offers except Kit Distributed — `OPERATOR_ITEM_RESOLUTIONS` in `membership.ts`. */
+export const ONBOARDING_ITEM_RESOLUTIONS = Object.freeze([
+  "complete",
+  "waived",
+  "not_applicable",
+  "reopen",
+]);
+
+/** Kit Distributed's own two — correction round 2, item 2. */
+export const KIT_DISTRIBUTED_RESOLUTIONS = Object.freeze(["complete", "reopen"]);
 
 export const STATUSES = Object.freeze(["onboarding", "active", "inactive", "departed", "archived"]);
 /**
@@ -150,9 +175,10 @@ export const BPS_VALUES = Object.freeze(["Yes", "No"]);
 export const PLAYER_COLUMN_WIDTH = 200;
 
 /**
- * The twenty non-player columns (nineteen from LAN-186, plus BPS —
- * `WP-operator-record`, LAN-217). Twenty-one with `Player`, which is
- * rendered separately because it is pinned and carries no band.
+ * The non-player columns: nineteen from LAN-186, BPS and seven onboarding
+ * item columns from `WP-operator-record` (LAN-217, correction round 2, item
+ * 5) — twenty-seven, twenty-eight with `Player`, which is rendered
+ * separately because it is pinned and carries no band.
  *
  * Position options are threaded in at call time because they are read from
  * the season's own vocabulary (S3) rather than fixed here.
@@ -230,6 +256,97 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       band: "onboarding",
       edit: "none",
       width: 190,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    // Correction round 2, item 5 — the seven operator-ticked items, cloning
+    // the record page's own Onboarding section into the board an operator
+    // already works from. The two derived items
+    // (`contact_academic_details`, `season_welcome_consent`) are not columns
+    // of their own here — nothing an operator ticks — and stay covered by
+    // the summary column above; see the package receipt.
+    {
+      key: "subsInvoiced",
+      label: "Sub invoiced",
+      band: "onboarding",
+      edit: "onboarding",
+      itemCode: "subs_invoiced",
+      options: ONBOARDING_ITEM_RESOLUTIONS,
+      width: 132,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    {
+      key: "subsPaid",
+      label: "Sub paid",
+      band: "onboarding",
+      edit: "onboarding",
+      itemCode: "subs_paid",
+      options: ONBOARDING_ITEM_RESOLUTIONS,
+      width: 132,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    {
+      key: "kitDistributed",
+      label: "Kit Distributed",
+      band: "onboarding",
+      edit: "onboarding",
+      itemCode: "kit_sorted",
+      binary: true,
+      options: KIT_DISTRIBUTED_RESOLUTIONS,
+      width: 120,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    {
+      key: "bucsPlay",
+      label: "BUCS Play",
+      band: "onboarding",
+      edit: "onboarding",
+      itemCode: "bucs_play",
+      options: ONBOARDING_ITEM_RESOLUTIONS,
+      width: 132,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    {
+      key: "hudlAccess",
+      label: "Hudl access",
+      band: "onboarding",
+      edit: "onboarding",
+      itemCode: "hudl_access",
+      options: ONBOARDING_ITEM_RESOLUTIONS,
+      width: 132,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    {
+      key: "squadPhoto",
+      label: "Squad photo",
+      band: "onboarding",
+      edit: "onboarding",
+      itemCode: "photo",
+      options: ONBOARDING_ITEM_RESOLUTIONS,
+      width: 132,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    {
+      key: "commsGroup",
+      label: "Comms group",
+      band: "onboarding",
+      edit: "onboarding",
+      itemCode: "comms_groups",
+      options: ONBOARDING_ITEM_RESOLUTIONS,
+      width: 140,
       sortable: true,
       filterable: true,
       requires: "person_record_authority",
@@ -435,6 +552,13 @@ const COLUMN_ROW_FIELDS: Readonly<Record<string, readonly (keyof RosterBoardRow)
     eligibility: ["eligibility"],
     availability: ["availability"],
     bps: ["bps"],
+    subsInvoiced: ["onboardingItems"],
+    subsPaid: ["onboardingItems"],
+    kitDistributed: ["onboardingItems"],
+    bucsPlay: ["onboardingItems"],
+    hudlAccess: ["onboardingItems"],
+    squadPhoto: ["onboardingItems"],
+    commsGroup: ["onboardingItems"],
   });
 
 /** Redacts a row to exactly the columns this viewer may see, plus identity fields. */

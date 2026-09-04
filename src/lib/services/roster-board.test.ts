@@ -31,6 +31,7 @@ import {
   listRosterBoard,
   readPositionOptions,
 } from "./roster-board";
+import { generateOnboardingItems, resolveOnboardingItem } from "./membership";
 
 const MARKER = "LAN186Board";
 
@@ -73,6 +74,22 @@ async function cleanUp(): Promise<void> {
   ]);
   await observer.query(
     `delete from public.season_membership_status_events where season_membership_id = $1::uuid`,
+    [membershipId],
+  );
+  // Correction round 2, item 5: generateOnboardingItems/resolveOnboardingItem
+  // mint items, their history and their own audit rows for this membership.
+  await observer.query(
+    `delete from public.onboarding_item_history where season_membership_id = $1::uuid`,
+    [membershipId],
+  );
+  await observer.query(
+    `delete from public.audit_events
+      where entity_table = 'onboarding_items'
+        and entity_id in (select id from public.onboarding_items where season_membership_id = $1::uuid)`,
+    [membershipId],
+  );
+  await observer.query(
+    `delete from public.onboarding_items where season_membership_id = $1::uuid`,
     [membershipId],
   );
   await observer.query(`delete from public.audit_events where entity_id = $1::uuid`, [
@@ -523,5 +540,56 @@ describe("commitBps — the roster attribute BPS left the checklist to become", 
       `select 1 from public.onboarding_item_types where code = 'bps'`,
     );
     expect(type.rows).toHaveLength(0);
+  });
+});
+
+/**
+ * Correction round 2, item 5 (`WP-operator-record`, LAN-217): the roster
+ * board's own onboarding-item columns. `listRosterBoard`'s `onboardingItems`
+ * carries the same seven items the record page's own row edits, keyed by
+ * `onboarding_item_types.code`, id and status intact.
+ */
+describe("onboardingItems — the roster board's own onboarding columns", () => {
+  it("carries every item's id and status, and reflects a resolution through the same service call the record page uses", async () => {
+    await withTransaction((tx) => generateOnboardingItems(tx, membershipId, seasonId));
+
+    const before = await listRosterBoard();
+    const beforeRow = before.rows.find((entry) => entry.membershipId === membershipId)!;
+    expect(beforeRow.onboardingItems["kit_sorted"]).toMatchObject({ status: "pending" });
+    expect(beforeRow.onboardingItems["subs_invoiced"]).toMatchObject({ status: "pending" });
+
+    const kitItemId = beforeRow.onboardingItems["kit_sorted"].id;
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: kitItemId,
+      status: "complete",
+    });
+
+    const after = await listRosterBoard();
+    const afterRow = after.rows.find((entry) => entry.membershipId === membershipId)!;
+    expect(afterRow.onboardingItems["kit_sorted"]).toMatchObject({
+      id: kitItemId,
+      status: "complete",
+    });
+    // Untouched items stay untouched — one column's edit is not a checklist-wide rewrite.
+    expect(afterRow.onboardingItems["subs_invoiced"]).toMatchObject({ status: "pending" });
+  });
+
+  it("refuses Kit Distributed a waiver — B-002's binary reduction holds through the board's own action", async () => {
+    const board = await listRosterBoard();
+    const row = board.rows.find((entry) => entry.membershipId === membershipId)!;
+    const kitItemId = row.onboardingItems["kit_sorted"]?.id;
+    expect(kitItemId).toBeDefined();
+
+    await expect(
+      resolveOnboardingItem({
+        actorPersonId,
+        membershipId,
+        itemId: kitItemId!,
+        status: "waived",
+        reason: "Handed over informally",
+      }),
+    ).rejects.toMatchObject({ kind: "constraint_violated" });
   });
 });

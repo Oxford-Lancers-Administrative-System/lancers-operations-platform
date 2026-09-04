@@ -59,8 +59,8 @@ import { personDisplayNameSql } from "./sql-text";
  * to clear the refusal) rather than every row on the loser — and three
  * tables `WP-operator-record` (LAN-217, mission owner-question Q-3/Q-4/Q-5)
  * closed a documented gap on: `season_messaging_consents`, keyed
- * `(person_id, season_id)`, combined per season with the most restrictive
- * state winning (`T07-merge-precedence`, `repointConsents`);
+ * `(person_id, season_id)`, combined per season with the operator's own
+ * choice governing (`repointConsents`, B-003 — correction round 2, Q-10);
  * `onboarding_agreements`, keyed `(person_id, season_id, agreement_type)`,
  * combined with the earlier `agreed_at` winning (`repointAgreements`); and
  * `person_fact_disputes`, at most one OPEN row per `(person_id, field)`,
@@ -329,7 +329,7 @@ export interface PersonMergePreview {
   contacts: MergeContactComparison[];
   aliases: MergeAliasComparison;
   prospectCombinations: MergeProspectCombination[];
-  /** `T07-merge-precedence` — one more line beside the prospect combinations, for the same reason. */
+  /** B-003 — one more operator-choosable row beside the fields and contacts above. */
   consentCombinations: MergeConsentCombination[];
   willMove: MergeMovementLine[];
   /**
@@ -451,71 +451,27 @@ async function readProspectCombinations(
 }
 
 // ---------------------------------------------------------------------------
-// T07-merge-precedence — `WP-operator-record` (LAN-217), mission
-// owner-question Q-3/Q-4, `W7`'s own acceptance locked at the recommendation.
-//
-// `season_messaging_consents` is unique on `(person_id, season_id)`, so a
-// merge of two people who both hold a consent row for the same season cannot
-// keep both. The recommendation, locked as written: the survivor takes the
-// MOST RESTRICTIVE state, never the most recent — if either record says
-// `refused` or `withdrawn`, the survivor is `refused` or `withdrawn`.
-// Consent is permission to contact somebody, and a record-keeping operation
-// — a merge — must never manufacture permission a person actually declined.
-// `refused` and `withdrawn` rank equally restrictive; between two equally
-// restrictive rows, the more recent decision governs, the same way a person
-// re-answering their own consent always does (`grantSeasonMessagingConsentIn`/
-// `withdrawSeasonMessagingConsentIn`, both `changed_at = now()`).
+// Consent at a merge — `WP-operator-record` (LAN-217), mission
+// owner-question Q-3/Q-4. B-003 (correction round 2, Q-10, Brian: "If it is
+// a merge, they obviously get to choose") supersedes `T07-merge-precedence`,
+// which locked the survivor to the most-restrictive state automatically —
+// a recommendation, never an owner decision. `season_messaging_consents` is
+// still unique on `(person_id, season_id)`, so a merge of two people who
+// both hold a consent row for the same season still cannot keep both; which
+// one survives is now the operator's own choice, like any other field or
+// contact row on this same screen, defaulting to the survivor's own value
+// when the operator makes no explicit choice — nothing is imposed.
 // ---------------------------------------------------------------------------
-
-const CONSENT_RESTRICTIVE_STATES: ReadonlySet<string> = new Set(["refused", "withdrawn"]);
-
-/** Higher wins among the three non-restrictive states — a real signal beats none, `granted` beats an unanswered ask. */
-const CONSENT_STATE_RANK: Readonly<Record<string, number>> = Object.freeze({
-  never_asked: 0,
-  asked: 1,
-  granted: 2,
-});
 
 export interface MergeConsentCombination {
   seasonId: string;
   seasonLabel: string;
   survivorState: string;
   loserState: string;
-  combinedState: string;
-  /** `true` when the combined state came from the loser's row rather than the survivor's own. */
-  fromLoser: boolean;
 }
 
-interface ConsentRow {
-  state: string;
-  source: string | null;
-  changed_at: Date;
-}
-
-/** The row that wins T07's precedence — restrictive beats permissive, and the newer decision breaks a restrictive tie. */
-function combineConsentRows(
-  survivor: ConsentRow,
-  loser: ConsentRow,
-): { row: ConsentRow; fromLoser: boolean } {
-  const survivorRestrictive = CONSENT_RESTRICTIVE_STATES.has(survivor.state);
-  const loserRestrictive = CONSENT_RESTRICTIVE_STATES.has(loser.state);
-  if (survivorRestrictive && !loserRestrictive) return { row: survivor, fromLoser: false };
-  if (loserRestrictive && !survivorRestrictive) return { row: loser, fromLoser: true };
-  if (survivorRestrictive && loserRestrictive) {
-    // Both declined contact; the more recent decision is the one the person
-    // actually holds today.
-    return survivor.changed_at >= loser.changed_at
-      ? { row: survivor, fromLoser: false }
-      : { row: loser, fromLoser: true };
-  }
-  // Neither is restrictive — the more informative non-restrictive state wins;
-  // the survivor's own row keeps it on an exact tie.
-  const survivorRank = CONSENT_STATE_RANK[survivor.state] ?? 0;
-  const loserRank = CONSENT_STATE_RANK[loser.state] ?? 0;
-  return loserRank > survivorRank
-    ? { row: loser, fromLoser: true }
-    : { row: survivor, fromLoser: false };
-}
+/** Per-season operator choice for a colliding consent row — `consent_<seasonId>` on the merge form. */
+export type MergeConsentChoices = Partial<Record<string, MergeChoice>>;
 
 async function readConsentCombinations(
   tx: Tx,
@@ -526,15 +482,10 @@ async function readConsentCombinations(
     season_id: string;
     season_label: string;
     survivor_state: string;
-    survivor_source: string | null;
-    survivor_changed_at: Date;
     loser_state: string;
-    loser_source: string | null;
-    loser_changed_at: Date;
   }>(
     `select s.id as season_id, s.label as season_label,
-            a.state::text as survivor_state, a.source::text as survivor_source, a.changed_at as survivor_changed_at,
-            b.state::text as loser_state, b.source::text as loser_source, b.changed_at as loser_changed_at
+            a.state::text as survivor_state, b.state::text as loser_state
        from public.season_messaging_consents a
        join public.season_messaging_consents b
          on b.season_id = a.season_id and b.person_id = $2::uuid
@@ -543,24 +494,12 @@ async function readConsentCombinations(
     [survivorId, loserId],
   );
 
-  return result.rows.map((row) => {
-    const { row: winner, fromLoser } = combineConsentRows(
-      {
-        state: row.survivor_state,
-        source: row.survivor_source,
-        changed_at: row.survivor_changed_at,
-      },
-      { state: row.loser_state, source: row.loser_source, changed_at: row.loser_changed_at },
-    );
-    return {
-      seasonId: row.season_id,
-      seasonLabel: row.season_label,
-      survivorState: row.survivor_state,
-      loserState: row.loser_state,
-      combinedState: winner.state,
-      fromLoser,
-    };
-  });
+  return result.rows.map((row) => ({
+    seasonId: row.season_id,
+    seasonLabel: row.season_label,
+    survivorState: row.survivor_state,
+    loserState: row.loser_state,
+  }));
 }
 
 async function repointConsents(
@@ -568,12 +507,13 @@ async function repointConsents(
   survivorId: string,
   loserId: string,
   combinations: readonly MergeConsentCombination[],
+  choices: MergeConsentChoices,
 ): Promise<void> {
   for (const combo of combinations) {
-    if (combo.fromLoser) {
-      // The loser's row holds the more restrictive (or, on a tie, the newer)
-      // decision — move it onto the survivor's own row rather than leaving
-      // the survivor's own less-restrictive state standing.
+    // B-003: the operator's own choice, defaulting to the survivor's own
+    // value — the same default the comparison screen's radio already shows
+    // pre-selected for every other row.
+    if ((choices[combo.seasonId] ?? "survivor") === "loser") {
       await tx.query(
         `update public.season_messaging_consents a
             set state = b.state, source = b.source, changed_at = b.changed_at,
@@ -584,8 +524,8 @@ async function repointConsents(
         [survivorId, loserId, combo.seasonId],
       );
     }
-    // Whichever side's decision now stands is on the survivor's own row —
-    // the loser's, superseded, is removed the same way a colliding prospect
+    // Whichever side's value now stands is on the survivor's own row — the
+    // loser's, superseded, is removed the same way a colliding prospect
     // season is: the current-state row collapses to one, and every actor
     // column naming who acted is already re-pointed blindly elsewhere
     // (`recorded_by_person_id`, in `PERSON_REFERENCE_COLUMNS`).
@@ -835,7 +775,11 @@ export async function previewPersonMerge(
         label: MERGE_PERSON_FIELD_LABELS[field],
         survivorValue,
         loserValue,
-        differs: survivorValue !== loserValue,
+        // B-004 (correction round 2, Brian): absence is not a difference. A
+        // value compared against an absent (`null`) one on either side is not
+        // recorded, not disputed — the warning chip fires only when both
+        // sides actually hold a value and those values disagree.
+        differs: survivorValue !== null && loserValue !== null && survivorValue !== loserValue,
       };
     });
 
@@ -1017,11 +961,10 @@ export const PERSON_REFERENCE_COLUMNS_EXCLUDED: ReadonlyArray<{
     table: "season_messaging_consents",
     column: "person_id",
     reason:
-      "keyed (person_id, season_id) like recruitment_prospects — `T07-merge-precedence` " +
-      "(WP-operator-record, LAN-217): combined per season before re-pointing, the survivor " +
-      "taking the most restrictive of the two states (refused/withdrawn beats any of " +
-      "never_asked/asked/granted), never the most recent, so a merge can never manufacture " +
-      "permission a person actually declined",
+      "keyed (person_id, season_id) like recruitment_prospects — B-003 (correction round 2, " +
+      "Q-10, WP-operator-record, LAN-217): combined per season before re-pointing, the " +
+      "operator's own explicit choice governing (defaulting to the survivor's own value), " +
+      "the same as any other field or contact row on this same screen",
   },
   {
     table: "onboarding_agreements",
@@ -1361,8 +1304,11 @@ export async function mergePersons(params: {
   loserPersonId: string;
   reason: string;
   fieldChoices: MergeFieldChoices;
+  /** B-003: per-season consent choice, keyed by season id. Undeclared means "keep the survivor's own value" — the same default the comparison screen's radio shows pre-selected. */
+  consentChoices?: MergeConsentChoices;
 }): Promise<MergePersonsResult> {
   const { actorPersonId, survivorPersonId, loserPersonId, fieldChoices } = params;
+  const consentChoices = params.consentChoices ?? {};
   requireActor(actorPersonId);
   const reason = params.reason.trim();
   if (reason === "") {
@@ -1428,9 +1374,9 @@ export async function mergePersons(params: {
     await repointContacts(tx, survivorPersonId, loserPersonId, fieldChoices);
     await repointAliases(tx, survivorPersonId, loserPersonId);
     await repointProspects(tx, survivorPersonId, loserPersonId, combinations);
-    // `T07-merge-precedence` — `WP-operator-record`, LAN-217. Restrictive
-    // wins, never most-recent; see `combineConsentRows`'s own note.
-    await repointConsents(tx, survivorPersonId, loserPersonId, consentCombinations);
+    // B-003 — `WP-operator-record`, LAN-217. The operator's own choice per
+    // season, defaulting to the survivor's own value.
+    await repointConsents(tx, survivorPersonId, loserPersonId, consentCombinations, consentChoices);
     // Mission owner-question Q-3/Q-5 — the two other per-tuple-unique tables
     // this package was assigned to close, the same shape as consents above.
     await repointAgreements(tx, survivorPersonId, loserPersonId);
@@ -1480,7 +1426,8 @@ export async function mergePersons(params: {
         consents_combined: consentCombinations.map((c) => ({
           season_id: c.seasonId,
           season_label: c.seasonLabel,
-          state: c.combinedState,
+          state:
+            (consentChoices[c.seasonId] ?? "survivor") === "loser" ? c.loserState : c.survivorState,
         })),
       },
     });

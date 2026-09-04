@@ -112,6 +112,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     eligibility: null,
     availability: "green",
     bps: "No",
+    onboardingItems: {},
     ...overrides,
   };
 }
@@ -179,7 +180,7 @@ describe("the board itself", () => {
 
     expect(screen.getByTestId("season-label")).toHaveTextContent("Season 2026-27");
     expect(screen.getByTestId("season-label")).toHaveTextContent("1 player");
-    expect(screen.getByTestId("season-label")).toHaveTextContent("21 columns");
+    expect(screen.getByTestId("season-label")).toHaveTextContent("28 columns");
   });
 
   it("bands the columns as Person, Onboarding, Season", async () => {
@@ -194,7 +195,7 @@ describe("the board itself", () => {
     expect(within(board).getByText("Season")).toBeInTheDocument();
   });
 
-  it("carries the twenty-one approved columns, with raw email and phone gone", async () => {
+  it("carries the twenty-eight approved columns, with raw email and phone gone", async () => {
     givenBoard();
     render(await RosterPage(pageProps()));
 
@@ -217,6 +218,14 @@ describe("the board itself", () => {
       "Eligibility",
       "Availability",
       "BPS",
+      // Correction round 2, item 5: the seven onboarding-item columns.
+      "Sub invoiced",
+      "Sub paid",
+      "Kit Distributed",
+      "BUCS Play",
+      "Hudl access",
+      "Squad photo",
+      "Comms group",
     ]) {
       expect(within(board).getByText(label)).toBeInTheDocument();
     }

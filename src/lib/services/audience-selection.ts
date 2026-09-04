@@ -66,6 +66,19 @@ export interface AudienceCandidate {
   unit: string | null;
   /** UX-40's Contact column: phone where there is one, else email. */
   contact: string | null;
+  /**
+   * `WP-operator-record` (LAN-217) correction round 2, item 7 — the BPS
+   * audience group. `bps_selections.is_selected` for this season, `false`
+   * for every non-player candidate. Not a fifth `AudienceCapacity`: the BPS
+   * group is still a `player`-capacity row (the same
+   * `event_audience_members.capacity` value every other player already
+   * writes), narrowed by this one extra flag instead — nothing about BPS
+   * gates anything else, so it must not touch the closed capacity
+   * vocabulary a real approved event already persists. Optional — every
+   * existing caller building a candidate for a non-BPS purpose leaves it
+   * undeclared, which reads as `false`.
+   */
+  isBps?: boolean;
 }
 
 /**
@@ -77,7 +90,7 @@ export interface AudienceCandidate {
  * unit control on the builder filters who is on screen and creates nothing.
  */
 export type AudienceGroupKey =
-  "everyone_active" | "active_players" | "active_coaches" | "active_committee" | "recruits";
+  "everyone_active" | "active_players" | "active_coaches" | "active_committee" | "recruits" | "bps";
 
 /** A derived group offered on UX-40. Data, so the screen enumerates rather than hard-codes. */
 export interface AudienceGroup {
@@ -93,6 +106,18 @@ export interface AudienceGroup {
    * editor each inventing their own copy of that rule.
    */
   eventTypes?: readonly string[];
+  /** Correction round 2, item 7: narrows this group to candidates with `isBps`, on top of `capacities`. */
+  requiresBps?: boolean;
+  /**
+   * `false` excludes this group from a template's own default-audience
+   * picker (`templateGroupsForEventType`) even though the single-event
+   * builder still offers it (`groupsForEventType`). Absent means eligible —
+   * every existing group's own behaviour, unchanged. BPS is the one
+   * exception: `public.audience_group`, the closed enum a template default
+   * actually persists to, does not carry a `bps` value and this package adds
+   * no migration, so BPS must never reach that write path.
+   */
+  templateEligible?: boolean;
 }
 
 /**
@@ -138,6 +163,20 @@ export const AUDIENCE_GROUPS: readonly AudienceGroup[] = Object.freeze([
     capacities: Object.freeze(["recruit" as const]),
     eventTypes: Object.freeze(["recruitment"]),
   }),
+  // Correction round 2, item 7 (`WP-operator-record`, LAN-217): the roster's
+  // own BPS column, offered here too. Every event type, like every group
+  // above except Recruits. Includes onboarding memberships, not only active
+  // ones — `REQ-nothing-gates` in the packet states that onboarding
+  // memberships count as players for event audiences from the moment they
+  // are on the team, even though "active players" and "everyone active"
+  // above stay active-only.
+  Object.freeze({
+    key: "bps" as const,
+    label: "BPS",
+    capacities: Object.freeze(["player" as const]),
+    requiresBps: true,
+    templateEligible: false,
+  }),
 ]);
 
 /**
@@ -151,6 +190,18 @@ export function groupsForEventType(eventType: string): readonly AudienceGroup[] 
   return AUDIENCE_GROUPS.filter(
     (group) => group.eventTypes === undefined || group.eventTypes.includes(eventType),
   );
+}
+
+/**
+ * The groups a template's own default-audience picker may offer — the same
+ * as {@link groupsForEventType}, minus any group `templateEligible: false`
+ * excludes. Correction round 2, item 7: BPS is offered on the single-event
+ * builder but never here, because `public.audience_group` — the closed enum
+ * a template default actually persists to — has no `bps` value and this
+ * package adds no migration.
+ */
+export function templateGroupsForEventType(eventType: string): readonly AudienceGroup[] {
+  return groupsForEventType(eventType).filter((group) => group.templateEligible !== false);
 }
 
 /** The full selectable catalogue for one event. */
@@ -286,7 +337,10 @@ export function groupSelectionKeys(
   const group = AUDIENCE_GROUPS.find((candidate) => candidate.key === groupKey);
   if (!group) return [];
   return candidates
-    .filter((candidate) => group.capacities.includes(candidate.capacity))
+    .filter(
+      (candidate) =>
+        group.capacities.includes(candidate.capacity) && (!group.requiresBps || candidate.isBps),
+    )
     .map((candidate) => candidate.key);
 }
 

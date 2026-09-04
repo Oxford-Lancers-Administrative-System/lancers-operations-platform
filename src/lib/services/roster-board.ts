@@ -2,7 +2,11 @@ import "server-only";
 
 import { Conflict, ConstraintViolated, NotFound, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
-import { listCurrentSeasonRoster, type MembershipStatus } from "./membership";
+import {
+  listCurrentSeasonRoster,
+  type MembershipStatus,
+  type OnboardingItemStatus,
+} from "./membership";
 import type { AssembledStatus, PersonFactPresence } from "./person-required";
 import { missingRequiredFields } from "./person-required";
 import type { Season } from "./seasons";
@@ -232,6 +236,16 @@ export interface RosterBoardRow {
   availability: string | null;
   /** `public.bps_selections.is_selected`, defaulting to "No" — no row yet means never selected. */
   bps: BpsValue;
+  /**
+   * Correction round 2, item 5 (`WP-operator-record`, LAN-217): the
+   * operator-ticked onboarding items, keyed by `onboarding_item_types.code`
+   * — the same seven the record page's own Onboarding section edits.
+   * Read-only summary data for the two derived items
+   * (`contact_academic_details`, `season_welcome_consent`) is not carried
+   * here; the existing summary column covers them. A membership missing an
+   * entry for a code has not had that item generated yet.
+   */
+  onboardingItems: Readonly<Record<string, { id: string; status: OnboardingItemStatus }>>;
 }
 
 export interface JerseyHolders {
@@ -312,6 +326,7 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       eligibilityRows,
       availabilityRows,
       bpsRows,
+      onboardingItemRows,
       positionOptions,
     ] = await Promise.all([
       tx.query<{
@@ -397,6 +412,18 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
           where season_id = $1::uuid`,
         [roster.season.id],
       ),
+      // Correction round 2, item 5: the onboarding items as board columns.
+      // Every item this season carries, not only the operator-editable
+      // seven — the derived two are filtered out in TypeScript below, the
+      // same way `board-columns.ts` already keeps its own column list as
+      // the one place that decides what renders.
+      tx.query<{ season_membership_id: string; id: string; code: string; status: string }>(
+        `select i.season_membership_id, i.id, t.code, i.status::text as status
+           from public.onboarding_items i
+           join public.onboarding_item_types t on t.id = i.item_type_id
+          where i.season_membership_id = any($1::uuid[])`,
+        [membershipIds],
+      ),
       readPositionOptionsIn(tx, roster.season.id),
     ]);
 
@@ -476,6 +503,16 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       bpsRows.rows.map((row) => [row.season_membership_id, row.is_selected]),
     );
 
+    const onboardingItemsByMembership = new Map<
+      string,
+      Record<string, { id: string; status: OnboardingItemStatus }>
+    >();
+    for (const row of onboardingItemRows.rows) {
+      const current = onboardingItemsByMembership.get(row.season_membership_id) ?? {};
+      current[row.code] = { id: row.id, status: row.status as OnboardingItemStatus };
+      onboardingItemsByMembership.set(row.season_membership_id, current);
+    }
+
     const rows: RosterBoardRow[] = roster.entries.map((entry) => {
       const person = personById.get(entry.personId);
       const presence: PersonFactPresence = {
@@ -530,6 +567,7 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
         eligibility: eligibilityByMembership.get(entry.membershipId) ?? null,
         availability: availabilityByMembership.get(entry.membershipId) ?? null,
         bps: bpsByMembership.get(entry.membershipId) ? "Yes" : "No",
+        onboardingItems: onboardingItemsByMembership.get(entry.membershipId) ?? {},
       };
     });
 

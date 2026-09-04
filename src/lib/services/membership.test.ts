@@ -1181,6 +1181,73 @@ describe("resolveOnboardingItem", () => {
   // application actually does (`set local role service_role`); this suite's
   // `observer` connects as the `postgres` superuser and bypasses every grant,
   // so a permission-denied assertion here would prove nothing.
+
+  // B-002 (correction round 2, Brian): "Kit Distributed" (renamed from "Kit
+  // sorted") is reduced to yes/no. `waived` and `not_applicable` never apply
+  // to this one item; every other item keeps the full four-resolution set
+  // proved above.
+  describe("Kit Distributed is binary — B-002", () => {
+    async function kitItem(membershipId: string) {
+      const membership = await readMembership(membershipId);
+      return membership.onboardingItems.find((item) => item.code === "kit_sorted")!;
+    }
+
+    it("renamed to Kit Distributed", async () => {
+      const membershipId = await givenMembership("onboarding");
+      const item = await kitItem(membershipId);
+      expect(item.label).toBe("Kit Distributed");
+    });
+
+    it("refuses waived", async () => {
+      const membershipId = await givenMembership("onboarding");
+      const item = await kitItem(membershipId);
+
+      await expect(
+        resolveOnboardingItem({
+          actorPersonId,
+          membershipId,
+          itemId: item.id,
+          status: "waived",
+          reason: "Handed over informally",
+        }),
+      ).rejects.toMatchObject({ kind: "constraint_violated" });
+    });
+
+    it("refuses not_applicable", async () => {
+      const membershipId = await givenMembership("onboarding");
+      const item = await kitItem(membershipId);
+
+      await expect(
+        resolveOnboardingItem({
+          actorPersonId,
+          membershipId,
+          itemId: item.id,
+          status: "not_applicable",
+        }),
+      ).rejects.toMatchObject({ kind: "constraint_violated" });
+    });
+
+    it("still moves complete -> pending through the same reopen path every other item uses, just not as a menu option of its own", async () => {
+      const membershipId = await givenMembership("onboarding");
+      const item = await kitItem(membershipId);
+
+      await resolveOnboardingItem({
+        actorPersonId,
+        membershipId,
+        itemId: item.id,
+        status: "complete",
+      });
+      const reopened = await resolveOnboardingItem({
+        actorPersonId,
+        membershipId,
+        itemId: item.id,
+        status: "reopen",
+      });
+
+      const updated = reopened.onboardingItems.find((each) => each.id === item.id)!;
+      expect(updated.status).toBe("pending");
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

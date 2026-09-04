@@ -5,7 +5,12 @@ import {
   FORMALWEAR_LABELS,
   type ColumnDef,
 } from "./board-columns";
-import { ENTRY_LABELS, labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
+import {
+  ENTRY_LABELS,
+  labelFor,
+  MEMBERSHIP_STATUS_LABELS,
+  ONBOARDING_ITEM_LABELS,
+} from "./presentation";
 
 /**
  * Pure search, filter and sort over the board's rows — no database, no
@@ -73,6 +78,23 @@ export function rawValue(row: RosterBoardRow, key: string): string | string[] | 
       return row.availability;
     case "bps":
       return row.bps;
+    // Correction round 2, item 5 — one onboarding item's own status.
+    case "subsInvoiced":
+      return row.onboardingItems["subs_invoiced"]?.status ?? null;
+    case "subsPaid":
+      return row.onboardingItems["subs_paid"]?.status ?? null;
+    case "kitDistributed":
+      // Correction round 2, item 2: binary — the raw status collapses to
+      // Yes/No, the same as BPS above, never the five-value status word.
+      return row.onboardingItems["kit_sorted"]?.status === "complete" ? "Yes" : "No";
+    case "bucsPlay":
+      return row.onboardingItems["bucs_play"]?.status ?? null;
+    case "hudlAccess":
+      return row.onboardingItems["hudl_access"]?.status ?? null;
+    case "squadPhoto":
+      return row.onboardingItems["photo"]?.status ?? null;
+    case "commsGroup":
+      return row.onboardingItems["comms_groups"]?.status ?? null;
     default:
       return null;
   }
@@ -124,6 +146,17 @@ function optionLabel(column: ColumnDef, code: string): string {
   if (column.key === "eligibility") return labelFor(ELIGIBILITY_LABELS, code);
   if (column.key === "availability") return labelFor(AVAILABILITY_LABELS, code);
   if (column.key === "formalwear") return labelFor(FORMALWEAR_LABELS, code);
+  // Correction round 2, item 5. `code` is either a real `OnboardingItemStatus`
+  // (the closed cell, and the filter popover, both built from `rawValue`'s
+  // actual stored status) or one of the four resolution words the open edit
+  // dropdown itself offers (`board-columns.ts`'s `ONBOARDING_ITEM_RESOLUTIONS`)
+  // — the two vocabularies differ by exactly one word, `reopen`, which is
+  // never a status a row can be *in*, so it is the one case handled by hand.
+  if (column.edit === "onboarding") {
+    if (column.binary) return code === "complete" ? "Yes" : "No";
+    if (code === "reopen") return "Reopen";
+    return labelFor(ONBOARDING_ITEM_LABELS, code);
+  }
   return column.optionLabels?.[code] ?? code;
 }
 
@@ -134,7 +167,11 @@ export function filterOptions(
 ): readonly string[] {
   if (column.key === "missing") return ["Yes", "No"];
   if (column.key === "contactable") return ["Has mobile", "Has email", "Neither"];
-  if (column.options) return [...column.options];
+  // Correction round 2, item 5: an onboarding column's `options` is the open
+  // edit dropdown's resolution words, not the status vocabulary `rawValue`
+  // returns — the filter has to offer the latter, derived from the data
+  // below, the same way every column with no fixed `options` already does.
+  if (column.options && column.edit !== "onboarding") return [...column.options];
 
   const seen = new Set<string>();
   let blanks = false;
@@ -265,6 +302,7 @@ export function displayOf(row: RosterBoardRow, column: ColumnDef): string {
     if (value.length === 0) return column.edit === "none" ? "—" : NOT_RECORDED;
     return value.map((entry) => optionLabel(column, entry)).join(", ");
   }
-  if (column.edit === "select") return optionLabel(column, String(value));
+  if (column.edit === "select" || column.edit === "onboarding")
+    return optionLabel(column, String(value));
   return String(value);
 }

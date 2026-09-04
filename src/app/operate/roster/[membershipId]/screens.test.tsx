@@ -374,6 +374,57 @@ describe("W6 — the resolve control's own Reopen option", () => {
   });
 });
 
+// B-002 (correction round 2, Brian): "Kit sorted" is renamed "Kit
+// Distributed" and reduced to yes/no — no waived, no claimed, no reopen
+// offered on this one item; every other item keeps the full set proved
+// above.
+describe("B-002 — Kit Distributed is binary", () => {
+  it("shows Yes/No only, never Waived or Not applicable or a Reopen option", async () => {
+    givenRecord({
+      onboardingItems: [
+        historyItem({ code: "kit_sorted", label: "Kit Distributed", status: "complete" }),
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const row = screen
+      .getByText("Kit Distributed")
+      .closest('[data-testid="record-row"]') as HTMLElement;
+    const { fireEvent } = await import("@testing-library/react");
+    expect(within(row).getByText("Yes")).toBeVisible();
+    fireEvent.click(within(row).getByTestId("editable-field"));
+
+    expect(await screen.findByRole("option", { name: "Yes" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "No" })).toBeInTheDocument();
+    for (const forbidden of ["Waived", "Not applicable", "Reopen", "Complete"]) {
+      expect(screen.queryByRole("option", { name: forbidden })).not.toBeInTheDocument();
+    }
+  });
+
+  it("answering No commits through the same resolveOnboardingItem reopen path, with no reason field", async () => {
+    givenRecord({
+      onboardingItems: [
+        historyItem({ code: "kit_sorted", label: "Kit Distributed", status: "complete" }),
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const row = screen
+      .getByText("Kit Distributed")
+      .closest('[data-testid="record-row"]') as HTMLElement;
+    const { fireEvent, act } = await import("@testing-library/react");
+    fireEvent.click(within(row).getByTestId("editable-field"));
+    await act(async () => fireEvent.click(await screen.findByRole("option", { name: "No" })));
+
+    expect(recordResolveOnboardingItemAction).toHaveBeenCalledWith({
+      membershipId: MEMBERSHIP_ID,
+      itemId: "item-1",
+      status: "reopen",
+    });
+    expect(screen.queryByTestId("onboarding-waiver-reason")).not.toBeInTheDocument();
+  });
+});
+
 describe("W6 — provenance: who and when, from the item's own history", () => {
   it("renders claimed in the row's own idiom, naming the player and that nobody has confirmed", async () => {
     givenRecord({

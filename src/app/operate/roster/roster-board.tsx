@@ -44,6 +44,7 @@ import {
   commitEntryAction,
   commitFormalwearItemAction,
   commitJerseyNumbersAction,
+  commitOnboardingItemAction,
   commitPositionAction,
 } from "./board-actions";
 import {
@@ -316,6 +317,27 @@ export default function RosterBoard({
               }),
             );
             return;
+          case "subsInvoiced":
+          case "subsPaid":
+          case "kitDistributed":
+          case "bucsPlay":
+          case "hudlAccess":
+          case "squadPhoto":
+          case "commsGroup": {
+            // Correction round 2, item 5: every onboarding column commits
+            // through the same one action, keyed by this membership's own
+            // item id for that column's `itemCode` — never a direct write.
+            const item = column.itemCode ? row.onboardingItems[column.itemCode] : undefined;
+            if (!item) return;
+            await runCommit(row.membershipId, () =>
+              commitOnboardingItemAction({
+                membershipId: row.membershipId,
+                itemId: item.id,
+                status: next as "complete" | "waived" | "not_applicable" | "reopen",
+              }),
+            );
+            return;
+          }
           case "blueNumbers":
           case "whiteNumbers": {
             const kit: Kit = column.key === "blueNumbers" ? "blue" : "white";
@@ -890,7 +912,7 @@ function Cell({
           renderValue={() => displayOf(row, column)}
           sx={{ width: Math.max(column.width - 24, 64) }}
         >
-          {column.key === "status" ? null : (
+          {column.key === "status" || column.edit === "onboarding" ? null : (
             <MenuItem value="">
               <em>{NOT_RECORDED}</em>
             </MenuItem>
@@ -906,8 +928,16 @@ function Cell({
   }
 
   const editable =
-    (column.edit === "select" || column.edit === "multiselect" || column.edit === "jersey") &&
-    (column.key !== "status" || canManageStatus);
+    (column.edit === "select" ||
+      column.edit === "multiselect" ||
+      column.edit === "jersey" ||
+      column.edit === "onboarding") &&
+    (column.key !== "status" || canManageStatus) &&
+    // Correction round 2, item 5: a column whose item this membership has
+    // not (yet) had generated has nothing to edit — same posture as every
+    // other absent value on this board, never a control that would refuse.
+    (column.edit !== "onboarding" ||
+      (column.itemCode ? Boolean(row.onboardingItems[column.itemCode]) : false));
 
   return (
     <TableCell

@@ -507,10 +507,13 @@ describe("mergePersons — the successful merge", () => {
     expect(prospects.rows[0].first_contact_on).toBe("2024-10-02");
   });
 
-  // `T07-merge-precedence` — `WP-operator-record`, LAN-217, W7's own
-  // acceptance locked at the recommendation.
-  describe("T07-merge-precedence — the survivor takes the most restrictive consent, never the most recent", () => {
-    it("takes the loser's refused over the survivor's more recent granted", async () => {
+  // B-003 (correction round 2, Q-10, Brian: "If it is a merge, they obviously
+  // get to choose") — `WP-operator-record`, LAN-217. Supersedes
+  // `T07-merge-precedence`, which was locked at a recommendation, not an
+  // owner decision: the operator picks the surviving consent value like any
+  // other field, and nothing is imposed automatically.
+  describe("B-003 — the operator chooses the surviving consent, nothing is imposed automatically", () => {
+    it("shows both states plainly in preview, with no state picked for the operator", async () => {
       const survivorId = await insertPerson({ givenName: unique("Survivor") });
       const loserId = await insertPerson({ givenName: unique("Loser") });
       await insertConsent(loserId, seasonId, "refused", "2024-09-01T00:00:00Z");
@@ -522,14 +525,22 @@ describe("mergePersons — the successful merge", () => {
         seasonLabel,
         survivorState: "granted",
         loserState: "refused",
-        combinedState: "refused",
       });
+      expect(preview.consentCombinations[0]).not.toHaveProperty("combinedState");
+      expect(preview.consentCombinations[0]).not.toHaveProperty("fromLoser");
+    });
+
+    it("keeps the survivor's own state when the operator makes no explicit choice — even against a more restrictive loser", async () => {
+      const survivorId = await insertPerson({ givenName: unique("Survivor") });
+      const loserId = await insertPerson({ givenName: unique("Loser") });
+      await insertConsent(survivorId, seasonId, "granted", "2024-09-05T00:00:00Z");
+      await insertConsent(loserId, seasonId, "refused", "2024-09-01T00:00:00Z");
 
       await mergePersons({
         actorPersonId,
         survivorPersonId: survivorId,
         loserPersonId: loserId,
-        reason: "Duplicate consent",
+        reason: "Duplicate consent, no explicit choice",
         fieldChoices: {},
       });
 
@@ -538,25 +549,26 @@ describe("mergePersons — the successful merge", () => {
           where season_id = $1::uuid and person_id = any($2::uuid[])`,
         [seasonId, [survivorId, loserId]],
       );
+      // Nothing is imposed: the survivor's own value stands by default, the
+      // same default a plain field or contact row's radio already has —
+      // proof this is no longer the automatic restrictive-wins algorithm.
       expect(consents.rows).toHaveLength(1);
-      expect(consents.rows[0]).toMatchObject({ person_id: survivorId, state: "refused" });
+      expect(consents.rows[0]).toMatchObject({ person_id: survivorId, state: "granted" });
     });
 
-    it("takes the more recent of two equally restrictive states", async () => {
+    it("takes the loser's state when the operator explicitly chooses it, restrictive or not", async () => {
       const survivorId = await insertPerson({ givenName: unique("Survivor") });
       const loserId = await insertPerson({ givenName: unique("Loser") });
-      await insertConsent(survivorId, seasonId, "refused", "2024-09-01T00:00:00Z");
-      await insertConsent(loserId, seasonId, "withdrawn", "2024-09-10T00:00:00Z");
-
-      const preview = await previewPersonMerge(survivorId, loserId);
-      expect(preview.consentCombinations[0].combinedState).toBe("withdrawn");
+      await insertConsent(survivorId, seasonId, "granted", "2024-09-05T00:00:00Z");
+      await insertConsent(loserId, seasonId, "refused", "2024-09-01T00:00:00Z");
 
       await mergePersons({
         actorPersonId,
         survivorPersonId: survivorId,
         loserPersonId: loserId,
-        reason: "Duplicate consent, both restrictive",
+        reason: "Duplicate consent, operator picked the loser's value",
         fieldChoices: {},
+        consentChoices: { [seasonId]: "loser" },
       });
 
       const consent = await observer.query<{ state: string }>(
@@ -564,17 +576,7 @@ describe("mergePersons — the successful merge", () => {
           where season_id = $1::uuid and person_id = $2::uuid`,
         [seasonId, survivorId],
       );
-      expect(consent.rows[0].state).toBe("withdrawn");
-    });
-
-    it("never manufactures permission: neither side restrictive picks the more informative state", async () => {
-      const survivorId = await insertPerson({ givenName: unique("Survivor") });
-      const loserId = await insertPerson({ givenName: unique("Loser") });
-      await insertConsent(survivorId, seasonId, "asked", "2024-09-01T00:00:00Z");
-      await insertConsent(loserId, seasonId, "granted", "2024-09-02T00:00:00Z");
-
-      const preview = await previewPersonMerge(survivorId, loserId);
-      expect(preview.consentCombinations[0].combinedState).toBe("granted");
+      expect(consent.rows[0].state).toBe("refused");
     });
   });
 

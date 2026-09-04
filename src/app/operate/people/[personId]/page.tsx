@@ -18,11 +18,6 @@ import {
   resolveMergeSurvivor,
   type PersonHistoryEntry,
 } from "@/lib/services/people-directory";
-import {
-  readLatestPersonFactDisputes,
-  type DisputedPersonField,
-  type PersonFactDisputeDisplay,
-} from "@/lib/services/person-fact-dispute";
 import { readPersonRecord, type PersonRecord } from "@/lib/services/person-record";
 import { readCurrentSeason } from "@/lib/services/seasons";
 import { gateShellPage } from "../../gate";
@@ -32,7 +27,6 @@ import {
   MEMBERSHIP_STATUS_LABELS,
   membershipStatusColour,
 } from "../../roster/presentation";
-import DisputeResolution from "./dispute-resolution";
 
 /**
  * `W1-05` … `W1-12` — the person record, its restricted section, its
@@ -123,62 +117,6 @@ function DerivedBy({ who }: { who: string | null }) {
   );
 }
 
-/** `28 Aug` — the short form the disputed-fact badges use, distinct from the merge notice's full date. */
-function shortDate(value: Date): string {
-  return value.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-}
-
-/**
- * The disputed-fact half of one `Fact` row — `WP-operator-record` (LAN-217),
- * `W7`, `REQ-no-silent-overwrite`. Extends the record's own value-plus-`By`
- * shape rather than drawing a second kind of row: while a dispute is open,
- * the player's answer renders as a second line with the same attribution
- * badge, and the four-role resolve control sits beneath it; once resolved,
- * the losing value stays visible on a second line, dated, so "the losing
- * value is retained, never deleted" is something the record shows and not
- * only something the database keeps.
- *
- * Nothing here changes what the primary value or its own badge already show:
- * taking the player's answer writes through `updatePersonField`, which is
- * already attributed by the shipped `Q-13` derivation once the field is
- * re-read, and keeping the club's value leaves that badge exactly as it was.
- * The one fact only this dispute row can attribute is the confirmation
- * itself — the resolve, when nothing on `people` changed to carry it.
- */
-function DisputedFact({
-  personId,
-  dispute,
-}: {
-  personId: string;
-  dispute: PersonFactDisputeDisplay | undefined;
-}) {
-  if (!dispute) return null;
-  if (dispute.status === "open") {
-    return (
-      <Box sx={{ mt: 0.5 }} data-testid="dispute-open">
-        <Typography component="span">{dispute.playerValue}</Typography>
-        <By who={`${dispute.raisedByName ?? "the player"}, ${shortDate(dispute.raisedAt)}`} />
-        <DisputeResolution personId={personId} disputeId={dispute.id} />
-      </Box>
-    );
-  }
-  const losingValue =
-    dispute.status === "resolved_took_player" ? dispute.clubValue : dispute.playerValue;
-  if (losingValue === null || dispute.resolvedAt === null) return null;
-  const badge =
-    dispute.status === "resolved_took_player"
-      ? `Superseded ${shortDate(dispute.resolvedAt)}`
-      : `Not accepted · ${dispute.resolvedByName ?? "an operator"}, ${shortDate(dispute.resolvedAt)}`;
-  return (
-    <Box sx={{ mt: 0.5 }} data-testid="dispute-retained">
-      <Typography component="span" color="text.secondary" sx={{ textDecoration: "line-through" }}>
-        {losingValue}
-      </Typography>
-      <By who={badge} />
-    </Box>
-  );
-}
-
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <Stack
@@ -265,17 +203,13 @@ export default async function PersonRecordPage({
     gate.operator.roleCodes,
   ) as unknown as Partial<PersonRecord>;
 
-  const [predecessors, roles, seasons, history, currentSeason, latestDisputes] = await Promise.all([
+  const [predecessors, roles, seasons, history, currentSeason] = await Promise.all([
     listMergedPredecessors(personId),
     listPersonRoleAssignments(personId),
     listPersonSeasons(personId),
     readPersonHistory(personId),
     readCurrentSeason().catch(() => null),
-    readLatestPersonFactDisputes(personId),
   ]);
-  const disputesByField = new Map<DisputedPersonField, PersonFactDisputeDisplay>(
-    latestDisputes.map((dispute) => [dispute.field, dispute]),
-  );
 
   const sp = await searchParams;
   const historyExpanded = first(sp.history) === "expanded";
@@ -387,7 +321,6 @@ export default async function PersonRecordPage({
             <>
               {record.givenName}
               <DerivedBy who={record.givenNameSource} />
-              <DisputedFact personId={personId} dispute={disputesByField.get("given_name")} />
             </>
           ) : (
             <NotRecorded />
@@ -402,7 +335,6 @@ export default async function PersonRecordPage({
           ) : (
             <NotRecorded />
           )}
-          <DisputedFact personId={personId} dispute={disputesByField.get("family_name")} />
         </Fact>
         <Fact label="Aliases">
           {record.aliases.length === 0 ? (
@@ -474,7 +406,6 @@ export default async function PersonRecordPage({
             ) : (
               <NotRecorded />
             )}
-            <DisputedFact personId={personId} dispute={disputesByField.get("college")} />
           </Fact>
           <Fact label="Matriculation year">
             {record.matriculationYear !== null ? (
@@ -485,7 +416,6 @@ export default async function PersonRecordPage({
             ) : (
               <NotRecorded />
             )}
-            <DisputedFact personId={personId} dispute={disputesByField.get("matriculation_year")} />
           </Fact>
           <Fact label="Expected graduation">
             {record.expectedGraduationYear !== null ? (
@@ -496,10 +426,6 @@ export default async function PersonRecordPage({
             ) : (
               <NotRecorded />
             )}
-            <DisputedFact
-              personId={personId}
-              dispute={disputesByField.get("expected_graduation_year")}
-            />
           </Fact>
           <Fact label="Degree field">
             {record.degreeField !== null ? (
@@ -510,7 +436,6 @@ export default async function PersonRecordPage({
             ) : (
               <NotRecorded />
             )}
-            <DisputedFact personId={personId} dispute={disputesByField.get("degree_field")} />
           </Fact>
         </Section>
       ) : null}
@@ -526,7 +451,6 @@ export default async function PersonRecordPage({
             ) : (
               <NotRecorded />
             )}
-            <DisputedFact personId={personId} dispute={disputesByField.get("date_of_birth")} />
           </Fact>
           <Fact label="Under 18">
             {record.isUnder18 === null ? <NotRecorded /> : record.isUnder18 ? "Yes" : "No"}

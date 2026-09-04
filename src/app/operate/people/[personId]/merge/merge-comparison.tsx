@@ -23,7 +23,7 @@ const NOT_RECORDED = (
   </Typography>
 );
 
-/** `public.messaging_consent_state`, for the one read-only comparison row `T07-merge-precedence` adds. */
+/** `public.messaging_consent_state`, for the operator-choosable comparison row B-003 adds. */
 const CONSENT_STATE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   never_asked: "Never asked",
   asked: "Asked",
@@ -167,10 +167,12 @@ export default function MergeComparison({
                   loserValue={preview.aliases.loserAliases.join(" · ") || null}
                   readOnly
                 />
-                {/* `T07-merge-precedence` — `WP-operator-record` (LAN-217).
-                    Not operator-choosable: the survivor always takes the more
-                    restrictive of the two states, so this row is read-only,
-                    the same shape the Aliases row above already uses. */}
+                {/* B-003 (correction round 2, Q-10, Brian: "If it is a merge,
+                    they obviously get to choose") — `WP-operator-record`
+                    (LAN-217). Operator-choosable like any other field or
+                    contact row above: no state is imposed automatically.
+                    Supersedes `T07-merge-precedence`, which was locked at a
+                    recommendation, not an owner decision. */}
                 {preview.consentCombinations.map((combo) => (
                   <CompareRow
                     key={`consent_${combo.seasonId}`}
@@ -179,7 +181,6 @@ export default function MergeComparison({
                     differs={combo.survivorState !== combo.loserState}
                     survivorValue={CONSENT_STATE_LABELS[combo.survivorState] ?? combo.survivorState}
                     loserValue={CONSENT_STATE_LABELS[combo.loserState] ?? combo.loserState}
-                    readOnly
                   />
                 ))}
               </Stack>
