@@ -552,10 +552,12 @@ async function raiseDueEscalations(): Promise<{
  * even counted as attempted. LAN-156's hold means the event was amended after
  * the job was queued; sending it would deliver a superseded venue.
  */
-async function readDueJobs(limit: number): Promise<readonly { id: string; jobType: string }[]> {
+async function readDueJobs(
+  limit: number,
+): Promise<readonly { id: string; jobType: string; idempotencyKey: string }[]> {
   return withTransaction(async (tx) => {
-    const result = await tx.query<{ id: string; job_type: string }>(
-      `select id, job_type::text as job_type
+    const result = await tx.query<{ id: string; job_type: string; idempotency_key: string }>(
+      `select id, job_type::text as job_type, idempotency_key
          from public.notification_jobs
         where held_at is null
           -- The rungs this package schedules, the escalation it raises,
@@ -576,6 +578,11 @@ async function readDueJobs(limit: number): Promise<readonly { id: string; jobTyp
               'schedule_change_notice', 'cancellation_notice'
             )
             or (job_type = 'other' and idempotency_key like 'recruit-cycle:%')
+            -- LAN-215. emitOnboardingOpenedWelcomeIn's own idempotency-key
+            -- shape, admitted here on the identical "other, adopted rather
+            -- than migrated" reasoning declareRecruitmentCycleJobsIn used
+            -- first.
+            or (job_type = 'other' and idempotency_key like 'onboarding-welcome:%')
           )
           -- A player-facing rung whose event has already begun is
           -- undispatchable, and this predicate is what stops the sweep
@@ -630,6 +637,9 @@ async function readDueJobs(limit: number): Promise<readonly { id: string; jobTyp
             -- future check for the identical reason escalation is: there is
             -- no event lifecycle to check against.
             or (job_type = 'other' and idempotency_key like 'recruit-cycle:%')
+            -- LAN-215. Same reasoning again: an onboarding welcome carries
+            -- no event at all.
+            or (job_type = 'other' and idempotency_key like 'onboarding-welcome:%')
             or exists (
               select 1
                 from public.events e
@@ -648,7 +658,11 @@ async function readDueJobs(limit: number): Promise<readonly { id: string; jobTyp
         limit $2`,
       [MAX_ATTEMPTS, limit],
     );
-    return result.rows.map((row) => ({ id: row.id, jobType: row.job_type }));
+    return result.rows.map((row) => ({
+      id: row.id,
+      jobType: row.job_type,
+      idempotencyKey: row.idempotency_key,
+    }));
   });
 }
 
@@ -681,13 +695,14 @@ export async function runMessagingSweep(
           ? await dispatchEscalationJob(job.id, options)
           : job.jobType === "cancellation_notice"
             ? await dispatchNoticeJob(job.id, options)
-            : // LAN-203. readDueJobs's own WHERE clause admits an 'other' row
-              // only when its idempotency_key carries the recruit-cycle:
-              // prefix, so every 'other' row reaching this loop is one of
-              // declareRecruitmentCycleJobsIn's own jobs — nothing else in
-              // this codebase produces one.
+            : // readDueJobs's own WHERE clause admits an 'other' row only
+              // when its idempotency_key carries the recruit-cycle: prefix
+              // (LAN-203) or the onboarding-welcome: prefix (LAN-215), so
+              // every 'other' row reaching this loop is one of those two.
               job.jobType === "other"
-              ? await dispatchRecruitmentCycleJob(job.id, options)
+              ? job.idempotencyKey.startsWith(ONBOARDING_WELCOME_KEY_PREFIX)
+                ? await dispatchOnboardingWelcomeJob(job.id, options)
+                : await dispatchRecruitmentCycleJob(job.id, options)
               : await dispatchJob(job.id, { ...options, automatic: true });
 
       if (outcome === "accepted") accepted += 1;
@@ -1460,6 +1475,304 @@ export async function dispatchRecruitmentCycleJob(
         // Every field below is declared but unused by all four recruit-cycle
         // templates (`templates.ts`) — carried only because `OutboundMessage`
         // is one shared shape across every kind.
+        eventName: "",
+        whenLabel: "",
+        rsvpUrl: "",
+        formUrl,
+        stopUrl,
+      },
+    };
+  });
+
+  if (claim.kind !== "send") return "skipped";
+  const claimed = claim;
+
+  const outcome = await context.provider.send(claimed.message);
+
+  await withTransaction(async (tx) => {
+    if (outcome.status === "accepted") {
+      await tx.query(
+        `update public.delivery_attempts
+            set accepted_at = now(), provider_message_id = $2 where id = $1`,
+        [claimed.attemptId, outcome.providerMessageId],
+      );
+      await tx.query("update public.notification_jobs set next_attempt_at = null where id = $1", [
+        jobId,
+      ]);
+      await recordAudit(tx, {
+        actorLabel: DISPATCH_ACTOR_LABEL,
+        action: "delivery.attempted",
+        entityTable: "notification_jobs",
+        entityId: jobId,
+        context: {
+          attemptNumber: claimed.attemptNumber,
+          provider: context.provider.name,
+          channel: context.channel,
+          providerMessageId: outcome.providerMessageId,
+        },
+      });
+      return;
+    }
+
+    await tx.query(
+      "update public.delivery_attempts set concluded_at = now(), failure_reason = $2 where id = $1",
+      [claimed.attemptId, outcome.reason],
+    );
+    await tx.query(
+      `insert into public.delivery_results
+         (notification_job_id, attempt_number, outcome, channel, provider, detail)
+       values ($1, $2, $3, $4, $5, $6)
+       on conflict (notification_job_id, attempt_number) do nothing`,
+      [
+        jobId,
+        claimed.attemptNumber,
+        outcome.retryable ? "failed" : "rejected",
+        context.channel,
+        context.provider.name,
+        outcome.reason,
+      ],
+    );
+    await tx.query(
+      `update public.notification_jobs
+          set status = 'failed', last_error = $2, claimed_at = null, claimed_by = null,
+              next_attempt_at = case when $3 then now() + interval '15 minutes' else null end,
+              automatic_attempts = automatic_attempts + 1,
+              updated_at = now()
+        where id = $1`,
+      [jobId, outcome.reason, outcome.retryable],
+    );
+  });
+
+  return outcome.status === "accepted" ? "accepted" : "refused";
+}
+
+// ---------------------------------------------------------------------------
+// The onboarding welcome's own dispatch — LAN-215, REQ-one-welcome
+// ---------------------------------------------------------------------------
+
+const ONBOARDING_WELCOME_KEY_PREFIX = "onboarding-welcome:";
+
+const ONBOARDING_WELCOME_MEMBERSHIP_GONE_REASON =
+  "This membership no longer exists, so no welcome can be sent.";
+const ONBOARDING_WELCOME_NOT_CONSENTED_REASON =
+  "This person has declined messaging contact, so even the welcome cannot be sent.";
+
+/**
+ * Parses `welcomeIdempotencyKey`'s own shape — `onboarding-welcome:<membershipId>`
+ * — back into the membership this job is for. The one place that mapping is
+ * read, matching `parseRecruitCycleKey`'s identical idiom one section up.
+ */
+function parseOnboardingWelcomeKey(idempotencyKey: string): string | null {
+  if (!idempotencyKey.startsWith(ONBOARDING_WELCOME_KEY_PREFIX)) return null;
+  const membershipId = idempotencyKey.slice(ONBOARDING_WELCOME_KEY_PREFIX.length);
+  return membershipId === "" ? null : membershipId;
+}
+
+/**
+ * Sends one onboarding welcome — the one message every arrival receives,
+ * whichever of the three doors it came through (`REQ-three-doors`,
+ * `REQ-one-welcome`). `emitOnboardingOpenedWelcomeIn` (`onboarding-welcome.ts`,
+ * LAN-214) only ever declares this job; wiring its dispatch onto this
+ * pipeline is this package's own share of `REQ-transport`.
+ *
+ * A separate path from `dispatchJob`, on exactly `dispatchRecruitmentCycleJob`'s
+ * own reasoning one section up: `job_type` is `'other'`, adopted for the
+ * identical reason, and which membership this job is for comes from
+ * `idempotency_key`, read once, here, by `parseOnboardingWelcomeKey`.
+ *
+ * Consent is re-checked at claim time, not trusted from declaration — the
+ * same posture `dispatchRecruitmentCycleJob` takes, and for the same reason:
+ * a withdrawal recorded after the job was declared still has to stop it here.
+ * `mayReceiveWelcomeContactIn` is the identical check the emitter itself used
+ * at declaration, so the two can never disagree about what "a basis" means —
+ * `REQ-transport`'s "the only message the refuse-without-basis check permits
+ * before a basis exists" holds at both ends of this job's life.
+ *
+ * The durable link is minted here, at dispatch, never at declaration — a
+ * previously issued plaintext cannot be recovered (`player-answer-tokens.ts`'s
+ * own rule), the same reason `dispatchRecruitmentCycleJob` mints its own link
+ * at claim time rather than at `declareRecruitmentCycleJobsIn` time. Minting
+ * it here supersedes whatever was live for this person and season — for a
+ * flipped recruit, this is the second half of "the recruit's open ask is
+ * superseded, replaced by the onboarding link": the flip itself revokes their
+ * sign-up link inside its own transaction (`recruitment-prospect.ts`); this is
+ * where the onboarding link that replaces it actually comes into being.
+ */
+export async function dispatchOnboardingWelcomeJob(
+  jobId: string,
+  options: { source?: EnvironmentSource; transport?: Transport } = {},
+): Promise<"accepted" | "refused" | "skipped"> {
+  const routed = await withTransaction(async (tx) =>
+    tx.query<{ channel: string | null }>(
+      `select channel::text as channel from public.notification_jobs
+        where id = $1 and job_type = 'other'`,
+      [jobId],
+    ),
+  );
+  const channel = routed.rows[0]?.channel === "email" ? "email" : "whatsapp";
+
+  const resolution = resolveDeliveryProvider(
+    options.source ?? process.env,
+    options.transport,
+    channel,
+  );
+  if (!resolution.ok) {
+    await withTransaction(async (tx) => {
+      await tx.query(
+        `update public.notification_jobs
+            set status = 'failed', last_error = $2, updated_at = now()
+          where id = $1 and status in ('pending', 'ready', 'failed')`,
+        [jobId, resolution.reason],
+      );
+    });
+    return "refused";
+  }
+  const context = resolution.context;
+
+  type WelcomeOutcome =
+    | { readonly kind: "no-send" }
+    | {
+        readonly kind: "send";
+        readonly attemptId: string;
+        readonly attemptNumber: number;
+        readonly message: OutboundMessage;
+      };
+
+  const claim = await withTransaction(async (tx): Promise<WelcomeOutcome> => {
+    const claimed = await tx.query<{
+      id: string;
+      idempotency_key: string;
+      person_id: string;
+      attempt_count: number;
+    }>(
+      `update public.notification_jobs
+          set status = 'processing', claimed_at = now(), claimed_by = $2,
+              attempt_count = attempt_count + 1, last_error = null, updated_at = now()
+        where id = $1
+          and job_type = 'other'
+          and idempotency_key like '${ONBOARDING_WELCOME_KEY_PREFIX}%'
+          and status in ('pending', 'ready', 'failed')
+          and held_at is null
+          and attempt_count < $3
+          and person_id is not null
+        returning id, idempotency_key, person_id, attempt_count`,
+      [jobId, `${SWEEP_ACTOR_LABEL}:${jobId}`, MAX_ATTEMPTS],
+    );
+
+    const job = claimed.rows[0];
+    if (!job) return { kind: "no-send" };
+
+    const membershipId = parseOnboardingWelcomeKey(job.idempotency_key);
+    if (!membershipId) return { kind: "no-send" };
+
+    const membership = await tx.query<{ season_id: string }>(
+      `select season_id from public.season_memberships where id = $1::uuid`,
+      [membershipId],
+    );
+    const seasonId = membership.rows[0]?.season_id ?? null;
+    if (!seasonId) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        ONBOARDING_WELCOME_MEMBERSHIP_GONE_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    const consented = await mayReceiveWelcomeContactIn(tx, job.person_id, seasonId);
+    if (!consented) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        ONBOARDING_WELCOME_NOT_CONSENTED_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    const person = await tx.query<{ given_name: string }>(
+      `select given_name from public.people where id = $1::uuid`,
+      [job.person_id],
+    );
+    const givenName = person.rows[0]?.given_name ?? "";
+
+    const contacts = await tx.query<{
+      kind: string;
+      raw_value: string;
+      normalised_value: string | null;
+      is_preferred: boolean;
+    }>(
+      `select kind::text as kind, raw_value, normalised_value, is_preferred
+         from public.contact_points
+        where person_id = $1::uuid
+          and valid_from <= current_date
+          and (valid_until is null or valid_until > current_date)
+        order by is_preferred desc, valid_from desc, created_at desc, id`,
+      [job.person_id],
+    );
+    const rows = contacts.rows.map((row) => ({
+      kind: row.kind,
+      rawValue: row.raw_value,
+      normalisedValue: row.normalised_value,
+      isPreferred: row.is_preferred,
+    }));
+
+    const recipient = selectMobileNumber(rows, context.defaultCallingCode);
+    if (!recipient) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        NO_USABLE_NUMBER_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    if (!recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode)) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        RECIPIENT_NOT_PERMITTED_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    // Minted here, at dispatch: the durable page, and its own opt-out — both
+    // the same credential, on `issuePersonTokenIn`'s own revoke-then-insert
+    // (see the doc comment above for why superseding here, rather than at
+    // declaration, is the correct order).
+    const issued = await issuePersonTokenIn(tx, job.person_id, seasonId, { actorPersonId: null });
+    const formUrl = `${context.appBaseUrl}/me/${issued.token}`;
+    const stopUrl = `${context.appBaseUrl}/me/stop/${issued.token}`;
+
+    const attempt = await tx.query<{ id: string }>(
+      `insert into public.delivery_attempts
+         (notification_job_id, attempt_number, channel, provider)
+       values ($1, $2, $3, $4)
+       returning id`,
+      [jobId, job.attempt_count, context.channel, context.provider.name],
+    );
+
+    return {
+      kind: "send",
+      attemptId: attempt.rows[0].id,
+      attemptNumber: job.attempt_count,
+      message: {
+        kind: "onboarding_welcome",
+        recipient,
+        inviteeName: givenName,
+        // Declared but unused by this template — carried only because
+        // OutboundMessage is one shared shape across every kind.
         eventName: "",
         whenLabel: "",
         rsvpUrl: "",

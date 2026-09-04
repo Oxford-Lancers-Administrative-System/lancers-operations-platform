@@ -37,12 +37,8 @@ import {
 } from "./person-write";
 import { validateAcademicYear } from "./person-validation";
 import { readSeasonLabelIn } from "./seasons";
-import {
-  EMAIL_SHAPE,
-  looksLikeEmail,
-  looksLikePhone,
-  PHONE_SHAPE,
-} from "@/app/operate/roster/new/validation";
+import { EMAIL_SHAPE, PHONE_SHAPE } from "@/app/operate/roster/new/validation";
+import { looksLikeEmail, looksLikePhone } from "@/lib/validation/contact";
 
 /**
  * The player-facing questionnaire's own domain logic — `WP-player-questionnaire`,
@@ -677,8 +673,11 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
   const errors: Record<string, string> = {};
 
   // Mobile, personal email and the two emergency-contact fields all share one
-  // shape idiom — `src/app/operate/roster/new/validation.ts`'s own
-  // `looksLikePhone`/`looksLikeEmail` — rather than each inventing its own,
+  // shape idiom — `src/lib/validation/contact.ts`'s own
+  // `looksLikePhone`/`looksLikeEmail` (LAN-215, B-007's shared module; this
+  // file's import moved onto it when that package extracted the predicates
+  // out of `src/app/operate/roster/new/validation.ts`, which now re-exports
+  // only the two error sentences) — rather than each inventing its own,
   // per Brian's correction (B-001, LAN-216 round 1): "Should be the same as
   // all other form validations we have." A blank value is never rejected here
   // — required-ness is a separate check (`missingRequiredFields`) — this only

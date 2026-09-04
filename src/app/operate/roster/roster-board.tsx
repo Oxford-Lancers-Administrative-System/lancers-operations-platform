@@ -61,6 +61,7 @@ import {
   optionListLabel,
   rawValue,
 } from "./board-data";
+import AddPlayersMenu from "./add-players-menu";
 import JerseyPicker from "./jersey-picker";
 import { labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
 import {
@@ -435,9 +436,7 @@ export default function RosterBoard({
                   Clear filters
                 </Button>
               )}
-              <Button variant="contained" href="/operate/roster/new" sx={{ minHeight: 44 }}>
-                Add player
-              </Button>
+              <AddPlayersMenu />
             </Stack>
           </Stack>
         </Paper>
@@ -736,9 +735,7 @@ function Heading({
           {`Season ${seasonLabel} · ${count} ${count === 1 ? "player" : "players"} · ${columns} columns`}
         </Typography>
       </Box>
-      <Button variant="contained" href="/operate/roster/new" sx={{ minHeight: 44 }}>
-        Add player
-      </Button>
+      <AddPlayersMenu />
     </Stack>
   );
 }

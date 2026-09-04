@@ -982,16 +982,24 @@ export type AvailabilityLevel = "green" | "orange" | "red";
  * insert, never an update. `availability_statuses_green_records_its_confirmer`
  * requires a confirmer for Green; the acting operator is that confirmer,
  * because making the change on this board is the act of confirming it.
+ *
+ * `effectiveFrom` defaults to today, which is right for a change made on this
+ * board in the moment. LAN-215, B-008's arrival-sets-green rule passes it
+ * explicitly instead: the row has to carry the membership's own joining date,
+ * which is not always today — the recruit flip (`W3`) can commit a
+ * `season_memberships.confirmed_on` that was set on an earlier day than the
+ * one the flip itself executes on.
  */
 export async function commitAvailability(params: {
   actorPersonId: string;
   membershipId: string;
   level: AvailabilityLevel;
+  effectiveFrom?: string;
 }): Promise<void> {
   actorRequirement(params.actorPersonId);
 
   return withTransaction(async (tx) => {
-    const today = await currentDateOf(tx);
+    const effectiveFrom = params.effectiveFrom ?? (await currentDateOf(tx));
     const current = await tx.query<{ level: string }>(
       `select level::text as level from public.current_availability where season_membership_id = $1::uuid`,
       [params.membershipId],
@@ -1006,7 +1014,7 @@ export async function commitAvailability(params: {
       [
         params.membershipId,
         params.level,
-        today,
+        effectiveFrom,
         params.actorPersonId,
         params.level === "green" ? params.actorPersonId : null,
       ],

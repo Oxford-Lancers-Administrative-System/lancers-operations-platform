@@ -308,6 +308,53 @@ describe("both empty states", () => {
   });
 });
 
+describe("LAN-215 — the Add players menu", () => {
+  beforeEach(() => signedInAs(["secretary"]));
+
+  it("replaces the old single Add player button with a two-entry menu, Brian's own wording", async () => {
+    givenBoard();
+    render(await RosterPage(pageProps()));
+
+    expect(screen.queryByRole("button", { name: "Add player" })).not.toBeInTheDocument();
+    const trigger = screen.getByRole("button", { name: "Add players" });
+
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+
+    const addOne = screen.getByRole("menuitem", { name: /Add one player/ });
+    const bulkImport = screen.getByRole("menuitem", { name: /Bulk import players/ });
+    expect(addOne).toHaveAttribute("href", "/operate/roster/new");
+    expect(bulkImport).toHaveAttribute("href", "/operate/roster/import");
+  });
+
+  it("offers the same menu from the genuinely-empty season's own call to action", async () => {
+    // The heading keeps its own "Add players" trigger even on an empty
+    // season (unchanged by this package), so the empty state's own copy of
+    // it is the second of two — this proves the second one carries the same
+    // two entries, not that there is exactly one trigger on the page.
+    givenBoard({ rows: [], totalInSeason: 0 });
+    render(await RosterPage(pageProps()));
+
+    expect(screen.queryByRole("button", { name: "Add player" })).not.toBeInTheDocument();
+    const triggers = screen.getAllByRole("button", { name: "Add players" });
+    expect(triggers.length).toBeGreaterThanOrEqual(1);
+
+    await act(async () => {
+      fireEvent.click(triggers[triggers.length - 1]);
+    });
+
+    expect(screen.getAllByRole("menuitem", { name: /Add one player/ })[0]).toHaveAttribute(
+      "href",
+      "/operate/roster/new",
+    );
+    expect(screen.getAllByRole("menuitem", { name: /Bulk import players/ })[0]).toHaveAttribute(
+      "href",
+      "/operate/roster/import",
+    );
+  });
+});
+
 describe("the Filtered by chip bar", () => {
   beforeEach(() => signedInAs(["secretary"]));
 

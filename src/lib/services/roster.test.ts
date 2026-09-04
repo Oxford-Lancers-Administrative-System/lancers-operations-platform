@@ -159,6 +159,31 @@ async function cleanUp(): Promise<void> {
         where p.given_name like $1 or (m.person_id = $2::uuid and m.season_id = $3::uuid))`,
     [`%${MARKER}%`, withoutMembership.id, openSeasonId],
   );
+  // LAN-215: confirmation now also queues the welcome, which
+  // `emitOnboardingOpenedWelcomeIn` logs as the membership's first
+  // `onboarding_activity_log` entry — `onboarding_activity_log_membership_season`
+  // refuses to let the membership go while it exists, on the identical reason
+  // `onboarding_items` is deleted first above.
+  await observer.query(
+    `delete from public.onboarding_activity_log
+      where season_membership_id in (
+        select m.id from public.season_memberships m
+        left join public.people p on p.id = m.person_id
+        where p.given_name like $1 or (m.person_id = $2::uuid and m.season_id = $3::uuid))`,
+    [`%${MARKER}%`, withoutMembership.id, openSeasonId],
+  );
+  // LAN-215, B-008: arrival now also sets availability to Green, in the same
+  // transaction, via `commitAvailability` — `availability_statuses` restricts
+  // its own deletion of `season_memberships`, on the identical reason the
+  // block above does.
+  await observer.query(
+    `delete from public.availability_statuses
+      where season_membership_id in (
+        select m.id from public.season_memberships m
+        left join public.people p on p.id = m.person_id
+        where p.given_name like $1 or (m.person_id = $2::uuid and m.season_id = $3::uuid))`,
+    [`%${MARKER}%`, withoutMembership.id, openSeasonId],
+  );
   await observer.query(
     `delete from public.season_memberships
       where person_id in (select id from public.people where given_name like $1)
@@ -186,6 +211,18 @@ async function cleanUp(): Promise<void> {
         and (person_id in (select id from public.people where given_name like $1)
              or person_id = $2::uuid)`,
     [`%${MARKER}%`, withoutMembership.id],
+  );
+  // LAN-215: confirmation now also queues the welcome, which is a
+  // `notification_jobs` row keyed on `person_id` — `person_id references
+  // public.people (id) on delete restrict` refuses the final delete below
+  // while it exists. `withoutMembership` keeps its own seeded jobs, so this
+  // is scoped to this suite's own people only, exactly as every other step
+  // above is.
+  await observer.query(
+    `delete from public.notification_jobs
+      where idempotency_key like 'onboarding-welcome:%'
+        and person_id in (select id from public.people where given_name like $1)`,
+    [`%${MARKER}%`],
   );
   await observer.query("delete from public.people where given_name like $1", [`%${MARKER}%`]);
 }
@@ -371,6 +408,11 @@ describe("enterReturningPlayer — a new person", () => {
     // identity, and this operator completed the intake. Neither row carries a
     // `from_state`/`to_state`, which is what keeps them from restating the
     // transition record.
+    //
+    // LAN-215, B-008 adds a third audit row on the same membership entity —
+    // `availability_changed`, `commitAvailability`'s own, issue LAN-186 rather
+    // than LAN-74. It is asserted on its own below rather than folded into this
+    // LAN-74 pair, because it is a different fact under a different decision.
     const result = await enterReturningPlayer({
       actorPersonId,
       input: { givenName: unique("Audited"), email: "audited@example.invalid" },
@@ -388,7 +430,7 @@ describe("enterReturningPlayer — a new person", () => {
     }>(
       `select action, entity_table, entity_id, actor_person_id, from_state, to_state, context
          from public.audit_events
-        where entity_id in ($1::uuid, $2::uuid)
+        where entity_id in ($1::uuid, $2::uuid) and action <> 'availability_changed'
         order by action`,
       [result.personId, result.membershipId],
     );
@@ -414,11 +456,35 @@ describe("enterReturningPlayer — a new person", () => {
       dedupe_decision: "new_person",
       transitions_recorded_in: "season_membership_status_events",
     });
+
+    const availability = await observer.query<{
+      entity_table: string;
+      actor_person_id: string;
+      from_state: string | null;
+      to_state: string | null;
+      context: Record<string, unknown>;
+    }>(
+      `select entity_table, actor_person_id, from_state, to_state, context
+         from public.audit_events
+        where entity_id = $1::uuid and action = 'availability_changed'`,
+      [result.membershipId],
+    );
+    expect(availability.rows).toHaveLength(1);
+    expect(availability.rows[0]).toMatchObject({
+      entity_table: "season_memberships",
+      actor_person_id: actorPersonId,
+      from_state: null,
+      to_state: "green",
+    });
+    expect(availability.rows[0].context).toMatchObject({ issue: "LAN-186" });
   });
 
-  it("reads both audit rows and the transition back through transition_ledger", async () => {
+  it("reads the audit rows and the transition back through transition_ledger", async () => {
     // The architecture's answer to "where is the whole story?" — one stream
     // over the typed history table and audit_events, without duplication.
+    // Three audit rows since LAN-215's B-008 added `availability_changed`
+    // alongside the LAN-74 pair — see the previous test for why it is a third
+    // row rather than a fold into either of the other two.
     const result = await enterReturningPlayer({
       actorPersonId,
       input: { givenName: unique("Ledger") },
@@ -432,7 +498,7 @@ describe("enterReturningPlayer — a new person", () => {
       [result.personId, result.membershipId],
     );
 
-    expect(ledger.rows.filter((row) => row.recorded_in === "audit_events")).toHaveLength(2);
+    expect(ledger.rows.filter((row) => row.recorded_in === "audit_events")).toHaveLength(3);
     expect(
       ledger.rows.filter((row) => row.recorded_in === "season_membership_status_events"),
     ).toHaveLength(1);
@@ -506,6 +572,45 @@ describe("enterReturningPlayer — a new person", () => {
         decision: { kind: "new", confirmed: true },
       }),
     ).rejects.toMatchObject({ kind: "constraint_violated" });
+  });
+
+  it("B-008 — sets availability to green, in this same transaction, naming the operator as reporter and confirmer", async () => {
+    // Brian, this session: "When a player gets added into the board, their
+    // availability should be flipped to green by default." One green row,
+    // dated the membership's own `confirmed_on` (the joining date), with the
+    // operator who performed the arrival recorded as both reporter and
+    // confirmer — `availability_statuses_green_records_its_confirmer`'s
+    // unconditional requirement.
+    const result = await enterReturningPlayer({
+      actorPersonId,
+      input: { givenName: unique("Verdant") },
+      decision: { kind: "new", confirmed: true },
+    });
+
+    const membership = await observer.query<{ confirmed_on: string }>(
+      "select to_char(confirmed_on, 'YYYY-MM-DD') as confirmed_on from public.season_memberships where id = $1::uuid",
+      [result.membershipId],
+    );
+
+    const row = await observer.query<{
+      level: string;
+      effective_from: string;
+      reported_by_person_id: string;
+      confirmed_by_person_id: string | null;
+    }>(
+      `select level::text as level, to_char(effective_from, 'YYYY-MM-DD') as effective_from,
+              reported_by_person_id, confirmed_by_person_id
+         from public.availability_statuses
+        where season_membership_id = $1::uuid`,
+      [result.membershipId],
+    );
+    expect(row.rows).toHaveLength(1);
+    expect(row.rows[0]).toMatchObject({
+      level: "green",
+      effective_from: membership.rows[0].confirmed_on,
+      reported_by_person_id: actorPersonId,
+      confirmed_by_person_id: actorPersonId,
+    });
   });
 });
 
@@ -829,5 +934,61 @@ describe("enterReturningPlayer — a failure part-way through", () => {
       givenName,
     ]);
     expect(people.rowCount).toBe(0);
+  });
+
+  it("R-003 — the queued welcome is undone with the membership, not left behind", async () => {
+    // LAN-215, W2's locked decision, `REQ-one-welcome`: the welcome is queued
+    // in the *same* transaction as the membership it belongs to. This is the
+    // regression a defect would trip: if `enterReturningPlayer` ever called
+    // the standalone `emitOnboardingOpenedWelcome` (its own transaction)
+    // instead of `emitOnboardingOpenedWelcomeIn(tx, …)`, the welcome would
+    // commit here even though the membership above it does not — a
+    // `notification_jobs` row surviving for a membership that was never
+    // committed, exactly what a live review observed once and could not
+    // explain within its budget.
+    const givenName = unique("WelcomeJoined");
+    let membershipId: string | undefined;
+
+    await expect(
+      withTransaction(async () => {
+        const result = await enterReturningPlayer({
+          actorPersonId,
+          input: { givenName, phone: "+44 7700 900998" },
+          decision: { kind: "new", confirmed: true },
+        });
+        membershipId = result.membershipId;
+        // A brand-new person has never been asked for consent, so the welcome
+        // is expected to queue — the case the defect would actually surface in.
+        expect(result.welcomeQueued).toBe(true);
+        throw new Error("the caller failed after the welcome was queued");
+      }),
+    ).rejects.toThrow("the caller failed after the welcome was queued");
+
+    expect(membershipId).toBeDefined();
+
+    const people = await observer.query("select id from public.people where given_name = $1", [
+      givenName,
+    ]);
+    expect(people.rowCount).toBe(0);
+
+    const memberships = await observer.query(
+      "select id from public.season_memberships where id = $1::uuid",
+      [membershipId],
+    );
+    expect(memberships.rowCount).toBe(0);
+
+    const jobs = await observer.query(
+      "select id from public.notification_jobs where idempotency_key = $1",
+      [`onboarding-welcome:${membershipId}`],
+    );
+    expect(jobs.rowCount).toBe(0);
+
+    // B-008, the identical proof: the availability row `commitAvailability`
+    // writes is undone with the membership too.
+    const availability = await observer.query(
+      "select id from public.availability_statuses where season_membership_id = $1::uuid",
+      [membershipId],
+    );
+    expect(availability.rowCount).toBe(0);
   });
 });

@@ -6,22 +6,31 @@
  * LAN-74: "Validate shape enough to help the operator; do not silently rewrite
  * what was typed." Both halves of that sentence are load-bearing.
  *
- * The club's real files contain a reversed top-level domain, an address with a
- * trailing space, and a phone number one digit short. `contact_points.raw_value`
- * has no format constraint precisely so those survive intake, because a contact
- * the club cannot store is a contact the club loses. So these checks catch the
- * things that are almost certainly a slip at the keyboard — an address with no
- * `@` at all, a phone number with no digits in it — and let everything else
- * through to be stored exactly as typed.
+ * The required-field rules below are this form's own — first name, last name
+ * and mobile, per `W2`'s locked decision. The *shape* of a phone number or an
+ * email address is a question this form shares with the bulk importer, so it
+ * is delegated to `src/lib/validation/contact.ts` rather than kept as a
+ * private copy: LAN-215, B-007, Brian at this form, "the same phone
+ * validation everywhere."
  *
- * That means `avery@example.ac.ox` passes. It is not a real domain, and it is
- * also not this form's business: normalisation and verification are separate,
- * reversible steps that the data model deliberately keeps apart from intake.
+ * Email stays permissive, as LAN-74 decided: `avery@example.ac.ox` passes,
+ * because it is not a real domain and also not this form's business —
+ * normalisation and verification are separate, reversible steps the data
+ * model deliberately keeps apart from intake. Phone no longer is: B-007
+ * tightened it to "can this become E.164", because the old rule — any value
+ * with seven or more digits — is how a nonsense number got in.
  *
  * Nothing here mutates the operator's input. The trimming below happens inside
  * the checks so that a trailing space does not fail a test the value should
  * pass; the value that reaches the database is the original string.
  */
+
+import {
+  EMAIL_SHAPE_MESSAGE,
+  PHONE_SHAPE_MESSAGE,
+  looksLikeEmail,
+  looksLikePhone,
+} from "@/lib/validation/contact";
 
 export interface IntakeFormValues {
   givenName: string;
@@ -46,12 +55,21 @@ export const EMPTY_VALUES: IntakeFormValues = {
 // not the operator's, and conflating them is how a rename reaches the schema.
 export const GIVEN_NAME_REQUIRED = "Enter a first name. It is the one name the club always has.";
 
-export const EMAIL_SHAPE =
-  "This does not look like an email address. Enter it as it was given, including the @, " +
-  "or leave it blank.";
+/**
+ * LAN-215, W2's locked decision: "Last name and mobile become required,
+ * joining first name" — the approved item-and-ask inventory and
+ * `person-required.ts`'s own recruit tier, which already requires all three
+ * at every rung. The form was behind the required set it feeds; today only
+ * first name was enforced.
+ */
+export const FAMILY_NAME_REQUIRED =
+  "Enter a last name. It is required for every player, at every stage.";
 
-export const PHONE_SHAPE =
-  "This does not look like a phone number. Enter it as it was given, or leave it blank.";
+export const MOBILE_REQUIRED =
+  "Enter a mobile number. The welcome link is sent to it, and it is required for every player.";
+
+export const EMAIL_SHAPE = EMAIL_SHAPE_MESSAGE;
+export const PHONE_SHAPE = PHONE_SHAPE_MESSAGE;
 
 /** The order fields are focused in, matching the order they appear on screen. */
 export const FIELD_ORDER: readonly (keyof IntakeFormValues)[] = [
@@ -60,22 +78,6 @@ export const FIELD_ORDER: readonly (keyof IntakeFormValues)[] = [
   "email",
   "phone",
 ];
-
-export function looksLikeEmail(value: string): boolean {
-  const trimmed = value.trim();
-  // One `@`, something before it, something after it, and no internal spaces.
-  // Deliberately not a full RFC address parser: the strict ones reject real
-  // addresses, and the club's messy-but-genuine addresses must get through.
-  return /^[^\s@]+@[^\s@]+$/.test(trimmed);
-}
-
-export function looksLikePhone(value: string): boolean {
-  const digits = value.replace(/\D/g, "");
-  // Seven is the shortest thing anybody writes down as a contactable number,
-  // and the club's files contain numbers one digit short of correct, which
-  // must still be accepted and stored.
-  return digits.length >= 7;
-}
 
 /**
  * Validates the form. Returns the errors to show; an empty object means valid.
@@ -87,8 +89,13 @@ export function validateIntake(values: IntakeFormValues): IntakeFieldErrors {
   const errors: IntakeFieldErrors = {};
 
   if (values.givenName.trim() === "") errors.givenName = GIVEN_NAME_REQUIRED;
+  if (values.familyName.trim() === "") errors.familyName = FAMILY_NAME_REQUIRED;
+  if (values.phone.trim() === "") {
+    errors.phone = MOBILE_REQUIRED;
+  } else if (!looksLikePhone(values.phone)) {
+    errors.phone = PHONE_SHAPE;
+  }
   if (values.email.trim() !== "" && !looksLikeEmail(values.email)) errors.email = EMAIL_SHAPE;
-  if (values.phone.trim() !== "" && !looksLikePhone(values.phone)) errors.phone = PHONE_SHAPE;
 
   return errors;
 }

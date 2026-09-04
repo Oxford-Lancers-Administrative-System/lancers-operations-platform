@@ -315,9 +315,43 @@ async function cleanUp(): Promise<void> {
        where p.given_name like $1)`,
     [`${MARKER}%`],
   );
+  // LAN-215: `enterReturningPlayer` now also queues the welcome, which
+  // `emitOnboardingOpenedWelcomeIn` logs as the membership's first
+  // `onboarding_activity_log` entry — `onboarding_activity_log_membership_season`
+  // refuses to let the membership go while it exists, on the identical reason
+  // `onboarding_item_history` is deleted before `onboarding_items` above.
+  await observer.query(
+    `delete from public.onboarding_activity_log
+      where season_membership_id in (
+        select m.id from public.season_memberships m
+        join public.people p on p.id = m.person_id
+       where p.given_name like $1)`,
+    [`${MARKER}%`],
+  );
+  // LAN-215, B-008: arrival now also sets availability to Green, in the same
+  // transaction, via `commitAvailability` — `availability_statuses` restricts
+  // its own deletion of `season_memberships`, on the identical reason the two
+  // blocks above do.
+  await observer.query(
+    `delete from public.availability_statuses
+      where season_membership_id in (
+        select m.id from public.season_memberships m
+        join public.people p on p.id = m.person_id
+       where p.given_name like $1)`,
+    [`${MARKER}%`],
+  );
   await observer.query(
     `delete from public.season_memberships
       where person_id in (select id from public.people where given_name like $1)`,
+    [`${MARKER}%`],
+  );
+  // The queued welcome itself — `notification_jobs.person_id references
+  // public.people (id) on delete restrict` refuses the people delete below
+  // while it exists.
+  await observer.query(
+    `delete from public.notification_jobs
+      where idempotency_key like 'onboarding-welcome:%'
+        and person_id in (select id from public.people where given_name like $1)`,
     [`${MARKER}%`],
   );
   await observer.query("delete from public.people where given_name like $1", [`${MARKER}%`]);

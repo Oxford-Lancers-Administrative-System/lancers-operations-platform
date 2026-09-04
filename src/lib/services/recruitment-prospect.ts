@@ -15,6 +15,9 @@ import {
   type RecruitmentCycleStepName,
 } from "./recruitment-cycle";
 import { generateOnboardingItems } from "./membership";
+import { emitOnboardingOpenedWelcomeIn } from "./onboarding-welcome";
+import { revokePersonTokenIn } from "./player-answer-tokens";
+import { commitAvailability } from "./roster-board";
 import { readSeasonLabelIn } from "./seasons";
 import {
   QUESTIONNAIRE_B_CODE,
@@ -579,6 +582,14 @@ export interface FlipToJoinedResult {
 }
 
 /**
+ * The reason recorded against the recruit's own durable link when the flip
+ * supersedes it. Read by `revokePersonTokenIn`, which requires a non-blank
+ * one so the decision can be reviewed later.
+ */
+export const RECRUIT_LINK_SUPERSEDED_BY_FLIP_REASON =
+  "Superseded — this recruit was flipped to onboarding, which carries its own link.";
+
+/**
  * One transaction: prospect → `joined`, a season membership created in
  * `onboarding`, that membership's own onboarding items generated, status
  * history and one audit row written. All of it, or none of it.
@@ -592,6 +603,50 @@ export interface FlipToJoinedResult {
  * `entry` is `'new'`: every recruit this mission tracks is a person who has
  * never held a membership before now (a past member returning for another
  * season is `roster/new`'s own returner intake, not this path).
+ *
+ * ## LAN-215, `W3` — the far side of the flip
+ *
+ * Four more things happen here, inside this same transaction, none of them
+ * drawing a new surface (`acceptance/W3.md`, "this workflow draws no new
+ * surface and no new card"):
+ *
+ *   * **Availability is set to Green** — B-008, Brian this session: "When a
+ *     player gets added into the board, their availability should be flipped
+ *     to green by default." Via `commitAvailability`, never a hand-written
+ *     insert; the operator performing the flip is recorded as both reporter
+ *     and confirmer, `availability_statuses_green_records_its_confirmer`'s
+ *     unconditional requirement. `effectiveFrom` is `committedOn`, not
+ *     necessarily today — a prospect's `committed_on` can predate the flip
+ *     itself, and the availability row has to carry the same joining date the
+ *     membership does.
+ *   * **The recruit's open link is superseded, audited** — `S13`,
+ *     `T11-supersede-on-conversion`, and the one-open-ask-per-person
+ *     invariant. Whatever durable, non-purposed `person_access_tokens` row
+ *     was live for this person and season (their sign-up-form link) is
+ *     revoked; a live row and a count of zero are both legitimate — a
+ *     recruit whose link had already gone dead, or was never issued, is
+ *     still audited as "nothing to supersede" rather than skipped silently.
+ *     The onboarding link itself is minted later, at the welcome's own
+ *     dispatch (`dispatchOnboardingWelcomeJob`), on exactly the pattern
+ *     `dispatchRecruitmentCycleJob` already uses for the recruit's own
+ *     doors — never here, because a plaintext token cannot be recovered
+ *     once minted and this transaction has no message to put it in yet.
+ *   * **The welcome is queued** — `emitOnboardingOpenedWelcomeIn`, the same
+ *     emitter W1 and W2 call, on the same idempotency key shape
+ *     (`onboarding-welcome:<membershipId>`). One template, door-independent
+ *     (`REQ-one-welcome`). This *is* "fires `onboarding-opened`": the welcome
+ *     is the trigger, not a separate event the emitter's own doc comment
+ *     names as belonging to none of W1/W2/W3.
+ *   * **Consent is touched by nothing here** — `season_messaging_consents`
+ *     is unique per `(person_id, season_id)`, so the row the recruit granted
+ *     at the door already *is* their consent for this season. This function
+ *     reads it nowhere and writes it nowhere; there is nothing to copy and
+ *     nothing to re-ask.
+ *
+ * A failure in either of the first two rolls the whole flip back — a
+ * membership that exists with no checklist, or a live recruit link beside a
+ * live onboarding one, is the failure this exists to avoid (`W3`'s own
+ * exceptions table).
  */
 export async function flipRecruitmentProspectToJoinedIn(
   tx: Tx,
@@ -637,6 +692,51 @@ export async function flipRecruitmentProspectToJoinedIn(
   );
 
   await generateOnboardingItems(tx, membershipId, row.season_id);
+
+  // LAN-215, B-008: arrival sets availability to Green, in this same
+  // transaction, via `commitAvailability`. See this function's own doc
+  // comment for the confirmer interpretation and why `effectiveFrom` is
+  // `committedOn` rather than today.
+  await commitAvailability({
+    actorPersonId,
+    membershipId,
+    level: "green",
+    effectiveFrom: committedOn,
+  });
+
+  // LAN-215, `W3`: supersede whatever durable link this recruit was holding,
+  // and audit it — `revokePersonTokenIn` requires a reason and is a no-op
+  // (rowCount 0) when nothing was live, which is itself a legitimate outcome
+  // and is recorded as one rather than skipped.
+  const supersededCount = await revokePersonTokenIn(
+    tx,
+    row.person_id,
+    row.season_id,
+    RECRUIT_LINK_SUPERSEDED_BY_FLIP_REASON,
+  );
+
+  await recordAudit(tx, {
+    actorPersonId,
+    action: "recruitment_prospect.ask_superseded",
+    entityTable: "recruitment_prospects",
+    entityId: prospectId,
+    reason: RECRUIT_LINK_SUPERSEDED_BY_FLIP_REASON,
+    context: {
+      issue: "LAN-215",
+      personId: row.person_id,
+      seasonId: row.season_id,
+      supersededCount,
+    },
+  });
+
+  // LAN-215, `REQ-one-welcome`: the same emitter W1 and W2 call, on the same
+  // idempotency key shape. This is the flip's `onboarding-opened` — one
+  // trigger, both the welcome and the start of the chase clock.
+  await emitOnboardingOpenedWelcomeIn(tx, {
+    membershipId,
+    personId: row.person_id,
+    seasonId: row.season_id,
+  });
 
   await tx.query(
     `update public.recruitment_prospects
