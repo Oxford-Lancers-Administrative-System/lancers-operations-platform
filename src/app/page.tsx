@@ -1,40 +1,23 @@
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Container from "@mui/material/Container";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
+import { redirect } from "next/navigation";
 
 /**
- * The trivial page that proves the app renders and deploys.
+ * The root is the sign-in page. Audit finding B8, taken as a delta on Brian's
+ * decision at the 4 September 2026 visual review (LAN-225).
  *
- * Navigation uses MUI's own `href` (a plain anchor) rather than `component={Link}`:
- * this is a Server Component, and passing the `next/link` function into a Client
- * Component boundary is a build error. When real navigation is built, add a small
- * client-side link adapter — do not reach for `component={Link}` here.
+ * What stood here was LAN-71's bootstrap scaffold: a heading, a paragraph
+ * describing the repository as an "infrastructure scaffold" whose "only job is
+ * to prove the development, CI, and deployment loop", and buttons to
+ * `/dashboard` and `/login`. It was written to prove the deploy loop worked and
+ * was never replaced. Nobody arriving at the club's operations platform should
+ * be told about the CI pipeline, and there is nothing else for a signed-out
+ * visitor to do here.
+ *
+ * A redirect rather than a second copy of the form: `/login` stays the one
+ * canonical sign-in route that the proxy, the recovery emails and the route
+ * contract in `docs/ux/slice-ux.md` all name, and `redirectTo` keeps working
+ * from exactly one place. Signing in from here lands on `/operate`, which is
+ * the login page's own default destination.
  */
 export default function Home() {
-  return (
-    <Container maxWidth="sm">
-      <Box sx={{ py: 10 }}>
-        <Stack spacing={3}>
-          <Typography variant="h4" component="h1">
-            Lancers Operations Platform
-          </Typography>
-          <Typography color="text.secondary">
-            Infrastructure scaffold. This deliberately contains no club domain functionality — no
-            players, rosters, events, attendance, or communications. Its only job is to prove the
-            development, CI, and deployment loop.
-          </Typography>
-          <Stack direction="row" spacing={2}>
-            <Button href="/dashboard" variant="contained">
-              Protected page
-            </Button>
-            <Button href="/login" variant="outlined">
-              Sign in
-            </Button>
-          </Stack>
-        </Stack>
-      </Box>
-    </Container>
-  );
+  redirect("/login");
 }

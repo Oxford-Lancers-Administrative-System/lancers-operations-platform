@@ -88,6 +88,10 @@ const DECISIONS = [
   ],
   ["Buttons", "Sentence case (§4.5)."],
   [
+    "The root page",
+    "B8 taken (Brian, 4 Sep 2026): / redirects to /login; the bootstrap scaffold is gone.",
+  ],
+  [
     "Product findings taken",
     "H1 login alert cut; A6 one short-month form; E9 pickers over native dates; B2 and B3 in the shell (§4.6, register).",
   ],

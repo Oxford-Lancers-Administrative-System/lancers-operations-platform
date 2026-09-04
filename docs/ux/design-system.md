@@ -160,12 +160,20 @@ They take the tokens and the band colours and are otherwise untouched.
   the name, on every page reached without a session.
 - The crest file is `public/brand/crest.svg`, supplied by Brian from the Figma;
   the wordmark is set in Geist unless the export brings one.
+- **The root is the sign-in page.** `/` redirects to `/login`; there is no
+  separate landing page. What stood at `/` was LAN-71's bootstrap scaffold,
+  which described the repository as an "infrastructure scaffold" whose only job
+  was to prove the deployment loop, and offered buttons to `/dashboard` and
+  `/login`. Audit finding B8, taken on Brian's decision at the 4 September 2026
+  visual review. `/login` remains the one canonical sign-in route — the proxy,
+  the recovery emails and the route contract all name it — so the root
+  redirects rather than carrying a second copy of the form.
 
 ## 7. What this does not decide
 
 Product findings the audit classed `owner` that this page does not touch:
-`/operate` landing (B4), the help link's home (B6), `/dashboard` and the root
-page (B7, B8), the record's attendance length (F1), unbounded lists (F2),
+`/operate` landing (B4), the help link's home (B6), `/dashboard` (B7), the
+record's attendance length (F1), unbounded lists (F2),
 copy cuts other than H1 (H2–H4, H7), the operator-in-two-groups rule (H8),
 the future "Showed" column (H9), the report's tense (H10). Each stays a
 finding until Brian says otherwise.

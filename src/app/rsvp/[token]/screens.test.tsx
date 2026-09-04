@@ -365,11 +365,12 @@ describe("UX-63, UX-64 and UX-65 — one response for every unusable link", () =
     expect(container.querySelector("form")).toBeNull();
     expect(container.querySelector("input")).toBeNull();
 
-    // Close used to link to "/", which carries a **Sign in** button and a
-    // **Protected page** button — putting a stranger holding a dead link one
-    // tap from an operator sign-in, which this ticket forbids. Asserting on the
-    // immediate href was not enough to catch that, so the landing page's own
-    // destinations are named here too.
+    // Close used to link to "/", putting a stranger holding a dead link one tap
+    // from an operator sign-in, which this ticket forbids. Asserting on the
+    // immediate href was not enough to catch that, so "/" is named here too.
+    // It was then the bootstrap scaffold, carrying **Sign in** and **Protected
+    // page** buttons; since LAN-225 took audit B8 it redirects straight to
+    // `/login`, so the rule holds for a more direct reason than before.
     for (const link of Array.from(container.querySelectorAll("a"))) {
       const href = link.getAttribute("href") ?? "";
       expect(href).not.toMatch(/\/operate|\/login|\/dashboard/);

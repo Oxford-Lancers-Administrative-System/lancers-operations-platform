@@ -1,18 +1,23 @@
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+/**
+ * The root sends a visitor to the one sign-in route.
+ *
+ * LAN-225 replaced LAN-71's bootstrap scaffold here (audit B8). The assertion
+ * is the destination itself: a copy of the login form at `/` would be a second
+ * canonical sign-in page, and the point of the change is that there is one.
+ */
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn((url: string) => {
+    // The real `redirect` throws to unwind the render.
+    throw new Error(`REDIRECT:${url}`);
+  }),
+}));
+
 import Home from "./page";
 
 describe("home page", () => {
-  it("renders and offers the sign-in and protected routes", () => {
-    render(<Home />);
-
-    expect(
-      screen.getByRole("heading", { name: /lancers operations platform/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /sign in/i })).toHaveAttribute("href", "/login");
-    expect(screen.getByRole("link", { name: /protected page/i })).toHaveAttribute(
-      "href",
-      "/dashboard",
-    );
+  it("sends a visitor to the sign-in page", () => {
+    expect(() => Home()).toThrow("REDIRECT:/login");
   });
 });
