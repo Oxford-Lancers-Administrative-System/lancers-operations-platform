@@ -17,6 +17,7 @@ import { render, screen } from "@testing-library/react";
 vi.mock("./actions", () => ({ signIn: vi.fn(), signOut: vi.fn() }));
 
 import LoginPage from "./page";
+import { describeSignInDestinationContract } from "../sign-in-destination-contract";
 
 type LoginSearchParams = Record<string, string | string[] | undefined>;
 
@@ -79,6 +80,8 @@ describe("both approved actions are present", () => {
     expect(screen.getByLabelText(/^password/i)).toHaveAttribute("type", "password");
   });
 });
+
+describeSignInDestinationContract("/login", show);
 
 describe("the requested destination survives, or is replaced", () => {
   it("carries a safe path into both the form and the recovery link", async () => {
