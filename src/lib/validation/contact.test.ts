@@ -11,7 +11,12 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { looksLikeEmail, looksLikePhone, EMAIL_SHAPE_MESSAGE, PHONE_SHAPE_MESSAGE } from "./contact";
+import {
+  looksLikeEmail,
+  looksLikePhone,
+  EMAIL_SHAPE_MESSAGE,
+  PHONE_SHAPE_MESSAGE,
+} from "./contact";
 
 describe("looksLikePhone", () => {
   it.each([

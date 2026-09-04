@@ -408,6 +408,11 @@ describe("enterReturningPlayer — a new person", () => {
     // identity, and this operator completed the intake. Neither row carries a
     // `from_state`/`to_state`, which is what keeps them from restating the
     // transition record.
+    //
+    // LAN-215, B-008 adds a third audit row on the same membership entity —
+    // `availability_changed`, `commitAvailability`'s own, issue LAN-186 rather
+    // than LAN-74. It is asserted on its own below rather than folded into this
+    // LAN-74 pair, because it is a different fact under a different decision.
     const result = await enterReturningPlayer({
       actorPersonId,
       input: { givenName: unique("Audited"), email: "audited@example.invalid" },
@@ -425,7 +430,7 @@ describe("enterReturningPlayer — a new person", () => {
     }>(
       `select action, entity_table, entity_id, actor_person_id, from_state, to_state, context
          from public.audit_events
-        where entity_id in ($1::uuid, $2::uuid)
+        where entity_id in ($1::uuid, $2::uuid) and action <> 'availability_changed'
         order by action`,
       [result.personId, result.membershipId],
     );
@@ -451,11 +456,35 @@ describe("enterReturningPlayer — a new person", () => {
       dedupe_decision: "new_person",
       transitions_recorded_in: "season_membership_status_events",
     });
+
+    const availability = await observer.query<{
+      entity_table: string;
+      actor_person_id: string;
+      from_state: string | null;
+      to_state: string | null;
+      context: Record<string, unknown>;
+    }>(
+      `select entity_table, actor_person_id, from_state, to_state, context
+         from public.audit_events
+        where entity_id = $1::uuid and action = 'availability_changed'`,
+      [result.membershipId],
+    );
+    expect(availability.rows).toHaveLength(1);
+    expect(availability.rows[0]).toMatchObject({
+      entity_table: "season_memberships",
+      actor_person_id: actorPersonId,
+      from_state: null,
+      to_state: "green",
+    });
+    expect(availability.rows[0].context).toMatchObject({ issue: "LAN-186" });
   });
 
-  it("reads both audit rows and the transition back through transition_ledger", async () => {
+  it("reads the audit rows and the transition back through transition_ledger", async () => {
     // The architecture's answer to "where is the whole story?" — one stream
     // over the typed history table and audit_events, without duplication.
+    // Three audit rows since LAN-215's B-008 added `availability_changed`
+    // alongside the LAN-74 pair — see the previous test for why it is a third
+    // row rather than a fold into either of the other two.
     const result = await enterReturningPlayer({
       actorPersonId,
       input: { givenName: unique("Ledger") },
@@ -469,7 +498,7 @@ describe("enterReturningPlayer — a new person", () => {
       [result.personId, result.membershipId],
     );
 
-    expect(ledger.rows.filter((row) => row.recorded_in === "audit_events")).toHaveLength(2);
+    expect(ledger.rows.filter((row) => row.recorded_in === "audit_events")).toHaveLength(3);
     expect(
       ledger.rows.filter((row) => row.recorded_in === "season_membership_status_events"),
     ).toHaveLength(1);
