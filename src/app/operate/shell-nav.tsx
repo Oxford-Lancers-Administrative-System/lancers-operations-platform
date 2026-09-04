@@ -18,7 +18,7 @@ import ListItemText from "@mui/material/ListItemText";
 import Typography from "@mui/material/Typography";
 import { ADMINISTRATION_SECTION, type Destination } from "./destinations";
 import { BrandMark } from "@/components/brand-mark";
-import { CLUB, LAYOUT } from "@/theme";
+import { CLUB, LAYOUT } from "@/theme-tokens";
 
 /** Sidebar secondary text: Sky Blue on Oxford Blue, 10.67 (theme.ts contrast block). */
 const SIDEBAR_MUTED = CLUB.skyBlue;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { BAND_COLOURS, Section } from "./section";
-import { CLUB } from "@/theme";
+import { CLUB } from "@/theme-tokens";
 
 describe("Section", () => {
   it("renders a plain card with an h2 at the h3 size", () => {

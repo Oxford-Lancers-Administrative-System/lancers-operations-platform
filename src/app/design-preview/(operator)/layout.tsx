@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import { describeHeldCoachingSeats, isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
 import { resolveOperatorAccess } from "@/lib/auth/operator";
-import { LAYOUT } from "@/theme";
+import { LAYOUT } from "@/theme-tokens";
 import { signOut } from "@/app/login/actions";
 import OperatorAccountState from "@/app/operate/account-state";
 import { administrationDestinationsFor, destinationsFor } from "@/app/operate/destinations";

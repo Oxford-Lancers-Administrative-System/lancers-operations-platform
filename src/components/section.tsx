@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { CLUB, SEMANTIC } from "@/theme";
+import { CLUB, SEMANTIC } from "@/theme-tokens";
 
 /**
  * One card with a heading — LAN-225, brief §2. Replaces the six local

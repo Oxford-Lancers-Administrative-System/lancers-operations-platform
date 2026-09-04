@@ -61,50 +61,9 @@ import { createTheme } from "@mui/material/styles";
  * riding as labelled deltas on the screens that carry them.
  */
 
-/** The nine Figma brand-board styles, read 3 September 2026, plus the two neutrals the board does not supply. */
-export const CLUB = Object.freeze({
-  white: "#FFFFFF",
-  oxfordBlue: "#002147",
-  oxfordBlueDark: "#001633",
-  royalBlue: "#1D42A6",
-  skyBlue: "#B9D6F2",
-  charcoal: "#211D1C",
-  charcoal70: "#5A5754",
-  charcoal50: "#8C8987",
-  oldGold: "#8D7149",
-  gold: "#C09723",
-  ochre: "#E2C044",
-  lemon: "#F7EF66",
-  /** Warm off-white page ground. Not a brand colour; chosen to sit with the golds. */
-  ground: "#F6F5F2",
-});
+import { CLUB, LAYOUT, RADIUS, SEMANTIC } from "./theme-tokens";
 
-/**
- * The semantic set — brief §1.2. The club palette has no green or red, so these
- * were chosen to sit with it: warm, slightly desaturated, every `main` passing
- * AA both as white-on-colour (filled chips) and as colour-on-white (outlined
- * chips and alert text). `light` is the tint an alert or a selected row sits on.
- */
-export const SEMANTIC = Object.freeze({
-  success: { main: "#1E6F3C", light: "#E3F1E7", dark: "#155029" },
-  warning: { main: "#9A5B00", light: "#FBF1DC", dark: "#6E4100" },
-  error: { main: "#B3261E", light: "#FBE7E5", dark: "#8A1B15" },
-  info: { main: "#1D42A6", light: "#E3EBF8", dark: "#153280" },
-  neutral: { main: "#5A5754", light: "#ECEAE6", dark: "#3F3D3B" },
-});
-
-/** Radius tokens — brief §1.5. */
-export const RADIUS = Object.freeze({ control: 8, pill: 16, surface: 12 });
-
-/** Page geometry — brief §1.5. One gutter and one measure for every page. */
-export const LAYOUT = Object.freeze({
-  contentMaxWidth: 1200,
-  gutterDesktop: 4,
-  gutterPhone: 2,
-  sidebarWidth: 226,
-  drawerWidth: 280,
-  touchTarget: 44,
-});
+export { CLUB, LAYOUT, RADIUS, SEMANTIC, FONT_MONO } from "./theme-tokens";
 
 declare module "@mui/material/styles" {
   interface Palette {
@@ -134,7 +93,6 @@ declare module "@mui/material/Button" {
 }
 
 const FONT_SANS = "var(--font-geist-sans), system-ui, sans-serif";
-export const FONT_MONO = "var(--font-geist-mono), ui-monospace, monospace";
 
 const theme = createTheme({
   cssVariables: true,
