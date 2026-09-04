@@ -1,6 +1,7 @@
 // Scratch generator for docs/ux/review/design-mockup-2026-09/index.html — LAN-225.
 import fs from "node:fs";
 import path from "node:path";
+import prettier from "prettier";
 const W = process.cwd();
 const DIR = path.join(W, "docs/ux/review/design-mockup-2026-09");
 const CURRENT = "../design-audit-2026-09/screens";
@@ -307,5 +308,13 @@ ${sections}
 </body>
 </html>
 `;
-fs.writeFileSync(path.join(DIR, "index.html"), html);
-console.log("wrote", path.join(DIR, "index.html"));
+const out = path.join(DIR, "index.html");
+// Formatted here rather than by hand afterwards: `npm run verify` starts with
+// `format:check`, and a generator whose output fails it turns every
+// regeneration into a second "format the generated page" commit.
+const formatted = await prettier.format(html, {
+  ...(await prettier.resolveConfig(out)),
+  filepath: out,
+});
+fs.writeFileSync(out, formatted);
+console.log("wrote", out);

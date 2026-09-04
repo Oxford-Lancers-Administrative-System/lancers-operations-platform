@@ -1,361 +1,1224 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LAN-225 — Design mockup review</title>
-<style>
-/* Token provenance: src/theme.ts on chore/lan-225-design-mockup (CLUB, SEMANTIC). The frames below are photographs of the running application; nothing here is a redesign of the redesign. */
-:root{--oxford:#002147;--royal:#1D42A6;--sky:#B9D6F2;--charcoal:#211D1C;--muted:#5A5754;--ground:#F6F5F2;--gold:#C09723;--old-gold:#8D7149;--rule:rgba(33,29,28,.12)}
-*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--charcoal);background:var(--ground)}
-header.page{background:var(--oxford);color:#fff;padding:24px 32px}header.page h1{margin:0 0 6px;font-size:24px}header.page p{margin:0;color:var(--sky)}
-main{max-width:1560px;margin:0 auto;padding:24px 32px}
-.legend{background:#fff;border:1px solid var(--rule);border-radius:8px;padding:16px 20px;margin-bottom:24px}.legend dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:8px 0 0}.legend dt{font-weight:600}
-.band{font:600 11px/16px system-ui;letter-spacing:.08em;text-transform:uppercase;padding:6px 10px;color:#fff}
-.frame.current .band{background:var(--muted)}.frame.proposed .band{background:var(--oxford)}
-.screen{position:relative;background:#fff;border:1px solid var(--rule);border-radius:8px;padding:20px 24px;margin:0 0 32px}
-.tab{position:absolute;top:-1px;right:24px;background:var(--gold);color:var(--charcoal);font-weight:700;padding:4px 12px;border-radius:0 0 8px 8px}
-.head h2{margin:0 0 4px;font-size:20px}.disp{font:600 11px/16px system-ui;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:12px;border:1px solid;vertical-align:middle;margin-left:8px}
-.disp.modified{color:var(--royal);border-color:var(--royal)}.disp.new{color:var(--old-gold);border-color:var(--old-gold);border-style:dashed}
-.route{margin:0;color:var(--muted);font-size:13px}.note{margin:8px 0 0;padding:8px 12px;background:#FBF1DC;border-radius:6px;font-size:13px}
-.deltas{margin:10px 0 16px;padding-left:20px;font-size:14px}.deltas li{margin:2px 0}
-.pair{display:grid;gap:16px;margin-bottom:16px}.pair.desktop{grid-template-columns:1fr 1fr}.pair.phone{grid-template-columns:repeat(2,minmax(0,400px))}
-.frame{margin:0;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:#fff}
-.chrome{display:flex;align-items:center;gap:6px;padding:6px 10px;background:#ECEAE6;border-bottom:1px solid var(--rule)}.dot{width:9px;height:9px;border-radius:50%;background:#c9c6c1}.url{margin-left:8px;font:12px/1 ui-monospace,monospace;color:var(--muted)}
-.shot{max-height:960px;overflow:auto;background:#fff}.shot img{display:block;width:100%;height:auto}
-.frame.phone .shot{max-height:820px}.missing{padding:40px 16px;text-align:center;color:var(--muted);font-style:italic;margin:0}
-code{font:12px ui-monospace,monospace;background:#ECEAE6;padding:1px 4px;border-radius:4px}
-@media (max-width:1100px){.pair.desktop,.pair.phone{grid-template-columns:1fr}}
-</style>
-</head>
-<body>
-<header class="page"><h1>LAN-225 — Design mockup review</h1><p>Proposed captures from <code>chore/lan-225-design-mockup</code> at <code>be95289f3f7dd7e0268d760989906076bc61c39d</code>, 2026-09-04T21:18:16.279Z, measured 1440×900 and 375×812 through the real login on the local seed. Current captures from the LAN-224 audit on <code>main</code> at <code>4a3efa9</code>.</p></header>
-<main>
-<div class="legend">
-<strong>How to read a screen.</strong> Both sides are photographs of the running application. The grey band is what is on <code>main</code> today; the Oxford Blue band is the proposal on this branch. Each head says the disposition — <em>Modified</em> where a surface exists on <code>main</code>, <em>New</em> where it does not — and names the deltas to look for, so nothing has to be diffed by eye.
-<dl>
-<dt>Seed clock</dt><dd>The seed slides onto the day it is run, so a date on the current side and the same date on the proposed side may differ by the days between the two captures. Names and scenarios are the same synthetic dataset.</dd>
-<dt>Product deltas</dt><dd>H1, A6, E9 (brief §4.6) and B2, B3 (register, owner → LAN-225) ride as their own listed lines. Everything else is presentation.</dd>
-<dt>Crest</dt><dd>A labelled placeholder. Brian's Figma export replaces <code>public/brand/crest.svg</code> in place.</dd>
-<dt>Not wired</dt><dd>Buttons and fields are drawn to be judged; the roster board (S1) is the real component.</dd>
-</dl>
-</div>
-<section class="screen" id="S0">
-  <div class="tab">S0</div>
-  <header class="head">
-    <h2>Shell — sidebar, phone drawer, page header <span class="disp modified">Modified</span></h2>
-    <p class="route"><code>/design-preview/roster</code> mirrors <code>/operate</code></p>
-    
-    <ul class="deltas"><li>B1 — the sidebar and drawer are Oxford Blue; the active item is a Sky Blue tint with Oxford Blue text; secondary lines are Sky Blue.</li><li>The crest (placeholder until the Figma export), the club's name and the section caption replace "LANCERS / Operations".</li><li>B2 (owner → LAN-225) — the "Lancers Operations / Signed in as …" block above every page is gone; the page's own header is its first heading.</li><li>B3 (owner → LAN-225) — Sign out lives in the account block at the foot of the sidebar and drawer.</li><li>S0-d — the phone top bar gains the crest and the name because B2 removes the heading LAN-195's choice 1 relied on. Revert to the bare hamburger if preferred.</li></ul>
-  </header>
-  <div class="pair desktop"><figure class="frame current desktop">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/operate</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/operate--operator-home--desktop.png" alt="current /operate at 1440" loading="lazy"></div>
-</figure><figure class="frame proposed desktop">
-  <figcaption class="band">PROPOSED · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/roster</span></div>
-  <div class="shot"><img src="screens/S1-roster--desktop.png" alt="proposed /design-preview/roster at 1440" loading="lazy"></div>
-</figure></div>
-<div class="pair phone"><figure class="frame current phone">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/operate</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/operate--operator-home--phone.png" alt="current /operate at 375" loading="lazy"></div>
-</figure><figure class="frame proposed phone">
-  <figcaption class="band">PROPOSED · 375 · drawer open, viewport only</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/roster</span></div>
-  <div class="shot"><img src="screens/S0-drawer--phone.png" alt="proposed /design-preview/roster at 375" loading="lazy"></div>
-</figure></div>
-</section>
-<section class="screen" id="S1">
-  <div class="tab">S1</div>
-  <header class="head">
-    <h2>Roster board <span class="disp modified">Modified</span></h2>
-    <p class="route"><code>/design-preview/roster</code> mirrors <code>/operate/roster</code></p>
-    
-    <ul class="deltas"><li>Tokens only. The real board component, unchanged in behaviour (Brian, 3 Sep 2026).</li><li>Bands: Person Oxford Blue, Onboarding Old Gold, Season Royal Blue (brief §1.5).</li><li>Chips and buttons read the semantic set; every button is sentence case (E1, G1, G2).</li><li>The shell around it is S0.</li></ul>
-  </header>
-  <div class="pair desktop"><figure class="frame current desktop">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/operate/roster</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/operate-roster--populated--desktop.png" alt="current /operate/roster at 1440" loading="lazy"></div>
-</figure><figure class="frame proposed desktop">
-  <figcaption class="band">PROPOSED · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/roster</span></div>
-  <div class="shot"><img src="screens/S1-roster--desktop.png" alt="proposed /design-preview/roster at 1440" loading="lazy"></div>
-</figure></div>
-<div class="pair phone"><figure class="frame current phone">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/operate/roster</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/operate-roster--populated--phone.png" alt="current /operate/roster at 375" loading="lazy"></div>
-</figure><figure class="frame proposed phone">
-  <figcaption class="band">PROPOSED · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/roster</span></div>
-  <div class="shot"><img src="screens/S1-roster--phone.png" alt="proposed /design-preview/roster at 375" loading="lazy"></div>
-</figure></div>
-</section>
-<section class="screen" id="S2">
-  <div class="tab">S2</div>
-  <header class="head">
-    <h2>Player record <span class="disp modified">Modified</span></h2>
-    <p class="route"><code>/design-preview/player</code> mirrors <code>/operate/roster/[membershipId]</code></p>
-    
-    <ul class="deltas"><li>PageHeader: one display title, the season line, the status chip beside it, "Back to roster" above, "Open the person record" top right (A5, C1).</li><li>The headline row is one MetricRow (C5).</li><li>Sections on the brief's bands; the purple attendance band is gone (A1, §1.5).</li><li>One Fact shape, inline, with provenance only when known (E5).</li><li>Attendance as a table on the neutral band with StatusChips from the one vocabulary; RowCards on a phone (A4, E4).</li><li>In-place editing is drawn as values, not wired (preview limitation, not a proposal).</li></ul>
-  </header>
-  <div class="pair desktop"><figure class="frame current desktop">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/operate/roster/[membershipId]</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/operate-roster-id--active-complete--desktop.png" alt="current /operate/roster/[membershipId] at 1440" loading="lazy"></div>
-</figure><figure class="frame proposed desktop">
-  <figcaption class="band">PROPOSED · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/player</span></div>
-  <div class="shot"><img src="screens/S2-player--desktop.png" alt="proposed /design-preview/player at 1440" loading="lazy"></div>
-</figure></div>
-<div class="pair phone"><figure class="frame current phone">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/operate/roster/[membershipId]</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/operate-roster-id--active-complete--phone.png" alt="current /operate/roster/[membershipId] at 375" loading="lazy"></div>
-</figure><figure class="frame proposed phone">
-  <figcaption class="band">PROPOSED · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/player</span></div>
-  <div class="shot"><img src="screens/S2-player--phone.png" alt="proposed /design-preview/player at 375" loading="lazy"></div>
-</figure></div>
-</section>
-<section class="screen" id="S3">
-  <div class="tab">S3</div>
-  <header class="head">
-    <h2>Event record (approved) <span class="disp modified">Modified</span></h2>
-    <p class="route"><code>/design-preview/event</code> mirrors <code>/operate/events/[id]</code></p>
-    
-    <ul class="deltas"><li>Edit event and Share link move to the PageHeader; the foot is an ActionBar, sticky on a phone (E10).</li><li>Invited · Said yes · Showed as Metrics (E3).</li><li>Register panel, details, audience, history and questions as plain Sections with one Fact shape (C6).</li><li>Participation table: StatusChips on one vocabulary for answer, attendance and delivery; SortableHeader; RowCards on a phone (A4, E4, E13).</li><li>Cancel event is outlined error, never filled orange (A10).</li></ul>
-  </header>
-  <div class="pair desktop"><figure class="frame current desktop">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/operate/events/[id]</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/operate-events-id--approved-upcoming--desktop.png" alt="current /operate/events/[id] at 1440" loading="lazy"></div>
-</figure><figure class="frame proposed desktop">
-  <figcaption class="band">PROPOSED · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/event</span></div>
-  <div class="shot"><img src="screens/S3-event--desktop.png" alt="proposed /design-preview/event at 1440" loading="lazy"></div>
-</figure></div>
-<div class="pair phone"><figure class="frame current phone">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/operate/events/[id]</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/operate-events-id--approved-upcoming--phone.png" alt="current /operate/events/[id] at 375" loading="lazy"></div>
-</figure><figure class="frame proposed phone">
-  <figcaption class="band">PROPOSED · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/event</span></div>
-  <div class="shot"><img src="screens/S3-event--phone.png" alt="proposed /design-preview/event at 375" loading="lazy"></div>
-</figure></div>
-</section>
-<section class="screen" id="S4">
-  <div class="tab">S4</div>
-  <header class="head">
-    <h2>Create event <span class="disp modified">Modified</span></h2>
-    <p class="route"><code>/design-preview/event-new</code> mirrors <code>/operate/events/[id]s/new</code></p>
-    
-    <ul class="deltas"><li>The two standing info alerts become the subtitle and a helper line; their words are unchanged (E2).</li><li>Field, SelectField, DateField, TimeField, ChoiceField at one size, full width (E9, A11).</li><li>Two plain Sections for the fields; the questions as a list with one button.</li><li>ActionBar: Save draft, Save and choose audience, Cancel (A8).</li></ul>
-  </header>
-  <div class="pair desktop"><figure class="frame current desktop">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/operate/events/[id]s/new</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/operate-events-new--empty-form--desktop.png" alt="current /operate/events/[id]s/new at 1440" loading="lazy"></div>
-</figure><figure class="frame proposed desktop">
-  <figcaption class="band">PROPOSED · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/event-new</span></div>
-  <div class="shot"><img src="screens/S4-event-new--desktop.png" alt="proposed /design-preview/event-new at 1440" loading="lazy"></div>
-</figure></div>
-<div class="pair phone"><figure class="frame current phone">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/operate/events/[id]s/new</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/operate-events-new--empty-form--phone.png" alt="current /operate/events/[id]s/new at 375" loading="lazy"></div>
-</figure><figure class="frame proposed phone">
-  <figcaption class="band">PROPOSED · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/event-new</span></div>
-  <div class="shot"><img src="screens/S4-event-new--phone.png" alt="proposed /design-preview/event-new at 375" loading="lazy"></div>
-</figure></div>
-</section>
-<section class="screen" id="S5">
-  <div class="tab">S5</div>
-  <header class="head">
-    <h2>RSVP invitation <span class="disp modified">Modified</span></h2>
-    <p class="route"><code>/design-preview/rsvp</code> mirrors <code>/rsvp/[token]</code></p>
-    <p class="note">The audit could not capture a valid /rsvp/[token] (the link travels by email; LAN-224 route inventory). The nearest current sibling, /a/[token] confirm, is shown so the public chrome can be compared; the copy is /rsvp/[token]'s.</p>
-    <ul class="deltas"><li>PublicShell: full-bleed Oxford Blue masthead with the crest and the club's name; one &lt;main&gt; landmark (A9, F8, G3).</li><li>The event type as an overline; the name as the display title; the date emphasised (LAN-172's Yes emphasis stays).</li><li>Facts in a FactGrid; I'm attending contained, I'm not attending outlined, 48px.</li></ul>
-  </header>
-  <div class="pair desktop"><figure class="frame current desktop">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 1440 · see note</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/rsvp/[token]</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/a-token--confirm-yes--desktop.png" alt="current /rsvp/[token] at 1440" loading="lazy"></div>
-</figure><figure class="frame proposed desktop">
-  <figcaption class="band">PROPOSED · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/rsvp</span></div>
-  <div class="shot"><img src="screens/S5-rsvp--desktop.png" alt="proposed /design-preview/rsvp at 1440" loading="lazy"></div>
-</figure></div>
-<div class="pair phone"><figure class="frame current phone">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 375 · see note</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/rsvp/[token]</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/a-token--confirm-yes--phone.png" alt="current /rsvp/[token] at 375" loading="lazy"></div>
-</figure><figure class="frame proposed phone">
-  <figcaption class="band">PROPOSED · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/rsvp</span></div>
-  <div class="shot"><img src="screens/S5-rsvp--phone.png" alt="proposed /design-preview/rsvp at 375" loading="lazy"></div>
-</figure></div>
-</section>
-<section class="screen" id="S5b">
-  <div class="tab">S5b</div>
-  <header class="head">
-    <h2>RSVP — unusable link <span class="disp modified">Modified</span></h2>
-    <p class="route"><code>/design-preview/rsvp-unusable</code> mirrors <code>/rsvp/[token]</code></p>
-    
-    <ul class="deltas"><li>PublicShell masthead; words unchanged; the contact button stays absent (address still deferred).</li></ul>
-  </header>
-  <div class="pair desktop"><figure class="frame current desktop">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/rsvp/[token]</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/rsvp-token--not-found--desktop.png" alt="current /rsvp/[token] at 1440" loading="lazy"></div>
-</figure><figure class="frame proposed desktop">
-  <figcaption class="band">PROPOSED · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/rsvp-unusable</span></div>
-  <div class="shot"><img src="screens/S5-rsvp-unusable--desktop.png" alt="proposed /design-preview/rsvp-unusable at 1440" loading="lazy"></div>
-</figure></div>
-<div class="pair phone"><figure class="frame current phone">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/rsvp/[token]</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/rsvp-token--not-found--phone.png" alt="current /rsvp/[token] at 375" loading="lazy"></div>
-</figure><figure class="frame proposed phone">
-  <figcaption class="band">PROPOSED · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/rsvp-unusable</span></div>
-  <div class="shot"><img src="screens/S5-rsvp-unusable--phone.png" alt="proposed /design-preview/rsvp-unusable at 375" loading="lazy"></div>
-</figure></div>
-</section>
-<section class="screen" id="S6">
-  <div class="tab">S6</div>
-  <header class="head">
-    <h2>Monday report <span class="disp modified">Modified</span></h2>
-    <p class="route"><code>/design-preview/report</code> mirrors <code>/operate/report</code></p>
-    
-    <ul class="deltas"><li>E9 (taken) — the native date input is the DateField picker.</li><li>Sections at the h3 size with span beside them; tables in TableFrame at the 1200 measure (C4).</li><li>Next week as RowCards with a StatusChip; recruitment and availability as StatusChips.</li><li>The week in numbers as Metrics (E3).</li><li>Order and content unchanged (Brian, 15 Aug 2026).</li></ul>
-  </header>
-  <div class="pair desktop"><figure class="frame current desktop">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/operate/report</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/operate-report--populated--desktop.png" alt="current /operate/report at 1440" loading="lazy"></div>
-</figure><figure class="frame proposed desktop">
-  <figcaption class="band">PROPOSED · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/report</span></div>
-  <div class="shot"><img src="screens/S6-report--desktop.png" alt="proposed /design-preview/report at 1440" loading="lazy"></div>
-</figure></div>
-<div class="pair phone"><figure class="frame current phone">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/operate/report</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/operate-report--populated--phone.png" alt="current /operate/report at 375" loading="lazy"></div>
-</figure><figure class="frame proposed phone">
-  <figcaption class="band">PROPOSED · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/report</span></div>
-  <div class="shot"><img src="screens/S6-report--phone.png" alt="proposed /design-preview/report at 375" loading="lazy"></div>
-</figure></div>
-</section>
-<section class="screen" id="S7">
-  <div class="tab">S7</div>
-  <header class="head">
-    <h2>Login <span class="disp modified">Modified</span></h2>
-    <p class="route"><code>/design-preview/login</code> mirrors <code>/login</code></p>
-    
-    <ul class="deltas"><li>PublicShell with the crest (A9, F8).</li><li>H1 (taken) — the info alert explaining that authentication does not grant access is cut.</li><li>Sentence-case buttons (E1).</li></ul>
-  </header>
-  <div class="pair desktop"><figure class="frame current desktop">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/login</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/login--default--desktop.png" alt="current /login at 1440" loading="lazy"></div>
-</figure><figure class="frame proposed desktop">
-  <figcaption class="band">PROPOSED · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/login</span></div>
-  <div class="shot"><img src="screens/S7-login--desktop.png" alt="proposed /design-preview/login at 1440" loading="lazy"></div>
-</figure></div>
-<div class="pair phone"><figure class="frame current phone">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/login</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/login--default--phone.png" alt="current /login at 375" loading="lazy"></div>
-</figure><figure class="frame proposed phone">
-  <figcaption class="band">PROPOSED · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/login</span></div>
-  <div class="shot"><img src="screens/S7-login--phone.png" alt="proposed /design-preview/login at 375" loading="lazy"></div>
-</figure></div>
-</section>
-<section class="screen" id="S8">
-  <div class="tab">S8</div>
-  <header class="head">
-    <h2>Operators <span class="disp modified">Modified</span></h2>
-    <p class="route"><code>/design-preview/operators</code> mirrors <code>/operate/admin/operators</code></p>
-    
-    <ul class="deltas"><li>PageHeader with the guide link in the subtitle slot; Invite operator top right (B5, B6 placement only).</li><li>Account status as StatusChip on one vocabulary; RowCards on a phone (E4).</li><li>A6 (taken, in part) — recorded instants read 4 Sep 2026; calendar dates still go through formatClubDay and read Sept until the implementation mission moves that formatter.</li><li>H8 (the operator in two groups) is untouched — Brian's.</li></ul>
-  </header>
-  <div class="pair desktop"><figure class="frame current desktop">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/operate/admin/operators</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/operate-admin-operators--populated--desktop.png" alt="current /operate/admin/operators at 1440" loading="lazy"></div>
-</figure><figure class="frame proposed desktop">
-  <figcaption class="band">PROPOSED · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/operators</span></div>
-  <div class="shot"><img src="screens/S8-operators--desktop.png" alt="proposed /design-preview/operators at 1440" loading="lazy"></div>
-</figure></div>
-<div class="pair phone"><figure class="frame current phone">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/operate/admin/operators</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/operate-admin-operators--populated--phone.png" alt="current /operate/admin/operators at 375" loading="lazy"></div>
-</figure><figure class="frame proposed phone">
-  <figcaption class="band">PROPOSED · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/operators</span></div>
-  <div class="shot"><img src="screens/S8-operators--phone.png" alt="proposed /design-preview/operators at 375" loading="lazy"></div>
-</figure></div>
-</section>
-<section class="screen" id="S8b">
-  <div class="tab">S8b</div>
-  <header class="head">
-    <h2>Operator record <span class="disp modified">Modified</span></h2>
-    <p class="route"><code>/design-preview/operator</code> mirrors <code>/operate/admin/operators/[operatorId]</code></p>
-    
-    <ul class="deltas"><li>PageHeader: eyebrow, display title with the state chip, "Back to operators" above (A5, G6).</li><li>Two plain Sections; one Fact shape; the audit history as a ruled list (A1).</li><li>Deactivate operator access is outlined error (A10); actions drawn, not wired; an outcome would land in the page's OutcomeSlot (E11).</li></ul>
-  </header>
-  <div class="pair desktop"><figure class="frame current desktop">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/operate/admin/operators/[operatorId]</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/operate-admin-operators-id--active-coach--desktop.png" alt="current /operate/admin/operators/[operatorId] at 1440" loading="lazy"></div>
-</figure><figure class="frame proposed desktop">
-  <figcaption class="band">PROPOSED · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/operator</span></div>
-  <div class="shot"><img src="screens/S8-operator--desktop.png" alt="proposed /design-preview/operator at 1440" loading="lazy"></div>
-</figure></div>
-<div class="pair phone"><figure class="frame current phone">
-  <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/operate/admin/operators/[operatorId]</span></div>
-  <div class="shot"><img src="../design-audit-2026-09/screens/operate-admin-operators-id--active-coach--phone.png" alt="current /operate/admin/operators/[operatorId] at 375" loading="lazy"></div>
-</figure><figure class="frame proposed phone">
-  <figcaption class="band">PROPOSED · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/operator</span></div>
-  <div class="shot"><img src="screens/S8-operator--phone.png" alt="proposed /design-preview/operator at 375" loading="lazy"></div>
-</figure></div>
-</section>
-<section class="screen" id="K">
-  <div class="tab">K</div>
-  <header class="head">
-    <h2>The kit <span class="disp new">New</span></h2>
-    <p class="route"><code>/design-preview/kit</code></p>
-    
-    <ul class="deltas"><li>Every component once. New surface, nothing to compare — review scaffolding, never product.</li></ul>
-  </header>
-  <div class="pair desktop"><figure class="frame current desktop none"><figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption><div class="shot"><p class="missing">New surface, nothing to compare</p></div></figure><figure class="frame proposed desktop">
-  <figcaption class="band">PROPOSED · 1440</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/kit</span></div>
-  <div class="shot"><img src="screens/K-kit--desktop.png" alt="proposed /design-preview/kit at 1440" loading="lazy"></div>
-</figure></div>
-<div class="pair phone"><figure class="frame current phone none"><figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption><div class="shot"><p class="missing">New surface, nothing to compare</p></div></figure><figure class="frame proposed phone">
-  <figcaption class="band">PROPOSED · 375</figcaption>
-  <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">/design-preview/kit</span></div>
-  <div class="shot"><img src="screens/K-kit--phone.png" alt="proposed /design-preview/kit at 375" loading="lazy"></div>
-</figure></div>
-</section>
-</main>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LAN-225 — Design mockup review</title>
+    <style>
+      /* Token provenance: src/theme.ts on chore/lan-225-design-mockup (CLUB, SEMANTIC). The frames below are photographs of the running application; nothing here is a redesign of the redesign. */
+      :root {
+        --oxford: #002147;
+        --royal: #1d42a6;
+        --sky: #b9d6f2;
+        --charcoal: #211d1c;
+        --muted: #5a5754;
+        --ground: #f6f5f2;
+        --gold: #c09723;
+        --old-gold: #8d7149;
+        --rule: rgba(33, 29, 28, 0.12);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font:
+          15px/1.5 system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        color: var(--charcoal);
+        background: var(--ground);
+      }
+      header.page {
+        background: var(--oxford);
+        color: #fff;
+        padding: 24px 32px;
+      }
+      header.page h1 {
+        margin: 0 0 6px;
+        font-size: 24px;
+      }
+      header.page p {
+        margin: 0;
+        color: var(--sky);
+      }
+      main {
+        max-width: 1560px;
+        margin: 0 auto;
+        padding: 24px 32px;
+      }
+      .legend {
+        background: #fff;
+        border: 1px solid var(--rule);
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin-bottom: 24px;
+      }
+      .legend dl {
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        gap: 6px 16px;
+        margin: 8px 0 0;
+      }
+      .legend dt {
+        font-weight: 600;
+      }
+      .band {
+        font: 600 11px/16px system-ui;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 6px 10px;
+        color: #fff;
+      }
+      .frame.current .band {
+        background: var(--muted);
+      }
+      .frame.proposed .band {
+        background: var(--oxford);
+      }
+      .screen {
+        position: relative;
+        background: #fff;
+        border: 1px solid var(--rule);
+        border-radius: 8px;
+        padding: 20px 24px;
+        margin: 0 0 32px;
+      }
+      .tab {
+        position: absolute;
+        top: -1px;
+        right: 24px;
+        background: var(--gold);
+        color: var(--charcoal);
+        font-weight: 700;
+        padding: 4px 12px;
+        border-radius: 0 0 8px 8px;
+      }
+      .head h2 {
+        margin: 0 0 4px;
+        font-size: 20px;
+      }
+      .disp {
+        font: 600 11px/16px system-ui;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 2px 8px;
+        border-radius: 12px;
+        border: 1px solid;
+        vertical-align: middle;
+        margin-left: 8px;
+      }
+      .disp.modified {
+        color: var(--royal);
+        border-color: var(--royal);
+      }
+      .disp.new {
+        color: var(--old-gold);
+        border-color: var(--old-gold);
+        border-style: dashed;
+      }
+      .route {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .note {
+        margin: 8px 0 0;
+        padding: 8px 12px;
+        background: #fbf1dc;
+        border-radius: 6px;
+        font-size: 13px;
+      }
+      .deltas {
+        margin: 10px 0 16px;
+        padding-left: 20px;
+        font-size: 14px;
+      }
+      .deltas li {
+        margin: 2px 0;
+      }
+      .pair {
+        display: grid;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+      .pair.desktop {
+        grid-template-columns: 1fr 1fr;
+      }
+      .pair.phone {
+        grid-template-columns: repeat(2, minmax(0, 400px));
+      }
+      .frame {
+        margin: 0;
+        border: 1px solid var(--rule);
+        border-radius: 8px;
+        overflow: hidden;
+        background: #fff;
+      }
+      .chrome {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        background: #eceae6;
+        border-bottom: 1px solid var(--rule);
+      }
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #c9c6c1;
+      }
+      .url {
+        margin-left: 8px;
+        font:
+          12px/1 ui-monospace,
+          monospace;
+        color: var(--muted);
+      }
+      .shot {
+        max-height: 960px;
+        overflow: auto;
+        background: #fff;
+      }
+      .shot img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      .frame.phone .shot {
+        max-height: 820px;
+      }
+      .missing {
+        padding: 40px 16px;
+        text-align: center;
+        color: var(--muted);
+        font-style: italic;
+        margin: 0;
+      }
+      code {
+        font:
+          12px ui-monospace,
+          monospace;
+        background: #eceae6;
+        padding: 1px 4px;
+        border-radius: 4px;
+      }
+      @media (max-width: 1100px) {
+        .pair.desktop,
+        .pair.phone {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="page">
+      <h1>LAN-225 — Design mockup review</h1>
+      <p>
+        Proposed captures from <code>chore/lan-225-design-mockup</code> at
+        <code>7ccc7c230519c523a32eb5cdc364a22b6b3fff24</code>, 2026-09-04T21:21:21.969Z, measured
+        1440×900 and 375×812 through the real login on the local seed. Current captures from the
+        LAN-224 audit on <code>main</code> at <code>4a3efa9</code>.
+      </p>
+    </header>
+    <main>
+      <div class="legend">
+        <strong>How to read a screen.</strong> Both sides are photographs of the running
+        application. The grey band is what is on <code>main</code> today; the Oxford Blue band is
+        the proposal on this branch. Each head says the disposition — <em>Modified</em> where a
+        surface exists on <code>main</code>, <em>New</em> where it does not — and names the deltas
+        to look for, so nothing has to be diffed by eye.
+        <dl>
+          <dt>Seed clock</dt>
+          <dd>
+            The seed slides onto the day it is run, so a date on the current side and the same date
+            on the proposed side may differ by the days between the two captures. Names and
+            scenarios are the same synthetic dataset.
+          </dd>
+          <dt>Product deltas</dt>
+          <dd>
+            H1, A6, E9 (brief §4.6) and B2, B3 (register, owner → LAN-225) ride as their own listed
+            lines. Everything else is presentation.
+          </dd>
+          <dt>Crest</dt>
+          <dd>
+            A labelled placeholder. Brian's Figma export replaces
+            <code>public/brand/crest.svg</code> in place.
+          </dd>
+          <dt>Not wired</dt>
+          <dd>
+            Buttons and fields are drawn to be judged; the roster board (S1) is the real component.
+          </dd>
+        </dl>
+      </div>
+      <section class="screen" id="S0">
+        <div class="tab">S0</div>
+        <header class="head">
+          <h2>
+            Shell — sidebar, phone drawer, page header <span class="disp modified">Modified</span>
+          </h2>
+          <p class="route"><code>/design-preview/roster</code> mirrors <code>/operate</code></p>
+
+          <ul class="deltas">
+            <li>
+              B1 — the sidebar and drawer are Oxford Blue; the active item is a Sky Blue tint with
+              Oxford Blue text; secondary lines are Sky Blue.
+            </li>
+            <li>
+              The crest (placeholder until the Figma export), the club's name and the section
+              caption replace "LANCERS / Operations".
+            </li>
+            <li>
+              B2 (owner → LAN-225) — the "Lancers Operations / Signed in as …" block above every
+              page is gone; the page's own header is its first heading.
+            </li>
+            <li>
+              B3 (owner → LAN-225) — Sign out lives in the account block at the foot of the sidebar
+              and drawer.
+            </li>
+            <li>
+              S0-d — the phone top bar gains the crest and the name because B2 removes the heading
+              LAN-195's choice 1 relied on. Revert to the bare hamburger if preferred.
+            </li>
+          </ul>
+        </header>
+        <div class="pair desktop">
+          <figure class="frame current desktop">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/operate</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/operate--operator-home--desktop.png"
+                alt="current /operate at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed desktop">
+            <figcaption class="band">PROPOSED · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/roster</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S1-roster--desktop.png"
+                alt="proposed /design-preview/roster at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+        <div class="pair phone">
+          <figure class="frame current phone">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/operate</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/operate--operator-home--phone.png"
+                alt="current /operate at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed phone">
+            <figcaption class="band">PROPOSED · 375 · drawer open, viewport only</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/roster</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S0-drawer--phone.png"
+                alt="proposed /design-preview/roster at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+      </section>
+      <section class="screen" id="S1">
+        <div class="tab">S1</div>
+        <header class="head">
+          <h2>Roster board <span class="disp modified">Modified</span></h2>
+          <p class="route">
+            <code>/design-preview/roster</code> mirrors <code>/operate/roster</code>
+          </p>
+
+          <ul class="deltas">
+            <li>
+              Tokens only. The real board component, unchanged in behaviour (Brian, 3 Sep 2026).
+            </li>
+            <li>Bands: Person Oxford Blue, Onboarding Old Gold, Season Royal Blue (brief §1.5).</li>
+            <li>
+              Chips and buttons read the semantic set; every button is sentence case (E1, G1, G2).
+            </li>
+            <li>The shell around it is S0.</li>
+          </ul>
+        </header>
+        <div class="pair desktop">
+          <figure class="frame current desktop">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/operate/roster</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/operate-roster--populated--desktop.png"
+                alt="current /operate/roster at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed desktop">
+            <figcaption class="band">PROPOSED · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/roster</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S1-roster--desktop.png"
+                alt="proposed /design-preview/roster at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+        <div class="pair phone">
+          <figure class="frame current phone">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/operate/roster</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/operate-roster--populated--phone.png"
+                alt="current /operate/roster at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed phone">
+            <figcaption class="band">PROPOSED · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/roster</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S1-roster--phone.png"
+                alt="proposed /design-preview/roster at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+      </section>
+      <section class="screen" id="S2">
+        <div class="tab">S2</div>
+        <header class="head">
+          <h2>Player record <span class="disp modified">Modified</span></h2>
+          <p class="route">
+            <code>/design-preview/player</code> mirrors <code>/operate/roster/[membershipId]</code>
+          </p>
+
+          <ul class="deltas">
+            <li>
+              PageHeader: one display title, the season line, the status chip beside it, "Back to
+              roster" above, "Open the person record" top right (A5, C1).
+            </li>
+            <li>The headline row is one MetricRow (C5).</li>
+            <li>Sections on the brief's bands; the purple attendance band is gone (A1, §1.5).</li>
+            <li>One Fact shape, inline, with provenance only when known (E5).</li>
+            <li>
+              Attendance as a table on the neutral band with StatusChips from the one vocabulary;
+              RowCards on a phone (A4, E4).
+            </li>
+            <li>
+              In-place editing is drawn as values, not wired (preview limitation, not a proposal).
+            </li>
+          </ul>
+        </header>
+        <div class="pair desktop">
+          <figure class="frame current desktop">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/operate/roster/[membershipId]</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/operate-roster-id--active-complete--desktop.png"
+                alt="current /operate/roster/[membershipId] at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed desktop">
+            <figcaption class="band">PROPOSED · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/player</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S2-player--desktop.png"
+                alt="proposed /design-preview/player at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+        <div class="pair phone">
+          <figure class="frame current phone">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/operate/roster/[membershipId]</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/operate-roster-id--active-complete--phone.png"
+                alt="current /operate/roster/[membershipId] at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed phone">
+            <figcaption class="band">PROPOSED · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/player</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S2-player--phone.png"
+                alt="proposed /design-preview/player at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+      </section>
+      <section class="screen" id="S3">
+        <div class="tab">S3</div>
+        <header class="head">
+          <h2>Event record (approved) <span class="disp modified">Modified</span></h2>
+          <p class="route">
+            <code>/design-preview/event</code> mirrors <code>/operate/events/[id]</code>
+          </p>
+
+          <ul class="deltas">
+            <li>
+              Edit event and Share link move to the PageHeader; the foot is an ActionBar, sticky on
+              a phone (E10).
+            </li>
+            <li>Invited · Said yes · Showed as Metrics (E3).</li>
+            <li>
+              Register panel, details, audience, history and questions as plain Sections with one
+              Fact shape (C6).
+            </li>
+            <li>
+              Participation table: StatusChips on one vocabulary for answer, attendance and
+              delivery; SortableHeader; RowCards on a phone (A4, E4, E13).
+            </li>
+            <li>Cancel event is outlined error, never filled orange (A10).</li>
+          </ul>
+        </header>
+        <div class="pair desktop">
+          <figure class="frame current desktop">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/operate/events/[id]</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/operate-events-id--approved-upcoming--desktop.png"
+                alt="current /operate/events/[id] at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed desktop">
+            <figcaption class="band">PROPOSED · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/event</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S3-event--desktop.png"
+                alt="proposed /design-preview/event at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+        <div class="pair phone">
+          <figure class="frame current phone">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/operate/events/[id]</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/operate-events-id--approved-upcoming--phone.png"
+                alt="current /operate/events/[id] at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed phone">
+            <figcaption class="band">PROPOSED · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/event</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S3-event--phone.png"
+                alt="proposed /design-preview/event at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+      </section>
+      <section class="screen" id="S4">
+        <div class="tab">S4</div>
+        <header class="head">
+          <h2>Create event <span class="disp modified">Modified</span></h2>
+          <p class="route">
+            <code>/design-preview/event-new</code> mirrors <code>/operate/events/[id]s/new</code>
+          </p>
+
+          <ul class="deltas">
+            <li>
+              The two standing info alerts become the subtitle and a helper line; their words are
+              unchanged (E2).
+            </li>
+            <li>
+              Field, SelectField, DateField, TimeField, ChoiceField at one size, full width (E9,
+              A11).
+            </li>
+            <li>Two plain Sections for the fields; the questions as a list with one button.</li>
+            <li>ActionBar: Save draft, Save and choose audience, Cancel (A8).</li>
+          </ul>
+        </header>
+        <div class="pair desktop">
+          <figure class="frame current desktop">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/operate/events/[id]s/new</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/operate-events-new--empty-form--desktop.png"
+                alt="current /operate/events/[id]s/new at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed desktop">
+            <figcaption class="band">PROPOSED · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/event-new</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S4-event-new--desktop.png"
+                alt="proposed /design-preview/event-new at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+        <div class="pair phone">
+          <figure class="frame current phone">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/operate/events/[id]s/new</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/operate-events-new--empty-form--phone.png"
+                alt="current /operate/events/[id]s/new at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed phone">
+            <figcaption class="band">PROPOSED · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/event-new</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S4-event-new--phone.png"
+                alt="proposed /design-preview/event-new at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+      </section>
+      <section class="screen" id="S5">
+        <div class="tab">S5</div>
+        <header class="head">
+          <h2>RSVP invitation <span class="disp modified">Modified</span></h2>
+          <p class="route"><code>/design-preview/rsvp</code> mirrors <code>/rsvp/[token]</code></p>
+          <p class="note">
+            The audit could not capture a valid /rsvp/[token] (the link travels by email; LAN-224
+            route inventory). The nearest current sibling, /a/[token] confirm, is shown so the
+            public chrome can be compared; the copy is /rsvp/[token]'s.
+          </p>
+          <ul class="deltas">
+            <li>
+              PublicShell: full-bleed Oxford Blue masthead with the crest and the club's name; one
+              &lt;main&gt; landmark (A9, F8, G3).
+            </li>
+            <li>
+              The event type as an overline; the name as the display title; the date emphasised
+              (LAN-172's Yes emphasis stays).
+            </li>
+            <li>Facts in a FactGrid; I'm attending contained, I'm not attending outlined, 48px.</li>
+          </ul>
+        </header>
+        <div class="pair desktop">
+          <figure class="frame current desktop">
+            <figcaption class="band">
+              CURRENT — on <code>main</code> today · 1440 · see note
+            </figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/rsvp/[token]</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/a-token--confirm-yes--desktop.png"
+                alt="current /rsvp/[token] at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed desktop">
+            <figcaption class="band">PROPOSED · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/rsvp</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S5-rsvp--desktop.png"
+                alt="proposed /design-preview/rsvp at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+        <div class="pair phone">
+          <figure class="frame current phone">
+            <figcaption class="band">
+              CURRENT — on <code>main</code> today · 375 · see note
+            </figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/rsvp/[token]</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/a-token--confirm-yes--phone.png"
+                alt="current /rsvp/[token] at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed phone">
+            <figcaption class="band">PROPOSED · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/rsvp</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S5-rsvp--phone.png"
+                alt="proposed /design-preview/rsvp at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+      </section>
+      <section class="screen" id="S5b">
+        <div class="tab">S5b</div>
+        <header class="head">
+          <h2>RSVP — unusable link <span class="disp modified">Modified</span></h2>
+          <p class="route">
+            <code>/design-preview/rsvp-unusable</code> mirrors <code>/rsvp/[token]</code>
+          </p>
+
+          <ul class="deltas">
+            <li>
+              PublicShell masthead; words unchanged; the contact button stays absent (address still
+              deferred).
+            </li>
+          </ul>
+        </header>
+        <div class="pair desktop">
+          <figure class="frame current desktop">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/rsvp/[token]</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/rsvp-token--not-found--desktop.png"
+                alt="current /rsvp/[token] at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed desktop">
+            <figcaption class="band">PROPOSED · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/rsvp-unusable</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S5-rsvp-unusable--desktop.png"
+                alt="proposed /design-preview/rsvp-unusable at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+        <div class="pair phone">
+          <figure class="frame current phone">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/rsvp/[token]</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/rsvp-token--not-found--phone.png"
+                alt="current /rsvp/[token] at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed phone">
+            <figcaption class="band">PROPOSED · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/rsvp-unusable</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S5-rsvp-unusable--phone.png"
+                alt="proposed /design-preview/rsvp-unusable at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+      </section>
+      <section class="screen" id="S6">
+        <div class="tab">S6</div>
+        <header class="head">
+          <h2>Monday report <span class="disp modified">Modified</span></h2>
+          <p class="route">
+            <code>/design-preview/report</code> mirrors <code>/operate/report</code>
+          </p>
+
+          <ul class="deltas">
+            <li>E9 (taken) — the native date input is the DateField picker.</li>
+            <li>
+              Sections at the h3 size with span beside them; tables in TableFrame at the 1200
+              measure (C4).
+            </li>
+            <li>
+              Next week as RowCards with a StatusChip; recruitment and availability as StatusChips.
+            </li>
+            <li>The week in numbers as Metrics (E3).</li>
+            <li>Order and content unchanged (Brian, 15 Aug 2026).</li>
+          </ul>
+        </header>
+        <div class="pair desktop">
+          <figure class="frame current desktop">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/operate/report</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/operate-report--populated--desktop.png"
+                alt="current /operate/report at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed desktop">
+            <figcaption class="band">PROPOSED · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/report</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S6-report--desktop.png"
+                alt="proposed /design-preview/report at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+        <div class="pair phone">
+          <figure class="frame current phone">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/operate/report</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/operate-report--populated--phone.png"
+                alt="current /operate/report at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed phone">
+            <figcaption class="band">PROPOSED · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/report</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S6-report--phone.png"
+                alt="proposed /design-preview/report at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+      </section>
+      <section class="screen" id="S7">
+        <div class="tab">S7</div>
+        <header class="head">
+          <h2>Login <span class="disp modified">Modified</span></h2>
+          <p class="route"><code>/design-preview/login</code> mirrors <code>/login</code></p>
+
+          <ul class="deltas">
+            <li>PublicShell with the crest (A9, F8).</li>
+            <li>
+              H1 (taken) — the info alert explaining that authentication does not grant access is
+              cut.
+            </li>
+            <li>Sentence-case buttons (E1).</li>
+          </ul>
+        </header>
+        <div class="pair desktop">
+          <figure class="frame current desktop">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/login</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/login--default--desktop.png"
+                alt="current /login at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed desktop">
+            <figcaption class="band">PROPOSED · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/login</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S7-login--desktop.png"
+                alt="proposed /design-preview/login at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+        <div class="pair phone">
+          <figure class="frame current phone">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/login</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/login--default--phone.png"
+                alt="current /login at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed phone">
+            <figcaption class="band">PROPOSED · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/login</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S7-login--phone.png"
+                alt="proposed /design-preview/login at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+      </section>
+      <section class="screen" id="S8">
+        <div class="tab">S8</div>
+        <header class="head">
+          <h2>Operators <span class="disp modified">Modified</span></h2>
+          <p class="route">
+            <code>/design-preview/operators</code> mirrors <code>/operate/admin/operators</code>
+          </p>
+
+          <ul class="deltas">
+            <li>
+              PageHeader with the guide link in the subtitle slot; Invite operator top right (B5, B6
+              placement only).
+            </li>
+            <li>Account status as StatusChip on one vocabulary; RowCards on a phone (E4).</li>
+            <li>
+              A6 (taken, in part) — recorded instants read 4 Sep 2026; calendar dates still go
+              through formatClubDay and read Sept until the implementation mission moves that
+              formatter.
+            </li>
+            <li>H8 (the operator in two groups) is untouched — Brian's.</li>
+          </ul>
+        </header>
+        <div class="pair desktop">
+          <figure class="frame current desktop">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/operate/admin/operators</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/operate-admin-operators--populated--desktop.png"
+                alt="current /operate/admin/operators at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed desktop">
+            <figcaption class="band">PROPOSED · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/operators</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S8-operators--desktop.png"
+                alt="proposed /design-preview/operators at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+        <div class="pair phone">
+          <figure class="frame current phone">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/operate/admin/operators</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/operate-admin-operators--populated--phone.png"
+                alt="current /operate/admin/operators at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed phone">
+            <figcaption class="band">PROPOSED · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/operators</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S8-operators--phone.png"
+                alt="proposed /design-preview/operators at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+      </section>
+      <section class="screen" id="S8b">
+        <div class="tab">S8b</div>
+        <header class="head">
+          <h2>Operator record <span class="disp modified">Modified</span></h2>
+          <p class="route">
+            <code>/design-preview/operator</code> mirrors
+            <code>/operate/admin/operators/[operatorId]</code>
+          </p>
+
+          <ul class="deltas">
+            <li>
+              PageHeader: eyebrow, display title with the state chip, "Back to operators" above (A5,
+              G6).
+            </li>
+            <li>Two plain Sections; one Fact shape; the audit history as a ruled list (A1).</li>
+            <li>
+              Deactivate operator access is outlined error (A10); actions drawn, not wired; an
+              outcome would land in the page's OutcomeSlot (E11).
+            </li>
+          </ul>
+        </header>
+        <div class="pair desktop">
+          <figure class="frame current desktop">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/operate/admin/operators/[operatorId]</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/operate-admin-operators-id--active-coach--desktop.png"
+                alt="current /operate/admin/operators/[operatorId] at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed desktop">
+            <figcaption class="band">PROPOSED · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/operator</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S8-operator--desktop.png"
+                alt="proposed /design-preview/operator at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+        <div class="pair phone">
+          <figure class="frame current phone">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/operate/admin/operators/[operatorId]</span>
+            </div>
+            <div class="shot">
+              <img
+                src="../design-audit-2026-09/screens/operate-admin-operators-id--active-coach--phone.png"
+                alt="current /operate/admin/operators/[operatorId] at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed phone">
+            <figcaption class="band">PROPOSED · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/operator</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S8-operator--phone.png"
+                alt="proposed /design-preview/operator at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+      </section>
+      <section class="screen" id="K">
+        <div class="tab">K</div>
+        <header class="head">
+          <h2>The kit <span class="disp new">New</span></h2>
+          <p class="route"><code>/design-preview/kit</code></p>
+
+          <ul class="deltas">
+            <li>
+              Every component once. New surface, nothing to compare — review scaffolding, never
+              product.
+            </li>
+          </ul>
+        </header>
+        <div class="pair desktop">
+          <figure class="frame current desktop none">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
+            <div class="shot"><p class="missing">New surface, nothing to compare</p></div>
+          </figure>
+          <figure class="frame proposed desktop">
+            <figcaption class="band">PROPOSED · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/kit</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/K-kit--desktop.png"
+                alt="proposed /design-preview/kit at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+        <div class="pair phone">
+          <figure class="frame current phone none">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
+            <div class="shot"><p class="missing">New surface, nothing to compare</p></div>
+          </figure>
+          <figure class="frame proposed phone">
+            <figcaption class="band">PROPOSED · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/kit</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/K-kit--phone.png"
+                alt="proposed /design-preview/kit at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+      </section>
+    </main>
+  </body>
 </html>

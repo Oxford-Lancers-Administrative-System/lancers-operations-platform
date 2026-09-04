@@ -1,6 +1,6 @@
 {
-  "headSha": "be95289f3f7dd7e0268d760989906076bc61c39d",
-  "at": "2026-09-04T21:18:16.279Z",
+  "headSha": "7ccc7c230519c523a32eb5cdc364a22b6b3fff24",
+  "at": "2026-09-04T21:21:21.969Z",
   "captures": [
     {
       "id": "S1-roster",
@@ -12,7 +12,7 @@
       },
       "file": "S1-roster--desktop.png",
       "pageHeight": 900,
-      "ms": 1851
+      "ms": 1937
     },
     {
       "id": "S2-player",
@@ -24,7 +24,7 @@
       },
       "file": "S2-player--desktop.png",
       "pageHeight": 4794,
-      "ms": 2111
+      "ms": 2256
     },
     {
       "id": "S3-event",
@@ -36,7 +36,7 @@
       },
       "file": "S3-event--desktop.png",
       "pageHeight": 3735,
-      "ms": 2580
+      "ms": 2463
     },
     {
       "id": "S4-event-new",
@@ -48,7 +48,7 @@
       },
       "file": "S4-event-new--desktop.png",
       "pageHeight": 1597,
-      "ms": 1493
+      "ms": 1501
     },
     {
       "id": "S5-rsvp",
@@ -60,7 +60,7 @@
       },
       "file": "S5-rsvp--desktop.png",
       "pageHeight": 900,
-      "ms": 1670
+      "ms": 1616
     },
     {
       "id": "S5-rsvp-unusable",
@@ -72,7 +72,7 @@
       },
       "file": "S5-rsvp-unusable--desktop.png",
       "pageHeight": 900,
-      "ms": 1248
+      "ms": 1386
     },
     {
       "id": "S6-report",
@@ -84,7 +84,7 @@
       },
       "file": "S6-report--desktop.png",
       "pageHeight": 4936,
-      "ms": 3928
+      "ms": 3406
     },
     {
       "id": "S7-login",
@@ -96,7 +96,7 @@
       },
       "file": "S7-login--desktop.png",
       "pageHeight": 900,
-      "ms": 1512
+      "ms": 1447
     },
     {
       "id": "S8-operators",
@@ -108,7 +108,7 @@
       },
       "file": "S8-operators--desktop.png",
       "pageHeight": 900,
-      "ms": 1614
+      "ms": 1296
     },
     {
       "id": "S8-operator",
@@ -120,7 +120,7 @@
       },
       "file": "S8-operator--desktop.png",
       "pageHeight": 900,
-      "ms": 1836
+      "ms": 1635
     },
     {
       "id": "K-kit",
@@ -132,7 +132,7 @@
       },
       "file": "K-kit--desktop.png",
       "pageHeight": 5050,
-      "ms": 2110
+      "ms": 1810
     },
     {
       "id": "index",
@@ -144,7 +144,7 @@
       },
       "file": "index--desktop.png",
       "pageHeight": 1163,
-      "ms": 2087
+      "ms": 1287
     },
     {
       "id": "S1-roster",
@@ -156,7 +156,7 @@
       },
       "file": "S1-roster--phone.png",
       "pageHeight": 5124,
-      "ms": 1999
+      "ms": 1607
     },
     {
       "id": "S2-player",
@@ -168,7 +168,7 @@
       },
       "file": "S2-player--phone.png",
       "pageHeight": 11478,
-      "ms": 2233
+      "ms": 1976
     },
     {
       "id": "S3-event",
@@ -180,7 +180,7 @@
       },
       "file": "S3-event--phone.png",
       "pageHeight": 9040,
-      "ms": 2296
+      "ms": 2905
     },
     {
       "id": "S4-event-new",
@@ -192,7 +192,7 @@
       },
       "file": "S4-event-new--phone.png",
       "pageHeight": 2127,
-      "ms": 1365
+      "ms": 1377
     },
     {
       "id": "S5-rsvp",
@@ -204,7 +204,7 @@
       },
       "file": "S5-rsvp--phone.png",
       "pageHeight": 812,
-      "ms": 1451
+      "ms": 1406
     },
     {
       "id": "S5-rsvp-unusable",
@@ -216,7 +216,7 @@
       },
       "file": "S5-rsvp-unusable--phone.png",
       "pageHeight": 812,
-      "ms": 1249
+      "ms": 1231
     },
     {
       "id": "S6-report",
@@ -228,7 +228,7 @@
       },
       "file": "S6-report--phone.png",
       "pageHeight": 7002,
-      "ms": 2873
+      "ms": 2831
     },
     {
       "id": "S7-login",
@@ -240,7 +240,7 @@
       },
       "file": "S7-login--phone.png",
       "pageHeight": 812,
-      "ms": 1392
+      "ms": 1458
     },
     {
       "id": "S8-operators",
@@ -252,7 +252,7 @@
       },
       "file": "S8-operators--phone.png",
       "pageHeight": 868,
-      "ms": 1271
+      "ms": 1342
     },
     {
       "id": "S8-operator",
@@ -264,7 +264,7 @@
       },
       "file": "S8-operator--phone.png",
       "pageHeight": 1071,
-      "ms": 1418
+      "ms": 1325
     },
     {
       "id": "K-kit",
@@ -276,7 +276,7 @@
       },
       "file": "K-kit--phone.png",
       "pageHeight": 6914,
-      "ms": 1560
+      "ms": 1591
     },
     {
       "id": "index",
@@ -288,7 +288,7 @@
       },
       "file": "index--phone.png",
       "pageHeight": 1701,
-      "ms": 1360
+      "ms": 1325
     },
     {
       "id": "S0-drawer",

@@ -44,6 +44,16 @@ const manifest = [];
 
 for (const vp of VIEWPORTS) {
   const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
+  // `next dev` floats its dev-tools badge in the bottom-left corner, which is
+  // exactly where the shell's account block puts **Sign out**. It never ships,
+  // so a capture that shows it sitting on top of a real control misrepresents
+  // the design rather than documenting it.
+  await context.addInitScript(() => {
+    const style = document.createElement("style");
+    style.textContent =
+      "nextjs-portal, [data-nextjs-dev-tools-button] { display: none !important }";
+    document.addEventListener("DOMContentLoaded", () => document.head.append(style));
+  });
   const page = await context.newPage();
   await page.goto(`${origin}/login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await page.fill('input[type="email"]', account.email);
