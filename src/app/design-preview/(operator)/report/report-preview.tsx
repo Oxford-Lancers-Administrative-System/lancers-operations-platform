@@ -19,7 +19,7 @@ import { Fact, FactList } from "@/components/fact";
 import { Metric, MetricRow } from "@/components/metric";
 import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
-import { RowCard, RowCardList, DesktopOnly } from "@/components/row-card";
+import { RowCard } from "@/components/row-card";
 import { SortableHeader, TableFrame } from "@/components/sortable-header";
 import { StatusChip } from "@/components/status-chip";
 import {
@@ -703,8 +703,6 @@ function WeekInNumbers({ content }: { content: WeeklyReportContent }) {
           caption={`${AVAILABILITY_LABELS.green} · ${AVAILABILITY_LABELS.orange} · ${AVAILABILITY_LABELS.red}`}
         />
       </MetricRow>
-      <DesktopOnly>{null}</DesktopOnly>
-      <RowCardList>{null}</RowCardList>
     </Stack>
   );
 }

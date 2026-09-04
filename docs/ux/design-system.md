@@ -11,6 +11,8 @@ This is the single place the implementation mission is held to. It is short
 on purpose: the tokens are in `src/theme.ts`, the components are in
 `src/components/`, and the evidence is on the review page for LAN-225. What is
 here is the rule for each, and the reason where a reason is not obvious.
+The token values themselves are in `src/theme-tokens.ts` (server-safe);
+`src/theme.ts` builds the MUI theme from them and records the contrast.
 
 ## 1. Palette
 

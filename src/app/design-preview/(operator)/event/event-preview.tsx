@@ -166,9 +166,7 @@ export default function EventPreview({
           }
           action={registerAvailable ? <Button variant="contained">Attendance</Button> : undefined}
           testId="register"
-        >
-          {null}
-        </Section>
+        />
       ) : null}
 
       <Section title="Details" testId="facts">

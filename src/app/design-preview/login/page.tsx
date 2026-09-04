@@ -28,7 +28,7 @@ export default async function LoginPreviewPage() {
             Use the email address connected to your operator profile.
           </Typography>
         </Stack>
-        <Stack component="form" spacing={2} onSubmit={undefined}>
+        <Stack component="form" spacing={2}>
           <Field label="Email address" name="email" type="email" autoComplete="username" required />
           <Field
             label="Password"

@@ -57,7 +57,8 @@ export function Section({
   action?: ReactNode;
   /** One sentence under the heading, where the section needs it. Never help copy. */
   description?: string;
-  children: ReactNode;
+  /** Omitted for a section whose heading and description are the whole message (a register panel). */
+  children?: ReactNode;
   testId?: string;
 }) {
   if (variant === "banded") {
@@ -107,7 +108,7 @@ export function Section({
         sx={{
           justifyContent: "space-between",
           alignItems: "flex-start",
-          mb: 2,
+          mb: children ? 2 : 0,
           flexWrap: "wrap",
           gap: 1,
         }}
