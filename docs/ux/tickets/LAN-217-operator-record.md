@@ -29,7 +29,7 @@ surfaced through the row's own error slot rather than a disabled option.
 
 **The waive reason is gone, not merely optional.** `W6-02`'s approved screen
 shows the menu with no reason field anywhere in it. `REQ-reason-free-waive`
-only ever made the reason *optional* on the service side (the substrate,
+only ever made the reason _optional_ on the service side (the substrate,
 LAN-214, already unwound `onboarding_items_waiver_is_justified`); this
 package reads the mockup's silence on the field as the instruction to remove
 it, so Waived now commits the moment it is chosen, exactly like Complete and
