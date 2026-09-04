@@ -670,6 +670,17 @@ export async function readOnboardingLastContactIn(
 export interface OnboardingChaseQueueInfo {
   readonly lastContact: OnboardingLastContact | null;
   readonly next: OnboardingChaseNext;
+  /**
+   * Correction round 2, F-1: the same fact {@link describeOnboardingChaseNext}
+   * already reads to decide `no_channel`, carried alongside `next` rather
+   * than re-derived from it. `next.kind` alone cannot tell the queue "no
+   * reachable number" once exhaustion has already claimed the row — that
+   * collapse is exactly what let an exhausted, unreachable person keep an
+   * active Nudge button. `true` when there is no candidate at all (a
+   * membership `describeOnboardingChaseNext` never runs), the same benign
+   * default `hasReachableNumber` itself documents.
+   */
+  readonly hasReachableNumber: boolean;
 }
 
 /**
@@ -697,7 +708,11 @@ export async function readOnboardingChaseQueueInfoIn(
     const next: OnboardingChaseNext = candidate
       ? describeOnboardingChaseNext(candidate, settings)
       : { kind: "no_automated_chase" };
-    info.set(membershipId, { lastContact, next });
+    info.set(membershipId, {
+      lastContact,
+      next,
+      hasReachableNumber: candidate ? candidate.hasReachableNumber : true,
+    });
   }
 
   return info;

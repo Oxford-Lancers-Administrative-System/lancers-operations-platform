@@ -164,6 +164,7 @@ export default async function MissingDataPage({
     const info = entry.membershipId ? chaseInfo.get(entry.membershipId) : undefined;
     const isOnboarding = entry.status === "onboarding";
     const next = isOnboarding && info ? info.next : null;
+    const hasReachableNumber = info?.hasReachableNumber ?? true;
     return {
       personId: entry.personId,
       membershipId: isOnboarding ? (entry.membershipId ?? null) : null,
@@ -175,9 +176,9 @@ export default async function MissingDataPage({
       correctHref: `/operate/people/${entry.personId}/edit?from=missing`,
       personHref: `/operate/people/${entry.personId}`,
       lastContactLabel: isOnboarding ? formatLastContact(info?.lastContact ?? null) : null,
-      nextLabel: next ? formatChaseNext(next) : null,
+      nextLabel: next ? formatChaseNext(next, hasReachableNumber) : null,
       nextNeedsAHuman: next ? chaseNeedsAHuman(next) : false,
-      nudgeable: next ? isNudgeable(next) : false,
+      nudgeable: next ? isNudgeable(next, hasReachableNumber) : false,
     };
   });
 

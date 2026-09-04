@@ -31,6 +31,7 @@ vi.mock("@/lib/services/onboarding-chase", () => ({
 
 import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator";
 import { listMissingDataQueue } from "@/lib/services/people-directory";
+import { readOnboardingChaseQueueInfoIn } from "@/lib/services/onboarding-chase";
 import MissingDataPage from "./page";
 
 function signedInAs(roleCodes: string[]): void {
@@ -250,5 +251,122 @@ describe("the desktop table's Missing column — W7-01, correcting F1", () => {
       "href",
       expect.stringContaining("dir=asc"),
     );
+  });
+});
+
+// Correction round 2, F-3: C-2's reachability partition (page.tsx line ~160)
+// carried no regression test — every existing mocked `entries` array here
+// carries exactly one row, so nothing in the repository would catch the
+// partition breaking. Three rows, deliberately not pre-sorted by
+// reachability, prove both halves of the rule: no-reachable-number rows rank
+// first, and each group keeps its own relative order (a stable partition,
+// not a full re-sort) — Milo (reachable) is seeded first but must render
+// last; Zara and Anna (both unreachable) must render in their original
+// relative order, Zara before Anna.
+describe("the reachability partition — W7-01/W8, correcting F-3", () => {
+  it("ranks every no-reachable-number row above every reachable row, stably within each group", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(listMissingDataQueue).mockResolvedValue({
+      season: SEASON,
+      scope: "in_season",
+      totalMissing: 1,
+      entries: [
+        {
+          personId: "p-milo",
+          displayName: "Milo",
+          matchedAlias: null,
+          status: "active",
+          clubRoleSummary: "Player",
+          hasMobile: true,
+          hasPersonalEmail: false,
+          missingRequiredFields: ["emergency_contact"],
+        },
+        {
+          personId: "p-zara",
+          displayName: "Zara",
+          matchedAlias: null,
+          status: "active",
+          clubRoleSummary: "Player",
+          hasMobile: false,
+          hasPersonalEmail: false,
+          missingRequiredFields: ["emergency_contact"],
+        },
+        {
+          personId: "p-anna",
+          displayName: "Anna",
+          matchedAlias: null,
+          status: "active",
+          clubRoleSummary: "Player",
+          hasMobile: false,
+          hasPersonalEmail: false,
+          missingRequiredFields: ["emergency_contact"],
+        },
+      ],
+    });
+
+    render(await MissingDataPage(pageProps({ players: "all" })));
+
+    const names = screen
+      .getAllByTestId("missing-row")
+      .map((row) => within(row).getByRole("link", { name: /Zara|Anna|Milo/ }).textContent);
+    expect(names).toEqual(["Zara", "Anna", "Milo"]);
+  });
+});
+
+// Correction round 2, F-1 — the blocker, proved once more at the page's own
+// assembly point (not just the pure `chase-presentation.ts` functions):
+// Kenelm Netherby, exhausted with no reachable number, must never render an
+// active Nudge control, and the row must say the concrete reason plainly.
+describe("the Nudge control for an exhausted, unreachable person — correcting F-1", () => {
+  const KENELM_ENTRY = {
+    personId: "p-kenelm",
+    displayName: "Kenelm Netherby",
+    matchedAlias: null,
+    status: "onboarding" as const,
+    clubRoleSummary: "Player",
+    hasMobile: false,
+    hasPersonalEmail: true,
+    missingRequiredFields: ["mobile" as const],
+    membershipId: "m-kenelm",
+  };
+
+  it("offers no Nudge action and says there is no phone number, not 'Chase exhausted' — F-1", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(listMissingDataQueue).mockResolvedValue({
+      season: SEASON,
+      scope: "in_season",
+      totalMissing: 1,
+      entries: [KENELM_ENTRY],
+    });
+    vi.mocked(readOnboardingChaseQueueInfoIn).mockResolvedValue(
+      new Map([
+        ["m-kenelm", { lastContact: null, next: { kind: "exhausted" }, hasReachableNumber: false }],
+      ]),
+    );
+
+    render(await MissingDataPage(pageProps({ players: "all" })));
+
+    expect(screen.getAllByText("No phone number on file").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Nudge" })).not.toBeInTheDocument();
+  });
+
+  it("still offers the Nudge action when exhausted but reachable — the unaffected half of the rule", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(listMissingDataQueue).mockResolvedValue({
+      season: SEASON,
+      scope: "in_season",
+      totalMissing: 1,
+      entries: [{ ...KENELM_ENTRY, hasMobile: true, missingRequiredFields: [] }],
+    });
+    vi.mocked(readOnboardingChaseQueueInfoIn).mockResolvedValue(
+      new Map([
+        ["m-kenelm", { lastContact: null, next: { kind: "exhausted" }, hasReachableNumber: true }],
+      ]),
+    );
+
+    render(await MissingDataPage(pageProps({ players: "all" })));
+
+    expect(screen.getAllByText("Chase exhausted").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "Nudge" }).length).toBeGreaterThan(0);
   });
 });

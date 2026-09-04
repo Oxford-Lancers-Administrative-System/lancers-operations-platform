@@ -52,16 +52,34 @@ chase at all.
 
 `/operate/people/missing` (LAN-184's own shipped table) gains, per row:
 **Last contact** — when, and what kind (the welcome, a numbered follow-up, or
-a named operator's nudge) — and **Next** — a scheduled date, or one of three
-distinct statements: `Chase exhausted`, `Unmessageable · no consent` /
-`Unmessageable · under 18`, `Delivery failed · needs a person`, `No automated
-chase` (when `chase_count` is zero). A checkbox column and a **Nudge** action
-(per row, and a bulk "Nudge N people" bar once anything is selected) let an
-operator select one person or several and send each their own compiled ask on
-their own link in one action; the checkbox and Nudge button are withheld
-only for `Unmessageable` rows — every other state, including `Chase exhausted`
-and `Delivery failed`, still offers a nudge, because the queue **warns**, it
-never refuses.
+a named operator's nudge) — and **Next** — a scheduled date, or one of five
+distinct statements: `Chase exhausted`, `Unmessageable · under 18`, `No phone
+number on file`, `Delivery failed · <the real, provider-neutral reason>`, `No
+automated chase` (when `chase_count` is zero). A checkbox column and a
+**Nudge** action (per row, and a bulk "Nudge N people" bar once anything is
+selected) let an operator select one person or several and send each their
+own compiled ask on their own link in one action.
+
+Status as originally shipped, superseded twice since — as-built now reads:
+
+- `Unmessageable · no consent` never ships (correction round 1, `C-4`,
+  Q-11): a team member lacking granted consent is not unmessageable, and
+  still receives the onboarding and consent form.
+- `Delivery failed · needs a person` never ships (correction round 1,
+  `C-5`): the row shows the real, stored, provider-neutral failure reason
+  instead of that fixed phrase.
+- The checkbox and Nudge button are withheld for `Unmessageable` rows **and**
+  for any row with no reachable number, whatever else is true of it —
+  including an exhausted one (correction round 2, `F-1`; Brian, 2026-09-03:
+  "if there's no number, nudge doesn't do anything… that is something the
+  president needs to go off and get their real phone number"). Such a row's
+  Next column reads `No phone number on file`, the same wording the
+  no-channel case already uses, never the generic `Chase exhausted` that
+  would otherwise hide it. Exhaustion on its own still only warns: an
+  exhausted person who does have a reachable number keeps the nudge, and
+  every other state — `Chase exhausted` (reachable), `Delivery failed` —
+  still offers one, because the queue **warns**, it never refuses beyond
+  that one absolute rule (no channel, or under 18).
 
 The queue defaults to **onboarding players only** (`onlyOnboardingPlayers` on
 `listMissingDataQueue`), with Mission 5's full, unrestricted scope one click

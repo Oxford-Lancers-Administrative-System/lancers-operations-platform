@@ -18,11 +18,21 @@
  * Five states, on five people already in the fixture:
  *
  *   - **Jorvik Kirkbride** — mid-chase. Welcome, one delivered follow-up, the
- *     next due on the configured interval.
- *   - **Kenelm Netherby** — exhausted. Welcome and `chase_count` (4)
- *     delivered follow-ups; `W9`'s escalation is derived, not stored, and
- *     shows on this membership's own activity log as the record of what was
- *     escalated.
+ *     next due on the configured interval. Correction round 2, F-2: this
+ *     state renders only with a reachable number — `seed-local.mjs`'s own
+ *     recruit-sourced arrivals carry no contact points at all until one is
+ *     added, so this script now gives him one (`grantPhone` below), the same
+ *     way it already gives Odile a personal email for her own state.
+ *   - **Kenelm Netherby** — exhausted *and* unreachable, deliberately, on
+ *     both counts. `chase_count` (4) delivered follow-ups; `W9`'s escalation
+ *     is derived, not stored, and shows on this membership's own activity
+ *     log as the record of what was escalated. This is the exact live shape
+ *     Brian's 2026-09-03 walkthrough named ("an email and no phone… his
+ *     nudge reported failed") and correction round 2's F-1 fixed: the row
+ *     now refuses the nudge and says "No phone number on file", never
+ *     "Chase exhausted" — see `chase-presentation.ts`'s own comment on why.
+ *     Giving him a number here would erase the one state this whole
+ *     correction exists to prove is fixed.
  *   - **Lucian** — terminal delivery failure. One chase attempt that
  *     exhausted its own retry ceiling without ever delivering; the count is
  *     unspent (`REQ-cap-delivered`) and the person is listed for a human.
@@ -193,6 +203,18 @@ try {
   // --- Jorvik Kirkbride: mid-chase -----------------------------------------
   const jorvik = await personByGivenName(client, "Jorvik");
   await grantConsent(client, jorvik.person_id, jorvik.season_id);
+  // Correction round 2, F-2: a reachable number, or this state renders
+  // `no_channel` like every other unreachable row and the "scheduled" demo
+  // state has nothing on screen — see the module note above. A reserved-block
+  // test number, the same shape `seed-local.mjs` already uses throughout.
+  await client.query(
+    `insert into public.contact_points (person_id, kind, raw_value, is_preferred, scope)
+     select $1::uuid, 'phone', $2, true, null
+      where not exists (
+        select 1 from public.contact_points where person_id = $1::uuid and kind = 'phone'
+      )`,
+    [jorvik.person_id, "07700 900224"],
+  );
   await seedChase(client, {
     membershipId: jorvik.membership_id,
     personId: jorvik.person_id,
@@ -370,12 +392,18 @@ try {
 
   // --- Odile Marchmont: consent granted, no reachable number (C-1) ---------
   // Correction round 1, C-1 (Brian, 2026-09-03 walkthrough): Jorvik Kirkbride
-  // and Kenelm Netherby, "an email and no phone" — both already carry a
-  // mobile number in this fixture (they had to, to have a chase history
-  // above), so neither can show the defect Brian actually hit any more.
-  // Odile arrived through `seed-local.mjs`'s recruit path with no contact
-  // point at all; granting consent and adding only a personal email
-  // reproduces the exact shape without touching anyone else's history.
+  // and Kenelm Netherby, "an email and no phone". A chase history alone never
+  // required a phone number — every delivered attempt above is written
+  // directly to `delivery_results`, never sent to a provider — so both of
+  // them started out unreachable in this fixture too, which is exactly what
+  // correction round 2's F-2 found: it left the "scheduled" demo state with
+  // zero rows, since Jorvik rendered `no_channel` like everyone else. Odile
+  // arrived through `seed-local.mjs`'s recruit path with no contact point at
+  // all; granting consent and adding only a personal email reproduces the
+  // exact "no reachable number" shape without touching anyone else's
+  // history — Kenelm's own reachability is untouched for the same reason
+  // (see his own comment above); only Jorvik is given a number below, so his
+  // own claimed state is no longer empty.
   const odile = await personByGivenName(client, "Odile");
   await grantConsent(client, odile.person_id, odile.season_id);
   await client.query(
@@ -391,8 +419,8 @@ try {
   await client.query("commit");
 
   console.log("Seeded the onboarding chase's five review states:");
-  console.log("  Jorvik Kirkbride   — mid-chase");
-  console.log("  Kenelm Netherby    — exhausted");
+  console.log("  Jorvik Kirkbride   — mid-chase, reachable, next due on schedule");
+  console.log("  Kenelm Netherby    — exhausted and unreachable (F-1's own case)");
   console.log("  Lucian             — terminal delivery failure");
   console.log("  Merrick Thornbury  — left mid-onboarding");
   console.log("  Odile Marchmont    — consent granted, no reachable number (C-1)");

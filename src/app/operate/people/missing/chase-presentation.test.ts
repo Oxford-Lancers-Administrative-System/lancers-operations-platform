@@ -83,6 +83,18 @@ describe("formatChaseNext", () => {
       "Delivery failed · the reason was not recorded",
     );
   });
+
+  // Correction round 2, F-1: Kenelm Netherby — exhausted (4 delivered
+  // follow-ups) and zero phone contact points — must say the concrete,
+  // actionable fact plainly, the same wording the no-channel case already
+  // uses, not the generic "Chase exhausted" that hid it.
+  it("says there is no phone number, not just 'exhausted', for an exhausted person with no reachable number — F-1", () => {
+    expect(formatChaseNext({ kind: "exhausted" }, false)).toBe("No phone number on file");
+  });
+
+  it("keeps the plain 'Chase exhausted' wording for an exhausted person who does have a number — F-1", () => {
+    expect(formatChaseNext({ kind: "exhausted" }, true)).toBe("Chase exhausted");
+  });
 });
 
 describe("chaseNeedsAHuman", () => {
@@ -98,17 +110,37 @@ describe("chaseNeedsAHuman", () => {
 
 describe("isNudgeable", () => {
   it("offers a nudge for every state except unmessageable — the queue warns, it never refuses", () => {
-    expect(isNudgeable({ kind: "exhausted" })).toBe(true);
-    expect(isNudgeable({ kind: "terminal_failure", reason: null })).toBe(true);
-    expect(isNudgeable({ kind: "scheduled", at: new Date() })).toBe(true);
-    expect(isNudgeable({ kind: "no_automated_chase" })).toBe(true);
-    expect(isNudgeable({ kind: "unmessageable", reason: "under_18" })).toBe(false);
+    expect(isNudgeable({ kind: "exhausted" }, true)).toBe(true);
+    expect(isNudgeable({ kind: "terminal_failure", reason: null }, true)).toBe(true);
+    expect(isNudgeable({ kind: "scheduled", at: new Date() }, true)).toBe(true);
+    expect(isNudgeable({ kind: "no_automated_chase" }, true)).toBe(true);
+    expect(isNudgeable({ kind: "unmessageable", reason: "under_18" }, true)).toBe(false);
   });
 
   // Correction round 1, C-1/C-3: no number, no nudge offered at all —
   // "nudge doesn't do anything… the president needs to go off and get their
   // real phone number."
   it("refuses a nudge when there is no reachable number — C-1/C-3", () => {
-    expect(isNudgeable({ kind: "unmessageable", reason: "no_channel" })).toBe(false);
+    expect(isNudgeable({ kind: "unmessageable", reason: "no_channel" }, false)).toBe(false);
+  });
+
+  // Correction round 2, F-1 — the blocker. Kenelm Netherby: exhausted (4
+  // delivered follow-ups) and zero phone contact points. Before this fix,
+  // `kind !== "unmessageable"` alone made this `true`, because
+  // `describeOnboardingChaseNext` reports `exhausted` ahead of the
+  // `no_channel` check (deliberate, C-1) — so `kind` alone can never see the
+  // missing number once exhaustion has claimed the row. A real nudge job
+  // created from that button dies downstream at `selectMobileNumber` /
+  // `NO_USABLE_NUMBER_REASON`. `hasReachableNumber` must refuse regardless of
+  // `kind`.
+  it("refuses a nudge when an exhausted person has no reachable number — F-1", () => {
+    expect(isNudgeable({ kind: "exhausted" }, false)).toBe(false);
+  });
+
+  // Exhaustion itself still only warns — the unaffected half of the same
+  // rule (round 1, unchanged): an exhausted person who does have a number
+  // keeps the nudge.
+  it("still offers a nudge to an exhausted person who does have a reachable number — F-1", () => {
+    expect(isNudgeable({ kind: "exhausted" }, true)).toBe(true);
   });
 });
