@@ -398,11 +398,11 @@ export default async function PersonRecordPage({
             <>
               {record.familyName}
               <DerivedBy who={record.familyNameSource} />
-              <DisputedFact personId={personId} dispute={disputesByField.get("family_name")} />
             </>
           ) : (
             <NotRecorded />
           )}
+          <DisputedFact personId={personId} dispute={disputesByField.get("family_name")} />
         </Fact>
         <Fact label="Aliases">
           {record.aliases.length === 0 ? (
@@ -470,50 +470,47 @@ export default async function PersonRecordPage({
               <>
                 {record.college}
                 <DerivedBy who={record.collegeSource} />
-                <DisputedFact personId={personId} dispute={disputesByField.get("college")} />
               </>
             ) : (
               <NotRecorded />
             )}
+            <DisputedFact personId={personId} dispute={disputesByField.get("college")} />
           </Fact>
           <Fact label="Matriculation year">
             {record.matriculationYear !== null ? (
               <>
                 {record.matriculationYear}
                 <DerivedBy who={record.matriculationYearSource} />
-                <DisputedFact
-                  personId={personId}
-                  dispute={disputesByField.get("matriculation_year")}
-                />
               </>
             ) : (
               <NotRecorded />
             )}
+            <DisputedFact personId={personId} dispute={disputesByField.get("matriculation_year")} />
           </Fact>
           <Fact label="Expected graduation">
             {record.expectedGraduationYear !== null ? (
               <>
                 {record.expectedGraduationYear}
                 <DerivedBy who={record.expectedGraduationYearSource} />
-                <DisputedFact
-                  personId={personId}
-                  dispute={disputesByField.get("expected_graduation_year")}
-                />
               </>
             ) : (
               <NotRecorded />
             )}
+            <DisputedFact
+              personId={personId}
+              dispute={disputesByField.get("expected_graduation_year")}
+            />
           </Fact>
           <Fact label="Degree field">
             {record.degreeField !== null ? (
               <>
                 {record.degreeField}
                 <DerivedBy who={record.degreeFieldSource} />
-                <DisputedFact personId={personId} dispute={disputesByField.get("degree_field")} />
               </>
             ) : (
               <NotRecorded />
             )}
+            <DisputedFact personId={personId} dispute={disputesByField.get("degree_field")} />
           </Fact>
         </Section>
       ) : null}
@@ -525,11 +522,11 @@ export default async function PersonRecordPage({
               <>
                 {record.dateOfBirth}
                 <DerivedBy who={record.dateOfBirthSource} />
-                <DisputedFact personId={personId} dispute={disputesByField.get("date_of_birth")} />
               </>
             ) : (
               <NotRecorded />
             )}
+            <DisputedFact personId={personId} dispute={disputesByField.get("date_of_birth")} />
           </Fact>
           <Fact label="Under 18">
             {record.isUnder18 === null ? <NotRecorded /> : record.isUnder18 ? "Yes" : "No"}
