@@ -410,14 +410,17 @@ describe("one save button per row — OWNER-LAN171-04", () => {
 // ---------------------------------------------------------------------------
 
 describe("the page's three sections — W10, Brian 2026-08-31", () => {
-  it("reads as Recruitment, then Event messaging, then Onboarding, in that order", async () => {
+  it("reads as Recruitment, then Onboarding, then Event messaging, in that order", async () => {
+    // LAN-218, W11: "Onboarding is not in the right place. It should be
+    // right below recruitment... below recruitment, above events." — Brian,
+    // and the reason `W11-01` was reshot to match.
     render(await MessagingSchedulePage());
 
     const headings = screen.getAllByRole("heading", { level: 2 });
     expect(headings.map((heading) => heading.textContent)).toEqual([
       "Recruitment",
-      "Event messaging",
       "Onboarding",
+      "Event messaging",
     ]);
   });
 

@@ -124,6 +124,14 @@ export default function MessagingScheduleForm({
         ) : null}
       </Stack>
 
+      {/* LAN-218, W11. Directly below Recruitment and above Event messaging
+          — Brian's own placement, and the reason `W11-01` was reshot: the
+          two person-lifecycle chases sit together, then the events. */}
+      <Stack spacing={1.5} data-testid="onboarding-section">
+        <SectionHeading title={ONBOARDING_SECTION_HEADING} note={ONBOARDING_CHASE_SECTION_NOTE} />
+        <OnboardingChaseRow settings={onboardingChase} />
+      </Stack>
+
       <Stack spacing={1.5} data-testid="event-messaging-section">
         <SectionHeading
           title={EVENT_MESSAGING_SECTION_HEADING}
@@ -150,11 +158,6 @@ export default function MessagingScheduleForm({
         <Typography variant="body2" color="text.secondary">
           {MESSAGING_SCHEDULE_FOOTER}
         </Typography>
-      </Stack>
-
-      <Stack spacing={1.5} data-testid="onboarding-section">
-        <SectionHeading title={ONBOARDING_SECTION_HEADING} note={ONBOARDING_CHASE_SECTION_NOTE} />
-        <OnboardingChaseRow settings={onboardingChase} />
       </Stack>
     </Stack>
   );
