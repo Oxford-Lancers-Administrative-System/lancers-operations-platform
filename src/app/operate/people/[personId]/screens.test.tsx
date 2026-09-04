@@ -16,6 +16,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("@/lib/services/person-record", () => ({ readPersonRecord: vi.fn() }));
+vi.mock("@/lib/services/person-fact-dispute", () => ({ readLatestPersonFactDisputes: vi.fn() }));
 vi.mock("@/lib/services/seasons", () => ({ readCurrentSeason: vi.fn() }));
 vi.mock("@/lib/services/people-directory", () => ({
   listMergedPredecessors: vi.fn(),
@@ -36,6 +37,10 @@ import {
   readPersonHistory,
   resolveMergeSurvivor,
 } from "@/lib/services/people-directory";
+import {
+  readLatestPersonFactDisputes,
+  type PersonFactDisputeDisplay,
+} from "@/lib/services/person-fact-dispute";
 import PersonRecordPage from "./page";
 
 function signedInAs(roleCodes: string[]): void {
@@ -98,12 +103,14 @@ function stubReads(
     seasons?: unknown[];
     history?: unknown[];
     predecessors?: unknown[];
+    disputes?: PersonFactDisputeDisplay[];
   } = {},
 ) {
   vi.mocked(listPersonRoleAssignments).mockResolvedValue((overrides.roles as never) ?? []);
   vi.mocked(listPersonSeasons).mockResolvedValue((overrides.seasons as never) ?? []);
   vi.mocked(readPersonHistory).mockResolvedValue((overrides.history as never) ?? []);
   vi.mocked(listMergedPredecessors).mockResolvedValue((overrides.predecessors as never) ?? []);
+  vi.mocked(readLatestPersonFactDisputes).mockResolvedValue(overrides.disputes ?? []);
   vi.mocked(readCurrentSeason).mockResolvedValue({
     id: "s1",
     label: "2026-27",
@@ -297,5 +304,126 @@ describe("the person record, for an authorized operator", () => {
 
     expect(expanded.getByTestId("history-filters")).toBeVisible();
     expect(expanded.getByText("Status changed")).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W7 — settling a disputed fact. `WP-operator-record`, LAN-217,
+// `REQ-no-silent-overwrite`.
+// ---------------------------------------------------------------------------
+
+function openDispute(overrides: Partial<PersonFactDisputeDisplay> = {}): PersonFactDisputeDisplay {
+  return {
+    id: "dispute-1",
+    personId: "p1",
+    field: "college",
+    clubValue: "Farrowgate",
+    playerValue: "Brasenose",
+    raisedByPersonId: "player-1",
+    raisedAt: new Date("2026-09-02T18:00:00Z"),
+    status: "open",
+    resolutionNote: null,
+    resolvedByPersonId: null,
+    resolvedAt: null,
+    raisedByName: "Merrick Thornbury",
+    resolvedByName: null,
+    ...overrides,
+  };
+}
+
+describe("W7 — settling a disputed fact", () => {
+  it("shows both values with both attributions, and a four-role resolve control", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(
+      baseRecord({
+        college: "Farrowgate",
+        collegeSource: "Caspian Hallowfield",
+        missingRequiredFields: [],
+      }),
+    );
+    stubReads({ disputes: [openDispute()] });
+
+    render(await PersonRecordPage(pageProps("p1")));
+
+    // The club's value, already shipped.
+    expect(screen.getByText("Farrowgate")).toBeVisible();
+    expect(screen.getByText("Caspian Hallowfield")).toBeVisible();
+    // The player's contested answer, and who submitted it.
+    const open = screen.getByTestId("dispute-open");
+    expect(open.textContent).toContain("Brasenose");
+    expect(open.textContent).toContain("Merrick Thornbury");
+    // The four-role resolve control, drawing no note field.
+    expect(screen.getByTestId("dispute-keep-club")).toBeVisible();
+    expect(screen.getByTestId("dispute-take-player")).toBeVisible();
+    expect(screen.queryByLabelText(/reason|note/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps the losing value visible, dated, once the dispute is resolved", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(
+      baseRecord({
+        college: "Brasenose",
+        collegeSource: "Caspian Hallowfield",
+        missingRequiredFields: [],
+      }),
+    );
+    stubReads({
+      disputes: [
+        openDispute({
+          status: "resolved_took_player",
+          resolvedByPersonId: "op-1",
+          resolvedByName: "Caspian Hallowfield",
+          resolvedAt: new Date("2026-09-02T19:00:00Z"),
+        }),
+      ],
+    });
+
+    render(await PersonRecordPage(pageProps("p1")));
+
+    expect(screen.getByText("Brasenose")).toBeVisible();
+    const retained = screen.getByTestId("dispute-retained");
+    expect(retained.textContent).toContain("Farrowgate");
+    expect(retained.textContent).toContain("Superseded");
+    // Resolved — no resolve control left to press again.
+    expect(screen.queryByTestId("dispute-keep-club")).not.toBeInTheDocument();
+  });
+
+  it("attributes a kept-club confirmation to the resolver, not the original recorder", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(
+      baseRecord({
+        college: "Farrowgate",
+        collegeSource: "Caspian Hallowfield",
+        missingRequiredFields: [],
+      }),
+    );
+    stubReads({
+      disputes: [
+        openDispute({
+          status: "resolved_kept_club",
+          resolvedByPersonId: "op-1",
+          resolvedByName: "Rowan Ashdown",
+          resolvedAt: new Date("2026-09-02T19:00:00Z"),
+        }),
+      ],
+    });
+
+    render(await PersonRecordPage(pageProps("p1")));
+
+    const retained = screen.getByTestId("dispute-retained");
+    expect(retained.textContent).toContain("Brasenose");
+    expect(retained.textContent).toContain("Rowan Ashdown");
+    expect(retained.textContent).toContain("Not accepted");
+  });
+
+  it("shows no dispute affordance at all for a field nobody has ever disputed", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(baseRecord({ missingRequiredFields: [] }));
+    stubReads();
+
+    render(await PersonRecordPage(pageProps("p1")));
+
+    expect(screen.queryByTestId("dispute-open")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("dispute-retained")).not.toBeInTheDocument();
   });
 });

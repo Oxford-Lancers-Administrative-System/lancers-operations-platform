@@ -80,7 +80,7 @@ beforeEach(() => {
 });
 
 describe("recordResolveOnboardingItemAction", () => {
-  const RESOLUTIONS = ["complete", "waived", "not_applicable"] as const;
+  const RESOLUTIONS = ["complete", "waived", "not_applicable", "reopen"] as const;
 
   for (const role of FOUR_ROLE) {
     for (const status of RESOLUTIONS) {

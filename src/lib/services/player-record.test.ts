@@ -17,6 +17,8 @@ vi.mock("server-only", () => ({}));
 import type { Client } from "pg";
 
 import { closePool, withTransaction } from "@/lib/db";
+import { generateOnboardingItems, resolveOnboardingItem } from "./membership";
+import { recordOnboardingActivityIn } from "./onboarding-activity-log";
 import { resolveOpenSeason } from "./roster";
 import { commitBlues, commitCoachGroup, commitPosition, readPositionOptions } from "./roster-board";
 import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
@@ -34,6 +36,23 @@ let pastMembershipId: string;
 
 async function cleanUp(): Promise<void> {
   for (const id of [membershipId, pastMembershipId]) {
+    // `onboarding_item_history` restricts deletion of the item it names, and
+    // `onboarding_items` in turn restricts deletion of the membership it
+    // belongs to — both have to go before `season_memberships` does, below.
+    await observer.query(
+      `delete from public.onboarding_item_history
+        where onboarding_item_id in (
+          select id from public.onboarding_items where season_membership_id = $1::uuid)`,
+      [id],
+    );
+    await observer.query(
+      `delete from public.onboarding_activity_log where season_membership_id = $1::uuid`,
+      [id],
+    );
+    await observer.query(
+      `delete from public.onboarding_items where season_membership_id = $1::uuid`,
+      [id],
+    );
     await observer.query(
       `delete from public.position_assignments where season_membership_id = $1::uuid`,
       [id],
@@ -351,6 +370,99 @@ describe("readPlayerRecord — Attendance band, Q15-attendance", () => {
     expect(expired?.invitationStatus).toBe("expired");
     expect(expired?.rsvp).toBeNull();
     expect(expired?.attendance).toBe("absent");
+  });
+});
+
+/**
+ * `REQ-item-history` and `REQ-activity-log` — `WP-operator-record`, LAN-217.
+ * `onboarding-item-history.ts` and `onboarding-activity-log.ts` are the
+ * substrate's own writer and reader (LAN-214), already proved append-only and
+ * correctly grouped in their own suites and in `membership.test.ts`. What is
+ * new here, and what this file is the one place to prove against a real
+ * database, is the actor-name join `readPlayerRecord` adds on top of both.
+ */
+describe("readPlayerRecord — per-item history and the activity log, named", () => {
+  it("attaches every real transition to its onboarding item, with the actor's name resolved", async () => {
+    await withTransaction((tx) => generateOnboardingItems(tx, membershipId, seasonId));
+    const before = await readPlayerRecord(membershipId);
+    const item = (before as PlayerRecordFound).data.onboardingItems[0];
+    expect(item).toBeDefined();
+
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: item.id,
+      status: "not_applicable",
+    });
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: item.id,
+      status: "reopen",
+    });
+
+    const actorName = await observer.query<{ name: string }>(
+      `select given_name || coalesce(' ' || family_name, '') as name
+         from public.people where id = $1::uuid`,
+      [actorPersonId],
+    );
+    const expectedName = actorName.rows[0].name;
+
+    const after = await readPlayerRecord(membershipId);
+    const data = (after as PlayerRecordFound).data;
+    const resolved = data.onboardingItems.find((entry) => entry.id === item.id)!;
+
+    expect(resolved.history.map((entry) => [entry.fromStatus, entry.toStatus])).toEqual([
+      ["pending", "not_applicable"],
+      ["not_applicable", "pending"],
+    ]);
+    for (const entry of resolved.history) {
+      expect(entry.actorKind).toBe("operator");
+      expect(entry.actorName).toBe(expectedName);
+    }
+  });
+
+  it("groups the activity log by section, newest first, with the actor's name resolved from an actorPersonId", async () => {
+    await withTransaction((tx) =>
+      recordOnboardingActivityIn(tx, {
+        membershipId,
+        seasonId,
+        section: "LAN217Record activity",
+        kind: "ask",
+        channel: "email",
+        actorLabel: "the club",
+        occurredAt: new Date("2026-08-01T09:00:00Z"),
+      }),
+    );
+    await withTransaction((tx) =>
+      recordOnboardingActivityIn(tx, {
+        membershipId,
+        seasonId,
+        section: "LAN217Record activity",
+        kind: "answer",
+        channel: "signed link",
+        actorPersonId,
+        occurredAt: new Date("2026-08-05T09:00:00Z"),
+      }),
+    );
+
+    const actorName = await observer.query<{ name: string }>(
+      `select given_name || coalesce(' ' || family_name, '') as name
+         from public.people where id = $1::uuid`,
+      [actorPersonId],
+    );
+    const expectedName = actorName.rows[0].name;
+
+    const result = await readPlayerRecord(membershipId);
+    const data = (result as PlayerRecordFound).data;
+    const section = data.activityLog.find((s) => s.section === "LAN217Record activity");
+    expect(section).toBeDefined();
+    expect(section!.entries).toHaveLength(2);
+    // Newest first.
+    expect(section!.entries[0].kind).toBe("answer");
+    expect(section!.entries[0].who).toBe(expectedName);
+    expect(section!.entries[1].kind).toBe("ask");
+    expect(section!.entries[1].who).toBe("the club");
   });
 });
 

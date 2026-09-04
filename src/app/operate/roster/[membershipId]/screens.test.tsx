@@ -60,7 +60,7 @@ import type {
   PlayerRecordData,
   PlayerRecordResult,
 } from "@/lib/services/player-record";
-import { recordSetStatusAction } from "./record-actions";
+import { recordResolveOnboardingItemAction, recordSetStatusAction } from "./record-actions";
 import PlayerRecordPage from "./page";
 import { STATUSES, STATUS_OPTION_LABELS } from "../board-columns";
 
@@ -100,6 +100,7 @@ function record(overrides: Partial<PlayerRecordData> = {}): PlayerRecordData {
     isConstitutionalMember: false,
     onboardingItems: [],
     outstandingRequired: [],
+    activityLog: [],
     statusHistory: [
       {
         fromStatus: null,
@@ -252,6 +253,7 @@ describe("Person · Onboarding · Season banding", () => {
           waivedReason: null,
           waivedByName: null,
           updatedAt: new Date(),
+          history: [],
         },
       ],
     });
@@ -289,6 +291,243 @@ describe("Person · Onboarding · Season banding", () => {
       "href",
       `/operate/people/${PERSON_ID}?history=expanded`,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W6 — one player's onboarding record. `WP-operator-record`, LAN-217.
+// ---------------------------------------------------------------------------
+
+function historyItem(
+  overrides: Partial<PlayerRecordData["onboardingItems"][number]> = {},
+): PlayerRecordData["onboardingItems"][number] {
+  return {
+    id: "item-1",
+    code: "bucs_play",
+    label: "BUCS Play registration",
+    isRequired: true,
+    isSubscription: false,
+    sortOrder: 1,
+    status: "pending",
+    completedOn: null,
+    waivedReason: null,
+    waivedByName: null,
+    updatedAt: new Date(),
+    history: [],
+    ...overrides,
+  };
+}
+
+describe("W6 — the resolve control's own Reopen option", () => {
+  it("offers Reopen alongside the shipped three resolutions", async () => {
+    givenRecord({ onboardingItems: [historyItem({ status: "complete" })] });
+    render(await PlayerRecordPage(pageProps()));
+
+    const row = screen
+      .getByText("BUCS Play registration")
+      .closest('[data-testid="record-row"]') as HTMLElement;
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.click(within(row).getByTestId("editable-field"));
+
+    expect(await screen.findByRole("option", { name: "Complete" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Waived" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Not applicable" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Reopen" })).toBeInTheDocument();
+  });
+
+  it("reopens an item with one click and no reason field, and shows the error the service refuses a live item's reopen with", async () => {
+    givenRecord({ onboardingItems: [historyItem({ status: "complete" })] });
+    render(await PlayerRecordPage(pageProps()));
+
+    const row = screen
+      .getByText("BUCS Play registration")
+      .closest('[data-testid="record-row"]') as HTMLElement;
+    const { fireEvent, act } = await import("@testing-library/react");
+    fireEvent.click(within(row).getByTestId("editable-field"));
+    await act(async () => fireEvent.click(await screen.findByRole("option", { name: "Reopen" })));
+
+    expect(recordResolveOnboardingItemAction).toHaveBeenCalledWith({
+      membershipId: MEMBERSHIP_ID,
+      itemId: "item-1",
+      status: "reopen",
+    });
+    expect(screen.queryByTestId("onboarding-waiver-reason")).not.toBeInTheDocument();
+  });
+
+  it("saves a waiver with no reason field drawn at all — the reason stops being solicited", async () => {
+    givenRecord({ onboardingItems: [historyItem({ status: "pending" })] });
+    render(await PlayerRecordPage(pageProps()));
+
+    const row = screen
+      .getByText("BUCS Play registration")
+      .closest('[data-testid="record-row"]') as HTMLElement;
+    const { fireEvent, act } = await import("@testing-library/react");
+    fireEvent.click(within(row).getByTestId("editable-field"));
+    await act(async () => fireEvent.click(await screen.findByRole("option", { name: "Waived" })));
+
+    expect(recordResolveOnboardingItemAction).toHaveBeenCalledWith({
+      membershipId: MEMBERSHIP_ID,
+      itemId: "item-1",
+      status: "waived",
+    });
+    expect(screen.queryByLabelText(/Why is this waived/)).not.toBeInTheDocument();
+  });
+});
+
+describe("W6 — provenance: who and when, from the item's own history", () => {
+  it("renders claimed in the row's own idiom, naming the player and that nobody has confirmed", async () => {
+    givenRecord({
+      onboardingItems: [
+        historyItem({
+          status: "claimed",
+          history: [
+            {
+              fromStatus: "pending",
+              toStatus: "claimed",
+              occurredAt: new Date("2026-09-02T00:00:00Z"),
+              actorKind: "player",
+              actorName: "Merrick Thornbury",
+              reason: null,
+            },
+          ],
+        }),
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const row = screen
+      .getByText("BUCS Play registration")
+      .closest('[data-testid="record-row"]') as HTMLElement;
+    expect(row.textContent).toContain("Claimed");
+    expect(row.textContent).toContain("Merrick Thornbury");
+    expect(row.textContent).toContain("awaiting confirmation");
+    // No chip, no colour of its own — the same underlined body2 every other
+    // state uses, never a second element next to it.
+    expect(within(row).queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("carries player-claimed provenance once an operator confirms a trust-class claim", async () => {
+    givenRecord({
+      onboardingItems: [
+        historyItem({
+          status: "complete",
+          completedOn: "2026-09-03",
+          history: [
+            {
+              fromStatus: "pending",
+              toStatus: "claimed",
+              occurredAt: new Date("2026-09-02T00:00:00Z"),
+              actorKind: "player",
+              actorName: "Merrick Thornbury",
+              reason: null,
+            },
+            {
+              fromStatus: "claimed",
+              toStatus: "complete",
+              occurredAt: new Date("2026-09-03T00:00:00Z"),
+              actorKind: "operator",
+              actorName: "Caspian Hallowfield",
+              reason: null,
+            },
+          ],
+        }),
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const row = screen
+      .getByText("BUCS Play registration")
+      .closest('[data-testid="record-row"]') as HTMLElement;
+    expect(row.textContent).toContain("player-claimed");
+  });
+
+  it("retains a superseded value rather than overwriting it, and shows every transition's actor and date", async () => {
+    givenRecord({
+      onboardingItems: [
+        historyItem({
+          code: "subscription_paid",
+          label: "Subscription paid",
+          status: "pending",
+          history: [
+            {
+              fromStatus: "pending",
+              toStatus: "waived",
+              occurredAt: new Date("2026-08-20T00:00:00Z"),
+              actorKind: "operator",
+              actorName: "Zenas Yaxlington",
+              reason: null,
+            },
+            {
+              fromStatus: "waived",
+              toStatus: "pending",
+              occurredAt: new Date("2026-09-01T00:00:00Z"),
+              actorKind: "operator",
+              actorName: "Caspian Hallowfield",
+              reason: null,
+            },
+          ],
+        }),
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const row = screen
+      .getByText("Subscription paid")
+      .closest('[data-testid="record-row"]') as HTMLElement;
+    expect(row.textContent).toContain("Reopened by Caspian Hallowfield");
+    expect(row.textContent).toContain("waived");
+  });
+});
+
+describe("W6 — the activity log", () => {
+  it("renders one entry per ask and per answer, individually, grouped by section — never a count", async () => {
+    givenRecord({
+      activityLog: [
+        {
+          section: "Contact & academic details",
+          entries: [
+            {
+              kind: "ask",
+              channel: "email",
+              who: "the club",
+              occurredAt: new Date("2026-08-12T09:00:00Z"),
+            },
+            {
+              kind: "answer",
+              channel: "signed link",
+              who: "Merrick Thornbury",
+              occurredAt: new Date("2026-08-20T18:42:00Z"),
+            },
+          ],
+        },
+        {
+          section: "BUCS Play",
+          entries: [
+            {
+              kind: "answer",
+              channel: "signed link",
+              who: "Merrick Thornbury",
+              occurredAt: new Date("2026-09-02T19:05:00Z"),
+            },
+          ],
+        },
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const log = screen.getByTestId("activity-log");
+    expect(within(log).getAllByText("Contact & academic details")).toHaveLength(2);
+    expect(within(log).getByText("BUCS Play")).toBeInTheDocument();
+    expect(within(log).getAllByText(/Asked/).length).toBe(1);
+    expect(within(log).getAllByText(/Answered/).length).toBe(2);
+    expect(screen.queryByText(/asked 2 times/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/2 asks/i)).not.toBeInTheDocument();
+  });
+
+  it("says plainly when nothing has been asked yet, for an empty log", async () => {
+    givenRecord({ activityLog: [] });
+    render(await PlayerRecordPage(pageProps()));
+    expect(screen.getByTestId("activity-log-empty")).toBeInTheDocument();
   });
 });
 
@@ -679,6 +918,78 @@ describe("the shipped activation control, folded into Status", () => {
       membershipId: MEMBERSHIP_ID,
       status: "active",
     });
+  });
+
+  /**
+   * `REQ-nothing-gates`, `W10`'s own "the normal case, not an exception".
+   * The service side of this (activation succeeding straight through an
+   * outstanding required item, recording no reason and touching no item) is
+   * `membership.test.ts`'s own "activates straight through outstanding
+   * required items" — this is this package's proof at the surface: the
+   * control offers Active with the outstanding alert still on screen, and no
+   * confirmation step interrupts it.
+   */
+  it("activates a membership with every onboarding item outstanding, with no confirmation and no dialog", async () => {
+    givenRecord({
+      status: "onboarding",
+      onboardingItems: [
+        {
+          id: "item-1",
+          code: "kit",
+          label: "Kit sorted",
+          isRequired: true,
+          isSubscription: false,
+          sortOrder: 1,
+          status: "pending",
+          completedOn: null,
+          waivedReason: null,
+          waivedByName: null,
+          updatedAt: new Date(),
+          history: [],
+        },
+      ],
+      outstandingRequired: [
+        {
+          id: "item-1",
+          code: "kit",
+          label: "Kit sorted",
+          isRequired: true,
+          isSubscription: false,
+          sortOrder: 1,
+          status: "pending",
+          completedOn: null,
+          waivedReason: null,
+          waivedByName: null,
+          updatedAt: new Date(),
+        },
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    expect(screen.getByTestId("outstanding-note")).toHaveTextContent(
+      "One required item is still outstanding: Kit sorted.",
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    const seasonSection = screen.getByTestId("section-season");
+    const statusRow = within(seasonSection)
+      .getByText("Status")
+      .closest('[data-testid="record-row"]') as HTMLElement;
+    const { fireEvent, act } = await import("@testing-library/react");
+    fireEvent.click(within(statusRow).getByTestId("editable-field"));
+    const option = await screen.findByRole("option", { name: "Active" });
+    await act(async () => fireEvent.click(option));
+
+    // Activation calls only the status action — no dialog, and no onboarding
+    // item is touched in the same act.
+    expect(recordSetStatusAction).toHaveBeenCalledWith({
+      membershipId: MEMBERSHIP_ID,
+      status: "active",
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByTestId("outstanding-note")).toHaveTextContent(
+      "One required item is still outstanding: Kit sorted.",
+    );
   });
 });
 
