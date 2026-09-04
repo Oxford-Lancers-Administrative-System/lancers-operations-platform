@@ -1,7 +1,8 @@
 # Design system — the visual target
 
-Status: **proposed**, LAN-225 — awaiting Brian's visual approval on the mockup
-branch `chore/lan-225-design-mockup`. Approved by Brian on: _pending_.
+Status: **approved**. Approved by Brian on 4 September 2026, at desktop and
+375px, against head `e86ba7d` on the mockup branch `chore/lan-225-design-mockup`
+([PR #146](https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/pull/146)).
 Applies to: every user-facing surface, once the implementation mission lands.
 Sits beside: [`standards.md`](standards.md) (the seven rules), which this page
 never contradicts; [`slice-ux.md`](slice-ux.md) (routes, vocabulary, states),
@@ -171,6 +172,16 @@ They take the tokens and the band colours and are otherwise untouched.
   contract names it.
 
 ## 7. What this does not decide
+
+The player-facing surfaces are **not** in this page's evidence. `/me`, `/e`,
+`/join` and the onboarding questionnaire arrived with LAN-214, LAN-215 and
+LAN-216, after the audit brief chose its screens, so they take the tokens from
+`src/theme.ts` and none of the kit: the public masthead there is still plain
+text where §6 calls for the crest. The player home is also the worst instance
+of the audit's F2 — its answered-events list is unbounded, and ran to 5,770px
+at desktop and 7,488px at 375px on a seeded player with six outstanding
+invitations. Approving this page did not approve those screens; they need
+their own pass, and the implementation intake should carry them.
 
 Product findings the audit classed `owner` that this page does not touch:
 `/operate` landing (B4), the help link's home (B6), `/dashboard` (B7), the
