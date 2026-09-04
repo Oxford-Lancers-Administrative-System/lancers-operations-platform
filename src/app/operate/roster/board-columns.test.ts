@@ -37,6 +37,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     blues: "Half",
     eligibility: "eligible",
     availability: "green",
+    bps: "No",
     ...overrides,
   };
 }
@@ -106,9 +107,9 @@ describe("buildColumns — positions are sourced from the season vocabulary pass
     expect(widerOffence?.options).toEqual(["QB", "RB"]);
   });
 
-  it("is exactly twenty columns including Player", () => {
+  it("is exactly twenty-one columns including Player", () => {
     const columns = buildColumns(POSITION_OPTIONS);
-    expect(columns.length + 1).toBe(20);
+    expect(columns.length + 1).toBe(21);
   });
 });
 

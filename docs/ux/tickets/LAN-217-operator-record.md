@@ -117,6 +117,54 @@ present and asserts no dialog appears and the outstanding alert is
 unchanged, alongside the existing, untouched `membership.test.ts` coverage
 of the same rule at the service layer.
 
+## BPS, T07-merge-precedence, and closing two merge exclusions
+
+Three items the mission's owner-question Q-2/Q-3/Q-4/Q-5 assigned to this
+package, added to the same branch and PR after the packages above were
+already drafted. None of the three draws an approved screen — all three are
+governed entirely by application convention, per the same questions that
+assigned them.
+
+**BPS — a plain yes/no roster attribute (`roster-board.ts`, `board-columns.ts`,
+`board-actions.ts`, `roster-board.tsx`).** Item 5 of the item-and-ask
+inventory deliberately left the onboarding checklist to become a roster
+attribute (Brian, 2026-09-01: "We are going to add it here into the roster
+for the BPS column"). It has no approved mockup, so it mirrors — column
+placement, `select` edit kind, four-role `requires`, the commit-on-choice
+server action — exactly how the sibling seasonal attributes `blues_awards`
+and `formalwear_records` already work on the same board. It is a `bps`
+column on the roster board only, never an onboarding item: it does not touch
+`onboarding_item_types`, `generateOnboardingItems`, or any checklist count.
+
+**T07-merge-precedence (`person-merge.ts`, `merge-comparison.tsx`).**
+`season_messaging_consents` is unique on `(person_id, season_id)`; merging
+two people who both hold a consent row for the same season must choose one,
+and the locked recommendation is that the survivor takes the **most
+restrictive** of the two states — if either side says `refused` or
+`withdrawn`, the survivor is `refused` or `withdrawn`, never the more
+recent, permissive one. Consent is permission to contact somebody, and a
+merge is record-keeping, not a fresh ask. Between two equally restrictive
+states, the more recent decision governs (the same rule a person's own
+re-answer already follows). Surfaced as one more read-only row in the
+merge comparison's existing field-by-field list — no new component.
+
+**Closing two more per-tuple-unique re-point exclusions
+(`person-merge.ts`).** `onboarding_agreements` (`person_id, season_id,
+agreement_type`) and `person_fact_disputes` (at most one OPEN row per
+`person_id, field`) were both documented, tracked gaps in the merge's own
+blind re-point list. Neither carries a restrictive/permissive axis the way
+consent does, so each closes on its own nearest precedent already in this
+module: a colliding agreement keeps the earlier `agreed_at` (the same
+"earliest date is the real one" rule the prospect combination already
+applies to a first-contact date); a colliding pair of open disputes on the
+same field keeps the more recently raised one in place, superseding the
+older exactly the way a single person's own repeated answer already
+supersedes itself (`raisePersonFactDisputeIn`'s own upsert) — never
+auto-resolved, since resolving a dispute is a four-role decision this merge
+does not make on anybody's behalf. Neither gets a comparison-screen line:
+the mission owner-question asked only that the exclusion close, not that a
+screen be added.
+
 ## What is deliberately not here
 
 - **No new component, anywhere.** Reopen is one option on a shipped
@@ -132,18 +180,11 @@ of the same rule at the service layer.
   (imported nowhere outside one code comment) and out of this package's
   named scope, which is the record page's own row, not the board's cell
   editor.
-- **No change to `person-merge.ts` or the merge comparison screen.** `W7`'s
-  own spec states `T07-merge-precedence` "has no surface of its own... one
-  more line in Mission 5's existing merge comparison" — this package's brief
-  does not name a requirement id for it or the merge screen, so it was not
-  built here. Recorded as a limitation in the package receipt for the
-  Mission Lead to route.
-- **No `bps_selections` roster-board column.** An earlier mission
-  owner-question assigned it to this package; the dispatched brief's own
-  scope section never names it, and it touches `roster-board.ts`/
-  `roster-board.tsx`, files outside everything this brief describes.
-  Recorded as a limitation in the package receipt for the Mission Lead to
-  route.
+- **No dispute-resolution comparison line, and no new merge component.**
+  `T07-merge-precedence` gets exactly the one read-only comparison row named
+  above; the two closed re-point exclusions (agreements, disputes) get none
+  at all, per the owner-question's own instruction that only the consent
+  precedent needed surfacing.
 
 ## Visual evidence
 

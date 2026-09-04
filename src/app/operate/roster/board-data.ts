@@ -71,6 +71,8 @@ export function rawValue(row: RosterBoardRow, key: string): string | string[] | 
       return row.eligibility;
     case "availability":
       return row.availability;
+    case "bps":
+      return row.bps;
     default:
       return null;
   }

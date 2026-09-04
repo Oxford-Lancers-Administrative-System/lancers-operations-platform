@@ -45,6 +45,7 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     blues: "None",
     eligibility: null,
     availability: null,
+    bps: "No",
     ...overrides,
   };
 }

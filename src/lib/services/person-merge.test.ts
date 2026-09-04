@@ -29,6 +29,7 @@ let seasonLabel: string;
 
 const createdPersonIds: string[] = [];
 const createdAuthUserIds: string[] = [];
+const createdAgreementVersionIds: string[] = [];
 
 async function insertPerson(fields: {
   givenName: string;
@@ -87,6 +88,58 @@ async function insertProspect(
     `insert into public.recruitment_prospects (person_id, season_id, status, first_contact_on, committed_on)
      values ($1::uuid, $2::uuid, $3::public.prospect_status, $4::date, $5::date)`,
     [personId, season, status, firstContactOn, committedOn],
+  );
+}
+
+async function insertConsent(
+  personId: string,
+  season: string,
+  state: string,
+  changedAt: string,
+): Promise<void> {
+  const source = state === "never_asked" || state === "asked" ? null : "operator_recorded";
+  await observer.query(
+    `insert into public.season_messaging_consents (person_id, season_id, state, source, changed_at)
+     values ($1::uuid, $2::uuid, $3::public.messaging_consent_state, $4::public.messaging_consent_source, $5::timestamptz)`,
+    [personId, season, state, source, changedAt],
+  );
+}
+
+async function insertAgreementVersion(): Promise<string> {
+  const result = await observer.query<{ id: string }>(
+    `insert into public.onboarding_agreement_versions (agreement_type, version_label, body)
+     values ('code_of_conduct', $1, 'Test fixture only') returning id`,
+    [unique("version")],
+  );
+  const id = result.rows[0].id;
+  createdAgreementVersionIds.push(id);
+  return id;
+}
+
+async function insertAgreement(
+  personId: string,
+  season: string,
+  versionId: string,
+  agreedAt: string,
+): Promise<void> {
+  await observer.query(
+    `insert into public.onboarding_agreements (person_id, season_id, agreement_type, agreement_version_id, agreed_at)
+     values ($1::uuid, $2::uuid, 'code_of_conduct', $3::uuid, $4::timestamptz)`,
+    [personId, season, versionId, agreedAt],
+  );
+}
+
+async function insertDispute(
+  personId: string,
+  field: string,
+  clubValue: string,
+  playerValue: string,
+  raisedAt: string,
+): Promise<void> {
+  await observer.query(
+    `insert into public.person_fact_disputes (person_id, field, club_value, player_value, raised_by_person_id, raised_at)
+     values ($1::uuid, $2, $3, $4, $1::uuid, $5::timestamptz)`,
+    [personId, field, clubValue, playerValue, raisedAt],
   );
 }
 
@@ -158,6 +211,22 @@ afterAll(async () => {
   ]);
   await observer.query(
     `delete from public.recruitment_prospects where person_id = any($1::uuid[])`,
+    [createdPersonIds],
+  );
+  await observer.query(
+    `delete from public.season_messaging_consents where person_id = any($1::uuid[])`,
+    [createdPersonIds],
+  );
+  await observer.query(
+    `delete from public.onboarding_agreements where person_id = any($1::uuid[])`,
+    [createdPersonIds],
+  );
+  await observer.query(
+    `delete from public.onboarding_agreement_versions where id = any($1::uuid[])`,
+    [createdAgreementVersionIds],
+  );
+  await observer.query(
+    `delete from public.person_fact_disputes where person_id = any($1::uuid[])`,
     [createdPersonIds],
   );
   await observer.query(`delete from public.operator_accounts where person_id = any($1::uuid[])`, [
@@ -436,6 +505,175 @@ describe("mergePersons — the successful merge", () => {
     expect(prospects.rows[0].person_id).toBe(survivorId);
     expect(prospects.rows[0].status).toBe("committed");
     expect(prospects.rows[0].first_contact_on).toBe("2024-10-02");
+  });
+
+  // `T07-merge-precedence` — `WP-operator-record`, LAN-217, W7's own
+  // acceptance locked at the recommendation.
+  describe("T07-merge-precedence — the survivor takes the most restrictive consent, never the most recent", () => {
+    it("takes the loser's refused over the survivor's more recent granted", async () => {
+      const survivorId = await insertPerson({ givenName: unique("Survivor") });
+      const loserId = await insertPerson({ givenName: unique("Loser") });
+      await insertConsent(loserId, seasonId, "refused", "2024-09-01T00:00:00Z");
+      await insertConsent(survivorId, seasonId, "granted", "2024-09-05T00:00:00Z");
+
+      const preview = await previewPersonMerge(survivorId, loserId);
+      expect(preview.consentCombinations).toHaveLength(1);
+      expect(preview.consentCombinations[0]).toMatchObject({
+        seasonLabel,
+        survivorState: "granted",
+        loserState: "refused",
+        combinedState: "refused",
+      });
+
+      await mergePersons({
+        actorPersonId,
+        survivorPersonId: survivorId,
+        loserPersonId: loserId,
+        reason: "Duplicate consent",
+        fieldChoices: {},
+      });
+
+      const consents = await observer.query<{ person_id: string; state: string }>(
+        `select person_id, state::text as state from public.season_messaging_consents
+          where season_id = $1::uuid and person_id = any($2::uuid[])`,
+        [seasonId, [survivorId, loserId]],
+      );
+      expect(consents.rows).toHaveLength(1);
+      expect(consents.rows[0]).toMatchObject({ person_id: survivorId, state: "refused" });
+    });
+
+    it("takes the more recent of two equally restrictive states", async () => {
+      const survivorId = await insertPerson({ givenName: unique("Survivor") });
+      const loserId = await insertPerson({ givenName: unique("Loser") });
+      await insertConsent(survivorId, seasonId, "refused", "2024-09-01T00:00:00Z");
+      await insertConsent(loserId, seasonId, "withdrawn", "2024-09-10T00:00:00Z");
+
+      const preview = await previewPersonMerge(survivorId, loserId);
+      expect(preview.consentCombinations[0].combinedState).toBe("withdrawn");
+
+      await mergePersons({
+        actorPersonId,
+        survivorPersonId: survivorId,
+        loserPersonId: loserId,
+        reason: "Duplicate consent, both restrictive",
+        fieldChoices: {},
+      });
+
+      const consent = await observer.query<{ state: string }>(
+        `select state::text as state from public.season_messaging_consents
+          where season_id = $1::uuid and person_id = $2::uuid`,
+        [seasonId, survivorId],
+      );
+      expect(consent.rows[0].state).toBe("withdrawn");
+    });
+
+    it("never manufactures permission: neither side restrictive picks the more informative state", async () => {
+      const survivorId = await insertPerson({ givenName: unique("Survivor") });
+      const loserId = await insertPerson({ givenName: unique("Loser") });
+      await insertConsent(survivorId, seasonId, "asked", "2024-09-01T00:00:00Z");
+      await insertConsent(loserId, seasonId, "granted", "2024-09-02T00:00:00Z");
+
+      const preview = await previewPersonMerge(survivorId, loserId);
+      expect(preview.consentCombinations[0].combinedState).toBe("granted");
+    });
+  });
+
+  it("combines a duplicate agreement pair onto the survivor: the earlier agreed_at survives", async () => {
+    const survivorId = await insertPerson({ givenName: unique("Survivor") });
+    const loserId = await insertPerson({ givenName: unique("Loser") });
+    const versionId = await insertAgreementVersion();
+    await insertAgreement(survivorId, seasonId, versionId, "2024-09-10T12:00:00Z");
+    await insertAgreement(loserId, seasonId, versionId, "2024-09-03T09:00:00Z");
+
+    await mergePersons({
+      actorPersonId,
+      survivorPersonId: survivorId,
+      loserPersonId: loserId,
+      reason: "Duplicate agreement",
+      fieldChoices: {},
+    });
+
+    const agreements = await observer.query<{ person_id: string; agreed_at: Date }>(
+      `select person_id, agreed_at from public.onboarding_agreements
+        where season_id = $1::uuid and agreement_type = 'code_of_conduct' and person_id = any($2::uuid[])`,
+      [seasonId, [survivorId, loserId]],
+    );
+    expect(agreements.rows).toHaveLength(1);
+    expect(agreements.rows[0].person_id).toBe(survivorId);
+    expect(agreements.rows[0].agreed_at.toISOString()).toBe("2024-09-03T09:00:00.000Z");
+  });
+
+  describe("a colliding open dispute on the same field — the newer answer supersedes the waiting one", () => {
+    it("keeps the more recently raised of two open disputes on the same field, never resolving either", async () => {
+      const survivorId = await insertPerson({ givenName: unique("Survivor") });
+      const loserId = await insertPerson({ givenName: unique("Loser") });
+      await insertDispute(
+        survivorId,
+        "college",
+        "Old College",
+        "Older Answer",
+        "2024-09-01T00:00:00Z",
+      );
+      await insertDispute(
+        loserId,
+        "college",
+        "Old College",
+        "Newer Answer",
+        "2024-09-05T00:00:00Z",
+      );
+
+      await mergePersons({
+        actorPersonId,
+        survivorPersonId: survivorId,
+        loserPersonId: loserId,
+        reason: "Duplicate dispute",
+        fieldChoices: {},
+      });
+
+      const disputes = await observer.query<{
+        person_id: string;
+        status: string;
+        player_value: string;
+      }>(
+        `select person_id, status::text as status, player_value from public.person_fact_disputes
+          where field = 'college' and person_id = any($1::uuid[])`,
+        [[survivorId, loserId]],
+      );
+      expect(disputes.rows).toHaveLength(1);
+      expect(disputes.rows[0]).toMatchObject({
+        person_id: survivorId,
+        status: "open",
+        player_value: "Newer Answer",
+      });
+    });
+
+    it("re-points a non-colliding dispute — a different field, or an already-resolved one — without touching it", async () => {
+      const survivorId = await insertPerson({ givenName: unique("Survivor") });
+      const loserId = await insertPerson({ givenName: unique("Loser") });
+      await insertDispute(
+        loserId,
+        "degree_field",
+        "Old Degree",
+        "New Degree",
+        "2024-09-01T00:00:00Z",
+      );
+
+      await mergePersons({
+        actorPersonId,
+        survivorPersonId: survivorId,
+        loserPersonId: loserId,
+        reason: "Non-colliding dispute",
+        fieldChoices: {},
+      });
+
+      const dispute = await observer.query<{ person_id: string; status: string }>(
+        `select person_id, status::text as status from public.person_fact_disputes
+          where field = 'degree_field' and person_id = any($1::uuid[])`,
+        [[survivorId, loserId]],
+      );
+      expect(dispute.rows).toHaveLength(1);
+      expect(dispute.rows[0]).toMatchObject({ person_id: survivorId, status: "open" });
+    });
   });
 
   it("keeps a value from the losing record when the operator chooses it, unaltered when they do not", async () => {

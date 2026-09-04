@@ -6,6 +6,7 @@ import { isServiceError } from "@/lib/db";
 import {
   commitAvailability,
   commitBlues,
+  commitBps,
   commitCoachGroup,
   commitEligibility,
   commitEntry,
@@ -14,6 +15,7 @@ import {
   commitPosition,
   type AvailabilityLevel,
   type BluesValue,
+  type BpsValue,
   type EligibilityStatus,
   type FormalwearItemKey,
   type Kit,
@@ -126,6 +128,21 @@ export async function commitBluesAction(params: {
   const operator = await requireCapability("person_record_authority");
   try {
     await commitBlues({ actorPersonId: operator.personId, ...params });
+  } catch (error) {
+    return stateFor(error);
+  }
+  refresh();
+  return OK;
+}
+
+export async function commitBpsAction(params: {
+  membershipId: string;
+  seasonId: string;
+  value: BpsValue;
+}): Promise<BoardActionState> {
+  const operator = await requireCapability("person_record_authority");
+  try {
+    await commitBps({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
   }

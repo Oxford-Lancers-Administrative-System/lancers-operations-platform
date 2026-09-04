@@ -56,11 +56,17 @@ import { personDisplayNameSql } from "./sql-text";
  * `person_aliases`, `person_emergency_contacts`, `recruitment_prospects`,
  * `season_memberships` — the last since `Q-16` (correction round 2), which
  * excludes one specific membership (the overlap season the operator archived
- * to clear the refusal) rather than every row on the loser — and
- * `season_messaging_consents` (LAN-201), keyed `(person_id, season_id)` the
- * same way `recruitment_prospects` is but without that table's combination
- * logic yet; a merge where both identities hold a consent row for the same
- * season is a known, tracked limitation rather than a silent re-point.
+ * to clear the refusal) rather than every row on the loser — and three
+ * tables `WP-operator-record` (LAN-217, mission owner-question Q-3/Q-4/Q-5)
+ * closed a documented gap on: `season_messaging_consents`, keyed
+ * `(person_id, season_id)`, combined per season with the most restrictive
+ * state winning (`T07-merge-precedence`, `repointConsents`);
+ * `onboarding_agreements`, keyed `(person_id, season_id, agreement_type)`,
+ * combined with the earlier `agreed_at` winning (`repointAgreements`); and
+ * `person_fact_disputes`, at most one OPEN row per `(person_id, field)`,
+ * combined with the more recently raised open dispute surviving
+ * (`repointDisputes`) — none of the three is a silent re-point, and none is
+ * a known limitation any more.
  * `tests/person-merge-reference-catalogue.test.ts` asks `pg_constraint` for
  * the real, current list and fails if this module's declared set has drifted
  * from it — "ask the catalogue, not the migrations."
@@ -323,6 +329,8 @@ export interface PersonMergePreview {
   contacts: MergeContactComparison[];
   aliases: MergeAliasComparison;
   prospectCombinations: MergeProspectCombination[];
+  /** `T07-merge-precedence` — one more line beside the prospect combinations, for the same reason. */
+  consentCombinations: MergeConsentCombination[];
   willMove: MergeMovementLine[];
   /**
    * `Q-16`: an archived season membership that cleared the overlap refusal
@@ -440,6 +448,286 @@ async function readProspectCombinations(
       combinedFirstContact,
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// T07-merge-precedence — `WP-operator-record` (LAN-217), mission
+// owner-question Q-3/Q-4, `W7`'s own acceptance locked at the recommendation.
+//
+// `season_messaging_consents` is unique on `(person_id, season_id)`, so a
+// merge of two people who both hold a consent row for the same season cannot
+// keep both. The recommendation, locked as written: the survivor takes the
+// MOST RESTRICTIVE state, never the most recent — if either record says
+// `refused` or `withdrawn`, the survivor is `refused` or `withdrawn`.
+// Consent is permission to contact somebody, and a record-keeping operation
+// — a merge — must never manufacture permission a person actually declined.
+// `refused` and `withdrawn` rank equally restrictive; between two equally
+// restrictive rows, the more recent decision governs, the same way a person
+// re-answering their own consent always does (`grantSeasonMessagingConsentIn`/
+// `withdrawSeasonMessagingConsentIn`, both `changed_at = now()`).
+// ---------------------------------------------------------------------------
+
+const CONSENT_RESTRICTIVE_STATES: ReadonlySet<string> = new Set(["refused", "withdrawn"]);
+
+/** Higher wins among the three non-restrictive states — a real signal beats none, `granted` beats an unanswered ask. */
+const CONSENT_STATE_RANK: Readonly<Record<string, number>> = Object.freeze({
+  never_asked: 0,
+  asked: 1,
+  granted: 2,
+});
+
+export interface MergeConsentCombination {
+  seasonId: string;
+  seasonLabel: string;
+  survivorState: string;
+  loserState: string;
+  combinedState: string;
+  /** `true` when the combined state came from the loser's row rather than the survivor's own. */
+  fromLoser: boolean;
+}
+
+interface ConsentRow {
+  state: string;
+  source: string | null;
+  changed_at: Date;
+}
+
+/** The row that wins T07's precedence — restrictive beats permissive, and the newer decision breaks a restrictive tie. */
+function combineConsentRows(
+  survivor: ConsentRow,
+  loser: ConsentRow,
+): { row: ConsentRow; fromLoser: boolean } {
+  const survivorRestrictive = CONSENT_RESTRICTIVE_STATES.has(survivor.state);
+  const loserRestrictive = CONSENT_RESTRICTIVE_STATES.has(loser.state);
+  if (survivorRestrictive && !loserRestrictive) return { row: survivor, fromLoser: false };
+  if (loserRestrictive && !survivorRestrictive) return { row: loser, fromLoser: true };
+  if (survivorRestrictive && loserRestrictive) {
+    // Both declined contact; the more recent decision is the one the person
+    // actually holds today.
+    return survivor.changed_at >= loser.changed_at
+      ? { row: survivor, fromLoser: false }
+      : { row: loser, fromLoser: true };
+  }
+  // Neither is restrictive — the more informative non-restrictive state wins;
+  // the survivor's own row keeps it on an exact tie.
+  const survivorRank = CONSENT_STATE_RANK[survivor.state] ?? 0;
+  const loserRank = CONSENT_STATE_RANK[loser.state] ?? 0;
+  return loserRank > survivorRank
+    ? { row: loser, fromLoser: true }
+    : { row: survivor, fromLoser: false };
+}
+
+async function readConsentCombinations(
+  tx: Tx,
+  survivorId: string,
+  loserId: string,
+): Promise<MergeConsentCombination[]> {
+  const result = await tx.query<{
+    season_id: string;
+    season_label: string;
+    survivor_state: string;
+    survivor_source: string | null;
+    survivor_changed_at: Date;
+    loser_state: string;
+    loser_source: string | null;
+    loser_changed_at: Date;
+  }>(
+    `select s.id as season_id, s.label as season_label,
+            a.state::text as survivor_state, a.source::text as survivor_source, a.changed_at as survivor_changed_at,
+            b.state::text as loser_state, b.source::text as loser_source, b.changed_at as loser_changed_at
+       from public.season_messaging_consents a
+       join public.season_messaging_consents b
+         on b.season_id = a.season_id and b.person_id = $2::uuid
+       join public.seasons s on s.id = a.season_id
+      where a.person_id = $1::uuid`,
+    [survivorId, loserId],
+  );
+
+  return result.rows.map((row) => {
+    const { row: winner, fromLoser } = combineConsentRows(
+      {
+        state: row.survivor_state,
+        source: row.survivor_source,
+        changed_at: row.survivor_changed_at,
+      },
+      { state: row.loser_state, source: row.loser_source, changed_at: row.loser_changed_at },
+    );
+    return {
+      seasonId: row.season_id,
+      seasonLabel: row.season_label,
+      survivorState: row.survivor_state,
+      loserState: row.loser_state,
+      combinedState: winner.state,
+      fromLoser,
+    };
+  });
+}
+
+async function repointConsents(
+  tx: Tx,
+  survivorId: string,
+  loserId: string,
+  combinations: readonly MergeConsentCombination[],
+): Promise<void> {
+  for (const combo of combinations) {
+    if (combo.fromLoser) {
+      // The loser's row holds the more restrictive (or, on a tie, the newer)
+      // decision — move it onto the survivor's own row rather than leaving
+      // the survivor's own less-restrictive state standing.
+      await tx.query(
+        `update public.season_messaging_consents a
+            set state = b.state, source = b.source, changed_at = b.changed_at,
+                recorded_by_person_id = b.recorded_by_person_id
+           from public.season_messaging_consents b
+          where a.person_id = $1::uuid and a.season_id = $3::uuid
+            and b.person_id = $2::uuid and b.season_id = $3::uuid`,
+        [survivorId, loserId, combo.seasonId],
+      );
+    }
+    // Whichever side's decision now stands is on the survivor's own row —
+    // the loser's, superseded, is removed the same way a colliding prospect
+    // season is: the current-state row collapses to one, and every actor
+    // column naming who acted is already re-pointed blindly elsewhere
+    // (`recorded_by_person_id`, in `PERSON_REFERENCE_COLUMNS`).
+    await tx.query(
+      `delete from public.season_messaging_consents where person_id = $1::uuid and season_id = $2::uuid`,
+      [loserId, combo.seasonId],
+    );
+  }
+  // Everything left on the loser has no counterpart on the survivor — a
+  // plain re-point, safe because `season_messaging_consents_one_per_person_
+  // per_season` cannot collide with a season already handled above.
+  await tx.query(
+    `update public.season_messaging_consents set person_id = $2::uuid where person_id = $1::uuid`,
+    [loserId, survivorId],
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Two more per-tuple-unique tables the mission's owner-question Q-3/Q-5
+// assigned to this package to close, on the same "combine, then collapse to
+// one current row" shape T07 above uses.
+// ---------------------------------------------------------------------------
+
+interface AgreementCombination {
+  seasonId: string;
+  agreementType: string;
+}
+
+/**
+ * `onboarding_agreements` is keyed `(person_id, season_id, agreement_type)`.
+ * There is no restrictive/permissive axis for "did they agree" the way
+ * consent has one — so where two identities both hold an agreement for the
+ * same season and type, the earlier `agreed_at` is what survives: the true
+ * historical fact of when this person first agreed, the same "earliest date
+ * is the real one" reasoning `readProspectCombinations`' own
+ * `combinedFirstContact` already applies to a first-contact date.
+ */
+async function repointAgreements(tx: Tx, survivorId: string, loserId: string): Promise<void> {
+  const colliding = await tx.query<{
+    season_id: string;
+    agreement_type: string;
+    survivor_agreed_at: Date;
+    loser_agreed_at: Date;
+    loser_agreement_version_id: string;
+  }>(
+    `select a.season_id, a.agreement_type::text as agreement_type,
+            a.agreed_at as survivor_agreed_at, b.agreed_at as loser_agreed_at,
+            b.agreement_version_id as loser_agreement_version_id
+       from public.onboarding_agreements a
+       join public.onboarding_agreements b
+         on b.season_id = a.season_id and b.agreement_type = a.agreement_type and b.person_id = $2::uuid
+      where a.person_id = $1::uuid`,
+    [survivorId, loserId],
+  );
+
+  const combinations: AgreementCombination[] = [];
+  for (const row of colliding.rows) {
+    combinations.push({ seasonId: row.season_id, agreementType: row.agreement_type });
+    const loserIsEarlier = row.loser_agreed_at < row.survivor_agreed_at;
+    if (loserIsEarlier) {
+      await tx.query(
+        `update public.onboarding_agreements
+            set agreed_at = $4, agreement_version_id = $5::uuid
+          where person_id = $1::uuid and season_id = $2::uuid and agreement_type = $3::public.onboarding_agreement_type`,
+        [
+          survivorId,
+          row.season_id,
+          row.agreement_type,
+          row.loser_agreed_at,
+          row.loser_agreement_version_id,
+        ],
+      );
+    }
+    await tx.query(
+      `delete from public.onboarding_agreements
+        where person_id = $1::uuid and season_id = $2::uuid and agreement_type = $3::public.onboarding_agreement_type`,
+      [loserId, row.season_id, row.agreement_type],
+    );
+  }
+  await tx.query(
+    `update public.onboarding_agreements set person_id = $2::uuid where person_id = $1::uuid`,
+    [loserId, survivorId],
+  );
+}
+
+/**
+ * `person_fact_disputes` allows at most one OPEN row per `(person_id,
+ * field)`. Two identities can each hold an open dispute on the same field
+ * only when both have separately been asked and separately answered
+ * differently from the same club-recorded value — a genuine collision, not a
+ * common case. Resolved rows never collide (the partial unique index only
+ * covers `status = 'open'`), so only open-on-both-sides needs combining.
+ *
+ * The rule already governs a single person's own repeated answer — W7's own
+ * exceptions-and-recovery note, "the newer answer supersedes the waiting
+ * one" — and `raisePersonFactDisputeIn`'s own upsert already implements it by
+ * overwriting the one open row in place rather than keeping two. Applied here
+ * the same way: the more recently raised of the two open rows is the one that
+ * survives, updated in place on the survivor's own row; the older, now
+ * superseded, is removed exactly as an upsert would remove it — never
+ * resolved, because resolving is a four-role decision this merge does not
+ * make on anybody's behalf.
+ */
+async function repointDisputes(tx: Tx, survivorId: string, loserId: string): Promise<void> {
+  const colliding = await tx.query<{
+    field: string;
+    survivor_raised_at: Date;
+    loser_raised_at: Date;
+  }>(
+    `select a.field, a.raised_at as survivor_raised_at, b.raised_at as loser_raised_at
+       from public.person_fact_disputes a
+       join public.person_fact_disputes b
+         on b.field = a.field and b.person_id = $2::uuid and b.status = 'open'
+      where a.person_id = $1::uuid and a.status = 'open'`,
+    [survivorId, loserId],
+  );
+
+  for (const row of colliding.rows) {
+    if (row.loser_raised_at > row.survivor_raised_at) {
+      await tx.query(
+        `update public.person_fact_disputes a
+            set club_value = b.club_value, player_value = b.player_value,
+                raised_by_person_id = b.raised_by_person_id, raised_at = b.raised_at
+           from public.person_fact_disputes b
+          where a.person_id = $1::uuid and a.field = $3
+            and b.person_id = $2::uuid and b.field = $3 and b.status = 'open'`,
+        [survivorId, loserId, row.field],
+      );
+    }
+    await tx.query(
+      `delete from public.person_fact_disputes
+        where person_id = $1::uuid and field = $2 and status = 'open'`,
+      [loserId, row.field],
+    );
+  }
+  // Every other dispute the loser holds — resolved ones, and an open one on a
+  // field the survivor has no open dispute on — has no counterpart to collide
+  // with and re-points blindly.
+  await tx.query(
+    `update public.person_fact_disputes set person_id = $2::uuid where person_id = $1::uuid`,
+    [loserId, survivorId],
+  );
 }
 
 /**
@@ -591,6 +879,9 @@ export async function previewPersonMerge(
       prospectCombinations: refusal
         ? []
         : await readProspectCombinations(tx, survivorPersonId, loserPersonId),
+      consentCombinations: refusal
+        ? []
+        : await readConsentCombinations(tx, survivorPersonId, loserPersonId),
       willMove: refusal
         ? []
         : await readWillMove(
@@ -726,28 +1017,30 @@ export const PERSON_REFERENCE_COLUMNS_EXCLUDED: ReadonlyArray<{
     table: "season_messaging_consents",
     column: "person_id",
     reason:
-      "keyed (person_id, season_id) like recruitment_prospects, but LAN-201 does not yet combine " +
-      "two identities' consent for the same season before re-pointing — known limitation, left " +
-      "for the package that builds consent behaviour on this table",
+      "keyed (person_id, season_id) like recruitment_prospects — `T07-merge-precedence` " +
+      "(WP-operator-record, LAN-217): combined per season before re-pointing, the survivor " +
+      "taking the most restrictive of the two states (refused/withdrawn beats any of " +
+      "never_asked/asked/granted), never the most recent, so a merge can never manufacture " +
+      "permission a person actually declined",
   },
   {
     table: "onboarding_agreements",
     column: "person_id",
     reason:
-      "keyed (person_id, season_id, agreement_type) — LAN-214 does not combine two identities' " +
-      "agreements for the same season before re-pointing, the same known limitation " +
-      "season_messaging_consents.person_id already carries, left for the package that builds " +
-      "merge behaviour on this table",
+      "keyed (person_id, season_id, agreement_type) — combined per season and type before " +
+      "re-pointing (WP-operator-record, LAN-217): the earlier `agreed_at` of the two survives, " +
+      "the true historical fact of when this person first agreed",
   },
   {
     table: "person_fact_disputes",
     column: "person_id",
     reason:
-      "the dispute's subject, with at most one OPEN row per (person_id, field) — a blind " +
-      "re-point could collide with the survivor's own open dispute on the same field. LAN-214 " +
-      "does not combine two identities' disputes before re-pointing; left for the package that " +
-      "builds merge behaviour on this table, the same posture season_messaging_consents.person_id " +
-      "already carries",
+      "the dispute's subject, with at most one OPEN row per (person_id, field) — combined " +
+      "before re-pointing (WP-operator-record, LAN-217): where both sides hold an open dispute " +
+      "on the same field, the more recently raised one survives in place, the same " +
+      "'the newer answer supersedes the waiting one' rule a single person's own repeated " +
+      "answer already follows (raisePersonFactDisputeIn's own upsert); never auto-resolved, " +
+      "since resolving is a four-role decision this merge does not make on anybody's behalf",
   },
   {
     table: "season_memberships",
@@ -1118,6 +1411,7 @@ export async function mergePersons(params: {
       retainedMemberships.map((m) => m.membershipId),
     );
     const combinations = await readProspectCombinations(tx, survivorPersonId, loserPersonId);
+    const consentCombinations = await readConsentCombinations(tx, survivorPersonId, loserPersonId);
 
     const reasonNote = `From merging "${(await readSideLabelIn(tx, loserPersonId)).displayName}" into this record.`;
 
@@ -1134,6 +1428,13 @@ export async function mergePersons(params: {
     await repointContacts(tx, survivorPersonId, loserPersonId, fieldChoices);
     await repointAliases(tx, survivorPersonId, loserPersonId);
     await repointProspects(tx, survivorPersonId, loserPersonId, combinations);
+    // `T07-merge-precedence` — `WP-operator-record`, LAN-217. Restrictive
+    // wins, never most-recent; see `combineConsentRows`'s own note.
+    await repointConsents(tx, survivorPersonId, loserPersonId, consentCombinations);
+    // Mission owner-question Q-3/Q-5 — the two other per-tuple-unique tables
+    // this package was assigned to close, the same shape as consents above.
+    await repointAgreements(tx, survivorPersonId, loserPersonId);
+    await repointDisputes(tx, survivorPersonId, loserPersonId);
     await repointSeasonMemberships(
       tx,
       survivorPersonId,
@@ -1175,6 +1476,11 @@ export async function mergePersons(params: {
           season_id: c.seasonId,
           season_label: c.seasonLabel,
           status: c.combinedStatus,
+        })),
+        consents_combined: consentCombinations.map((c) => ({
+          season_id: c.seasonId,
+          season_label: c.seasonLabel,
+          state: c.combinedState,
         })),
       },
     });

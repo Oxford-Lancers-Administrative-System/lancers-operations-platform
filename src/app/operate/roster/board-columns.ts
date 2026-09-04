@@ -144,12 +144,15 @@ export const AVAILABILITY_LABELS: Readonly<Record<string, string>> = Object.free
   orange: "Orange",
   red: "Red",
 });
+/** BPS — a plain yes/no, `WP-operator-record` (LAN-217). The value and its label are the same word, like eligibility and availability. */
+export const BPS_VALUES = Object.freeze(["Yes", "No"]);
 
 export const PLAYER_COLUMN_WIDTH = 200;
 
 /**
- * The nineteen non-player columns. Twenty with `Player`, which is rendered
- * separately because it is pinned and carries no band.
+ * The twenty non-player columns (nineteen from LAN-186, plus BPS —
+ * `WP-operator-record`, LAN-217). Twenty-one with `Player`, which is
+ * rendered separately because it is pinned and carries no band.
  *
  * Position options are threaded in at call time because they are read from
  * the season's own vocabulary (S3) rather than fixed here.
@@ -371,6 +374,17 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       filterable: true,
       requires: "person_record_authority",
     },
+    {
+      key: "bps",
+      label: "BPS",
+      band: "season",
+      edit: "select",
+      options: BPS_VALUES,
+      width: 96,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
   ]) satisfies readonly ColumnDef[];
 }
 
@@ -420,6 +434,7 @@ const COLUMN_ROW_FIELDS: Readonly<Record<string, readonly (keyof RosterBoardRow)
     blues: ["blues"],
     eligibility: ["eligibility"],
     availability: ["availability"],
+    bps: ["bps"],
   });
 
 /** Redacts a row to exactly the columns this viewer may see, plus identity fields. */

@@ -32,11 +32,13 @@ import type {
   PositionColumn,
   Kit,
   FormalwearItemKey,
+  BpsValue,
 } from "@/lib/services/roster-board";
 import { setMembershipStatusAction } from "./actions";
 import {
   commitAvailabilityAction,
   commitBluesAction,
+  commitBpsAction,
   commitCoachGroupAction,
   commitEligibilityAction,
   commitEntryAction,
@@ -302,6 +304,15 @@ export default function RosterBoard({
               commitAvailabilityAction({
                 membershipId: row.membershipId,
                 level: next as "green" | "orange" | "red",
+              }),
+            );
+            return;
+          case "bps":
+            await runCommit(row.membershipId, () =>
+              commitBpsAction({
+                membershipId: row.membershipId,
+                seasonId,
+                value: next as BpsValue,
               }),
             );
             return;

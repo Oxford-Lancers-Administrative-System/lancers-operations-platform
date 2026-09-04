@@ -22,6 +22,7 @@ import { openObserver, seededActorPersonId } from "../../../tests/helpers/servic
 import {
   commitAvailability,
   commitBlues,
+  commitBps,
   commitCoachGroup,
   commitEligibility,
   commitFormalwearItem,
@@ -67,6 +68,9 @@ async function cleanUp(): Promise<void> {
     `delete from public.availability_statuses where season_membership_id = $1::uuid`,
     [membershipId],
   );
+  await observer.query(`delete from public.bps_selections where season_membership_id = $1::uuid`, [
+    membershipId,
+  ]);
   await observer.query(
     `delete from public.season_membership_status_events where season_membership_id = $1::uuid`,
     [membershipId],
@@ -417,13 +421,14 @@ describe("commitJerseyNumbers — Q-7/Q-8", () => {
   });
 });
 
-describe("coach group, formalwear, Blues, eligibility, availability — round trip", () => {
+describe("coach group, formalwear, Blues, eligibility, availability, BPS — round trip", () => {
   it("commits and reads back through listRosterBoard", async () => {
     await commitCoachGroup({ actorPersonId, membershipId, seasonId, coachGroup: "Offense" });
     await commitFormalwearItem({ actorPersonId, membershipId, seasonId, item: "tie", owned: true });
     await commitBlues({ actorPersonId, membershipId, seasonId, value: "Half" });
     await commitEligibility({ actorPersonId, membershipId, seasonId, status: "eligible" });
     await commitAvailability({ actorPersonId, membershipId, level: "green" });
+    await commitBps({ actorPersonId, membershipId, seasonId, value: "Yes" });
 
     const board = await listRosterBoard();
     const row = board.rows.find((entry) => entry.membershipId === membershipId);
@@ -433,6 +438,7 @@ describe("coach group, formalwear, Blues, eligibility, availability — round tr
       blues: "Half",
       eligibility: "eligible",
       availability: "green",
+      bps: "Yes",
     });
 
     const confirmer = await observer.query<{ confirmed_by_person_id: string | null }>(
@@ -441,5 +447,81 @@ describe("coach group, formalwear, Blues, eligibility, availability — round tr
       [membershipId],
     );
     expect(confirmer.rows[0].confirmed_by_person_id).toBe(actorPersonId);
+  });
+});
+
+/**
+ * BPS — item 5 of the item-and-ask inventory, a roster attribute rather than
+ * an onboarding item (`WP-operator-record`, LAN-217, mission
+ * owner-question Q-2/Q-3). Exactly `commitBlues`'s own shape: a no-op when
+ * unchanged, an upsert on the row's own one-per-membership constraint, and
+ * an audited transition otherwise.
+ */
+describe("commitBps — the roster attribute BPS left the checklist to become", () => {
+  it("defaults to No, is a no-op when unchanged, and toggles with an audited transition", async () => {
+    // A clean slate: an earlier suite in this file (the round-trip test) may
+    // already have set this membership's own row, and "defaults to No" is a
+    // claim about no row existing at all, not about execution order.
+    await observer.query(
+      `delete from public.bps_selections where season_membership_id = $1::uuid`,
+      [membershipId],
+    );
+
+    const before = await listRosterBoard();
+    expect(before.rows.find((entry) => entry.membershipId === membershipId)?.bps).toBe("No");
+
+    // Committing the value it already has writes nothing.
+    await commitBps({ actorPersonId, membershipId, seasonId, value: "No" });
+    const stillNone = await observer.query(
+      `select 1 from public.bps_selections where season_membership_id = $1::uuid`,
+      [membershipId],
+    );
+    expect(stillNone.rows).toHaveLength(0);
+
+    await commitBps({ actorPersonId, membershipId, seasonId, value: "Yes" });
+    const selected = await observer.query<{ is_selected: boolean; recorded_by_person_id: string }>(
+      `select is_selected, recorded_by_person_id from public.bps_selections
+        where season_membership_id = $1::uuid`,
+      [membershipId],
+    );
+    expect(selected.rows[0]).toMatchObject({
+      is_selected: true,
+      recorded_by_person_id: actorPersonId,
+    });
+
+    const audit = await observer.query<{ from_state: string; to_state: string }>(
+      `select from_state, to_state from public.audit_events
+        where entity_id = $1::uuid and action = 'bps_changed'
+        order by occurred_at desc limit 1`,
+      [membershipId],
+    );
+    expect(audit.rows[0]).toMatchObject({ from_state: "No", to_state: "Yes" });
+
+    // Rotated off — never chased, never gating, just flipped back.
+    await commitBps({ actorPersonId, membershipId, seasonId, value: "No" });
+    const rotatedOff = await observer.query<{ is_selected: boolean }>(
+      `select is_selected from public.bps_selections where season_membership_id = $1::uuid`,
+      [membershipId],
+    );
+    expect(rotatedOff.rows[0].is_selected).toBe(false);
+  });
+
+  it("never appears as an onboarding item — flipping it moves no checklist count", async () => {
+    const before = await listRosterBoard();
+    const beforeRow = before.rows.find((entry) => entry.membershipId === membershipId)!;
+
+    await commitBps({ actorPersonId, membershipId, seasonId, value: "Yes" });
+
+    const after = await listRosterBoard();
+    const afterRow = after.rows.find((entry) => entry.membershipId === membershipId)!;
+    expect(afterRow.bps).toBe("Yes");
+    expect(afterRow.itemsTotal).toBe(beforeRow.itemsTotal);
+    expect(afterRow.itemsResolved).toBe(beforeRow.itemsResolved);
+    expect(afterRow.requiredOutstanding).toBe(beforeRow.requiredOutstanding);
+
+    const type = await observer.query(
+      `select 1 from public.onboarding_item_types where code = 'bps'`,
+    );
+    expect(type.rows).toHaveLength(0);
   });
 });
