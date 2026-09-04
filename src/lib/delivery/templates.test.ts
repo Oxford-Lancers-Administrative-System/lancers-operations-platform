@@ -78,12 +78,13 @@ describe("every declared template", () => {
     }
   });
 
-  it("covers all eleven kinds and gives each one a distinct canonical name", () => {
+  it("covers all twelve kinds and gives each one a distinct canonical name", () => {
     // Six from LAN-169, plus LAN-203's five recruit kinds — see
-    // `recruit_event_followup` and the four capture-cycle templates below.
-    expect(MESSAGE_KINDS).toHaveLength(11);
+    // `recruit_event_followup` and the four capture-cycle templates below —
+    // plus LAN-215's one door-independent onboarding welcome.
+    expect(MESSAGE_KINDS).toHaveLength(12);
     expect(Object.keys(MESSAGE_TEMPLATES).sort()).toEqual([...MESSAGE_KINDS].sort());
-    expect(new Set(Object.values(TEMPLATE_NAMES)).size).toBe(11);
+    expect(new Set(Object.values(TEMPLATE_NAMES)).size).toBe(12);
   });
 
   it("renders a subject and a non-empty body for each", () => {
@@ -411,5 +412,42 @@ describe("the five recruit template names", () => {
     expect(TEMPLATE_NAMES.recruit_interest_ask).toBe("recruit_interest_ask_v1");
     expect(TEMPLATE_NAMES.recruit_event_followup).toBe("recruit_event_followup_v1");
     expect(TEMPLATE_NAMES.recruit_interest_reminder).toBe("recruit_interest_reminder_v1");
+  });
+});
+
+describe("the onboarding welcome — LAN-215, REQ-one-welcome", () => {
+  it("is the same one template regardless of which door queued it", () => {
+    // There is exactly one declaration for `onboarding_welcome` — the whole
+    // of what "door-independent" means at the template layer: nothing here
+    // takes a "which door" parameter for the template to branch on.
+    const template = MESSAGE_TEMPLATES.onboarding_welcome;
+    expect(template.kind).toBe("onboarding_welcome");
+    expect(template.parameterNames).toEqual(["inviteeName"]);
+  });
+
+  it("carries the durable link and its own opt-out as its two URL buttons", () => {
+    const rendered = MESSAGE_TEMPLATES.onboarding_welcome.buttonUrls?.(
+      message({
+        kind: "onboarding_welcome",
+        formUrl: "https://lancers.example/me/abc",
+        stopUrl: "https://lancers.example/me/stop/abc",
+      }),
+    );
+    expect(rendered).toEqual([
+      "https://lancers.example/me/abc",
+      "https://lancers.example/me/stop/abc",
+    ]);
+  });
+
+  it("refuses to render without the durable link", () => {
+    expect(() =>
+      MESSAGE_TEMPLATES.onboarding_welcome.body(
+        message({ kind: "onboarding_welcome", formUrl: null }),
+      ),
+    ).toThrowError(/link/);
+  });
+
+  it("carries a canonical, unapproved-so-far template name", () => {
+    expect(TEMPLATE_NAMES.onboarding_welcome).toBe("onboarding_welcome_v1");
   });
 });

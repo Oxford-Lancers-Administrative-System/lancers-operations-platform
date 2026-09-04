@@ -60,6 +60,7 @@
  * | Leadership report         | President, VP, Secretary, General Manager      | Lead, 14 Aug 2026  |
  * | Role management           | President, General Manager, IT Officer         | Brian, 18 Aug 2026 |
  * | Person record authority   | President, VP, Secretary, General Manager      | Brian, 28 Aug 2026 |
+ * | Roster bulk import        | The four offices, plus General Manager         | W1, Brian 1 Sep 2026 |
  *
  * **Every capability above also lists `it_officer`.** Brian decided on 15
  * August 2026 (LAN-124) that the IT Officer is the club's administrative seat
@@ -102,7 +103,8 @@ export type CapabilityKey =
   | "role_management"
   | "delivery_administration"
   | "leadership_report"
-  | "person_record_authority";
+  | "person_record_authority"
+  | "roster_bulk_import";
 
 export interface Capability {
   readonly key: CapabilityKey;
@@ -790,6 +792,47 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
       'grants, so widening access later drops restricted columns automatically." ' +
       "Brian, 15 August 2026 (LAN-124) added it_officer, the administrative seat that " +
       "holds every capability in this file.",
+  }),
+
+  /**
+   * The CSV bulk import of last season's squad — LAN-215, `WP-arrival-doors`,
+   * workflow `W1`. "Four-role, not the general-operator floor the surrounding
+   * roster surfaces use."
+   *
+   * `/operate/roster/new` (W2) deliberately stays at the shipped
+   * general-operator floor beside this — see `roster.ts`'s
+   * `enterReturningPlayer`, gated with `requireGeneralOperator()` rather
+   * than a capability at all. The two are different actions on purpose: one
+   * writes a single, named person an operator is looking at; this one
+   * creates dozens of people who have not yet heard from the club in a
+   * single sitting, and W1's own approved specification is explicit that
+   * "every other bulk or consequential write in the application narrows."
+   *
+   * `roleCodes` reads as the "Exec + GM" grouping `membership_activation`
+   * above already established (Lead, 12 August 2026) rather than a new
+   * reading of "four-role": W1's specification names its primary actor as
+   * "President, Secretary, GM, Treasurer" — the four constitutional offices
+   * (`vice_president` included, `is_constitutional_office`) plus the General
+   * Manager, which is exactly that grant.
+   */
+  roster_bulk_import: capability({
+    key: "roster_bulk_import",
+    action: "bulk import a season's roster from a file",
+    roleCodes: [
+      "president",
+      "vice_president",
+      "secretary",
+      "treasurer",
+      "general_manager",
+      "it_officer",
+    ],
+    decision:
+      "W1's approved specification (LAN-215, `acceptance/W1.md`), locked 2026-09-01: " +
+      '"Four-role, not the general-operator floor the surrounding roster surfaces use" — ' +
+      "read as the Exec + GM grouping `membership_activation` already carries (Lead, 12 " +
+      "August 2026), the closest existing recorded reading of the four offices plus the " +
+      "General Manager. Brian, 15 August 2026 (LAN-124) added it_officer, the " +
+      "administrative seat that holds every capability in this file.",
   }),
 });
 

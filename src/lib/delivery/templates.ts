@@ -80,6 +80,10 @@ export const TEMPLATE_NAMES: Readonly<Record<MessageKind, string>> = Object.free
   recruit_details_reminder: "recruit_details_reminder_v1",
   recruit_interest_ask: "recruit_interest_ask_v1",
   recruit_interest_reminder: "recruit_interest_reminder_v1",
+  // LAN-215. Not yet Meta-approved — the same "declared and dispatchable
+  // locally, submitted to Meta separately" posture LAN-199's five recruit
+  // templates already carry.
+  onboarding_welcome: "onboarding_welcome_v1",
 });
 
 /**
@@ -450,6 +454,44 @@ const RECRUIT_INTEREST_REMINDER: MessageTemplate = {
   buttonUrls: recruitFormButtonUrls,
 };
 
+/**
+ * LAN-215, `REQ-one-welcome`. The two URL buttons this template carries — the
+ * durable per-person page, and its own opt-out, on the same
+ * "at most two URL buttons" limit the recruit templates already spend.
+ * Both resolve the same durable credential `issuePersonTokenIn` mints —
+ * `/me/<token>` for the page itself, `/me/stop/<token>` to withdraw.
+ */
+function onboardingWelcomeButtonUrls(message: OutboundMessage): readonly [string, string] {
+  return [required(message.formUrl, "link"), required(message.stopUrl, "opt-out link")];
+}
+
+/**
+ * LAN-215, `REQ-one-welcome`, `REQ-three-doors`. Fired by all three arrival
+ * doors (`roster.ts`'s `enterReturningPlayer`, `recruitment-prospect.ts`'s
+ * flip, and the CSV import) through the identical
+ * `emitOnboardingOpenedWelcomeIn` call — one template, door-independent, and
+ * the only message the club may send before a messaging basis exists
+ * (`onboarding-welcome.ts`'s own `mayReceiveWelcomeContactIn` check). Its
+ * purpose is to obtain that basis: the tick on the page this links to.
+ *
+ * Wording is a placeholder in a real, versioned template slot
+ * (`nonblocking_unknowns`, packet M-ONBOARDING-AND-INFORMATION-COMPLETION):
+ * nothing here is club policy, and the words drop in later without changing
+ * the message's kind, its parameters, or any acceptance criterion.
+ */
+const ONBOARDING_WELCOME: MessageTemplate = {
+  kind: "onboarding_welcome",
+  parameterNames: ["inviteeName"],
+  parameters: (message) => [required(message.inviteeName, "name")],
+  subject: () => "Welcome to Oxford Lancers",
+  body: (message) => [
+    `${message.inviteeName}, welcome to the team.`,
+    "There are a few quick things to complete before the season gets going — it takes a few minutes.",
+    `Get started: ${required(message.formUrl, "link")}`,
+  ],
+  buttonUrls: onboardingWelcomeButtonUrls,
+};
+
 export const MESSAGE_TEMPLATES: Readonly<Record<MessageKind, MessageTemplate>> = Object.freeze({
   invitation: INVITATION,
   reminder: REMINDER,
@@ -462,6 +504,7 @@ export const MESSAGE_TEMPLATES: Readonly<Record<MessageKind, MessageTemplate>> =
   recruit_details_reminder: RECRUIT_DETAILS_REMINDER,
   recruit_interest_ask: RECRUIT_INTEREST_ASK,
   recruit_interest_reminder: RECRUIT_INTEREST_REMINDER,
+  onboarding_welcome: ONBOARDING_WELCOME,
 });
 
 /** Every kind, in ladder order. The manifest LAN-168 generates walks this. */
@@ -477,6 +520,7 @@ export const MESSAGE_KINDS: readonly MessageKind[] = Object.freeze([
   "recruit_details_reminder",
   "recruit_interest_ask",
   "recruit_interest_reminder",
+  "onboarding_welcome",
 ] as const);
 
 /**
