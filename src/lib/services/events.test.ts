@@ -682,6 +682,196 @@ describe("the list can be sorted, and only by columns it knows", () => {
 });
 
 // ---------------------------------------------------------------------------
+// LAN-228 — the participation counts, after the shape they are computed in
+// changed
+// ---------------------------------------------------------------------------
+
+/**
+ * The six counts, computed a third way.
+ *
+ * Deliberately the *correlated* form — one scalar subquery per count, keyed on
+ * one event — because that is the shape LAN-228 replaced. The service now reads
+ * them from three grouped aggregates joined once, which is a different
+ * statement giving what is meant to be the same answer; asserting the new shape
+ * against itself would prove only that it is consistent. This is the
+ * independent witness, written out here so a regression in the service's SQL
+ * has somewhere to disagree with.
+ */
+async function countsFromSql(eventId: string) {
+  const result = await observer.query<{
+    audience_count: string;
+    invitation_count: string;
+    response_count: string;
+    said_yes_count: string;
+    showed_count: string;
+    register_saved: boolean;
+  }>(
+    `select
+       (select count(*) from public.event_audience_members a where a.event_id = e.id) as audience_count,
+       (select count(*) from public.invitations i where i.event_id = e.id) as invitation_count,
+       (select count(*)
+          from public.invitations i
+          join public.current_rsvp r on r.invitation_id = i.id
+         where i.event_id = e.id) as response_count,
+       (select count(*)
+          from public.invitations i
+          join public.current_rsvp r on r.invitation_id = i.id
+         where i.event_id = e.id and r.response = 'yes') as said_yes_count,
+       (select count(*)
+          from public.attendance_records a
+         where a.event_id = e.id and a.presence in ('present', 'late')) as showed_count,
+       exists (select 1 from public.attendance_records a where a.event_id = e.id) as register_saved
+     from public.events e
+    where e.id = $1`,
+    [eventId],
+  );
+  expect(result.rows.length).toBe(1);
+  const row = result.rows[0];
+  return {
+    audienceCount: Number(row.audience_count),
+    invitationCount: Number(row.invitation_count),
+    responseCount: Number(row.response_count),
+    saidYesCount: Number(row.said_yes_count),
+    showedCount: Number(row.showed_count),
+    registerSaved: row.register_saved,
+  };
+}
+
+/** The six counts as one of the two service reads reports them. */
+function countsOf(event: {
+  audienceCount: number;
+  invitationCount: number;
+  responseCount: number;
+  saidYesCount: number;
+  showedCount: number;
+  registerSaved: boolean;
+}) {
+  return {
+    audienceCount: event.audienceCount,
+    invitationCount: event.invitationCount,
+    responseCount: event.responseCount,
+    saidYesCount: event.saidYesCount,
+    showedCount: event.showedCount,
+    registerSaved: event.registerSaved,
+  };
+}
+
+describe("the list, the single-event read and the database agree about the counts", () => {
+  /**
+   * The event this is asked about is chosen by what it *contains*, not by name.
+   *
+   * LAN-228 rewrote the counts from six correlated subqueries into three
+   * grouped aggregates joined once, and the three things a grouped aggregate
+   * can get wrong that a correlated subquery cannot are: counting a superseded
+   * answer as well as the standing one, counting an invitation twice because
+   * the join multiplied it, and losing an event's row altogether. So the
+   * fixture has to be an event with answers, with at least one answer that was
+   * changed, and with a saved register — which the seed produces (124 changed
+   * answers, 264 attendance rows) but does not label. It is found rather than
+   * written, because writing it would mean an approved event, an occurred
+   * event and a register, and the seed already holds all three.
+   */
+  async function seededEventWithEverything(): Promise<string> {
+    const result = await observer.query<{ id: string }>(
+      `select e.id
+         from public.events e
+         join public.seasons s on s.id = e.season_id and s.status = 'active'
+        where exists (select 1 from public.attendance_records a where a.event_id = e.id)
+          and exists (select 1
+                        from public.invitations i
+                        join public.current_rsvp r on r.invitation_id = i.id
+                       where i.event_id = e.id)
+          and exists (select 1
+                        from public.invitations i
+                        join public.rsvp_responses r on r.invitation_id = i.id
+                       where i.event_id = e.id
+                       group by i.id
+                      having count(*) > 1)
+        order by e.id
+        limit 1`,
+    );
+    expect(
+      result.rows[0],
+      "the seed has no event with answers, a changed answer and a saved register",
+    ).toBeDefined();
+    return result.rows[0].id;
+  }
+
+  it("reports the same six counts from both reads, and both are the database's", async () => {
+    const eventId = await seededEventWithEverything();
+
+    const list = await listCurrentSeasonEvents();
+    const entry = list.events.find((event) => event.id === eventId);
+    expect(entry, "the seeded event is missing from its own season's list").toBeDefined();
+
+    const detail = await readEvent(eventId);
+    const expected = await countsFromSql(eventId);
+
+    // Not zeroes dressed up as agreement: this event has a real audience, real
+    // answers and a real register, so the assertion below has something to be
+    // wrong about.
+    expect(expected.invitationCount).toBeGreaterThan(0);
+    expect(expected.responseCount).toBeGreaterThan(0);
+    expect(expected.registerSaved).toBe(true);
+
+    expect(countsOf(entry!)).toEqual(expected);
+    expect(countsOf(detail)).toEqual(expected);
+  });
+
+  it("counts the standing answer once, and the answer it superseded not at all", async () => {
+    // The specific hazard of the grouped shape. `current_rsvp` is
+    // `distinct on (invitation_id)`, so an invitation answered twice
+    // contributes one row to `response_count` — but a join written against
+    // `rsvp_responses` instead would contribute two, and the count would still
+    // look plausible. Pinned to the arithmetic rather than to a number the seed
+    // happens to produce today.
+    const eventId = await seededEventWithEverything();
+    const entry = (await listCurrentSeasonEvents()).events.find((event) => event.id === eventId);
+
+    const answers = await observer.query<{ invitations: string; responses: string }>(
+      `select count(distinct i.id)::text as invitations, count(*)::text as responses
+         from public.invitations i
+         join public.rsvp_responses r on r.invitation_id = i.id
+        where i.event_id = $1`,
+      [eventId],
+    );
+    const invitationsAnswered = Number(answers.rows[0].invitations);
+    const answersRecorded = Number(answers.rows[0].responses);
+
+    expect(answersRecorded, "this event has no superseded answer").toBeGreaterThan(
+      invitationsAnswered,
+    );
+    expect(entry!.responseCount).toBe(invitationsAnswered);
+    expect(entry!.saidYesCount).toBeLessThanOrEqual(entry!.responseCount);
+  });
+
+  it("reports zero, not null and not a missing row, for an event with no participation", async () => {
+    // The other half of an outer join. A draft nobody has been invited to has
+    // no row in any of the three groups, and every count it reports is zero
+    // with `registerSaved` false — the answer the old correlated subqueries
+    // gave, and the reason the new columns are wrapped in `coalesce`.
+    const event = await createEventDraft(actorPersonId, draft());
+
+    const entry = (await listCurrentSeasonEvents({ search: NAME_MARKER })).events.find(
+      (row) => row.id === event.id,
+    );
+    expect(entry, "a freshly drafted event is missing from the list").toBeDefined();
+
+    const empty = {
+      audienceCount: 0,
+      invitationCount: 0,
+      responseCount: 0,
+      saidYesCount: 0,
+      showedCount: 0,
+      registerSaved: false,
+    };
+    expect(countsOf(entry!)).toEqual(empty);
+    expect(countsOf(await readEvent(event.id))).toEqual(empty);
+    expect(await countsFromSql(event.id)).toEqual(empty);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Row 7 — invariant E4
 // ---------------------------------------------------------------------------
 
