@@ -189,11 +189,17 @@ export async function resolveOperator(): Promise<ResolvedOperator | null> {
  * Layer"). Every `/operate` page resolves the operator at least twice — the
  * layout guards the frame, the page's own gate guards the page, and neither may
  * depend on the other having run — and the events list adds a third through its
- * service-layer tier check. Each resolution is five serial round trips to the
- * Supabase API (`auth/v1/user`, then `operator_accounts`, `people`,
- * `role_assignments`, `roles`): about 150 ms on a quiet machine and 300 ms on a
- * loaded one, paid two or three times over on every operator page render
- * (`docs/lan-227-slowness-diagnosis.md` § 2.6).
+ * service-layer tier check. Instrumented against `/operate/events`, that was
+ * three executions per render before this line and one after.
+ *
+ * Each resolution is five serial reads through the Supabase API
+ * (`auth/v1/user`, then `operator_accounts`, `people`, `role_assignments`,
+ * `roles`). The *network* was already cheaper than it looks — Next.js memoises
+ * an identical `fetch` for the length of a render, so GoTrue saw one
+ * `GET /user` per render even when this ran three times, which is why LAN-227
+ * read the duplication off HTTP counts and found two rather than three. What
+ * was genuinely paid three times is this function: the client construction, the
+ * five awaits, the JSON, and the role arithmetic below.
  *
  * What this does **not** do is weaken any of the three checks. Every caller
  * still asks, still gets the same answer, and still refuses on it; the second

@@ -348,9 +348,9 @@ const COUNT_COLUMNS = `
  *
  * ## Why grouped rather than correlated
  *
- * These were six correlated subqueries on `e.id` until LAN-228 measured them:
- * 1.34 s of CPU and 742 680 buffer hits to return one season's 110 events
- * (`docs/lan-227-slowness-diagnosis.md` § 3). `current_rsvp` is a
+ * These were six correlated subqueries on `e.id` until LAN-227 measured them
+ * and LAN-228 replaced them: 591–846 ms of CPU and 742 680 buffer hits to
+ * return one season's 110 events on the local seed. `current_rsvp` is a
  * `distinct on (invitation_id)` view over the whole of `rsvp_responses`, and
  * correlating it on `i.event_id` gives the planner nothing to push down — so it
  * re-derived the club's every standing answer **once per event row**, and did it
