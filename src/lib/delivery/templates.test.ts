@@ -78,13 +78,14 @@ describe("every declared template", () => {
     }
   });
 
-  it("covers all twelve kinds and gives each one a distinct canonical name", () => {
+  it("covers all fourteen kinds and gives each one a distinct canonical name", () => {
     // Six from LAN-169, plus LAN-203's five recruit kinds — see
     // `recruit_event_followup` and the four capture-cycle templates below —
-    // plus LAN-215's one door-independent onboarding welcome.
-    expect(MESSAGE_KINDS).toHaveLength(12);
+    // plus LAN-215's one door-independent onboarding welcome, plus LAN-218's
+    // chase and its own escalation.
+    expect(MESSAGE_KINDS).toHaveLength(14);
     expect(Object.keys(MESSAGE_TEMPLATES).sort()).toEqual([...MESSAGE_KINDS].sort());
-    expect(new Set(Object.values(TEMPLATE_NAMES)).size).toBe(12);
+    expect(new Set(Object.values(TEMPLATE_NAMES)).size).toBe(14);
   });
 
   it("renders a subject and a non-empty body for each", () => {
@@ -243,6 +244,61 @@ describe("the escalation", () => {
     // person most often arrives as.
     expect(escalationCarriesNoPersonalData(["Ring Jamie on +44 7700 900001."])).toBe(false);
     expect(escalationCarriesNoPersonalData(["Email jamie@example.com."])).toBe(false);
+  });
+});
+
+describe("the onboarding chase", () => {
+  it("carries the same compiled-ask link the welcome does, and never names what is missing", () => {
+    const body = MESSAGE_TEMPLATES.onboarding_chase
+      .body(message({ kind: "onboarding_chase" }))
+      .join("\n");
+    expect(body).toContain("https://lancers.example/me/abc");
+    // OD7-no-targeted-ask: never a one-fact ask, so the body cannot single
+    // out one required field or checklist item by name.
+    expect(body).not.toMatch(/college|matriculation|degree|emergency contact/i);
+  });
+
+  it("carries the link and its own opt-out as the message's two URL buttons", () => {
+    const buttons = MESSAGE_TEMPLATES.onboarding_chase.buttonUrls?.(
+      message({ kind: "onboarding_chase" }),
+    );
+    expect(buttons).toEqual([
+      "https://lancers.example/me/abc",
+      "https://lancers.example/me/abc/stop",
+    ]);
+  });
+});
+
+describe("the onboarding chase escalation", () => {
+  const escalation = message({ kind: "onboarding_chase_escalation" });
+
+  it("declares no name parameter at all", () => {
+    expect(MESSAGE_TEMPLATES.onboarding_chase_escalation.parameterNames).toEqual([
+      "outstandingCount",
+      "queueUrl",
+    ]);
+    expect(MESSAGE_TEMPLATES.onboarding_chase_escalation.parameterNames).not.toContain(
+      "inviteeName",
+    );
+  });
+
+  it("carries no player personal data in its rendered body", () => {
+    const body = MESSAGE_TEMPLATES.onboarding_chase_escalation.body(escalation);
+
+    expect(escalationCarriesNoPersonalData(body)).toBe(true);
+    expect(body.join("\n")).not.toContain("Jamie");
+    expect(body.join("\n")).not.toContain("447700900001");
+  });
+
+  it("carries the packet's own exact wording — a count and a link, nothing else", () => {
+    const body = MESSAGE_TEMPLATES.onboarding_chase_escalation
+      .body(message({ kind: "onboarding_chase_escalation", outstandingCount: 3 }))
+      .join(" ");
+    expect(body).toContain(
+      "The automated chase has finished for 3 players who still have onboarding details " +
+        "outstanding.",
+    );
+    expect(body).toContain("https://lancers.example/operate/follow-ups");
   });
 });
 

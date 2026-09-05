@@ -1,0 +1,21 @@
+-- D-003 — WP-operator-record, LAN-217, correction round 3 (Q-14). Brian: the
+-- BPS audience appears in an event's own audience picker but not in event
+-- templates, so it cannot be pre-chosen. It was deliberately left out of the
+-- template's default-audience picker (correction round 2, item 7) because the
+-- closed `public.audience_group` enum a template default persists to would
+-- need a migration. That migration is authorised this round.
+--
+-- `alter type ... add value` cannot run in the same transaction as a statement
+-- that uses the new value (docs/migration-runbook.md's own note), so it is
+-- the only statement in this file, standalone.
+--
+-- Nothing else changes. `bps` carries no per-event-type restriction the way
+-- `recruits` does (`event_template_audience_groups_recruits_are_recruitment_only`)
+-- — the BPS group is offered on every event type already, on the single-event
+-- picker, and this migration only lets the same group be stored as a
+-- template's default. `event-templates.ts`'s write path
+-- (`event_template_audience_group_not_offered`) and its two read paths
+-- (`readTemplateInheritanceIn`, `templateAudienceKeys`) already resolve any
+-- stored group generically; no group-specific code exists there to update.
+
+alter type public.audience_group add value if not exists 'bps';

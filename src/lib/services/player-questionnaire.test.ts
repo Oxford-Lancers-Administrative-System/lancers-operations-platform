@@ -24,7 +24,6 @@ import { generateOnboardingItems } from "./membership";
 import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
 import { resolveOpenSeason } from "./roster";
 import { updatePersonField } from "./person-write";
-import { readOpenPersonFactDisputesIn } from "./person-fact-dispute";
 import {
   agreeOnboardingDocument,
   claimTrustItem,
@@ -364,7 +363,7 @@ describe("saveDetailsStep", () => {
     expect(stillGranted).toBe(true);
   });
 
-  it("raises a dispute rather than silently overwriting an operator-recorded value", async () => {
+  it("overwrites an operator-recorded value with the player's own submission — B-002, last write wins", async () => {
     const { personId, membershipId } = await givenPlayer();
     // An operator recorded this college — a different actor from the subject.
     await updatePersonField({
@@ -380,17 +379,13 @@ describe("saveDetailsStep", () => {
         fields: { college: "Brasenose" },
       }),
     );
-    expect(result.outcomes.college).toBe("disputed");
+    expect(result.outcomes.college).toBe("overwritten");
 
     const view = await readQuestionnaireView(personId, openSeasonId);
-    // The club's value stands — nothing was silently overwritten.
-    expect(view?.person.college).toBe("Farrowgate");
-    expect(view?.openDisputedFields.has("college")).toBe(true);
-
-    const disputes = await withTransaction((tx) => readOpenPersonFactDisputesIn(tx, personId));
-    const dispute = disputes.find((d) => d.field === "college");
-    expect(dispute?.clubValue).toBe("Farrowgate");
-    expect(dispute?.playerValue).toBe("Brasenose");
+    // The disputed-fact mechanism is gone (B-002): the player's answer simply
+    // takes effect, and no open dispute is ever raised.
+    expect(view?.person.college).toBe("Brasenose");
+    expect(view?.openDisputedFields.has("college")).toBe(false);
   });
 
   it("writes directly over an unattributed (seeded/imported) value", async () => {
@@ -681,6 +676,6 @@ describe("readQuestionnaireView — the finishing sequence", () => {
     const { personId } = await givenPlayer();
     const view = await readQuestionnaireView(personId, openSeasonId);
     const labels = view?.outstandingSections.flatMap((s) => s.items.map((i) => i.label)) ?? [];
-    expect(labels.join(" ")).not.toMatch(/subscription|kit sorted|squad photo|comms group/i);
+    expect(labels.join(" ")).not.toMatch(/subscription|kit distributed|squad photo|comms group/i);
   });
 });

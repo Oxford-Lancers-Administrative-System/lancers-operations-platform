@@ -45,6 +45,8 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     blues: "None",
     eligibility: null,
     availability: null,
+    bps: "No",
+    onboardingItems: {},
     ...overrides,
   };
 }
@@ -55,6 +57,11 @@ const COLLEGE_COLUMN = COLUMNS.find((c) => c.key === "college")!;
 const MISSING_COLUMN = COLUMNS.find((c) => c.key === "missing")!;
 const OFFENCE_COLUMN = COLUMNS.find((c) => c.key === "offencePosition")!;
 const ELIGIBILITY_COLUMN = COLUMNS.find((c) => c.key === "eligibility")!;
+const SUBS_PAID_COLUMN = COLUMNS.find((c) => c.key === "subsPaid")!;
+const SUBS_INVOICED_COLUMN = COLUMNS.find((c) => c.key === "subsInvoiced")!;
+const KIT_DISTRIBUTED_COLUMN = COLUMNS.find((c) => c.key === "kitDistributed")!;
+const BUCS_PLAY_COLUMN = COLUMNS.find((c) => c.key === "bucsPlay")!;
+const HUDL_ACCESS_COLUMN = COLUMNS.find((c) => c.key === "hudlAccess")!;
 
 describe("applyBoard — search, filter and sort together", () => {
   const rows = [
@@ -193,6 +200,32 @@ describe("displayOf — REQ-not-recorded", () => {
   });
 });
 
+// D-002 (correction round 3, Q-14, Brian): "Subscription paid" is blank —
+// nothing at all — until "Subscription invoiced" is itself complete. The
+// board's own convention renders that blank as `NOT_RECORDED`, same as any
+// other genuinely absent value, rather than a new rendering rule.
+describe("displayOf — Subscription paid is blank until invoiced (D-002)", () => {
+  it("reads Not recorded when Subscription invoiced is still pending, whatever its own stored status", () => {
+    const withPending = row({
+      onboardingItems: {
+        subs_invoiced: { id: "i1", status: "pending" },
+        subs_paid: { id: "i2", status: "pending" },
+      },
+    });
+    expect(displayOf(withPending, SUBS_PAID_COLUMN)).toBe(NOT_RECORDED);
+  });
+
+  it("reads its own status once Subscription invoiced is complete", () => {
+    const withInvoiced = row({
+      onboardingItems: {
+        subs_invoiced: { id: "i1", status: "complete" },
+        subs_paid: { id: "i2", status: "waived" },
+      },
+    });
+    expect(displayOf(withInvoiced, SUBS_PAID_COLUMN)).toBe("Waived");
+  });
+});
+
 /**
  * LAN-186 items 7 and 9: a position column's stored value IS the season
  * vocabulary's code, so the fuller name `optionLabels` also carries must never
@@ -246,6 +279,72 @@ describe("optionListLabel — every other select column still shows the label al
     const text = optionListLabel(ELIGIBILITY_COLUMN, "eligible");
     expect(text).toBe("Eligible");
     expect(text).not.toContain("eligible ·");
+  });
+});
+
+/**
+ * D-002 (correction round 5, `WP-operator-record`, LAN-217) — the actual
+ * defect Brian named: "Subscription invoiced is invoiced-or-not, never
+ * Complete." Proves the board's own closed cell and open dropdown read the
+ * per-item word, not the generic status label a flat map would produce.
+ */
+describe("displayOf / optionListLabel — the board reads each item's own word (D-002)", () => {
+  it('shows "Invoiced", never the generic "Complete", for Subscription invoiced', () => {
+    const invoiced = row({ onboardingItems: { subs_invoiced: { id: "i1", status: "complete" } } });
+    expect(displayOf(invoiced, SUBS_INVOICED_COLUMN)).toBe("Invoiced");
+    expect(displayOf(invoiced, SUBS_INVOICED_COLUMN)).not.toBe("Complete");
+  });
+
+  it('shows "Confirmed", never "Complete", for BUCS Play — "invited, claimed, confirmed"', () => {
+    const confirmed = row({ onboardingItems: { bucs_play: { id: "i1", status: "complete" } } });
+    expect(displayOf(confirmed, BUCS_PLAY_COLUMN)).toBe("Confirmed");
+  });
+
+  it("still shows Yes/No for Kit Distributed once the pre-conversion in rawValue is gone", () => {
+    expect(
+      displayOf(
+        row({ onboardingItems: { kit_sorted: { id: "i1", status: "complete" } } }),
+        KIT_DISTRIBUTED_COLUMN,
+      ),
+    ).toBe("Yes");
+    expect(
+      displayOf(
+        row({ onboardingItems: { kit_sorted: { id: "i1", status: "pending" } } }),
+        KIT_DISTRIBUTED_COLUMN,
+      ),
+    ).toBe("No");
+  });
+
+  it("never offers Reopen — correcting a mistake is choosing a different one of the item's own states", () => {
+    for (const value of ["complete", "pending", "invited", "claimed"]) {
+      expect(optionListLabel(BUCS_PLAY_COLUMN, value)).not.toBe("Reopen");
+    }
+    expect(BUCS_PLAY_COLUMN.options).not.toContain("reopen" as never);
+  });
+
+  it("gives Hudl access three states and BUCS Play four — no Confirmed on Hudl", () => {
+    expect(HUDL_ACCESS_COLUMN.options).toEqual(["pending", "invited", "claimed"]);
+    expect(BUCS_PLAY_COLUMN.options).toEqual(["pending", "invited", "claimed", "complete"]);
+  });
+
+  it("offers Waived nowhere but Subscription paid", () => {
+    for (const column of [SUBS_INVOICED_COLUMN, KIT_DISTRIBUTED_COLUMN, BUCS_PLAY_COLUMN]) {
+      expect(column.options).not.toContain("waived");
+    }
+    expect(SUBS_PAID_COLUMN.options).toContain("waived");
+  });
+
+  it("throws rather than silently rendering a status this item's own model says it cannot occupy", () => {
+    // This is Brian's exact defect, made structurally impossible twice over:
+    // first "Invited" on a yes/no item, then the old resolution vocabulary
+    // (Waived/Not applicable/Reopen) painted over an item's own states. A
+    // hardcoded label map would happily print a word for either anyway, so
+    // this only stays passing while the board reads `itemStateLabel`'s guard
+    // instead.
+    const corrupted = row({ onboardingItems: { subs_invoiced: { id: "i1", status: "invited" } } });
+    expect(() => displayOf(corrupted, SUBS_INVOICED_COLUMN)).toThrow();
+    const overReached = row({ onboardingItems: { hudl_access: { id: "i1", status: "complete" } } });
+    expect(() => displayOf(overReached, HUDL_ACCESS_COLUMN)).toThrow();
   });
 });
 

@@ -11,6 +11,11 @@ import {
   type MembershipStatusEvent,
   type OnboardingItem,
 } from "./membership";
+import {
+  readOnboardingActivityLogBySectionIn,
+  type OnboardingActivityKind,
+} from "./onboarding-activity-log";
+import type { OnboardingActorKind } from "./onboarding-item-history";
 import { readPersonRecord, type PersonRecord } from "./person-record";
 import {
   readPositionOptions,
@@ -137,6 +142,155 @@ export interface AttendanceEvent {
   eventStatus: DerivedEventState;
 }
 
+/**
+ * One recorded transition of one onboarding item, with its actor named —
+ * `REQ-item-history`, W6. `onboarding-item-history.ts` is the substrate's own
+ * writer and reader (LAN-214); this module adds nothing to what it stores,
+ * only the actor's display name, resolved once here in the same batched join
+ * `readMembership`'s own status-history read already uses for
+ * `season_membership_status_events`.
+ */
+export interface OnboardingItemHistoryEntry {
+  fromStatus: OnboardingItem["status"] | null;
+  toStatus: OnboardingItem["status"];
+  occurredAt: Date;
+  actorKind: OnboardingActorKind;
+  /** `null` for `actorKind: "system"`, or a person no longer resolvable. */
+  actorName: string | null;
+  reason: string | null;
+}
+
+/** One onboarding item, with its full append-only history attached — oldest first. */
+export interface OnboardingItemDisplay extends OnboardingItem {
+  history: OnboardingItemHistoryEntry[];
+}
+
+/**
+ * One entry in the sectioned activity log, with its actor named —
+ * `REQ-activity-log`, W6. `onboarding-activity-log.ts` is the substrate's own
+ * writer and grouped reader; this module resolves `actorPersonId` to a
+ * display name the same way, rather than a second copy of the write path or
+ * the grouping.
+ */
+export interface OnboardingActivityEntryDisplay {
+  kind: OnboardingActivityKind;
+  channel: string;
+  who: string;
+  occurredAt: Date;
+}
+
+export interface OnboardingActivitySection {
+  section: string;
+  entries: OnboardingActivityEntryDisplay[];
+}
+
+/**
+ * Every onboarding item's history, batched in one query rather than one per
+ * item — `readOnboardingItemHistoryIn`'s own SQL, joined to `people` for the
+ * actor's name, filtered to this membership's items at once.
+ */
+async function readOnboardingItemHistoryDisplayIn(
+  tx: Tx,
+  items: readonly OnboardingItem[],
+): Promise<Map<string, OnboardingItemHistoryEntry[]>> {
+  const map = new Map<string, OnboardingItemHistoryEntry[]>();
+  if (items.length === 0) return map;
+
+  const result = await tx.query<{
+    onboarding_item_id: string;
+    from_status: OnboardingItem["status"] | null;
+    to_status: OnboardingItem["status"];
+    occurred_at: Date;
+    actor_kind: OnboardingActorKind;
+    reason: string | null;
+    actor_name: string | null;
+  }>(
+    `select h.onboarding_item_id,
+            h.from_status::text as from_status, h.to_status::text as to_status,
+            h.occurred_at, h.actor_kind::text as actor_kind, h.reason,
+            a.given_name || coalesce(' ' || a.family_name, '') as actor_name
+       from public.onboarding_item_history h
+       left join public.people a on a.id = h.actor_person_id
+      where h.onboarding_item_id = any($1::uuid[])
+      order by h.onboarding_item_id, h.occurred_at asc`,
+    [items.map((item) => item.id)],
+  );
+
+  for (const row of result.rows) {
+    const entry: OnboardingItemHistoryEntry = {
+      fromStatus: row.from_status,
+      toStatus: row.to_status,
+      occurredAt: row.occurred_at,
+      actorKind: row.actor_kind,
+      actorName: row.actor_name,
+      reason: row.reason,
+    };
+    const bucket = map.get(row.onboarding_item_id);
+    if (bucket) bucket.push(entry);
+    else map.set(row.onboarding_item_id, [entry]);
+  }
+  return map;
+}
+
+/**
+ * The sectioned activity log, actor names resolved — `REQ-activity-log`.
+ * Reuses `readOnboardingActivityLogBySectionIn`'s own grouped read for the
+ * rows and the grouping; this only adds the one thing that read cannot know
+ * on its own, the human name behind an `actorPersonId`, via one extra batched
+ * lookup rather than a join inside that substrate module.
+ *
+ * Ordered newest first, both across sections and within one — the Mission
+ * Lead's own delegated decision on how far the log reaches on first render:
+ * the whole season, newest first, no pagination.
+ */
+async function readOnboardingActivityLogDisplayIn(
+  tx: Tx,
+  membershipId: string,
+): Promise<OnboardingActivitySection[]> {
+  const bySection = await readOnboardingActivityLogBySectionIn(tx, membershipId);
+
+  const actorIds = Array.from(
+    new Set(
+      bySection.flatMap((section) =>
+        section.entries
+          .map((entry) => entry.actorPersonId)
+          .filter((id): id is string => id !== null),
+      ),
+    ),
+  );
+  const names = new Map<string, string>();
+  if (actorIds.length > 0) {
+    const result = await tx.query<{ id: string; name: string }>(
+      `select id, given_name || coalesce(' ' || family_name, '') as name
+         from public.people
+        where id = any($1::uuid[])`,
+      [actorIds],
+    );
+    for (const row of result.rows) names.set(row.id, row.name);
+  }
+
+  return bySection
+    .map(({ section, entries }) => ({
+      section,
+      entries: entries
+        .map((entry) => ({
+          kind: entry.kind,
+          channel: entry.channel,
+          who:
+            (entry.actorPersonId ? names.get(entry.actorPersonId) : null) ??
+            entry.actorLabel ??
+            "the club",
+          occurredAt: entry.occurredAt,
+        }))
+        .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime()),
+    }))
+    .sort((a, b) => {
+      const latest = (section: OnboardingActivitySection) =>
+        section.entries[0]?.occurredAt.getTime() ?? 0;
+      return latest(b) - latest(a);
+    });
+}
+
 export interface PlayerRecordData {
   membershipId: string;
   personId: string;
@@ -151,8 +305,10 @@ export interface PlayerRecordData {
   inactivityLabel: string | null;
   /** `public.constitutional_membership.is_constitutional_member`, this season. */
   isConstitutionalMember: boolean;
-  onboardingItems: OnboardingItem[];
+  onboardingItems: OnboardingItemDisplay[];
   outstandingRequired: OnboardingItem[];
+  /** `REQ-activity-log`: every ask and every answer, grouped by section, newest first. */
+  activityLog: OnboardingActivitySection[];
   statusHistory: MembershipStatusEvent[];
   season: PlayerSeasonFacts;
   /** This membership's season's own vocabulary — never hardcoded (S3). */
@@ -536,6 +692,8 @@ export async function readPlayerRecord(membershipId: string): Promise<PlayerReco
     otherSeasons,
     milestones,
     attendance,
+    itemHistoryByItem,
+    activityLog,
   ] = await withTransaction(async (tx) =>
     Promise.all([
       readSeasonFactsIn(tx, membershipId, membership.seasonId),
@@ -545,8 +703,15 @@ export async function readPlayerRecord(membershipId: string): Promise<PlayerReco
       readOtherSeasonsIn(tx, membership.personId, membershipId),
       readMilestonesIn(tx, membershipId),
       readAttendanceHistoryIn(tx, membershipId, membership.seasonId),
+      readOnboardingItemHistoryDisplayIn(tx, membership.onboardingItems),
+      readOnboardingActivityLogDisplayIn(tx, membershipId),
     ]),
   );
+
+  const onboardingItems: OnboardingItemDisplay[] = membership.onboardingItems.map((item) => ({
+    ...item,
+    history: itemHistoryByItem.get(item.id) ?? [],
+  }));
 
   const data: PlayerRecordData = {
     membershipId: membership.membershipId,
@@ -561,8 +726,9 @@ export async function readPlayerRecord(membershipId: string): Promise<PlayerReco
     expectedReturnOn: milestones.expectedReturnOn,
     inactivityLabel: membership.inactivityLabel,
     isConstitutionalMember,
-    onboardingItems: membership.onboardingItems,
+    onboardingItems,
     outstandingRequired: membership.outstandingRequired,
+    activityLog,
     statusHistory: membership.statusHistory,
     season: seasonFacts,
     positionOptions,

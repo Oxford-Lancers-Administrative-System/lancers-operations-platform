@@ -52,6 +52,27 @@ export const EVENT_MESSAGING_SECTION_INTRO =
 export const ONBOARDING_SECTION_HEADING = "Onboarding";
 export const ONBOARDING_SECTION_NOTE = "Not built yet.";
 
+// ---------------------------------------------------------------------------
+// LAN-218 — the Onboarding section itself, `W11`
+// ---------------------------------------------------------------------------
+
+export const ONBOARDING_CHASE_ROW_LABEL = "Onboarding checklist";
+export const ONBOARDING_CHASE_SAVE_LABEL = "SAVE ONBOARDING";
+export const ONBOARDING_CHASE_SECTION_NOTE =
+  "One packet, chased on one link. When the count runs out the chase is exhausted and a person " +
+  "takes over.";
+
+export function onboardingChaseSavedNotice(): string {
+  return "Onboarding's chase was updated.";
+}
+
+export function onboardingChaseSaveFailedNotice(): string {
+  return (
+    "Onboarding's chase could not be saved as submitted. Nothing was changed. If this keeps " +
+    "happening, this needs a developer."
+  );
+}
+
 export const CYCLE_STEP_TIMING_UNIT = "h";
 
 export function cycleStepSavedNotice(label: string): string {
