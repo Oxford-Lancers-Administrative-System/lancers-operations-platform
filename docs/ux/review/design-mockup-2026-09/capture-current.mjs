@@ -27,6 +27,11 @@
 // captures of the rendered document, not of the browser chrome, so no address
 // bar and no token appears in the evidence either.
 //
+// The one place that guarantee could have been broken is the capture loop's
+// own failure path, because Playwright embeds the navigated URL in
+// `error.message`. It records the error's type and not its message for that
+// reason; see the comment there before changing it.
+//
 // The rules it follows are the services' own, because a hand-written insert
 // misses them:
 //   - a token is 32 random bytes base64url; `token_hash` is the lowercase
@@ -205,14 +210,28 @@ for (const vp of VIEWPORTS) {
       });
       console.log(`  ${file} ${response?.status()} (${size}px, ${Date.now() - started}ms)`);
     } catch (error) {
+      // The failure is recorded by its **name**, never by its message.
+      //
+      // Playwright puts the navigated URL inside `error.message` on a timeout
+      // or navigation failure — "navigating to \"http://…/me/<token>\", waiting
+      // until \"domcontentloaded\"" — and every URL this script visits carries
+      // a live credential. Serialising that message into a manifest this
+      // repository commits would put a working token into git history, which
+      // is exactly what this script says twice over that it never does. It has
+      // not happened (no committed manifest has an error entry), and the
+      // failure path is the only way it could.
+      //
+      // The route id and the viewport are enough to say which capture failed;
+      // the constructor name is enough to say what kind of failure it was.
+      // Anyone who needs the detail re-runs it and reads the console.
       manifest.push({
         id: entry.id,
         mirrors: entry.mirrors,
         viewport: vp.label,
         file,
-        error: String(error.message).slice(0, 200),
+        error: error?.constructor?.name ?? "Error",
       });
-      console.log(`  ${file} FAILED: ${String(error.message).slice(0, 140)}`);
+      console.log(`  ${file} FAILED (${error?.constructor?.name ?? "Error"})`);
     }
   }
   await context.close();

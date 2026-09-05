@@ -127,9 +127,22 @@ export async function pickPlayerHomeSubject(): Promise<{
   await Promise.all(
     Array.from({ length: Math.min(CONCURRENCY, candidates.length) }, async () => {
       for (let index = next++; index < candidates.length; index = next++) {
-        results[index] = await withTransaction((tx) =>
-          readPlayerHomeIn(tx, candidates[index].personId),
-        );
+        try {
+          results[index] = await withTransaction((tx) =>
+            readPlayerHomeIn(tx, candidates[index].personId),
+          );
+        } catch {
+          // One unreadable candidate leaves this screen without its busiest
+          // player at worst; an unhandled rejection here would take the whole
+          // page down instead, because `Promise.all` rejects on the first
+          // failure and nothing above catches it. The header comment on this
+          // module promises a `Refusal` and never a throw, and without this it
+          // only kept that promise for "found nothing", not for "the read
+          // failed" — the distinction a reviewer found on 5 September 2026.
+          // Every read failing still leaves `best` null, which is the
+          // `Refusal`.
+          results[index] = null;
+        }
       }
     }),
   );
