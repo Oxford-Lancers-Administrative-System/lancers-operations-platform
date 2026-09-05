@@ -11,12 +11,24 @@ import { StatusChip } from "./status-chip";
  * The kit had no way to say "five steps, this is the second, these three are
  * still owed". The questionnaire at `/me/[token]/details` needs exactly that,
  * and built it inline as a five-column `<dl>` of 11px labels over 13px values
- * that collapses to two columns on a phone and reads as a table of facts
- * rather than as a path (player-surfaces finding P4). This is that map, once:
- * one chip per step from the onboarding vocabulary, the current step on the
- * Sky Blue ground the shell's active navigation item already uses, and a
- * wrapping row rather than a grid so five steps never become a five-row list
- * at 375px.
+ * (player-surfaces finding P18). This is that map, once: one chip per step from
+ * the onboarding vocabulary, and the current step on the Sky Blue ground the
+ * shell's active navigation item already uses.
+ *
+ * ## Why it is a grid and not a wrapping row
+ *
+ * The first draft wrapped. Five steps in a 720px measure fit four across and
+ * left **Hudl alone on the second row**, and a lone box at the foot of a map
+ * reads as the important one — Brian, 5 September 2026: "on its line on its
+ * own, makes it seem like it's super important". At 375px the same wrap put
+ * two, two and one, with the same false emphasis on the last.
+ *
+ * A grid cannot do that. Every step gets an equal column at `sm` and up, so a
+ * sequence of any length is one row and no step is singled out by the accident
+ * of how many there are; equal columns also make every cell the same height,
+ * which the ragged wrap did not. On a phone it is one column and one compact
+ * line per step — a checklist, which is what a five-step sequence is when it
+ * cannot be a row.
  *
  * It is a map, not a control: no step is a link. A sequence that lets its
  * reader jump about is a different component and a product decision nobody
@@ -45,22 +57,32 @@ export function StepTrail({
   testId?: string;
 }) {
   return (
-    <Stack
-      direction="row"
+    <Box
       component="ol"
-      sx={{ listStyle: "none", m: 0, p: 0, flexWrap: "wrap", gap: 1 }}
+      sx={{
+        listStyle: "none",
+        m: 0,
+        p: 0,
+        display: "grid",
+        gap: 1,
+        gridTemplateColumns: {
+          xs: "1fr",
+          sm: `repeat(${steps.length}, minmax(0, 1fr))`,
+        },
+      }}
       data-testid={testId ?? "step-trail"}
     >
       {steps.map((step, index) => {
         const current = index === currentIndex;
         return (
-          <Box
+          <Stack
             key={step.label}
             component="li"
             aria-current={current ? "step" : undefined}
             data-current={current ? "true" : undefined}
+            direction={{ xs: "row", sm: "column" }}
+            spacing={{ xs: 1.5, sm: 0.5 }}
             sx={{
-              flex: "1 1 128px",
               minWidth: 0,
               px: 1.25,
               py: 1,
@@ -68,21 +90,29 @@ export function StepTrail({
               border: "1px solid",
               borderColor: current ? CLUB.oxfordBlue : "divider",
               bgcolor: current ? CLUB.skyBlue : "transparent",
+              // On a phone the label and its state share one line, so five
+              // steps are five short rows rather than five tall boxes.
+              alignItems: { xs: "center", sm: "flex-start" },
+              justifyContent: { xs: "space-between", sm: "flex-start" },
             }}
           >
             <Typography
               variant="overline"
               component="p"
-              sx={{ color: current ? CLUB.oxfordBlue : "text.secondary", lineHeight: 1.4 }}
+              sx={{
+                color: current ? CLUB.oxfordBlue : "text.secondary",
+                lineHeight: 1.4,
+                minWidth: 0,
+              }}
             >
               {index + 1}. {step.label}
             </Typography>
-            <Box sx={{ mt: 0.5 }}>
+            <Box sx={{ flexShrink: 0 }}>
               <StatusChip domain="onboardingItem" status={step.status} label={step.statusLabel} />
             </Box>
-          </Box>
+          </Stack>
         );
       })}
-    </Stack>
+    </Box>
   );
 }

@@ -106,18 +106,46 @@ export async function pickPlayerHomeSubject(): Promise<{
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
   if (candidates.length === 0) return null;
 
-  return withTransaction(async (tx) => {
-    let best: { personId: string; home: PlayerHome } | null = null;
-    for (const row of candidates) {
-      const home = await readPlayerHomeIn(tx, row.personId);
-      const outstanding = home.newInvitations.length + home.stillNeedAnswer.length;
-      const bestOutstanding = best
-        ? best.home.newInvitations.length + best.home.stillNeedAnswer.length
-        : -1;
-      if (outstanding > bestOutstanding) best = { personId: row.personId, home };
+  /**
+   * One transaction each, six at a time.
+   *
+   * The first draft ran all thirty-two reads serially inside a single
+   * transaction, which is one connection and therefore strictly one query at a
+   * time: the page took **eighteen to twenty-two seconds** to open, warm, every
+   * time, which made the one screen most worth looking at the slowest to reach.
+   * Separate transactions let the pool work. Six, not thirty-two, because
+   * `DATABASE_POOL_MAX` defaults to ten and the rest of the render needs a
+   * connection too.
+   *
+   * Deterministic either way: the winner is the highest outstanding count, ties
+   * broken by the board's own name order, and `results` is indexed rather than
+   * appended so completion order cannot decide it.
+   */
+  const CONCURRENCY = 6;
+  const results = new Array<PlayerHome | null>(candidates.length).fill(null);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, candidates.length) }, async () => {
+      for (let index = next++; index < candidates.length; index = next++) {
+        results[index] = await withTransaction((tx) =>
+          readPlayerHomeIn(tx, candidates[index].personId),
+        );
+      }
+    }),
+  );
+
+  let best: { personId: string; home: PlayerHome } | null = null;
+  let bestOutstanding = -1;
+  candidates.forEach((row, index) => {
+    const home = results[index];
+    if (!home) return;
+    const outstanding = home.newInvitations.length + home.stillNeedAnswer.length;
+    if (outstanding > bestOutstanding) {
+      bestOutstanding = outstanding;
+      best = { personId: row.personId, home };
     }
-    return best;
   });
+  return best;
 }
 
 /** The event this player's focused panel is opened on: their soonest unanswered one. */
@@ -142,6 +170,9 @@ export async function pickQuestionnaireSubject(): Promise<QuestionnaireView | nu
     .filter((row) => row.status === "active")
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 
+  // Serial on purpose here, unlike `pickPlayerHomeSubject`: this one returns at
+  // the first candidate with something outstanding, which on the seed is the
+  // first or second, so a parallel scan would do thirty reads to save none.
   return withTransaction(async (tx) => {
     let fallback: QuestionnaireView | null = null;
     for (const row of candidates) {
