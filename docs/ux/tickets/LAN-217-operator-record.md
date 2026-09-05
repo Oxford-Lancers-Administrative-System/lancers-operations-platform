@@ -1,8 +1,8 @@
 # LAN-217 — The operator's view: one player's onboarding record, settling a disputed fact, and activation
 
-**Workflows:** `W6 — One player's onboarding record`, `W7 — Settle a disputed fact`, `W10 — Activate a player`
-**Routes:** `/operate/roster/[membershipId]` (LAN-187's shipped record, deepened), `/operate/people/[personId]` (LAN-184's shipped record, deepened) — no new route
-**Shared contract:** [`../slice-ux.md`](../slice-ux.md) · [`../standards.md`](../standards.md) · [`LAN-187-player-record.md`](./LAN-187-player-record.md) (the record this package's W6 and W10 deepen) · [`LAN-184-people-and-missing-queue.md`](./LAN-184-people-and-missing-queue.md) (the person record this package's W7 deepens)
+**Workflows:** `W6 — One player's onboarding record`, `W7 — Settle a disputed fact` (**retired — see below**), `W10 — Activate a player`
+**Routes:** `/operate/roster/[membershipId]` (LAN-187's shipped record, deepened), `/operate/people/[personId]` (LAN-184's shipped record — no longer deepened by this package; see W7 below) — no new route
+**Shared contract:** [`../slice-ux.md`](../slice-ux.md) · [`../standards.md`](../standards.md) · [`LAN-187-player-record.md`](./LAN-187-player-record.md) (the record this package's W6 and W10 deepen)
 
 ## Why this contract exists
 
@@ -11,8 +11,11 @@
 `W7-*.md` and `W10-*.md`, and their `acceptance/W6.md`, `W7.md` and `W10.md`
 records are the approved design — the packet, not Linear, is the durable
 record of the decision, and Linear is not a durable repository contract. This
-records what was actually built from them, at LAN-217's own head. All three
-workflows deepen a shipped surface; none draws a new one.
+records what was actually built from them, at LAN-217's own head — **W6 and
+W10 as approved; W7 as originally approved and then retired**, per the
+mission's owner-question `Q-9` (Brian, 2026-09-04), before this package's
+own draft PR left review. Two of the three workflows deepen a shipped
+surface; W7 draws nothing at all any more.
 
 ## W6 — the Onboarding section, `/operate/roster/[membershipId]`
 
@@ -69,40 +72,43 @@ Status History section for its demonstration, since only one history-shaped
 section existed on the page before this package; the two are semantically
 distinct and both now exist).
 
-## W7 — a disputed fact, `/operate/people/[personId]`
+## W7 — retired before this package's own draft PR left review
 
-The surface is the person record, not the roster record — the seven
-contestable facts (`given_name`, `family_name`, `college`,
-`matriculation_year`, `expected_graduation_year`, `degree_field`,
-`date_of_birth`) are person facts. No new component: the existing `Fact` row
-and its shipped `By`/`DerivedBy` attribution badge are extended in place.
+W7 as approved built a disputed-fact raise-and-resolve surface on
+`/operate/people/[personId]`: a player's contested answer sat beside the
+club's own value with a four-role Keep/Take control, both values kept,
+`REQ-no-silent-overwrite` naming the whole mechanism. It shipped once, in
+this package's own first commit, and was walked once at that head.
 
-**While a dispute is open**, the club's value renders exactly as it always
-has (unchanged badge), and the player's contested answer appears on a second
-line with its own badge naming who raised it and when
-(`person_fact_disputes.raised_by_person_id`/`raised_at`), plus a four-role
-resolve control — two buttons, "Keep the club's value" / "Take the player's
-answer" — drawing no note field (`resolvePersonFactDisputeIn`'s optional
-`note` stays unused by this UI, `W7`'s own delegated decision).
+**Brian withdrew it on sight**, recorded verbatim as `Q-9` in the mission
+journal (2026-09-04): "I don't think the disputed fact mechanism survives
+at all. I think that gets gone." His reasoning: where the club holds no
+value the player's answer is obviously the value, and where the player
+names a different value for their own fact the player's answer should win
+outright, with the audit history — which the person record already
+renders — carrying what changed. `REQ-no-silent-overwrite` is superseded;
+last-write-wins is the rule now, for exactly the seven person facts W7 once
+contested.
 
-**Once resolved**, the losing value stays visible on a dated second line —
-"the losing value is retained, never deleted" is something the record shows,
-not only something the database keeps. Taking the player's answer is
-attributed through the record's own shipped, audit-derived `Q-13` provenance
-once the field is re-read (`updatePersonField` already writes the
-`person_<field>_updated` row this derives from — nothing new was needed);
-keeping the club's value is attributed from the dispute row's own
-`resolved_by_person_id`/`resolved_at`, since nothing on `people` changes to
-carry it any other way. Flag, correction and confirmation are the three
-things `W7`'s own inventory wording asks to stay separately attributable,
-and each now has its own source: the flag from the dispute row itself, the
-correction from the shipped audit trail, the confirmation from the dispute
-row's resolution.
+**What ships instead, on the same person record:** nothing new at all. A
+player's answer overwrites the operator-recorded value directly, through
+the same ordinary `updatePersonField` write and the same `person_<field>_
+updated` audit row every other correction on this page already produces.
+No disputed state, no second contested value anywhere in the UI, no
+resolve control, no note field. The record's own shipped audit history is
+the entire answer to "what changed and who said so" — nothing this package
+had to add.
 
-Resolution is four-role only (`person_record_authority`, the same gate this
-page's own read and its other actions use). A disputed fact gates nothing —
-no code path added by this package reads `person_fact_disputes` outside this
-rendering and the dispute service itself.
+**What is still true, and is not this section's concern:** `person_fact_
+disputes` remains in the schema, unused going forward — no migration
+retired it, since a live table with no active writer is not a schema
+problem, and this package's own owner-question record (`Q-3`/`Q-4`/`Q-5`)
+separately assigned closing its _merge_-time re-point gap (a colliding pair
+of open disputes on a merge, from before Q-9) to this same package; that
+merge-time handling is real, tested, and described under "BPS,
+T07-merge-precedence, and closing two merge exclusions" below. It is
+about historical rows a merge might still encounter, not about anything a
+player or operator can raise today.
 
 ## W10 — activation
 
@@ -168,10 +174,14 @@ screen be added.
 ## What is deliberately not here
 
 - **No new component, anywhere.** Reopen is one option on a shipped
-  `Select`; the disputed-fact rows extend the shipped `Fact`/`By`; the
-  Activity section reuses the shipped `StatusHistory` markup.
+  `Select`; the Activity section reuses the shipped `StatusHistory` markup.
+  W7 once extended the shipped `Fact`/`By` with a disputed-fact row and a
+  resolve control; both are gone (see W7 above) — a player's answer now
+  overwrites the same `Fact` row through the record's own existing write
+  path, nothing drawn for it at all.
 - **No reason field, anywhere in this package.** Not on the item `Select`
-  (waived commits immediately), not on the dispute resolve control.
+  (waived commits immediately). W7's own resolve control, which also drew
+  none, no longer exists to name here.
 - **No confirmation step on activation.** `Q-12` settled this on Mission 5's
   own walkthrough; re-litigating it here was named as out of bounds.
 - **No change to `src/app/operate/roster/membership-actions.tsx`.** The
@@ -188,14 +198,21 @@ screen be added.
 
 ## Visual evidence
 
-`npm run visual:preflight` against an already-seeded onboarding membership
-("Merrick Thornbury") with states arranged through the real service layer
-(no new person or contact value created): Kit sorted complete, Subscription
-paid reopened after a waiver, BUCS Play confirmed complete after a genuine
-player claim, Hudl access left `claimed` awaiting confirmation, and a real
-sectioned activity log, on `/operate/roster/[membershipId]`; the same
-person's disputed College fact on `/operate/people/[personId]`, captured
-once open (both values, both attributions, the resolve control) and once
-resolved (the settled value, the retained losing value, dated). All of the
-above at desktop (1440px) and a Playwright-measured 375px. See the package
-receipt for the exact routes and the evidence path.
+This package's first commit ran `npm run visual:preflight` against an
+already-seeded onboarding membership ("Merrick Thornbury") with states
+arranged through the real service layer (no new person or contact value
+created): Kit sorted complete, Subscription paid reopened after a waiver,
+BUCS Play confirmed complete after a genuine player claim, Hudl access left
+`claimed` awaiting confirmation, and a real sectioned activity log, on
+`/operate/roster/[membershipId]`; the same person's disputed College fact
+on `/operate/people/[personId]`, captured once open and once resolved —
+**that second capture describes W7 as it stood before `Q-9` retired it,
+not current behaviour**; there is no disputed-fact state left to walk. All
+of the above at desktop (1440px) and a Playwright-measured 375px.
+
+Every later correction round re-ran the preflight at its own final head
+against whichever routes that round's own changes touched, each re-stamped
+in `.lancers-runtime/visual-review.json` and described in the PR body's own
+"Visual acceptance" section at that point in its history — the PR body,
+not this ticket contract, is the running ledger of which exact routes and
+states were walked at which head; this section records only the first.

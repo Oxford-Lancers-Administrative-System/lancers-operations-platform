@@ -160,7 +160,11 @@
     {
       "id": "REQ-no-silent-overwrite",
       "source_id": "SRC-task-11",
-      "text": "A player's answer never silently overwrites a value an operator recorded, an externally verified value, or a derived one. It raises disputed — awaiting verification, both values are kept, and a four-role operator decides. Provenance is the derived one Mission 5 already built from audit_events."
+      "text": "A player's answer never silently overwrites a value an operator recorded, an externally verified value, or a derived one. It raises disputed — awaiting verification, both values are kept, and a four-role operator decides. Provenance is the derived one Mission 5 already built from audit_events.",
+      "classification": "superseded",
+      "superseded_by": "Q-9",
+      "approved": "2026-09-04",
+      "note": "Q-9 (Brian, 2026-09-04, in the mission journal): 'I don't think the disputed fact mechanism survives at all. I think that gets gone.' No disputed state, no second contested value, no four-role resolve control. The rule is last-write-wins: a player's answer overwrites directly, and the audit history already rendered on the person record carries who changed what and when. Kept here, superseded rather than deleted, as the record of what was originally required and why it changed."
     },
     {
       "id": "REQ-self-service",
@@ -597,7 +601,9 @@
       "workflow": "W5",
       "text": "Both values are kept when a fact is disputed; W7 resolves it",
       "basis": "Append-only audit posture",
-      "classification": "locked"
+      "classification": "superseded",
+      "superseded_by": "Q-9",
+      "approved": "2026-09-04"
     },
     {
       "id": "W5:The page carries no explanation of itself beyond field-level",
@@ -702,42 +708,54 @@
       "workflow": "W7",
       "text": "The surface is the person record, not the roster record",
       "basis": "The contestable facts are person facts, and already render there with their attribution",
-      "classification": "locked"
+      "classification": "superseded",
+      "superseded_by": "Q-9",
+      "approved": "2026-09-04"
     },
     {
       "id": "W7:Both values are shown, with both attributions",
       "workflow": "W7",
       "text": "Both values are shown, with both attributions",
       "basis": "Boundary item 14; the By badge already ships",
-      "classification": "locked"
+      "classification": "superseded",
+      "superseded_by": "Q-9",
+      "approved": "2026-09-04"
     },
     {
       "id": "W7:The losing value is retained, never deleted",
       "workflow": "W7",
       "text": "The losing value is retained, never deleted",
       "basis": "Append-only audit posture",
-      "classification": "locked"
+      "classification": "superseded",
+      "superseded_by": "Q-9",
+      "approved": "2026-09-04"
     },
     {
       "id": "W7:Flag, correction and confirmation stay separately attributab",
       "workflow": "W7",
       "text": "Flag, correction and confirmation stay separately attributable",
       "basis": "The frozen inventory's own wording for this workflow",
-      "classification": "locked"
+      "classification": "superseded",
+      "superseded_by": "Q-9",
+      "approved": "2026-09-04"
     },
     {
       "id": "W7:A disputed fact gates nothing and is never chased",
       "workflow": "W7",
       "text": "A disputed fact gates nothing and is never chased",
       "basis": "R3-G; the person has already answered",
-      "classification": "locked"
+      "classification": "superseded",
+      "superseded_by": "Q-9",
+      "approved": "2026-09-04"
     },
     {
       "id": "W7:Resolution is four-role",
       "workflow": "W7",
       "text": "Resolution is four-role",
       "basis": "T07-permissions",
-      "classification": "locked"
+      "classification": "superseded",
+      "superseded_by": "Q-9",
+      "approved": "2026-09-04"
     },
     {
       "id": "W8:The surface is Mission 5's shipped missing-data queue",
@@ -1197,6 +1215,9 @@
     {
       "id": "W7",
       "title": "Settle a disputed fact",
+      "status": "retired",
+      "superseded_by": "Q-9",
+      "retired_note": "Q-9 (Brian, 2026-09-04, in the mission journal): 'I don't think the disputed fact mechanism survives at all. I think that gets gone.' This workflow does not ship, in any form. What ships instead: a player's answer overwrites the operator-recorded value directly (last write wins), and the person record's own audit history — who changed what, and when — is what the operator reads. Kept here as the record of what was originally approved and why it was withdrawn, not as live behaviour.",
       "actor": "A four-role operator.",
       "trigger": "a fact goes to `disputed — awaiting verification` when a player's answer differs from an operator-recorded value (`W5`).",
       "entry_point": "**`/operate/people/[personId]`**, the person record, which ships. Reached from the missing-data queue, the roster, or a link in the chase.",
@@ -1305,7 +1326,7 @@
     "W5 — Whether the source line shows a date as well as who",
     "W6 — How far back the log reaches on first render",
     "W6 — Where claimed sits visually against complete",
-    "W7 — Whether resolving may carry a note",
+    "W7 — Whether resolving may carry a note (moot: W7 itself was retired by Q-9, 2026-09-04 — there is nothing left to resolve)",
     "W8 — Sort order on first open",
     "W9 — The exact wording of the escalation",
     "W10 — Whether the roster board surfaces \"ready to activate\" prominently",
