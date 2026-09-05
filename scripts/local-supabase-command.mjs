@@ -87,6 +87,11 @@ function provisionReviewState(lease, account) {
     // surface needs its own login or it cannot be looked at at all. Local only,
     // same protected password, no hosted counterpart.
     "scripts/link-review-coach.mjs",
+    // LAN-218. Grants consent for, and gives a real chase history to, four of
+    // `seed-local.mjs`'s own onboarding-status people — mid-chase, exhausted,
+    // terminal delivery failure, left mid-onboarding. See its own module note
+    // for why a `chase_count` of zero is proved on the admin form instead.
+    "scripts/seed-onboarding-chase.mjs",
   ])
     run(process.execPath, [script], env);
 }

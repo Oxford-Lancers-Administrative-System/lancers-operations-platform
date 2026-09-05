@@ -3,6 +3,7 @@ import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import { listMessagingSchedulesWithPreview } from "@/lib/services/messaging-schedule";
 import { listRecruitmentCycleSteps } from "@/lib/services/recruitment-cycle";
+import { readOnboardingChaseSettings } from "@/lib/services/onboarding-chase";
 import { TYPE_LABELS, labelFor } from "@/lib/services/event-vocabulary";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../../gate";
@@ -47,12 +48,15 @@ export default async function MessagingSchedulePage() {
 
   let rows: ScheduleRowData[];
   let cycleSteps: Awaited<ReturnType<typeof listRecruitmentCycleSteps>>;
+  let onboardingChase: Awaited<ReturnType<typeof readOnboardingChaseSettings>>;
   try {
-    const [withPreview, steps] = await Promise.all([
+    const [withPreview, steps, chase] = await Promise.all([
       listMessagingSchedulesWithPreview(),
       listRecruitmentCycleSteps(),
+      readOnboardingChaseSettings(),
     ]);
     cycleSteps = steps;
+    onboardingChase = chase;
     rows = withPreview.map(({ schedule, preview }) => {
       const values: Record<string, number> = {};
       for (const field of SCHEDULE_FIELDS) {
@@ -94,7 +98,11 @@ export default async function MessagingSchedulePage() {
         {MESSAGING_SCHEDULE_INTRO}
       </Typography>
 
-      <MessagingScheduleForm rows={rows} cycleSteps={cycleSteps} />
+      <MessagingScheduleForm
+        rows={rows}
+        cycleSteps={cycleSteps}
+        onboardingChase={onboardingChase}
+      />
     </Stack>
   );
 }

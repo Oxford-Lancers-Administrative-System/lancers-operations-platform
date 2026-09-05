@@ -13,7 +13,7 @@ import {
 import { NO_USABLE_NUMBER_REASON, selectMobileNumber } from "@/lib/delivery/phone";
 import type { OutboundMessage } from "@/lib/delivery/provider";
 
-import { recordAudit } from "./audit";
+import { deriveEntityIdFromNaturalKey, recordAudit } from "./audit";
 import {
   DISPATCH_ACTOR_LABEL,
   EMAIL_FALLBACK_SUFFIX,
@@ -26,6 +26,18 @@ import {
   hasGrantedViaSignupFormIn,
   mayReceiveWelcomeContactIn,
 } from "./messaging-consent";
+import {
+  ONBOARDING_CHASE_ESCALATION_KEY_PREFIX,
+  ONBOARDING_CHASE_KEY_PREFIX,
+  ONBOARDING_NUDGE_KEY_PREFIX,
+  isPersonUnder18In,
+  listOnboardingChaseCandidatesIn,
+  onboardingChaseExhaustedMarkerKey,
+  onboardingChaseIdempotencyKey,
+  onboardingNudgeIdempotencyKey,
+  readOnboardingChaseSettingsIn,
+} from "./onboarding-chase";
+import { recordOnboardingActivityIn } from "./onboarding-activity-log";
 import { issuePersonTokenIn } from "./player-answer-tokens";
 import { issueRecruitmentInterestTokenIn } from "./recruitment-interest-tokens";
 import {
@@ -90,6 +102,14 @@ export interface SweepSummary {
   readonly escalationsCreated: number;
   /** Events whose escalation was held because the President's office is vacant. */
   readonly escalationsHeld: number;
+  /** LAN-218. Automated onboarding chases declared this tick — `W11`'s cadence, applied. */
+  readonly onboardingChasesDeclared: number;
+  /** LAN-218. Onboarding memberships that newly reached `chaseCount` this tick. */
+  readonly onboardingChasesExhausted: number;
+  /** LAN-218. One-per-cohort exhaustion escalations sent to the configured office. */
+  readonly onboardingEscalationsCreated: number;
+  /** LAN-218. Onboarding exhaustions held because the escalation office is vacant. */
+  readonly onboardingEscalationsHeld: number;
 }
 
 /**
@@ -583,6 +603,15 @@ async function readDueJobs(
             -- than migrated" reasoning declareRecruitmentCycleJobsIn used
             -- first.
             or (job_type = 'other' and idempotency_key like 'onboarding-welcome:%')
+            -- LAN-218. The automated chase, an operator's own nudge, and the
+            -- one-per-cohort exhaustion escalation -- three more shapes of the
+            -- identical idiom. onboarding-chase-exhausted: (the per-membership
+            -- marker) is deliberately NOT admitted here: it is never dispatched,
+            -- only ever inserted as a ledger row, status = 'completed' from
+            -- the moment it is written.
+            or (job_type = 'other' and idempotency_key like 'onboarding-chase:%')
+            or (job_type = 'other' and idempotency_key like 'onboarding-nudge:%')
+            or (job_type = 'other' and idempotency_key like 'onboarding-chase-escalation:%')
           )
           -- A player-facing rung whose event has already begun is
           -- undispatchable, and this predicate is what stops the sweep
@@ -640,6 +669,11 @@ async function readDueJobs(
             -- LAN-215. Same reasoning again: an onboarding welcome carries
             -- no event at all.
             or (job_type = 'other' and idempotency_key like 'onboarding-welcome:%')
+            -- LAN-218. Same reasoning a third time: none of the chase, the
+            -- nudge or its escalation carries an event either.
+            or (job_type = 'other' and idempotency_key like 'onboarding-chase:%')
+            or (job_type = 'other' and idempotency_key like 'onboarding-nudge:%')
+            or (job_type = 'other' and idempotency_key like 'onboarding-chase-escalation:%')
             or exists (
               select 1
                 from public.events e
@@ -681,6 +715,12 @@ export async function runMessagingSweep(
   } = {},
 ): Promise<SweepSummary> {
   const raised = await raiseDueEscalations();
+  // LAN-218. Declared and escalated before the sweep reads what is due, on
+  // `raiseDueEscalations`'s own ordering reasoning above: a chase declared
+  // this tick, or an escalation raised by it, is dispatched this tick rather
+  // than waiting for the next one.
+  const declaredChases = await declareDueOnboardingChasesIn();
+  const onboardingEscalations = await raiseDueOnboardingChaseEscalations();
 
   const due = await readDueJobs(options.limit ?? SWEEP_BATCH_LIMIT);
 
@@ -695,14 +735,21 @@ export async function runMessagingSweep(
           ? await dispatchEscalationJob(job.id, options)
           : job.jobType === "cancellation_notice"
             ? await dispatchNoticeJob(job.id, options)
-            : // readDueJobs's own WHERE clause admits an 'other' row only
-              // when its idempotency_key carries the recruit-cycle: prefix
-              // (LAN-203) or the onboarding-welcome: prefix (LAN-215), so
-              // every 'other' row reaching this loop is one of those two.
+            : // readDueJobs's own WHERE clause admits an 'other' row only when
+              // its idempotency_key carries the recruit-cycle: prefix
+              // (LAN-203), the onboarding-welcome: prefix (LAN-215), the
+              // onboarding-chase:/onboarding-nudge: prefixes or the
+              // onboarding-chase-escalation: prefix (LAN-218), so every
+              // 'other' row reaching this loop is one of those five.
               job.jobType === "other"
               ? job.idempotencyKey.startsWith(ONBOARDING_WELCOME_KEY_PREFIX)
                 ? await dispatchOnboardingWelcomeJob(job.id, options)
-                : await dispatchRecruitmentCycleJob(job.id, options)
+                : job.idempotencyKey.startsWith(ONBOARDING_CHASE_KEY_PREFIX) ||
+                    job.idempotencyKey.startsWith(ONBOARDING_NUDGE_KEY_PREFIX)
+                  ? await dispatchOnboardingChaseJob(job.id, options)
+                  : job.idempotencyKey.startsWith(ONBOARDING_CHASE_ESCALATION_KEY_PREFIX)
+                    ? await dispatchOnboardingChaseEscalationJob(job.id, options)
+                    : await dispatchRecruitmentCycleJob(job.id, options)
               : await dispatchJob(job.id, { ...options, automatic: true });
 
       if (outcome === "accepted") accepted += 1;
@@ -725,6 +772,10 @@ export async function runMessagingSweep(
     flagsRaised: raised.flagsRaised,
     escalationsCreated: raised.escalationsCreated,
     escalationsHeld: raised.escalationsHeld,
+    onboardingChasesDeclared: declaredChases.declared,
+    onboardingChasesExhausted: onboardingEscalations.newlyExhausted,
+    onboardingEscalationsCreated: onboardingEscalations.escalationsCreated,
+    onboardingEscalationsHeld: onboardingEscalations.escalationsHeld,
   };
 }
 
@@ -1842,6 +1893,789 @@ export async function dispatchOnboardingWelcomeJob(
   });
 
   return outcome.status === "accepted" ? "accepted" : "refused";
+}
+
+// ---------------------------------------------------------------------------
+// The onboarding chase — LAN-218, `W8`/`W9`/`W11`
+// ---------------------------------------------------------------------------
+//
+// Three moving parts, each a `notification_jobs` row under its own
+// idempotency-key prefix (`onboarding-chase.ts` is the one place all four
+// prefixes are declared):
+//
+//   1. `declareDueOnboardingChasesIn` — the automated attempt, on the
+//      identical "declare on the sweep tick, dispatch on the same or a later
+//      one" shape `raiseDueEscalations` above already uses for the event
+//      ladder's escalation.
+//   2. `raiseDueOnboardingChaseEscalations` — the one-per-exhausted-cohort
+//      escalation to the office, `W9`.
+//   3. `dispatchOnboardingChaseJob` / `sendOnboardingNudgeIn` — the actual
+//      send, shared by the automated attempt and an operator's manual nudge,
+//      because `W8`'s own words are "not a new message… the same link,
+//      compiled to whatever is still outstanding".
+
+/**
+ * Declares the next automated attempt for every eligible onboarding
+ * membership whose moment has arrived — never dispatches; `runMessagingSweep`
+ * claims and sends it exactly as it does every other job type.
+ *
+ * Eligibility is checked here, not only at dispatch, so a person this package
+ * must never message (`under 18`, no granted consent) never accumulates an
+ * undispatchable job at all — `declareRecruitmentCycleJobsIn`'s own posture,
+ * carried over. `isPersonUnder18In` and consent are re-checked again at claim
+ * time in {@link dispatchOnboardingChaseJob}, for the identical reason the
+ * welcome's own dispatcher re-checks: a withdrawal recorded between declare
+ * and dispatch still has to stop the send.
+ *
+ * Idempotent by construction: `onboardingChaseIdempotencyKey` encodes the
+ * membership and the ordinal, so a membership whose current ordinal already
+ * exists — whether it delivered, is still retrying, or failed terminally —
+ * is a no-op here. That is also what makes `T11-terminal-failure` hold with
+ * no extra code: a terminally failed ordinal never advances `deliveredCount`,
+ * so this function keeps recomputing the identical, already-existing key and
+ * never tries the next one automatically. "No automated email goes in its
+ * place" is therefore a property of the arithmetic, not a branch that has to
+ * remember to check for it.
+ */
+async function declareDueOnboardingChasesIn(): Promise<{ declared: number }> {
+  return withTransaction(async (tx) => {
+    const settings = await readOnboardingChaseSettingsIn(tx);
+    if (settings.chaseCount === 0) return { declared: 0 };
+
+    const candidates = await listOnboardingChaseCandidatesIn(tx);
+    const now = Date.now();
+    let declared = 0;
+
+    for (const candidate of candidates) {
+      if (!candidate.hasOutstanding) continue;
+      if (candidate.isUnder18 || !candidate.hasConsent) continue;
+      if (candidate.deliveredCount >= settings.chaseCount) continue;
+      if (candidate.currentAttemptTerminallyFailed) continue;
+
+      const base =
+        candidate.deliveredCount === 0
+          ? candidate.joinedAt
+          : (candidate.lastDeliveredAt ?? candidate.joinedAt);
+      const hours =
+        candidate.deliveredCount === 0
+          ? settings.firstChaseAfterHours
+          : settings.chaseIntervalDays * 24;
+      if (base.getTime() + hours * 3_600_000 > now) continue;
+
+      const ordinal = candidate.deliveredCount + 1;
+      const idempotencyKey = onboardingChaseIdempotencyKey(candidate.membershipId, ordinal);
+      const inserted = await tx.query<{ id: string }>(
+        `insert into public.notification_jobs
+           (idempotency_key, job_type, status, person_id, channel, scheduled_for, template_variables)
+         values ($1, 'other', 'pending', $2::uuid, 'whatsapp', now(), '{}'::jsonb)
+         on conflict (idempotency_key) do nothing
+         returning id`,
+        [idempotencyKey, candidate.personId],
+      );
+      if (!inserted.rows[0]) continue;
+
+      declared += 1;
+      // Logged at declaration, on `emitOnboardingOpenedWelcomeIn`'s own
+      // precedent — the welcome's "ask" entry is written the moment the job
+      // exists, not the moment it is confirmed sent, and the queue's own
+      // "Last contact" reads this log rather than the job table.
+      await recordOnboardingActivityIn(tx, {
+        membershipId: candidate.membershipId,
+        seasonId: candidate.seasonId,
+        section: "chase",
+        kind: "ask",
+        channel: "whatsapp",
+        actorLabel: "the club",
+      });
+    }
+
+    return { declared };
+  });
+}
+
+/**
+ * Raises the one-per-exhausted-cohort escalation — `W9`,
+ * `T11-escalation-personal-data-free`.
+ *
+ * ## Idempotent per membership, batched per tick
+ *
+ * `onboardingChaseExhaustedMarkerKey` is a `notification_jobs` row that is
+ * never dispatched — it exists only so a membership's exhaustion can be
+ * marked exactly once, on the identical `on conflict (idempotency_key) do
+ * nothing` guarantee every other idempotency key in this file relies on.
+ * Every membership whose marker this call *actually inserts* (as opposed to
+ * one that already existed) is newly exhausted this tick, and the whole
+ * batch becomes one escalation job keyed on the sorted, joined list of those
+ * membership ids — so a retried transaction recomputes the identical key and
+ * a genuinely later cohort, exhausting at a different tick, gets its own
+ * escalation rather than being folded into or blocked by the first one.
+ *
+ * ## No office holder
+ *
+ * `W9`'s own locked recommendation: retained and shown, never dropped and
+ * never sent to a stale holder — `raiseDueEscalations`'s identical posture
+ * for the event ladder, carried over verbatim. The markers are still written
+ * in this case (so the count is not repeatedly re-escalated once an office
+ * holder is eventually appointed), and an audit row records that the office
+ * was vacant.
+ */
+async function raiseDueOnboardingChaseEscalations(): Promise<{
+  newlyExhausted: number;
+  escalationsCreated: number;
+  escalationsHeld: number;
+}> {
+  return withTransaction(async (tx) => {
+    const settings = await readOnboardingChaseSettingsIn(tx);
+    if (settings.chaseCount === 0) {
+      return { newlyExhausted: 0, escalationsCreated: 0, escalationsHeld: 0 };
+    }
+
+    const candidates = await listOnboardingChaseCandidatesIn(tx);
+    const newlyExhausted: string[] = [];
+
+    for (const candidate of candidates) {
+      if (candidate.deliveredCount < settings.chaseCount) continue;
+      const marker = await tx.query<{ id: string }>(
+        `insert into public.notification_jobs
+           (idempotency_key, job_type, status, person_id, template_variables)
+         values ($1, 'other', 'completed', $2::uuid, '{}'::jsonb)
+         on conflict (idempotency_key) do nothing
+         returning id`,
+        [onboardingChaseExhaustedMarkerKey(candidate.membershipId), candidate.personId],
+      );
+      if (marker.rows[0]) newlyExhausted.push(candidate.membershipId);
+    }
+
+    if (newlyExhausted.length === 0) {
+      return { newlyExhausted: 0, escalationsCreated: 0, escalationsHeld: 0 };
+    }
+
+    const president = await currentPresidentIn(tx);
+    const sortedIds = [...newlyExhausted].sort();
+
+    if (president === null) {
+      await recordAudit(tx, {
+        actorLabel: SWEEP_ACTOR_LABEL,
+        action: "onboarding_chase.escalation_held",
+        entityTable: "notification_jobs",
+        entityId: deriveEntityIdFromNaturalKey(
+          "onboarding_chase_escalation_held",
+          sortedIds.join("+"),
+        ),
+        reason:
+          "The escalation office is vacant, so this exhaustion is held rather than sent to a " +
+          "former holder.",
+        context: { count: newlyExhausted.length },
+      });
+      return { newlyExhausted: newlyExhausted.length, escalationsCreated: 0, escalationsHeld: 1 };
+    }
+
+    const escalationChannel = await presidentEscalationChannelIn(tx, president);
+    const batchKey = `${ONBOARDING_CHASE_ESCALATION_KEY_PREFIX}${sortedIds.join("+")}`;
+    const job = await tx.query<{ id: string }>(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, person_id, channel, scheduled_for, template_variables)
+       values ($1, 'other', 'pending', $2::uuid, $4::public.notification_channel, now(), $3::jsonb)
+       on conflict (idempotency_key) do nothing
+       returning id`,
+      [
+        batchKey,
+        president,
+        JSON.stringify({ outstandingCount: newlyExhausted.length }),
+        escalationChannel,
+      ],
+    );
+
+    return {
+      newlyExhausted: newlyExhausted.length,
+      escalationsCreated: job.rows[0] ? 1 : 0,
+      escalationsHeld: 0,
+    };
+  });
+}
+
+/**
+ * Sends one onboarding-chase exhaustion escalation — `W9`. Modelled on
+ * `dispatchEscalationJob` above, deliberately simplified: this escalation
+ * carries no event, mints no fallback shadow job on a terminal WhatsApp
+ * failure (recorded as a limitation — a WhatsApp-only failure here is a
+ * delivery failure like any other and stays visible through the ordinary
+ * delivery surfaces, just without the automatic email retry the event
+ * ladder's own escalation gets), and its whole payload is the count already
+ * carried on the job at creation — nothing here is recomputed from a live
+ * query the way the event escalation's `outstanding` count is, because
+ * `raiseDueOnboardingChaseEscalations` already fixed the batch's size the
+ * moment it minted the exhaustion markers.
+ */
+export async function dispatchOnboardingChaseEscalationJob(
+  jobId: string,
+  options: { source?: EnvironmentSource; transport?: Transport } = {},
+): Promise<"accepted" | "refused" | "skipped"> {
+  const routed = await withTransaction(async (tx) =>
+    tx.query<{ channel: string | null; template_variables: { outstandingCount?: number } }>(
+      `select channel::text as channel, template_variables
+         from public.notification_jobs where id = $1 and job_type = 'other'`,
+      [jobId],
+    ),
+  );
+  const row = routed.rows[0];
+  const channel = row?.channel === "email" ? "email" : "whatsapp";
+  const outstandingCount = row?.template_variables?.outstandingCount ?? 0;
+
+  const resolution = resolveDeliveryProvider(
+    options.source ?? process.env,
+    options.transport,
+    channel,
+  );
+  if (!resolution.ok) {
+    await withTransaction(async (tx) => {
+      await tx.query(
+        `update public.notification_jobs
+            set status = 'failed', last_error = $2, updated_at = now()
+          where id = $1 and status in ('pending', 'ready', 'failed')`,
+        [jobId, resolution.reason],
+      );
+    });
+    return "refused";
+  }
+  const context = resolution.context;
+
+  type EscalationOutcome =
+    | { readonly kind: "no-send" }
+    | {
+        readonly kind: "send";
+        readonly attemptId: string;
+        readonly attemptNumber: number;
+        readonly message: OutboundMessage;
+      };
+
+  const claim = await withTransaction(async (tx): Promise<EscalationOutcome> => {
+    const claimed = await tx.query<{ id: string; person_id: string; attempt_count: number }>(
+      `update public.notification_jobs
+          set status = 'processing', claimed_at = now(), claimed_by = $2,
+              attempt_count = attempt_count + 1, last_error = null, updated_at = now()
+        where id = $1
+          and job_type = 'other'
+          and idempotency_key like '${ONBOARDING_CHASE_ESCALATION_KEY_PREFIX}%'
+          and status in ('pending', 'ready', 'failed')
+          and held_at is null
+          and attempt_count < $3
+          and person_id is not null
+        returning id, person_id, attempt_count`,
+      [jobId, `${SWEEP_ACTOR_LABEL}:${jobId}`, MAX_ATTEMPTS],
+    );
+
+    const job = claimed.rows[0];
+    if (!job) return { kind: "no-send" };
+
+    const contacts = await tx.query<{
+      kind: string;
+      raw_value: string;
+      normalised_value: string | null;
+      is_preferred: boolean;
+    }>(
+      `select kind::text as kind, raw_value, normalised_value, is_preferred
+         from public.contact_points
+        where person_id = $1
+          and valid_from <= current_date
+          and (valid_until is null or valid_until > current_date)
+        order by is_preferred desc, valid_from desc, created_at desc, id`,
+      [job.person_id],
+    );
+    const rows = contacts.rows.map((row) => ({
+      kind: row.kind,
+      rawValue: row.raw_value,
+      normalisedValue: row.normalised_value,
+      isPreferred: row.is_preferred,
+    }));
+
+    const recipient =
+      context.channel === "email"
+        ? (rows.find((row) => row.kind === "email")?.normalisedValue ??
+          rows.find((row) => row.kind === "email")?.rawValue ??
+          null)
+        : selectMobileNumber(rows, context.defaultCallingCode);
+
+    if (!recipient) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        context.channel === "email" ? NO_USABLE_EMAIL_REASON : NO_USABLE_NUMBER_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    const permitted =
+      context.channel === "email"
+        ? emailPermitted(recipient, context.emailAllowlist)
+        : recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode);
+
+    if (!permitted) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        context.channel === "email" ? EMAIL_NOT_PERMITTED_REASON : RECIPIENT_NOT_PERMITTED_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    const attempt = await tx.query<{ id: string }>(
+      `insert into public.delivery_attempts
+         (notification_job_id, attempt_number, channel, provider)
+       values ($1, $2, $3, $4)
+       returning id`,
+      [jobId, job.attempt_count, context.channel, context.provider.name],
+    );
+
+    return {
+      kind: "send",
+      attemptId: attempt.rows[0].id,
+      attemptNumber: job.attempt_count,
+      message: {
+        kind: "onboarding_chase_escalation",
+        recipient,
+        // No name, on the identical rule `dispatchEscalationJob` already
+        // carries — the template declares no name parameter at all.
+        inviteeName: "",
+        eventName: "",
+        whenLabel: "",
+        rsvpUrl: "",
+        outstandingCount,
+        queueUrl: `${context.appBaseUrl}/operate/people/missing`,
+      },
+    };
+  });
+
+  if (claim.kind !== "send") return "skipped";
+  const claimed = claim;
+
+  const outcome = await context.provider.send(claimed.message);
+
+  await withTransaction(async (tx) => {
+    if (outcome.status === "accepted") {
+      await tx.query(
+        `update public.delivery_attempts
+            set accepted_at = now(), provider_message_id = $2 where id = $1`,
+        [claimed.attemptId, outcome.providerMessageId],
+      );
+      await tx.query("update public.notification_jobs set next_attempt_at = null where id = $1", [
+        jobId,
+      ]);
+      await recordAudit(tx, {
+        actorLabel: DISPATCH_ACTOR_LABEL,
+        action: "delivery.attempted",
+        entityTable: "notification_jobs",
+        entityId: jobId,
+        context: {
+          attemptNumber: claimed.attemptNumber,
+          provider: context.provider.name,
+          channel: context.channel,
+          providerMessageId: outcome.providerMessageId,
+        },
+      });
+      return;
+    }
+
+    await tx.query(
+      "update public.delivery_attempts set concluded_at = now(), failure_reason = $2 where id = $1",
+      [claimed.attemptId, outcome.reason],
+    );
+    await tx.query(
+      `insert into public.delivery_results
+         (notification_job_id, attempt_number, outcome, channel, provider, detail)
+       values ($1, $2, $3, $4, $5, $6)
+       on conflict (notification_job_id, attempt_number) do nothing`,
+      [
+        jobId,
+        claimed.attemptNumber,
+        outcome.retryable ? "failed" : "rejected",
+        context.channel,
+        context.provider.name,
+        outcome.reason,
+      ],
+    );
+    await tx.query(
+      `update public.notification_jobs
+          set status = 'failed', last_error = $2, claimed_at = null, claimed_by = null,
+              next_attempt_at = case when $3 then now() + interval '15 minutes' else null end,
+              automatic_attempts = automatic_attempts + 1,
+              updated_at = now()
+        where id = $1`,
+      [jobId, outcome.reason, outcome.retryable],
+    );
+  });
+
+  return outcome.status === "accepted" ? "accepted" : "refused";
+}
+
+const ONBOARDING_CHASE_MEMBERSHIP_GONE_REASON =
+  "This membership no longer exists, so no chase can be sent.";
+const ONBOARDING_CHASE_NOT_CONSENTED_REASON =
+  "This person has not granted messaging consent for this season, so no chase can be sent.";
+const ONBOARDING_CHASE_UNDER_18_REASON =
+  "This person is flagged under 18, so no message may be sent to them by any path.";
+
+/** `onboardingChaseIdempotencyKey`/`onboardingNudgeIdempotencyKey`'s own shape, parsed back into the membership either carries. */
+function parseOnboardingChaseOrNudgeKey(idempotencyKey: string): string | null {
+  const prefix = idempotencyKey.startsWith(ONBOARDING_CHASE_KEY_PREFIX)
+    ? ONBOARDING_CHASE_KEY_PREFIX
+    : idempotencyKey.startsWith(ONBOARDING_NUDGE_KEY_PREFIX)
+      ? ONBOARDING_NUDGE_KEY_PREFIX
+      : null;
+  if (prefix === null) return null;
+  const membershipId = idempotencyKey.slice(prefix.length).split(":")[0];
+  return membershipId === "" || membershipId === undefined ? null : membershipId;
+}
+
+/**
+ * Sends one onboarding chase — the automated attempt or an operator's own
+ * nudge, both under this one dispatcher, because they are the identical
+ * message (`W8`: "not a new message… the same link"). Which one this job is
+ * changes nothing about what is sent; the only thing it changes is which
+ * idempotency-key prefix claimed it, and that is never read again once
+ * claimed — the activity log already carries "asked automatically" versus
+ * "asked by an operator", written when the job was created
+ * ({@link declareDueOnboardingChasesIn}, {@link sendOnboardingNudgeIn}), not
+ * here.
+ *
+ * Modelled directly on `dispatchOnboardingWelcomeJob` above: a separate path
+ * from `dispatchJob`, for the identical reason (`job_type` is `'other'`, and
+ * this job carries no invitation to claim through `claimJobIn`'s own
+ * assumptions). Consent and the under-18 flag are re-checked here, at claim
+ * time, exactly as the welcome's own dispatcher re-checks consent — a
+ * withdrawal recorded after declaration still has to stop the send, and this
+ * is the one place both the automated attempt and a nudge actually pass
+ * through before anything leaves the building.
+ */
+export async function dispatchOnboardingChaseJob(
+  jobId: string,
+  options: { source?: EnvironmentSource; transport?: Transport } = {},
+): Promise<"accepted" | "refused" | "skipped"> {
+  const routed = await withTransaction(async (tx) =>
+    tx.query<{ channel: string | null }>(
+      `select channel::text as channel from public.notification_jobs where id = $1 and job_type = 'other'`,
+      [jobId],
+    ),
+  );
+  const channel = routed.rows[0]?.channel === "email" ? "email" : "whatsapp";
+
+  const resolution = resolveDeliveryProvider(
+    options.source ?? process.env,
+    options.transport,
+    channel,
+  );
+  if (!resolution.ok) {
+    await withTransaction(async (tx) => {
+      await tx.query(
+        `update public.notification_jobs
+            set status = 'failed', last_error = $2, updated_at = now()
+          where id = $1 and status in ('pending', 'ready', 'failed')`,
+        [jobId, resolution.reason],
+      );
+    });
+    return "refused";
+  }
+  const context = resolution.context;
+
+  type ChaseOutcome =
+    | { readonly kind: "no-send" }
+    | {
+        readonly kind: "send";
+        readonly attemptId: string;
+        readonly attemptNumber: number;
+        readonly message: OutboundMessage;
+      };
+
+  const claim = await withTransaction(async (tx): Promise<ChaseOutcome> => {
+    const claimed = await tx.query<{
+      id: string;
+      idempotency_key: string;
+      person_id: string;
+      attempt_count: number;
+    }>(
+      `update public.notification_jobs
+          set status = 'processing', claimed_at = now(), claimed_by = $2,
+              attempt_count = attempt_count + 1, last_error = null, updated_at = now()
+        where id = $1
+          and job_type = 'other'
+          and (
+            idempotency_key like '${ONBOARDING_CHASE_KEY_PREFIX}%'
+            or idempotency_key like '${ONBOARDING_NUDGE_KEY_PREFIX}%'
+          )
+          and status in ('pending', 'ready', 'failed')
+          and held_at is null
+          and attempt_count < $3
+          and person_id is not null
+        returning id, idempotency_key, person_id, attempt_count`,
+      [jobId, `${SWEEP_ACTOR_LABEL}:${jobId}`, MAX_ATTEMPTS],
+    );
+
+    const job = claimed.rows[0];
+    if (!job) return { kind: "no-send" };
+
+    const membershipId = parseOnboardingChaseOrNudgeKey(job.idempotency_key);
+    if (!membershipId) return { kind: "no-send" };
+
+    const membership = await tx.query<{ season_id: string }>(
+      `select season_id from public.season_memberships where id = $1::uuid`,
+      [membershipId],
+    );
+    const seasonId = membership.rows[0]?.season_id ?? null;
+    if (!seasonId) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        ONBOARDING_CHASE_MEMBERSHIP_GONE_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    // Safety: checked before consent, and by any path — `LAN-86`/`LAN-101`'s
+    // own boundary for this package. Never overridden by an operator nudge;
+    // "operator nudges are unlimited and outside the cap" (`T11-nudge-outside-cap`)
+    // is about the count, never about this.
+    if (await isPersonUnder18In(tx, job.person_id)) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        ONBOARDING_CHASE_UNDER_18_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    const consented = await hasGrantedSeasonMessagingConsentIn(tx, job.person_id, seasonId);
+    if (!consented) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        ONBOARDING_CHASE_NOT_CONSENTED_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    const person = await tx.query<{ given_name: string }>(
+      `select given_name from public.people where id = $1::uuid`,
+      [job.person_id],
+    );
+    const givenName = person.rows[0]?.given_name ?? "";
+
+    const contacts = await tx.query<{
+      kind: string;
+      raw_value: string;
+      normalised_value: string | null;
+      is_preferred: boolean;
+    }>(
+      `select kind::text as kind, raw_value, normalised_value, is_preferred
+         from public.contact_points
+        where person_id = $1::uuid
+          and valid_from <= current_date
+          and (valid_until is null or valid_until > current_date)
+        order by is_preferred desc, valid_from desc, created_at desc, id`,
+      [job.person_id],
+    );
+    const rows = contacts.rows.map((row) => ({
+      kind: row.kind,
+      rawValue: row.raw_value,
+      normalisedValue: row.normalised_value,
+      isPreferred: row.is_preferred,
+    }));
+
+    const recipient = selectMobileNumber(rows, context.defaultCallingCode);
+    if (!recipient) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        NO_USABLE_NUMBER_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    if (!recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode)) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        RECIPIENT_NOT_PERMITTED_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return { kind: "no-send" };
+    }
+
+    // Every later ask re-sends the same link, compiled to whatever remains
+    // outstanding (`REQ-one-link`, `person_access_tokens_one_live_per_person_season`).
+    // Minted here, at dispatch, never earlier — the identical reasoning the
+    // welcome's own dispatcher already carries.
+    const issued = await issuePersonTokenIn(tx, job.person_id, seasonId, { actorPersonId: null });
+    const formUrl = `${context.appBaseUrl}/me/${issued.token}`;
+    const stopUrl = `${context.appBaseUrl}/me/stop/${issued.token}`;
+
+    const attempt = await tx.query<{ id: string }>(
+      `insert into public.delivery_attempts
+         (notification_job_id, attempt_number, channel, provider)
+       values ($1, $2, $3, $4)
+       returning id`,
+      [jobId, job.attempt_count, context.channel, context.provider.name],
+    );
+
+    return {
+      kind: "send",
+      attemptId: attempt.rows[0].id,
+      attemptNumber: job.attempt_count,
+      message: {
+        kind: "onboarding_chase",
+        recipient,
+        inviteeName: givenName,
+        eventName: "",
+        whenLabel: "",
+        rsvpUrl: "",
+        formUrl,
+        stopUrl,
+      },
+    };
+  });
+
+  if (claim.kind !== "send") return "skipped";
+  const claimed = claim;
+
+  const outcome = await context.provider.send(claimed.message);
+
+  await withTransaction(async (tx) => {
+    if (outcome.status === "accepted") {
+      await tx.query(
+        `update public.delivery_attempts
+            set accepted_at = now(), provider_message_id = $2 where id = $1`,
+        [claimed.attemptId, outcome.providerMessageId],
+      );
+      await tx.query("update public.notification_jobs set next_attempt_at = null where id = $1", [
+        jobId,
+      ]);
+      await recordAudit(tx, {
+        actorLabel: DISPATCH_ACTOR_LABEL,
+        action: "delivery.attempted",
+        entityTable: "notification_jobs",
+        entityId: jobId,
+        context: {
+          attemptNumber: claimed.attemptNumber,
+          provider: context.provider.name,
+          channel: context.channel,
+          providerMessageId: outcome.providerMessageId,
+        },
+      });
+      return;
+    }
+
+    await tx.query(
+      "update public.delivery_attempts set concluded_at = now(), failure_reason = $2 where id = $1",
+      [claimed.attemptId, outcome.reason],
+    );
+    await tx.query(
+      `insert into public.delivery_results
+         (notification_job_id, attempt_number, outcome, channel, provider, detail)
+       values ($1, $2, $3, $4, $5, $6)
+       on conflict (notification_job_id, attempt_number) do nothing`,
+      [
+        jobId,
+        claimed.attemptNumber,
+        outcome.retryable ? "failed" : "rejected",
+        context.channel,
+        context.provider.name,
+        outcome.reason,
+      ],
+    );
+    await tx.query(
+      `update public.notification_jobs
+          set status = 'failed', last_error = $2, claimed_at = null, claimed_by = null,
+              next_attempt_at = case when $3 then now() + interval '15 minutes' else null end,
+              automatic_attempts = automatic_attempts + 1,
+              updated_at = now()
+        where id = $1`,
+      [jobId, outcome.reason, outcome.retryable],
+    );
+  });
+
+  return outcome.status === "accepted" ? "accepted" : "refused";
+}
+
+export interface OnboardingNudgeResult {
+  readonly personId: string;
+  readonly membershipId: string;
+  readonly outcome: "accepted" | "refused" | "skipped" | "membership_not_found";
+}
+
+/**
+ * Nudges one or several people, each in their own transaction so one
+ * person's failure — a gone membership, an unpermitted number — cannot roll
+ * back another's, then dispatches each job immediately.
+ *
+ * `T11-batch-nudge`, proved directly: each `membershipId` produces its own
+ * job under its own idempotency key and its own token, so no two people's
+ * messages can ever share a link or a payload.
+ */
+export async function sendOnboardingNudges(
+  actorPersonId: string,
+  membershipIds: readonly string[],
+  options: { source?: EnvironmentSource; transport?: Transport } = {},
+): Promise<readonly OnboardingNudgeResult[]> {
+  const results: OnboardingNudgeResult[] = [];
+  for (const membershipId of membershipIds) {
+    const membership = await withTransaction(async (tx) => {
+      const row = await tx.query<{ person_id: string; season_id: string }>(
+        `select person_id, season_id from public.season_memberships where id = $1::uuid`,
+        [membershipId],
+      );
+      const found = row.rows[0];
+      if (!found) return null;
+
+      const nonce = crypto.randomUUID();
+      const idempotencyKey = onboardingNudgeIdempotencyKey(membershipId, nonce);
+      const job = await tx.query<{ id: string }>(
+        `insert into public.notification_jobs
+           (idempotency_key, job_type, status, person_id, channel, scheduled_for, template_variables)
+         values ($1, 'other', 'pending', $2::uuid, 'whatsapp', now(), '{}'::jsonb)
+         returning id`,
+        [idempotencyKey, found.person_id],
+      );
+
+      await recordOnboardingActivityIn(tx, {
+        membershipId,
+        seasonId: found.season_id,
+        section: "chase",
+        kind: "ask",
+        channel: "operator nudge",
+        actorPersonId,
+      });
+
+      return { personId: found.person_id, jobId: job.rows[0].id };
+    });
+
+    if (!membership) {
+      results.push({ personId: "", membershipId, outcome: "membership_not_found" });
+      continue;
+    }
+
+    const outcome = await dispatchOnboardingChaseJob(membership.jobId, options);
+    results.push({ personId: membership.personId, membershipId, outcome });
+  }
+  return results;
 }
 
 // ---------------------------------------------------------------------------
