@@ -282,7 +282,7 @@ describe("optionListLabel — every other select column still shows the label al
 });
 
 /**
- * D-002 (correction round 4, `WP-operator-record`, LAN-217) — the actual
+ * D-002 (correction round 5, `WP-operator-record`, LAN-217) — the actual
  * defect Brian named: "Subscription invoiced is invoiced-or-not, never
  * Complete." Proves the board's own closed cell and open dropdown read the
  * per-item word, not the generic status label a flat map would produce.

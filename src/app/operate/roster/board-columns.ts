@@ -468,7 +468,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
     },
     // Brian, 2026-09-05: BPS sits immediately before Availability, and
     // Availability is the last column on the board (`WP-operator-record`,
-    // LAN-217, correction round 4).
+    // LAN-217, correction round 5).
     {
       key: "bps",
       label: "BPS",

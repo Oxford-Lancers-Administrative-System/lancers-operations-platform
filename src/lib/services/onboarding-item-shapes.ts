@@ -106,7 +106,7 @@ export function allowedItemResolutions(code: string): readonly OnboardingItemRes
 }
 
 /**
- * D-002 (correction round 4, `WP-operator-record`, LAN-217) — the words
+ * D-002 (correction round 5, `WP-operator-record`, LAN-217) — the words
  * Brian actually said for each item's own progression, layered over the
  * shared escape hatch (`waived` → "Waived", `not_applicable` → "Not
  * applicable" — his own words, "Waived and Not applicable remain available on

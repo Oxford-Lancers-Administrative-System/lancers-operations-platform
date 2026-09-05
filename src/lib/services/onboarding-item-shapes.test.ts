@@ -110,7 +110,7 @@ describe("allowedItemResolutions — the operator's own dropdown, per item", () 
 });
 
 /**
- * D-002 (correction round 4, `WP-operator-record`, LAN-217): the actual
+ * D-002 (correction round 5, `WP-operator-record`, LAN-217): the actual
  * defect Brian's second walkthrough named — a cell rendering "Complete" for
  * an item that is invoiced-or-not, and "Invited" for an item whose own
  * control never offers it. `itemStatusLabel` is the one place both the board

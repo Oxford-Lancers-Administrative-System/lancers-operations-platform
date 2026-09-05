@@ -89,7 +89,7 @@ export function rawValue(row: RosterBoardRow, key: string): string | string[] | 
         ? (row.onboardingItems["subs_paid"]?.status ?? null)
         : null;
     // Correction round 2, item 2 gave Kit Distributed its Yes/No wording;
-    // correction round 4 moved that wording into `itemStatusLabel` alongside
+    // correction round 5 moved that wording into `itemStatusLabel` alongside
     // every other item's, so this reads the same raw status every other
     // onboarding column does. It used to pre-convert to "Yes"/"No" here,
     // which — now that the item's own model is the one place that word is

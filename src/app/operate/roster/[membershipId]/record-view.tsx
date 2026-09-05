@@ -82,7 +82,7 @@ import {
 /**
  * This row's own resolution set is `allowedItemResolutions(item.code)`, and
  * its own words are `itemStatusLabel(item.code, status)` — D-002 (correction
- * round 3, Q-14; wired here at correction round 4): the offered set and the
+ * round 3, Q-14; wired here at correction round 5): the offered set and the
  * displayable set are one thing, derived per item from
  * `onboarding-item-shapes.ts`, so the two cannot drift apart again and no
  * item keeps a hardcoded exception of its own (Kit Distributed's own binary

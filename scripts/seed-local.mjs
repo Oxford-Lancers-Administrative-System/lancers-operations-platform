@@ -548,7 +548,7 @@ const rows = {
   blues_awards: [],
   onboarding_item_types: [],
   onboarding_items: [],
-  // D-002 (correction round 4, `WP-operator-record`, LAN-217): the append-only
+  // D-002 (correction round 5, `WP-operator-record`, LAN-217): the append-only
   // history had zero rows in the whole database, and BPS was uniformly "no" —
   // neither table had a single writer. Populated below, after every
   // membership and its onboarding items exist.
@@ -4671,7 +4671,7 @@ LEGACY_EVENTS.forEach(([cell, week, weekday, colour, status, reason], index) => 
 });
 
 // ---------------------------------------------------------------------------
-// D-002 (correction round 4, `WP-operator-record`, LAN-217): BPS selections,
+// D-002 (correction round 5, `WP-operator-record`, LAN-217): BPS selections,
 // a reason-free waiver, and one item's own append-only history
 // ---------------------------------------------------------------------------
 //

@@ -134,9 +134,9 @@ describe("buildColumns — Status is an ordinary select column (item 4)", () => 
   });
 });
 
-// Brian, 2026-09-05 (`WP-operator-record`, LAN-217, correction round 4): BPS
+// Brian, 2026-09-05 (`WP-operator-record`, LAN-217, correction round 5): BPS
 // sits immediately before Availability, and Availability is the last column.
-describe("buildColumns — column order (correction round 4)", () => {
+describe("buildColumns — column order (correction round 5)", () => {
   it("puts BPS immediately before Availability, with Availability last", () => {
     const keys = buildColumns(POSITION_OPTIONS).map((column) => column.key);
     const bpsIndex = keys.indexOf("bps");
@@ -149,7 +149,7 @@ describe("buildColumns — column order (correction round 4)", () => {
 });
 
 /**
- * D-002 (correction round 4): the actual defect — every onboarding column's
+ * D-002 (correction round 5): the actual defect — every onboarding column's
  * offered set must come from `onboarding-item-shapes.ts`, per item, never a
  * hardcoded list beside it. This fails immediately if a column's `options`
  * is ever replaced with a literal array again, because a hardcoded list here
