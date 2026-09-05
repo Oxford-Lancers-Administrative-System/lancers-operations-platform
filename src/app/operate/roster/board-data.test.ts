@@ -57,6 +57,7 @@ const COLLEGE_COLUMN = COLUMNS.find((c) => c.key === "college")!;
 const MISSING_COLUMN = COLUMNS.find((c) => c.key === "missing")!;
 const OFFENCE_COLUMN = COLUMNS.find((c) => c.key === "offencePosition")!;
 const ELIGIBILITY_COLUMN = COLUMNS.find((c) => c.key === "eligibility")!;
+const SUBS_PAID_COLUMN = COLUMNS.find((c) => c.key === "subsPaid")!;
 
 describe("applyBoard — search, filter and sort together", () => {
   const rows = [
@@ -192,6 +193,32 @@ describe("displayOf — REQ-not-recorded", () => {
 
   it("renders the value when present", () => {
     expect(displayOf(row({ college: "Wadham" }), COLLEGE_COLUMN)).toBe("Wadham");
+  });
+});
+
+// D-002 (correction round 3, Q-14, Brian): "Subscription paid" is blank —
+// nothing at all — until "Subscription invoiced" is itself complete. The
+// board's own convention renders that blank as `NOT_RECORDED`, same as any
+// other genuinely absent value, rather than a new rendering rule.
+describe("displayOf — Subscription paid is blank until invoiced (D-002)", () => {
+  it("reads Not recorded when Subscription invoiced is still pending, whatever its own stored status", () => {
+    const withPending = row({
+      onboardingItems: {
+        subs_invoiced: { id: "i1", status: "pending" },
+        subs_paid: { id: "i2", status: "pending" },
+      },
+    });
+    expect(displayOf(withPending, SUBS_PAID_COLUMN)).toBe(NOT_RECORDED);
+  });
+
+  it("reads its own status once Subscription invoiced is complete", () => {
+    const withInvoiced = row({
+      onboardingItems: {
+        subs_invoiced: { id: "i1", status: "complete" },
+        subs_paid: { id: "i2", status: "waived" },
+      },
+    });
+    expect(displayOf(withInvoiced, SUBS_PAID_COLUMN)).toBe("Waived");
   });
 });
 

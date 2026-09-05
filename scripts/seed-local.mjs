@@ -1106,6 +1106,82 @@ assignRole("defence_coach", defenceCoach, seasonCurrent, "2026-09-01");
 // `'direct'` for everything else, including the three derived items and the
 // two read-then-confirm/sign player items, none of which pause in `claimed`
 // awaiting a named human's confirmation.
+/**
+ * D-002 (correction round 3, Q-14, WP-operator-record, LAN-217): one draw per
+ * item, from exactly the statuses that item's own progression can occupy —
+ * mirrored from `allowedItemStatuses` in
+ * `src/lib/services/onboarding-item-shapes.ts`. `subsInvoicedStatus` is the
+ * one cross-item dependency: Subscription paid is blank — nothing at all —
+ * until Subscription invoiced is itself complete.
+ *
+ * Every branch draws exactly once from `weighted()`, `subs_paid` included —
+ * overriding to `"pending"` only afterward, never skipping the draw outright.
+ * Every item after this one in `ONBOARDING_TYPES`, and everything the rest of
+ * this deterministically-seeded script draws afterward, reads from the same
+ * one PRNG stream; skipping a draw here would shift every later draw by one
+ * and silently reseed positions, numbers and dates this file never touched on
+ * purpose — caught by `commitJerseyNumbers`'s own test expecting a specific
+ * held number failing once this drew unevenly.
+ */
+function weightedStatusFor(code, subsInvoicedStatus) {
+  switch (code) {
+    case "subs_invoiced":
+      return weighted([
+        ["complete", 60],
+        ["pending", 20],
+        ["waived", 10],
+        ["not_applicable", 10],
+      ]);
+    case "subs_paid": {
+      const drawn = weighted([
+        ["complete", 60],
+        ["pending", 20],
+        ["waived", 10],
+        ["not_applicable", 10],
+      ]);
+      return subsInvoicedStatus === "complete" ? drawn : "pending";
+    }
+    // B-001: Kit Distributed is binary — never waived, never not applicable.
+    case "kit_sorted":
+      return weighted([
+        ["complete", 70],
+        ["pending", 30],
+      ]);
+    // Trust class (`verification_class`): invited by an ask, claimed by the
+    // player's own word, confirmed by the operator's complete.
+    case "bucs_play":
+    case "hudl_access":
+      return weighted([
+        ["complete", 40],
+        ["claimed", 15],
+        ["invited", 20],
+        ["pending", 15],
+        ["waived", 5],
+        ["not_applicable", 5],
+      ]);
+    // "Operator ×2" (item-and-ask-inventory.md): not assigned, assigned and
+    // invited, in the group — both steps the operator's own, no `claimed`.
+    case "comms_groups":
+      return weighted([
+        ["complete", 55],
+        ["invited", 20],
+        ["pending", 15],
+        ["waived", 5],
+        ["not_applicable", 5],
+      ]);
+    // Squad photo, Code of Conduct, Photo release, and the two derived items
+    // (Contact & academic details, Season welcome & consent): binary, plus
+    // the operator's waiver escape hatch, never invited or claimed.
+    default:
+      return weighted([
+        ["complete", 70],
+        ["pending", 15],
+        ["waived", 5],
+        ["not_applicable", 10],
+      ]);
+  }
+}
+
 const ONBOARDING_TYPES = [
   ["subs_invoiced", "Subscription invoiced", true, false, "direct"],
   ["subs_paid", "Subscription paid", false, true, "direct"],
@@ -1321,20 +1397,19 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
     membership.inactivity_label = null;
   }
 
+  // D-002 (correction round 3, Q-14, WP-operator-record, LAN-217): the seed
+  // used to invent states — every item drew from one of two fixed weighted
+  // sets regardless of what its own progression could actually reach, which
+  // is what put "Invited" on Sub invoiced, Sub paid and Squad photo. Each
+  // item now draws only from `allowedItemStatuses` in
+  // `src/lib/services/onboarding-item-shapes.ts` — mirrored in
+  // `weightedStatusFor` below because this script cannot import that
+  // TypeScript module directly. Keep the two in agreement by hand; a
+  // divergence here reintroduces exactly the bug D-002 fixed.
+  let subsInvoicedStatus = null;
   for (const type of itemTypesBySeason[seasonCurrent.id]) {
-    const itemStatus = type.is_subscription
-      ? weighted([
-          ["complete", 55],
-          ["invited", 25],
-          ["waived", 10],
-          ["pending", 10],
-        ])
-      : weighted([
-          ["complete", 70],
-          ["invited", 15],
-          ["pending", 10],
-          ["not_applicable", 5],
-        ]);
+    const itemStatus = weightedStatusFor(type.code, subsInvoicedStatus);
+    if (type.code === "subs_invoiced") subsInvoicedStatus = itemStatus;
     add("onboarding_items", {
       id: uuid(),
       season_membership_id: membership.id,

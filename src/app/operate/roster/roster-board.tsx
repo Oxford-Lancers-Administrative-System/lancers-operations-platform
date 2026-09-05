@@ -937,7 +937,12 @@ function Cell({
     // not (yet) had generated has nothing to edit — same posture as every
     // other absent value on this board, never a control that would refuse.
     (column.edit !== "onboarding" ||
-      (column.itemCode ? Boolean(row.onboardingItems[column.itemCode]) : false));
+      (column.itemCode ? Boolean(row.onboardingItems[column.itemCode]) : false)) &&
+    // D-002 (correction round 3, Q-14): Subscription paid opens no control at
+    // all until Subscription invoiced is complete — there is nothing to
+    // record payment against yet, and the service itself refuses the write
+    // this cell would otherwise offer.
+    (column.key !== "subsPaid" || row.onboardingItems["subs_invoiced"]?.status === "complete");
 
   return (
     <TableCell

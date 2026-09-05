@@ -493,6 +493,73 @@ describe("mergePersons — the successful merge", () => {
     expect(collegeField.differs).toBe(false);
   });
 
+  // D-001 (correction round 3, Q-14, Brian): the B-004 null guard above
+  // landed on plain fields only — contacts use a separate bare comparison
+  // that still drew "differs" for any present-versus-absent pair, seen on
+  // Mobile phone (a value against "not recorded") and College email.
+  it("never flags a contact as differing when only one side holds a value at all — D-001", async () => {
+    const survivorId = await insertPerson({ givenName: unique("Survivor") });
+    const loserId = await insertPerson({ givenName: unique("Loser") });
+    await insertContact(loserId, { kind: "phone", rawValue: "07700 900218" });
+    // The survivor's own mobile is left unrecorded — genuinely absent, not a
+    // second value to disagree with the loser's.
+
+    const preview = await previewPersonMerge(survivorId, loserId);
+    const mobile = preview.contacts.find((c) => c.kind === "mobile")!;
+    expect(mobile.survivor).toBeNull();
+    expect(mobile.loser?.rawValue).toBe("07700 900218");
+    expect(mobile.differs).toBe(false);
+  });
+
+  it("still flags a contact as differing when both sides hold a value and disagree", async () => {
+    const survivorId = await insertPerson({ givenName: unique("Survivor") });
+    const loserId = await insertPerson({ givenName: unique("Loser") });
+    await insertContact(survivorId, { kind: "phone", rawValue: "07700 900111" });
+    await insertContact(loserId, { kind: "phone", rawValue: "07700 900222" });
+
+    const preview = await previewPersonMerge(survivorId, loserId);
+    const mobile = preview.contacts.find((c) => c.kind === "mobile")!;
+    expect(mobile.differs).toBe(true);
+  });
+
+  // D-001: aliases never computed a difference at all — `merge-comparison.tsx`
+  // hardcoded `differs={true}`, read-only, so an empty-both-sides row still
+  // drew the chip. Two identical alias sets, in any order, are not a
+  // difference — the honest rendering for a multi-valued field.
+  it("never flags aliases as differing when both records hold the same set, in any order — D-001", async () => {
+    const survivorId = await insertPerson({ givenName: unique("Survivor") });
+    const loserId = await insertPerson({ givenName: unique("Loser") });
+    const sharedA = unique("Alias");
+    const sharedB = unique("Alias");
+    await insertAlias(survivorId, sharedA);
+    await insertAlias(survivorId, sharedB);
+    await insertAlias(loserId, sharedB);
+    await insertAlias(loserId, sharedA);
+
+    const preview = await previewPersonMerge(survivorId, loserId);
+    expect(preview.aliases.differs).toBe(false);
+  });
+
+  it("flags aliases as differing when the two sets genuinely disagree", async () => {
+    const survivorId = await insertPerson({ givenName: unique("Survivor") });
+    const loserId = await insertPerson({ givenName: unique("Loser") });
+    await insertAlias(survivorId, unique("Alias"));
+    await insertAlias(loserId, unique("Alias"));
+
+    const preview = await previewPersonMerge(survivorId, loserId);
+    expect(preview.aliases.differs).toBe(true);
+  });
+
+  it("never flags aliases as differing when neither record has one", async () => {
+    const survivorId = await insertPerson({ givenName: unique("Survivor") });
+    const loserId = await insertPerson({ givenName: unique("Loser") });
+
+    const preview = await previewPersonMerge(survivorId, loserId);
+    expect(preview.aliases.survivorAliases).toEqual([]);
+    expect(preview.aliases.loserAliases).toEqual([]);
+    expect(preview.aliases.differs).toBe(false);
+  });
+
   it("combines a duplicate prospect pair onto the survivor: earliest contact, furthest-along status", async () => {
     const survivorId = await insertPerson({ givenName: unique("Survivor") });
     const loserId = await insertPerson({ givenName: unique("Loser") });

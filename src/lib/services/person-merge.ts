@@ -302,6 +302,15 @@ export interface MergeContactComparison {
 export interface MergeAliasComparison {
   survivorAliases: string[];
   loserAliases: string[];
+  /**
+   * D-001 (correction round 3, Q-14, Brian): "differs" means two different
+   * recorded values, applied here the honest way for a multi-valued field —
+   * two alias *sets* that hold the same names, in any order, with any
+   * duplication, are not a difference. `merge-comparison.tsx` used to
+   * hardcode `differs={true}` unconditionally; this is the real computation
+   * it now reads instead.
+   */
+  differs: boolean;
 }
 
 export interface MergeProspectCombination {
@@ -366,6 +375,26 @@ function emergencyContactLine(ec: EmergencyContact | null): string | null {
   if (!ec) return null;
   const name = [ec.givenName, ec.familyName].filter(Boolean).join(" ");
   return ec.relationship ? `${name} · ${ec.relationship}` : name;
+}
+
+/**
+ * D-001 (correction round 3, Q-14): the honest "differs" for a multi-valued
+ * field. Aliases are a set, not an ordered list and not a single value — two
+ * records that hold the same names, in any order and with any duplication
+ * between them, are not a difference. Compared as sets rather than arrays for
+ * exactly that reason.
+ */
+function aliasSetsDiffer(
+  survivorAliases: readonly string[],
+  loserAliases: readonly string[],
+): boolean {
+  const survivorSet = new Set(survivorAliases);
+  const loserSet = new Set(loserAliases);
+  if (survivorSet.size !== loserSet.size) return true;
+  for (const alias of survivorSet) {
+    if (!loserSet.has(alias)) return true;
+  }
+  return false;
 }
 
 function currentPreferred(record: PersonRecord, kind: MergeContactKind): PersonContactValue | null {
@@ -793,7 +822,14 @@ export async function previewPersonMerge(
         label: MERGE_CONTACT_KIND_LABELS[kind],
         survivor: survivor ? { id: survivor.id, rawValue: survivor.rawValue } : null,
         loser: loser ? { id: loser.id, rawValue: loser.rawValue } : null,
-        differs: (survivor?.rawValue ?? null) !== (loser?.rawValue ?? null),
+        // D-001 (correction round 3, Q-14): the B-004 null guard on plain
+        // fields (below) never reached this bare comparison — a present
+        // value on one side and an absent one on the other read as
+        // "differs" here too, which is what Brian saw on Mobile phone and
+        // College email. Absence is not a difference on a contact any more
+        // than it is on a plain field: the chip fires only when both sides
+        // actually hold a value and those values disagree.
+        differs: survivor !== null && loser !== null && survivor.rawValue !== loser.rawValue,
       };
     });
 
@@ -816,10 +852,15 @@ export async function previewPersonMerge(
       refusal,
       fields,
       contacts,
-      aliases: {
-        survivorAliases: survivorSide.record.aliases.map((a) => a.alias),
-        loserAliases: loserSide.record.aliases.map((a) => a.alias),
-      },
+      aliases: (() => {
+        const survivorAliases = survivorSide.record.aliases.map((a) => a.alias);
+        const loserAliases = loserSide.record.aliases.map((a) => a.alias);
+        return {
+          survivorAliases,
+          loserAliases,
+          differs: aliasSetsDiffer(survivorAliases, loserAliases),
+        };
+      })(),
       prospectCombinations: refusal
         ? []
         : await readProspectCombinations(tx, survivorPersonId, loserPersonId),

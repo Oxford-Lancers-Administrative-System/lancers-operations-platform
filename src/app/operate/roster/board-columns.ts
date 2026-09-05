@@ -1,4 +1,5 @@
 import { roleCodesPermit } from "@/lib/auth/capabilities";
+import { allowedItemResolutions } from "@/lib/services/onboarding-item-shapes";
 import type { PositionOptions, RosterBoardRow } from "@/lib/services/roster-board";
 import { MEMBERSHIP_STATUS_LABELS } from "./presentation";
 
@@ -128,17 +129,6 @@ export interface ColumnDef {
   /** The capability a viewer must hold for this column to render at all. */
   readonly requires: "person_record_authority";
 }
-
-/** The four resolutions every onboarding column offers except Kit Distributed — `OPERATOR_ITEM_RESOLUTIONS` in `membership.ts`. */
-export const ONBOARDING_ITEM_RESOLUTIONS = Object.freeze([
-  "complete",
-  "waived",
-  "not_applicable",
-  "reopen",
-]);
-
-/** Kit Distributed's own two — correction round 2, item 2. */
-export const KIT_DISTRIBUTED_RESOLUTIONS = Object.freeze(["complete", "reopen"]);
 
 export const STATUSES = Object.freeze(["onboarding", "active", "inactive", "departed", "archived"]);
 /**
@@ -272,7 +262,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       band: "onboarding",
       edit: "onboarding",
       itemCode: "subs_invoiced",
-      options: ONBOARDING_ITEM_RESOLUTIONS,
+      options: allowedItemResolutions("subs_invoiced"),
       width: 132,
       sortable: true,
       filterable: true,
@@ -284,7 +274,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       band: "onboarding",
       edit: "onboarding",
       itemCode: "subs_paid",
-      options: ONBOARDING_ITEM_RESOLUTIONS,
+      options: allowedItemResolutions("subs_paid"),
       width: 132,
       sortable: true,
       filterable: true,
@@ -297,7 +287,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       edit: "onboarding",
       itemCode: "kit_sorted",
       binary: true,
-      options: KIT_DISTRIBUTED_RESOLUTIONS,
+      options: allowedItemResolutions("kit_sorted"),
       width: 120,
       sortable: true,
       filterable: true,
@@ -309,7 +299,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       band: "onboarding",
       edit: "onboarding",
       itemCode: "bucs_play",
-      options: ONBOARDING_ITEM_RESOLUTIONS,
+      options: allowedItemResolutions("bucs_play"),
       width: 132,
       sortable: true,
       filterable: true,
@@ -321,7 +311,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       band: "onboarding",
       edit: "onboarding",
       itemCode: "hudl_access",
-      options: ONBOARDING_ITEM_RESOLUTIONS,
+      options: allowedItemResolutions("hudl_access"),
       width: 132,
       sortable: true,
       filterable: true,
@@ -333,7 +323,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       band: "onboarding",
       edit: "onboarding",
       itemCode: "photo",
-      options: ONBOARDING_ITEM_RESOLUTIONS,
+      options: allowedItemResolutions("photo"),
       width: 132,
       sortable: true,
       filterable: true,
@@ -345,7 +335,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       band: "onboarding",
       edit: "onboarding",
       itemCode: "comms_groups",
-      options: ONBOARDING_ITEM_RESOLUTIONS,
+      options: allowedItemResolutions("comms_groups"),
       width: 140,
       sortable: true,
       filterable: true,

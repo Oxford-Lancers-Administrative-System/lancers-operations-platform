@@ -1088,7 +1088,13 @@ describe("resolveOnboardingItem", () => {
 
   it("reopens from every terminal state — waived and not_applicable, not only complete", async () => {
     const membershipId = await givenMembership("onboarding");
-    const [waivedItem, naItem] = (await readMembership(membershipId)).onboardingItems;
+    // Two items with no cross-item dependency of their own — D-002 (correction
+    // round 3) makes `subs_paid` depend on `subs_invoiced` being complete
+    // first, which this generic reopen test is not about, so it picks two
+    // items outside that pair by code rather than by position.
+    const items = (await readMembership(membershipId)).onboardingItems;
+    const waivedItem = items.find((item) => item.code === "photo")!;
+    const naItem = items.find((item) => item.code === "bucs_play")!;
 
     await resolveOnboardingItem({
       actorPersonId,
@@ -1246,6 +1252,114 @@ describe("resolveOnboardingItem", () => {
 
       const updated = reopened.onboardingItems.find((each) => each.id === item.id)!;
       expect(updated.status).toBe("pending");
+    });
+  });
+
+  // D-002 (correction round 3, Q-14, Brian): "Subscription paid" is blank
+  // until "Subscription invoiced" is itself complete. "an operator must not
+  // be able to record payment on something never invoiced, and reopening the
+  // invoice must do the right thing to the payment cell."
+  describe("Subscription paid depends on Subscription invoiced — D-002", () => {
+    async function itemsFor(membershipId: string) {
+      const membership = await readMembership(membershipId);
+      return {
+        invoiced: membership.onboardingItems.find((item) => item.code === "subs_invoiced")!,
+        paid: membership.onboardingItems.find((item) => item.code === "subs_paid")!,
+      };
+    }
+
+    it("refuses to record payment before the invoice is complete", async () => {
+      const membershipId = await givenMembership("onboarding");
+      const { paid } = await itemsFor(membershipId);
+
+      const failure = await resolveOnboardingItem({
+        actorPersonId,
+        membershipId,
+        itemId: paid.id,
+        status: "complete",
+      }).catch((error: unknown) => error);
+
+      expect(isServiceError(failure) && failure.rule).toBe(
+        "onboarding_item_subs_paid_requires_invoiced",
+      );
+    });
+
+    it("accepts payment once the invoice is complete", async () => {
+      const membershipId = await givenMembership("onboarding");
+      const { invoiced, paid } = await itemsFor(membershipId);
+      await resolveOnboardingItem({
+        actorPersonId,
+        membershipId,
+        itemId: invoiced.id,
+        status: "complete",
+      });
+
+      const membership = await resolveOnboardingItem({
+        actorPersonId,
+        membershipId,
+        itemId: paid.id,
+        status: "complete",
+      });
+
+      const updated = membership.onboardingItems.find((each) => each.id === paid.id)!;
+      expect(updated.status).toBe("complete");
+    });
+
+    it("resets an already-recorded payment to pending when the invoice is reopened", async () => {
+      const membershipId = await givenMembership("onboarding");
+      const { invoiced, paid } = await itemsFor(membershipId);
+      await resolveOnboardingItem({
+        actorPersonId,
+        membershipId,
+        itemId: invoiced.id,
+        status: "complete",
+      });
+      await resolveOnboardingItem({
+        actorPersonId,
+        membershipId,
+        itemId: paid.id,
+        status: "complete",
+      });
+
+      const membership = await resolveOnboardingItem({
+        actorPersonId,
+        membershipId,
+        itemId: invoiced.id,
+        status: "reopen",
+      });
+
+      const updatedInvoiced = membership.onboardingItems.find((each) => each.id === invoiced.id)!;
+      const updatedPaid = membership.onboardingItems.find((each) => each.id === paid.id)!;
+      expect(updatedInvoiced.status).toBe("pending");
+      expect(updatedPaid.status).toBe("pending");
+      expect(updatedPaid.completedOn).toBeNull();
+
+      // The cascade is itself a real, audited transition — not a silent write.
+      const history = await withTransaction((tx) => readOnboardingItemHistoryIn(tx, paid.id));
+      expect(history.at(-1)).toMatchObject({ fromStatus: "complete", toStatus: "pending" });
+    });
+
+    it("leaves payment alone when the invoice is reopened and payment was never recorded", async () => {
+      const membershipId = await givenMembership("onboarding");
+      const { invoiced, paid } = await itemsFor(membershipId);
+      await resolveOnboardingItem({
+        actorPersonId,
+        membershipId,
+        itemId: invoiced.id,
+        status: "complete",
+      });
+
+      const membership = await resolveOnboardingItem({
+        actorPersonId,
+        membershipId,
+        itemId: invoiced.id,
+        status: "reopen",
+      });
+
+      const updatedPaid = membership.onboardingItems.find((each) => each.id === paid.id)!;
+      expect(updatedPaid.status).toBe("pending");
+      const history = await withTransaction((tx) => readOnboardingItemHistoryIn(tx, paid.id));
+      expect(history).toHaveLength(0);
     });
   });
 });

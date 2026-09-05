@@ -265,7 +265,10 @@ describe("W8-02 — one template", () => {
     expect(screen.getByTestId("template-unavailable")).toBeVisible();
   });
 
-  it("offers the four standing groups, and no recruits group", async () => {
+  // D-003 (correction round 3, Q-14, Brian): BPS is now offered on a
+  // template's own default-audience picker, exactly as it already was on the
+  // event's own picker — the one migration this round authorised.
+  it("offers the four standing groups and BPS, and no recruits group", async () => {
     render(await EventTemplatePage(typeProps()));
 
     const groups = screen.getAllByTestId("template-audience-group");
@@ -274,6 +277,7 @@ describe("W8-02 — one template", () => {
       "active_players",
       "active_coaches",
       "active_committee",
+      "bps",
     ]);
   });
 

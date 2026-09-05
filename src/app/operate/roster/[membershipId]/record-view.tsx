@@ -17,6 +17,11 @@ import type {
   MembershipStatusEvent,
   OnboardingItemResolution,
 } from "@/lib/services/membership";
+import {
+  allowedItemResolutions,
+  SUBS_INVOICED_ITEM_CODE,
+  SUBS_PAID_ITEM_CODE,
+} from "@/lib/services/onboarding-item-shapes";
 import type { PersonRecord } from "@/lib/services/person-record";
 import type {
   OnboardingActivitySection,
@@ -74,27 +79,17 @@ import {
 } from "./record-actions";
 
 /**
- * The four resolutions this screen offers — `OPERATOR_ITEM_RESOLUTIONS` in
- * `membership.ts`. `reopen` joined the other three under `WP-operator-record`
- * (LAN-217, `REQ-item-states`, `W6-02`): the row's own `Select` gains the one
- * option `R2-R` requires, offered unconditionally exactly as the approved
- * mockup shows it — the service itself is what refuses a `reopen` on an item
- * that is not in a terminal state (`R4-T`), surfaced through this row's
+ * This row's own resolution set is `allowedItemResolutions(item.code)` —
+ * D-002 (correction round 3, Q-14): the offered set and the displayable set
+ * are one thing, derived per item, so the two cannot drift apart again. The
+ * full four (`complete`/`waived`/`not_applicable`/`reopen`) for every item
+ * except Kit Distributed, whose own binary reduction (B-001, correction
+ * round 2) this same model still expresses. `reopen` reaches the item's
+ * ordinary `pending` — the service itself is what refuses a `reopen` on an
+ * item that is not in a terminal state (`R4-T`), surfaced through this row's
  * existing error slot.
  */
-const ITEM_RESOLUTIONS = Object.freeze(["complete", "waived", "not_applicable", "reopen"] as const);
-
-/**
- * B-001 (correction round 2, Brian): "Kit sorted" is renamed "Kit
- * Distributed" and reduced to yes/no — has the kit been distributed or not.
- * No waived, no claimed, no reopen on this one item; every other item keeps
- * the full state set above. There is no new schema value for "not
- * distributed" — it is the item's own ordinary `pending`, reached the same
- * way `reopen` already reaches it for every other item, just never offered
- * to the operator as a labelled option of its own on this one row.
- */
 const KIT_DISTRIBUTED_CODE = "kit_sorted";
-const KIT_DISTRIBUTED_RESOLUTIONS = Object.freeze(["complete", "reopen"] as const);
 
 /**
  * `/operate/roster/[membershipId]` — W6, rebuilt. LAN-187.
@@ -396,6 +391,11 @@ export default function PlayerRecordView({
               item={item}
               editing={editing === `item:${item.id}`}
               readOnly={closed}
+              blank={
+                item.code === SUBS_PAID_ITEM_CODE &&
+                record.onboardingItems.find((each) => each.code === SUBS_INVOICED_ITEM_CODE)
+                  ?.status !== "complete"
+              }
               error={fieldError?.key === `item:${item.id}` ? fieldError.message : null}
               onOpen={() => setEditing(`item:${item.id}`)}
               onClose={() => setEditing(null)}
@@ -950,6 +950,7 @@ function OnboardingRow({
   item,
   editing,
   readOnly,
+  blank = false,
   error,
   onOpen,
   onClose,
@@ -958,14 +959,22 @@ function OnboardingRow({
   item: OnboardingItemDisplay;
   editing: boolean;
   readOnly: boolean;
+  /**
+   * D-002 (correction round 3, Q-14): "Subscription paid" is blank — nothing
+   * at all — until "Subscription invoiced" is itself complete. No control
+   * opens; the item's own stored `pending` (there is nothing else it could
+   * be, since the service refuses the write that would change it) reads as
+   * `NotRecorded`, the same as any other genuinely absent value on this page.
+   */
+  blank?: boolean;
   error: string | null;
   onOpen: () => void;
   onClose: () => void;
   onResolve: (status: OnboardingItemResolution) => void;
 }) {
-  const editable = !readOnly;
+  const editable = !readOnly && !blank;
   const isKitDistributed = item.code === KIT_DISTRIBUTED_CODE;
-  const resolutions = isKitDistributed ? KIT_DISTRIBUTED_RESOLUTIONS : ITEM_RESOLUTIONS;
+  const resolutions = allowedItemResolutions(item.code);
   const closedLabel = isKitDistributed
     ? item.status === "complete"
       ? "Yes"
@@ -1019,16 +1028,20 @@ function OnboardingRow({
             "&:hover": editable ? { bgcolor: "action.hover" } : undefined,
           }}
         >
-          <Typography
-            variant="body2"
-            sx={{
-              textDecoration: editable ? "underline" : "none",
-              textUnderlineOffset: 3,
-              textDecorationColor: "rgba(0,0,0,0.25)",
-            }}
-          >
-            {closedLabel}
-          </Typography>
+          {blank ? (
+            <NotRecorded />
+          ) : (
+            <Typography
+              variant="body2"
+              sx={{
+                textDecoration: editable ? "underline" : "none",
+                textUnderlineOffset: 3,
+                textDecorationColor: "rgba(0,0,0,0.25)",
+              }}
+            >
+              {closedLabel}
+            </Typography>
+          )}
         </Box>
       )}
       {error ? (

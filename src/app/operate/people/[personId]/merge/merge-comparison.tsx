@@ -162,7 +162,11 @@ export default function MergeComparison({
                 <CompareRow
                   name="field_aliases"
                   label="Aliases"
-                  differs
+                  // D-001 (correction round 3, Q-14): two identical alias
+                  // sets are not a difference — the real, set-wise
+                  // computation from `previewPersonMerge`, not a hardcoded
+                  // `true` that fired even when both sides were empty.
+                  differs={preview.aliases.differs}
                   survivorValue={preview.aliases.survivorAliases.join(" · ") || null}
                   loserValue={preview.aliases.loserAliases.join(" · ") || null}
                   readOnly

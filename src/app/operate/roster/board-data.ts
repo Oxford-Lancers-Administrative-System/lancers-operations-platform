@@ -81,8 +81,16 @@ export function rawValue(row: RosterBoardRow, key: string): string | string[] | 
     // Correction round 2, item 5 — one onboarding item's own status.
     case "subsInvoiced":
       return row.onboardingItems["subs_invoiced"]?.status ?? null;
+    // D-002 (correction round 3, Q-14): blank — nothing at all — until
+    // Subscription invoiced is itself complete. The board's own convention
+    // (`NOT_RECORDED`, immediately below) already renders `null` as "Not
+    // recorded" rather than a true blank — `REQ-not-recorded` — so returning
+    // `null` here is the honest "nothing to show yet", not a new rendering
+    // rule.
     case "subsPaid":
-      return row.onboardingItems["subs_paid"]?.status ?? null;
+      return row.onboardingItems["subs_invoiced"]?.status === "complete"
+        ? (row.onboardingItems["subs_paid"]?.status ?? null)
+        : null;
     case "kitDistributed":
       // Correction round 2, item 2: binary — the raw status collapses to
       // Yes/No, the same as BPS above, never the five-value status word.
@@ -148,10 +156,12 @@ function optionLabel(column: ColumnDef, code: string): string {
   if (column.key === "formalwear") return labelFor(FORMALWEAR_LABELS, code);
   // Correction round 2, item 5. `code` is either a real `OnboardingItemStatus`
   // (the closed cell, and the filter popover, both built from `rawValue`'s
-  // actual stored status) or one of the four resolution words the open edit
-  // dropdown itself offers (`board-columns.ts`'s `ONBOARDING_ITEM_RESOLUTIONS`)
-  // — the two vocabularies differ by exactly one word, `reopen`, which is
-  // never a status a row can be *in*, so it is the one case handled by hand.
+  // actual stored status) or one of the resolution words this item's own
+  // control offers (D-002, correction round 3: `allowedItemResolutions` in
+  // `onboarding-item-shapes.ts`) — the two vocabularies differ by `reopen`,
+  // which is never a status a row can be *in*, and by `invited`, which is a
+  // status every progression item can be in but no dropdown here ever
+  // offers as a resolution — so it is the one case handled by hand.
   if (column.edit === "onboarding") {
     if (column.binary) return code === "complete" ? "Yes" : "No";
     if (code === "reopen") return "Reopen";

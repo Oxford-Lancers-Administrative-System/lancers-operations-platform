@@ -112,10 +112,16 @@ export interface AudienceGroup {
    * `false` excludes this group from a template's own default-audience
    * picker (`templateGroupsForEventType`) even though the single-event
    * builder still offers it (`groupsForEventType`). Absent means eligible —
-   * every existing group's own behaviour, unchanged. BPS is the one
-   * exception: `public.audience_group`, the closed enum a template default
-   * actually persists to, does not carry a `bps` value and this package adds
-   * no migration, so BPS must never reach that write path.
+   * every existing group's own behaviour, unchanged.
+   *
+   * D-003 (correction round 3, Q-14, `WP-operator-record`, LAN-217): BPS was
+   * the one exception, excluded because `public.audience_group` — the closed
+   * enum a template default actually persists to — carried no `bps` value.
+   * Brian: the BPS audience appears in an event's own picker but not in
+   * event templates, so it cannot be pre-chosen. That migration is now
+   * authorised (`supabase/migrations/20260904120000_bps_event_template_audience.sql`),
+   * so BPS is template-eligible like every other group below it — see the
+   * `bps` entry in `AUDIENCE_GROUPS`.
    */
   templateEligible?: boolean;
 }
@@ -170,12 +176,21 @@ export const AUDIENCE_GROUPS: readonly AudienceGroup[] = Object.freeze([
   // memberships count as players for event audiences from the moment they
   // are on the team, even though "active players" and "everyone active"
   // above stay active-only.
+  //
+  // D-004 (correction round 3, Q-14): the label reads "All Active BPS", not
+  // "BPS" — Brian's exact words. D-003, same round: now template-eligible
+  // (`supabase/migrations/20260904120000_bps_event_template_audience.sql`
+  // adds `bps` to `public.audience_group`), so it is pre-choosable on an
+  // event template exactly as it already is on the event's own picker, and
+  // carries through to events created from that template the same way every
+  // other group already does — `readTemplateInheritanceIn` and
+  // `templateAudienceKeys` in `event-templates.ts` resolve any stored group
+  // generically, with no group-specific code of their own.
   Object.freeze({
     key: "bps" as const,
-    label: "BPS",
+    label: "All Active BPS",
     capacities: Object.freeze(["player" as const]),
     requiresBps: true,
-    templateEligible: false,
   }),
 ]);
 
@@ -195,10 +210,10 @@ export function groupsForEventType(eventType: string): readonly AudienceGroup[] 
 /**
  * The groups a template's own default-audience picker may offer — the same
  * as {@link groupsForEventType}, minus any group `templateEligible: false`
- * excludes. Correction round 2, item 7: BPS is offered on the single-event
- * builder but never here, because `public.audience_group` — the closed enum
- * a template default actually persists to — has no `bps` value and this
- * package adds no migration.
+ * excludes. No group excludes itself today: D-003 (correction round 3,
+ * Q-14) closed the one gap — BPS was offered on the single-event builder but
+ * never here, because `public.audience_group`, the closed enum a template
+ * default actually persists to, had no `bps` value. It now does.
  */
 export function templateGroupsForEventType(eventType: string): readonly AudienceGroup[] {
   return groupsForEventType(eventType).filter((group) => group.templateEligible !== false);

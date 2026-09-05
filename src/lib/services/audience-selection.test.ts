@@ -358,19 +358,23 @@ describe("BPS is a player narrowed by an extra flag, not a capacity of its own",
     }
   });
 
-  it("is never offered to a template's own default-audience picker", () => {
-    expect(templateGroupsForEventType("practice").map((g) => g.key)).not.toContain("bps");
-    // Every group a template CAN default to is still there — this is a
-    // narrowing of the offered list, not a different one.
+  // D-003 (correction round 3, Q-14, Brian): "the BPS audience appears in
+  // the event's own audience picker but not in event templates, so it
+  // cannot be pre-chosen." That migration is authorised this round
+  // (`supabase/migrations/20260904120000_bps_event_template_audience.sql`),
+  // so BPS is now offered to a template's default-audience picker exactly
+  // as every other group is.
+  it("is offered to a template's own default-audience picker, like every other group", () => {
+    expect(templateGroupsForEventType("practice").map((g) => g.key)).toContain("bps");
     expect(templateGroupsForEventType("practice").map((g) => g.key)).toEqual(
-      groupsForEventType("practice")
-        .filter((g) => g.key !== "bps")
-        .map((g) => g.key),
+      groupsForEventType("practice").map((g) => g.key),
     );
   });
 
-  it('is named on the AUDIENCE_GROUPS list Brian approved, labelled exactly "BPS"', () => {
+  // D-004 (correction round 3, Q-14, Brian): "The audience reads 'All Active
+  // BPS', not 'BPS'."
+  it('is named on the AUDIENCE_GROUPS list Brian approved, labelled exactly "All Active BPS"', () => {
     const bps = AUDIENCE_GROUPS.find((g) => g.key === "bps");
-    expect(bps?.label).toBe("BPS");
+    expect(bps?.label).toBe("All Active BPS");
   });
 });

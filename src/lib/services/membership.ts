@@ -10,6 +10,11 @@ import {
 import { recordAudit } from "./audit";
 import { actorRequirement } from "./actor";
 import { writeOnboardingItemHistoryIn } from "./onboarding-item-history";
+import {
+  allowedItemResolutions,
+  SUBS_INVOICED_ITEM_CODE,
+  SUBS_PAID_ITEM_CODE,
+} from "./onboarding-item-shapes";
 import { readCurrentSeasonIn, type Season } from "./seasons";
 import { escapeLikePattern, personDisplayAliasSql } from "./sql-text";
 
@@ -170,8 +175,22 @@ export const OPERATOR_ITEM_RESOLUTIONS: readonly OnboardingItemResolution[] = Ob
 /** `reopen`'s one destination — back to outstanding, from any terminal state (`R2-R`, `R4-T`). */
 const REOPEN_TARGET_STATUS: OnboardingItemStatus = "pending";
 
-/** B-001 (correction round 2): the one item reduced to yes/no — never waived, never not-applicable. */
-const KIT_DISTRIBUTED_ITEM_CODE = "kit_sorted";
+/**
+ * D-002 (correction round 3, Q-14) — the per-item status model lives in
+ * `onboarding-item-shapes.ts`, a module deliberately without `server-only`:
+ * the roster board and record page's client components need the identical
+ * "what can this item show, what can its own control do" answer this write
+ * path uses, and a client component may not import a `server-only` module.
+ * Re-exported here so every existing caller of `membership.ts` keeps working
+ * unchanged.
+ */
+export {
+  allowedItemResolutions,
+  allowedItemStatuses,
+  KIT_DISTRIBUTED_ITEM_CODE,
+  SUBS_INVOICED_ITEM_CODE,
+  SUBS_PAID_ITEM_CODE,
+} from "./onboarding-item-shapes";
 
 export interface OnboardingItem {
   id: string;
@@ -888,21 +907,38 @@ export async function resolveOnboardingItem(params: {
       });
     }
 
-    // B-001 (correction round 2, Brian): Kit Distributed is binary — yes or
-    // no, has the kit been distributed. `waived` and `not_applicable` never
-    // apply to this one item; `reopen` still reaches the same `pending` a
-    // "No" answer needs, so that stays available, just never as a menu
-    // option of its own on this row (`record-view.tsx`'s own binary toggle).
-    if (
-      item.code === KIT_DISTRIBUTED_ITEM_CODE &&
-      (params.status === "waived" || params.status === "not_applicable")
-    ) {
+    // D-002 (correction round 3, Q-14): the resolution this call names has to
+    // be one this item's own control offers — B-001's Kit Distributed binary
+    // reduction, generalised to every item's own shape rather than one
+    // hardcoded exception.
+    if (!allowedItemResolutions(item.code).includes(params.status)) {
       throw new ConstraintViolated(
         `${item.label} is yes or no — there is no ${params.status.replace("_", " ")} for it.`,
         {
-          rule: "onboarding_item_kit_distributed_is_binary",
+          rule: "onboarding_item_resolution_not_offered_for_item",
         },
       );
+    }
+
+    // D-002 (Q-14): "Subscription paid" is blank until "Subscription
+    // invoiced" is itself complete — an operator must not be able to record
+    // payment on something never invoiced. Checked read-only here, under the
+    // same row lock already taken above for the item itself; the sibling
+    // read below takes its own lock only when it actually has to write.
+    if (item.code === SUBS_PAID_ITEM_CODE) {
+      const invoiced = await tx.query<{ status: OnboardingItemStatus }>(
+        `select i.status::text as status
+           from public.onboarding_items i
+           join public.onboarding_item_types t on t.id = i.item_type_id
+          where i.season_membership_id = $1::uuid and t.code = $2`,
+        [membershipId, SUBS_INVOICED_ITEM_CODE],
+      );
+      if ((invoiced.rows[0]?.status ?? null) !== "complete") {
+        throw new ConstraintViolated(
+          `${item.label} cannot be recorded until Subscription invoiced is complete.`,
+          { rule: "onboarding_item_subs_paid_requires_invoiced" },
+        );
+      }
     }
 
     // `reopen` is offered from a terminal state only — `R4-T`: a human reopens
@@ -989,6 +1025,65 @@ export async function resolveOnboardingItem(params: {
         item_label: item.label,
       },
     });
+
+    // D-002 (Q-14): "reopening the invoice must do the right thing to the
+    // payment cell." A payment already recorded against an invoice that no
+    // longer stands is stale — an operator reopening Subscription invoiced
+    // (moving it away from `complete`) resets its sibling Subscription paid
+    // back to `pending` in the same transaction, exactly as the invoice's
+    // own reopen reaches `pending` for itself. Never the other way — paying
+    // does not touch the invoice, and reopening an already-`pending` payment
+    // (it never having been invoiced, or already reset by an earlier reopen)
+    // has nothing to cascade.
+    if (
+      item.code === SUBS_INVOICED_ITEM_CODE &&
+      item.status === "complete" &&
+      toStatus !== "complete"
+    ) {
+      const sibling = await tx.query<{ id: string; status: OnboardingItemStatus }>(
+        `select i.id, i.status::text as status
+           from public.onboarding_items i
+           join public.onboarding_item_types t on t.id = i.item_type_id
+          where i.season_membership_id = $1::uuid and t.code = $2
+          for update of i`,
+        [membershipId, SUBS_PAID_ITEM_CODE],
+      );
+      const paid = sibling.rows[0];
+      if (paid && paid.status !== "pending") {
+        await tx.query(
+          `update public.onboarding_items
+              set status = 'pending'::public.onboarding_item_status,
+                  completed_on = null, waived_reason = null, waived_by_person_id = null,
+                  updated_at = now()
+            where id = $1::uuid`,
+          [paid.id],
+        );
+        await writeOnboardingItemHistoryIn(tx, {
+          onboardingItemId: paid.id,
+          seasonMembershipId: membershipId,
+          fromStatus: paid.status,
+          toStatus: "pending",
+          actorKind: "operator",
+          actorPersonId,
+          reason: "Subscription invoiced was reopened.",
+        });
+        await recordAudit(tx, {
+          actorPersonId,
+          action: "onboarding_item_reopened",
+          entityTable: "onboarding_items",
+          entityId: paid.id,
+          fromState: paid.status,
+          toState: "pending",
+          reason: "Subscription invoiced was reopened.",
+          context: {
+            issue: "LAN-217",
+            season_membership_id: membershipId,
+            item_code: SUBS_PAID_ITEM_CODE,
+            cascade_from: SUBS_INVOICED_ITEM_CODE,
+          },
+        });
+      }
+    }
 
     return readMembershipIn(tx, membershipId);
   });

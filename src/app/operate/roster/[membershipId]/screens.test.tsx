@@ -425,6 +425,62 @@ describe("B-001 — Kit Distributed is binary", () => {
   });
 });
 
+// D-002 (correction round 3, Q-14, Brian): "Subscription paid" is blank —
+// nothing at all — until "Subscription invoiced" is itself complete.
+describe("D-002 — Subscription paid is blank until Subscription invoiced is complete", () => {
+  it("reads Not recorded and opens no control while the invoice is still pending", async () => {
+    givenRecord({
+      onboardingItems: [
+        historyItem({
+          id: "item-invoiced",
+          code: "subs_invoiced",
+          label: "Subscription invoiced",
+          status: "pending",
+        }),
+        historyItem({
+          id: "item-paid",
+          code: "subs_paid",
+          label: "Subscription paid",
+          status: "pending",
+        }),
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const row = screen
+      .getByText("Subscription paid")
+      .closest('[data-testid="record-row"]') as HTMLElement;
+    expect(within(row).getByText("not recorded")).toBeVisible();
+    expect(within(row).queryByTestId("editable-field")).not.toBeInTheDocument();
+  });
+
+  it("opens the ordinary control and reads its own status once the invoice is complete", async () => {
+    givenRecord({
+      onboardingItems: [
+        historyItem({
+          id: "item-invoiced",
+          code: "subs_invoiced",
+          label: "Subscription invoiced",
+          status: "complete",
+        }),
+        historyItem({
+          id: "item-paid",
+          code: "subs_paid",
+          label: "Subscription paid",
+          status: "waived",
+        }),
+      ],
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    const row = screen
+      .getByText("Subscription paid")
+      .closest('[data-testid="record-row"]') as HTMLElement;
+    expect(within(row).getByText("Waived")).toBeVisible();
+    expect(within(row).getByTestId("editable-field")).toBeInTheDocument();
+  });
+});
+
 describe("W6 — provenance: who and when, from the item's own history", () => {
   it("renders claimed in the row's own idiom, naming the player and that nobody has confirmed", async () => {
     givenRecord({
