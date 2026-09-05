@@ -1,6 +1,6 @@
 {
-  "headSha": "3b0486cda9dba62c071833c2b801f4aa05803679",
-  "at": "2026-09-05T14:44:02.687Z",
+  "headSha": "bc9f51c2e7ac0a5a0f69a9816a3f7806543c3dac",
+  "at": "2026-09-05T15:35:39.952Z",
   "captures": [
     {
       "id": "S1-roster",
@@ -12,7 +12,7 @@
       },
       "file": "S1-roster--desktop.png",
       "pageHeight": 900,
-      "ms": 2423
+      "ms": 1861
     },
     {
       "id": "S2-player",
@@ -24,7 +24,7 @@
       },
       "file": "S2-player--desktop.png",
       "pageHeight": 4794,
-      "ms": 2461
+      "ms": 2254
     },
     {
       "id": "S3-event",
@@ -36,7 +36,7 @@
       },
       "file": "S3-event--desktop.png",
       "pageHeight": 3735,
-      "ms": 2653
+      "ms": 2097
     },
     {
       "id": "S4-event-new",
@@ -48,7 +48,7 @@
       },
       "file": "S4-event-new--desktop.png",
       "pageHeight": 1597,
-      "ms": 2310
+      "ms": 1289
     },
     {
       "id": "S5-rsvp",
@@ -60,7 +60,7 @@
       },
       "file": "S5-rsvp--desktop.png",
       "pageHeight": 900,
-      "ms": 1617
+      "ms": 1164
     },
     {
       "id": "S5-rsvp-unusable",
@@ -72,7 +72,7 @@
       },
       "file": "S5-rsvp-unusable--desktop.png",
       "pageHeight": 900,
-      "ms": 1498
+      "ms": 1152
     },
     {
       "id": "S6-report",
@@ -84,7 +84,7 @@
       },
       "file": "S6-report--desktop.png",
       "pageHeight": 4905,
-      "ms": 3455
+      "ms": 2818
     },
     {
       "id": "S7-login",
@@ -96,7 +96,7 @@
       },
       "file": "S7-login--desktop.png",
       "pageHeight": 900,
-      "ms": 1767
+      "ms": 1253
     },
     {
       "id": "S8-operators",
@@ -108,7 +108,7 @@
       },
       "file": "S8-operators--desktop.png",
       "pageHeight": 900,
-      "ms": 1467
+      "ms": 1314
     },
     {
       "id": "S8-operator",
@@ -120,7 +120,7 @@
       },
       "file": "S8-operator--desktop.png",
       "pageHeight": 900,
-      "ms": 1606
+      "ms": 1274
     },
     {
       "id": "S9-player-home",
@@ -132,7 +132,7 @@
       },
       "file": "S9-player-home--desktop.png",
       "pageHeight": 3000,
-      "ms": 10952
+      "ms": 4018
     },
     {
       "id": "S10-player-details",
@@ -143,8 +143,8 @@
         "height": 900
       },
       "file": "S10-player-details--desktop.png",
-      "pageHeight": 2078,
-      "ms": 2592
+      "pageHeight": 2023,
+      "ms": 1367
     },
     {
       "id": "S10b-player-agreement",
@@ -156,7 +156,7 @@
       },
       "file": "S10b-player-agreement--desktop.png",
       "pageHeight": 900,
-      "ms": 1577
+      "ms": 1243
     },
     {
       "id": "S11-answer",
@@ -168,7 +168,7 @@
       },
       "file": "S11-answer--desktop.png",
       "pageHeight": 900,
-      "ms": 1632
+      "ms": 1285
     },
     {
       "id": "K-kit",
@@ -180,7 +180,7 @@
       },
       "file": "K-kit--desktop.png",
       "pageHeight": 5399,
-      "ms": 1884
+      "ms": 1616
     },
     {
       "id": "index",
@@ -192,7 +192,7 @@
       },
       "file": "index--desktop.png",
       "pageHeight": 1345,
-      "ms": 1221
+      "ms": 1304
     },
     {
       "id": "S1-roster",
@@ -204,7 +204,7 @@
       },
       "file": "S1-roster--phone.png",
       "pageHeight": 5124,
-      "ms": 1618
+      "ms": 1541
     },
     {
       "id": "S2-player",
@@ -216,7 +216,7 @@
       },
       "file": "S2-player--phone.png",
       "pageHeight": 11478,
-      "ms": 1932
+      "ms": 2004
     },
     {
       "id": "S3-event",
@@ -228,7 +228,7 @@
       },
       "file": "S3-event--phone.png",
       "pageHeight": 9040,
-      "ms": 2451
+      "ms": 2154
     },
     {
       "id": "S4-event-new",
@@ -240,7 +240,7 @@
       },
       "file": "S4-event-new--phone.png",
       "pageHeight": 2127,
-      "ms": 1588
+      "ms": 1335
     },
     {
       "id": "S5-rsvp",
@@ -252,7 +252,7 @@
       },
       "file": "S5-rsvp--phone.png",
       "pageHeight": 812,
-      "ms": 1387
+      "ms": 1171
     },
     {
       "id": "S5-rsvp-unusable",
@@ -264,7 +264,7 @@
       },
       "file": "S5-rsvp-unusable--phone.png",
       "pageHeight": 812,
-      "ms": 1211
+      "ms": 1094
     },
     {
       "id": "S6-report",
@@ -276,7 +276,7 @@
       },
       "file": "S6-report--phone.png",
       "pageHeight": 6971,
-      "ms": 2807
+      "ms": 2908
     },
     {
       "id": "S7-login",
@@ -288,7 +288,7 @@
       },
       "file": "S7-login--phone.png",
       "pageHeight": 812,
-      "ms": 1251
+      "ms": 1271
     },
     {
       "id": "S8-operators",
@@ -300,7 +300,7 @@
       },
       "file": "S8-operators--phone.png",
       "pageHeight": 868,
-      "ms": 1214
+      "ms": 1243
     },
     {
       "id": "S8-operator",
@@ -312,7 +312,7 @@
       },
       "file": "S8-operator--phone.png",
       "pageHeight": 1071,
-      "ms": 1253
+      "ms": 1254
     },
     {
       "id": "S9-player-home",
@@ -324,7 +324,7 @@
       },
       "file": "S9-player-home--phone.png",
       "pageHeight": 4156,
-      "ms": 11502
+      "ms": 4065
     },
     {
       "id": "S10-player-details",
@@ -335,8 +335,8 @@
         "height": 812
       },
       "file": "S10-player-details--phone.png",
-      "pageHeight": 2095,
-      "ms": 2177
+      "pageHeight": 2122,
+      "ms": 1295
     },
     {
       "id": "S10b-player-agreement",
@@ -347,8 +347,8 @@
         "height": 812
       },
       "file": "S10b-player-agreement--phone.png",
-      "pageHeight": 990,
-      "ms": 1406
+      "pageHeight": 1017,
+      "ms": 1276
     },
     {
       "id": "S11-answer",
@@ -360,7 +360,7 @@
       },
       "file": "S11-answer--phone.png",
       "pageHeight": 891,
-      "ms": 1411
+      "ms": 1298
     },
     {
       "id": "K-kit",
@@ -371,8 +371,8 @@
         "height": 812
       },
       "file": "K-kit--phone.png",
-      "pageHeight": 7538,
-      "ms": 1702
+      "pageHeight": 7564,
+      "ms": 1561
     },
     {
       "id": "index",
@@ -384,7 +384,7 @@
       },
       "file": "index--phone.png",
       "pageHeight": 2111,
-      "ms": 1396
+      "ms": 1236
     },
     {
       "id": "S4-actionbar",

@@ -239,7 +239,7 @@ const SCREENS = [
     extras: [{ file: "S10-actionbar--phone.png", note: "sticky foot, viewport only" }],
     deltas: [
       "P1 — the masthead, with the season as its caption.",
-      "P18 — the five-column <dl> of 11px labels becomes StepTrail: numbered, one chip per step, the current step on the Sky Blue ground, wrapping rather than collapsing to a two-column table at 375px.",
+      "P18 — the five-column <dl> of 11px labels becomes StepTrail: numbered, one chip per step, the current step on the Sky Blue ground. A grid, not a wrapping row, so no step is ever left alone on a second line (Brian, 5 Sep 2026); one column and one compact line per step at 375px.",
       "Fourteen fields at one size and full width; the date of birth on the DateField picker (audit E9, already taken).",
       "The four groups are plain Sections; the foot is an ActionBar, sticky on a phone, carrying the enabling sentence (rule 4).",
       "Every label, lead line and helper sentence is the real page's own presentation.ts, unchanged.",
