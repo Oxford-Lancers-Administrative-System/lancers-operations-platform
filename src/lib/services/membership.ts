@@ -11,7 +11,8 @@ import { recordAudit } from "./audit";
 import { actorRequirement } from "./actor";
 import { writeOnboardingItemHistoryIn } from "./onboarding-item-history";
 import {
-  allowedItemResolutions,
+  allowedItemStates,
+  isDerivedItem,
   SUBS_INVOICED_ITEM_CODE,
   SUBS_PAID_ITEM_CODE,
 } from "./onboarding-item-shapes";
@@ -136,9 +137,6 @@ export const RESOLVED_ITEM_STATUSES: readonly OnboardingItemStatus[] = Object.fr
   "not_applicable",
 ]) as readonly OnboardingItemStatus[];
 
-/** The terminal states `reopen` is offered from — `R2-R`, `R4-T`: reopen is never automatic and never applies to a live item. */
-export const TERMINAL_ITEM_STATUSES: readonly OnboardingItemStatus[] = RESOLVED_ITEM_STATUSES;
-
 /**
  * The club's words for an item's state, for refusals the operator reads.
  *
@@ -156,37 +154,24 @@ const ONBOARDING_STATUS_WORDS: Readonly<Record<string, string>> = Object.freeze(
 });
 
 /**
- * What an operator may ask `resolveOnboardingItem` to do — `R2-R`'s four
- * resolutions. Not the same set as {@link OnboardingItemStatus}: `reopen` is
- * an action, not a state an item can be *in* — it always writes `pending` —
- * and `claimed` never appears here at all, because a player's own word is
- * `claimOnboardingItem`'s action, never an operator's resolution.
- */
-export type OnboardingItemResolution = "complete" | "waived" | "not_applicable" | "reopen";
-
-/** The resolutions an operator may set from the membership detail screen. */
-export const OPERATOR_ITEM_RESOLUTIONS: readonly OnboardingItemResolution[] = Object.freeze([
-  "complete",
-  "waived",
-  "not_applicable",
-  "reopen",
-]) as readonly OnboardingItemResolution[];
-
-/** `reopen`'s one destination — back to outstanding, from any terminal state (`R2-R`, `R4-T`). */
-const REOPEN_TARGET_STATUS: OnboardingItemStatus = "pending";
-
-/**
- * D-002 (correction round 3, Q-14) — the per-item status model lives in
- * `onboarding-item-shapes.ts`, a module deliberately without `server-only`:
- * the roster board and record page's client components need the identical
- * "what can this item show, what can its own control do" answer this write
- * path uses, and a client component may not import a `server-only` module.
- * Re-exported here so every existing caller of `membership.ts` keeps working
- * unchanged.
+ * D-002 (correction round 6, `WP-operator-record`, LAN-217) — one per-item
+ * state list lives in `onboarding-item-shapes.ts`, a module deliberately
+ * without `server-only`: the roster board and record page's client
+ * components need the identical "what can this item be, and what can its
+ * own control choose" answer this write path uses, and a client component
+ * may not import a `server-only` module. Re-exported here so every existing
+ * caller of `membership.ts` keeps working unchanged.
+ *
+ * There is no separate "resolution" vocabulary any more —
+ * `OnboardingItemResolution`, `OPERATOR_ITEM_RESOLUTIONS` and the `reopen`
+ * pseudo-action are gone. An operator names the item's own target state
+ * directly (an `OnboardingItemStatus`), and corrects a mistake by naming a
+ * different one — there is no separate reopen verb on any item.
  */
 export {
-  allowedItemResolutions,
-  allowedItemStatuses,
+  allowedItemStates,
+  isDerivedItem,
+  itemStateLabel,
   KIT_DISTRIBUTED_ITEM_CODE,
   SUBS_INVOICED_ITEM_CODE,
   SUBS_PAID_ITEM_CODE,
@@ -837,50 +822,45 @@ export async function setMembershipStatus(params: {
 // ---------------------------------------------------------------------------
 
 /**
- * Marks one onboarding item complete, waived, not applicable, or reopens it
- * — `R2-R`'s four four-role resolutions, `reopen` added under LAN-214.
+ * Sets one onboarding item to one of its own states — D-002 (correction
+ * round 6, `WP-operator-record`, LAN-217): an operator names the item's own
+ * target state directly, the same list `allowedItemStates` names as both
+ * displayable and offerable. There is no separate "resolution" verb any
+ * more, and no `reopen` — an operator corrects a mistake by naming a
+ * different one of the item's own states, from any current state, not only
+ * from a terminal one.
  *
  * `public.onboarding_item_history` (LAN-214, `onboarding-item-history.ts`) is
- * now the typed home `REQ-item-history` asks for, and this writes it in the
- * same transaction as the state change — Register D9's "where a typed home
+ * the typed home `REQ-item-history` asks for, and this writes it in the same
+ * transaction as the state change — Register D9's "where a typed home
  * exists, that table is the record" applied to the table this package built.
  * The `audit_events` row alongside it is unchanged from LAN-75: this
  * codebase's own precedent (`setMembershipStatus`, above) keeps a typed
- * table's write and an `audit_events` row together rather than choosing one,
- * and nothing about adding the typed table here is a reason to remove a
- * search surface other tooling may already read.
+ * table's write and an `audit_events` row together rather than choosing one.
+ * Removing `reopen` as a distinct verb does not touch this: a change from one
+ * state back to another is still a real transition and still gets a history
+ * row, exactly as any other state change does.
  *
  * `REQ-reason-free-waive` (LAN-214) unwound the schema's
  * `onboarding_items_waiver_is_justified` constraint: the author stays
- * mandatory — `actorPersonId` always is one — and the reason stops being. The
- * refusal this function used to throw for a reasonless waiver is gone; a
- * waiver with no reason is now accepted, exactly as a waiver with one always
- * was.
- *
- * `reopen` always writes `pending` and is only offered from a terminal state
- * (`complete`, `waived`, `not_applicable`) — never automatic, never from a
- * live item (`pending`, `invited`, `claimed`), which is what "reopen" would
- * even mean applied to one.
+ * mandatory — `actorPersonId` always is one — and the reason stops being. A
+ * waiver with no reason is accepted, exactly as one with one always was.
+ * `waived` itself is now offered by exactly one item's own list (Subscription
+ * paid) rather than by every item as a shared escape hatch — the previous
+ * brief's "Waived and Not applicable stay available on every item" was never
+ * Brian's decision.
  */
 export async function resolveOnboardingItem(params: {
   actorPersonId: string;
   membershipId: string;
   itemId: string;
-  status: OnboardingItemResolution;
+  status: OnboardingItemStatus;
   reason?: string | null;
 }): Promise<MembershipRecord> {
   const { actorPersonId, membershipId, itemId } = params;
   requireActor(actorPersonId);
   const reason = optional(params.reason);
-
-  if (!OPERATOR_ITEM_RESOLUTIONS.includes(params.status)) {
-    throw new ConstraintViolated("That is not a resolution this screen can record.", {
-      rule: "onboarding_item_resolution_not_offered",
-    });
-  }
-
-  const toStatus: OnboardingItemStatus =
-    params.status === "reopen" ? REOPEN_TARGET_STATUS : params.status;
+  const toStatus = params.status;
 
   return withTransaction(async (tx) => {
     // Scoped to the membership as well as the item: the item id arrives from a
@@ -907,15 +887,24 @@ export async function resolveOnboardingItem(params: {
       });
     }
 
-    // D-002 (correction round 3, Q-14): the resolution this call names has to
-    // be one this item's own control offers — B-001's Kit Distributed binary
-    // reduction, generalised to every item's own shape rather than one
-    // hardcoded exception.
-    if (!allowedItemResolutions(item.code).includes(params.status)) {
+    // D-002 (correction round 6): a derived item completes itself from other
+    // recorded facts and has no operator control at all — never a state this
+    // call may set, regardless of which one is named.
+    if (isDerivedItem(item.code)) {
+      throw new ConstraintViolated(`${item.label} is derived and cannot be set directly.`, {
+        rule: "onboarding_item_derived_not_editable",
+      });
+    }
+
+    // D-002 (correction round 6): the state this call names has to be one
+    // this item's own list actually holds — B-001's Kit Distributed binary
+    // reduction, generalised to every item's own shape, with no shared
+    // escape hatch layered on top of any of them any more.
+    if (!allowedItemStates(item.code).includes(toStatus)) {
       throw new ConstraintViolated(
-        `${item.label} is yes or no — there is no ${params.status.replace("_", " ")} for it.`,
+        `${item.label} cannot be ${ONBOARDING_STATUS_WORDS[toStatus] ?? toStatus} — that is not one of its own states.`,
         {
-          rule: "onboarding_item_resolution_not_offered_for_item",
+          rule: "onboarding_item_state_not_offered_for_item",
         },
       );
     }
@@ -941,14 +930,6 @@ export async function resolveOnboardingItem(params: {
       }
     }
 
-    // `reopen` is offered from a terminal state only — `R4-T`: a human reopens
-    // a *resolved* item; there is nothing to reopen on one still outstanding.
-    if (params.status === "reopen" && !TERMINAL_ITEM_STATUSES.includes(item.status)) {
-      throw new InvalidTransition(`${item.label} is not resolved, so there is nothing to reopen.`, {
-        rule: "onboarding_item_reopen_requires_a_resolved_item",
-      });
-    }
-
     /**
      * Saving the status an item already has is not a change, and must not be
      * recorded as one.
@@ -967,8 +948,7 @@ export async function resolveOnboardingItem(params: {
     // A waiver whose *reason* changed is a real correction, not a no-op — an
     // operator who typo'd one has to be able to fix it without routing through
     // another status and writing audit rows for changes that did not happen.
-    const sameReason =
-      params.status !== "waived" || (item.waived_reason ?? null) === (reason ?? null);
+    const sameReason = toStatus !== "waived" || (item.waived_reason ?? null) === (reason ?? null);
     if (item.status === toStatus && sameReason) {
       throw new InvalidTransition(
         `${item.label} is already ${ONBOARDING_STATUS_WORDS[toStatus] ?? toStatus}.`,
@@ -1012,7 +992,7 @@ export async function resolveOnboardingItem(params: {
 
     await recordAudit(tx, {
       actorPersonId,
-      action: params.status === "reopen" ? "onboarding_item_reopened" : "onboarding_item_resolved",
+      action: "onboarding_item_resolved",
       entityTable: "onboarding_items",
       entityId: itemId,
       fromState: item.status,
@@ -1026,15 +1006,14 @@ export async function resolveOnboardingItem(params: {
       },
     });
 
-    // D-002 (Q-14): "reopening the invoice must do the right thing to the
-    // payment cell." A payment already recorded against an invoice that no
-    // longer stands is stale — an operator reopening Subscription invoiced
-    // (moving it away from `complete`) resets its sibling Subscription paid
-    // back to `pending` in the same transaction, exactly as the invoice's
-    // own reopen reaches `pending` for itself. Never the other way — paying
-    // does not touch the invoice, and reopening an already-`pending` payment
-    // (it never having been invoiced, or already reset by an earlier reopen)
-    // has nothing to cascade.
+    // D-002 (Q-14): "correcting the invoice back to Not invoiced must do the
+    // right thing to the payment cell." A payment already recorded against
+    // an invoice that no longer stands is stale — an operator correcting
+    // Subscription invoiced away from `complete` resets its sibling
+    // Subscription paid back to `pending` in the same transaction. Never the
+    // other way — paying does not touch the invoice, and correcting an
+    // already-`pending` payment (it never having been invoiced, or already
+    // reset by an earlier correction) has nothing to cascade.
     if (
       item.code === SUBS_INVOICED_ITEM_CODE &&
       item.status === "complete" &&
@@ -1065,16 +1044,16 @@ export async function resolveOnboardingItem(params: {
           toStatus: "pending",
           actorKind: "operator",
           actorPersonId,
-          reason: "Subscription invoiced was reopened.",
+          reason: "Subscription invoiced was corrected back to Not invoiced.",
         });
         await recordAudit(tx, {
           actorPersonId,
-          action: "onboarding_item_reopened",
+          action: "onboarding_item_resolved",
           entityTable: "onboarding_items",
           entityId: paid.id,
           fromState: paid.status,
           toState: "pending",
-          reason: "Subscription invoiced was reopened.",
+          reason: "Subscription invoiced was corrected back to Not invoiced.",
           context: {
             issue: "LAN-217",
             season_membership_id: membershipId,
@@ -1095,8 +1074,8 @@ export async function resolveOnboardingItem(params: {
  * `verification_class = 'trust'` (BUCS Play, Hudl, per the item-and-ask
  * inventory) and only from `pending` or `invited` — an item already
  * `claimed`, or resolved, has nothing left for a claim to do; the operator's
- * `resolveOnboardingItem` (`reopen`) is what moves a resolved item back to
- * `pending` before it can be claimed again.
+ * own `resolveOnboardingItem` is what moves a resolved item back to
+ * `pending` (or `invited`) before it can be claimed again.
  *
  * `actorPersonId` here is the player themselves — the same person the
  * membership belongs to — not an operator. Authorization (that the caller

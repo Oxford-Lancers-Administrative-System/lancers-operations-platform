@@ -846,9 +846,29 @@ describe("resolveOnboardingItem", () => {
     });
   });
 
+  /**
+   * D-002 (correction round 6): `waived` is offered by exactly one item's
+   * own list — Subscription paid — so these tests target it directly rather
+   * than "the first item," and set Subscription invoiced complete first,
+   * same as `resolveOnboardingItem`'s own gating requires.
+   */
+  async function paidItem(membershipId: string) {
+    const membership = await readMembership(membershipId);
+    const invoiced = membership.onboardingItems.find((each) => each.code === "subs_invoiced")!;
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: invoiced.id,
+      status: "complete",
+    });
+    return (await readMembership(membershipId)).onboardingItems.find(
+      (each) => each.code === "subs_paid",
+    )!;
+  }
+
   it("records a waiver with its reason and its author", async () => {
     const membershipId = await givenMembership("onboarding");
-    const item = await firstItem(membershipId);
+    const item = await paidItem(membershipId);
 
     const membership = await resolveOnboardingItem({
       actorPersonId,
@@ -875,7 +895,7 @@ describe("resolveOnboardingItem", () => {
    */
   it("re-waives an already-waived item with a corrected reason, saving it with no error and no spurious history row", async () => {
     const membershipId = await givenMembership("onboarding");
-    const item = await firstItem(membershipId);
+    const item = await paidItem(membershipId);
     await resolveOnboardingItem({
       actorPersonId,
       membershipId,
@@ -897,7 +917,9 @@ describe("resolveOnboardingItem", () => {
     expect(updated.waivedReason).toBe("Reason B");
 
     // Exactly one history row — the real transition into `waived` — and none
-    // for the reason-only correction, which is not a state change.
+    // for the reason-only correction, which is not a state change. (One
+    // earlier row exists too, for Subscription invoiced's own setup above,
+    // but this reads Subscription paid's own item history only.)
     const history = await withTransaction((tx) => readOnboardingItemHistoryIn(tx, item.id));
     expect(history).toHaveLength(1);
     expect(history[0]).toMatchObject({ fromStatus: "pending", toStatus: "waived" });
@@ -911,7 +933,7 @@ describe("resolveOnboardingItem", () => {
    */
   it("accepts a waiver with an author and no reason", async () => {
     const membershipId = await givenMembership("onboarding");
-    const item = await firstItem(membershipId);
+    const item = await paidItem(membershipId);
 
     const membership = await resolveOnboardingItem({
       actorPersonId,
@@ -943,26 +965,42 @@ describe("resolveOnboardingItem", () => {
     expect(String((failure as Error).message)).toMatch(/onboarding_items_waiver_author_required/);
   });
 
-  it("clears the completion when an item becomes not applicable", async () => {
+  /**
+   * D-002 (correction round 6) — the actual defect Brian caught: `waived` and
+   * `not_applicable` used to be a shared escape hatch on every item. Now
+   * neither is offered by any item but Subscription paid (`waived` only),
+   * proved directly against the write path itself, not only the UI.
+   */
+  it("refuses waived on any item but Subscription paid", async () => {
     const membershipId = await givenMembership("onboarding");
-    const item = await firstItem(membershipId);
-    await resolveOnboardingItem({
+    const item = await firstItem(membershipId); // subs_invoiced
+
+    const failure = await resolveOnboardingItem({
       actorPersonId,
       membershipId,
       itemId: item.id,
-      status: "complete",
-    });
+      status: "waived",
+    }).catch((error: unknown) => error);
 
-    const membership = await resolveOnboardingItem({
+    expect(isServiceError(failure) && failure.rule).toBe(
+      "onboarding_item_state_not_offered_for_item",
+    );
+  });
+
+  it("refuses not_applicable everywhere — there is no escape hatch on any item", async () => {
+    const membershipId = await givenMembership("onboarding");
+    const item = await firstItem(membershipId);
+
+    const failure = await resolveOnboardingItem({
       actorPersonId,
       membershipId,
       itemId: item.id,
       status: "not_applicable",
-    });
+    }).catch((error: unknown) => error);
 
-    const updated = membership.onboardingItems.find((each) => each.id === item.id)!;
-    expect(updated.status).toBe("not_applicable");
-    expect(updated.completedOn).toBeNull();
+    expect(isServiceError(failure) && failure.rule).toBe(
+      "onboarding_item_state_not_offered_for_item",
+    );
   });
 
   /**
@@ -999,7 +1037,7 @@ describe("resolveOnboardingItem", () => {
     expect((await auditRows(item.id)).length).toBe(auditBefore);
   });
 
-  it("still allows moving an item to a different resolution", async () => {
+  it("still allows moving an item to a different one of its own states", async () => {
     const membershipId = await givenMembership("onboarding");
     const item = await firstItem(membershipId);
     await resolveOnboardingItem({
@@ -1013,27 +1051,27 @@ describe("resolveOnboardingItem", () => {
       actorPersonId,
       membershipId,
       itemId: item.id,
-      status: "not_applicable",
+      status: "pending",
     });
 
-    expect(membership.onboardingItems.find((each) => each.id === item.id)?.status).toBe(
-      "not_applicable",
-    );
+    expect(membership.onboardingItems.find((each) => each.id === item.id)?.status).toBe("pending");
   });
 
-  it("refuses a status this screen does not offer", async () => {
+  it("refuses a state this item's own list does not offer", async () => {
     const membershipId = await givenMembership("onboarding");
-    const item = await firstItem(membershipId);
+    const item = await firstItem(membershipId); // subs_invoiced — pending/complete only
 
     const failure = await resolveOnboardingItem({
       actorPersonId,
       membershipId,
       itemId: item.id,
-      // A crafted request naming a process state rather than a decision.
-      status: "invited" as never,
+      // A crafted request naming a process state this item can never occupy.
+      status: "invited",
     }).catch((error: unknown) => error);
 
-    expect(isServiceError(failure) && failure.rule).toBe("onboarding_item_resolution_not_offered");
+    expect(isServiceError(failure) && failure.rule).toBe(
+      "onboarding_item_state_not_offered_for_item",
+    );
   });
 
   /**
@@ -1061,10 +1099,15 @@ describe("resolveOnboardingItem", () => {
   });
 
   // ---------------------------------------------------------------------
-  // reopen — R2-R, R4-T, LAN-214
+  // Correcting a mistake — D-002 (correction round 6), LAN-214
   // ---------------------------------------------------------------------
+  //
+  // There is no `reopen` verb any more, and no restriction to a terminal
+  // state first: an operator corrects a mistake by naming a different one of
+  // the item's own states directly, from whichever state it is currently in
+  // — resolved or still live.
 
-  it("reopens a resolved item back to pending, never automatically", async () => {
+  it("moves a resolved item back to its own off state directly, never automatically", async () => {
     const membershipId = await givenMembership("onboarding");
     const item = await firstItem(membershipId);
     await resolveOnboardingItem({
@@ -1078,7 +1121,7 @@ describe("resolveOnboardingItem", () => {
       actorPersonId,
       membershipId,
       itemId: item.id,
-      status: "reopen",
+      status: "pending",
     });
 
     const updated = membership.onboardingItems.find((each) => each.id === item.id)!;
@@ -1086,62 +1129,52 @@ describe("resolveOnboardingItem", () => {
     expect(updated.completedOn).toBeNull();
   });
 
-  it("reopens from every terminal state — waived and not_applicable, not only complete", async () => {
+  it("corrects a waived Subscription paid back to pending directly", async () => {
     const membershipId = await givenMembership("onboarding");
-    // Two items with no cross-item dependency of their own — D-002 (correction
-    // round 3) makes `subs_paid` depend on `subs_invoiced` being complete
-    // first, which this generic reopen test is not about, so it picks two
-    // items outside that pair by code rather than by position.
-    const items = (await readMembership(membershipId)).onboardingItems;
-    const waivedItem = items.find((item) => item.code === "photo")!;
-    const naItem = items.find((item) => item.code === "bucs_play")!;
-
+    const item = await paidItem(membershipId);
     await resolveOnboardingItem({
-      actorPersonId,
-      membershipId,
-      itemId: waivedItem.id,
-      status: "waived",
-    });
-    await resolveOnboardingItem({
-      actorPersonId,
-      membershipId,
-      itemId: naItem.id,
-      status: "not_applicable",
-    });
-
-    const reopenedWaived = await resolveOnboardingItem({
-      actorPersonId,
-      membershipId,
-      itemId: waivedItem.id,
-      status: "reopen",
-    });
-    const reopenedNa = await resolveOnboardingItem({
-      actorPersonId,
-      membershipId,
-      itemId: naItem.id,
-      status: "reopen",
-    });
-
-    expect(reopenedWaived.onboardingItems.find((i) => i.id === waivedItem.id)?.status).toBe(
-      "pending",
-    );
-    expect(reopenedNa.onboardingItems.find((i) => i.id === naItem.id)?.status).toBe("pending");
-  });
-
-  it("refuses to reopen a live item — nothing resolved, nothing to reopen", async () => {
-    const membershipId = await givenMembership("onboarding");
-    const item = await firstItem(membershipId);
-
-    const failure = await resolveOnboardingItem({
       actorPersonId,
       membershipId,
       itemId: item.id,
-      status: "reopen",
-    }).catch((error: unknown) => error);
+      status: "waived",
+    });
 
-    expect(isServiceError(failure) && failure.rule).toBe(
-      "onboarding_item_reopen_requires_a_resolved_item",
-    );
+    const membership = await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: item.id,
+      status: "pending",
+    });
+
+    expect(membership.onboardingItems.find((each) => each.id === item.id)?.status).toBe("pending");
+  });
+
+  /**
+   * The one genuinely new capability D-002 (correction round 6) adds: a
+   * *live*, unresolved item (`invited`, `claimed`) can be corrected directly
+   * too, not only a resolved one — there is no separate "reopen" concept
+   * left to restrict to a terminal state in the first place.
+   */
+  it("corrects a live, unresolved item directly — no 'must be resolved first' restriction remains", async () => {
+    const membershipId = await givenMembership("onboarding");
+    const items = (await readMembership(membershipId)).onboardingItems;
+    const bucsPlay = items.find((item) => item.code === "bucs_play")!;
+
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: bucsPlay.id,
+      status: "invited",
+    });
+
+    const membership = await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: bucsPlay.id,
+      status: "pending",
+    });
+
+    expect(membership.onboardingItems.find((i) => i.id === bucsPlay.id)?.status).toBe("pending");
   });
 
   // ---------------------------------------------------------------------
@@ -1150,7 +1183,10 @@ describe("resolveOnboardingItem", () => {
 
   it("writes an append-only history row for every real transition, with actor, date and the state pair", async () => {
     const membershipId = await givenMembership("onboarding");
-    const item = await firstItem(membershipId);
+    // Subscription paid, not the first item — this is the one item whose
+    // own list includes `waived`, and the test wants all three: complete,
+    // corrected back to pending, then waived.
+    const item = await paidItem(membershipId);
 
     await resolveOnboardingItem({
       actorPersonId,
@@ -1158,7 +1194,12 @@ describe("resolveOnboardingItem", () => {
       itemId: item.id,
       status: "complete",
     });
-    await resolveOnboardingItem({ actorPersonId, membershipId, itemId: item.id, status: "reopen" });
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: item.id,
+      status: "pending",
+    });
     await resolveOnboardingItem({
       actorPersonId,
       membershipId,
@@ -1190,8 +1231,8 @@ describe("resolveOnboardingItem", () => {
 
   // B-001 (correction round 2, Brian): "Kit Distributed" (renamed from "Kit
   // sorted") is reduced to yes/no. `waived` and `not_applicable` never apply
-  // to this one item; every other item keeps the full four-resolution set
-  // proved above.
+  // to this one item — nor, as of D-002 (correction round 6), to any other
+  // item but Subscription paid (`waived` only), proved above.
   describe("Kit Distributed is binary — B-001", () => {
     async function kitItem(membershipId: string) {
       const membership = await readMembership(membershipId);
@@ -1233,7 +1274,7 @@ describe("resolveOnboardingItem", () => {
       ).rejects.toMatchObject({ kind: "constraint_violated" });
     });
 
-    it("still moves complete -> pending through the same reopen path every other item uses, just not as a menu option of its own", async () => {
+    it("still moves complete -> pending directly, the same way every other item does now", async () => {
       const membershipId = await givenMembership("onboarding");
       const item = await kitItem(membershipId);
 
@@ -1243,22 +1284,23 @@ describe("resolveOnboardingItem", () => {
         itemId: item.id,
         status: "complete",
       });
-      const reopened = await resolveOnboardingItem({
+      const corrected = await resolveOnboardingItem({
         actorPersonId,
         membershipId,
         itemId: item.id,
-        status: "reopen",
+        status: "pending",
       });
 
-      const updated = reopened.onboardingItems.find((each) => each.id === item.id)!;
+      const updated = corrected.onboardingItems.find((each) => each.id === item.id)!;
       expect(updated.status).toBe("pending");
     });
   });
 
   // D-002 (correction round 3, Q-14, Brian): "Subscription paid" is blank
   // until "Subscription invoiced" is itself complete. "an operator must not
-  // be able to record payment on something never invoiced, and reopening the
-  // invoice must do the right thing to the payment cell."
+  // be able to record payment on something never invoiced, and correcting
+  // the invoice back to Not invoiced must do the right thing to the payment
+  // cell."
   describe("Subscription paid depends on Subscription invoiced — D-002", () => {
     async function itemsFor(membershipId: string) {
       const membership = await readMembership(membershipId);
@@ -1305,7 +1347,7 @@ describe("resolveOnboardingItem", () => {
       expect(updated.status).toBe("complete");
     });
 
-    it("resets an already-recorded payment to pending when the invoice is reopened", async () => {
+    it("resets an already-recorded payment to pending when the invoice is corrected back to Not invoiced", async () => {
       const membershipId = await givenMembership("onboarding");
       const { invoiced, paid } = await itemsFor(membershipId);
       await resolveOnboardingItem({
@@ -1325,7 +1367,7 @@ describe("resolveOnboardingItem", () => {
         actorPersonId,
         membershipId,
         itemId: invoiced.id,
-        status: "reopen",
+        status: "pending",
       });
 
       const updatedInvoiced = membership.onboardingItems.find((each) => each.id === invoiced.id)!;
@@ -1339,7 +1381,7 @@ describe("resolveOnboardingItem", () => {
       expect(history.at(-1)).toMatchObject({ fromStatus: "complete", toStatus: "pending" });
     });
 
-    it("leaves payment alone when the invoice is reopened and payment was never recorded", async () => {
+    it("leaves payment alone when the invoice is corrected back and payment was never recorded", async () => {
       const membershipId = await givenMembership("onboarding");
       const { invoiced, paid } = await itemsFor(membershipId);
       await resolveOnboardingItem({
@@ -1353,13 +1395,50 @@ describe("resolveOnboardingItem", () => {
         actorPersonId,
         membershipId,
         itemId: invoiced.id,
-        status: "reopen",
+        status: "pending",
       });
 
       const updatedPaid = membership.onboardingItems.find((each) => each.id === paid.id)!;
       expect(updatedPaid.status).toBe("pending");
       const history = await withTransaction((tx) => readOnboardingItemHistoryIn(tx, paid.id));
       expect(history).toHaveLength(0);
+    });
+  });
+
+  // D-002 (correction round 6): a derived item completes itself from other
+  // recorded facts and is never editable from here, whichever state is named.
+  describe("Derived items refuse any direct write — D-002", () => {
+    async function derivedItem(membershipId: string, code: string) {
+      const membership = await readMembership(membershipId);
+      return membership.onboardingItems.find((item) => item.code === code)!;
+    }
+
+    it("refuses to set Contact & academic details directly", async () => {
+      const membershipId = await givenMembership("onboarding");
+      const item = await derivedItem(membershipId, "contact_academic_details");
+
+      const failure = await resolveOnboardingItem({
+        actorPersonId,
+        membershipId,
+        itemId: item.id,
+        status: "complete",
+      }).catch((error: unknown) => error);
+
+      expect(isServiceError(failure) && failure.rule).toBe("onboarding_item_derived_not_editable");
+    });
+
+    it("refuses to set Season welcome & consent directly", async () => {
+      const membershipId = await givenMembership("onboarding");
+      const item = await derivedItem(membershipId, "season_welcome_consent");
+
+      const failure = await resolveOnboardingItem({
+        actorPersonId,
+        membershipId,
+        itemId: item.id,
+        status: "complete",
+      }).catch((error: unknown) => error);
+
+      expect(isServiceError(failure) && failure.rule).toBe("onboarding_item_derived_not_editable");
     });
   });
 });

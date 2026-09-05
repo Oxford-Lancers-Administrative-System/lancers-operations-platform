@@ -1113,11 +1113,14 @@ assignRole("defence_coach", defenceCoach, seasonCurrent, "2026-09-01");
 // two read-then-confirm/sign player items, none of which pause in `claimed`
 // awaiting a named human's confirmation.
 /**
- * D-002 (correction round 3, Q-14, WP-operator-record, LAN-217): one draw per
- * item, from exactly the statuses that item's own progression can occupy —
- * mirrored from `allowedItemStatuses` in
- * `src/lib/services/onboarding-item-shapes.ts`. `subsInvoicedStatus` is the
- * one cross-item dependency: Subscription paid is blank — nothing at all —
+ * D-002 (correction round 6, `WP-operator-record`, LAN-217): one draw per
+ * item, from exactly that item's own closed state list — `allowedItemStates`
+ * in `src/lib/services/onboarding-item-shapes.ts` — and nothing outside it.
+ * There is no shared escape hatch any more: `waived` is drawn only for
+ * Subscription paid, and `not_applicable` is drawn nowhere at all, matching
+ * Brian's own exact table rather than the Mission Lead's invented "every
+ * item keeps Waived and Not applicable." `subsInvoicedStatus` is the one
+ * cross-item dependency: Subscription paid is blank — nothing at all —
  * until Subscription invoiced is itself complete.
  *
  * Every branch draws exactly once from `weighted()`, `subs_paid` included —
@@ -1131,59 +1134,58 @@ assignRole("defence_coach", defenceCoach, seasonCurrent, "2026-09-01");
  */
 function weightedStatusFor(code, subsInvoicedStatus) {
   switch (code) {
+    // Invoiced · Not invoiced.
     case "subs_invoiced":
       return weighted([
-        ["complete", 60],
-        ["pending", 20],
-        ["waived", 10],
-        ["not_applicable", 10],
+        ["complete", 65],
+        ["pending", 35],
       ]);
+    // Paid · Waived · Not paid, once invoiced; blank (pending, overridden
+    // below) until then. The one item `waived` still applies to.
     case "subs_paid": {
       const drawn = weighted([
-        ["complete", 60],
-        ["pending", 20],
-        ["waived", 10],
-        ["not_applicable", 10],
+        ["complete", 55],
+        ["waived", 15],
+        ["pending", 30],
       ]);
       return subsInvoicedStatus === "complete" ? drawn : "pending";
     }
-    // B-001: Kit Distributed is binary — never waived, never not applicable.
+    // B-001: Kit Distributed is binary — Yes · No.
     case "kit_sorted":
       return weighted([
         ["complete", 70],
         ["pending", 30],
       ]);
-    // Trust class (`verification_class`): invited by an ask, claimed by the
-    // player's own word, confirmed by the operator's complete.
+    // BUCS Play — Not invited · Invited · Claimed · Confirmed. Four states.
     case "bucs_play":
-    case "hudl_access":
       return weighted([
         ["complete", 40],
-        ["claimed", 15],
+        ["claimed", 20],
         ["invited", 20],
-        ["pending", 15],
-        ["waived", 5],
-        ["not_applicable", 5],
+        ["pending", 20],
       ]);
-    // "Operator ×2" (item-and-ask-inventory.md): not assigned, assigned and
-    // invited, in the group — both steps the operator's own, no `claimed`.
+    // Hudl access — Not invited · Invited · Claimed. Three states only: no
+    // `complete`, genuinely distinct from BUCS Play's own fourth state
+    // (Brian's own table, not a shared "trust-class" progression any more).
+    case "hudl_access":
+      return weighted([
+        ["claimed", 30],
+        ["invited", 30],
+        ["pending", 40],
+      ]);
+    // Comms group — Not assigned · Assigned and invited · In the group.
     case "comms_groups":
       return weighted([
-        ["complete", 55],
+        ["complete", 60],
         ["invited", 20],
-        ["pending", 15],
-        ["waived", 5],
-        ["not_applicable", 5],
+        ["pending", 20],
       ]);
     // Squad photo, Code of Conduct, Photo release, and the two derived items
-    // (Contact & academic details, Season welcome & consent): binary, plus
-    // the operator's waiver escape hatch, never invited or claimed.
+    // (Contact & academic details, Season welcome & consent): plain binary.
     default:
       return weighted([
         ["complete", 70],
-        ["pending", 15],
-        ["waived", 5],
-        ["not_applicable", 10],
+        ["pending", 30],
       ]);
   }
 }
@@ -4714,28 +4716,37 @@ for (const index of BPS_SELECTED_MEMBERSHIP_INDICES) {
   });
 }
 
-// `REQ-reason-free-waive`: the first already-drawn `waived` item stands in for
-// every waiver this file seeds — bar this one, whose reason is cleared. The
-// author (`waived_by_person_id`) stays; only the reason a waiver is never
-// required to carry is the thing being demonstrated absent.
-const reasonFreeWaiver = rows.onboarding_items.find((item) => item.status === "waived");
-if (reasonFreeWaiver) reasonFreeWaiver.waived_reason = null;
-
-// One item, walked through the whole ladder a reopen can reach —
-// complete → reopen → waived → reopen — so the append-only history has a
-// demo state at all. `memberships[1]`'s own BUCS Play item, not `[0]`'s: the
-// two draws are independent, but picking a different membership than the BPS
-// block above keeps each demo scenario legible on its own player rather than
-// stacking three unrelated stories onto one row.
+// One item, walked through complete → corrected back → waived → corrected
+// back again, so the append-only history has a demo state at all. D-002
+// (correction round 6): `waived` is legal on exactly one item now —
+// Subscription paid — so this targets that item rather than BUCS Play, and
+// forces its own Subscription invoiced complete first, the same gating the
+// service itself enforces. `memberships[1]`, not `[0]`: the two draws are
+// independent, but picking a different membership than the BPS block above
+// keeps each demo scenario legible on its own player rather than stacking
+// unrelated stories onto one row.
 const historyMembership = memberships[1];
-const bucsPlayType = itemTypesBySeason[seasonCurrent.id].find((type) => type.code === "bucs_play");
+const subsInvoicedType = itemTypesBySeason[seasonCurrent.id].find(
+  (type) => type.code === "subs_invoiced",
+);
+const subsPaidType = itemTypesBySeason[seasonCurrent.id].find((type) => type.code === "subs_paid");
+const historyInvoicedItem = rows.onboarding_items.find(
+  (item) =>
+    item.season_membership_id === historyMembership.id && item.item_type_id === subsInvoicedType.id,
+);
 const historyItem = rows.onboarding_items.find(
   (item) =>
-    item.season_membership_id === historyMembership.id && item.item_type_id === bucsPlayType.id,
+    item.season_membership_id === historyMembership.id && item.item_type_id === subsPaidType.id,
 );
-if (historyItem) {
-  // The ladder ends on `reopen`, which always writes `pending` — the same
-  // shape `resolveOnboardingItem`'s own cascade already leaves an item in.
+if (historyInvoicedItem && historyItem) {
+  historyInvoicedItem.status = "complete";
+  historyInvoicedItem.completed_on = "2026-10-01";
+  historyInvoicedItem.waived_reason = null;
+  historyInvoicedItem.waived_by_person_id = null;
+  historyInvoicedItem.updated_at = "2026-10-01T09:00:00Z";
+
+  // Ends on a correction back to `pending` — the same shape
+  // `resolveOnboardingItem`'s own cascade already leaves an item in.
   historyItem.status = "pending";
   historyItem.completed_on = null;
   historyItem.waived_reason = null;
@@ -4765,6 +4776,19 @@ if (historyItem) {
   );
   historyRow("waived", "pending", "2026-10-03T15:00:00Z");
 }
+
+// `REQ-reason-free-waive`: the first already-drawn `waived` item (excluding
+// the history demo's own Subscription paid above, which the block just
+// forced back to `pending`) stands in for every waiver this file seeds —
+// bar this one, whose reason is cleared. The author (`waived_by_person_id`)
+// stays; only the reason a waiver is never required to carry is the thing
+// being demonstrated absent. `waived` is legal on exactly one item now
+// (Subscription paid — D-002, correction round 6), so this is always that
+// item on some other membership.
+const reasonFreeWaiver = rows.onboarding_items.find(
+  (item) => item.status === "waived" && item.id !== historyItem?.id,
+);
+if (reasonFreeWaiver) reasonFreeWaiver.waived_reason = null;
 
 // ---------------------------------------------------------------------------
 // Write

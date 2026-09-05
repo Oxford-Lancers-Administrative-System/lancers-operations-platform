@@ -318,12 +318,14 @@ function historyItem(
   };
 }
 
-describe("W6 — the resolve control's own Reopen option", () => {
-  // D-002 (Q-14): "complete" reads in BUCS Play's own word ("Confirmed" —
-  // "invited, claimed, confirmed"), never the generic "Complete" this fixture
-  // used to assert — proving the option label is item-specific, not a flat
-  // map, is the whole point of this correction round.
-  it("offers Reopen alongside the shipped three resolutions", async () => {
+// D-002 (correction round 6): there is no separate "resolution" vocabulary
+// and no "Reopen" verb any more — the resolve control offers exactly the
+// item's own states, Brian's exact words, and corrects a mistake by
+// choosing a different one of them directly. The Mission Lead's previous
+// brief inventing a shared "Waived/Not applicable/Reopen" escape hatch on
+// every item was never Brian's decision.
+describe("W6 — the resolve control offers each item's own states, nothing else", () => {
+  it("offers BUCS Play's own four states, never Waived, Not applicable or Reopen", async () => {
     givenRecord({ onboardingItems: [historyItem({ status: "complete" })] });
     render(await PlayerRecordPage(pageProps()));
 
@@ -334,12 +336,15 @@ describe("W6 — the resolve control's own Reopen option", () => {
     fireEvent.click(within(row).getByTestId("editable-field"));
 
     expect(await screen.findByRole("option", { name: "Confirmed" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Waived" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Not applicable" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Reopen" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Invited" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Claimed" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Not invited" })).toBeInTheDocument();
+    for (const forbidden of ["Waived", "Not applicable", "Reopen", "Complete"]) {
+      expect(screen.queryByRole("option", { name: forbidden })).not.toBeInTheDocument();
+    }
   });
 
-  it("reopens an item with one click and no reason field, and shows the error the service refuses a live item's reopen with", async () => {
+  it("corrects a resolved item back to its own off state with one click — no separate reopen verb, no reason field", async () => {
     givenRecord({ onboardingItems: [historyItem({ status: "complete" })] });
     render(await PlayerRecordPage(pageProps()));
 
@@ -348,22 +353,44 @@ describe("W6 — the resolve control's own Reopen option", () => {
       .closest('[data-testid="record-row"]') as HTMLElement;
     const { fireEvent, act } = await import("@testing-library/react");
     fireEvent.click(within(row).getByTestId("editable-field"));
-    await act(async () => fireEvent.click(await screen.findByRole("option", { name: "Reopen" })));
+    await act(async () =>
+      fireEvent.click(await screen.findByRole("option", { name: "Not invited" })),
+    );
 
     expect(recordResolveOnboardingItemAction).toHaveBeenCalledWith({
       membershipId: MEMBERSHIP_ID,
       itemId: "item-1",
-      status: "reopen",
+      status: "pending",
     });
     expect(screen.queryByTestId("onboarding-waiver-reason")).not.toBeInTheDocument();
   });
+});
 
+// D-002: `waived` is offered by exactly one item's own list — Subscription
+// paid — so this row needs Subscription invoiced complete alongside it
+// (the same blank-until-invoiced gating every other suite proves).
+describe("W6 — Subscription paid is the one item Waived applies to", () => {
   it("saves a waiver with no reason field drawn at all — the reason stops being solicited", async () => {
-    givenRecord({ onboardingItems: [historyItem({ status: "pending" })] });
+    givenRecord({
+      onboardingItems: [
+        historyItem({
+          id: "item-invoiced",
+          code: "subs_invoiced",
+          label: "Subscription invoiced",
+          status: "complete",
+        }),
+        historyItem({
+          id: "item-paid",
+          code: "subs_paid",
+          label: "Subscription paid",
+          status: "pending",
+        }),
+      ],
+    });
     render(await PlayerRecordPage(pageProps()));
 
     const row = screen
-      .getByText("BUCS Play registration")
+      .getByText("Subscription paid")
       .closest('[data-testid="record-row"]') as HTMLElement;
     const { fireEvent, act } = await import("@testing-library/react");
     fireEvent.click(within(row).getByTestId("editable-field"));
@@ -371,7 +398,7 @@ describe("W6 — the resolve control's own Reopen option", () => {
 
     expect(recordResolveOnboardingItemAction).toHaveBeenCalledWith({
       membershipId: MEMBERSHIP_ID,
-      itemId: "item-1",
+      itemId: "item-paid",
       status: "waived",
     });
     expect(screen.queryByLabelText(/Why is this waived/)).not.toBeInTheDocument();
@@ -380,8 +407,7 @@ describe("W6 — the resolve control's own Reopen option", () => {
 
 // B-001 (correction round 2, Brian): "Kit sorted" is renamed "Kit
 // Distributed" and reduced to yes/no — no waived, no claimed, no reopen
-// offered on this one item; every other item keeps the full set proved
-// above.
+// offered on this one item, same as every other binary item now.
 describe("B-001 — Kit Distributed is binary", () => {
   it("shows Yes/No only, never Waived or Not applicable or a Reopen option", async () => {
     givenRecord({
@@ -405,7 +431,7 @@ describe("B-001 — Kit Distributed is binary", () => {
     }
   });
 
-  it("answering No commits through the same resolveOnboardingItem reopen path, with no reason field", async () => {
+  it("answering No commits pending directly — no separate reopen verb, no reason field", async () => {
     givenRecord({
       onboardingItems: [
         historyItem({ code: "kit_sorted", label: "Kit Distributed", status: "complete" }),
@@ -423,7 +449,7 @@ describe("B-001 — Kit Distributed is binary", () => {
     expect(recordResolveOnboardingItemAction).toHaveBeenCalledWith({
       membershipId: MEMBERSHIP_ID,
       itemId: "item-1",
-      status: "reopen",
+      status: "pending",
     });
     expect(screen.queryByTestId("onboarding-waiver-reason")).not.toBeInTheDocument();
   });
@@ -556,7 +582,7 @@ describe("W6 — provenance: who and when, from the item's own history", () => {
     givenRecord({
       onboardingItems: [
         historyItem({
-          code: "subscription_paid",
+          code: "subs_paid",
           label: "Subscription paid",
           status: "pending",
           history: [
@@ -585,8 +611,8 @@ describe("W6 — provenance: who and when, from the item's own history", () => {
     const row = screen
       .getByText("Subscription paid")
       .closest('[data-testid="record-row"]') as HTMLElement;
-    expect(row.textContent).toContain("Reopened by Caspian Hallowfield");
-    expect(row.textContent).toContain("waived");
+    expect(row.textContent).toContain("Set to Not paid by Caspian Hallowfield");
+    expect(row.textContent).toContain("Waived");
   });
 });
 

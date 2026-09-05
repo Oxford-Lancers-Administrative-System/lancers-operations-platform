@@ -1,5 +1,5 @@
 import { roleCodesPermit } from "@/lib/auth/capabilities";
-import { allowedItemResolutions } from "@/lib/services/onboarding-item-shapes";
+import { allowedItemStates } from "@/lib/services/onboarding-item-shapes";
 import type { PositionOptions, RosterBoardRow } from "@/lib/services/roster-board";
 import { MEMBERSHIP_STATUS_LABELS } from "./presentation";
 
@@ -102,12 +102,11 @@ export function bandOf(key: Band): BandDef {
 /**
  * `onboarding` joined under correction round 2, item 5
  * (`WP-operator-record`, LAN-217): one of the seven operator-ticked
- * onboarding items, cloning the record page's own asymmetric row — the
- * closed cell shows the item's real status (`Pending`/`Claimed`/…), the open
- * one offers the resolution words (`complete`/`waived`/`not_applicable`/
- * `reopen`) rather than the status vocabulary itself, exactly as
- * `record-view.tsx`'s `OnboardingRow` already does, because the two are not
- * the same set (`reopen` is an action, not a status a row can be *in*).
+ * onboarding items, cloning the record page's own asymmetric row. D-002
+ * (correction round 6) collapsed the closed cell's displayed status and the
+ * open cell's offered choices into one list, `allowedItemStates(itemCode)` —
+ * there is no separate resolution vocabulary any more, and no `reopen`: the
+ * open dropdown offers exactly the states the closed cell can show.
  */
 export type EditKind = "none" | "record" | "select" | "multiselect" | "jersey" | "onboarding";
 
@@ -260,7 +259,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       band: "onboarding",
       edit: "onboarding",
       itemCode: "subs_invoiced",
-      options: allowedItemResolutions("subs_invoiced"),
+      options: allowedItemStates("subs_invoiced"),
       width: 132,
       sortable: true,
       filterable: true,
@@ -272,7 +271,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       band: "onboarding",
       edit: "onboarding",
       itemCode: "subs_paid",
-      options: allowedItemResolutions("subs_paid"),
+      options: allowedItemStates("subs_paid"),
       width: 132,
       sortable: true,
       filterable: true,
@@ -284,7 +283,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       band: "onboarding",
       edit: "onboarding",
       itemCode: "kit_sorted",
-      options: allowedItemResolutions("kit_sorted"),
+      options: allowedItemStates("kit_sorted"),
       width: 120,
       sortable: true,
       filterable: true,
@@ -296,7 +295,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       band: "onboarding",
       edit: "onboarding",
       itemCode: "bucs_play",
-      options: allowedItemResolutions("bucs_play"),
+      options: allowedItemStates("bucs_play"),
       width: 132,
       sortable: true,
       filterable: true,
@@ -308,7 +307,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       band: "onboarding",
       edit: "onboarding",
       itemCode: "hudl_access",
-      options: allowedItemResolutions("hudl_access"),
+      options: allowedItemStates("hudl_access"),
       width: 132,
       sortable: true,
       filterable: true,
@@ -320,7 +319,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       band: "onboarding",
       edit: "onboarding",
       itemCode: "photo",
-      options: allowedItemResolutions("photo"),
+      options: allowedItemStates("photo"),
       width: 132,
       sortable: true,
       filterable: true,
@@ -332,7 +331,7 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       band: "onboarding",
       edit: "onboarding",
       itemCode: "comms_groups",
-      options: allowedItemResolutions("comms_groups"),
+      options: allowedItemStates("comms_groups"),
       width: 140,
       sortable: true,
       filterable: true,

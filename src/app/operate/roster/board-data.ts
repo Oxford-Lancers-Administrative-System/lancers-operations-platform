@@ -1,4 +1,4 @@
-import { itemResolutionLabel } from "@/lib/services/onboarding-item-shapes";
+import { itemStateLabel } from "@/lib/services/onboarding-item-shapes";
 import type { OnboardingItemStatus } from "@/lib/services/membership";
 import type { RosterBoardRow } from "@/lib/services/roster-board";
 import {
@@ -156,16 +156,13 @@ function optionLabel(column: ColumnDef, code: string): string {
   if (column.key === "eligibility") return labelFor(ELIGIBILITY_LABELS, code);
   if (column.key === "availability") return labelFor(AVAILABILITY_LABELS, code);
   if (column.key === "formalwear") return labelFor(FORMALWEAR_LABELS, code);
-  // Correction round 2, item 5, wired to the per-item model at correction
-  // round 4 (D-002, `WP-operator-record`, LAN-217). `code` is either a real
-  // `OnboardingItemStatus` (the closed cell, and the filter popover, both
-  // built from `rawValue`'s actual stored status) or one of the resolution
-  // words this item's own control offers (`allowedItemResolutions` in
-  // `onboarding-item-shapes.ts`) — `itemResolutionLabel` is the one function
-  // that reads both vocabularies for one item, so the offered set and the
-  // displayable set cannot answer that question two different ways again.
+  // D-002 (correction round 6, `WP-operator-record`, LAN-217): `code` is
+  // always a real `OnboardingItemStatus` now — the closed cell, the filter
+  // popover and the open dropdown's own menu items all read from the one
+  // list `allowedItemStates` names, so there is no second, "resolution"
+  // vocabulary any more for this to reconcile.
   if (column.edit === "onboarding") {
-    return itemResolutionLabel(column.itemCode ?? "", code as OnboardingItemStatus | "reopen");
+    return itemStateLabel(column.itemCode ?? "", code as OnboardingItemStatus);
   }
   return column.optionLabels?.[code] ?? code;
 }
@@ -177,10 +174,11 @@ export function filterOptions(
 ): readonly string[] {
   if (column.key === "missing") return ["Yes", "No"];
   if (column.key === "contactable") return ["Has mobile", "Has email", "Neither"];
-  // Correction round 2, item 5: an onboarding column's `options` is the open
-  // edit dropdown's resolution words, not the status vocabulary `rawValue`
-  // returns — the filter has to offer the latter, derived from the data
-  // below, the same way every column with no fixed `options` already does.
+  // Correction round 2, item 5: the filter offers exactly the states that
+  // appear in the current data, derived below, the same way every column
+  // with no fixed `options` already does — `column.options` (the open
+  // dropdown's own list) and `rawValue`'s stored status are now the same
+  // vocabulary, but the filter still only offers values actually present.
   if (column.options && column.edit !== "onboarding") return [...column.options];
 
   const seen = new Set<string>();

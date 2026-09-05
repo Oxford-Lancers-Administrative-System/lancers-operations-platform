@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowedItemResolutions, allowedItemStatuses } from "@/lib/services/onboarding-item-shapes";
+import { allowedItemStates } from "@/lib/services/onboarding-item-shapes";
 import type { RosterBoardRow } from "@/lib/services/roster-board";
 import { buildColumns, redactRow, visibleColumns } from "./board-columns";
 
@@ -149,13 +149,14 @@ describe("buildColumns — column order (correction round 5)", () => {
 });
 
 /**
- * D-002 (correction round 5): the actual defect — every onboarding column's
- * offered set must come from `onboarding-item-shapes.ts`, per item, never a
- * hardcoded list beside it. This fails immediately if a column's `options`
- * is ever replaced with a literal array again, because a hardcoded list here
- * would have to coincidentally reproduce every item's own shape to pass.
+ * D-002 (correction round 6): the actual defect — every onboarding column's
+ * offered set IS its own item's displayable set, `allowedItemStates`, and
+ * nothing else. There is no second, wider "resolution" vocabulary any more
+ * for a column's `options` to have accidentally kept reading, which is
+ * exactly how BUCS Play kept offering "Waived · Not applicable · Reopen"
+ * after round 5's own fix: the words changed, the underlying list did not.
  */
-describe("buildColumns — every onboarding column's offered set comes from the shared model (D-002)", () => {
+describe("buildColumns — every onboarding column's offered set IS its own item's displayable set (D-002)", () => {
   const ONBOARDING_COLUMN_ITEM_CODES: Readonly<Record<string, string>> = {
     subsInvoiced: "subs_invoiced",
     subsPaid: "subs_paid",
@@ -166,32 +167,31 @@ describe("buildColumns — every onboarding column's offered set comes from the 
     commsGroup: "comms_groups",
   };
 
-  it("gives each onboarding column exactly its own item's allowedItemResolutions — never one shared list", () => {
+  it("gives each onboarding column exactly its own item's allowedItemStates — never a shared list", () => {
     const columns = buildColumns(POSITION_OPTIONS);
     for (const [columnKey, itemCode] of Object.entries(ONBOARDING_COLUMN_ITEM_CODES)) {
       const column = columns.find((candidate) => candidate.key === columnKey)!;
       expect(column.edit).toBe("onboarding");
       expect(column.itemCode).toBe(itemCode);
-      expect(column.options).toEqual(allowedItemResolutions(itemCode));
+      expect(column.options).toEqual(allowedItemStates(itemCode));
     }
 
-    // Kit Distributed's own binary reduction is proof the columns are not
-    // all reading one shared array: its options genuinely differ from every
-    // sibling's.
-    const kit = columns.find((column) => column.key === "kitDistributed")!;
+    // BUCS Play and Hudl access are proof the columns are not all reading
+    // one shared array any more: Brian's own table gives them genuinely
+    // different lists (four states against three), not just different words
+    // painted over the same four.
     const bucs = columns.find((column) => column.key === "bucsPlay")!;
-    expect(kit.options).not.toEqual(bucs.options);
+    const hudl = columns.find((column) => column.key === "hudlAccess")!;
+    expect(bucs.options).not.toEqual(hudl.options);
   });
 
-  it("proves the offered set is never wider than the item's own allowedItemStatuses — no resolution reaches a status the item cannot occupy", () => {
+  it("offers reopen, waived (outside Subscription paid), or not_applicable nowhere", () => {
     const columns = buildColumns(POSITION_OPTIONS);
     for (const [columnKey, itemCode] of Object.entries(ONBOARDING_COLUMN_ITEM_CODES)) {
       const column = columns.find((candidate) => candidate.key === columnKey)!;
-      const statuses = allowedItemStatuses(itemCode);
-      for (const resolution of column.options ?? []) {
-        if (resolution === "reopen") continue;
-        expect(statuses).toContain(resolution);
-      }
+      expect(column.options).not.toContain("not_applicable");
+      expect(column.options).not.toContain("reopen" as never);
+      if (itemCode !== "subs_paid") expect(column.options).not.toContain("waived");
     }
   });
 });

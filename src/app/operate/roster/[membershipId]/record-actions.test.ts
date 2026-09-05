@@ -80,10 +80,15 @@ beforeEach(() => {
 });
 
 describe("recordResolveOnboardingItemAction", () => {
-  const RESOLUTIONS = ["complete", "waived", "not_applicable", "reopen"] as const;
+  // D-002 (correction round 6): an operator now names the item's own target
+  // state directly — there is no separate resolution vocabulary and no
+  // `reopen`. This gate is about *who* may call the action at all, not which
+  // item allows which state (that is `resolveOnboardingItem`'s own job,
+  // proved in `membership.test.ts`), so any real states exercise it.
+  const STATES = ["complete", "pending", "invited", "claimed"] as const;
 
   for (const role of FOUR_ROLE) {
-    for (const status of RESOLUTIONS) {
+    for (const status of STATES) {
       it(`lets the ${role} resolve an item to ${status}`, async () => {
         givenAccess({ state: "active", operator: actor([role]) });
 
@@ -105,7 +110,7 @@ describe("recordResolveOnboardingItemAction", () => {
     }
   }
 
-  for (const status of RESOLUTIONS) {
+  for (const status of STATES) {
     it(`refuses the kit_manager resolving an item to ${status}, and never reaches the service`, async () => {
       givenAccess({ state: "active", operator: actor(["kit_manager"]) });
 

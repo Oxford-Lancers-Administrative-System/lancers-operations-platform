@@ -21,7 +21,7 @@ import {
   type Kit,
   type PositionColumn,
 } from "@/lib/services/roster-board";
-import { resolveOnboardingItem, type OnboardingItemResolution } from "@/lib/services/membership";
+import { resolveOnboardingItem, type OnboardingItemStatus } from "@/lib/services/membership";
 import type { BoardActionState } from "./board-action-state";
 
 /**
@@ -190,7 +190,7 @@ export async function commitAvailabilityAction(params: {
 export async function commitOnboardingItemAction(params: {
   membershipId: string;
   itemId: string;
-  status: OnboardingItemResolution;
+  status: OnboardingItemStatus;
 }): Promise<BoardActionState> {
   const operator = await requireCapability("person_record_authority");
   try {

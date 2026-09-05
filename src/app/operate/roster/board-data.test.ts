@@ -61,6 +61,7 @@ const SUBS_PAID_COLUMN = COLUMNS.find((c) => c.key === "subsPaid")!;
 const SUBS_INVOICED_COLUMN = COLUMNS.find((c) => c.key === "subsInvoiced")!;
 const KIT_DISTRIBUTED_COLUMN = COLUMNS.find((c) => c.key === "kitDistributed")!;
 const BUCS_PLAY_COLUMN = COLUMNS.find((c) => c.key === "bucsPlay")!;
+const HUDL_ACCESS_COLUMN = COLUMNS.find((c) => c.key === "hudlAccess")!;
 
 describe("applyBoard — search, filter and sort together", () => {
   const rows = [
@@ -314,18 +315,36 @@ describe("displayOf / optionListLabel — the board reads each item's own word (
     ).toBe("No");
   });
 
-  it("offers Kit Distributed's reopen as No in the open dropdown, never the generic Reopen", () => {
-    expect(optionListLabel(KIT_DISTRIBUTED_COLUMN, "reopen")).toBe("No");
-    expect(optionListLabel(BUCS_PLAY_COLUMN, "reopen")).toBe("Reopen");
+  it("never offers Reopen — correcting a mistake is choosing a different one of the item's own states", () => {
+    for (const value of ["complete", "pending", "invited", "claimed"]) {
+      expect(optionListLabel(BUCS_PLAY_COLUMN, value)).not.toBe("Reopen");
+    }
+    expect(BUCS_PLAY_COLUMN.options).not.toContain("reopen" as never);
+  });
+
+  it("gives Hudl access three states and BUCS Play four — no Confirmed on Hudl", () => {
+    expect(HUDL_ACCESS_COLUMN.options).toEqual(["pending", "invited", "claimed"]);
+    expect(BUCS_PLAY_COLUMN.options).toEqual(["pending", "invited", "claimed", "complete"]);
+  });
+
+  it("offers Waived nowhere but Subscription paid", () => {
+    for (const column of [SUBS_INVOICED_COLUMN, KIT_DISTRIBUTED_COLUMN, BUCS_PLAY_COLUMN]) {
+      expect(column.options).not.toContain("waived");
+    }
+    expect(SUBS_PAID_COLUMN.options).toContain("waived");
   });
 
   it("throws rather than silently rendering a status this item's own model says it cannot occupy", () => {
-    // This is Brian's exact defect, made structurally impossible: Sub
-    // invoiced can never be "invited" — a hardcoded label map would happily
-    // print a word for it anyway, so this only stays passing while the board
-    // reads `itemStatusLabel`'s guard instead.
+    // This is Brian's exact defect, made structurally impossible twice over:
+    // first "Invited" on a yes/no item, then the old resolution vocabulary
+    // (Waived/Not applicable/Reopen) painted over an item's own states. A
+    // hardcoded label map would happily print a word for either anyway, so
+    // this only stays passing while the board reads `itemStateLabel`'s guard
+    // instead.
     const corrupted = row({ onboardingItems: { subs_invoiced: { id: "i1", status: "invited" } } });
     expect(() => displayOf(corrupted, SUBS_INVOICED_COLUMN)).toThrow();
+    const overReached = row({ onboardingItems: { hudl_access: { id: "i1", status: "complete" } } });
+    expect(() => displayOf(overReached, HUDL_ACCESS_COLUMN)).toThrow();
   });
 });
 

@@ -26,7 +26,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { roleCodesPermit } from "@/lib/auth/capabilities";
-import type { MembershipStatus } from "@/lib/services/membership";
+import type { MembershipStatus, OnboardingItemStatus } from "@/lib/services/membership";
 import type {
   RosterBoardRow,
   PositionColumn,
@@ -333,7 +333,7 @@ export default function RosterBoard({
               commitOnboardingItemAction({
                 membershipId: row.membershipId,
                 itemId: item.id,
-                status: next as "complete" | "waived" | "not_applicable" | "reopen",
+                status: next as OnboardingItemStatus,
               }),
             );
             return;

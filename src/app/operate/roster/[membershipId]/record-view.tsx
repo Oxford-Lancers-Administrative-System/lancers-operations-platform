@@ -15,12 +15,12 @@ import Typography from "@mui/material/Typography";
 import type {
   MembershipStatus,
   MembershipStatusEvent,
-  OnboardingItemResolution,
+  OnboardingItemStatus,
 } from "@/lib/services/membership";
 import {
-  allowedItemResolutions,
-  itemResolutionLabel,
-  itemStatusLabel,
+  allowedItemStates,
+  isDerivedItem,
+  itemStateLabel,
   SUBS_INVOICED_ITEM_CODE,
   SUBS_PAID_ITEM_CODE,
 } from "@/lib/services/onboarding-item-shapes";
@@ -80,17 +80,14 @@ import {
 } from "./record-actions";
 
 /**
- * This row's own resolution set is `allowedItemResolutions(item.code)`, and
- * its own words are `itemStatusLabel(item.code, status)` — D-002 (correction
- * round 3, Q-14; wired here at correction round 5): the offered set and the
- * displayable set are one thing, derived per item from
- * `onboarding-item-shapes.ts`, so the two cannot drift apart again and no
- * item keeps a hardcoded exception of its own (Kit Distributed's own binary
- * reduction, B-001, correction round 2, now lives in that one shared module
- * like every other item's shape). `reopen` reaches the item's ordinary
- * `pending` — the service itself is what refuses a `reopen` on an item that
- * is not in a terminal state (`R4-T`), surfaced through this row's existing
- * error slot.
+ * This row's own state list is `allowedItemStates(item.code)`, and its own
+ * words are `itemStateLabel(item.code, status)` — D-002 (correction round 6,
+ * `WP-operator-record`, LAN-217): one list, both what the closed cell shows
+ * and what the open control offers, so the two cannot say something
+ * different again. There is no separate resolution vocabulary and no
+ * `reopen` — an operator corrects a mistake by choosing a different one of
+ * the item's own states directly, the service refusing anything outside that
+ * item's own list. A derived item (`isDerivedItem`) offers no control at all.
  */
 
 /**
@@ -253,7 +250,7 @@ export default function PlayerRecordView({
     });
   }
 
-  function resolveOnboardingItem(item: OnboardingItemDisplay, status: OnboardingItemResolution) {
+  function resolveOnboardingItem(item: OnboardingItemDisplay, status: OnboardingItemStatus) {
     startTransition(() => {
       void runCommit(`item:${item.id}`, () =>
         recordResolveOnboardingItemAction({
@@ -936,17 +933,20 @@ function FormalwearField({
  * One onboarding item — provenance shown, edited the same way as every other
  * season value. `REQ-player-detail`: "no Resolve/SAVE pair anywhere."
  *
- * Every resolution commits the moment it is chosen, exactly like every other
- * in-place edit — waived included. `WP-operator-record` (LAN-217) retired the
- * reason field this row used to open on Waived: `REQ-reason-free-waive`
- * supersedes the schema's old `onboarding_items_waiver_is_justified`
- * constraint (unwound by the substrate, LAN-214), the author stays mandatory
- * and is supplied by the verified operator this gate resolves, and `W6-02`'s
- * approved screen shows no reason field to keep. `Reopen` is the one option
- * `R2-R` adds to this same `Select`, offered unconditionally; the service
- * itself refuses a `reopen` on an item that is not already resolved, and that
- * refusal surfaces through this row's own error slot exactly as any other
- * refused edit does.
+ * Every state commits the moment it is chosen, exactly like every other
+ * in-place edit — Waived (Subscription paid only) included.
+ * `WP-operator-record` (LAN-217) retired the reason field this row used to
+ * open on Waived: `REQ-reason-free-waive` supersedes the schema's old
+ * `onboarding_items_waiver_is_justified` constraint (unwound by the
+ * substrate, LAN-214), the author stays mandatory and is supplied by the
+ * verified operator this gate resolves, and `W6-02`'s approved screen shows
+ * no reason field to keep.
+ *
+ * D-002 (correction round 6): there is no separate `Reopen` option any more
+ * — an operator corrects a mistake by choosing a different one of the
+ * item's own states directly, from any current state. A derived item
+ * (`isDerivedItem`) renders with no control at all: nothing to open, and the
+ * service itself refuses any attempt to set one directly.
  */
 function OnboardingRow({
   item,
@@ -962,23 +962,22 @@ function OnboardingRow({
   editing: boolean;
   readOnly: boolean;
   /**
-   * D-002 (correction round 3, Q-14): "Subscription paid" is blank — nothing
-   * at all — until "Subscription invoiced" is itself complete. No control
-   * opens; the item's own stored `pending` (there is nothing else it could
-   * be, since the service refuses the write that would change it) reads as
-   * `NotRecorded`, the same as any other genuinely absent value on this page.
+   * D-002 (Q-14): "Subscription paid" is blank — nothing at all — until
+   * "Subscription invoiced" is itself complete. No control opens; the item's
+   * own stored `pending` (there is nothing else it could be, since the
+   * service refuses the write that would change it) reads as `NotRecorded`,
+   * the same as any other genuinely absent value on this page.
    */
   blank?: boolean;
   error: string | null;
   onOpen: () => void;
   onClose: () => void;
-  onResolve: (status: OnboardingItemResolution) => void;
+  onResolve: (status: OnboardingItemStatus) => void;
 }) {
-  const editable = !readOnly && !blank;
-  const resolutions = allowedItemResolutions(item.code);
-  const closedLabel = itemStatusLabel(item.code, item.status);
-  const optionLabel = (status: (typeof resolutions)[number]): string =>
-    itemResolutionLabel(item.code, status);
+  const derived = isDerivedItem(item.code);
+  const editable = !readOnly && !blank && !derived;
+  const states = allowedItemStates(item.code);
+  const closedLabel = itemStateLabel(item.code, item.status);
 
   return (
     <Row label={item.label} note={provenanceNote(item)}>
@@ -1000,13 +999,13 @@ function OnboardingRow({
           value=""
           displayEmpty
           onClose={onClose}
-          onChange={(event) => onResolve(event.target.value as OnboardingItemResolution)}
+          onChange={(event) => onResolve(event.target.value as OnboardingItemStatus)}
           renderValue={() => closedLabel}
           sx={{ minWidth: 220 }}
         >
-          {resolutions.map((status) => (
+          {states.map((status) => (
             <MenuItem key={status} value={status}>
-              {optionLabel(status)}
+              {itemStateLabel(item.code, status)}
             </MenuItem>
           ))}
         </Select>
@@ -1047,16 +1046,6 @@ function OnboardingRow({
     </Row>
   );
 }
-
-/** The past-tense verb `provenanceNote`'s trailing summary uses for an earlier transition. */
-const TRANSITION_VERB: Readonly<Record<string, string>> = Object.freeze({
-  complete: "completed",
-  waived: "waived",
-  not_applicable: "marked not applicable",
-  pending: "reopened",
-  claimed: "claimed",
-  invited: "invited",
-});
 
 function shortDay(occurredAt: Date): string {
   return formatDay(occurredAt.toISOString().slice(0, 10));
@@ -1101,11 +1090,11 @@ function provenanceNote(item: OnboardingItemDisplay): string | undefined {
         ? `Waived by ${who}, ${when} — ${latest.reason}`
         : `Waived by ${who}, ${when}`;
       break;
-    case "not_applicable":
-      head = `Marked not applicable by ${who}, ${when}`;
-      break;
+    // D-002 (correction round 6): no "Reopen" verb, on this row or anywhere
+    // else — a transition back to the item's own off state (`pending`) is
+    // named the same way any other transition is, in the item's own word.
     case "pending":
-      head = `Reopened by ${who}, ${when}`;
+      head = `Set to ${itemStateLabel(item.code, "pending")} by ${who}, ${when}`;
       break;
     case "claimed":
       head = `${who}, ${when} · awaiting confirmation`;
@@ -1137,7 +1126,7 @@ function provenanceNote(item: OnboardingItemDisplay): string | undefined {
   const previous = history[history.length - 2];
   if (previous === folded) return head;
 
-  const previousWord = TRANSITION_VERB[previous.toStatus] ?? previous.toStatus;
+  const previousWord = itemStateLabel(item.code, previous.toStatus);
   const earlierCount = history.length - 2;
   const earlierSuffix =
     earlierCount > 0 ? ` · ${earlierCount} earlier change${earlierCount === 1 ? "" : "s"}` : "";

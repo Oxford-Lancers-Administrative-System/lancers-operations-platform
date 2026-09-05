@@ -392,13 +392,13 @@ describe("readPlayerRecord — per-item history and the activity log, named", ()
       actorPersonId,
       membershipId,
       itemId: item.id,
-      status: "not_applicable",
+      status: "complete",
     });
     await resolveOnboardingItem({
       actorPersonId,
       membershipId,
       itemId: item.id,
-      status: "reopen",
+      status: "pending",
     });
 
     const actorName = await observer.query<{ name: string }>(
@@ -413,8 +413,8 @@ describe("readPlayerRecord — per-item history and the activity log, named", ()
     const resolved = data.onboardingItems.find((entry) => entry.id === item.id)!;
 
     expect(resolved.history.map((entry) => [entry.fromStatus, entry.toStatus])).toEqual([
-      ["pending", "not_applicable"],
-      ["not_applicable", "pending"],
+      ["pending", "complete"],
+      ["complete", "pending"],
     ]);
     for (const entry of resolved.history) {
       expect(entry.actorKind).toBe("operator");
