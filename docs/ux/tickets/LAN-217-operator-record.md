@@ -142,6 +142,34 @@ and `formalwear_records` already work on the same board. It is a `bps`
 column on the roster board only, never an onboarding item: it does not touch
 `onboarding_item_types`, `generateOnboardingItems`, or any checklist count.
 
+**The roster board's seven onboarding columns, and their per-item words
+(`onboarding-item-shapes.ts`, `board-columns.ts`, `board-data.ts`,
+`record-view.tsx`).** Correction round 2 cloned the seven operator-ticked
+items (Subscription invoiced, Subscription paid, Kit Distributed, BUCS Play,
+Hudl access, Squad photo, Comms group) onto the board as columns, each
+committing through `resolveOnboardingItem` exactly as the record page's own
+row does. Brian's second walkthrough (`Q-14`, correction round 3) found the
+column offering and displaying statuses its own item could never actually
+occupy ("Invited" on Sub invoiced, Sub paid and Squad photo) and named the
+word each item should show instead — settled in this correction round
+(round 5): `itemStatusLabel`/`itemResolutionLabel` in
+`onboarding-item-shapes.ts` are the one place both the board and the record
+page read a status's word from, per item — "Invoiced"/"Not invoiced" for
+Subscription invoiced (never the generic "Complete" the board showed
+before), "Paid"/"Not paid" for Subscription paid, "Yes"/"No" for Kit
+Distributed and Squad photo, "Not assigned"/"Assigned and invited"/"In the
+group" for Comms group, "Not invited"/"Invited"/"Claimed"/"Confirmed" for
+BUCS Play and Hudl access, and "Not signed"/"Signed" for Code of Conduct and
+Photo release (record page only — the two are player-signed, not
+operator-ticked, so they are not board columns). `Waived`/`Not applicable`
+stay the shared escape-hatch words on every item but Kit Distributed, which
+alone has none; `Reopen` reads as the generic word everywhere except Kit
+Distributed's own two-state control, which reads it as "No" rather than a
+third word for what its own "No" already says.
+
+**Column order (Brian, 2026-09-05).** BPS sits immediately before
+Availability, and Availability is the last column on the board.
+
 **T07-merge-precedence (`person-merge.ts`, `merge-comparison.tsx`).**
 `season_messaging_consents` is unique on `(person_id, season_id)`; merging
 two people who both hold a consent row for the same season must choose one,
