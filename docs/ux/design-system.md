@@ -1,8 +1,15 @@
 # Design system — the visual target
 
-Status: **approved**. Approved by Brian on 4 September 2026, at desktop and
+Status: **approved for the operator surfaces; the player surfaces await a
+second look.** Brian approved the direction on 4 September 2026, at desktop and
 375px, against head `e86ba7d` on the mockup branch `chore/lan-225-design-mockup`
 ([PR #146](https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/pull/146)).
+That approval covered the audit brief's eight screens. LAN-225's addendum of
+5 September added the nine player-facing routes — audited in
+[`review/design-mockup-2026-09/player-surfaces.md`](review/design-mockup-2026-09/player-surfaces.md),
+three of them mocked up — and §7 below is what came out of that. Approving the
+first eight did not approve those three; that is a separate visual acceptance
+against the branch's current head.
 Applies to: every user-facing surface, once the implementation mission lands.
 Sits beside: [`standards.md`](standards.md) (the seven rules), which this page
 never contradicts; [`slice-ux.md`](slice-ux.md) (routes, vocabulary, states),
@@ -122,24 +129,25 @@ club palette when that surface is migrated; it is not a status and never a
 `src/components/`. One line each: what it is for. Every entry replaces the
 local copies the audit inventory names; none is a wrapper for its own sake.
 
-| Component                                                       | Use it when                                                                                                                                              |
-| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PageHeader`, `BackLink`                                        | Every page's one heading: title, subtitle, the parent as "Back to <place>" above it, actions top right.                                                  |
-| `Section`                                                       | A card with a heading. `plain` for panels and forms; `banded` for record surfaces (bands: person, season, recruitment, onboarding, attendance, history). |
-| `Fact`, `FactGrid`, `FactList`                                  | A labelled value. `stacked` in cards and public pages, `inline` in record sections; absent renders _not recorded_; `provenance` only when known.         |
-| `Metric`, `MetricRow`                                           | A headline number, or a status where the headline is a state.                                                                                            |
-| `StatusChip`                                                    | Any status. Reads §4; never colour without the word.                                                                                                     |
-| `Notice`                                                        | An outcome, a refusal (`variant="refusal"`), or a condition the reader must know now. Never standing guidance.                                           |
-| `OutcomeSlot`                                                   | A screen with more than one action: one result at a time (rule 1).                                                                                       |
-| `EmptyState`                                                    | A list with nothing to list: what was searched, and the link that resolves it (rule 5).                                                                  |
-| `Field`, `SelectField`, `ChoiceField`, `DateField`, `TimeField` | Every form control. Full width, one size, helper names the format. Pickers, never native dates.                                                          |
-| `Refusal`                                                       | A guard fired correctly: title, one sentence, the requirement, one action (rule 6).                                                                      |
-| `ActionBar`                                                     | A form's foot: primary, secondary, cancel; sticky on a phone; the enabling sentence (rule 4).                                                            |
-| `RowCard`, `RowCardList`, `DesktopOnly`                         | The phone half of every table; one tap target per row.                                                                                                   |
-| `SortableHeader`, `TableFrame`                                  | A sortable column heading (href-based) and the frame every desktop table sits in.                                                                        |
-| `CandidateRow`                                                  | A duplicate-person match with one resolving action.                                                                                                      |
-| `PublicShell`                                                   | Every page reached without a session: masthead with the crest, one `<main>`, one card.                                                                   |
-| `BrandMark`                                                     | The crest and the club's name, on dark or on light.                                                                                                      |
+| Component                                                                     | Use it when                                                                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PageHeader`, `BackLink`                                                      | Every page's one heading: title, subtitle, the parent as "Back to <place>" above it, actions top right.                                                                                                                                                                                             |
+| `Section`                                                                     | A card with a heading. `plain` for panels and forms; `banded` for record surfaces (bands: person, season, recruitment, onboarding, attendance, history); `collapsible` when a long tail belongs on the page but not open. A band is a place, so its label is a place and never a record's own name. |
+| `Fact`, `FactGrid`, `FactList`                                                | A labelled value. `stacked` in cards and public pages, `inline` in record sections; absent renders _not recorded_; `provenance` only when known.                                                                                                                                                    |
+| `Metric`, `MetricRow`                                                         | A headline number, or a status where the headline is a state.                                                                                                                                                                                                                                       |
+| `StatusChip`                                                                  | Any status. Reads §4; never colour without the word.                                                                                                                                                                                                                                                |
+| `Notice`                                                                      | An outcome, a refusal (`variant="refusal"`), or a condition the reader must know now. Never standing guidance.                                                                                                                                                                                      |
+| `OutcomeSlot`                                                                 | A screen with more than one action: one result at a time (rule 1).                                                                                                                                                                                                                                  |
+| `EmptyState`                                                                  | A list with nothing to list: what was searched, and the link that resolves it (rule 5).                                                                                                                                                                                                             |
+| `Field`, `SelectField`, `ChoiceField`, `CheckField`, `DateField`, `TimeField` | Every form control. Full width, one size, helper names the format. Pickers, never native dates. `CheckField` is the one tick box, and lives in the same `"use client"` module because a bare MUI `Checkbox` inside `FormControlLabel` does not survive a Server Component boundary on this stack.   |
+| `Refusal`                                                                     | A guard fired correctly: title, one sentence, the requirement, one action (rule 6).                                                                                                                                                                                                                 |
+| `ActionBar`                                                                   | A form's foot: primary, secondary, cancel; sticky on a phone; the enabling sentence (rule 4).                                                                                                                                                                                                       |
+| `RowCard`, `RowCardList`, `DesktopOnly`                                       | The phone half of every table; one tap target per row. `actions` for a list answered in place instead of opened, and then the whole card stops being a link; `RowCardList at="all"` when there is no desktop table to pair with.                                                                    |
+| `StepTrail`                                                                   | Where the reader is in a sequence they cannot see the end of. A map, not a control: no step is a link.                                                                                                                                                                                              |
+| `SortableHeader`, `TableFrame`                                                | A sortable column heading (href-based) and the frame every desktop table sits in.                                                                                                                                                                                                                   |
+| `CandidateRow`                                                                | A duplicate-person match with one resolving action.                                                                                                                                                                                                                                                 |
+| `PublicShell`                                                                 | Every page reached without a session: masthead with the crest, one `<main>`, one card.                                                                                                                                                                                                              |
+| `BrandMark`                                                                   | The crest and the club's name, on dark or on light.                                                                                                                                                                                                                                                 |
 
 Out of the kit deliberately: the roster and recruitment boards
 (`board-filter-controls.tsx`, `roster-board.tsx`, `recruitment-board-view.tsx`).
@@ -171,21 +179,51 @@ They take the tokens and the band colours and are otherwise untouched.
   to it with `?redirectTo=`, the recovery emails link to it, and the route
   contract names it.
 
-## 7. What this does not decide
+## 7. The player surfaces
 
-The player-facing surfaces are **not** in this page's evidence. `/me`, `/e`,
-`/join` and the onboarding questionnaire arrived with LAN-214, LAN-215 and
-LAN-216, after the audit brief chose its screens, so they take the tokens from
-`src/theme.ts` and none of the kit: the public masthead there is still plain
-text where §6 calls for the crest. The player home is also the worst instance
-of the audit's F2 — its answered-events list is unbounded, and ran to 5,770px
-at desktop and 7,488px at 375px on a seeded player with six outstanding
-invitations. Approving this page did not approve those screens; they need
-their own pass, and the implementation intake should carry them.
+The nine routes a player reaches without an account — `/me/[token]`, its
+five-step questionnaire, `/rsvp/[token]`, `/a/[token]`, `/join/[code]`,
+`/me/join/[token]`, `/me/stop/[token]`, `/e/[token]`, and the session-gated
+`/me` — arrived with LAN-214, LAN-215 and LAN-216, after the audit brief chose
+its screens. LAN-225's addendum audited all nine; the catalogue is
+[`review/design-mockup-2026-09/player-surfaces.md`](review/design-mockup-2026-09/player-surfaces.md)
+and the pairs are on the same review page as the rest.
 
-Product findings the audit classed `owner` that this page does not touch:
-`/operate` landing (B4), the help link's home (B6), `/dashboard` (B7), the
-record's attendance length (F1), unbounded lists (F2),
-copy cuts other than H1 (H2–H4, H7), the operator-in-two-groups rule (H8),
-the future "Showed" column (H9), the report's tense (H10). Each stays a
-finding until Brian says otherwise.
+**They are not an exception to anything above.** Every rule in §§1–6 applies to
+them as written. Three things are worth saying because the nine broke them all
+at once:
+
+- **The masthead is the same masthead.** §6's public masthead — Oxford Blue,
+  full bleed, crest and club name — is on every page reached without a session,
+  and the player surfaces are most of that set. What is there today is five
+  different chromes across nine routes, one of which puts the _player's own
+  name_ where the club's should be and shows no club mark at all
+  (player-surfaces P1).
+- **A player's page is a stack, not a panel.** `PublicShell` takes
+  `layout="stack"` where a public page is genuinely several sections — the
+  player's invitations, the questionnaire's steps. One card around a whole page
+  puts cards inside a card.
+- **The affirmative control is Oxford Blue.** §1 says the club palette has no
+  green. LAN-172's "emphasis points at Yes" is satisfied by the
+  contained/outlined pair, in the club's own colour; the filled MUI green the
+  player's home uses today is not a status and is not the club (P8).
+
+Mocked up and captured at both viewports: the player home (S9), the
+questionnaire's form step and its document step (S10, S10b), and the answer
+landing that completes the invite pair with S5 (S11). The other six carry
+recorded findings and no built target; the implementation mission takes them
+from the catalogue.
+
+Four kit members came out of this pass and are already in §5: `StepTrail`,
+`CheckField`, `Section`'s `collapsible`, and `RowCard`'s `actions`.
+
+## 8. What this does not decide
+
+Product findings the audit and the player-surfaces catalogue classed `owner`
+that this page does not touch: `/operate` landing (B4), the help link's home
+(B6), `/dashboard` (B7), the record's attendance length (F1), unbounded lists
+(F2, and its worst instance P21), copy cuts other than H1 (H2–H4, H7), the
+operator-in-two-groups rule (H8), the future "Showed" column (H9), the report's
+tense (H10), the agreement version a player is shown (P15), and whether
+player-facing dates keep their weekday (P16). Each stays a finding until Brian
+says otherwise.

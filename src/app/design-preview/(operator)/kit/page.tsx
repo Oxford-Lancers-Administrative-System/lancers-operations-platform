@@ -17,6 +17,7 @@ import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
 import { Refusal } from "@/components/refusal";
 import { RowCard, RowCardList } from "@/components/row-card";
+import { StepTrail } from "@/components/step-trail";
 import { Section } from "@/components/section";
 import { SortableHeader, TableFrame } from "@/components/sortable-header";
 import { STATUS_VOCABULARY, StatusChip, type StatusDomain } from "@/components/status-chip";
@@ -252,6 +253,24 @@ export default async function KitPage() {
               sublines={["Blue 7 · Offence QB", "No mobile recorded"]}
             />
           </RowCardList>
+          <RowCardList at="all" testId="kit-row-card-actions">
+            <RowCard
+              title="Practice — michaelmas week 1"
+              trailing="24 Sep 2026 · 8:00 PM"
+              chips={<StatusChip domain="rsvp" status="none" label="Next" />}
+              sublines={["Practice", "Nine people have said yes · Answer by 22 Sep 2026"]}
+              actions={
+                <>
+                  <Button variant="contained" color="success" sx={{ flex: 1, minHeight: 44 }}>
+                    Yes
+                  </Button>
+                  <Button variant="outlined" sx={{ flex: 1, minHeight: 44 }}>
+                    No
+                  </Button>
+                </>
+              }
+            />
+          </RowCardList>
           <TableFrame>
             <Table size="small">
               <TableHead>
@@ -311,6 +330,22 @@ export default async function KitPage() {
           secondary={<Button variant="outlined">Save and choose audience</Button>}
           cancel={<Button variant="text">Cancel</Button>}
           note="Choose a date to enable saving."
+        />
+      </Section>
+
+      <Section
+        title="StepTrail"
+        description="Where the reader is in a sequence — a map, never a set of controls."
+      >
+        <StepTrail
+          steps={[
+            { label: "Your details", status: "complete", statusLabel: "Saved" },
+            { label: "Code of conduct", status: "outstanding", statusLabel: "Outstanding" },
+            { label: "Photo release", status: "complete", statusLabel: "Agreed" },
+            { label: "BUCS Play", status: "outstanding", statusLabel: "Outstanding" },
+            { label: "Hudl", status: "outstanding", statusLabel: "Outstanding" },
+          ]}
+          currentIndex={1}
         />
       </Section>
 

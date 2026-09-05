@@ -16,6 +16,14 @@ import { CLUB, SEMANTIC } from "@/theme-tokens";
  *   - `banded` — a filled overline band over a tinted body. The record language
  *     the roster board and the player record share; recruitment reads it too.
  *
+ * `collapsible` makes a `plain` section a disclosure: the heading row becomes
+ * the `<summary>` of a `<details>`, closed unless `defaultOpen`. It exists
+ * because two surfaces already hide a long tail behind one — `/me/[token]`'s
+ * "See what else is coming up" and the record's own history — and both built
+ * it by hand out of `<details>` with `listStyle: none` and a webkit marker
+ * reset (player-surfaces finding P8). A section that hides its body is still a
+ * section; nothing else about it changes.
+ *
  * The bands and their colours are the brief's §1.5 mapping and nothing else:
  * `person` Oxford Blue, `season` and `recruitment` Royal Blue, `onboarding`
  * Old Gold, `history` and `attendance` neutral. The purple attendance band is
@@ -46,6 +54,9 @@ export function Section({
   band = "person",
   action,
   description,
+  collapsible = false,
+  defaultOpen = false,
+  summary,
   children,
   testId,
 }: {
@@ -57,6 +68,12 @@ export function Section({
   action?: ReactNode;
   /** One sentence under the heading, where the section needs it. Never help copy. */
   description?: string;
+  /** Hide the body behind a disclosure. `plain` only — a band is never a control. */
+  collapsible?: boolean;
+  /** Open on arrival. A long tail is closed; a section the reader came for is open. */
+  defaultOpen?: boolean;
+  /** What the closed disclosure says, when that is not the title. */
+  summary?: string;
   /** Omitted for a section whose heading and description are the whole message (a register panel). */
   children?: ReactNode;
   testId?: string;
@@ -95,6 +112,51 @@ export function Section({
     );
   }
 
+  const head = (
+    <Stack
+      direction="row"
+      spacing={2}
+      sx={{
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        mb: children ? 2 : 0,
+        flexWrap: "wrap",
+        gap: 1,
+      }}
+    >
+      <Box sx={{ minWidth: 0 }}>
+        <Typography variant="h3" component="h2">
+          {summary ?? title}
+        </Typography>
+        {description ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            {description}
+          </Typography>
+        ) : null}
+      </Box>
+      {action ?? null}
+    </Stack>
+  );
+
+  if (collapsible) {
+    return (
+      <Paper
+        component="details"
+        variant="outlined"
+        open={defaultOpen || undefined}
+        sx={{
+          p: { xs: 2, md: 3 },
+          "& > summary": { cursor: "pointer", listStyle: "none" },
+          "& > summary::-webkit-details-marker": { display: "none" },
+        }}
+        data-testid={testId ? `section-${testId}` : undefined}
+      >
+        <Box component="summary">{head}</Box>
+        {children}
+      </Paper>
+    );
+  }
+
   return (
     <Paper
       variant="outlined"
@@ -102,29 +164,7 @@ export function Section({
       sx={{ p: { xs: 2, md: 3 } }}
       data-testid={testId ? `section-${testId}` : undefined}
     >
-      <Stack
-        direction="row"
-        spacing={2}
-        sx={{
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          mb: children ? 2 : 0,
-          flexWrap: "wrap",
-          gap: 1,
-        }}
-      >
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="h3" component="h2">
-            {title}
-          </Typography>
-          {description ? (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              {description}
-            </Typography>
-          ) : null}
-        </Box>
-        {action ?? null}
-      </Stack>
+      {head}
       {children}
     </Paper>
   );

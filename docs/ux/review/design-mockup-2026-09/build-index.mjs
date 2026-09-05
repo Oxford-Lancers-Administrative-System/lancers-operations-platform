@@ -4,7 +4,15 @@ import path from "node:path";
 import prettier from "prettier";
 const W = process.cwd();
 const DIR = path.join(W, "docs/ux/review/design-mockup-2026-09");
-const CURRENT = "../design-audit-2026-09/screens";
+// Two sources for the current side. `audit` is LAN-224's own capture run on
+// `main` at 4a3efa9; `mine` is this ticket's player-surfaces run on `main` at
+// 73577d6, taken from a separate checkout because this branch's theme would
+// otherwise photograph itself. Both are photographs of `main`; the frame says
+// which.
+const CURRENT_DIRS = {
+  audit: "../design-audit-2026-09/screens",
+  mine: "screens-current",
+};
 const manifest = JSON.parse(fs.readFileSync(path.join(DIR, "manifest.json"), "utf8"));
 const measured = manifest.captures.find((c) => c.viewport === "desktop" && c.measured)?.measured;
 const measuredPhone = manifest.captures.find((c) => c.viewport === "phone" && c.measured)?.measured;
@@ -105,12 +113,10 @@ const SCREENS = [
     title: "RSVP invitation",
     route: "/design-preview/rsvp",
     disposition: "Modified",
-    current: {
-      desktop: "a-token--confirm-yes--desktop.png",
-      phone: "a-token--confirm-yes--phone.png",
-    },
+    current: { desktop: "C5-rsvp--desktop.png", phone: "C5-rsvp--phone.png" },
+    currentFrom: "mine",
     currentNote:
-      "The audit could not capture a valid /rsvp/[token] (the link travels by email; LAN-224 route inventory). The nearest current sibling, /a/[token] confirm, is shown so the public chrome can be compared; the copy is /rsvp/[token]'s.",
+      "The audit could not reach a valid /rsvp/[token] and captured only its not-found page. This pair closes that gap: the current side is the live invitation on main at 73577d6, reached with a token minted for the capture and recorded nowhere.",
     proposed: { desktop: "S5-rsvp--desktop.png", phone: "S5-rsvp--phone.png" },
     deltas: [
       "PublicShell: full-bleed Oxford Blue masthead with the crest and the club's name; one <main> landmark (A9, F8, G3).",
@@ -197,6 +203,82 @@ const SCREENS = [
     ],
   },
   {
+    id: "S9",
+    title: "Player home — the player's own invitations",
+    route: "/design-preview/player-home",
+    disposition: "Modified",
+    current: { desktop: "C9-player-home--desktop.png", phone: "C9-player-home--phone.png" },
+    currentFrom: "mine",
+    currentNote:
+      "Both sides are Alaric Brindlewood, the active player with the most invitations still needing an answer (fourteen). The current side is main at 73577d6, reached with a token minted for the capture.",
+    proposed: { desktop: "S9-player-home--desktop.png", phone: "S9-player-home--phone.png" },
+    deltas: [
+      'P1 — the plain-text LANCERS OPERATIONS line becomes the Oxford Blue masthead with the crest and the club\'s name; PublicShell at layout="stack", because this page is several sections and not one panel.',
+      "P4 — ten hand-written pixel sizes become the §2 scale; the heading is a real h1 and the focused event's name is the h2 record tier.",
+      "P8 — the affirmative button is Oxford Blue, not MUI green. Emphasis still points at Yes (LAN-172).",
+      "P11 — the four hand-built chips become StatusChips on the one vocabulary; the event type is a category, not a status, so it reads as words.",
+      'P13 — "See what else is coming up" is Section collapsible, still closed on arrival, exactly as it is today.',
+      "Rows are RowCards carrying their own actions, beside the content at desktop and under it at 375px.",
+      "P21 (product, not taken) — the lists are still unbounded. 3,000px desktop and 4,156px phone against today's 3,269px and 4,106px: no better and no worse, because bounding it is Brian's.",
+    ],
+  },
+  {
+    id: "S10",
+    title: "The questionnaire — step 1, your details",
+    route: "/design-preview/player-details",
+    disposition: "Modified",
+    current: { desktop: "C10-details--desktop.png", phone: "C10-details--phone.png" },
+    currentFrom: "mine",
+    currentNote:
+      "LAN-224's route inventory has no row for this route at all — it landed with LAN-216, after the brief chose its screens. This is its first capture.",
+    proposed: {
+      desktop: "S10-player-details--desktop.png",
+      phone: "S10-player-details--phone.png",
+    },
+    deltas: [
+      "P1 — the masthead, with the season as its caption.",
+      "P18 — the five-column <dl> of 11px labels becomes StepTrail: numbered, one chip per step, the current step on the Sky Blue ground, wrapping rather than collapsing to a two-column table at 375px.",
+      "Fourteen fields at one size and full width; the date of birth on the DateField picker (audit E9, already taken).",
+      "The four groups are plain Sections; the foot is an ActionBar, sticky on a phone, carrying the enabling sentence (rule 4).",
+      "Every label, lead line and helper sentence is the real page's own presentation.ts, unchanged.",
+    ],
+  },
+  {
+    id: "S10b",
+    title: "The questionnaire — step 2, the document",
+    route: "/design-preview/player-agreement",
+    disposition: "Modified",
+    current: { desktop: "C10b-agreement--desktop.png", phone: "C10b-agreement--phone.png" },
+    currentFrom: "mine",
+    proposed: {
+      desktop: "S10b-player-agreement--desktop.png",
+      phone: "S10b-player-agreement--phone.png",
+    },
+    deltas: [
+      "The second half of the sequence is a different shape from the first — a document, one tick box, one button — so judging the form alone would leave it unjudged.",
+      "P6 — the placeholder banner is a Notice, not 12px warning-coloured text. The wording is unchanged and the real document is still owed under LAN-213.",
+      "P9 — the tick box is the kit's CheckField, not this route's own client module.",
+      "P14 (visual half) — the already-agreed line's raw ISO date goes through the shared formatter. Its version id (P15) is product and is left alone.",
+    ],
+  },
+  {
+    id: "S11",
+    title: "Answer landing — the other half of the invite pair",
+    route: "/design-preview/answer",
+    disposition: "Modified",
+    current: { desktop: "C11-answer--desktop.png", phone: "C11-answer--phone.png" },
+    currentFrom: "mine",
+    currentNote:
+      "S5 is the invitation the player is sent; this is where the Yes button in that message lands them. Same player, same event, both sides.",
+    proposed: { desktop: "S11-answer--desktop.png", phone: "S11-answer--phone.png" },
+    deltas: [
+      "P1 — the masthead; P7 — sentence-case buttons; P8 — the confirm is Oxford Blue, not green.",
+      "The heading is the answer (the real page's own words); the event is its subtitle; the facts are one FactGrid with one Fact shape.",
+      'One foot: ActionBar with the confirm and "Plans changed?" as its secondary, in place of a button, then a link, then a second form.',
+      "Not wired, and deliberately: the real page's one form both records the answer and saves the questions, and a preview must not.",
+    ],
+  },
+  {
     id: "K",
     title: "The kit",
     route: "/design-preview/kit",
@@ -208,14 +290,39 @@ const SCREENS = [
   },
 ];
 
+/**
+ * What each preview route mirrors on `main`, spelled out rather than derived.
+ * The derivation this replaced was a chain of `String.replace` calls whose
+ * order decided the answer: it printed `/operate/events/[id]s/new` for the
+ * create-event screen, and `/operate/roster/[membershipId]-home` for the
+ * player's own page, because `/operate/event` matches inside
+ * `/operate/events/new` and `/operate/player` inside `/operate/player-home`.
+ * A frame that names the wrong route is worse than one that names none.
+ */
+const MIRRORS = {
+  "/design-preview/roster": "/operate/roster",
+  "/design-preview/player": "/operate/roster/[membershipId]",
+  "/design-preview/event": "/operate/events/[id]",
+  "/design-preview/event-new": "/operate/events/new",
+  "/design-preview/rsvp": "/rsvp/[token]",
+  "/design-preview/rsvp-unusable": "/rsvp/[token]",
+  "/design-preview/report": "/operate/report",
+  "/design-preview/login": "/login",
+  "/design-preview/operators": "/operate/admin/operators",
+  "/design-preview/operator": "/operate/admin/operators/[operatorId]",
+  "/design-preview/player-home": "/me/[token]",
+  "/design-preview/player-details": "/me/[token]/details",
+  "/design-preview/player-agreement": "/me/[token]/details?step=code_of_conduct",
+  "/design-preview/answer": "/a/[token]",
+  "/design-preview/kit": null,
+};
+
 const esc = (s) =>
   String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-const frame = (kind, file, width, label, note) => {
-  const src = kind === "current" ? `${CURRENT}/${file}` : `screens/${file}`;
-  const exists =
-    kind === "current"
-      ? fs.existsSync(path.join(DIR, CURRENT, file))
-      : fs.existsSync(path.join(DIR, "screens", file));
+const frame = (kind, file, width, label, note, currentFrom = "audit") => {
+  const dir = kind === "current" ? CURRENT_DIRS[currentFrom] : "screens";
+  const src = `${dir}/${file}`;
+  const exists = fs.existsSync(path.join(DIR, dir, file));
   return `<figure class="frame ${kind} ${width === 375 ? "phone" : "desktop"}">
   <figcaption class="band">${kind === "current" ? "CURRENT — on <code>main</code> today" : "PROPOSED"} · ${width}${note ? ` · ${esc(note)}` : ""}</figcaption>
   <div class="chrome"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="url">${esc(label)}</span></div>
@@ -226,24 +333,19 @@ const noCompare = (width) =>
   `<figure class="frame current ${width === 375 ? "phone" : "desktop"} none"><figcaption class="band">CURRENT — on <code>main</code> today · ${width}</figcaption><div class="shot"><p class="missing">New surface, nothing to compare</p></div></figure>`;
 
 const sections = SCREENS.map((s) => {
-  const currentUrl =
-    s.id === "S0"
-      ? "/operate"
-      : s.route
-          .replace("/design-preview", "/operate")
-          .replace("/operate/login", "/login")
-          .replace("/operate/rsvp-unusable", "/rsvp/[token]")
-          .replace("/operate/rsvp", "/rsvp/[token]")
-          .replace("/operate/player", "/operate/roster/[membershipId]")
-          .replace("/operate/event-new", "/operate/events/new")
-          .replace("/operate/event", "/operate/events/[id]")
-          .replace("/operate/operators", "/operate/admin/operators")
-          .replace("/operate/operator", "/operate/admin/operators/[operatorId]");
+  const currentUrl = s.id === "S0" ? "/operate" : (MIRRORS[s.route] ?? s.route);
   const rows = ["desktop", "phone"]
     .map((vp) => {
       const width = vp === "desktop" ? 1440 : 375;
       const cur = s.current
-        ? frame("current", s.current[vp], width, currentUrl, s.currentNote ? "see note" : undefined)
+        ? frame(
+            "current",
+            s.current[vp],
+            width,
+            currentUrl,
+            s.currentNote ? "see note" : undefined,
+            s.currentFrom,
+          )
         : noCompare(width);
       const pro = frame("proposed", s.proposed[vp], width, s.route, s.proposedNote?.[vp]);
       return `<div class="pair ${vp}">${cur}${pro}</div>`;
@@ -292,7 +394,7 @@ code{font:12px ui-monospace,monospace;background:#ECEAE6;padding:1px 4px;border-
 </style>
 </head>
 <body>
-<header class="page"><h1>LAN-225 — Design mockup review</h1><p>Proposed captures from <code>chore/lan-225-design-mockup</code> at <code>${esc(manifest.headSha ?? "")}</code>, ${esc(manifest.at ?? "")}, measured ${measured ? `${measured.width}×${measured.height}` : "—"} and ${measuredPhone ? `${measuredPhone.width}×${measuredPhone.height}` : "—"} through the real login on the local seed. Current captures from the LAN-224 audit on <code>main</code> at <code>4a3efa9</code>.</p></header>
+<header class="page"><h1>LAN-225 — Design mockup review</h1><p>Proposed captures from <code>chore/lan-225-design-mockup</code> at <code>${esc(manifest.headSha ?? "")}</code>, ${esc(manifest.at ?? "")}, measured ${measured ? `${measured.width}×${measured.height}` : "—"} and ${measuredPhone ? `${measuredPhone.width}×${measuredPhone.height}` : "—"} through the real login on the local seed. Current captures from the LAN-224 audit on <code>main</code> at <code>4a3efa9</code>, and — for the player surfaces (S5, S9, S10, S10b, S11) — from this ticket&rsquo;s own run on <code>main</code> at <code>73577d6</code>, served from a separate checkout so that this branch&rsquo;s theme never photographs itself.</p></header>
 <main>
 <div class="legend">
 <strong>How to read a screen.</strong> Both sides are photographs of the running application. The grey band is what is on <code>main</code> today; the Oxford Blue band is the proposal on this branch. Each head says the disposition — <em>Modified</em> where a surface exists on <code>main</code>, <em>New</em> where it does not — and names the deltas to look for, so nothing has to be diffed by eye.

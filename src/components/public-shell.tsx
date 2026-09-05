@@ -16,24 +16,34 @@ import { BrandMark } from "./brand-mark";
  * control a masthead may carry (the calendar's subscribe link). No operator
  * navigation, no sign-in prompt where there is no account to sign in to.
  *
- * `width` is the card's measure: `narrow` for a form (login, reset), `medium`
- * for a page a player reads on a phone (RSVP, my page), `wide` for the
- * calendar.
+ * `width` is the measure: `narrow` for a form (login, reset), `medium` for a
+ * page a player reads on a phone (RSVP, my page), `wide` for the calendar.
+ *
+ * `layout` is whether that measure holds one card or a stack the page fills
+ * itself. `card` is the default at `narrow` and `medium` and is right for a
+ * page that is one panel. `stack` is for a public page that is genuinely
+ * several sections — the player's own invitations, the questionnaire's steps —
+ * where one card around all of them would be a card around a whole page and
+ * the sections inside it would be cards inside a card. `wide` is `stack`
+ * because a calendar was never a panel.
  */
 export function PublicShell({
   caption,
   action,
   width = "medium",
+  layout,
   children,
   testId,
 }: {
   caption?: string;
   action?: ReactNode;
   width?: "narrow" | "medium" | "wide";
+  layout?: "card" | "stack";
   children: ReactNode;
   testId?: string;
 }) {
   const maxWidth = width === "narrow" ? 520 : width === "medium" ? 720 : 1200;
+  const asCard = (layout ?? (width === "wide" ? "stack" : "card")) === "card";
   return (
     <Box
       sx={{ minHeight: "100dvh", bgcolor: "background.default" }}
@@ -58,7 +68,7 @@ export function PublicShell({
       </Box>
       <Box component="main" sx={{ px: { xs: 2, md: 3 }, py: { xs: 2.5, md: 6 } }}>
         <Box sx={{ maxWidth, mx: "auto" }}>
-          {width === "wide" ? (
+          {!asCard ? (
             children
           ) : (
             <Paper variant="outlined" sx={{ p: { xs: 2.5, md: 4 } }}>

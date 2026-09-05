@@ -27,6 +27,10 @@ const ROUTES = [
   { id: "S7-login", route: "/design-preview/login" },
   { id: "S8-operators", route: "/design-preview/operators" },
   { id: "S8-operator", route: "/design-preview/operator" },
+  { id: "S9-player-home", route: "/design-preview/player-home" },
+  { id: "S10-player-details", route: "/design-preview/player-details" },
+  { id: "S10b-player-agreement", route: "/design-preview/player-agreement" },
+  { id: "S11-answer", route: "/design-preview/answer" },
   { id: "K-kit", route: "/design-preview/kit" },
   { id: "index", route: "/design-preview" },
 ];

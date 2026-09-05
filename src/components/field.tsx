@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Checkbox from "@mui/material/Checkbox";
 import FormControl from "@mui/material/FormControl";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import FormHelperText from "@mui/material/FormHelperText";
@@ -129,6 +130,49 @@ function timeFromDate(value: Date | null): string {
   if (value === null || Number.isNaN(value.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(value.getHours())}:${pad(value.getMinutes())}`;
+}
+
+/**
+ * The one tick box — LAN-225's player-surfaces addendum.
+ *
+ * The kit named every form control except this one, so the two surfaces that
+ * need one built their own: `src/app/me/[token]/details/checkbox-field.tsx`
+ * and `src/app/a/[token]/multi-select-checkboxes.tsx` (player-surfaces
+ * finding P7). This is that control, once, in the kit.
+ *
+ * It has to live in this `"use client"` module rather than be composed in a
+ * page: a bare MUI `Checkbox`/`FormControlLabel` pair rendered straight from
+ * an `async` Server Component throws `TypeError: Cannot read properties of
+ * undefined (reading 'disabled')` on this stack (Next 16, Turbopack, React 19,
+ * MUI 9), because `FormControlLabel` clones the control element and the clone
+ * does not survive the boundary. `checkbox-field.tsx` recorded the same
+ * finding first; this is the shared home for it.
+ *
+ * Uncontrolled, and posts `"1"` through the page's own server action exactly
+ * as a bare `<input type="checkbox">` would.
+ */
+export function CheckField({
+  name,
+  label,
+  helperText,
+  defaultChecked,
+  field,
+}: {
+  name: string;
+  label: ReactNode;
+  helperText?: ReactNode;
+  defaultChecked?: boolean;
+  field?: string;
+}) {
+  return (
+    <FormControl data-field={field ?? name}>
+      <FormControlLabel
+        control={<Checkbox name={name} value="1" defaultChecked={defaultChecked} />}
+        label={label}
+      />
+      {helperText ? <FormHelperText>{helperText}</FormHelperText> : null}
+    </FormControl>
+  );
 }
 
 export const DATE_FORMAT_HINT = "Day, month, year — e.g. 24/08/2026.";

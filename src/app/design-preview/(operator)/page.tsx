@@ -71,6 +71,24 @@ const SCREENS = [
     note: "Page header with help, grouped tables; detail at /design-preview/operator.",
   },
   {
+    id: "S9",
+    href: "/design-preview/player-home",
+    title: "Player home",
+    note: "The player's own invitations — public shell, row cards, one status vocabulary.",
+  },
+  {
+    id: "S10",
+    href: "/design-preview/player-details",
+    title: "The questionnaire — step 1",
+    note: "Step trail, fields at one size; the document step is at /design-preview/player-agreement.",
+  },
+  {
+    id: "S11",
+    href: "/design-preview/answer",
+    title: "Answer landing",
+    note: "The other half of the invite pair; S5 is the invitation itself.",
+  },
+  {
     id: "K",
     href: "/design-preview/kit",
     title: "The kit",
@@ -119,7 +137,10 @@ export default async function DesignPreviewIndex() {
         are drawn, not wired, except on the roster board, which is the real component.
       </Notice>
 
-      <Section title="Screens" description="The eight the brief chose, plus the shell around them.">
+      <Section
+        title="Screens"
+        description="The eight the brief chose, the three player surfaces the 5 September addendum added, and the shell around them."
+      >
         <TableFrame>
           <Table size="small">
             <TableHead>
