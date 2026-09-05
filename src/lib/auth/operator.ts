@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isRecoveryAuthenticatedSession } from "./recovery";
@@ -180,8 +181,46 @@ export async function resolveOperator(): Promise<ResolvedOperator | null> {
  * about verification and about the privileged client applies here unchanged —
  * the identity still comes from `auth.getUser()`, and the join is still pinned
  * to the verified user's own id.
+ *
+ * ## Memoised for the length of one render, and no longer. LAN-228
+ *
+ * Exported through React's `cache()`, which is the pattern Next.js documents
+ * for exactly this function (`guides/authentication`, "Creating a Data Access
+ * Layer"). Every `/operate` page resolves the operator at least twice — the
+ * layout guards the frame, the page's own gate guards the page, and neither may
+ * depend on the other having run — and the events list adds a third through its
+ * service-layer tier check. Each resolution is five serial round trips to the
+ * Supabase API (`auth/v1/user`, then `operator_accounts`, `people`,
+ * `role_assignments`, `roles`): about 150 ms on a quiet machine and 300 ms on a
+ * loaded one, paid two or three times over on every operator page render
+ * (`docs/lan-227-slowness-diagnosis.md` § 2.6).
+ *
+ * What this does **not** do is weaken any of the three checks. Every caller
+ * still asks, still gets the same answer, and still refuses on it; the second
+ * and third asks are answered from the first ask *in the same render* instead
+ * of from five more round trips. Nothing here is shared between requests or
+ * between operators: `cache()` keys on the React request that is rendering, so
+ * one signed-in session's resolution is unreachable from another's, and a
+ * resolution never outlives the response it was made for. A deactivation, a
+ * revoked role or a signed-out session is seen by the very next request, which
+ * is the same guarantee this function gave before.
+ *
+ * A Server Action is not inside a render, so its own guard is not memoised
+ * either, and the re-render Next.js performs afterwards builds a new flight
+ * request with an empty cache. An action that revokes the acting operator's own
+ * access is therefore refused by the render that follows it, exactly as it was
+ * before this changed.
+ *
+ * Outside a React render — a Vitest run, a script — `cache()` is a passthrough:
+ * React's implementation calls straight through when no async dispatcher is
+ * installed. So the unit tests below still see an uncached function and "stops
+ * resolving as soon as the account is deactivated, with no cache" keeps its
+ * teeth against a module-level cache, which is the shape that *would* be a
+ * security defect.
  */
-export async function resolveOperatorAccess(): Promise<OperatorAccess> {
+export const resolveOperatorAccess: () => Promise<OperatorAccess> = cache(readOperatorAccess);
+
+async function readOperatorAccess(): Promise<OperatorAccess> {
   const supabase = await createClient();
 
   // Verified against the auth server. An absent, expired or tampered session

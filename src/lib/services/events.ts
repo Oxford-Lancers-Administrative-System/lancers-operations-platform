@@ -313,42 +313,112 @@ export interface EventList {
  * Built from `SHOWED_PRESENCES` rather than typed into the SQL, because
  * `attendance-vocabulary.ts` owns which presences mean somebody turned up and
  * two answers to that question is exactly what `docs/ux/standards.md` rule 7
- * exists to stop. Interpolated rather than parameterised because `COUNT_COLUMNS`
- * is spliced into two queries whose placeholders are numbered differently; the
+ * exists to stop. Interpolated rather than parameterised because the counts are
+ * spliced into two queries whose placeholders are numbered differently; the
  * values are a frozen literal array in this repository and never anything a
  * caller supplied, so there is no user text anywhere near this string.
  */
 const SHOWED_PRESENCE_LITERALS = SHOWED_PRESENCES.map((presence) => `'${presence}'`).join(", ");
 
 /**
- * The participation subqueries — the operator tier's, and nobody else's.
+ * The participation counts — the operator tier's, and nobody else's.
  *
  * Every one of these reads a table the public tier may not see, which is why
- * they are one named constant rather than five lines inside a query: the public
- * reads further down are proved to be free of them by a test that reads this
- * constant, and a sixth count added here is covered by that test on the day it
- * is written rather than on the day somebody remembers.
+ * they are one named pair — this select list and `participationJoins()` below —
+ * rather than six lines inside a query: the public reads further down are
+ * proved to be free of them by a test that reads `PARTICIPATION_TABLES`, and a
+ * seventh count added here is covered by that test on the day it is written
+ * rather than on the day somebody remembers.
+ *
+ * `coalesce` on every one because the joins are outer: an event nobody has been
+ * invited to has no row in the invitation group at all, and the count it should
+ * report is zero rather than null. `register_saved` is `false` by the same rule
+ * — no attendance group is exactly "no register has been saved".
  */
 const COUNT_COLUMNS = `
-  (select count(*) from public.event_audience_members a where a.event_id = e.id) as audience_count,
-  (select count(*) from public.invitations i where i.event_id = e.id) as invitation_count,
-  (select count(*)
-     from public.invitations i
-     join public.current_rsvp r on r.invitation_id = i.id
-    where i.event_id = e.id) as response_count,
-  (select count(*)
-     from public.invitations i
-     join public.current_rsvp r on r.invitation_id = i.id
-    where i.event_id = e.id and r.response = 'yes') as said_yes_count,
-  (select count(*)
-     from public.attendance_records a
-    where a.event_id = e.id and a.presence in (${SHOWED_PRESENCE_LITERALS})) as showed_count,
-  exists (select 1 from public.attendance_records a where a.event_id = e.id) as register_saved`;
+  coalesce(audience.audience_count, 0) as audience_count,
+  coalesce(invited.invitation_count, 0) as invitation_count,
+  coalesce(invited.response_count, 0) as response_count,
+  coalesce(invited.said_yes_count, 0) as said_yes_count,
+  coalesce(attended.showed_count, 0) as showed_count,
+  coalesce(attended.register_saved, false) as register_saved`;
+
+/**
+ * The three grouped reads those counts come from, joined to `e` once. LAN-228.
+ *
+ * ## Why grouped rather than correlated
+ *
+ * These were six correlated subqueries on `e.id` until LAN-228 measured them:
+ * 1.34 s of CPU and 742 680 buffer hits to return one season's 110 events
+ * (`docs/lan-227-slowness-diagnosis.md` § 3). `current_rsvp` is a
+ * `distinct on (invitation_id)` view over the whole of `rsvp_responses`, and
+ * correlating it on `i.event_id` gives the planner nothing to push down — so it
+ * re-derived the club's every standing answer **once per event row**, and did it
+ * twice, for `response_count` and again for `said_yes_count`. The cost was
+ * linear in events and linear in answers at the same time, which is quadratic
+ * across a season that is filling up.
+ *
+ * Grouped once and joined once, the view is derived a single time whatever the
+ * row count. Measured on the same seed, the same statement went from 591–846 ms
+ * to 6–8 ms. No index was missing and none was added; the shape was the whole
+ * cost.
+ *
+ * ## Why the scope is a parameter
+ *
+ * `scope` is the caller's own `where` on the participation row, and it is
+ * required rather than optional. Without it each group would aggregate every
+ * invitation, every audience row and every attendance record the club has ever
+ * recorded, in every season, to answer a question about one season or one
+ * event — which trades a per-row cost for an unbounded one and gets slower
+ * every year as the seasons pile up behind it. The season list
+ * passes the season; the single-event read passes the event. It is SQL written
+ * in this file, never anything a caller supplied, and the values it compares
+ * against stay parameters.
+ *
+ * The season list scopes on `p.season_id` rather than on a subquery over
+ * `events`, and the two are the same set rather than nearly the same one: all
+ * three tables carry the season denormalised behind a composite foreign key
+ * (`invitations_event_same_season`, `attendance_records_event_same_season`,
+ * `event_audience_members_event_same_season`, each
+ * `(event_id, season_id) references events (id, season_id)`), so a row's season
+ * cannot disagree with its event's. The database enforces the equality; this
+ * only spends it.
+ *
+ * The alias inside each group is `p` — participation — so one scope string fits
+ * all three.
+ */
+function participationJoins(scope: string): string {
+  return `
+       left join (
+         select p.event_id, count(*) as audience_count
+           from public.event_audience_members p
+          where ${scope}
+          group by p.event_id
+       ) audience on audience.event_id = e.id
+       left join (
+         select p.event_id,
+                count(*) as invitation_count,
+                count(r.invitation_id) as response_count,
+                count(*) filter (where r.response = 'yes') as said_yes_count
+           from public.invitations p
+           left join public.current_rsvp r on r.invitation_id = p.id
+          where ${scope}
+          group by p.event_id
+       ) invited on invited.event_id = e.id
+       left join (
+         select p.event_id,
+                count(*) filter (where p.presence in (${SHOWED_PRESENCE_LITERALS})) as showed_count,
+                true as register_saved
+           from public.attendance_records p
+          where ${scope}
+          group by p.event_id
+       ) attended on attended.event_id = e.id`;
+}
 
 /**
  * The tables the public tier must never read from.
  *
- * Named here, beside the subqueries that do read them, so the test that proves
+ * Named here, beside the joins that do read them, so the test that proves
  * `PUBLIC_EVENT_COLUMNS` mentions none of them has one list to check against.
  */
 export const PARTICIPATION_TABLES: readonly string[] = Object.freeze([
@@ -474,6 +544,7 @@ export async function listCurrentSeasonEvents(filters: EventListFilters = {}): P
               e.delivery_mode::text as delivery_mode, e.venue, e.is_mandatory,
               ${COUNT_COLUMNS}
          from public.events e
+         ${participationJoins("p.season_id = $1")}
         where e.season_id = $1
           and ($2::text is null or e.name ilike '%' || $2 || '%'
                                 or coalesce(e.venue, '') ilike '%' || $2 || '%')
@@ -936,6 +1007,7 @@ export async function readEventIn(tx: Tx, eventId: string): Promise<EventDetail>
        from public.events e
        left join public.terms t on t.id = e.term_id
        left join public.people o on o.id = e.owner_person_id
+       ${participationJoins("p.event_id = $1")}
       where e.id = $1`,
     [eventId],
   );
