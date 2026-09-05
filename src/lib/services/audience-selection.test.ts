@@ -32,6 +32,7 @@ import {
   resolveSelection,
   selectionKey,
   summariseAudienceGroups,
+  templateGroupsForEventType,
   toggleGroup,
   type AudienceCandidate,
 } from "./audience-selection";
@@ -241,17 +242,19 @@ describe("a recruits group, on the Recruitment type alone (D46)", () => {
         PLAYERS,
         COACHES,
         COMMITTEE,
+        "bps",
       ]);
     }
   });
 
-  it("is offered on a recruitment event, after the four standing groups", () => {
+  it("is offered on a recruitment event, after the four standing groups and BPS", () => {
     expect(groupsForEventType("recruitment").map((group) => group.key)).toEqual([
       EVERYONE,
       PLAYERS,
       COACHES,
       COMMITTEE,
       "recruits",
+      "bps",
     ]);
   });
 
@@ -330,5 +333,48 @@ describe("the audience named by its groups before its people", () => {
     const summary = summariseAudienceGroups(CLUB, groupSelectionKeys(CLUB, EVERYONE), "practice");
 
     expect(summary.groups).not.toContain("Recruits");
+  });
+});
+
+// Correction round 2, item 7 (`WP-operator-record`, LAN-217): BPS, driven by
+// an extra flag on top of the `player` capacity rather than a capacity of
+// its own — see `AudienceCandidate.isBps`'s own note for why.
+describe("BPS is a player narrowed by an extra flag, not a capacity of its own", () => {
+  const BPS_CLUB: AudienceCandidate[] = [
+    { ...candidate("player", "membership-eve", "person-eve", "Eve Sandford"), isBps: true },
+    candidate("player", "membership-fen", "person-fen", "Fen Oakley"),
+  ];
+
+  it("selects only the flagged player", () => {
+    const keys = groupSelectionKeys(BPS_CLUB, "bps");
+    const resolution = resolveSelection(BPS_CLUB, keys);
+
+    expect(resolution.ok && resolution.members.map((m) => m.displayName)).toEqual(["Eve Sandford"]);
+  });
+
+  it("is offered on every event type — it is not a Recruits-style exception", () => {
+    for (const type of ["practice", "game", "social", "meeting"]) {
+      expect(groupsForEventType(type).map((g) => g.key)).toContain("bps");
+    }
+  });
+
+  // D-003 (correction round 3, Q-14, Brian): "the BPS audience appears in
+  // the event's own audience picker but not in event templates, so it
+  // cannot be pre-chosen." That migration is authorised this round
+  // (`supabase/migrations/20260904120000_bps_event_template_audience.sql`),
+  // so BPS is now offered to a template's default-audience picker exactly
+  // as every other group is.
+  it("is offered to a template's own default-audience picker, like every other group", () => {
+    expect(templateGroupsForEventType("practice").map((g) => g.key)).toContain("bps");
+    expect(templateGroupsForEventType("practice").map((g) => g.key)).toEqual(
+      groupsForEventType("practice").map((g) => g.key),
+    );
+  });
+
+  // D-004 (correction round 3, Q-14, Brian): "The audience reads 'All Active
+  // BPS', not 'BPS'."
+  it('is named on the AUDIENCE_GROUPS list Brian approved, labelled exactly "All Active BPS"', () => {
+    const bps = AUDIENCE_GROUPS.find((g) => g.key === "bps");
+    expect(bps?.label).toBe("All Active BPS");
   });
 });

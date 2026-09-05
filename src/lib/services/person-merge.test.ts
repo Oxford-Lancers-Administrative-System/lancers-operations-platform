@@ -29,6 +29,7 @@ let seasonLabel: string;
 
 const createdPersonIds: string[] = [];
 const createdAuthUserIds: string[] = [];
+const createdAgreementVersionIds: string[] = [];
 
 async function insertPerson(fields: {
   givenName: string;
@@ -87,6 +88,58 @@ async function insertProspect(
     `insert into public.recruitment_prospects (person_id, season_id, status, first_contact_on, committed_on)
      values ($1::uuid, $2::uuid, $3::public.prospect_status, $4::date, $5::date)`,
     [personId, season, status, firstContactOn, committedOn],
+  );
+}
+
+async function insertConsent(
+  personId: string,
+  season: string,
+  state: string,
+  changedAt: string,
+): Promise<void> {
+  const source = state === "never_asked" || state === "asked" ? null : "operator_recorded";
+  await observer.query(
+    `insert into public.season_messaging_consents (person_id, season_id, state, source, changed_at)
+     values ($1::uuid, $2::uuid, $3::public.messaging_consent_state, $4::public.messaging_consent_source, $5::timestamptz)`,
+    [personId, season, state, source, changedAt],
+  );
+}
+
+async function insertAgreementVersion(): Promise<string> {
+  const result = await observer.query<{ id: string }>(
+    `insert into public.onboarding_agreement_versions (agreement_type, version_label, body)
+     values ('code_of_conduct', $1, 'Test fixture only') returning id`,
+    [unique("version")],
+  );
+  const id = result.rows[0].id;
+  createdAgreementVersionIds.push(id);
+  return id;
+}
+
+async function insertAgreement(
+  personId: string,
+  season: string,
+  versionId: string,
+  agreedAt: string,
+): Promise<void> {
+  await observer.query(
+    `insert into public.onboarding_agreements (person_id, season_id, agreement_type, agreement_version_id, agreed_at)
+     values ($1::uuid, $2::uuid, 'code_of_conduct', $3::uuid, $4::timestamptz)`,
+    [personId, season, versionId, agreedAt],
+  );
+}
+
+async function insertDispute(
+  personId: string,
+  field: string,
+  clubValue: string,
+  playerValue: string,
+  raisedAt: string,
+): Promise<void> {
+  await observer.query(
+    `insert into public.person_fact_disputes (person_id, field, club_value, player_value, raised_by_person_id, raised_at)
+     values ($1::uuid, $2, $3, $4, $1::uuid, $5::timestamptz)`,
+    [personId, field, clubValue, playerValue, raisedAt],
   );
 }
 
@@ -158,6 +211,22 @@ afterAll(async () => {
   ]);
   await observer.query(
     `delete from public.recruitment_prospects where person_id = any($1::uuid[])`,
+    [createdPersonIds],
+  );
+  await observer.query(
+    `delete from public.season_messaging_consents where person_id = any($1::uuid[])`,
+    [createdPersonIds],
+  );
+  await observer.query(
+    `delete from public.onboarding_agreements where person_id = any($1::uuid[])`,
+    [createdPersonIds],
+  );
+  await observer.query(
+    `delete from public.onboarding_agreement_versions where id = any($1::uuid[])`,
+    [createdAgreementVersionIds],
+  );
+  await observer.query(
+    `delete from public.person_fact_disputes where person_id = any($1::uuid[])`,
     [createdPersonIds],
   );
   await observer.query(`delete from public.operator_accounts where person_id = any($1::uuid[])`, [
@@ -404,6 +473,93 @@ describe("mergePersons — the successful merge", () => {
     expect(audit.rows[0].reason).toBe("Same person, entered twice");
   });
 
+  // B-004 (correction round 2, Brian: "When it says not recorded, it's not
+  // recorded. It doesn't defer. It just is not there.") — pre-existing from
+  // LAN-185, fixed here as one comparison: a field compared against an
+  // absent (null) value on either side must not draw the "differs" warning.
+  it("never flags a field as differing when one side has no value at all — B-004", async () => {
+    const survivorId = await insertPerson({ givenName: unique("Survivor") });
+    const loserId = await insertPerson({ givenName: unique("Loser") });
+    await observer.query(`update public.people set college = 'Merton' where id = $1::uuid`, [
+      loserId,
+    ]);
+    // The survivor's own college is left null — genuinely absent, not a
+    // second value to disagree with the loser's.
+
+    const preview = await previewPersonMerge(survivorId, loserId);
+    const collegeField = preview.fields.find((field) => field.field === "college")!;
+    expect(collegeField.survivorValue).toBeNull();
+    expect(collegeField.loserValue).toBe("Merton");
+    expect(collegeField.differs).toBe(false);
+  });
+
+  // D-001 (correction round 3, Q-14, Brian): the B-004 null guard above
+  // landed on plain fields only — contacts use a separate bare comparison
+  // that still drew "differs" for any present-versus-absent pair, seen on
+  // Mobile phone (a value against "not recorded") and College email.
+  it("never flags a contact as differing when only one side holds a value at all — D-001", async () => {
+    const survivorId = await insertPerson({ givenName: unique("Survivor") });
+    const loserId = await insertPerson({ givenName: unique("Loser") });
+    await insertContact(loserId, { kind: "phone", rawValue: "07700 900218" });
+    // The survivor's own mobile is left unrecorded — genuinely absent, not a
+    // second value to disagree with the loser's.
+
+    const preview = await previewPersonMerge(survivorId, loserId);
+    const mobile = preview.contacts.find((c) => c.kind === "mobile")!;
+    expect(mobile.survivor).toBeNull();
+    expect(mobile.loser?.rawValue).toBe("07700 900218");
+    expect(mobile.differs).toBe(false);
+  });
+
+  it("still flags a contact as differing when both sides hold a value and disagree", async () => {
+    const survivorId = await insertPerson({ givenName: unique("Survivor") });
+    const loserId = await insertPerson({ givenName: unique("Loser") });
+    await insertContact(survivorId, { kind: "phone", rawValue: "07700 900111" });
+    await insertContact(loserId, { kind: "phone", rawValue: "07700 900222" });
+
+    const preview = await previewPersonMerge(survivorId, loserId);
+    const mobile = preview.contacts.find((c) => c.kind === "mobile")!;
+    expect(mobile.differs).toBe(true);
+  });
+
+  // D-001: aliases never computed a difference at all — `merge-comparison.tsx`
+  // hardcoded `differs={true}`, read-only, so an empty-both-sides row still
+  // drew the chip. Two identical alias sets, in any order, are not a
+  // difference — the honest rendering for a multi-valued field.
+  it("never flags aliases as differing when both records hold the same set, in any order — D-001", async () => {
+    const survivorId = await insertPerson({ givenName: unique("Survivor") });
+    const loserId = await insertPerson({ givenName: unique("Loser") });
+    const sharedA = unique("Alias");
+    const sharedB = unique("Alias");
+    await insertAlias(survivorId, sharedA);
+    await insertAlias(survivorId, sharedB);
+    await insertAlias(loserId, sharedB);
+    await insertAlias(loserId, sharedA);
+
+    const preview = await previewPersonMerge(survivorId, loserId);
+    expect(preview.aliases.differs).toBe(false);
+  });
+
+  it("flags aliases as differing when the two sets genuinely disagree", async () => {
+    const survivorId = await insertPerson({ givenName: unique("Survivor") });
+    const loserId = await insertPerson({ givenName: unique("Loser") });
+    await insertAlias(survivorId, unique("Alias"));
+    await insertAlias(loserId, unique("Alias"));
+
+    const preview = await previewPersonMerge(survivorId, loserId);
+    expect(preview.aliases.differs).toBe(true);
+  });
+
+  it("never flags aliases as differing when neither record has one", async () => {
+    const survivorId = await insertPerson({ givenName: unique("Survivor") });
+    const loserId = await insertPerson({ givenName: unique("Loser") });
+
+    const preview = await previewPersonMerge(survivorId, loserId);
+    expect(preview.aliases.survivorAliases).toEqual([]);
+    expect(preview.aliases.loserAliases).toEqual([]);
+    expect(preview.aliases.differs).toBe(false);
+  });
+
   it("combines a duplicate prospect pair onto the survivor: earliest contact, furthest-along status", async () => {
     const survivorId = await insertPerson({ givenName: unique("Survivor") });
     const loserId = await insertPerson({ givenName: unique("Loser") });
@@ -436,6 +592,177 @@ describe("mergePersons — the successful merge", () => {
     expect(prospects.rows[0].person_id).toBe(survivorId);
     expect(prospects.rows[0].status).toBe("committed");
     expect(prospects.rows[0].first_contact_on).toBe("2024-10-02");
+  });
+
+  // B-003 (correction round 2, Q-10, Brian: "If it is a merge, they obviously
+  // get to choose") — `WP-operator-record`, LAN-217. Supersedes
+  // `T07-merge-precedence`, which was locked at a recommendation, not an
+  // owner decision: the operator picks the surviving consent value like any
+  // other field, and nothing is imposed automatically.
+  describe("B-003 — the operator chooses the surviving consent, nothing is imposed automatically", () => {
+    it("shows both states plainly in preview, with no state picked for the operator", async () => {
+      const survivorId = await insertPerson({ givenName: unique("Survivor") });
+      const loserId = await insertPerson({ givenName: unique("Loser") });
+      await insertConsent(loserId, seasonId, "refused", "2024-09-01T00:00:00Z");
+      await insertConsent(survivorId, seasonId, "granted", "2024-09-05T00:00:00Z");
+
+      const preview = await previewPersonMerge(survivorId, loserId);
+      expect(preview.consentCombinations).toHaveLength(1);
+      expect(preview.consentCombinations[0]).toMatchObject({
+        seasonLabel,
+        survivorState: "granted",
+        loserState: "refused",
+      });
+      expect(preview.consentCombinations[0]).not.toHaveProperty("combinedState");
+      expect(preview.consentCombinations[0]).not.toHaveProperty("fromLoser");
+    });
+
+    it("keeps the survivor's own state when the operator makes no explicit choice — even against a more restrictive loser", async () => {
+      const survivorId = await insertPerson({ givenName: unique("Survivor") });
+      const loserId = await insertPerson({ givenName: unique("Loser") });
+      await insertConsent(survivorId, seasonId, "granted", "2024-09-05T00:00:00Z");
+      await insertConsent(loserId, seasonId, "refused", "2024-09-01T00:00:00Z");
+
+      await mergePersons({
+        actorPersonId,
+        survivorPersonId: survivorId,
+        loserPersonId: loserId,
+        reason: "Duplicate consent, no explicit choice",
+        fieldChoices: {},
+      });
+
+      const consents = await observer.query<{ person_id: string; state: string }>(
+        `select person_id, state::text as state from public.season_messaging_consents
+          where season_id = $1::uuid and person_id = any($2::uuid[])`,
+        [seasonId, [survivorId, loserId]],
+      );
+      // Nothing is imposed: the survivor's own value stands by default, the
+      // same default a plain field or contact row's radio already has —
+      // proof this is no longer the automatic restrictive-wins algorithm.
+      expect(consents.rows).toHaveLength(1);
+      expect(consents.rows[0]).toMatchObject({ person_id: survivorId, state: "granted" });
+    });
+
+    it("takes the loser's state when the operator explicitly chooses it, restrictive or not", async () => {
+      const survivorId = await insertPerson({ givenName: unique("Survivor") });
+      const loserId = await insertPerson({ givenName: unique("Loser") });
+      await insertConsent(survivorId, seasonId, "granted", "2024-09-05T00:00:00Z");
+      await insertConsent(loserId, seasonId, "refused", "2024-09-01T00:00:00Z");
+
+      await mergePersons({
+        actorPersonId,
+        survivorPersonId: survivorId,
+        loserPersonId: loserId,
+        reason: "Duplicate consent, operator picked the loser's value",
+        fieldChoices: {},
+        consentChoices: { [seasonId]: "loser" },
+      });
+
+      const consent = await observer.query<{ state: string }>(
+        `select state::text as state from public.season_messaging_consents
+          where season_id = $1::uuid and person_id = $2::uuid`,
+        [seasonId, survivorId],
+      );
+      expect(consent.rows[0].state).toBe("refused");
+    });
+  });
+
+  it("combines a duplicate agreement pair onto the survivor: the earlier agreed_at survives", async () => {
+    const survivorId = await insertPerson({ givenName: unique("Survivor") });
+    const loserId = await insertPerson({ givenName: unique("Loser") });
+    const versionId = await insertAgreementVersion();
+    await insertAgreement(survivorId, seasonId, versionId, "2024-09-10T12:00:00Z");
+    await insertAgreement(loserId, seasonId, versionId, "2024-09-03T09:00:00Z");
+
+    await mergePersons({
+      actorPersonId,
+      survivorPersonId: survivorId,
+      loserPersonId: loserId,
+      reason: "Duplicate agreement",
+      fieldChoices: {},
+    });
+
+    const agreements = await observer.query<{ person_id: string; agreed_at: Date }>(
+      `select person_id, agreed_at from public.onboarding_agreements
+        where season_id = $1::uuid and agreement_type = 'code_of_conduct' and person_id = any($2::uuid[])`,
+      [seasonId, [survivorId, loserId]],
+    );
+    expect(agreements.rows).toHaveLength(1);
+    expect(agreements.rows[0].person_id).toBe(survivorId);
+    expect(agreements.rows[0].agreed_at.toISOString()).toBe("2024-09-03T09:00:00.000Z");
+  });
+
+  describe("a colliding open dispute on the same field — the newer answer supersedes the waiting one", () => {
+    it("keeps the more recently raised of two open disputes on the same field, never resolving either", async () => {
+      const survivorId = await insertPerson({ givenName: unique("Survivor") });
+      const loserId = await insertPerson({ givenName: unique("Loser") });
+      await insertDispute(
+        survivorId,
+        "college",
+        "Old College",
+        "Older Answer",
+        "2024-09-01T00:00:00Z",
+      );
+      await insertDispute(
+        loserId,
+        "college",
+        "Old College",
+        "Newer Answer",
+        "2024-09-05T00:00:00Z",
+      );
+
+      await mergePersons({
+        actorPersonId,
+        survivorPersonId: survivorId,
+        loserPersonId: loserId,
+        reason: "Duplicate dispute",
+        fieldChoices: {},
+      });
+
+      const disputes = await observer.query<{
+        person_id: string;
+        status: string;
+        player_value: string;
+      }>(
+        `select person_id, status::text as status, player_value from public.person_fact_disputes
+          where field = 'college' and person_id = any($1::uuid[])`,
+        [[survivorId, loserId]],
+      );
+      expect(disputes.rows).toHaveLength(1);
+      expect(disputes.rows[0]).toMatchObject({
+        person_id: survivorId,
+        status: "open",
+        player_value: "Newer Answer",
+      });
+    });
+
+    it("re-points a non-colliding dispute — a different field, or an already-resolved one — without touching it", async () => {
+      const survivorId = await insertPerson({ givenName: unique("Survivor") });
+      const loserId = await insertPerson({ givenName: unique("Loser") });
+      await insertDispute(
+        loserId,
+        "degree_field",
+        "Old Degree",
+        "New Degree",
+        "2024-09-01T00:00:00Z",
+      );
+
+      await mergePersons({
+        actorPersonId,
+        survivorPersonId: survivorId,
+        loserPersonId: loserId,
+        reason: "Non-colliding dispute",
+        fieldChoices: {},
+      });
+
+      const dispute = await observer.query<{ person_id: string; status: string }>(
+        `select person_id, status::text as status from public.person_fact_disputes
+          where field = 'degree_field' and person_id = any($1::uuid[])`,
+        [[survivorId, loserId]],
+      );
+      expect(dispute.rows).toHaveLength(1);
+      expect(dispute.rows[0]).toMatchObject({ person_id: survivorId, status: "open" });
+    });
   });
 
   it("keeps a value from the losing record when the operator chooses it, unaltered when they do not", async () => {

@@ -2,7 +2,11 @@ import "server-only";
 
 import { Conflict, ConstraintViolated, NotFound, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
-import { listCurrentSeasonRoster, type MembershipStatus } from "./membership";
+import {
+  listCurrentSeasonRoster,
+  type MembershipStatus,
+  type OnboardingItemStatus,
+} from "./membership";
 import type { AssembledStatus, PersonFactPresence } from "./person-required";
 import { missingRequiredFields } from "./person-required";
 import type { Season } from "./seasons";
@@ -158,6 +162,15 @@ function actorRequirement(actorPersonId: string): void {
 
 export type BluesValue = "Full" | "Half" | "None";
 export type FormalwearItemKey = "tie" | "bowtie" | "socks";
+/**
+ * `public.bps_selections.is_selected`, surfaced as a plain yes/no — item 5 of
+ * the item-and-ask inventory. BPS deliberately left the onboarding checklist
+ * to become a roster attribute (Brian, 2026-09-01: "We are going to add it
+ * here into the roster for the BPS column"), so it lives here beside Blues
+ * and Formalwear — read, written and surfaced exactly as they are — and is
+ * never an onboarding item.
+ */
+export type BpsValue = "Yes" | "No";
 
 export interface PositionOption {
   code: string;
@@ -221,6 +234,18 @@ export interface RosterBoardRow {
   eligibility: string | null;
   /** `public.availability_level`, or `null` when nothing has ever been recorded. */
   availability: string | null;
+  /** `public.bps_selections.is_selected`, defaulting to "No" — no row yet means never selected. */
+  bps: BpsValue;
+  /**
+   * Correction round 2, item 5 (`WP-operator-record`, LAN-217): the
+   * operator-ticked onboarding items, keyed by `onboarding_item_types.code`
+   * — the same seven the record page's own Onboarding section edits.
+   * Read-only summary data for the two derived items
+   * (`contact_academic_details`, `season_welcome_consent`) is not carried
+   * here; the existing summary column covers them. A membership missing an
+   * entry for a code has not had that item generated yet.
+   */
+  onboardingItems: Readonly<Record<string, { id: string; status: OnboardingItemStatus }>>;
 }
 
 export interface JerseyHolders {
@@ -300,6 +325,8 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
       bluesRows,
       eligibilityRows,
       availabilityRows,
+      bpsRows,
+      onboardingItemRows,
       positionOptions,
     ] = await Promise.all([
       tx.query<{
@@ -379,6 +406,24 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
           where season_id = $1::uuid`,
         [roster.season.id],
       ),
+      tx.query<{ season_membership_id: string; is_selected: boolean }>(
+        `select season_membership_id, is_selected
+           from public.bps_selections
+          where season_id = $1::uuid`,
+        [roster.season.id],
+      ),
+      // Correction round 2, item 5: the onboarding items as board columns.
+      // Every item this season carries, not only the operator-editable
+      // seven — the derived two are filtered out in TypeScript below, the
+      // same way `board-columns.ts` already keeps its own column list as
+      // the one place that decides what renders.
+      tx.query<{ season_membership_id: string; id: string; code: string; status: string }>(
+        `select i.season_membership_id, i.id, t.code, i.status::text as status
+           from public.onboarding_items i
+           join public.onboarding_item_types t on t.id = i.item_type_id
+          where i.season_membership_id = any($1::uuid[])`,
+        [membershipIds],
+      ),
       readPositionOptionsIn(tx, roster.season.id),
     ]);
 
@@ -454,6 +499,19 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
     const availabilityByMembership = new Map(
       availabilityRows.rows.map((row) => [row.season_membership_id, row.level]),
     );
+    const bpsByMembership = new Map(
+      bpsRows.rows.map((row) => [row.season_membership_id, row.is_selected]),
+    );
+
+    const onboardingItemsByMembership = new Map<
+      string,
+      Record<string, { id: string; status: OnboardingItemStatus }>
+    >();
+    for (const row of onboardingItemRows.rows) {
+      const current = onboardingItemsByMembership.get(row.season_membership_id) ?? {};
+      current[row.code] = { id: row.id, status: row.status as OnboardingItemStatus };
+      onboardingItemsByMembership.set(row.season_membership_id, current);
+    }
 
     const rows: RosterBoardRow[] = roster.entries.map((entry) => {
       const person = personById.get(entry.personId);
@@ -508,6 +566,8 @@ export async function listRosterBoard(): Promise<RosterBoardData> {
         blues: bluesByMembership.get(entry.membershipId) ?? "None",
         eligibility: eligibilityByMembership.get(entry.membershipId) ?? null,
         availability: availabilityByMembership.get(entry.membershipId) ?? null,
+        bps: bpsByMembership.get(entry.membershipId) ? "Yes" : "No",
+        onboardingItems: onboardingItemsByMembership.get(entry.membershipId) ?? {},
       };
     });
 
@@ -904,6 +964,55 @@ export async function commitBlues(params: {
       fromState: before,
       toState: params.value,
       context: { issue: "LAN-186" },
+    });
+  });
+}
+
+/**
+ * BPS — a plain yes/no roster attribute, `WP-operator-record` (LAN-217),
+ * mission owner-question Q-2/Q-3. Item 5 of the item-and-ask inventory left
+ * the onboarding checklist on Brian's explicit instruction (2026-09-01):
+ * "it's not a fucking mission change. We are going to add it here into the
+ * roster for the BPS column." It is a coaching selection rotated on
+ * attendance, never chased and never gating anything — this function is
+ * `commitBlues`'s own shape, one boolean rather than a three-way enum, since
+ * `bps_selections` is unique per membership the same way `blues_awards` is.
+ */
+export async function commitBps(params: {
+  actorPersonId: string;
+  membershipId: string;
+  seasonId: string;
+  value: BpsValue;
+}): Promise<void> {
+  actorRequirement(params.actorPersonId);
+  const isSelected = params.value === "Yes";
+
+  return withTransaction(async (tx) => {
+    const existing = await tx.query<{ is_selected: boolean }>(
+      `select is_selected from public.bps_selections
+        where season_membership_id = $1::uuid`,
+      [params.membershipId],
+    );
+    const before: BpsValue = existing.rows[0]?.is_selected ? "Yes" : "No";
+    if (before === params.value) return;
+
+    await tx.query(
+      `insert into public.bps_selections
+         (season_membership_id, season_id, is_selected, recorded_by_person_id)
+       values ($1::uuid, $2::uuid, $3, $4::uuid)
+       on conflict (season_membership_id)
+       do update set is_selected = excluded.is_selected, updated_at = now()`,
+      [params.membershipId, params.seasonId, isSelected, params.actorPersonId],
+    );
+
+    await recordAudit(tx, {
+      actorPersonId: params.actorPersonId,
+      action: "bps_changed",
+      entityTable: "season_memberships",
+      entityId: params.membershipId,
+      fromState: before,
+      toState: params.value,
+      context: { issue: "LAN-217" },
     });
   });
 }

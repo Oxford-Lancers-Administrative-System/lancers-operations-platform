@@ -29,8 +29,12 @@ import {
   formatWhen,
   labelFor,
   MEMBERSHIP_STATUS_LABELS,
-  ONBOARDING_ITEM_LABELS,
 } from "@/app/operate/roster/presentation";
+// LAN-217 replaced the flat `ONBOARDING_ITEM_LABELS` map with a per-item
+// lookup, because the word for a status varies by item — "Invoiced" is not
+// "Complete" (D-002). The preview reads the same function the record does, so
+// the two cannot drift apart.
+import { itemStateLabel } from "@/lib/services/onboarding-item-shapes";
 import { formatShortDate } from "@/lib/services/event-vocabulary";
 
 /**
@@ -204,7 +208,7 @@ export default function PlayerRecordPreview({
                     <StatusChip
                       domain="onboardingItem"
                       status={item.status}
-                      label={labelFor(ONBOARDING_ITEM_LABELS, item.status)}
+                      label={itemStateLabel(item.code, item.status)}
                     />
                     {item.isRequired ? (
                       <StatusChip domain="onboardingItem" status="required" label="Required" />

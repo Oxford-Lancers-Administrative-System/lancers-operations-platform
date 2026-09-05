@@ -78,7 +78,7 @@ const POSITIONS = Object.freeze([
 const ONBOARDING_TYPES = Object.freeze([
   ["subs_invoiced", "Subscription invoiced", true, false],
   ["subs_paid", "Subscription paid", false, true],
-  ["kit_sorted", "Kit sorted", true, false],
+  ["kit_sorted", "Kit Distributed", true, false],
   ["bucs_play", "BUCS Play registration", true, false],
   ["hudl_access", "Hudl access", false, false],
   ["photo", "Squad photo", false, false],

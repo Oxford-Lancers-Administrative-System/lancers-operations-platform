@@ -1,3 +1,5 @@
+import { itemStateLabel } from "@/lib/services/onboarding-item-shapes";
+import type { OnboardingItemStatus } from "@/lib/services/membership";
 import type { RosterBoardRow } from "@/lib/services/roster-board";
 import {
   AVAILABILITY_LABELS,
@@ -71,6 +73,38 @@ export function rawValue(row: RosterBoardRow, key: string): string | string[] | 
       return row.eligibility;
     case "availability":
       return row.availability;
+    case "bps":
+      return row.bps;
+    // Correction round 2, item 5 — one onboarding item's own status.
+    case "subsInvoiced":
+      return row.onboardingItems["subs_invoiced"]?.status ?? null;
+    // D-002 (correction round 3, Q-14): blank — nothing at all — until
+    // Subscription invoiced is itself complete. The board's own convention
+    // (`NOT_RECORDED`, immediately below) already renders `null` as "Not
+    // recorded" rather than a true blank — `REQ-not-recorded` — so returning
+    // `null` here is the honest "nothing to show yet", not a new rendering
+    // rule.
+    case "subsPaid":
+      return row.onboardingItems["subs_invoiced"]?.status === "complete"
+        ? (row.onboardingItems["subs_paid"]?.status ?? null)
+        : null;
+    // Correction round 2, item 2 gave Kit Distributed its Yes/No wording;
+    // correction round 5 moved that wording into `itemStatusLabel` alongside
+    // every other item's, so this reads the same raw status every other
+    // onboarding column does. It used to pre-convert to "Yes"/"No" here,
+    // which — now that the item's own model is the one place that word is
+    // decided — made this column the one place still capable of handing that
+    // model a status it does not recognise (`"Yes"` and `"No"` are neither).
+    case "kitDistributed":
+      return row.onboardingItems["kit_sorted"]?.status ?? null;
+    case "bucsPlay":
+      return row.onboardingItems["bucs_play"]?.status ?? null;
+    case "hudlAccess":
+      return row.onboardingItems["hudl_access"]?.status ?? null;
+    case "squadPhoto":
+      return row.onboardingItems["photo"]?.status ?? null;
+    case "commsGroup":
+      return row.onboardingItems["comms_groups"]?.status ?? null;
     default:
       return null;
   }
@@ -122,6 +156,14 @@ function optionLabel(column: ColumnDef, code: string): string {
   if (column.key === "eligibility") return labelFor(ELIGIBILITY_LABELS, code);
   if (column.key === "availability") return labelFor(AVAILABILITY_LABELS, code);
   if (column.key === "formalwear") return labelFor(FORMALWEAR_LABELS, code);
+  // D-002 (correction round 6, `WP-operator-record`, LAN-217): `code` is
+  // always a real `OnboardingItemStatus` now — the closed cell, the filter
+  // popover and the open dropdown's own menu items all read from the one
+  // list `allowedItemStates` names, so there is no second, "resolution"
+  // vocabulary any more for this to reconcile.
+  if (column.edit === "onboarding") {
+    return itemStateLabel(column.itemCode ?? "", code as OnboardingItemStatus);
+  }
   return column.optionLabels?.[code] ?? code;
 }
 
@@ -132,7 +174,12 @@ export function filterOptions(
 ): readonly string[] {
   if (column.key === "missing") return ["Yes", "No"];
   if (column.key === "contactable") return ["Has mobile", "Has email", "Neither"];
-  if (column.options) return [...column.options];
+  // Correction round 2, item 5: the filter offers exactly the states that
+  // appear in the current data, derived below, the same way every column
+  // with no fixed `options` already does — `column.options` (the open
+  // dropdown's own list) and `rawValue`'s stored status are now the same
+  // vocabulary, but the filter still only offers values actually present.
+  if (column.options && column.edit !== "onboarding") return [...column.options];
 
   const seen = new Set<string>();
   let blanks = false;
@@ -263,6 +310,7 @@ export function displayOf(row: RosterBoardRow, column: ColumnDef): string {
     if (value.length === 0) return column.edit === "none" ? "—" : NOT_RECORDED;
     return value.map((entry) => optionLabel(column, entry)).join(", ");
   }
-  if (column.edit === "select") return optionLabel(column, String(value));
+  if (column.edit === "select" || column.edit === "onboarding")
+    return optionLabel(column, String(value));
   return String(value);
 }
