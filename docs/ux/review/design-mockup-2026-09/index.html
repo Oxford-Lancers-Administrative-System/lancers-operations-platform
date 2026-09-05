@@ -218,7 +218,7 @@
       <h1>LAN-225 — Design mockup review</h1>
       <p>
         Proposed captures from <code>chore/lan-225-design-mockup</code> at
-        <code>bc9f51c2e7ac0a5a0f69a9816a3f7806543c3dac</code>, 2026-09-05T15:35:39.952Z, measured
+        <code>76e09b09d853953f93049727415ce5a63e881cd2</code>, 2026-09-05T18:44:26.891Z, measured
         1440×900 and 375×812 through the real login on the local seed. Current captures from the
         LAN-224 audit on <code>main</code> at <code>4a3efa9</code>, and — for the player surfaces
         (S5, S9, S10, S10b, S11) — from this ticket&rsquo;s own run on <code>main</code> at
@@ -362,7 +362,14 @@
             <li>
               Tokens only. The real board component, unchanged in behaviour (Brian, 3 Sep 2026).
             </li>
-            <li>Bands: Person Oxford Blue, Onboarding Old Gold, Season Royal Blue (brief §1.5).</li>
+            <li>
+              Bands: NOT shown here. The proposal is Person Oxford Blue, Onboarding Old Gold, Season
+              Royal Blue (brief §1.5, and BAND_COLOURS in src/components/section.tsx), but the board
+              reads its band hexes from src/app/operate/roster/board-columns.ts — a live file this
+              branch deliberately leaves on main so it can be merged without repainting the real
+              roster. The bands above are today's. Every other band on the review page (S2, S3) is
+              the kit's and is the proposal.
+            </li>
             <li>
               Chips and buttons read the semantic set; every button is sentence case (E1, G1, G2).
             </li>
