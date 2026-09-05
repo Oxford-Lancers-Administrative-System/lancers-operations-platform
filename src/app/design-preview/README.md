@@ -47,6 +47,36 @@ invitations still needing an answer, which is the same player the current-side
 captures were taken for, so every pair on the review page is the same person
 and the same events.
 
+## Self-contained, on purpose
+
+Merging this branch changes nothing about the running application. That is a
+requirement (Brian, 5 September 2026: "so I can merge it without any issues"),
+and it is what shapes the folder:
+
+- **The club theme is applied here and nowhere else.** `club-theme.ts` holds
+  it, `themed.tsx` mounts it, and `layout.tsx` wraps every preview route in it.
+  MUI's `ThemeProvider` nests, so the root layout's theme still governs the
+  rest of the application. `src/theme.ts` is untouched.
+- **The proposed operator shell is this folder's own copy** — `(operator)/shell-nav.tsx`.
+  `src/app/operate/shell-nav.tsx` stays exactly as it is on `main`.
+- **Nothing outside this folder imports the kit.** `src/components/` and
+  `src/theme-tokens.ts` are new files that no live route reaches; merging adds
+  them without using them.
+- **Every `product` finding is drawn, not applied.** B8's sign-in root, A6's
+  short-month dates, B2 and B3 in the shell: all visible on the preview, none
+  of them changed in the running application.
+
+What the implementation mission does first: move `club-theme.ts` to
+`src/theme.ts`, delete `themed.tsx` and this folder's `shell-nav.tsx`, and
+adopt the kit page by page.
+
+**One thing the preview therefore cannot show.** S1 is the real roster board,
+and the board takes its band colours from `src/app/operate/roster/board-columns.ts`,
+a live file left on `main`. So S1's Person/Onboarding/Season bands are today's,
+not the proposal's. The proposed values are in `BAND_COLOURS`
+(`src/components/section.tsx`) and in `design-system.md`; every other band on
+the review page comes from the kit and is the proposal.
+
 ## What this is not
 
 - **Not authority.** `docs/ux/design-system.md` is what the implementation

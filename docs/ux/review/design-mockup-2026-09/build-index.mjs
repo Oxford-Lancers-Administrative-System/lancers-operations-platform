@@ -49,7 +49,7 @@ const SCREENS = [
     proposed: { desktop: "S1-roster--desktop.png", phone: "S1-roster--phone.png" },
     deltas: [
       "Tokens only. The real board component, unchanged in behaviour (Brian, 3 Sep 2026).",
-      "Bands: Person Oxford Blue, Onboarding Old Gold, Season Royal Blue (brief §1.5).",
+      "Bands: NOT shown here. The proposal is Person Oxford Blue, Onboarding Old Gold, Season Royal Blue (brief \u00a71.5, and BAND_COLOURS in src/components/section.tsx), but the board reads its band hexes from src/app/operate/roster/board-columns.ts \u2014 a live file this branch deliberately leaves on main so it can be merged without repainting the real roster. The bands above are today's. Every other band on the review page (S2, S3) is the kit's and is the proposal.",
       "Chips and buttons read the semantic set; every button is sentence case (E1, G1, G2).",
       "The shell around it is S0.",
     ],

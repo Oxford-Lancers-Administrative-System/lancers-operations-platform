@@ -107,11 +107,11 @@ const DECISIONS = [
   ["Buttons", "Sentence case (§4.5)."],
   [
     "The root page",
-    "B8 taken (Brian, 4 Sep 2026): / is the sign-in screen; the bootstrap scaffold is gone.",
+    "B8 taken (Brian, 4 Sep 2026): / becomes the sign-in screen. Drawn at /design-preview/login; this branch leaves the real / alone so it can be merged without changing the running application, and the implementation mission makes the change.",
   ],
   [
     "Product findings taken",
-    "H1 login alert cut; A6 one short-month form; E9 pickers over native dates; B2 and B3 in the shell (§4.6, register).",
+    "H1 login alert cut; A6 one short-month form; E9 pickers over native dates; B2 and B3 in the shell (§4.6, register). All four are drawn here and none is applied to the running application on this branch.",
   ],
 ] as const;
 
@@ -132,9 +132,12 @@ export default async function DesignPreviewIndex() {
       />
 
       <Notice severity="info" testId="preview-scope">
-        Scaffolding. Nothing here ships: the implementation mission takes the theme and the kit from
-        this branch. Reads are real and go through the same gates as the pages they mirror; writes
-        are drawn, not wired, except on the roster board, which is the real component.
+        Scaffolding, and self-contained: the club theme is applied to this route and nowhere else,
+        so merging this branch changes nothing about the running application. The implementation
+        mission moves <code>design-preview/club-theme.ts</code> to <code>src/theme.ts</code> and
+        adopts the kit deliberately. Reads are real and go through the same gates as the pages they
+        mirror; writes are drawn, not wired, except on the roster board, which is the real
+        component.
       </Notice>
 
       <Section

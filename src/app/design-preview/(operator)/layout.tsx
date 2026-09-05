@@ -8,7 +8,9 @@ import { signOut } from "@/app/login/actions";
 import OperatorAccountState from "@/app/operate/account-state";
 import { administrationDestinationsFor, destinationsFor } from "@/app/operate/destinations";
 import { COACH_SECTION, OPERATOR_CAPTION, OPERATOR_SECTION } from "@/app/operate/layout";
-import ShellNav from "@/app/operate/shell-nav";
+// The preview's own copy of the proposed shell, so `/operate`'s real one is
+// untouched on this branch and merging changes nobody's navigation.
+import ShellNav from "./shell-nav";
 
 /**
  * The proposed operator shell — LAN-225 screen 0.
@@ -16,8 +18,9 @@ import ShellNav from "@/app/operate/shell-nav";
  * The same frame `src/app/operate/layout.tsx` draws, with three presentation
  * changes and no behaviour change:
  *
- *   - **B1** the sidebar and drawer draw from the palette (`shell-nav.tsx`
- *     itself now does; this layout only mounts it);
+ *   - **B1** the sidebar and drawer draw from the palette (`./shell-nav.tsx`,
+ *     this folder's copy of `src/app/operate/shell-nav.tsx`, does; this layout
+ *     only mounts it — the real one is left exactly as it is on `main`);
  *   - **B2** the "Lancers Operations / Signed in as …" block above every page
  *     is gone — the wordmark and the account live in the shell, and the page's
  *     own `PageHeader` is its one heading;

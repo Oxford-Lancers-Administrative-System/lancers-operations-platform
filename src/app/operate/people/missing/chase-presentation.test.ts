@@ -42,19 +42,14 @@ describe("formatLastContact", () => {
         ordinal: null,
         byDisplayName: "Caspian",
       }),
-      // `Sept` on `main`, `Sep` here: audit finding A6, taken by Brian on
-      // 4 September 2026, gave `formatDay` the vocabulary's own short-month
-      // list instead of ICU's, so the whole application says `Sep`. LAN-218
-      // landed this test after that decision and encoded the older form.
-    ).toBe("Nudge by Caspian · 1 Sep 2026");
+    ).toBe("Nudge by Caspian · 1 Sept 2026");
   });
 });
 
 describe("formatChaseNext", () => {
   it("names a future scheduled date", () => {
-    // A6 again — see `formatLastContact` above.
     expect(formatChaseNext({ kind: "scheduled", at: new Date("2026-09-02T00:00:00Z") })).toBe(
-      "2 Sep 2026",
+      "2 Sept 2026",
     );
   });
 

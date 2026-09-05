@@ -21,11 +21,18 @@ never contradicts; [`slice-ux.md`](slice-ux.md) (routes, vocabulary, states),
 which this page never redefines.
 
 This is the single place the implementation mission is held to. It is short
-on purpose: the tokens are in `src/theme.ts`, the components are in
-`src/components/`, and the evidence is on the review page for LAN-225. What is
-here is the rule for each, and the reason where a reason is not obvious.
-The token values themselves are in `src/theme-tokens.ts` (server-safe);
-`src/theme.ts` builds the MUI theme from them and records the contrast.
+on purpose: the components are in `src/components/`, and the evidence is on
+the review page for LAN-225. What is here is the rule for each, and the reason
+where a reason is not obvious.
+
+**Where the theme lives, and why not where you would expect.** The token
+values are in `src/theme-tokens.ts` (server-safe) and the MUI theme built from
+them is `src/app/design-preview/club-theme.ts`, applied to the preview route
+and nowhere else. It is not `src/theme.ts`, because the mockup branch has to
+be mergeable without repainting the running application half-finished — the
+real pages would take the tokens without the components. The implementation
+mission's first act is to move that file to `src/theme.ts`; until then the
+application's own theme is untouched.
 
 ## 1. Palette
 

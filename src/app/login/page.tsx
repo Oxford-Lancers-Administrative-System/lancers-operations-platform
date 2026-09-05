@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import Alert from "@mui/material/Alert";
+import Typography from "@mui/material/Typography";
+import AuthShell from "../auth-shell";
 import { safeRelativeDestination } from "@/lib/auth/destination";
-import SignInScreen from "./sign-in-screen";
+import LoginForm from "./login-form";
 
 /**
  * UX-01. The default destination is `/operate`, the operator shell, per the
@@ -27,5 +30,25 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const redirectTo = safeRelativeDestination(params.redirectTo);
   const justReset = params.reset === "1";
 
-  return <SignInScreen redirectTo={redirectTo} justReset={justReset} />;
+  return (
+    <AuthShell
+      heading="Sign in to Lancers Operations"
+      intro="Use the email address connected to your operator profile."
+    >
+      {justReset ? (
+        <Alert severity="success">
+          Your password has been changed. Sign in with your new password.
+        </Alert>
+      ) : null}
+      <Alert severity="info">
+        Authentication does not grant access by itself. The linked operator profile and current role
+        assignments are checked on every protected action.
+      </Alert>
+      <LoginForm redirectTo={redirectTo} />
+      <Typography variant="body2" color="text.secondary">
+        Accounts are provided by the club. There is no public registration — ask the club
+        administrator for access.
+      </Typography>
+    </AuthShell>
+  );
 }

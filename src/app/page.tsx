@@ -1,35 +1,40 @@
-import type { Metadata } from "next";
-import { safeRelativeDestination } from "@/lib/auth/destination";
-import SignInScreen from "./login/sign-in-screen";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Container from "@mui/material/Container";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
 
 /**
- * The root is where a visitor signs in. Audit finding B8, taken on Brian's
- * decision at the 4 September 2026 visual review (LAN-225).
+ * The trivial page that proves the app renders and deploys.
  *
- * What stood here was LAN-71's bootstrap scaffold: a heading, a paragraph
- * describing the repository as an "infrastructure scaffold" whose "only job is
- * to prove the development, CI, and deployment loop", and buttons to
- * `/dashboard` and `/login`. It was written to prove the deploy loop worked and
- * was never replaced. Nobody arriving at the club's operations platform should
- * be told about the CI pipeline, and a signed-out visitor has nothing else to
- * do here.
- *
- * It renders the sign-in screen rather than redirecting to `/login`. Both are
- * the same component, so there is one screen and not two, and `/login` stays
- * the route the proxy redirects to with `?redirectTo=`, the one the recovery
- * emails link to, and the one the route contract names.
+ * Navigation uses MUI's own `href` (a plain anchor) rather than `component={Link}`:
+ * this is a Server Component, and passing the `next/link` function into a Client
+ * Component boundary is a build error. When real navigation is built, add a small
+ * client-side link adapter — do not reach for `component={Link}` here.
  */
-export const metadata: Metadata = {
-  title: "Sign in — Lancers Operations",
-  robots: { index: false, follow: false },
-};
-
-export default async function Home({ searchParams }: PageProps<"/">) {
-  const params = await searchParams;
+export default function Home() {
   return (
-    <SignInScreen
-      redirectTo={safeRelativeDestination(params.redirectTo)}
-      justReset={params.reset === "1"}
-    />
+    <Container maxWidth="sm">
+      <Box sx={{ py: 10 }}>
+        <Stack spacing={3}>
+          <Typography variant="h4" component="h1">
+            Lancers Operations Platform
+          </Typography>
+          <Typography color="text.secondary">
+            Infrastructure scaffold. This deliberately contains no club domain functionality — no
+            players, rosters, events, attendance, or communications. Its only job is to prove the
+            development, CI, and deployment loop.
+          </Typography>
+          <Stack direction="row" spacing={2}>
+            <Button href="/dashboard" variant="contained">
+              Protected page
+            </Button>
+            <Button href="/login" variant="outlined">
+              Sign in
+            </Button>
+          </Stack>
+        </Stack>
+      </Box>
+    </Container>
   );
 }
