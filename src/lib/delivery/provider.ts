@@ -81,7 +81,25 @@ export type MessageKind =
    * is to obtain one. Declared in `onboarding-welcome.ts` (LAN-214) and
    * dispatched here on Mission 4's pipeline, exactly as `recruit_welcome` is.
    */
-  | "onboarding_welcome";
+  | "onboarding_welcome"
+  /**
+   * LAN-218, `REQ-operator-nudge`, `W8`/`W11`'s automated chase. The same
+   * compiled-ask link the welcome carries, re-sent — never a new message and
+   * never a one-fact ask (`OD7-no-targeted-ask`). One template for both the
+   * scheduler's own automated attempt and an operator's manual nudge from
+   * `/operate/people/missing`: the two differ only in who caused the send,
+   * never in what is sent.
+   */
+  | "onboarding_chase"
+  /**
+   * LAN-218, `W9`, `T11-escalation-personal-data-free`. Sent to the office
+   * configured to receive it (initial value President), read from
+   * `public.roles`/`public.role_assignments`. Carries a count and a link and
+   * — on the identical rule `escalation` above already enforces — **no name
+   * and no per-person detail**: `T11-escalation-target`'s own reasoning for
+   * why an escalation goes to an office survives unchanged for this one.
+   */
+  | "onboarding_chase_escalation";
 
 /**
  * One message, reduced to what any channel would need to send it.
