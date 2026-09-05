@@ -38,6 +38,11 @@ const VIEWPORTS = [
   { label: "desktop", width: 1440, height: 900 },
   { label: "phone", width: 375, height: 812 },
 ];
+/** One viewport-sized phone shot each of the two forms whose foot is sticky. */
+const STICKY_PROOFS = [
+  { id: "S4-actionbar", route: "/design-preview/event-new" },
+  { id: "S10-actionbar", route: "/design-preview/player-details" },
+];
 
 const session = readSession(W);
 const lease = await updateLease({ repoPath: W, token: session.token });
@@ -48,14 +53,26 @@ const manifest = [];
 
 for (const vp of VIEWPORTS) {
   const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
+  // Two things a full-page capture would otherwise say that are not true.
+  //
   // `next dev` floats its dev-tools badge in the bottom-left corner, which is
   // exactly where the shell's account block puts **Sign out**. It never ships,
   // so a capture that shows it sitting on top of a real control misrepresents
   // the design rather than documenting it.
+  //
+  // And a `position: sticky` foot — `ActionBar` on a phone — is painted once
+  // per stitched tile by a full-page capture, so it lands in the *middle* of
+  // the form rather than at the foot of the viewport where it belongs. That is
+  // how "Save draft / Save and choose audience / Cancel" ended up sitting on
+  // top of the Where field in S4's 4 September phone capture. The whole-page
+  // shot therefore unsticks it — a still photograph cannot show pinning
+  // anyway — and `STICKY_PROOFS` below takes one viewport-sized shot of each
+  // sticky foot doing its job.
   await context.addInitScript(() => {
     const style = document.createElement("style");
     style.textContent =
-      "nextjs-portal, [data-nextjs-dev-tools-button] { display: none !important }";
+      "nextjs-portal, [data-nextjs-dev-tools-button] { display: none !important }" +
+      "html.capture-unstick [data-testid='action-bar'] { position: static !important }";
     document.addEventListener("DOMContentLoaded", () => document.head.append(style));
   });
   const page = await context.newPage();
@@ -82,6 +99,7 @@ for (const vp of VIEWPORTS) {
       });
       await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
       await page.waitForTimeout(400);
+      await page.evaluate(() => document.documentElement.classList.add("capture-unstick"));
       await page.screenshot({ path: path.join(OUT, file), fullPage: true, timeout: 60_000 });
       const size = await page.evaluate(() => ({ h: document.documentElement.scrollHeight }));
       manifest.push({
@@ -107,6 +125,30 @@ for (const vp of VIEWPORTS) {
   }
 
   if (vp.label === "phone") {
+    // The sticky feet, viewport only, doing what the whole-page shots unstick.
+    for (const proof of STICKY_PROOFS) {
+      const file = `${proof.id}--phone.png`;
+      try {
+        await page.goto(`${origin}${proof.route}`, {
+          waitUntil: "domcontentloaded",
+          timeout: 90_000,
+        });
+        await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
+        await page.waitForTimeout(400);
+        await page.screenshot({ path: path.join(OUT, file), fullPage: false });
+        manifest.push({
+          id: proof.id,
+          route: `${proof.route} (sticky foot, viewport only)`,
+          viewport: "phone",
+          measured: seen,
+          file,
+        });
+        console.log(`  ${file}`);
+      } catch (error) {
+        console.log(`  ${file} FAILED: ${String(error.message).slice(0, 120)}`);
+      }
+    }
+
     // S0: the drawer open, viewport only.
     try {
       await page.goto(`${origin}/design-preview/roster`, {

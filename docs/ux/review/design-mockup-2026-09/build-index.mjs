@@ -101,6 +101,7 @@ const SCREENS = [
       phone: "operate-events-new--empty-form--phone.png",
     },
     proposed: { desktop: "S4-event-new--desktop.png", phone: "S4-event-new--phone.png" },
+    extras: [{ file: "S4-actionbar--phone.png", note: "sticky foot, viewport only" }],
     deltas: [
       "The two standing info alerts become the subtitle and a helper line; their words are unchanged (E2).",
       "Field, SelectField, DateField, TimeField, ChoiceField at one size, full width (E9, A11).",
@@ -235,6 +236,7 @@ const SCREENS = [
       desktop: "S10-player-details--desktop.png",
       phone: "S10-player-details--phone.png",
     },
+    extras: [{ file: "S10-actionbar--phone.png", note: "sticky foot, viewport only" }],
     deltas: [
       "P1 — the masthead, with the season as its caption.",
       "P18 — the five-column <dl> of 11px labels becomes StepTrail: numbered, one chip per step, the current step on the Sky Blue ground, wrapping rather than collapsing to a two-column table at 375px.",
@@ -351,6 +353,13 @@ const sections = SCREENS.map((s) => {
       return `<div class="pair ${vp}">${cur}${pro}</div>`;
     })
     .join("\n");
+  // The whole-page phone shots deliberately unstick the `ActionBar`, because a
+  // stitched full-page capture paints a sticky foot once per tile and drops it
+  // into the middle of the form. These are the viewport-sized shots that show
+  // it doing its job.
+  const extras = (s.extras ?? [])
+    .map((e) => `<div class="pair phone">${frame("proposed", e.file, 375, s.route, e.note)}</div>`)
+    .join("\n");
   return `<section class="screen" id="${s.id}">
   <div class="tab">${s.id}</div>
   <header class="head">
@@ -360,6 +369,7 @@ const sections = SCREENS.map((s) => {
     <ul class="deltas">${s.deltas.map((d) => `<li>${esc(d)}</li>`).join("")}</ul>
   </header>
   ${rows}
+  ${extras}
 </section>`;
 }).join("\n");
 
