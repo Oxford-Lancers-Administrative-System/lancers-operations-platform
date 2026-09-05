@@ -78,6 +78,7 @@ import {
 export {
   AUDIENCE_GROUPS,
   groupsForEventType,
+  templateGroupsForEventType,
   summariseAudienceGroups,
   CAPACITY_PRECEDENCE,
   EMPTY_AUDIENCE_MESSAGE,
@@ -110,6 +111,7 @@ interface CandidateRow {
   standing: string;
   unit: string | null;
   contact: string | null;
+  is_bps: boolean;
 }
 
 /** Known-as where there is one, matching how the roster names people. */
@@ -183,12 +185,39 @@ export async function listAudienceCatalogueIn(
               ${personDisplayAliasSql("p")} as display_alias,
             initcap(m.status::text) as standing,
             ${UNIT_EXPRESSION} as unit,
-            ${CONTACT_EXPRESSION} as contact
+            ${CONTACT_EXPRESSION} as contact,
+            exists (select 1 from public.bps_selections bps
+                     where bps.season_membership_id = m.id and bps.is_selected) as is_bps
        from public.season_memberships m
        join public.people p on p.id = m.person_id
        cross join as_of
       where m.season_id = $1
         and m.status = 'active'
+
+      union all
+
+     -- Correction round 2, item 7 (WP-operator-record, LAN-217): the player
+     -- arm above is active-only, and an onboarding membership is not
+     -- otherwise in this catalogue at all — but REQ-nothing-gates in the
+     -- packet states onboarding memberships count as players for event
+     -- audiences from the moment they are on the team, so a BPS selection on
+     -- one still has to reach this picker. Every row here already satisfies
+     -- is_selected, so it is never selectable except through the BPS group.
+     select 'player' as capacity,
+            m.id as anchor_id,
+            p.id as person_id,
+            p.given_name, p.family_name,
+              ${personDisplayAliasSql("p")} as display_alias,
+            initcap(m.status::text) as standing,
+            ${UNIT_EXPRESSION} as unit,
+            ${CONTACT_EXPRESSION} as contact,
+            true as is_bps
+       from public.season_memberships m
+       join public.people p on p.id = m.person_id
+       join public.bps_selections bps on bps.season_membership_id = m.id and bps.is_selected
+       cross join as_of
+      where m.season_id = $1
+        and m.status = 'onboarding'
 
       union all
 
@@ -199,7 +228,8 @@ export async function listAudienceCatalogueIn(
               ${personDisplayAliasSql("p")} as display_alias,
             r.name as standing,
             null as unit,
-            ${CONTACT_EXPRESSION} as contact
+            ${CONTACT_EXPRESSION} as contact,
+            false as is_bps
        from public.role_assignments ra
        join public.roles r on r.id = ra.role_id
        join public.people p on p.id = ra.person_id
@@ -231,7 +261,8 @@ export async function listAudienceCatalogueIn(
               ${personDisplayAliasSql("p")} as display_alias,
             initcap(rp.status::text) as standing,
             null as unit,
-            ${CONTACT_EXPRESSION} as contact
+            ${CONTACT_EXPRESSION} as contact,
+            false as is_bps
        from public.recruitment_prospects rp
        join public.people p on p.id = rp.person_id
       where rp.season_id = $1
@@ -250,6 +281,7 @@ export async function listAudienceCatalogueIn(
     const existing = byKey.get(key);
     if (existing) {
       existing.standing = `${existing.standing}, ${row.standing}`;
+      existing.isBps = existing.isBps || row.is_bps;
       continue;
     }
     byKey.set(key, {
@@ -261,6 +293,7 @@ export async function listAudienceCatalogueIn(
       standing: row.standing,
       unit: row.unit,
       contact: row.contact,
+      isBps: row.is_bps,
     });
   }
 

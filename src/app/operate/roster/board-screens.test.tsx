@@ -38,6 +38,7 @@ vi.mock("@/lib/services/roster-board", () => ({ listRosterBoard: vi.fn() }));
 vi.mock("./board-actions", () => ({
   commitAvailabilityAction: vi.fn().mockResolvedValue({ error: null }),
   commitBluesAction: vi.fn().mockResolvedValue({ error: null }),
+  commitBpsAction: vi.fn().mockResolvedValue({ error: null }),
   commitCoachGroupAction: vi.fn().mockResolvedValue({ error: null }),
   commitEligibilityAction: vi.fn().mockResolvedValue({ error: null }),
   commitEntryAction: vi.fn().mockResolvedValue({ error: null }),
@@ -54,6 +55,7 @@ import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operato
 import type { RosterBoardData, RosterBoardRow } from "@/lib/services/roster-board";
 import { listRosterBoard } from "@/lib/services/roster-board";
 import { setMembershipStatusAction } from "./actions";
+import { commitBpsAction } from "./board-actions";
 import RosterPage from "./page";
 
 function operator(roleCodes: string[]): ResolvedOperator {
@@ -109,6 +111,8 @@ function row(overrides: Partial<RosterBoardRow> = {}): RosterBoardRow {
     blues: "None",
     eligibility: null,
     availability: "green",
+    bps: "No",
+    onboardingItems: {},
     ...overrides,
   };
 }
@@ -176,7 +180,7 @@ describe("the board itself", () => {
 
     expect(screen.getByTestId("season-label")).toHaveTextContent("Season 2026-27");
     expect(screen.getByTestId("season-label")).toHaveTextContent("1 player");
-    expect(screen.getByTestId("season-label")).toHaveTextContent("20 columns");
+    expect(screen.getByTestId("season-label")).toHaveTextContent("28 columns");
   });
 
   it("bands the columns as Person, Onboarding, Season", async () => {
@@ -191,7 +195,7 @@ describe("the board itself", () => {
     expect(within(board).getByText("Season")).toBeInTheDocument();
   });
 
-  it("carries the twenty approved columns, with raw email and phone gone", async () => {
+  it("carries the twenty-eight approved columns, with raw email and phone gone", async () => {
     givenBoard();
     render(await RosterPage(pageProps()));
 
@@ -213,6 +217,15 @@ describe("the board itself", () => {
       "Blues",
       "Eligibility",
       "Availability",
+      "BPS",
+      // Correction round 2, item 5: the seven onboarding-item columns.
+      "Sub invoiced",
+      "Sub paid",
+      "Kit Distributed",
+      "BUCS Play",
+      "Hudl access",
+      "Squad photo",
+      "Comms group",
     ]) {
       expect(within(board).getByText(label)).toBeInTheDocument();
     }
@@ -528,6 +541,38 @@ describe("the Status column — one in-cell dropdown, no forms, no dialog", () =
   // states for column-level `requires` — and is exercised for a real role
   // combination on the player page instead, where the two grants differ
   // (`roster-screens.test.tsx`, "an operator who may not change status").
+});
+
+/**
+ * BPS — `WP-operator-record`, LAN-217, mission owner-question Q-2/Q-3. A
+ * plain yes/no roster attribute, `commitBlues`'s own shape rather than an
+ * onboarding item: the write itself is proved for real against the database
+ * in `src/lib/services/roster-board.test.ts`; this proves the cell.
+ */
+describe("the BPS column — a plain yes/no, never an onboarding item", () => {
+  beforeEach(() => signedInAs(["secretary"]));
+
+  it("opens a Yes/No select and commits through commitBpsAction", async () => {
+    givenBoard({ rows: [row({ bps: "No" })] });
+    render(await RosterPage(pageProps()));
+
+    await act(async () => {
+      fireEvent.click(editableCellFor("No"));
+    });
+
+    expect(screen.getByRole("option", { name: "Yes" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "No" })).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("option", { name: "Yes" }));
+    });
+
+    expect(commitBpsAction).toHaveBeenCalledWith({
+      membershipId: row().membershipId,
+      seasonId: expect.any(String),
+      value: "Yes",
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

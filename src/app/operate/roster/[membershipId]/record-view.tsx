@@ -10,16 +10,25 @@ import ListItemText from "@mui/material/ListItemText";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 
 import type {
   MembershipStatus,
   MembershipStatusEvent,
-  OnboardingItem,
+  OnboardingItemStatus,
 } from "@/lib/services/membership";
+import {
+  allowedItemStates,
+  isDerivedItem,
+  itemStateLabel,
+  SUBS_INVOICED_ITEM_CODE,
+  SUBS_PAID_ITEM_CODE,
+} from "@/lib/services/onboarding-item-shapes";
 import type { PersonRecord } from "@/lib/services/person-record";
 import type {
+  OnboardingActivitySection,
+  OnboardingItemDisplay,
+  OnboardingItemHistoryEntry,
   OtherSeasonSummary,
   PlayerRecordData,
   PlayerSeasonFacts,
@@ -56,7 +65,6 @@ import {
   labelFor,
   MEMBERSHIP_STATUS_LABELS,
   membershipStatusColour,
-  ONBOARDING_ITEM_LABELS,
 } from "../presentation";
 import {
   recordCommitAvailabilityAction,
@@ -71,8 +79,16 @@ import {
   recordSetStatusAction,
 } from "./record-actions";
 
-/** The three resolutions this screen offers — `OPERATOR_ITEM_RESOLUTIONS` in `membership.ts`. */
-const ITEM_RESOLUTIONS = Object.freeze(["complete", "waived", "not_applicable"] as const);
+/**
+ * This row's own state list is `allowedItemStates(item.code)`, and its own
+ * words are `itemStateLabel(item.code, status)` — D-002 (correction round 6,
+ * `WP-operator-record`, LAN-217): one list, both what the closed cell shows
+ * and what the open control offers, so the two cannot say something
+ * different again. There is no separate resolution vocabulary and no
+ * `reopen` — an operator corrects a mistake by choosing a different one of
+ * the item's own states directly, the service refusing anything outside that
+ * item's own list. A derived item (`isDerivedItem`) offers no control at all.
+ */
 
 /**
  * `/operate/roster/[membershipId]` — W6, rebuilt. LAN-187.
@@ -234,18 +250,13 @@ export default function PlayerRecordView({
     });
   }
 
-  function resolveOnboardingItem(
-    item: OnboardingItem,
-    status: "complete" | "waived" | "not_applicable",
-    reason?: string,
-  ) {
+  function resolveOnboardingItem(item: OnboardingItemDisplay, status: OnboardingItemStatus) {
     startTransition(() => {
       void runCommit(`item:${item.id}`, () =>
         recordResolveOnboardingItemAction({
           membershipId: record.membershipId,
           itemId: item.id,
           status,
-          reason,
         }),
       );
     });
@@ -379,10 +390,15 @@ export default function PlayerRecordView({
               item={item}
               editing={editing === `item:${item.id}`}
               readOnly={closed}
+              blank={
+                item.code === SUBS_PAID_ITEM_CODE &&
+                record.onboardingItems.find((each) => each.code === SUBS_INVOICED_ITEM_CODE)
+                  ?.status !== "complete"
+              }
               error={fieldError?.key === `item:${item.id}` ? fieldError.message : null}
               onOpen={() => setEditing(`item:${item.id}`)}
               onClose={() => setEditing(null)}
-              onResolve={(status, reason) => resolveOnboardingItem(item, status, reason)}
+              onResolve={(status) => resolveOnboardingItem(item, status)}
             />
           ))
         )}
@@ -396,6 +412,11 @@ export default function PlayerRecordView({
             {`${record.outstandingRequired.length === 1 ? "One required item is" : `${record.outstandingRequired.length} required items are`} still outstanding: ${record.outstandingRequired.map((item) => item.label).join(", ")}.`}
           </Alert>
         ) : null}
+      </Section>
+
+      {/* --------------------------------------------------------- Activity -- */}
+      <Section colours={sectionColours("onboarding")} title="Activity" testId="activity">
+        <ActivityLog sections={record.activityLog} />
       </Section>
 
       {/* ------------------------------------------------------------ Season -- */}
@@ -912,39 +933,51 @@ function FormalwearField({
  * One onboarding item — provenance shown, edited the same way as every other
  * season value. `REQ-player-detail`: "no Resolve/SAVE pair anywhere."
  *
- * Complete and Not applicable commit the moment they are chosen, exactly like
- * every other in-place edit. Waived is the one resolution the schema itself
- * requires a reason for (`onboarding_items_waiver_is_justified`) — chosen it
- * opens a reason field beneath instead of committing immediately, because
- * there is genuinely nothing to commit yet, not because this control asks a
- * reason of its own accord.
+ * Every state commits the moment it is chosen, exactly like every other
+ * in-place edit — Waived (Subscription paid only) included.
+ * `WP-operator-record` (LAN-217) retired the reason field this row used to
+ * open on Waived: `REQ-reason-free-waive` supersedes the schema's old
+ * `onboarding_items_waiver_is_justified` constraint (unwound by the
+ * substrate, LAN-214), the author stays mandatory and is supplied by the
+ * verified operator this gate resolves, and `W6-02`'s approved screen shows
+ * no reason field to keep.
+ *
+ * D-002 (correction round 6): there is no separate `Reopen` option any more
+ * — an operator corrects a mistake by choosing a different one of the
+ * item's own states directly, from any current state. A derived item
+ * (`isDerivedItem`) renders with no control at all: nothing to open, and the
+ * service itself refuses any attempt to set one directly.
  */
 function OnboardingRow({
   item,
   editing,
   readOnly,
+  blank = false,
   error,
   onOpen,
   onClose,
   onResolve,
 }: {
-  item: OnboardingItem;
+  item: OnboardingItemDisplay;
   editing: boolean;
   readOnly: boolean;
+  /**
+   * D-002 (Q-14): "Subscription paid" is blank — nothing at all — until
+   * "Subscription invoiced" is itself complete. No control opens; the item's
+   * own stored `pending` (there is nothing else it could be, since the
+   * service refuses the write that would change it) reads as `NotRecorded`,
+   * the same as any other genuinely absent value on this page.
+   */
+  blank?: boolean;
   error: string | null;
   onOpen: () => void;
   onClose: () => void;
-  onResolve: (status: "complete" | "waived" | "not_applicable", reason?: string) => void;
+  onResolve: (status: OnboardingItemStatus) => void;
 }) {
-  const [awaitingReason, setAwaitingReason] = useState(false);
-  const [reason, setReason] = useState("");
-  const editable = !readOnly;
-
-  function close() {
-    setAwaitingReason(false);
-    setReason("");
-    onClose();
-  }
+  const derived = isDerivedItem(item.code);
+  const editable = !readOnly && !blank && !derived;
+  const states = allowedItemStates(item.code);
+  const closedLabel = itemStateLabel(item.code, item.status);
 
   return (
     <Row label={item.label} note={provenanceNote(item)}>
@@ -958,58 +991,24 @@ function OnboardingRow({
           <Chip size="small" variant="outlined" label="Never blocks activation" />
         ) : null}
       </Stack>
-      {editing && !awaitingReason ? (
+      {editing ? (
         <Select
           size="small"
           open
           autoFocus
           value=""
           displayEmpty
-          onClose={close}
-          onChange={(event) => {
-            const next = event.target.value as (typeof ITEM_RESOLUTIONS)[number];
-            if (next === "waived") {
-              setAwaitingReason(true);
-              return;
-            }
-            onResolve(next);
-          }}
-          renderValue={() => labelFor(ONBOARDING_ITEM_LABELS, item.status)}
+          onClose={onClose}
+          onChange={(event) => onResolve(event.target.value as OnboardingItemStatus)}
+          renderValue={() => closedLabel}
           sx={{ minWidth: 220 }}
         >
-          {ITEM_RESOLUTIONS.map((status) => (
+          {states.map((status) => (
             <MenuItem key={status} value={status}>
-              {labelFor(ONBOARDING_ITEM_LABELS, status)}
+              {itemStateLabel(item.code, status)}
             </MenuItem>
           ))}
         </Select>
-      ) : editing && awaitingReason ? (
-        <Stack spacing={1} sx={{ maxWidth: 360 }} data-testid="onboarding-waiver-reason">
-          <TextField
-            label="Why is this waived?"
-            size="small"
-            multiline
-            minRows={2}
-            fullWidth
-            autoFocus
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-          />
-          <Stack direction="row" spacing={1}>
-            <Button
-              variant="outlined"
-              size="small"
-              sx={{ minHeight: 44 }}
-              disabled={reason.trim() === ""}
-              onClick={() => onResolve("waived", reason.trim())}
-            >
-              Save waiver
-            </Button>
-            <Button size="small" sx={{ minHeight: 44 }} onClick={close}>
-              Cancel
-            </Button>
-          </Stack>
-        </Stack>
       ) : (
         <Box
           onClick={editable ? onOpen : undefined}
@@ -1023,16 +1022,20 @@ function OnboardingRow({
             "&:hover": editable ? { bgcolor: "action.hover" } : undefined,
           }}
         >
-          <Typography
-            variant="body2"
-            sx={{
-              textDecoration: editable ? "underline" : "none",
-              textUnderlineOffset: 3,
-              textDecorationColor: "rgba(0,0,0,0.25)",
-            }}
-          >
-            {labelFor(ONBOARDING_ITEM_LABELS, item.status)}
-          </Typography>
+          {blank ? (
+            <NotRecorded />
+          ) : (
+            <Typography
+              variant="body2"
+              sx={{
+                textDecoration: editable ? "underline" : "none",
+                textUnderlineOffset: 3,
+                textDecorationColor: "rgba(0,0,0,0.25)",
+              }}
+            >
+              {closedLabel}
+            </Typography>
+          )}
         </Box>
       )}
       {error ? (
@@ -1044,11 +1047,90 @@ function OnboardingRow({
   );
 }
 
-function provenanceNote(item: OnboardingItem): string | undefined {
-  if (item.waivedReason)
-    return `Waived by ${item.waivedByName ?? "an operator"} — ${item.waivedReason}`;
-  if (item.completedOn) return `Completed ${formatDay(item.completedOn)}`;
-  return undefined;
+function shortDay(occurredAt: Date): string {
+  return formatDay(occurredAt.toISOString().slice(0, 10));
+}
+
+/**
+ * Who, and when — the row's own provenance slot, `REQ-item-history` and
+ * `REQ-item-states`'s player-claimed provenance. `WP-operator-record`
+ * (LAN-217) rebuilds this from the item's own append-only history
+ * (`onboarding-item-history.ts`) rather than the current row alone, which is
+ * what lets it say **who** for every state rather than only "Completed
+ * &lt;day&gt;", and what lets a resolved item still carry a trace of a player's
+ * earlier trust-class claim once an operator confirms it.
+ *
+ * Narrative text does not belong here (`W6`'s own acceptance correction,
+ * "nothing here blocks anything, ever" struck before approval) — every clause
+ * this builds is an actor and a date, or a state word and a date, never a
+ * sentence about what the state means.
+ */
+function provenanceNote(item: OnboardingItemDisplay): string | undefined {
+  const history = item.history;
+  if (history.length === 0) return undefined;
+
+  const latest = history[history.length - 1];
+  const who =
+    latest.actorName ??
+    (latest.actorKind === "player"
+      ? "the player"
+      : latest.actorKind === "system"
+        ? "the system"
+        : "an operator");
+  const when = shortDay(latest.occurredAt);
+
+  let head: string;
+  // The one transition already folded into `head` above, so the trailing
+  // summary below never repeats it — set only by the `complete` branch,
+  // which names the player's own claim rather than the latest entry.
+  let folded: OnboardingItemHistoryEntry | null = null;
+  switch (latest.toStatus) {
+    case "waived":
+      head = latest.reason
+        ? `Waived by ${who}, ${when} — ${latest.reason}`
+        : `Waived by ${who}, ${when}`;
+      break;
+    // D-002 (correction round 6): no "Reopen" verb, on this row or anywhere
+    // else — a transition back to the item's own off state (`pending`) is
+    // named the same way any other transition is, in the item's own word.
+    case "pending":
+      head = `Set to ${itemStateLabel(item.code, "pending")} by ${who}, ${when}`;
+      break;
+    case "claimed":
+      head = `${who}, ${when} · awaiting confirmation`;
+      break;
+    case "complete": {
+      // `R2-V`: a trust-class item completes **on the player's own word** —
+      // the note names the player who claimed it and when, not whichever
+      // operator later clicked Complete to confirm what was already true.
+      // Found by looking back through this same item's history for the claim
+      // that led here.
+      const claim = [...history]
+        .reverse()
+        .find((entry) => entry.toStatus === "claimed" && entry.actorKind === "player");
+      if (claim) {
+        const claimant = claim.actorName ?? "the player";
+        head = `${claimant}, ${shortDay(claim.occurredAt)} · player-claimed`;
+        folded = claim;
+      } else {
+        head = `${who}, ${when}`;
+      }
+      break;
+    }
+    default:
+      head = `${who}, ${when}`;
+  }
+
+  if (history.length === 1) return head;
+
+  const previous = history[history.length - 2];
+  if (previous === folded) return head;
+
+  const previousWord = itemStateLabel(item.code, previous.toStatus);
+  const earlierCount = history.length - 2;
+  const earlierSuffix =
+    earlierCount > 0 ? ` · ${earlierCount} earlier change${earlierCount === 1 ? "" : "s"}` : "";
+  return `${head} · ${previousWord} ${shortDay(previous.occurredAt)}${earlierSuffix}`;
 }
 
 function OtherSeasons({ seasons }: { seasons: readonly OtherSeasonSummary[] }) {
@@ -1131,6 +1213,54 @@ function StatusHistory({ history }: { history: readonly MembershipStatusEvent[] 
           </Box>
         );
       })}
+    </Stack>
+  );
+}
+
+/**
+ * The sectioned activity log — `REQ-activity-log`, `OD7-log-by-section`.
+ * Brian, 2026-09-02, on the first draft's one-line-per-section count: "that
+ * is just not useful… I want to see the individual items that come
+ * underneath, when it was asked versus when it was received." So this is
+ * `StatusHistory`'s own markup above — a bordered entry, a bold label, a line
+ * saying what happened, a caption of when and who — with one entry per ask
+ * and per answer instead of a membership status transition. No new component:
+ * the bold label is the section name, repeated on every entry in it, exactly
+ * the way the mockup's own `replaceHistory` helper renders a (heading, what,
+ * when) triple.
+ */
+function ActivityLog({ sections }: { sections: readonly OnboardingActivitySection[] }) {
+  const hasEntries = sections.some((section) => section.entries.length > 0);
+  if (!hasEntries) {
+    return (
+      <Typography color="text.secondary" sx={{ py: 2 }} data-testid="activity-log-empty">
+        Nothing has been asked of this person yet.
+      </Typography>
+    );
+  }
+  const rows = sections.flatMap((section) =>
+    section.entries.map((entry, index) => ({ section: section.section, entry, index })),
+  );
+  return (
+    <Stack data-testid="activity-log">
+      {rows.map(({ section, entry, index }, position) => (
+        <Box
+          key={`${section}-${entry.occurredAt.toISOString()}-${index}`}
+          sx={{ py: 1.25, borderTop: position === 0 ? "none" : 1, borderColor: "divider" }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+            {section}
+          </Typography>
+          <Typography variant="body2">
+            {entry.kind === "ask" ? `Asked — ${entry.channel}` : `Answered — ${entry.channel}`}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" component="p">
+            <time dateTime={entry.occurredAt.toISOString()}>{formatWhen(entry.occurredAt)}</time>
+            {" · "}
+            {entry.who}
+          </Typography>
+        </Box>
+      ))}
     </Stack>
   );
 }

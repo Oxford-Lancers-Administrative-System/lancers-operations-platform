@@ -548,6 +548,12 @@ const rows = {
   blues_awards: [],
   onboarding_item_types: [],
   onboarding_items: [],
+  // D-002 (correction round 5, `WP-operator-record`, LAN-217): the append-only
+  // history had zero rows in the whole database, and BPS was uniformly "no" —
+  // neither table had a single writer. Populated below, after every
+  // membership and its onboarding items exist.
+  onboarding_item_history: [],
+  bps_selections: [],
   eligibility_records: [],
   availability_statuses: [],
   event_series: [],
@@ -1106,10 +1112,88 @@ assignRole("defence_coach", defenceCoach, seasonCurrent, "2026-09-01");
 // `'direct'` for everything else, including the three derived items and the
 // two read-then-confirm/sign player items, none of which pause in `claimed`
 // awaiting a named human's confirmation.
+/**
+ * D-002 (correction round 6, `WP-operator-record`, LAN-217): one draw per
+ * item, from exactly that item's own closed state list — `allowedItemStates`
+ * in `src/lib/services/onboarding-item-shapes.ts` — and nothing outside it.
+ * There is no shared escape hatch any more: `waived` is drawn only for
+ * Subscription paid, and `not_applicable` is drawn nowhere at all, matching
+ * Brian's own exact table rather than the Mission Lead's invented "every
+ * item keeps Waived and Not applicable." `subsInvoicedStatus` is the one
+ * cross-item dependency: Subscription paid is blank — nothing at all —
+ * until Subscription invoiced is itself complete.
+ *
+ * Every branch draws exactly once from `weighted()`, `subs_paid` included —
+ * overriding to `"pending"` only afterward, never skipping the draw outright.
+ * Every item after this one in `ONBOARDING_TYPES`, and everything the rest of
+ * this deterministically-seeded script draws afterward, reads from the same
+ * one PRNG stream; skipping a draw here would shift every later draw by one
+ * and silently reseed positions, numbers and dates this file never touched on
+ * purpose — caught by `commitJerseyNumbers`'s own test expecting a specific
+ * held number failing once this drew unevenly.
+ */
+function weightedStatusFor(code, subsInvoicedStatus) {
+  switch (code) {
+    // Invoiced · Not invoiced.
+    case "subs_invoiced":
+      return weighted([
+        ["complete", 65],
+        ["pending", 35],
+      ]);
+    // Paid · Waived · Not paid, once invoiced; blank (pending, overridden
+    // below) until then. The one item `waived` still applies to.
+    case "subs_paid": {
+      const drawn = weighted([
+        ["complete", 55],
+        ["waived", 15],
+        ["pending", 30],
+      ]);
+      return subsInvoicedStatus === "complete" ? drawn : "pending";
+    }
+    // B-001: Kit Distributed is binary — Yes · No.
+    case "kit_sorted":
+      return weighted([
+        ["complete", 70],
+        ["pending", 30],
+      ]);
+    // BUCS Play — Not invited · Invited · Claimed · Confirmed. Four states.
+    case "bucs_play":
+      return weighted([
+        ["complete", 40],
+        ["claimed", 20],
+        ["invited", 20],
+        ["pending", 20],
+      ]);
+    // Hudl access — Not invited · Invited · Claimed. Three states only: no
+    // `complete`, genuinely distinct from BUCS Play's own fourth state
+    // (Brian's own table, not a shared "trust-class" progression any more).
+    case "hudl_access":
+      return weighted([
+        ["claimed", 30],
+        ["invited", 30],
+        ["pending", 40],
+      ]);
+    // Comms group — Not assigned · Assigned and invited · In the group.
+    case "comms_groups":
+      return weighted([
+        ["complete", 60],
+        ["invited", 20],
+        ["pending", 20],
+      ]);
+    // Squad photo, Code of Conduct, Photo release, and the two derived items
+    // (Contact & academic details, Season welcome & consent): plain binary.
+    default:
+      return weighted([
+        ["complete", 70],
+        ["pending", 30],
+      ]);
+  }
+}
+
 const ONBOARDING_TYPES = [
   ["subs_invoiced", "Subscription invoiced", true, false, "direct"],
   ["subs_paid", "Subscription paid", false, true, "direct"],
-  ["kit_sorted", "Kit sorted", true, false, "direct"],
+  ["kit_sorted", "Kit Distributed", true, false, "direct"],
   ["bucs_play", "BUCS Play registration", true, false, "trust"],
   ["hudl_access", "Hudl access", false, false, "trust"],
   ["photo", "Squad photo", false, false, "direct"],
@@ -1321,20 +1405,19 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
     membership.inactivity_label = null;
   }
 
+  // D-002 (correction round 3, Q-14, WP-operator-record, LAN-217): the seed
+  // used to invent states — every item drew from one of two fixed weighted
+  // sets regardless of what its own progression could actually reach, which
+  // is what put "Invited" on Sub invoiced, Sub paid and Squad photo. Each
+  // item now draws only from `allowedItemStatuses` in
+  // `src/lib/services/onboarding-item-shapes.ts` — mirrored in
+  // `weightedStatusFor` below because this script cannot import that
+  // TypeScript module directly. Keep the two in agreement by hand; a
+  // divergence here reintroduces exactly the bug D-002 fixed.
+  let subsInvoicedStatus = null;
   for (const type of itemTypesBySeason[seasonCurrent.id]) {
-    const itemStatus = type.is_subscription
-      ? weighted([
-          ["complete", 55],
-          ["invited", 25],
-          ["waived", 10],
-          ["pending", 10],
-        ])
-      : weighted([
-          ["complete", 70],
-          ["invited", 15],
-          ["pending", 10],
-          ["not_applicable", 5],
-        ]);
+    const itemStatus = weightedStatusFor(type.code, subsInvoicedStatus);
+    if (type.code === "subs_invoiced") subsInvoicedStatus = itemStatus;
     add("onboarding_items", {
       id: uuid(),
       season_membership_id: membership.id,
@@ -4590,6 +4673,124 @@ LEGACY_EVENTS.forEach(([cell, week, weekday, colour, status, reason], index) => 
 });
 
 // ---------------------------------------------------------------------------
+// D-002 (correction round 5, `WP-operator-record`, LAN-217): BPS selections,
+// a reason-free waiver, and one item's own append-only history
+// ---------------------------------------------------------------------------
+//
+// Three gaps a SQL check caught, none of them touched by anything above:
+//
+//   * `bps_selections` had zero rows — every membership read the roster's own
+//     "no row yet means never selected" default, so the BPS column was
+//     uniformly "No" and the column existed only in name.
+//   * Every waived item carried the same reason, "Hardship waiver agreed by
+//     the committee" — `REQ-reason-free-waive` (LAN-214) unwound the
+//     database's own constraint requiring one, but nothing in this file ever
+//     demonstrated the reason-free case it made legal.
+//   * `onboarding_item_history` had zero rows in the whole database — LAN-214
+//     built the typed, append-only home for an item's transitions, and this
+//     seed never wrote one.
+//
+// Placed last, after every membership, person and onboarding item exists, and
+// drawing from its own independent PRNG stream (`makeUuidFactory`, its own
+// seed) rather than the shared `uuid()` above — exactly `recruitId`'s own
+// reasoning: inserted this late, reusing `uuid()` would still be safe (nothing
+// after this point reads the shared stream's position), but a stream of its
+// own is what keeps that true if something is ever added after it.
+const historyAndSelectionUuid = makeUuidFactory(makeRandom(20260905));
+
+// About ten players, per the item-and-ask inventory's own club fact ("a gym
+// scheme limited to about ten players") — five of forty-two is the same
+// order of magnitude on this roster's smaller scale. Drawn from the `active`
+// run of `STATUS_PLAN` (indices 0–31) so the demo does not select someone the
+// roster board would filter out by default.
+const BPS_SELECTED_MEMBERSHIP_INDICES = [0, 6, 13, 20, 27];
+for (const index of BPS_SELECTED_MEMBERSHIP_INDICES) {
+  const membership = memberships[index];
+  add("bps_selections", {
+    id: historyAndSelectionUuid(),
+    season_membership_id: membership.id,
+    season_id: seasonCurrent.id,
+    is_selected: true,
+    recorded_by_person_id: people[2].id,
+    updated_at: "2026-10-01T09:00:00Z",
+  });
+}
+
+// One item, walked through complete → corrected back → waived → corrected
+// back again, so the append-only history has a demo state at all. D-002
+// (correction round 6): `waived` is legal on exactly one item now —
+// Subscription paid — so this targets that item rather than BUCS Play, and
+// forces its own Subscription invoiced complete first, the same gating the
+// service itself enforces. `memberships[1]`, not `[0]`: the two draws are
+// independent, but picking a different membership than the BPS block above
+// keeps each demo scenario legible on its own player rather than stacking
+// unrelated stories onto one row.
+const historyMembership = memberships[1];
+const subsInvoicedType = itemTypesBySeason[seasonCurrent.id].find(
+  (type) => type.code === "subs_invoiced",
+);
+const subsPaidType = itemTypesBySeason[seasonCurrent.id].find((type) => type.code === "subs_paid");
+const historyInvoicedItem = rows.onboarding_items.find(
+  (item) =>
+    item.season_membership_id === historyMembership.id && item.item_type_id === subsInvoicedType.id,
+);
+const historyItem = rows.onboarding_items.find(
+  (item) =>
+    item.season_membership_id === historyMembership.id && item.item_type_id === subsPaidType.id,
+);
+if (historyInvoicedItem && historyItem) {
+  historyInvoicedItem.status = "complete";
+  historyInvoicedItem.completed_on = "2026-10-01";
+  historyInvoicedItem.waived_reason = null;
+  historyInvoicedItem.waived_by_person_id = null;
+  historyInvoicedItem.updated_at = "2026-10-01T09:00:00Z";
+
+  // Ends on a correction back to `pending` — the same shape
+  // `resolveOnboardingItem`'s own cascade already leaves an item in.
+  historyItem.status = "pending";
+  historyItem.completed_on = null;
+  historyItem.waived_reason = null;
+  historyItem.waived_by_person_id = null;
+  historyItem.updated_at = "2026-10-03T15:00:00Z";
+
+  const operator = people[2].id;
+  const historyRow = (fromStatus, toStatus, occurredAt, reason = null) =>
+    add("onboarding_item_history", {
+      id: historyAndSelectionUuid(),
+      onboarding_item_id: historyItem.id,
+      season_membership_id: historyMembership.id,
+      from_status: fromStatus,
+      to_status: toStatus,
+      actor_kind: "operator",
+      actor_person_id: operator,
+      reason,
+      occurred_at: occurredAt,
+    });
+  historyRow("pending", "complete", "2026-10-01T09:00:00Z");
+  historyRow("complete", "pending", "2026-10-02T09:00:00Z");
+  historyRow(
+    "pending",
+    "waived",
+    "2026-10-02T15:00:00Z",
+    "Registered late; waived to unblock activation.",
+  );
+  historyRow("waived", "pending", "2026-10-03T15:00:00Z");
+}
+
+// `REQ-reason-free-waive`: the first already-drawn `waived` item (excluding
+// the history demo's own Subscription paid above, which the block just
+// forced back to `pending`) stands in for every waiver this file seeds —
+// bar this one, whose reason is cleared. The author (`waived_by_person_id`)
+// stays; only the reason a waiver is never required to carry is the thing
+// being demonstrated absent. `waived` is legal on exactly one item now
+// (Subscription paid — D-002, correction round 6), so this is always that
+// item on some other membership.
+const reasonFreeWaiver = rows.onboarding_items.find(
+  (item) => item.status === "waived" && item.id !== historyItem?.id,
+);
+if (reasonFreeWaiver) reasonFreeWaiver.waived_reason = null;
+
+// ---------------------------------------------------------------------------
 // Write
 // ---------------------------------------------------------------------------
 
@@ -4817,6 +5018,33 @@ const WRITE_PLAN = [
       "updated_at",
     ],
     "onboarding_items",
+  ],
+  [
+    "public.onboarding_item_history",
+    [
+      "id",
+      "onboarding_item_id",
+      "season_membership_id",
+      "from_status",
+      "to_status",
+      "actor_kind",
+      "actor_person_id",
+      "reason",
+      "occurred_at",
+    ],
+    "onboarding_item_history",
+  ],
+  [
+    "public.bps_selections",
+    [
+      "id",
+      "season_membership_id",
+      "season_id",
+      "is_selected",
+      "recorded_by_person_id",
+      "updated_at",
+    ],
+    "bps_selections",
   ],
   [
     "public.position_assignments",
@@ -5439,6 +5667,15 @@ try {
     ),
   );
   console.log(counts("  holding offence and defence", bothSides));
+  console.log(counts("BPS selections", rows.bps_selections.length));
+  console.log(counts("onboarding item history rows", rows.onboarding_item_history.length));
+  console.log(
+    counts(
+      "  reason-free waivers",
+      rows.onboarding_items.filter((item) => item.status === "waived" && !item.waived_reason)
+        .length,
+    ),
+  );
   console.log(counts("role assignments", roleAssignmentCount));
   console.log(counts("events", rows.events.length));
   console.log(

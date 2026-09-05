@@ -21,11 +21,7 @@ import {
   readSeasonMessagingConsentIn,
   type SeasonMessagingConsent,
 } from "./messaging-consent";
-import {
-  raisePersonFactDispute,
-  readOpenPersonFactDisputesIn,
-  type DisputedPersonField,
-} from "./person-fact-dispute";
+import { readOpenPersonFactDisputesIn, type DisputedPersonField } from "./person-fact-dispute";
 import { readPersonRecord, readPersonRecordIn, type PersonRecord } from "./person-record";
 import { REQUIRED_FIELD_LABELS, type RequiredField } from "./person-required";
 import {
@@ -56,12 +52,14 @@ import { looksLikeEmail, looksLikePhone } from "@/lib/validation/contact";
  * `onboarding-item-history.ts`/`onboarding-activity-log.ts`. This module adds
  * exactly two things neither of them exposes:
  *
- *   1. **The no-silent-overwrite decision** for the seven `people` columns
- *      `person_fact_disputes` already scopes itself to — direct write when the
- *      prior value is empty, unattributed, or the player's own earlier
- *      self-service submission; a raised dispute when it was last set by
- *      somebody else. `readPersonRecordIn`'s `<field>Source` already answers
- *      "who, by name" (`Q-13`); this module adds the one comparison neither
+ *   1. **The provenance-aware write** for the seven `people` columns
+ *      `person_fact_disputes` used to scope its now-removed dispute mechanism
+ *      to (B-002, correction round 2, Q-9) — direct write in every case: when
+ *      the prior value is empty, unattributed, the player's own earlier
+ *      self-service submission, or somebody else's — last write wins,
+ *      whoever gave it, with `updatePersonField`'s own audit row carrying who
+ *      and when. `readPersonRecordIn`'s `<field>Source` already answers "who,
+ *      by name" (`Q-13`); this module adds the one comparison neither
  *      `PersonRecord` nor `person-fact-dispute.ts` exposes — "was that name
  *      *this same person*" — by reading the same `audit_events` action's
  *      `actor_person_id` directly, once per changed field.
@@ -524,7 +522,7 @@ const PERSON_FIELD_VALUE_KEY: Readonly<Record<DisputedPersonField, keyof PersonR
     date_of_birth: "dateOfBirth",
   });
 
-export type FieldSaveOutcome = "unchanged" | "filled" | "self-corrected" | "disputed";
+export type FieldSaveOutcome = "unchanged" | "filled" | "self-corrected" | "overwritten";
 
 function buildFieldUpdate(field: DisputedPersonField, value: string): PersonFieldUpdate {
   switch (field) {
@@ -546,11 +544,18 @@ function buildFieldUpdate(field: DisputedPersonField, value: string): PersonFiel
 }
 
 /**
- * Applies one submitted value for one of the seven disputable fields —
- * `REQ-no-silent-overwrite`. `newValue` is the trimmed, already-validated
- * string the form collected; an empty string is treated as "nothing
- * submitted" (never a clearing edit — this page has no way to blank a
- * required fact, matching `OD7-required-no-decline`).
+ * Applies one submitted value for one of the seven fields that used to carry
+ * a dispute. `newValue` is the trimmed, already-validated string the form
+ * collected; an empty string is treated as "nothing submitted" (never a
+ * clearing edit — this page has no way to blank a required fact, matching
+ * `OD7-required-no-decline`).
+ *
+ * B-002 (correction round 2, Q-9, Brian's decision — "I don't think the
+ * disputed fact mechanism survives at all"): the disputed state, the second
+ * contested value and the four-role resolve control are gone. A player's
+ * answer now simply takes effect — last write wins, whoever gave it — and
+ * the audit history the person record already renders is what carries who
+ * changed what and when.
  *
  * Four branches, decided fresh against the record read at the top of this
  * same save:
@@ -559,13 +564,14 @@ function buildFieldUpdate(field: DisputedPersonField, value: string): PersonFiel
  *   - the field was empty → direct write, `"filled"`;
  *   - the field was non-empty but its most recent change has no attributable
  *     actor (seeded, imported, or `person_created`) → direct write,
- *     `"filled"` — nobody asserted the old value (the locked recommendation
- *     `REQ-no-silent-overwrite`'s own null-provenance row);
+ *     `"filled"` — nobody asserted the old value;
  *   - the field's most recent change was **this same person** → direct
  *     write, `"self-corrected"` — their own earlier answer, their
  *     prerogative (W5's own table, row 1);
- *   - otherwise (an operator, or anybody else) → `raisePersonFactDispute`,
- *     `"disputed"` — both values kept, a four-role operator decides (`W7`).
+ *   - otherwise (an operator, or anybody else, previously recorded it) →
+ *     direct write, `"overwritten"` — the player's own submission stands,
+ *     with its own provenance, and the prior value's history is exactly
+ *     what the person record's audit trail already keeps.
  */
 export async function applyDisputableFieldIn(
   tx: Tx,
@@ -616,14 +622,13 @@ export async function applyDisputableFieldIn(
     return "self-corrected";
   }
 
-  await raisePersonFactDispute({
+  await updatePersonField({
+    actorPersonId: personId,
     personId,
-    field,
-    clubValue: String(currentValue),
-    playerValue: trimmed,
-    raisedByPersonId: personId,
+    reason: "Replaced by the player's own submission — last write wins.",
+    ...buildFieldUpdate(field, trimmed),
   });
-  return "disputed";
+  return "overwritten";
 }
 
 // ---------------------------------------------------------------------------
@@ -659,9 +664,9 @@ export interface DetailsStepResult {
  * single malformed field never leaves the record half-updated.
  *
  * Every write below is its own already-audited, already-transactional call
- * (`updatePersonField`, `supersedeContactPoint`, `updateEmergencyContactField`,
- * `raisePersonFactDispute`) — none of them expose a transaction-scoped
- * variant, so this save is a sequence of independently-committed steps
+ * (`updatePersonField`, `supersedeContactPoint`, `updateEmergencyContactField`)
+ * — none of them expose a transaction-scoped variant, so this save is a
+ * sequence of independently-committed steps
  * rather than one all-or-nothing transaction. That is not a shortcut: it is
  * the exact semantics `REQ-required-set` asks for — "whatever a step saved
  * stays saved" — a save interrupted partway through still keeps everything

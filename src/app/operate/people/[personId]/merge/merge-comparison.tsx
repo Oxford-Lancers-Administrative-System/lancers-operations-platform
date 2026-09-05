@@ -23,6 +23,15 @@ const NOT_RECORDED = (
   </Typography>
 );
 
+/** `public.messaging_consent_state`, for the operator-choosable comparison row B-003 adds. */
+const CONSENT_STATE_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  never_asked: "Never asked",
+  asked: "Asked",
+  granted: "Granted",
+  refused: "Refused",
+  withdrawn: "Withdrawn",
+});
+
 /**
  * W4-02 … W4-08 — the comparison, field by field, and the confirmation that
  * moves nothing until the operator has answered every one of them. `Q-5`
@@ -153,11 +162,31 @@ export default function MergeComparison({
                 <CompareRow
                   name="field_aliases"
                   label="Aliases"
-                  differs
+                  // D-001 (correction round 3, Q-14): two identical alias
+                  // sets are not a difference — the real, set-wise
+                  // computation from `previewPersonMerge`, not a hardcoded
+                  // `true` that fired even when both sides were empty.
+                  differs={preview.aliases.differs}
                   survivorValue={preview.aliases.survivorAliases.join(" · ") || null}
                   loserValue={preview.aliases.loserAliases.join(" · ") || null}
                   readOnly
                 />
+                {/* B-003 (correction round 2, Q-10, Brian: "If it is a merge,
+                    they obviously get to choose") — `WP-operator-record`
+                    (LAN-217). Operator-choosable like any other field or
+                    contact row above: no state is imposed automatically.
+                    Supersedes `T07-merge-precedence`, which was locked at a
+                    recommendation, not an owner decision. */}
+                {preview.consentCombinations.map((combo) => (
+                  <CompareRow
+                    key={`consent_${combo.seasonId}`}
+                    name={`consent_${combo.seasonId}`}
+                    label={`Messaging consent · ${combo.seasonLabel}`}
+                    differs={combo.survivorState !== combo.loserState}
+                    survivorValue={CONSENT_STATE_LABELS[combo.survivorState] ?? combo.survivorState}
+                    loserValue={CONSENT_STATE_LABELS[combo.loserState] ?? combo.loserState}
+                  />
+                ))}
               </Stack>
               {preview.aliases.survivorAliases.length > 0 ||
               preview.aliases.loserAliases.length > 0 ? (
