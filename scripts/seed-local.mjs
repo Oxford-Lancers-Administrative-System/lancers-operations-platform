@@ -2898,6 +2898,37 @@ recordRecruitRsvp(socialInviteR06, "yes", "2026-10-24T10:00:00Z");
 inviteRecruit(recruitmentSocial, r08);
 recordRecruitAttendance(recruitmentSocial, r08, "present", "2026-10-30T18:45:00Z");
 
+// ---------------------------------------------------------------------------
+// LAN-229: one more reachable onboarding arrival, for
+// `scripts/seed-player-facing-scenarios.mjs` (run after this script by
+// `npm run db:seed`) to turn into the exhausted-but-reachable chase review
+// state. Every onboarding-status person this file and
+// `scripts/seed-onboarding-chase.mjs` already carry is claimed by an
+// existing, tested review state (Jorvik: mid-chase; Kenelm: exhausted *and*
+// unreachable; Lucian: terminal failure; Merrick: departed mid-onboarding;
+// Lysander: no consent, no contact point at all; Odile: consent but no
+// reachable number) and none of them can also stand in for "exhausted, and a
+// human can still act on it" — Kenelm's own unreachable state is the exact
+// one `chase-presentation.ts`'s F-1 rule renders as "No phone number on
+// file" rather than "Chase exhausted", and refuses a nudge on. This section
+// only creates the person and her onboarding membership, on the identical
+// `addRecruit`/`joinRecruit` shape Odile Marchmont and Lysander Croft
+// already use above; the phone number, consent and delivered chase history
+// are seeded afterwards, once this row exists to attach them to.
+// ---------------------------------------------------------------------------
+const recruit13 = addRecruit({
+  given: "Isolde",
+  family: "Thistlewood",
+  college: null,
+  status: "joined",
+  source: CAPTURE_SOURCES[2],
+  firstContact: "2026-11-01",
+  committedOn: "2026-11-08",
+  createdAt: "2026-11-01T12:00:00Z",
+  updatedAt: "2026-11-08T09:00:00Z",
+});
+joinRecruit(recruit13.person, recruit13.prospect, "2026-11-08", "2026-11-08T09:00:00Z");
+
 const questionsByEvent = new Map();
 for (const question of rows.event_questions) {
   if (!questionsByEvent.has(question.event_id)) questionsByEvent.set(question.event_id, []);
