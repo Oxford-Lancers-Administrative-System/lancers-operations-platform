@@ -1,15 +1,20 @@
 # Design system — the visual target
 
-Status: **approved for the operator surfaces; the player surfaces await a
-second look.** Brian approved the direction on 4 September 2026, at desktop and
-375px, against head `e86ba7d` on the mockup branch `chore/lan-225-design-mockup`
-([PR #146](https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/pull/146)).
-That approval covered the audit brief's eight screens. LAN-225's addendum of
-5 September added the nine player-facing routes — audited in
+Status: **approved**. Approved by Brian on 5 September 2026, at desktop and
+375px, against head `8dd3f0d` on the mockup branch `chore/lan-225-design-mockup`
+([PR #146](https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/pull/146)),
+covering the player surfaces in §7 and the correction he asked for on them.
+
+Approved in two sittings, which is worth recording because the second was not a
+formality. The audit brief's eight screens were approved on 4 September at head
+`e86ba7d`. LAN-225's addendum of 5 September then added the nine player-facing
+routes — audited in
 [`review/design-mockup-2026-09/player-surfaces.md`](review/design-mockup-2026-09/player-surfaces.md),
-three of them mocked up — and §7 below is what came out of that. Approving the
-first eight did not approve those three; that is a separate visual acceptance
-against the branch's current head.
+three of them mocked up — which the first approval had explicitly not covered.
+The one correction from that sitting: `StepTrail` was wrapping, which left the
+fifth step alone on a second line and made it read as the important one; it is
+a grid now and cannot.
+
 Applies to: every user-facing surface, once the implementation mission lands.
 Sits beside: [`standards.md`](standards.md) (the seven rules), which this page
 never contradicts; [`slice-ux.md`](slice-ux.md) (routes, vocabulary, states),
@@ -208,11 +213,16 @@ at once:
   contained/outlined pair, in the club's own colour; the filled MUI green the
   player's home uses today is not a status and is not the club (P8).
 
-Mocked up and captured at both viewports: the player home (S9), the
+Mocked up, captured at both viewports and approved: the player home (S9), the
 questionnaire's form step and its document step (S10, S10b), and the answer
 landing that completes the invite pair with S5 (S11). The other six carry
 recorded findings and no built target; the implementation mission takes them
 from the catalogue.
+
+- **A step map is a grid, not a wrapping row.** Approved with a correction on
+  5 September: five steps in a 720px measure wrapped four and one, and the lone
+  step at the foot read as the one that mattered. `StepTrail` gives every step
+  an equal column, so the count can never decide the emphasis.
 
 Four kit members came out of this pass and are already in §5: `StepTrail`,
 `CheckField`, `Section`'s `collapsible`, and `RowCard`'s `actions`.
