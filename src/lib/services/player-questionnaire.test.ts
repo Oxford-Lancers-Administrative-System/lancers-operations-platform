@@ -78,6 +78,41 @@ async function givenPlayer(): Promise<{ personId: string; membershipId: string }
   return { personId, membershipId };
 }
 
+/**
+ * F2 (LAN-230): a fresh player whose membership carries **no** generated
+ * `onboarding_items` at all — deliberately never calling
+ * `generateOnboardingItems`, the exact "a season with no configured item
+ * types yields no items" state that function's own module note names as
+ * real, not a failure.
+ */
+async function givenPlayerWithNoItems(): Promise<{ personId: string; membershipId: string }> {
+  const person = await observer.query<{ id: string }>(
+    `insert into public.people (given_name, family_name) values ($1, 'Testcase') returning id`,
+    [unique("PersonNoItems")],
+  );
+  const personId = person.rows[0].id;
+  createdPersonIds.push(personId);
+
+  const membership = await observer.query<{ id: string }>(
+    `insert into public.season_memberships
+       (person_id, season_id, status, entry, confirmed_on)
+     values ($1::uuid, $2::uuid, 'onboarding', 'new', current_date)
+     returning id`,
+    [personId, openSeasonId],
+  );
+  const membershipId = membership.rows[0].id;
+  createdMembershipIds.push(membershipId);
+
+  await observer.query(
+    `insert into public.season_membership_status_events
+       (season_membership_id, from_status, to_status, actor_person_id)
+     values ($1::uuid, null, 'onboarding', $2::uuid)`,
+    [membershipId, actorPersonId],
+  );
+
+  return { personId, membershipId };
+}
+
 async function itemStatus(membershipId: string, code: string): Promise<string> {
   const result = await observer.query<{ status: string }>(
     `select i.status::text as status
@@ -315,16 +350,72 @@ describe("saveDetailsStep", () => {
     expect(view?.person.familyName).toBe("Ashworth");
   });
 
-  it("refuses the whole submission and writes nothing when a field is malformed", async () => {
+  // F1 (LAN-230, critical): this used to abort the *entire* submission the
+  // moment any single field failed its own shape check — nine valid fields
+  // plus one malformed one wrote zero rows. Brian's own confirmed
+  // requirement (2026-09-02): "Whatever a step saved stays saved… never
+  // discards." Restoring the old `if (Object.keys(errors).length > 0) return
+  // { errors, outcomes: {} }` early-return reproduces the exact regression
+  // this test guards: every field below still writes except the one shape
+  // error names.
+  it("keeps every valid field's write when one field is malformed — F1", async () => {
     const { personId, membershipId } = await givenPlayer();
 
     const result = await saveDetailsStep(
       baseDetailsInput(personId, openSeasonId, membershipId, { mobile: "not a phone number" }),
     );
-    expect(Object.keys(result.errors)).toContain("mobile");
+    expect(result.errors.mobile).toBe(PHONE_SHAPE);
 
     const view = await readQuestionnaireView(personId, openSeasonId);
-    expect(view?.person.givenName).not.toBe("Jordan"); // nothing committed
+    // The nine other valid fields committed even though mobile did not.
+    expect(view?.person.givenName).toBe("Jordan");
+    expect(view?.person.familyName).toBe("Ashworth");
+    expect(view?.person.college).toBe("Brasenose");
+    expect(view?.emergencyContact?.email).not.toBeNull();
+    expect(view?.needsConsentStep).toBe(false); // grantConsent is unaffected
+  });
+
+  it("writes nothing for a malformed field itself, leaving the prior value in place", async () => {
+    const { personId, membershipId } = await givenPlayer();
+    await saveDetailsStep(baseDetailsInput(personId, openSeasonId, membershipId));
+
+    await saveDetailsStep(
+      baseDetailsInput(personId, openSeasonId, membershipId, {
+        grantConsent: false,
+        mobile: "not a phone number",
+        fields: { college: "Farrowgate" },
+      }),
+    );
+
+    const view = await readQuestionnaireView(personId, openSeasonId);
+    // College (valid) changed; mobile (invalid) kept its prior, well-formed value.
+    expect(view?.person.college).toBe("Farrowgate");
+    const mobile = view?.person.contacts.find((c) => c.kind === "phone" && c.validUntil === null);
+    expect(mobile?.rawValue).toBe("07700 900123");
+  });
+
+  it("keeps a matriculation-year shape error from blocking the rest of the same submission — F1", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    const result = await saveDetailsStep(
+      baseDetailsInput(personId, openSeasonId, membershipId, {
+        fields: {
+          given_name: "Jordan",
+          family_name: "Ashworth",
+          college: "Brasenose",
+          matriculation_year: "not-a-year",
+          expected_graduation_year: "2027",
+          degree_field: "Engineering Science",
+          date_of_birth: "2005-03-14",
+        },
+      }),
+    );
+    expect(result.errors.matriculation_year).toBeTruthy();
+
+    const view = await readQuestionnaireView(personId, openSeasonId);
+    expect(view?.person.college).toBe("Brasenose");
+    expect(view?.person.expectedGraduationYear).toBe(2027);
+    expect(view?.person.matriculationYear).toBeNull(); // the malformed one alone stayed unwritten
   });
 
   it("self-corrects a field the player themselves supplied earlier, with no dispute", async () => {
@@ -630,6 +721,25 @@ describe("claimTrustItem", () => {
     ).resolves.toBeUndefined();
     expect(await itemStatus(membershipId, "hudl_access")).toBe("claimed");
   });
+
+  // F2 (LAN-230): a membership with no configured item of this code used to
+  // make this whole call a silent no-op — the player's own claim recorded
+  // nowhere at all. Restoring the old `if (!item || ...) return;` guard
+  // reproduces exactly this: the activity log stays empty.
+  it("still records the player's answer when there is no item to move — F2", async () => {
+    const { personId, membershipId } = await givenPlayerWithNoItems();
+
+    await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "bucs_play" });
+
+    const activity = await observer.query(
+      `select section, channel, actor_person_id from public.onboarding_activity_log
+        where season_membership_id = $1::uuid`,
+      [membershipId],
+    );
+    expect(activity.rows).toEqual([
+      expect.objectContaining({ section: "BUCS Play", actor_person_id: personId }),
+    ]);
+  });
 });
 
 describe("recordHudlNoInvitation", () => {
@@ -677,5 +787,83 @@ describe("readQuestionnaireView — the finishing sequence", () => {
     const view = await readQuestionnaireView(personId, openSeasonId);
     const labels = view?.outstandingSections.flatMap((s) => s.items.map((i) => i.label)) ?? [];
     expect(labels.join(" ")).not.toMatch(/subscription|kit distributed|squad photo|comms group/i);
+  });
+
+  // F2 (LAN-230, critical): a membership with no generated `onboarding_items`
+  // used to default every one of the four codes' status to `"complete"`,
+  // reporting `nothingOutstanding: true` and `nextStep: "done"` for a player
+  // who has done nothing — the natural walk skipped straight from step 1 to
+  // the done page, and BUCS/Hudl claims silently no-opped. Restoring the old
+  // `itemByCode.get(code) ?? "complete"` fallback reproduces exactly this:
+  // every assertion below flips.
+  it("never treats a membership with no configured onboarding items as complete — F2", async () => {
+    const { personId, membershipId } = await givenPlayerWithNoItems();
+    await saveDetailsStep(baseDetailsInput(personId, openSeasonId, membershipId));
+
+    const view = await readQuestionnaireView(personId, openSeasonId);
+    expect(view?.itemStatus.code_of_conduct).toBeNull();
+    expect(view?.itemStatus.photo_release).toBeNull();
+    expect(view?.itemStatus.bucs_play).toBeNull();
+    expect(view?.itemStatus.hudl_access).toBeNull();
+    expect(view?.nothingOutstanding).toBe(false);
+    expect(view?.nextStep).toBe("code_of_conduct");
+    expect(view?.outstandingSections.map((s) => s.section)).toEqual(
+      expect.arrayContaining(["Code of Conduct", "Photo release", "BUCS Play", "Hudl"]),
+    );
+  });
+
+  // F2's own necessary companion, found walking the fix live: with no
+  // `code_of_conduct` item to mark complete, `agreeDocument`'s own advance
+  // (`nextStepUrl`, a *resume* to the next outstanding step, unlike BUCS/Hudl's
+  // unconditional `literalNextStepUrl`) would otherwise loop the player back
+  // to the same step forever after they had already agreed. `agreements` is
+  // the item-independent record of that fact.
+  it("still advances past Code of Conduct once agreed, even with no configured item", async () => {
+    const { personId, membershipId } = await givenPlayerWithNoItems();
+    await saveDetailsStep(baseDetailsInput(personId, openSeasonId, membershipId));
+
+    await agreeOnboardingDocument({
+      personId,
+      seasonId: openSeasonId,
+      membershipId,
+      agreementType: "code_of_conduct",
+    });
+
+    const view = await readQuestionnaireView(personId, openSeasonId);
+    expect(view?.itemStatus.code_of_conduct).toBeNull(); // still honestly unconfigured
+    expect(view?.nextStep).toBe("photo_release"); // but no longer stuck resuming here
+  });
+});
+
+describe("readQuestionnaireView — F4: who actually supplied each field (LAN-230)", () => {
+  it("reads null for a value nobody attributable has touched", async () => {
+    const { personId } = await givenPlayer();
+    const view = await readQuestionnaireView(personId, openSeasonId);
+    expect(view?.fieldSuppliedBy.college).toBeNull();
+  });
+
+  it("reads 'you' for a field the player themselves supplied, whatever the field", async () => {
+    const { personId, membershipId } = await givenPlayer();
+    // `college` — hard-coded "the club" by the old, broken display.
+    await saveDetailsStep(baseDetailsInput(personId, openSeasonId, membershipId));
+
+    const view = await readQuestionnaireView(personId, openSeasonId);
+    expect(view?.fieldSuppliedBy.college).toBe("you");
+    expect(view?.fieldSuppliedBy.given_name).toBe("you");
+  });
+
+  it("reads 'club' for a field an operator supplied, whatever the field", async () => {
+    const { personId } = await givenPlayer();
+    // `given_name` — hard-coded "you" by the old, broken display.
+    await updatePersonField({
+      actorPersonId,
+      personId,
+      field: "given_name",
+      value: "Operator-Set",
+      reason: "Test fixture correction.",
+    });
+
+    const view = await readQuestionnaireView(personId, openSeasonId);
+    expect(view?.fieldSuppliedBy.given_name).toBe("club");
   });
 });

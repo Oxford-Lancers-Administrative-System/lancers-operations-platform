@@ -93,10 +93,18 @@ export const FIELD_EC_RELATIONSHIP = "Relationship to you";
 export const FIELD_EC_PHONE = "Emergency contact phone";
 export const FIELD_EC_EMAIL = "Emergency contact email";
 
+/**
+ * F4 (LAN-230): this used to append "· a change here is checked by a person"
+ * to every `"club"` source line — the disputed-fact mechanism's own copy,
+ * retired by Q-9 ("I don't think the disputed fact mechanism survives at
+ * all"). The save path has been last-write-wins since that decision; nothing
+ * is checked before a player's own answer takes effect, so the line said
+ * something false. `who` is now also read from the value's real supplier
+ * (`QuestionnaireView.fieldSuppliedBy`) rather than hard-coded per field name.
+ */
 export function sourceLine(who: "you" | "club", date: string | null): string {
   const base = who === "you" ? "You" : "The club";
-  const dated = date ? `${base}, ${date}` : base;
-  return who === "club" ? `${dated} · a change here is checked by a person` : dated;
+  return date ? `${base}, ${date}` : base;
 }
 
 export const SAVE_AND_CONTINUE = "Save and continue";
@@ -145,6 +153,21 @@ export const BUCS_HAVE_YOU_DONE_IT = "Have you done it?";
 export const BUCS_CLAIM_LABEL = "Yes — I have registered on BUCS Play and selected Oxford Lancers.";
 export const CONTINUE = "Continue";
 
+// F3 (LAN-230), `W4-05-proposed`: the two-column status box above the steps,
+// and the two footer notes — none of the three existed. `BUCS_CONFIRMED_BY`
+// and `BUCS_INSTRUCTIONS_STATUS` are constant, not per-player: the two-stage
+// confirmation shape (the player claims, the compliance owner confirms
+// against the roster in `W6`) and the placeholder instruction copy are both
+// true of this item regardless of who is looking at it.
+export const BUCS_STATUS_CONFIRMED_BY_LABEL = "Confirmed by";
+export const BUCS_STATUS_CONFIRMED_BY = "You, then the club";
+export const BUCS_STATUS_INSTRUCTIONS_LABEL = "Instructions";
+export const BUCS_STATUS_INSTRUCTIONS = "Owed — not written";
+export const BUCS_CLAIM_SUBNOTE =
+  "This records claimed, not complete. The compliance owner confirms it against the BUCS roster, and W6 is where that happens.";
+export const BUCS_CONTINUE_ANYWAY_NOTE =
+  "If you have not done it yet, continue anyway. The club will ask you again.";
+
 // ---------------------------------------------------------------------------
 // Step 5 — Hudl
 // ---------------------------------------------------------------------------
@@ -173,6 +196,26 @@ export const DONE_HEADING = "That is all saved";
 export const OUTSTANDING_HEADING = "Still outstanding";
 export const OUTSTANDING_SAME_LINK_NOTE =
   "Every one of these is on the link you are already holding. The club will ask you for them here — it will not send you a second link.";
+
+// F3 (LAN-230), `W4-07-proposed`: the status chip, the person/date line, the
+// "What the club now has" and "If something here is wrong" sections, the
+// Close button and the R3-G reassurance line all existed nowhere in the
+// codebase. `IF_SOMETHING_WRONG_BODY` is written to the mechanism as it
+// stands today (Q-9, last-write-wins) rather than to the mockup's own text,
+// which still carries the retired disputed-fact clause ("a change here is
+// checked by a person") F4 removes elsewhere on this same route — repeating
+// it here would reintroduce the exact defect this package fixes. See the PR
+// for that one named departure from the mockup's literal wording.
+export const DONE_STATUS_LABEL = (seasonLabel: string | null): string =>
+  seasonLabel ? `Onboarding · ${seasonLabel}` : "Onboarding";
+export const WHAT_CLUB_HAS_HEADING = "What the club now has";
+export const WHAT_CLUB_HAS_BODY =
+  "Your consent, your contact details, your college and course, your date of birth and your emergency contact — along with the Code of Conduct and the photo release, each recorded against the version you saw.";
+export const IF_SOMETHING_WRONG_HEADING = "If something here is wrong";
+export const IF_SOMETHING_WRONG_BODY =
+  "Open this link again at any time and change it. It stays yours for the whole season, and what you save simply takes effect.";
+export const R3G_REASSURANCE =
+  "Nothing on your checklist ever blocks you from training, playing or travelling.";
 
 // ---------------------------------------------------------------------------
 // Already complete — nothing outstanding, no sequence

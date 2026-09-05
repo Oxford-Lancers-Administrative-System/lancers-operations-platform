@@ -193,10 +193,14 @@ describe("saveDetails", () => {
  * browser used to.
  */
 describe("saveDetails — field validation (B-009)", () => {
-  it("returns a required error for every one of the thirteen validated fields when the form is blank, and calls the service for none of them", async () => {
+  it("returns a required error for every one of the thirteen validated fields when the form is blank", async () => {
     const result = await saveDetails(INITIAL_STATE, formFor());
 
-    expect(saveDetailsStep).not.toHaveBeenCalled();
+    // F1 (LAN-230): the service is still called even when the whole form is
+    // blank — there is nothing for it to write, but nothing about "required"
+    // gates the call itself any more (see the two tests below, where it does
+    // matter).
+    expect(saveDetailsStep).toHaveBeenCalled();
     for (const field of [
       "given_name",
       "family_name",
@@ -252,10 +256,20 @@ describe("saveDetails — field validation (B-009)", () => {
     expect(result.errors.ec_email).toBe("This does not look like an email address.");
   });
 
-  it("never calls the service at all when a required field is blank — nothing is attempted, matching REQ-required-set", async () => {
+  // F1 (LAN-230, critical — the issue's own reproduction): this used to
+  // return before ever calling `saveDetailsStep` when *any* required field
+  // was blank, discarding every other valid field in the same submission.
+  // Brian's own confirmed requirement (2026-09-02): "Whatever a step saved
+  // stays saved… never discards." The service is now always called — what it
+  // does with the twelve valid fields is `player-questionnaire.test.ts`'s own
+  // proof; this suite (the service mocked) proves only that the call happens
+  // and that the blank field still reports "required" alongside it.
+  it("still calls the service for the twelve valid fields when one required field is blank — F1", async () => {
     const result = await saveDetails(INITIAL_STATE, formFor({ ...VALID_FIELDS, ec_email: "" }));
 
-    expect(saveDetailsStep).not.toHaveBeenCalled();
+    expect(saveDetailsStep).toHaveBeenCalledWith(
+      expect.objectContaining({ personId: PERSON_ID, grantConsent: false }),
+    );
     expect(result.errors.ec_email).toEqual(expect.stringContaining("is required"));
   });
 
