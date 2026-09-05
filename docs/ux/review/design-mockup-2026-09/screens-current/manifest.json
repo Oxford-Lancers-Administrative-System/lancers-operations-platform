@@ -1,0 +1,141 @@
+{
+  "side": "current",
+  "headSha": "73577d69",
+  "origin": "http://127.0.0.1:3131",
+  "note": "Captured from a separate checkout of main served against the same local Supabase slot. No token is recorded here or anywhere else.",
+  "personId": "8e74b727-8e8d-47b7-b86d-905183cb99e0",
+  "invitationId": "e83aadaa-4fef-45ba-8a6e-aa9696834811",
+  "at": "2026-09-05T13:51:25.686Z",
+  "captures": [
+    {
+      "id": "C9-player-home",
+      "mirrors": "/me/[token]",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "C9-player-home--desktop.png",
+      "status": 200,
+      "pageHeight": 3269,
+      "ms": 2905
+    },
+    {
+      "id": "C10-details",
+      "mirrors": "/me/[token]/details",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "C10-details--desktop.png",
+      "status": 200,
+      "pageHeight": 1995,
+      "ms": 2073
+    },
+    {
+      "id": "C10b-agreement",
+      "mirrors": "/me/[token]/details?step=code_of_conduct",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "C10b-agreement--desktop.png",
+      "status": 200,
+      "pageHeight": 900,
+      "ms": 1194
+    },
+    {
+      "id": "C11-answer",
+      "mirrors": "/a/[token]",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "C11-answer--desktop.png",
+      "status": 200,
+      "pageHeight": 900,
+      "ms": 3078
+    },
+    {
+      "id": "C5-rsvp",
+      "mirrors": "/rsvp/[token]",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "C5-rsvp--desktop.png",
+      "status": 200,
+      "pageHeight": 900,
+      "ms": 2185
+    },
+    {
+      "id": "C9-player-home",
+      "mirrors": "/me/[token]",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "C9-player-home--phone.png",
+      "status": 200,
+      "pageHeight": 4106,
+      "ms": 1719
+    },
+    {
+      "id": "C10-details",
+      "mirrors": "/me/[token]/details",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "C10-details--phone.png",
+      "status": 200,
+      "pageHeight": 2018,
+      "ms": 1293
+    },
+    {
+      "id": "C10b-agreement",
+      "mirrors": "/me/[token]/details?step=code_of_conduct",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "C10b-agreement--phone.png",
+      "status": 200,
+      "pageHeight": 851,
+      "ms": 1138
+    },
+    {
+      "id": "C11-answer",
+      "mirrors": "/a/[token]",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "C11-answer--phone.png",
+      "status": 200,
+      "pageHeight": 840,
+      "ms": 1134
+    },
+    {
+      "id": "C5-rsvp",
+      "mirrors": "/rsvp/[token]",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "C5-rsvp--phone.png",
+      "status": 200,
+      "pageHeight": 812,
+      "ms": 1481
+    }
+  ]
+}
