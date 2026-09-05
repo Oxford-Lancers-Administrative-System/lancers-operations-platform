@@ -121,8 +121,6 @@ export interface ColumnDef {
   readonly kit?: "blue" | "white";
   /** `edit: "onboarding"` only — the `onboarding_item_types.code` this column edits, keying `row.onboardingItems`. */
   readonly itemCode?: string;
-  /** `edit: "onboarding"` only — Kit Distributed's own binary reduction (correction round 2, item 2): Yes/No, never Waived/Not applicable, `reopen` reachable only as "No". */
-  readonly binary?: boolean;
   readonly width: number;
   readonly sortable: boolean;
   readonly filterable: boolean;
@@ -286,7 +284,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       band: "onboarding",
       edit: "onboarding",
       itemCode: "kit_sorted",
-      binary: true,
       options: allowedItemResolutions("kit_sorted"),
       width: 120,
       sortable: true,
@@ -469,6 +466,20 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       filterable: true,
       requires: "person_record_authority",
     },
+    // Brian, 2026-09-05: BPS sits immediately before Availability, and
+    // Availability is the last column on the board (`WP-operator-record`,
+    // LAN-217, correction round 4).
+    {
+      key: "bps",
+      label: "BPS",
+      band: "season",
+      edit: "select",
+      options: BPS_VALUES,
+      width: 96,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
     {
       key: "availability",
       label: "Availability",
@@ -477,17 +488,6 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       options: AVAILABILITY_VALUES,
       optionLabels: AVAILABILITY_LABELS,
       width: 128,
-      sortable: true,
-      filterable: true,
-      requires: "person_record_authority",
-    },
-    {
-      key: "bps",
-      label: "BPS",
-      band: "season",
-      edit: "select",
-      options: BPS_VALUES,
-      width: 96,
       sortable: true,
       filterable: true,
       requires: "person_record_authority",

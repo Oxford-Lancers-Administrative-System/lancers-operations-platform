@@ -319,6 +319,10 @@ function historyItem(
 }
 
 describe("W6 — the resolve control's own Reopen option", () => {
+  // D-002 (Q-14): "complete" reads in BUCS Play's own word ("Confirmed" —
+  // "invited, claimed, confirmed"), never the generic "Complete" this fixture
+  // used to assert — proving the option label is item-specific, not a flat
+  // map, is the whole point of this correction round.
   it("offers Reopen alongside the shipped three resolutions", async () => {
     givenRecord({ onboardingItems: [historyItem({ status: "complete" })] });
     render(await PlayerRecordPage(pageProps()));
@@ -329,7 +333,7 @@ describe("W6 — the resolve control's own Reopen option", () => {
     const { fireEvent } = await import("@testing-library/react");
     fireEvent.click(within(row).getByTestId("editable-field"));
 
-    expect(await screen.findByRole("option", { name: "Complete" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "Confirmed" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Waived" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Not applicable" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Reopen" })).toBeInTheDocument();

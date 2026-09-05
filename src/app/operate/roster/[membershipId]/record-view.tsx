@@ -19,6 +19,8 @@ import type {
 } from "@/lib/services/membership";
 import {
   allowedItemResolutions,
+  itemResolutionLabel,
+  itemStatusLabel,
   SUBS_INVOICED_ITEM_CODE,
   SUBS_PAID_ITEM_CODE,
 } from "@/lib/services/onboarding-item-shapes";
@@ -63,7 +65,6 @@ import {
   labelFor,
   MEMBERSHIP_STATUS_LABELS,
   membershipStatusColour,
-  ONBOARDING_ITEM_LABELS,
 } from "../presentation";
 import {
   recordCommitAvailabilityAction,
@@ -79,17 +80,18 @@ import {
 } from "./record-actions";
 
 /**
- * This row's own resolution set is `allowedItemResolutions(item.code)` —
- * D-002 (correction round 3, Q-14): the offered set and the displayable set
- * are one thing, derived per item, so the two cannot drift apart again. The
- * full four (`complete`/`waived`/`not_applicable`/`reopen`) for every item
- * except Kit Distributed, whose own binary reduction (B-001, correction
- * round 2) this same model still expresses. `reopen` reaches the item's
- * ordinary `pending` — the service itself is what refuses a `reopen` on an
- * item that is not in a terminal state (`R4-T`), surfaced through this row's
- * existing error slot.
+ * This row's own resolution set is `allowedItemResolutions(item.code)`, and
+ * its own words are `itemStatusLabel(item.code, status)` — D-002 (correction
+ * round 3, Q-14; wired here at correction round 4): the offered set and the
+ * displayable set are one thing, derived per item from
+ * `onboarding-item-shapes.ts`, so the two cannot drift apart again and no
+ * item keeps a hardcoded exception of its own (Kit Distributed's own binary
+ * reduction, B-001, correction round 2, now lives in that one shared module
+ * like every other item's shape). `reopen` reaches the item's ordinary
+ * `pending` — the service itself is what refuses a `reopen` on an item that
+ * is not in a terminal state (`R4-T`), surfaced through this row's existing
+ * error slot.
  */
-const KIT_DISTRIBUTED_CODE = "kit_sorted";
 
 /**
  * `/operate/roster/[membershipId]` — W6, rebuilt. LAN-187.
@@ -973,17 +975,10 @@ function OnboardingRow({
   onResolve: (status: OnboardingItemResolution) => void;
 }) {
   const editable = !readOnly && !blank;
-  const isKitDistributed = item.code === KIT_DISTRIBUTED_CODE;
   const resolutions = allowedItemResolutions(item.code);
-  const closedLabel = isKitDistributed
-    ? item.status === "complete"
-      ? "Yes"
-      : "No"
-    : labelFor(ONBOARDING_ITEM_LABELS, item.status);
-  const optionLabel = (status: (typeof resolutions)[number]): string => {
-    if (isKitDistributed) return status === "complete" ? "Yes" : "No";
-    return status === "reopen" ? "Reopen" : labelFor(ONBOARDING_ITEM_LABELS, status);
-  };
+  const closedLabel = itemStatusLabel(item.code, item.status);
+  const optionLabel = (status: (typeof resolutions)[number]): string =>
+    itemResolutionLabel(item.code, status);
 
   return (
     <Row label={item.label} note={provenanceNote(item)}>

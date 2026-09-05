@@ -1,3 +1,5 @@
+import { itemResolutionLabel } from "@/lib/services/onboarding-item-shapes";
+import type { OnboardingItemStatus } from "@/lib/services/membership";
 import type { RosterBoardRow } from "@/lib/services/roster-board";
 import {
   AVAILABILITY_LABELS,
@@ -5,12 +7,7 @@ import {
   FORMALWEAR_LABELS,
   type ColumnDef,
 } from "./board-columns";
-import {
-  ENTRY_LABELS,
-  labelFor,
-  MEMBERSHIP_STATUS_LABELS,
-  ONBOARDING_ITEM_LABELS,
-} from "./presentation";
+import { ENTRY_LABELS, labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
 
 /**
  * Pure search, filter and sort over the board's rows — no database, no
@@ -91,10 +88,15 @@ export function rawValue(row: RosterBoardRow, key: string): string | string[] | 
       return row.onboardingItems["subs_invoiced"]?.status === "complete"
         ? (row.onboardingItems["subs_paid"]?.status ?? null)
         : null;
+    // Correction round 2, item 2 gave Kit Distributed its Yes/No wording;
+    // correction round 4 moved that wording into `itemStatusLabel` alongside
+    // every other item's, so this reads the same raw status every other
+    // onboarding column does. It used to pre-convert to "Yes"/"No" here,
+    // which — now that the item's own model is the one place that word is
+    // decided — made this column the one place still capable of handing that
+    // model a status it does not recognise (`"Yes"` and `"No"` are neither).
     case "kitDistributed":
-      // Correction round 2, item 2: binary — the raw status collapses to
-      // Yes/No, the same as BPS above, never the five-value status word.
-      return row.onboardingItems["kit_sorted"]?.status === "complete" ? "Yes" : "No";
+      return row.onboardingItems["kit_sorted"]?.status ?? null;
     case "bucsPlay":
       return row.onboardingItems["bucs_play"]?.status ?? null;
     case "hudlAccess":
@@ -154,18 +156,16 @@ function optionLabel(column: ColumnDef, code: string): string {
   if (column.key === "eligibility") return labelFor(ELIGIBILITY_LABELS, code);
   if (column.key === "availability") return labelFor(AVAILABILITY_LABELS, code);
   if (column.key === "formalwear") return labelFor(FORMALWEAR_LABELS, code);
-  // Correction round 2, item 5. `code` is either a real `OnboardingItemStatus`
-  // (the closed cell, and the filter popover, both built from `rawValue`'s
-  // actual stored status) or one of the resolution words this item's own
-  // control offers (D-002, correction round 3: `allowedItemResolutions` in
-  // `onboarding-item-shapes.ts`) — the two vocabularies differ by `reopen`,
-  // which is never a status a row can be *in*, and by `invited`, which is a
-  // status every progression item can be in but no dropdown here ever
-  // offers as a resolution — so it is the one case handled by hand.
+  // Correction round 2, item 5, wired to the per-item model at correction
+  // round 4 (D-002, `WP-operator-record`, LAN-217). `code` is either a real
+  // `OnboardingItemStatus` (the closed cell, and the filter popover, both
+  // built from `rawValue`'s actual stored status) or one of the resolution
+  // words this item's own control offers (`allowedItemResolutions` in
+  // `onboarding-item-shapes.ts`) — `itemResolutionLabel` is the one function
+  // that reads both vocabularies for one item, so the offered set and the
+  // displayable set cannot answer that question two different ways again.
   if (column.edit === "onboarding") {
-    if (column.binary) return code === "complete" ? "Yes" : "No";
-    if (code === "reopen") return "Reopen";
-    return labelFor(ONBOARDING_ITEM_LABELS, code);
+    return itemResolutionLabel(column.itemCode ?? "", code as OnboardingItemStatus | "reopen");
   }
   return column.optionLabels?.[code] ?? code;
 }

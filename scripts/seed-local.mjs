@@ -548,6 +548,12 @@ const rows = {
   blues_awards: [],
   onboarding_item_types: [],
   onboarding_items: [],
+  // D-002 (correction round 4, `WP-operator-record`, LAN-217): the append-only
+  // history had zero rows in the whole database, and BPS was uniformly "no" —
+  // neither table had a single writer. Populated below, after every
+  // membership and its onboarding items exist.
+  onboarding_item_history: [],
+  bps_selections: [],
   eligibility_records: [],
   availability_statuses: [],
   event_series: [],
@@ -4665,6 +4671,102 @@ LEGACY_EVENTS.forEach(([cell, week, weekday, colour, status, reason], index) => 
 });
 
 // ---------------------------------------------------------------------------
+// D-002 (correction round 4, `WP-operator-record`, LAN-217): BPS selections,
+// a reason-free waiver, and one item's own append-only history
+// ---------------------------------------------------------------------------
+//
+// Three gaps a SQL check caught, none of them touched by anything above:
+//
+//   * `bps_selections` had zero rows — every membership read the roster's own
+//     "no row yet means never selected" default, so the BPS column was
+//     uniformly "No" and the column existed only in name.
+//   * Every waived item carried the same reason, "Hardship waiver agreed by
+//     the committee" — `REQ-reason-free-waive` (LAN-214) unwound the
+//     database's own constraint requiring one, but nothing in this file ever
+//     demonstrated the reason-free case it made legal.
+//   * `onboarding_item_history` had zero rows in the whole database — LAN-214
+//     built the typed, append-only home for an item's transitions, and this
+//     seed never wrote one.
+//
+// Placed last, after every membership, person and onboarding item exists, and
+// drawing from its own independent PRNG stream (`makeUuidFactory`, its own
+// seed) rather than the shared `uuid()` above — exactly `recruitId`'s own
+// reasoning: inserted this late, reusing `uuid()` would still be safe (nothing
+// after this point reads the shared stream's position), but a stream of its
+// own is what keeps that true if something is ever added after it.
+const historyAndSelectionUuid = makeUuidFactory(makeRandom(20260905));
+
+// About ten players, per the item-and-ask inventory's own club fact ("a gym
+// scheme limited to about ten players") — five of forty-two is the same
+// order of magnitude on this roster's smaller scale. Drawn from the `active`
+// run of `STATUS_PLAN` (indices 0–31) so the demo does not select someone the
+// roster board would filter out by default.
+const BPS_SELECTED_MEMBERSHIP_INDICES = [0, 6, 13, 20, 27];
+for (const index of BPS_SELECTED_MEMBERSHIP_INDICES) {
+  const membership = memberships[index];
+  add("bps_selections", {
+    id: historyAndSelectionUuid(),
+    season_membership_id: membership.id,
+    season_id: seasonCurrent.id,
+    is_selected: true,
+    recorded_by_person_id: people[2].id,
+    updated_at: "2026-10-01T09:00:00Z",
+  });
+}
+
+// `REQ-reason-free-waive`: the first already-drawn `waived` item stands in for
+// every waiver this file seeds — bar this one, whose reason is cleared. The
+// author (`waived_by_person_id`) stays; only the reason a waiver is never
+// required to carry is the thing being demonstrated absent.
+const reasonFreeWaiver = rows.onboarding_items.find((item) => item.status === "waived");
+if (reasonFreeWaiver) reasonFreeWaiver.waived_reason = null;
+
+// One item, walked through the whole ladder a reopen can reach —
+// complete → reopen → waived → reopen — so the append-only history has a
+// demo state at all. `memberships[1]`'s own BUCS Play item, not `[0]`'s: the
+// two draws are independent, but picking a different membership than the BPS
+// block above keeps each demo scenario legible on its own player rather than
+// stacking three unrelated stories onto one row.
+const historyMembership = memberships[1];
+const bucsPlayType = itemTypesBySeason[seasonCurrent.id].find((type) => type.code === "bucs_play");
+const historyItem = rows.onboarding_items.find(
+  (item) =>
+    item.season_membership_id === historyMembership.id && item.item_type_id === bucsPlayType.id,
+);
+if (historyItem) {
+  // The ladder ends on `reopen`, which always writes `pending` — the same
+  // shape `resolveOnboardingItem`'s own cascade already leaves an item in.
+  historyItem.status = "pending";
+  historyItem.completed_on = null;
+  historyItem.waived_reason = null;
+  historyItem.waived_by_person_id = null;
+  historyItem.updated_at = "2026-10-03T15:00:00Z";
+
+  const operator = people[2].id;
+  const historyRow = (fromStatus, toStatus, occurredAt, reason = null) =>
+    add("onboarding_item_history", {
+      id: historyAndSelectionUuid(),
+      onboarding_item_id: historyItem.id,
+      season_membership_id: historyMembership.id,
+      from_status: fromStatus,
+      to_status: toStatus,
+      actor_kind: "operator",
+      actor_person_id: operator,
+      reason,
+      occurred_at: occurredAt,
+    });
+  historyRow("pending", "complete", "2026-10-01T09:00:00Z");
+  historyRow("complete", "pending", "2026-10-02T09:00:00Z");
+  historyRow(
+    "pending",
+    "waived",
+    "2026-10-02T15:00:00Z",
+    "Registered late; waived to unblock activation.",
+  );
+  historyRow("waived", "pending", "2026-10-03T15:00:00Z");
+}
+
+// ---------------------------------------------------------------------------
 // Write
 // ---------------------------------------------------------------------------
 
@@ -4892,6 +4994,33 @@ const WRITE_PLAN = [
       "updated_at",
     ],
     "onboarding_items",
+  ],
+  [
+    "public.onboarding_item_history",
+    [
+      "id",
+      "onboarding_item_id",
+      "season_membership_id",
+      "from_status",
+      "to_status",
+      "actor_kind",
+      "actor_person_id",
+      "reason",
+      "occurred_at",
+    ],
+    "onboarding_item_history",
+  ],
+  [
+    "public.bps_selections",
+    [
+      "id",
+      "season_membership_id",
+      "season_id",
+      "is_selected",
+      "recorded_by_person_id",
+      "updated_at",
+    ],
+    "bps_selections",
   ],
   [
     "public.position_assignments",
@@ -5514,6 +5643,15 @@ try {
     ),
   );
   console.log(counts("  holding offence and defence", bothSides));
+  console.log(counts("BPS selections", rows.bps_selections.length));
+  console.log(counts("onboarding item history rows", rows.onboarding_item_history.length));
+  console.log(
+    counts(
+      "  reason-free waivers",
+      rows.onboarding_items.filter((item) => item.status === "waived" && !item.waived_reason)
+        .length,
+    ),
+  );
   console.log(counts("role assignments", roleAssignmentCount));
   console.log(counts("events", rows.events.length));
   console.log(

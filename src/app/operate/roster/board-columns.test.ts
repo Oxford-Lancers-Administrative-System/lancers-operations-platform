@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { allowedItemResolutions, allowedItemStatuses } from "@/lib/services/onboarding-item-shapes";
 import type { RosterBoardRow } from "@/lib/services/roster-board";
 import { buildColumns, redactRow, visibleColumns } from "./board-columns";
 
@@ -130,5 +131,67 @@ describe("buildColumns — Status is an ordinary select column (item 4)", () => 
     expect(status.options).toEqual(["onboarding", "active", "inactive", "departed", "archived"]);
     expect(status.optionLabels?.active).toBe("Active");
     expect(status.optionLabels?.onboarding).toBe("Onboarding");
+  });
+});
+
+// Brian, 2026-09-05 (`WP-operator-record`, LAN-217, correction round 4): BPS
+// sits immediately before Availability, and Availability is the last column.
+describe("buildColumns — column order (correction round 4)", () => {
+  it("puts BPS immediately before Availability, with Availability last", () => {
+    const keys = buildColumns(POSITION_OPTIONS).map((column) => column.key);
+    const bpsIndex = keys.indexOf("bps");
+    const availabilityIndex = keys.indexOf("availability");
+
+    expect(bpsIndex).toBeGreaterThanOrEqual(0);
+    expect(availabilityIndex).toBe(bpsIndex + 1);
+    expect(availabilityIndex).toBe(keys.length - 1);
+  });
+});
+
+/**
+ * D-002 (correction round 4): the actual defect — every onboarding column's
+ * offered set must come from `onboarding-item-shapes.ts`, per item, never a
+ * hardcoded list beside it. This fails immediately if a column's `options`
+ * is ever replaced with a literal array again, because a hardcoded list here
+ * would have to coincidentally reproduce every item's own shape to pass.
+ */
+describe("buildColumns — every onboarding column's offered set comes from the shared model (D-002)", () => {
+  const ONBOARDING_COLUMN_ITEM_CODES: Readonly<Record<string, string>> = {
+    subsInvoiced: "subs_invoiced",
+    subsPaid: "subs_paid",
+    kitDistributed: "kit_sorted",
+    bucsPlay: "bucs_play",
+    hudlAccess: "hudl_access",
+    squadPhoto: "photo",
+    commsGroup: "comms_groups",
+  };
+
+  it("gives each onboarding column exactly its own item's allowedItemResolutions — never one shared list", () => {
+    const columns = buildColumns(POSITION_OPTIONS);
+    for (const [columnKey, itemCode] of Object.entries(ONBOARDING_COLUMN_ITEM_CODES)) {
+      const column = columns.find((candidate) => candidate.key === columnKey)!;
+      expect(column.edit).toBe("onboarding");
+      expect(column.itemCode).toBe(itemCode);
+      expect(column.options).toEqual(allowedItemResolutions(itemCode));
+    }
+
+    // Kit Distributed's own binary reduction is proof the columns are not
+    // all reading one shared array: its options genuinely differ from every
+    // sibling's.
+    const kit = columns.find((column) => column.key === "kitDistributed")!;
+    const bucs = columns.find((column) => column.key === "bucsPlay")!;
+    expect(kit.options).not.toEqual(bucs.options);
+  });
+
+  it("proves the offered set is never wider than the item's own allowedItemStatuses — no resolution reaches a status the item cannot occupy", () => {
+    const columns = buildColumns(POSITION_OPTIONS);
+    for (const [columnKey, itemCode] of Object.entries(ONBOARDING_COLUMN_ITEM_CODES)) {
+      const column = columns.find((candidate) => candidate.key === columnKey)!;
+      const statuses = allowedItemStatuses(itemCode);
+      for (const resolution of column.options ?? []) {
+        if (resolution === "reopen") continue;
+        expect(statuses).toContain(resolution);
+      }
+    }
   });
 });

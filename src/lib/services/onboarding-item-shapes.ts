@@ -104,3 +104,111 @@ export function allowedItemResolutions(code: string): readonly OnboardingItemRes
     ? (["complete", "reopen"] as const)
     : FULL_ITEM_RESOLUTIONS;
 }
+
+/**
+ * D-002 (correction round 4, `WP-operator-record`, LAN-217) — the words
+ * Brian actually said for each item's own progression, layered over the
+ * shared escape hatch (`waived` → "Waived", `not_applicable` → "Not
+ * applicable" — his own words, "Waived and Not applicable remain available on
+ * every item as the operator's escape hatch") and the shared trust-class
+ * words (`invited` → "Invited", `claimed` → "Claimed" — never overridden,
+ * because those two words already are what he asked for everywhere they
+ * apply).
+ *
+ * Only `pending` and `complete` vary by item — the two ends of the ladder
+ * Brian actually named a wrong word for ("Subscription invoiced is
+ * invoiced-or-not, never Complete") or a right one for verbatim:
+ *
+ *   * Subscription invoiced — "It should be binary: yes or no."
+ *   * Subscription paid — "either: paid, waived, not paid."
+ *   * Kit Distributed — B-001, already Yes/No.
+ *   * Squad photo — "Do we have a squad photo of them or not?"
+ *   * Comms group — "not assigned, assigned and invited, in the group."
+ *   * Hudl access / BUCS Play — "invited, claimed, confirmed."
+ *   * Code of Conduct / Photo release — signed or not (the brief's own
+ *     words), matching every other binary item's "not X" / "X" shape.
+ *
+ * The two derived items (`contact_academic_details`,
+ * `season_welcome_consent`) are absent here deliberately: nobody has settled
+ * different words for them, and they are not board columns — inventing
+ * wording nobody asked for would be exactly the kind of interface decision
+ * `describeOnboarding`'s own doc comment already refuses to make. They read
+ * the plain `pending`/`complete` fallback below, same as before.
+ */
+const ITEM_STATUS_LABEL_OVERRIDES: Readonly<
+  Record<string, Partial<Readonly<Record<OnboardingItemStatus, string>>>>
+> = Object.freeze({
+  [SUBS_INVOICED_ITEM_CODE]: Object.freeze({ pending: "Not invoiced", complete: "Invoiced" }),
+  [SUBS_PAID_ITEM_CODE]: Object.freeze({ pending: "Not paid", complete: "Paid" }),
+  [KIT_DISTRIBUTED_ITEM_CODE]: Object.freeze({ pending: "No", complete: "Yes" }),
+  photo: Object.freeze({ pending: "No", complete: "Yes" }),
+  comms_groups: Object.freeze({
+    pending: "Not assigned",
+    invited: "Assigned and invited",
+    complete: "In the group",
+  }),
+  bucs_play: Object.freeze({
+    pending: "Not invited",
+    invited: "Invited",
+    claimed: "Claimed",
+    complete: "Confirmed",
+  }),
+  hudl_access: Object.freeze({
+    pending: "Not invited",
+    invited: "Invited",
+    claimed: "Claimed",
+    complete: "Confirmed",
+  }),
+  code_of_conduct: Object.freeze({ pending: "Not signed", complete: "Signed" }),
+  photo_release: Object.freeze({ pending: "Not signed", complete: "Signed" }),
+}) as Readonly<Record<string, Partial<Readonly<Record<OnboardingItemStatus, string>>>>>;
+
+/** The plain word for a status when no item overrides it — every escape-hatch and trust-class word, plus the default binary. */
+const DEFAULT_ITEM_STATUS_LABELS: Readonly<Record<OnboardingItemStatus, string>> = Object.freeze({
+  pending: "Pending",
+  invited: "Invited",
+  claimed: "Claimed",
+  complete: "Complete",
+  waived: "Waived",
+  not_applicable: "Not applicable",
+});
+
+/**
+ * D-002: the one word this item's cell shows for this status — the
+ * displayable set's own wiring, matching `allowedItemStatuses` above rather
+ * than a second, driftable list. Never called with a status this item cannot
+ * occupy: that is exactly the defect Brian saw (Sub invoiced, Sub paid and
+ * Squad photo rendering "Invited"), so this throws rather than silently
+ * printing a word for a state the cell's own model says cannot exist here.
+ */
+export function itemStatusLabel(code: string, status: OnboardingItemStatus): string {
+  if (!allowedItemStatuses(code).includes(status)) {
+    throw new Error(`"${status}" is not a status "${code}" can occupy.`);
+  }
+  return ITEM_STATUS_LABEL_OVERRIDES[code]?.[status] ?? DEFAULT_ITEM_STATUS_LABELS[status];
+}
+
+/**
+ * D-002: the word for one entry in the *open* control — the same displayable
+ * set `itemStatusLabel` covers, plus `reopen`, which is never a status a row
+ * can be *in* and so is never in that function's domain. Every item reads
+ * `reopen` as the generic "Reopen" except Kit Distributed, whose own binary
+ * reduction (B-001) already reads its `pending` as "No" — a control with only
+ * two ideas in it ("has this happened, or not") has no room for a third word
+ * that means the same thing its own negative already says, which is
+ * precisely the shape of the bug this correction round exists to fix
+ * elsewhere. One function, so the board's dropdown and the record page's
+ * cannot invent two different answers for the same item's `reopen` again.
+ */
+export function itemResolutionLabel(
+  code: string,
+  resolution: OnboardingItemStatus | "reopen",
+): string {
+  if (resolution === "reopen") {
+    if (!allowedItemResolutions(code).includes("reopen")) {
+      throw new Error(`"reopen" is not a resolution "${code}" offers.`);
+    }
+    return ITEM_CODES_WITHOUT_WAIVER.has(code) ? "No" : "Reopen";
+  }
+  return itemStatusLabel(code, resolution);
+}

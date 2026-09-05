@@ -1,8 +1,4 @@
-import type {
-  MembershipStatus,
-  OnboardingItemStatus,
-  RosterEntry,
-} from "@/lib/services/membership";
+import type { MembershipStatus, RosterEntry } from "@/lib/services/membership";
 
 /**
  * The words the roster screens use, fixed in one place.
@@ -10,10 +6,15 @@ import type {
  * LAN-90 § 4 requires the mapping from the frozen model's internal state names
  * to on-screen language to be decided once and used everywhere, "so three
  * issues do not invent three labels for one state". These are that mapping for
- * `membership_status`, `membership_entry` and `onboarding_item_status`, and
- * they are read from the approved wireframes rather than invented here: UX-20's
- * status column reads Active and Inactive; UX-20's entry column reads Returning
- * and New.
+ * `membership_status` and `membership_entry`, read from the approved
+ * wireframes rather than invented here: UX-20's status column reads Active
+ * and Inactive; UX-20's entry column reads Returning and New.
+ *
+ * `onboarding_item_status`'s own mapping lives in `onboarding-item-shapes.ts`
+ * (`itemStatusLabel`), not here — D-002 (correction round 3/4, Q-14) settled
+ * that the word for a status varies per item ("Invoiced" is not "Complete"),
+ * so it cannot be one flat map the way these two genuinely-uniform
+ * vocabularies are.
  *
  * The status vocabulary shrank to five under LAN-182, so UX-20's "Confirmed"
  * and UX-21's "Carried forward → Confirmed" no longer name anything: both
@@ -35,22 +36,6 @@ export const ENTRY_LABELS: Readonly<Record<string, string>> = Object.freeze({
   returning: "Returning",
   new: "New",
 });
-
-export const ONBOARDING_ITEM_LABELS: Readonly<Record<OnboardingItemStatus, string>> = Object.freeze(
-  {
-    pending: "Pending",
-    invited: "Invited",
-    // LAN-214: `claimed` joined the enum this label map is keyed on. The word
-    // itself is not this package's to place on a screen — W6 owns where it
-    // sits visually against `complete` (delegated to the Mission Lead) — this
-    // entry exists only so the map stays total over `OnboardingItemStatus`
-    // and this route keeps compiling.
-    claimed: "Claimed",
-    complete: "Complete",
-    waived: "Waived",
-    not_applicable: "Not applicable",
-  },
-);
 
 /** The label for a value, falling back to the value so nothing renders blank. */
 export { labelFor } from "../labels";
