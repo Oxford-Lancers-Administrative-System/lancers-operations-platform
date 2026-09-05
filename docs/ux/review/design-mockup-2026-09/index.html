@@ -218,9 +218,12 @@
       <h1>LAN-225 — Design mockup review</h1>
       <p>
         Proposed captures from <code>chore/lan-225-design-mockup</code> at
-        <code>f9cd90ed5b5ffa4c539a8125d86ef9710744df38</code>, 2026-09-04T22:10:35.564Z, measured
+        <code>71c704162fdac9e3bc998e5870a639aeaf3dd858</code>, 2026-09-05T14:07:58.217Z, measured
         1440×900 and 375×812 through the real login on the local seed. Current captures from the
-        LAN-224 audit on <code>main</code> at <code>4a3efa9</code>.
+        LAN-224 audit on <code>main</code> at <code>4a3efa9</code>, and — for the player surfaces
+        (S5, S9, S10, S10b, S11) — from this ticket&rsquo;s own run on <code>main</code> at
+        <code>73577d6</code>, served from a separate checkout so that this branch&rsquo;s theme
+        never photographs itself.
       </p>
     </header>
     <main>
@@ -602,7 +605,7 @@
         <header class="head">
           <h2>Create event <span class="disp modified">Modified</span></h2>
           <p class="route">
-            <code>/design-preview/event-new</code> mirrors <code>/operate/events/[id]s/new</code>
+            <code>/design-preview/event-new</code> mirrors <code>/operate/events/new</code>
           </p>
 
           <ul class="deltas">
@@ -623,12 +626,12 @@
             <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
             <div class="chrome">
               <span class="dot"></span><span class="dot"></span><span class="dot"></span
-              ><span class="url">/operate/events/[id]s/new</span>
+              ><span class="url">/operate/events/new</span>
             </div>
             <div class="shot">
               <img
                 src="../design-audit-2026-09/screens/operate-events-new--empty-form--desktop.png"
-                alt="current /operate/events/[id]s/new at 1440"
+                alt="current /operate/events/new at 1440"
                 loading="lazy"
               />
             </div>
@@ -653,12 +656,12 @@
             <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
             <div class="chrome">
               <span class="dot"></span><span class="dot"></span><span class="dot"></span
-              ><span class="url">/operate/events/[id]s/new</span>
+              ><span class="url">/operate/events/new</span>
             </div>
             <div class="shot">
               <img
                 src="../design-audit-2026-09/screens/operate-events-new--empty-form--phone.png"
-                alt="current /operate/events/[id]s/new at 375"
+                alt="current /operate/events/new at 375"
                 loading="lazy"
               />
             </div>
@@ -685,9 +688,9 @@
           <h2>RSVP invitation <span class="disp modified">Modified</span></h2>
           <p class="route"><code>/design-preview/rsvp</code> mirrors <code>/rsvp/[token]</code></p>
           <p class="note">
-            The audit could not capture a valid /rsvp/[token] (the link travels by email; LAN-224
-            route inventory). The nearest current sibling, /a/[token] confirm, is shown so the
-            public chrome can be compared; the copy is /rsvp/[token]'s.
+            The audit could not reach a valid /rsvp/[token] and captured only its not-found page.
+            This pair closes that gap: the current side is the live invitation on main at 73577d6,
+            reached with a token minted for the capture and recorded nowhere.
           </p>
           <ul class="deltas">
             <li>
@@ -712,7 +715,7 @@
             </div>
             <div class="shot">
               <img
-                src="../design-audit-2026-09/screens/a-token--confirm-yes--desktop.png"
+                src="screens-current/C5-rsvp--desktop.png"
                 alt="current /rsvp/[token] at 1440"
                 loading="lazy"
               />
@@ -744,7 +747,7 @@
             </div>
             <div class="shot">
               <img
-                src="../design-audit-2026-09/screens/a-token--confirm-yes--phone.png"
+                src="screens-current/C5-rsvp--phone.png"
                 alt="current /rsvp/[token] at 375"
                 loading="lazy"
               />
@@ -1159,6 +1162,401 @@
               <img
                 src="screens/S8-operator--phone.png"
                 alt="proposed /design-preview/operator at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+      </section>
+      <section class="screen" id="S9">
+        <div class="tab">S9</div>
+        <header class="head">
+          <h2>
+            Player home — the player's own invitations <span class="disp modified">Modified</span>
+          </h2>
+          <p class="route">
+            <code>/design-preview/player-home</code> mirrors <code>/me/[token]</code>
+          </p>
+          <p class="note">
+            Both sides are Alaric Brindlewood, the active player with the most invitations still
+            needing an answer (fourteen). The current side is main at 73577d6, reached with a token
+            minted for the capture.
+          </p>
+          <ul class="deltas">
+            <li>
+              P1 — the plain-text LANCERS OPERATIONS line becomes the Oxford Blue masthead with the
+              crest and the club's name; PublicShell at layout="stack", because this page is several
+              sections and not one panel.
+            </li>
+            <li>
+              P4 — ten hand-written pixel sizes become the §2 scale; the heading is a real h1 and
+              the focused event's name is the h2 record tier.
+            </li>
+            <li>
+              P8 — the affirmative button is Oxford Blue, not MUI green. Emphasis still points at
+              Yes (LAN-172).
+            </li>
+            <li>
+              P11 — the four hand-built chips become StatusChips on the one vocabulary; the event
+              type is a category, not a status, so it reads as words.
+            </li>
+            <li>
+              P13 — "See what else is coming up" is Section collapsible, still closed on arrival,
+              exactly as it is today.
+            </li>
+            <li>
+              Rows are RowCards carrying their own actions, beside the content at desktop and under
+              it at 375px.
+            </li>
+            <li>
+              P21 (product, not taken) — the lists are still unbounded. 3,000px desktop and 4,156px
+              phone against today's 3,269px and 4,106px: no better and no worse, because bounding it
+              is Brian's.
+            </li>
+          </ul>
+        </header>
+        <div class="pair desktop">
+          <figure class="frame current desktop">
+            <figcaption class="band">
+              CURRENT — on <code>main</code> today · 1440 · see note
+            </figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/me/[token]</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens-current/C9-player-home--desktop.png"
+                alt="current /me/[token] at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed desktop">
+            <figcaption class="band">PROPOSED · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/player-home</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S9-player-home--desktop.png"
+                alt="proposed /design-preview/player-home at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+        <div class="pair phone">
+          <figure class="frame current phone">
+            <figcaption class="band">
+              CURRENT — on <code>main</code> today · 375 · see note
+            </figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/me/[token]</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens-current/C9-player-home--phone.png"
+                alt="current /me/[token] at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed phone">
+            <figcaption class="band">PROPOSED · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/player-home</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S9-player-home--phone.png"
+                alt="proposed /design-preview/player-home at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+      </section>
+      <section class="screen" id="S10">
+        <div class="tab">S10</div>
+        <header class="head">
+          <h2>
+            The questionnaire — step 1, your details <span class="disp modified">Modified</span>
+          </h2>
+          <p class="route">
+            <code>/design-preview/player-details</code> mirrors <code>/me/[token]/details</code>
+          </p>
+          <p class="note">
+            LAN-224's route inventory has no row for this route at all — it landed with LAN-216,
+            after the brief chose its screens. This is its first capture.
+          </p>
+          <ul class="deltas">
+            <li>P1 — the masthead, with the season as its caption.</li>
+            <li>
+              P18 — the five-column &lt;dl&gt; of 11px labels becomes StepTrail: numbered, one chip
+              per step, the current step on the Sky Blue ground, wrapping rather than collapsing to
+              a two-column table at 375px.
+            </li>
+            <li>
+              Fourteen fields at one size and full width; the date of birth on the DateField picker
+              (audit E9, already taken).
+            </li>
+            <li>
+              The four groups are plain Sections; the foot is an ActionBar, sticky on a phone,
+              carrying the enabling sentence (rule 4).
+            </li>
+            <li>
+              Every label, lead line and helper sentence is the real page's own presentation.ts,
+              unchanged.
+            </li>
+          </ul>
+        </header>
+        <div class="pair desktop">
+          <figure class="frame current desktop">
+            <figcaption class="band">
+              CURRENT — on <code>main</code> today · 1440 · see note
+            </figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/me/[token]/details</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens-current/C10-details--desktop.png"
+                alt="current /me/[token]/details at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed desktop">
+            <figcaption class="band">PROPOSED · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/player-details</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S10-player-details--desktop.png"
+                alt="proposed /design-preview/player-details at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+        <div class="pair phone">
+          <figure class="frame current phone">
+            <figcaption class="band">
+              CURRENT — on <code>main</code> today · 375 · see note
+            </figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/me/[token]/details</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens-current/C10-details--phone.png"
+                alt="current /me/[token]/details at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed phone">
+            <figcaption class="band">PROPOSED · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/player-details</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S10-player-details--phone.png"
+                alt="proposed /design-preview/player-details at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+      </section>
+      <section class="screen" id="S10b">
+        <div class="tab">S10b</div>
+        <header class="head">
+          <h2>
+            The questionnaire — step 2, the document <span class="disp modified">Modified</span>
+          </h2>
+          <p class="route">
+            <code>/design-preview/player-agreement</code> mirrors
+            <code>/me/[token]/details?step=code_of_conduct</code>
+          </p>
+
+          <ul class="deltas">
+            <li>
+              The second half of the sequence is a different shape from the first — a document, one
+              tick box, one button — so judging the form alone would leave it unjudged.
+            </li>
+            <li>
+              P6 — the placeholder banner is a Notice, not 12px warning-coloured text. The wording
+              is unchanged and the real document is still owed under LAN-213.
+            </li>
+            <li>P9 — the tick box is the kit's CheckField, not this route's own client module.</li>
+            <li>
+              P14 (visual half) — the already-agreed line's raw ISO date goes through the shared
+              formatter. Its version id (P15) is product and is left alone.
+            </li>
+          </ul>
+        </header>
+        <div class="pair desktop">
+          <figure class="frame current desktop">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/me/[token]/details?step=code_of_conduct</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens-current/C10b-agreement--desktop.png"
+                alt="current /me/[token]/details?step=code_of_conduct at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed desktop">
+            <figcaption class="band">PROPOSED · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/player-agreement</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S10b-player-agreement--desktop.png"
+                alt="proposed /design-preview/player-agreement at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+        <div class="pair phone">
+          <figure class="frame current phone">
+            <figcaption class="band">CURRENT — on <code>main</code> today · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/me/[token]/details?step=code_of_conduct</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens-current/C10b-agreement--phone.png"
+                alt="current /me/[token]/details?step=code_of_conduct at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed phone">
+            <figcaption class="band">PROPOSED · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/player-agreement</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S10b-player-agreement--phone.png"
+                alt="proposed /design-preview/player-agreement at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+      </section>
+      <section class="screen" id="S11">
+        <div class="tab">S11</div>
+        <header class="head">
+          <h2>
+            Answer landing — the other half of the invite pair
+            <span class="disp modified">Modified</span>
+          </h2>
+          <p class="route"><code>/design-preview/answer</code> mirrors <code>/a/[token]</code></p>
+          <p class="note">
+            S5 is the invitation the player is sent; this is where the Yes button in that message
+            lands them. Same player, same event, both sides.
+          </p>
+          <ul class="deltas">
+            <li>
+              P1 — the masthead; P7 — sentence-case buttons; P8 — the confirm is Oxford Blue, not
+              green.
+            </li>
+            <li>
+              The heading is the answer (the real page's own words); the event is its subtitle; the
+              facts are one FactGrid with one Fact shape.
+            </li>
+            <li>
+              One foot: ActionBar with the confirm and "Plans changed?" as its secondary, in place
+              of a button, then a link, then a second form.
+            </li>
+            <li>
+              Not wired, and deliberately: the real page's one form both records the answer and
+              saves the questions, and a preview must not.
+            </li>
+          </ul>
+        </header>
+        <div class="pair desktop">
+          <figure class="frame current desktop">
+            <figcaption class="band">
+              CURRENT — on <code>main</code> today · 1440 · see note
+            </figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/a/[token]</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens-current/C11-answer--desktop.png"
+                alt="current /a/[token] at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed desktop">
+            <figcaption class="band">PROPOSED · 1440</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/answer</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S11-answer--desktop.png"
+                alt="proposed /design-preview/answer at 1440"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+        </div>
+        <div class="pair phone">
+          <figure class="frame current phone">
+            <figcaption class="band">
+              CURRENT — on <code>main</code> today · 375 · see note
+            </figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/a/[token]</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens-current/C11-answer--phone.png"
+                alt="current /a/[token] at 375"
+                loading="lazy"
+              />
+            </div>
+          </figure>
+          <figure class="frame proposed phone">
+            <figcaption class="band">PROPOSED · 375</figcaption>
+            <div class="chrome">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span
+              ><span class="url">/design-preview/answer</span>
+            </div>
+            <div class="shot">
+              <img
+                src="screens/S11-answer--phone.png"
+                alt="proposed /design-preview/answer at 375"
                 loading="lazy"
               />
             </div>
