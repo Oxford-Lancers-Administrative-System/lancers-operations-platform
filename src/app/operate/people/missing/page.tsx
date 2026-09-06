@@ -1,9 +1,8 @@
-import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Paper from "@mui/material/Paper";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
+import { SortableHeader as KitSortableHeader } from "@/components/sortable-header";
 import Stack from "@mui/material/Stack";
-import TableCell from "@mui/material/TableCell";
-import TableSortLabel from "@mui/material/TableSortLabel";
 import Typography from "@mui/material/Typography";
 import { isServiceError, withTransaction } from "@/lib/db";
 import {
@@ -20,7 +19,7 @@ import {
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../../gate";
 import MissingFilters from "./missing-filters";
-import { labelFor, statusColour, STATUS_LABELS } from "../presentation";
+import { labelFor, STATUS_LABELS } from "../presentation";
 import {
   chaseNeedsAHuman,
   formatChaseNext,
@@ -170,7 +169,7 @@ export default async function MissingDataPage({
       membershipId: isOnboarding ? (entry.membershipId ?? null) : null,
       displayName: entry.displayName,
       statusLabel: entry.status === null ? null : labelFor(STATUS_LABELS, entry.status),
-      statusColour: statusColour(entry.status),
+      statusCode: entry.status,
       clubRoleSummary: entry.clubRoleSummary,
       missingFieldLabels: entry.missingRequiredFields.map((field) => REQUIRED_FIELD_LABELS[field]),
       correctHref: `/operate/people/${entry.personId}/edit?from=missing`,
@@ -208,52 +207,48 @@ export default async function MissingDataPage({
 
   return (
     <Stack spacing={3}>
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        sx={{ alignItems: { sm: "flex-start" }, justifyContent: "space-between" }}
-      >
-        <Box>
-          <Typography variant="h6" component="h1">
-            Missing data
-          </Typography>
-          <Typography variant="body2" color="text.secondary" data-testid="missing-scope-label">
+      <PageHeader
+        title="Missing data"
+        subtitle={
+          <Typography component="span" variant="body2" data-testid="missing-scope-label">
             {subline}
           </Typography>
-        </Box>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-          {onboardingOnly ? (
-            <Button
-              variant="text"
-              href={widenPlayersHref}
-              sx={{ minHeight: 44 }}
-              data-testid="see-everyone-with-missing-data"
-            >
-              See everybody with missing data
-            </Button>
-          ) : (
-            <Button
-              variant="text"
-              href={narrowPlayersHref}
-              sx={{ minHeight: 44 }}
-              data-testid="see-onboarding-players-only"
-            >
-              Onboarding players only
-            </Button>
-          )}
-          {entries.length > 0 || totalMissing === 0 ? (
-            scope === "in_season" ? (
-              <Button variant="outlined" href={outsideHref} sx={{ minHeight: 44 }}>
-                See people outside this season
+        }
+        actions={
+          <>
+            {onboardingOnly ? (
+              <Button
+                variant="text"
+                href={widenPlayersHref}
+                sx={{ minHeight: 44 }}
+                data-testid="see-everyone-with-missing-data"
+              >
+                See everybody with missing data
               </Button>
             ) : (
-              <Button variant="outlined" href={backHref} sx={{ minHeight: 44 }}>
-                Back to this season
+              <Button
+                variant="text"
+                href={narrowPlayersHref}
+                sx={{ minHeight: 44 }}
+                data-testid="see-onboarding-players-only"
+              >
+                Onboarding players only
               </Button>
-            )
-          ) : null}
-        </Stack>
-      </Stack>
+            )}
+            {entries.length > 0 || totalMissing === 0 ? (
+              scope === "in_season" ? (
+                <Button variant="outlined" href={outsideHref} sx={{ minHeight: 44 }}>
+                  See people outside this season
+                </Button>
+              ) : (
+                <Button variant="outlined" href={backHref} sx={{ minHeight: 44 }}>
+                  Back to this season
+                </Button>
+              )
+            ) : null}
+          </>
+        }
+      />
 
       <MissingFilters
         basePath={basePath}
@@ -326,16 +321,13 @@ function SortableHeader({
   params.set("dir", next);
 
   return (
-    <TableCell sortDirection={active ? (direction === "asc" ? "asc" : "desc") : false}>
-      <TableSortLabel
-        active={active}
-        direction={active && direction === "desc" ? "desc" : "asc"}
-        href={`/operate/people/missing?${params.toString()}`}
-        component="a"
-      >
-        {label}
-      </TableSortLabel>
-    </TableCell>
+    <KitSortableHeader
+      column={column}
+      label={label}
+      active={active}
+      direction={active && direction === "desc" ? "desc" : "asc"}
+      href={`/operate/people/missing?${params.toString()}`}
+    />
   );
 }
 
@@ -369,16 +361,13 @@ function EmptyQueue({
   const nothingMissingAtAll = totalMissing === 0;
 
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 4 } }}>
-      <Stack spacing={2} sx={{ maxWidth: 640 }}>
-        <Typography variant="h6" component="h2">
-          {nothingMissingAtAll ? "Every required fact is recorded" : "Nobody matches these filters"}
-        </Typography>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={2}
-          data-testid={nothingMissingAtAll ? "missing-empty" : "missing-filter-empty"}
-        >
+    <EmptyState
+      title={
+        nothingMissingAtAll ? "Every required fact is recorded" : "Nobody matches these filters"
+      }
+      testId={nothingMissingAtAll ? "missing-empty" : "missing-filter-empty"}
+      actions={
+        <>
           {nothingMissingAtAll ? (
             scope === "in_season" ? (
               <Button variant="contained" href={outsideHref} sx={{ minHeight: 44 }}>
@@ -398,8 +387,8 @@ function EmptyQueue({
               Clear filters
             </Button>
           )}
-        </Stack>
-      </Stack>
-    </Paper>
+        </>
+      }
+    />
   );
 }

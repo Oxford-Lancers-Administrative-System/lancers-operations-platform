@@ -1,13 +1,14 @@
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Paper from "@mui/material/Paper";
+import { PageHeader } from "@/components/page-header";
+import { RowCard, RowCardList, DesktopOnly } from "@/components/row-card";
+import { TableFrame } from "@/components/sortable-header";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { listEventTemplates, type EventTemplateSummary } from "@/lib/services/event-templates";
@@ -20,8 +21,6 @@ import {
   describeTemplateWhere,
   labelFor,
   TEMPLATE_COLUMN_LABELS,
-  TEMPLATES_ARE_FIXED,
-  TEMPLATES_DETAIL,
   TEMPLATES_HEADLINE,
   TYPE_LABELS,
 } from "./presentation";
@@ -70,51 +69,34 @@ export default async function EventTemplatesPage() {
 
   return (
     <Stack spacing={3} sx={{ maxWidth: 900 }} data-testid="event-templates">
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {TEMPLATES_HEADLINE}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {TEMPLATES_DETAIL}
-        </Typography>
-      </Box>
+      <PageHeader
+        title={TEMPLATES_HEADLINE}
+        subtitle={`${templates.length} types`}
+        back={{ href: "/operate/events", label: "Back to events" }}
+      />
 
-      <Paper variant="outlined" sx={{ p: 0, overflow: "hidden" }}>
-        {/* The phone presentation. */}
-        <Stack sx={{ display: { xs: "flex", md: "none" } }} data-testid="template-cards">
-          {templates.map((template) => (
-            <Box
-              key={template.eventType}
-              sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}
-              data-testid="template-card"
-            >
-              <Button
-                href={`/operate/events/templates/${template.eventType}`}
-                sx={{
-                  p: 0,
-                  minWidth: 0,
-                  minHeight: 44,
-                  fontWeight: 700,
-                  justifyContent: "flex-start",
-                  textAlign: "left",
-                  textTransform: "none",
-                }}
-              >
-                {labelFor(TYPE_LABELS, template.eventType)}
-              </Button>
-              <Typography variant="body2" color="text.secondary" data-testid="template-card-facts">
+      <RowCardList testId="template-cards">
+        {templates.map((template) => (
+          <RowCard
+            key={template.eventType}
+            testId="template-card"
+            title={labelFor(TYPE_LABELS, template.eventType)}
+            href={`/operate/events/templates/${template.eventType}`}
+            sublines={[
+              <span key="facts" data-testid="template-card-facts">
                 {[
                   `${TEMPLATE_COLUMN_LABELS.audience} ${describeTemplateAudience(groupLabels(template))}`,
                   `${TEMPLATE_COLUMN_LABELS.where} ${describeTemplateWhere(template.defaultDeliveryMode, template.defaultVenue)}`,
                   `${TEMPLATE_COLUMN_LABELS.questions} ${describeQuestionCount(template.questionCount)}`,
                 ].join(" · ")}
-              </Typography>
-            </Box>
-          ))}
-        </Stack>
-
-        {/* The wide presentation. Scrolls inside itself rather than the page. */}
-        <Box sx={{ display: { xs: "none", md: "block" }, overflowX: "auto" }}>
+              </span>,
+            ]}
+          />
+        ))}
+      </RowCardList>
+      {/* The wide presentation. Scrolls inside itself rather than the page. */}
+      <DesktopOnly>
+        <TableFrame>
           <Table size="small" data-testid="template-table">
             <TableHead>
               <TableRow>
@@ -159,18 +141,8 @@ export default async function EventTemplatesPage() {
               ))}
             </TableBody>
           </Table>
-        </Box>
-      </Paper>
-
-      <Typography variant="body2" color="text.secondary" data-testid="templates-are-fixed">
-        {TEMPLATES_ARE_FIXED}
-      </Typography>
-
-      <Box>
-        <Button variant="text" href="/operate/events">
-          Back to events
-        </Button>
-      </Box>
+        </TableFrame>
+      </DesktopOnly>
     </Stack>
   );
 }

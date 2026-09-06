@@ -37,13 +37,11 @@ describe("the page says whose it is, and what signing in does not buy", () => {
     expect(screen.getByRole("heading", { name: "Sign in to Lancers Operations" })).toBeVisible();
   });
 
-  it("carries the approved access note", async () => {
-    // `slice-ux.md` § 8 and UX-01: authentication is not authorization, and the
-    // sign-in page is where an operator is told so before they are refused.
+  it("removes the standing authorization explanation approved for removal in H1", async () => {
     await show();
 
-    expect(screen.getByText(/authentication does not grant access by itself/i)).toBeVisible();
-    expect(screen.getByText(/checked on every protected action/i)).toBeVisible();
+    expect(screen.queryByText(/authentication does not grant access by itself/i)).toBeNull();
+    expect(screen.getByText(/accounts are provided by the club/i)).toBeVisible();
   });
 
   it("states that accounts come from the club and registration does not exist", async () => {

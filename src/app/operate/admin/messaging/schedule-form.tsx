@@ -1,19 +1,23 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
 import InputAdornment from "@mui/material/InputAdornment";
-import Paper from "@mui/material/Paper";
+import { Section } from "@/components/section";
+import { ActionBar } from "@/components/action-bar";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field } from "@/components/field";
 import Typography from "@mui/material/Typography";
 import type { RecruitmentCycleStep } from "@/lib/services/recruitment-cycle";
 import type { OnboardingChaseSettings } from "@/lib/services/onboarding-chase";
 import { EMPTY_ADMIN_ACTION_STATE } from "../action-state";
-import AdminOutcome from "../outcome";
+import {
+  Outcome as AdminOutcome,
+  OutcomeSlotProvider,
+  useOutcomeSlot,
+} from "@/components/outcome-slot";
 import {
   updateOneMessagingScheduleAction,
   updateOnboardingChaseSettingsAction,
@@ -24,17 +28,12 @@ import { ONBOARDING_CHASE_FIELDS } from "./onboarding-chase-validation";
 import {
   CYCLE_STEP_TIMING_UNIT,
   EVENT_MESSAGING_SECTION_HEADING,
-  EVENT_MESSAGING_SECTION_INTRO,
   HIDE_EXAMPLE,
   MESSAGING_SCHEDULE_FOOTER,
-  MESSAGING_SCHEDULE_RULE_DETAIL,
-  MESSAGING_SCHEDULE_RULE_HEADLINE,
   ONBOARDING_CHASE_ROW_LABEL,
   ONBOARDING_CHASE_SAVE_LABEL,
-  ONBOARDING_CHASE_SECTION_NOTE,
   ONBOARDING_SECTION_HEADING,
   RECRUITMENT_SECTION_HEADING,
-  RECRUITMENT_SECTION_INTRO,
   RECRUITS_GROUP_HEADING,
   REGULAR_PLAYERS_GROUP_HEADING,
   saveRowButtonLabel,
@@ -105,77 +104,59 @@ export default function MessagingScheduleForm({
   const interestReminder = stepsByName.get("interest_reminder");
 
   return (
-    <Stack spacing={5}>
-      <Stack spacing={1.5} data-testid="recruitment-cycle-section">
-        <SectionHeading title={RECRUITMENT_SECTION_HEADING} note={RECRUITMENT_SECTION_INTRO} />
-        {welcome && detailsReminder ? (
-          <CycleStepRow
-            steps={[welcome, detailsReminder]}
-            rowLabel={CYCLE_STEP_LABELS.welcome}
-            saveLabel="SAVE WELCOME"
-          />
-        ) : null}
-        {interestAsk && interestReminder ? (
-          <CycleStepRow
-            steps={[interestAsk, interestReminder]}
-            rowLabel={CYCLE_STEP_LABELS.interest_ask}
-            saveLabel="SAVE RECRUITMENT QUESTIONNAIRE"
-          />
-        ) : null}
-      </Stack>
-
-      {/* LAN-218, W11. Directly below Recruitment and above Event messaging
-          — Brian's own placement, and the reason `W11-01` was reshot: the
-          two person-lifecycle chases sit together, then the events. */}
-      <Stack spacing={1.5} data-testid="onboarding-section">
-        <SectionHeading title={ONBOARDING_SECTION_HEADING} note={ONBOARDING_CHASE_SECTION_NOTE} />
-        <OnboardingChaseRow settings={onboardingChase} />
-      </Stack>
-
-      <Stack spacing={1.5} data-testid="event-messaging-section">
-        <SectionHeading
-          title={EVENT_MESSAGING_SECTION_HEADING}
-          note={EVENT_MESSAGING_SECTION_INTRO}
-        />
-
-        <Alert severity="info" data-testid="schedule-rule">
-          <Typography variant="body2" sx={{ fontWeight: 700 }}>
-            {MESSAGING_SCHEDULE_RULE_HEADLINE}
+    <OutcomeSlotProvider>
+      <Stack spacing={5}>
+        <Stack spacing={1.5} data-testid="recruitment-cycle-section">
+          <Typography variant="h2" component="h2">
+            {RECRUITMENT_SECTION_HEADING}
           </Typography>
-          <Typography variant="body2">{MESSAGING_SCHEDULE_RULE_DETAIL}</Typography>
-        </Alert>
-
-        <Stack spacing={1.5}>
-          {rows.map((row) =>
-            row.eventType === "recruitment" ? (
-              <RecruitmentScheduleRow key={row.eventType} row={row} />
-            ) : (
-              <ScheduleRow key={row.eventType} row={row} />
-            ),
-          )}
+          {welcome && detailsReminder ? (
+            <CycleStepRow
+              steps={[welcome, detailsReminder]}
+              rowLabel={CYCLE_STEP_LABELS.welcome}
+              saveLabel="SAVE WELCOME"
+            />
+          ) : null}
+          {interestAsk && interestReminder ? (
+            <CycleStepRow
+              steps={[interestAsk, interestReminder]}
+              rowLabel={CYCLE_STEP_LABELS.interest_ask}
+              saveLabel="SAVE RECRUITMENT QUESTIONNAIRE"
+            />
+          ) : null}
         </Stack>
 
-        <Typography variant="body2" color="text.secondary">
-          {MESSAGING_SCHEDULE_FOOTER}
-        </Typography>
-      </Stack>
-    </Stack>
-  );
-}
+        {/* LAN-218, W11. Directly below Recruitment and above Event messaging
+          — Brian's own placement, and the reason `W11-01` was reshot: the
+          two person-lifecycle chases sit together, then the events. */}
+        <Stack spacing={1.5} data-testid="onboarding-section">
+          <Typography variant="h2" component="h2">
+            {ONBOARDING_SECTION_HEADING}
+          </Typography>
+          <OnboardingChaseRow settings={onboardingChase} />
+        </Stack>
 
-/** A section's own heading, in the page's type — the same cloned-`h1` shape the mockup draws. */
-function SectionHeading({ title, note }: { title: string; note: string | null }) {
-  return (
-    <Box>
-      <Typography variant="h6" component="h2" sx={{ fontWeight: 700, fontSize: 19 }}>
-        {title}
-      </Typography>
-      {note ? (
-        <Typography variant="body2" color="text.secondary">
-          {note}
-        </Typography>
-      ) : null}
-    </Box>
+        <Stack spacing={1.5} data-testid="event-messaging-section">
+          <Typography variant="h2" component="h2">
+            {EVENT_MESSAGING_SECTION_HEADING}
+          </Typography>
+
+          <Stack spacing={1.5}>
+            {rows.map((row) =>
+              row.eventType === "recruitment" ? (
+                <RecruitmentScheduleRow key={row.eventType} row={row} />
+              ) : (
+                <ScheduleRow key={row.eventType} row={row} />
+              ),
+            )}
+          </Stack>
+
+          <Typography variant="body2" color="text.secondary">
+            {MESSAGING_SCHEDULE_FOOTER}
+          </Typography>
+        </Stack>
+      </Stack>
+    </OutcomeSlotProvider>
   );
 }
 
@@ -206,64 +187,60 @@ function CycleStepRow({
     EMPTY_ADMIN_ACTION_STATE,
   );
 
+  const slot = useOutcomeSlot(`cycle-${steps.map((step) => step.step).join("-")}`);
+
   return (
-    <Paper
-      component="form"
-      action={formAction}
-      variant="outlined"
-      sx={{ p: 2 }}
-      data-testid="cycle-step-row"
-    >
-      <input type="hidden" name="steps" value={steps.map((step) => step.step).join(",")} />
+    <Box component="form" action={formAction} onSubmit={slot.claim} data-testid="cycle-step-row">
+      <Section headingLevel={3} title={rowLabel} titleTestId="cycle-step-row-label">
+        <input type="hidden" name="steps" value={steps.map((step) => step.step).join(",")} />
 
-      <Typography variant="subtitle2" sx={{ fontWeight: 700 }} data-testid="cycle-step-row-label">
-        {rowLabel}
-      </Typography>
+        <Stack spacing={2} sx={{ mt: 0.5 }}>
+          <Box sx={{ display: "flex", gap: 3, flexWrap: "wrap", alignItems: "flex-end" }}>
+            {steps.map((step) => {
+              const bound = CYCLE_STEP_FIELDS.find((field) => field.step === step.step);
+              if (!bound) return null;
+              return (
+                <Stack
+                  key={step.step}
+                  direction="row"
+                  spacing={1.5}
+                  sx={{ alignItems: "center" }}
+                  data-field={step.step}
+                >
+                  <Field
+                    name={`step_${step.step}_offsetHours`}
+                    id={`${step.step}.offsetHours`}
+                    label={bound.label}
+                    type="number"
+                    defaultValue={step.offsetHours}
+                    sx={{ width: 220 }}
+                    slotProps={{
+                      htmlInput: { min: bound.min, max: bound.max, step: 1 },
+                      input: {
+                        endAdornment: (
+                          <InputAdornment position="end">{CYCLE_STEP_TIMING_UNIT}</InputAdornment>
+                        ),
+                      },
+                    }}
+                  />
+                </Stack>
+              );
+            })}
+          </Box>
 
-      <Stack spacing={2} sx={{ mt: 0.5 }}>
-        <Box sx={{ display: "flex", gap: 3, flexWrap: "wrap", alignItems: "flex-end" }}>
-          {steps.map((step) => {
-            const bound = CYCLE_STEP_FIELDS.find((field) => field.step === step.step);
-            if (!bound) return null;
-            return (
-              <Stack
-                key={step.step}
-                direction="row"
-                spacing={1.5}
-                sx={{ alignItems: "center" }}
-                data-field={step.step}
-              >
-                <TextField
-                  name={`step_${step.step}_offsetHours`}
-                  id={`${step.step}.offsetHours`}
-                  label={bound.label}
-                  type="number"
-                  size="small"
-                  defaultValue={step.offsetHours}
-                  sx={{ width: 220 }}
-                  slotProps={{
-                    htmlInput: { min: bound.min, max: bound.max, step: 1 },
-                    input: {
-                      endAdornment: (
-                        <InputAdornment position="end">{CYCLE_STEP_TIMING_UNIT}</InputAdornment>
-                      ),
-                    },
-                  }}
-                />
-              </Stack>
-            );
-          })}
-        </Box>
+          <ActionBar
+            sticky={false}
+            primary={
+              <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
+                {saveLabel}
+              </Button>
+            }
+          />
 
-        <Stack direction="row" sx={{ justifyContent: "flex-end" }}>
-          <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
-            {saveLabel}
-          </Button>
+          <AdminOutcome state={state} showing={slot.showing} />
         </Stack>
-
-        <AdminOutcome state={state} />
-      </Stack>
-    </Paper>
+      </Section>
+    </Box>
   );
 }
 
@@ -281,54 +258,59 @@ function OnboardingChaseRow({ settings }: { settings: OnboardingChaseSettings })
     EMPTY_ADMIN_ACTION_STATE,
   );
 
+  const slot = useOutcomeSlot("onboarding");
+
   return (
-    <Paper
+    <Box
       component="form"
       action={formAction}
-      variant="outlined"
-      sx={{ p: 2 }}
+      onSubmit={slot.claim}
       data-testid="onboarding-chase-row"
     >
-      <Typography
-        variant="subtitle2"
-        sx={{ fontWeight: 700 }}
-        data-testid="onboarding-chase-row-label"
+      <Section
+        headingLevel={3}
+        title={ONBOARDING_CHASE_ROW_LABEL}
+        titleTestId="onboarding-chase-row-label"
       >
-        {ONBOARDING_CHASE_ROW_LABEL}
-      </Typography>
+        <Stack spacing={2} sx={{ mt: 0.5 }}>
+          <Box sx={{ display: "flex", gap: 3, flexWrap: "wrap", alignItems: "flex-end" }}>
+            {ONBOARDING_CHASE_FIELDS.map((field) => (
+              <Box key={field.key} data-field={field.key} sx={{ minWidth: 0 }}>
+                <Field
+                  name={field.key}
+                  id={`onboarding.${field.key}`}
+                  label={field.label}
+                  type="number"
+                  defaultValue={settings[field.key]}
+                  sx={{ width: 220 }}
+                  slotProps={{
+                    htmlInput: { min: field.min, max: field.max, step: 1 },
+                    input: field.unit
+                      ? {
+                          endAdornment: (
+                            <InputAdornment position="end">{field.unit}</InputAdornment>
+                          ),
+                        }
+                      : undefined,
+                  }}
+                />
+              </Box>
+            ))}
+          </Box>
 
-      <Stack spacing={2} sx={{ mt: 0.5 }}>
-        <Box sx={{ display: "flex", gap: 3, flexWrap: "wrap", alignItems: "flex-end" }}>
-          {ONBOARDING_CHASE_FIELDS.map((field) => (
-            <Box key={field.key} data-field={field.key} sx={{ minWidth: 0 }}>
-              <TextField
-                name={field.key}
-                id={`onboarding.${field.key}`}
-                label={field.label}
-                type="number"
-                size="small"
-                defaultValue={settings[field.key]}
-                sx={{ width: 220 }}
-                slotProps={{
-                  htmlInput: { min: field.min, max: field.max, step: 1 },
-                  input: field.unit
-                    ? { endAdornment: <InputAdornment position="end">{field.unit}</InputAdornment> }
-                    : undefined,
-                }}
-              />
-            </Box>
-          ))}
-        </Box>
+          <ActionBar
+            sticky={false}
+            primary={
+              <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
+                {ONBOARDING_CHASE_SAVE_LABEL}
+              </Button>
+            }
+          />
 
-        <Stack direction="row" sx={{ justifyContent: "flex-end" }}>
-          <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
-            {ONBOARDING_CHASE_SAVE_LABEL}
-          </Button>
+          <AdminOutcome state={state} showing={slot.showing} />
         </Stack>
-
-        <AdminOutcome state={state} />
-      </Stack>
-    </Paper>
+      </Section>
+    </Box>
   );
 }
 
@@ -344,15 +326,13 @@ function ScheduleField({
 }) {
   return (
     <Box data-field={field.key} sx={{ minWidth: 0 }}>
-      <TextField
+      <Field
         name={field.key}
         id={`${eventType}.${field.key}`}
         label={field.label}
         type="number"
-        size="small"
         defaultValue={defaultValue}
         helperText={field.helperText}
-        fullWidth
         slotProps={{
           htmlInput: { min: field.min, max: field.max, step: 1 },
           input: field.unit
@@ -377,17 +357,14 @@ function ScheduleRow({ row }: { row: ScheduleRowData }) {
     EMPTY_ADMIN_ACTION_STATE,
   );
 
-  return (
-    <Paper
-      component="form"
-      action={formAction}
-      variant="outlined"
-      sx={{ p: 2 }}
-      data-testid="schedule-row"
-    >
-      <input type="hidden" name="eventType" value={row.eventType} />
+  const slot = useOutcomeSlot(`event-${row.eventType}`);
 
-      {/*
+  return (
+    <Box component="form" action={formAction} onSubmit={slot.claim} data-testid="schedule-row">
+      <Section headingLevel={3} title={row.label} titleTestId="schedule-row-label">
+        <input type="hidden" name="eventType" value={row.eventType} />
+
+        {/*
         Q-23: the row heading is a style question, not structure — the
         mockup's own rendering does not govern it, the shipped application
         does. `../roles/page.tsx` and `../operators/page.tsx` both draw
@@ -397,84 +374,83 @@ function ScheduleRow({ row }: { row: ScheduleRowData }) {
         `subtitle1` a first pass at fixing it picked by eye from a mockup
         screenshot rather than the real component.
       */}
-      <Typography variant="subtitle2" sx={{ fontWeight: 700 }} data-testid="schedule-row-label">
-        {row.label}
-      </Typography>
 
-      <Stack spacing={2} sx={{ mt: 0.5 }}>
-        <Box
-          sx={{
-            display: "grid",
-            gap: 2,
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
-          }}
-        >
-          {TIMING_FIELDS.map((field) => (
-            <ScheduleField
-              key={field.key}
-              eventType={row.eventType}
-              field={field}
-              defaultValue={row.values[field.key]}
-            />
-          ))}
-        </Box>
-
-        <Box
-          sx={{
-            display: "grid",
-            gap: 2,
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
-          }}
-        >
-          {LADDER_FIELDS.map((field) => (
-            <ScheduleField
-              key={field.key}
-              eventType={row.eventType}
-              field={field}
-              defaultValue={row.values[field.key]}
-            />
-          ))}
-        </Box>
-
-        <Stack direction="row" sx={{ justifyContent: "flex-end" }}>
-          <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
-            {saveRowButtonLabel(row.label)}
-          </Button>
-        </Stack>
-
-        <AdminOutcome state={state} />
-
-        <Box>
-          <Button
-            variant="text"
-            size="small"
-            onClick={() => setOpen((current) => !current)}
-            aria-expanded={open}
-            sx={{ textTransform: "none", px: 0, minHeight: 36 }}
-            data-testid="schedule-row-toggle"
+        <Stack spacing={2} sx={{ mt: 0.5 }}>
+          <Box
+            sx={{
+              display: "grid",
+              gap: 2,
+              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
+            }}
           >
-            {open ? HIDE_EXAMPLE : SHOW_EXAMPLE}
-          </Button>
-        </Box>
+            {TIMING_FIELDS.map((field) => (
+              <ScheduleField
+                key={field.key}
+                eventType={row.eventType}
+                field={field}
+                defaultValue={row.values[field.key]}
+              />
+            ))}
+          </Box>
 
-        <Collapse in={open} unmountOnExit mountOnEnter>
-          <Box data-testid="schedule-row-preview">
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              {`Example — ${row.preview.introDetail}`}
-            </Typography>
-            <Stack component="ol" spacing={0.75} sx={{ listStyle: "none", p: 0, m: 0 }}>
-              {row.preview.steps.map((step) => (
-                <Box component="li" key={step.label}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {step.label}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {step.note ? `${step.when} · ${step.note}` : step.when}
-                  </Typography>
-                </Box>
-              ))}
-            </Stack>
-            {/*
+          <Box
+            sx={{
+              display: "grid",
+              gap: 2,
+              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
+            }}
+          >
+            {LADDER_FIELDS.map((field) => (
+              <ScheduleField
+                key={field.key}
+                eventType={row.eventType}
+                field={field}
+                defaultValue={row.values[field.key]}
+              />
+            ))}
+          </Box>
+
+          <ActionBar
+            sticky={false}
+            primary={
+              <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
+                {saveRowButtonLabel(row.label)}
+              </Button>
+            }
+          />
+
+          <AdminOutcome state={state} showing={slot.showing} />
+
+          <Box>
+            <Button
+              variant="text"
+              onClick={() => setOpen((current) => !current)}
+              aria-expanded={open}
+              sx={{ textTransform: "none", px: 0, minHeight: 36 }}
+              data-testid="schedule-row-toggle"
+            >
+              {open ? HIDE_EXAMPLE : SHOW_EXAMPLE}
+            </Button>
+          </Box>
+
+          <Collapse in={open} unmountOnExit mountOnEnter>
+            <Box data-testid="schedule-row-preview">
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                {`Example — ${row.preview.introDetail}`}
+              </Typography>
+              <Stack component="ol" spacing={0.75} sx={{ listStyle: "none", p: 0, m: 0 }}>
+                {row.preview.steps.map((step) => (
+                  <Box component="li" key={step.label}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {step.label}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {step.note ? `${step.when} · ${step.note}` : step.when}
+                    </Typography>
+                  </Box>
+                ))}
+              </Stack>
+              {/*
               OWNER-LAN171-07, round 3: the gap-before-the-deadline callout is
               deliberately not rendered here. Brian: "get rid of this
               callout. The last reminder lands 1 day before the deadline it
@@ -489,10 +465,11 @@ function ScheduleRow({ row }: { row: ScheduleRowData }) {
               `messaging-schedule.test.ts` — only this surface stopped
               drawing it.
             */}
-          </Box>
-        </Collapse>
-      </Stack>
-    </Paper>
+            </Box>
+          </Collapse>
+        </Stack>
+      </Section>
+    </Box>
   );
 }
 
@@ -515,130 +492,126 @@ function RecruitmentScheduleRow({ row }: { row: ScheduleRowData }) {
     EMPTY_ADMIN_ACTION_STATE,
   );
 
+  const slot = useOutcomeSlot(`event-${row.eventType}`);
+
   return (
-    <Paper
-      component="form"
-      action={formAction}
-      variant="outlined"
-      sx={{ p: 2 }}
-      data-testid="schedule-row"
-    >
-      <input type="hidden" name="eventType" value={row.eventType} />
+    <Box component="form" action={formAction} onSubmit={slot.claim} data-testid="schedule-row">
+      <Section headingLevel={3} title={row.label} titleTestId="schedule-row-label">
+        <input type="hidden" name="eventType" value={row.eventType} />
 
-      <Typography variant="subtitle2" sx={{ fontWeight: 700 }} data-testid="schedule-row-label">
-        {row.label}
-      </Typography>
+        <Stack spacing={2} sx={{ mt: 0.5 }}>
+          <Typography
+            variant="caption"
+            sx={{ fontWeight: 700, color: "text.secondary" }}
+            data-testid="audience-group-heading"
+          >
+            {REGULAR_PLAYERS_GROUP_HEADING}
+          </Typography>
 
-      <Stack spacing={2} sx={{ mt: 0.5 }}>
-        <Typography
-          variant="caption"
-          sx={{ fontWeight: 700, color: "text.secondary" }}
-          data-testid="audience-group-heading"
-        >
-          {REGULAR_PLAYERS_GROUP_HEADING}
-        </Typography>
-
-        <Box
-          sx={{
-            display: "grid",
-            gap: 2,
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
-          }}
-        >
-          {TIMING_FIELDS.map((field) => (
-            <ScheduleField
-              key={field.key}
-              eventType={row.eventType}
-              field={field}
-              defaultValue={row.values[field.key]}
-            />
-          ))}
-        </Box>
-
-        <Box
-          sx={{
-            display: "grid",
-            gap: 2,
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
-          }}
-        >
-          {LADDER_FIELDS.map((field) => (
-            <ScheduleField
-              key={field.key}
-              eventType={row.eventType}
-              field={field}
-              defaultValue={row.values[field.key]}
-            />
-          ))}
-        </Box>
-
-        <Typography
-          variant="caption"
-          sx={{ fontWeight: 700, color: "text.secondary" }}
-          data-testid="audience-group-heading"
-        >
-          {RECRUITS_GROUP_HEADING}
-        </Typography>
-
-        <Box
-          sx={{
-            display: "flex",
-            gap: 2,
-            flexWrap: "wrap",
-          }}
-        >
-          {RECRUIT_SCHEDULE_FIELDS.map((field) => (
-            <Box key={field.key} sx={{ minWidth: 200, flex: "0 1 240px" }}>
+          <Box
+            sx={{
+              display: "grid",
+              gap: 2,
+              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
+            }}
+          >
+            {TIMING_FIELDS.map((field) => (
               <ScheduleField
+                key={field.key}
                 eventType={row.eventType}
                 field={field}
-                defaultValue={row.recruitValues?.[field.key] ?? 0}
+                defaultValue={row.values[field.key]}
               />
-            </Box>
-          ))}
-        </Box>
-
-        <Stack direction="row" sx={{ justifyContent: "flex-end" }}>
-          <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
-            {saveRowButtonLabel(row.label)}
-          </Button>
-        </Stack>
-
-        <AdminOutcome state={state} />
-
-        <Box>
-          <Button
-            variant="text"
-            size="small"
-            onClick={() => setOpen((current) => !current)}
-            aria-expanded={open}
-            sx={{ textTransform: "none", px: 0, minHeight: 36 }}
-            data-testid="schedule-row-toggle"
-          >
-            {open ? HIDE_EXAMPLE : SHOW_EXAMPLE}
-          </Button>
-        </Box>
-
-        <Collapse in={open} unmountOnExit mountOnEnter>
-          <Box data-testid="schedule-row-preview">
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              {`Example — ${row.preview.introDetail}`}
-            </Typography>
-            <Stack component="ol" spacing={0.75} sx={{ listStyle: "none", p: 0, m: 0 }}>
-              {row.preview.steps.map((step) => (
-                <Box component="li" key={step.label}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {step.label}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {step.note ? `${step.when} · ${step.note}` : step.when}
-                  </Typography>
-                </Box>
-              ))}
-            </Stack>
+            ))}
           </Box>
-        </Collapse>
-      </Stack>
-    </Paper>
+
+          <Box
+            sx={{
+              display: "grid",
+              gap: 2,
+              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
+            }}
+          >
+            {LADDER_FIELDS.map((field) => (
+              <ScheduleField
+                key={field.key}
+                eventType={row.eventType}
+                field={field}
+                defaultValue={row.values[field.key]}
+              />
+            ))}
+          </Box>
+
+          <Typography
+            variant="caption"
+            sx={{ fontWeight: 700, color: "text.secondary" }}
+            data-testid="audience-group-heading"
+          >
+            {RECRUITS_GROUP_HEADING}
+          </Typography>
+
+          <Box
+            sx={{
+              display: "flex",
+              gap: 2,
+              flexWrap: "wrap",
+            }}
+          >
+            {RECRUIT_SCHEDULE_FIELDS.map((field) => (
+              <Box key={field.key} sx={{ minWidth: 200, flex: "0 1 240px" }}>
+                <ScheduleField
+                  eventType={row.eventType}
+                  field={field}
+                  defaultValue={row.recruitValues?.[field.key] ?? 0}
+                />
+              </Box>
+            ))}
+          </Box>
+
+          <ActionBar
+            sticky={false}
+            primary={
+              <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
+                {saveRowButtonLabel(row.label)}
+              </Button>
+            }
+          />
+
+          <AdminOutcome state={state} showing={slot.showing} />
+
+          <Box>
+            <Button
+              variant="text"
+              onClick={() => setOpen((current) => !current)}
+              aria-expanded={open}
+              sx={{ textTransform: "none", px: 0, minHeight: 36 }}
+              data-testid="schedule-row-toggle"
+            >
+              {open ? HIDE_EXAMPLE : SHOW_EXAMPLE}
+            </Button>
+          </Box>
+
+          <Collapse in={open} unmountOnExit mountOnEnter>
+            <Box data-testid="schedule-row-preview">
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                {`Example — ${row.preview.introDetail}`}
+              </Typography>
+              <Stack component="ol" spacing={0.75} sx={{ listStyle: "none", p: 0, m: 0 }}>
+                {row.preview.steps.map((step) => (
+                  <Box component="li" key={step.label}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {step.label}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {step.note ? `${step.when} · ${step.note}` : step.when}
+                    </Typography>
+                  </Box>
+                ))}
+              </Stack>
+            </Box>
+          </Collapse>
+        </Stack>
+      </Section>
+    </Box>
   );
 }

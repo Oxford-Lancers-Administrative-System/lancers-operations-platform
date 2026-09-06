@@ -175,13 +175,10 @@ describe("who may open the delivery surface", () => {
 describe("UX-50 — the overview", () => {
   beforeEach(() => signedInAs(["secretary"]));
 
-  it("states the policy that governs the whole surface", async () => {
+  it("omits the standing policy explanation", async () => {
     const { container } = await renderPage();
 
-    expect(container.querySelector('[data-testid="delivery-policy-note"]')?.textContent).toBe(
-      "Operators never copy, send or post invitations manually. Delivery telemetry does not " +
-        "imply an RSVP.",
-    );
+    expect(container.querySelector('[data-testid="delivery-policy-note"]')).toBeNull();
   });
 
   it("counts the audience, the delivered, the waiting and the broken", async () => {
@@ -466,7 +463,7 @@ describe("W6 — Needs attention and the attempt log", () => {
     expect(rows[0].textContent).toContain("Failed");
     expect(rows[1].textContent).toContain("Email fallback");
     expect(rows[1].textContent).toContain("Delivered");
-    expect(container.textContent).toContain("No message content is shown");
+    expect(container.textContent).not.toContain("No message content is shown");
   });
 
   it("narrows the attempt log to the same search as the invitee table", async () => {
@@ -503,7 +500,7 @@ describe("W6 — Needs attention and the attempt log", () => {
  * Round one of review defeated a phrase blocklist with a `wa.me` button, so the
  * repair panel's controls were pinned. Round two defeated *that* by putting the
  * same button in the diagnostics table instead: the inventory was scoped to
- * `[data-testid="repair-panel"]`, and two of the three screens had no
+ * `[data-testid="section-repair-panel"]`, and two of the three screens had no
  * structural guard at all.
  *
  * So the pin now covers all three views, and it covers **links as well as
@@ -541,7 +538,7 @@ const PERMITTED_CONTROLS: Readonly<Record<string, readonly string[]>> = {
     "Retryable",
   ],
   /** A search that matches nobody. Renders the filter, and no rows. */
-  "diagnostics (nothing matches)": ["Delivery overview", "Back to event"],
+  "diagnostics (nothing matches)": ["Delivery overview", "Back to event", "Clear filters"],
   repair: ["Retry delivery", "Revoke and reissue link", "Delivery overview", "Back to event"],
   /**
    * The reissue disclosure, open.
@@ -759,7 +756,7 @@ describe("every delivery view offers only the controls it is meant to", () => {
 
     // Not an error, and not an empty panel: the operator lands on the screen
     // that can still tell them something.
-    expect(container.querySelector('[data-testid="repair-panel"]')).toBeNull();
+    expect(container.querySelector('[data-testid="section-repair-panel"]')).toBeNull();
     expect(container.querySelector('[data-testid="delivery-empty"]')).not.toBeNull();
   });
 
@@ -868,7 +865,7 @@ describe("every delivery view offers only the controls it is meant to", () => {
 describe("the delivery screens say what they are supposed to say", () => {
   beforeEach(() => signedInAs(["secretary"]));
 
-  it("states the standing policy on every view", async () => {
+  it("omits the standing policy on every view", async () => {
     const views: Record<string, string>[] = [
       {},
       { view: "diagnostics" },
@@ -876,25 +873,22 @@ describe("the delivery screens say what they are supposed to say", () => {
     ];
     for (const query of views) {
       const { container, unmount } = await renderPage(query);
-      expect(container.querySelector('[data-testid="delivery-policy-note"]')?.textContent).toBe(
-        "Operators never copy, send or post invitations manually. Delivery telemetry does not " +
-          "imply an RSVP.",
-      );
+      expect(container.querySelector('[data-testid="delivery-policy-note"]')).toBeNull();
       unmount();
     }
   });
 
-  it("pins the repair panel's note", async () => {
+  it("omits the repair panel's standing explanation", async () => {
     const { container } = await renderPage({ invitation: "invitation-1" });
-    expect(container.textContent).toContain(
+    expect(container.textContent).not.toContain(
       "Retry and token repair are auditable system actions. There is no copy-link, " +
         "send-message or post-to-group control.",
     );
   });
 
-  it("pins the diagnostics note", async () => {
+  it("omits the diagnostics standing explanation", async () => {
     const { container } = await renderPage({ view: "diagnostics" });
-    expect(container.textContent).toContain(
+    expect(container.textContent).not.toContain(
       "Every attempt on every channel, including the automatic email fallback. No message " +
         "content is shown.",
     );
@@ -936,7 +930,7 @@ describe("UX-52 — the repair panel offers exactly two controls", () => {
 
   it("offers those two and nothing else", async () => {
     const { container } = await renderPage({ invitation: "invitation-1" });
-    const panel = container.querySelector('[data-testid="repair-panel"]');
+    const panel = container.querySelector('[data-testid="section-repair-panel"]');
     expect(panel).not.toBeNull();
 
     const controls = within(panel as HTMLElement)

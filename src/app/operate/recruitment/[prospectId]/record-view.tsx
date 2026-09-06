@@ -1,10 +1,12 @@
 "use client";
 
-import Alert from "@mui/material/Alert";
-import AlertTitle from "@mui/material/AlertTitle";
+import { OutcomeSlotProvider } from "@/components/outcome-slot";
+import { Notice } from "@/components/notice";
+import { PageHeader } from "@/components/page-header";
+import { Metric, MetricRow } from "@/components/metric";
+import { StatusChip } from "@/components/status-chip";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
 import Grid from "@mui/material/Grid";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
@@ -13,7 +15,6 @@ import TableCell from "@mui/material/TableCell";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
-import type { ReactNode } from "react";
 import type { PersonRecord } from "@/lib/services/person-record";
 import {
   ATTENDANCE_LABEL,
@@ -22,11 +23,10 @@ import {
   RSVP_LABEL,
 } from "@/lib/services/recruitment-vocabulary";
 import type { RecruitmentProspectRecord } from "@/lib/services/recruitment-prospect";
-import { StatusPill } from "../../board-filter-controls";
-import { NOT_RECORDED, RecordField, Section } from "../../record-shell";
+import { NOT_RECORDED } from "@/components/fact";
+import { RecordField, RecordRow } from "@/components/record-field";
+import { Section } from "@/components/section";
 import { formatDay, formatWhen } from "../../roster/presentation";
-import { BAND_COLOURS, EVENTS_BAND_COLOUR } from "../board-columns";
-import { STATUS_COLOUR_FOR_PILL } from "../status-colour";
 import NotesCard from "./notes-card";
 import SendQuestionnaireButton from "./send-questionnaire-button";
 import StatusCell from "../status-cell";
@@ -117,322 +117,284 @@ export default function RecruitmentRecordView({
         : null;
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 } }} data-testid="recruitment-record">
-      {bannerDetail ? (
-        <Alert severity="warning" sx={{ mb: 3 }} data-testid="recruitment-cannot-message-banner">
-          <AlertTitle>The club will not message {record.displayName}.</AlertTitle>
-          {bannerDetail}
-        </Alert>
-      ) : null}
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        sx={{ justifyContent: "space-between", alignItems: { sm: "flex-start" }, mb: 3 }}
-      >
-        <Box>
-          <Typography variant="overline" color="text.secondary">
-            Recruitment · {record.seasonLabel}
-          </Typography>
-          <Typography variant="h5" component="h1">
-            {record.displayName}
-          </Typography>
-          {/* V-8, correction round 2 — Brian, pointing at the shipped player
-              record: "Should be more similar to this." That record's own
-              header carries "{season} membership · {entry} · {status}" under
-              the name; a recruit has no entry, so this is the same rhythm
-              over what a recruit's own record actually has: the season and
-              the status. */}
-          <Typography color="text.secondary" sx={{ mt: 0.5 }} data-testid="recruitment-subtitle">
-            {`${record.seasonLabel} recruitment · ${PROSPECT_STATUS_LABELS[record.status]}`}
-          </Typography>
-          {record.convertedMembershipId ? (
-            <Typography variant="body2" color="text.secondary">
-              Joined —{" "}
-              <a href={`/operate/roster/${record.convertedMembershipId}`}>view on the roster</a>
-            </Typography>
-          ) : null}
-        </Box>
-        {/* V-7, correction round 2: the pill named only the value, never its
-            subject — "Engaged" alone does not say what is engaged. A
-            glance-only pill, same as the roster record's own headline — the
-            interactive control lives in the Recruitment card below. */}
-        <StatusPill
-          color={STATUS_COLOUR_FOR_PILL[record.status]}
-          label={`Recruit status · ${PROSPECT_STATUS_LABELS[record.status]}`}
+    <OutcomeSlotProvider>
+      <Box sx={{ p: { xs: 2, md: 3 } }} data-testid="recruitment-record">
+        {bannerDetail ? (
+          <Notice
+            severity="warning"
+            title={`The club will not message ${record.displayName}.`}
+            testId="recruitment-cannot-message-banner"
+          >
+            {bannerDetail}
+          </Notice>
+        ) : null}
+        <PageHeader
+          title={record.displayName}
+          eyebrow={`Recruitment · ${record.seasonLabel}`}
+          subtitle={
+            <span data-testid="recruitment-subtitle">{`${record.seasonLabel} recruitment · ${PROSPECT_STATUS_LABELS[record.status]}`}</span>
+          }
+          back={{ href: "/operate/recruitment", label: "Back to recruitment" }}
+          status={
+            <StatusChip
+              domain="recruitment"
+              status={record.status}
+              label={`Recruit status · ${PROSPECT_STATUS_LABELS[record.status]}`}
+            />
+          }
+          actions={
+            record.convertedMembershipId ? (
+              <Button variant="outlined" href={`/operate/roster/${record.convertedMembershipId}`}>
+                Joined — view on the roster
+              </Button>
+            ) : undefined
+          }
         />
-      </Stack>
-
-      {/* V-8, correction round 2: the player record's own "strip of labelled
+        {/* V-8, correction round 2: the player record's own "strip of labelled
           facts above the bands" (`Headline`, `../../roster/[membershipId]/record-view.tsx`).
           Brought into this record's own shape rather than that file's
           component reused directly — that file is LAN-204's own roster
           surface, and this correction round is authorised to change what
           the three named findings touch, not to import from a shipped
           record it does not otherwise depend on. */}
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        sx={{ flexWrap: "wrap", gap: 2, mb: 3 }}
-        data-testid="recruitment-headline-strip"
-      >
-        <Headline
-          value={PROSPECT_STATUS_LABELS[record.status]}
-          label="Recruit status"
-          colour={STATUS_COLOUR_FOR_PILL[record.status]}
-        />
-        <Headline value={CONSENT_LABELS[record.consent]} label="WhatsApp consent" />
-        <Headline
-          value={
-            record.personal.lastSentAt ? "Sent" : record.personal.queuedFor ? "Queued" : "Not sent"
-          }
-          label="Personal questionnaire"
-        />
-        <Headline
-          value={
-            record.recruitment.lastSentAt
-              ? "Sent"
-              : record.recruitment.queuedFor
-                ? "Queued"
-                : "Not sent"
-          }
-          label="Recruitment questionnaire"
-        />
-      </Stack>
+        <MetricRow columns={4} testId="recruitment-headline-strip">
+          <Metric
+            value={
+              <StatusChip
+                domain="recruitment"
+                status={record.status}
+                label={PROSPECT_STATUS_LABELS[record.status]}
+              />
+            }
+            label="Recruit status"
+          />
+          <Metric value={CONSENT_LABELS[record.consent]} label="WhatsApp consent" />
+          <Metric
+            value={
+              record.personal.lastSentAt
+                ? "Sent"
+                : record.personal.queuedFor
+                  ? "Queued"
+                  : "Not sent"
+            }
+            label="Personal questionnaire"
+          />
+          <Metric
+            value={
+              record.recruitment.lastSentAt
+                ? "Sent"
+                : record.recruitment.queuedFor
+                  ? "Queued"
+                  : "Not sent"
+            }
+            label="Recruitment questionnaire"
+          />
+        </MetricRow>
 
-      {/* Person and Recruitment stack full width, one above the other — the
+        {/* Person and Recruitment stack full width, one above the other — the
           same plain vertical flow the shipped player record uses for its own
           bands (`../../roster/[membershipId]/record-view.tsx`), not a Grid
           item pair sized to share a row. Brian, 2026-09-02: "The bands are
           side by side when really they should be layered on top of each
           other." */}
-      <Stack spacing={2} sx={{ mb: 2 }} data-testid="recruitment-record-top-bands">
-        {/* ------------------------------------------------------------ Person -- */}
-        <Section colours={BAND_COLOURS.person} title="Person" testId="person">
-          <RecordField label="College" value={person.college ?? null} readOnly />
-          <RecordField
-            label="Matriculation"
-            value={person.matriculationYear != null ? String(person.matriculationYear) : null}
-            readOnly
-          />
-          <RecordField
-            label="Expected graduation"
-            value={
-              person.expectedGraduationYear != null ? String(person.expectedGraduationYear) : null
-            }
-            readOnly
-          />
-          <RecordField label="Degree field" value={person.degreeField ?? null} readOnly />
-          <Box sx={{ pt: 1.5 }}>
-            <SendQuestionnaireButton
-              prospectId={record.prospectId}
-              track="personal"
-              displayName={record.displayName}
-              lastSentAt={record.personal.lastSentAt}
-              canSend={canSendPersonal}
-              disabledReason={personalDisabledReason}
-              blockedByDecline={blockedByStatus}
+        <Stack spacing={2} sx={{ mb: 2 }} data-testid="recruitment-record-top-bands">
+          {/* ------------------------------------------------------------ Person -- */}
+          <Section variant="banded" band="person" title="Person" testId="person">
+            <RecordField label="College" value={person.college ?? null} readOnly />
+            <RecordField
+              label="Matriculation"
+              value={person.matriculationYear != null ? String(person.matriculationYear) : null}
+              readOnly
             />
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ display: "block", mt: 0.5 }}
-              data-testid="personal-send-caption"
-            >
-              {record.personal.lastSentAt
-                ? `Sent — last sent ${formatWhen(new Date(record.personal.lastSentAt))}`
-                : record.personal.queuedFor
-                  ? `Queued for ${formatWhen(new Date(record.personal.queuedFor))}`
-                  : "Not sent"}
-            </Typography>
-          </Box>
-        </Section>
-
-        {/* ------------------------------------------------------- Recruitment -- */}
-        <Section colours={BAND_COLOURS.recruitment} title="Recruitment" testId="recruitment">
-          <StatusRow
-            status={record.status}
-            prospectId={record.prospectId}
-            displayName={record.displayName}
-            seasonLabel={record.seasonLabel}
-          />
-          <RecordField label="Source" value={record.source} readOnly />
-          <RecordField
-            label="First contact"
-            value={record.firstContactOn ? formatDay(record.firstContactOn) : null}
-            readOnly
-          />
-          <RecordField
-            label="Committed on"
-            value={record.committedOn ? formatDay(record.committedOn) : null}
-            readOnly
-          />
-          <RecordField label="WhatsApp consent" value={CONSENT_LABELS[record.consent]} readOnly />
-          <RecordField
-            label="Played before"
-            value={record.answers.playedBefore ? RSVP_LABEL[record.answers.playedBefore] : null}
-            readOnly
-          />
-          <RecordField
-            label="Watched before"
-            value={record.answers.watchedBefore ? RSVP_LABEL[record.answers.watchedBefore] : null}
-            readOnly
-          />
-          <RecordField label="Position interest" value={record.answers.positionInterest} readOnly />
-          <RecordField label="Gear owned" value={record.answers.gearOwned} readOnly />
-          <RecordField label="How they heard" value={record.answers.howTheyHeard} readOnly />
-          <RecordField label="Anything else" value={record.answers.anythingElse} readOnly />
-          <Box sx={{ pt: 1.5 }}>
-            <SendQuestionnaireButton
-              prospectId={record.prospectId}
-              track="recruitment"
-              displayName={record.displayName}
-              lastSentAt={record.recruitment.lastSentAt}
-              canSend={canSendRecruitment}
-              disabledReason={recruitmentDisabledReason}
-              blockedByDecline={blockedByStatus}
+            <RecordField
+              label="Expected graduation"
+              value={
+                person.expectedGraduationYear != null ? String(person.expectedGraduationYear) : null
+              }
+              readOnly
             />
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ display: "block", mt: 0.5 }}
-              data-testid="recruitment-send-caption"
-            >
-              {record.recruitment.lastSentAt
-                ? `Sent — last sent ${formatWhen(new Date(record.recruitment.lastSentAt))}`
-                : record.recruitment.queuedFor
-                  ? `Queued for ${formatWhen(new Date(record.recruitment.queuedFor))}`
-                  : "Not sent"}
-            </Typography>
-          </Box>
-        </Section>
-      </Stack>
-
-      <Grid container spacing={2}>
-        {/* ------------------------------------------------- Recruitment events -- */}
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Section colours={EVENTS_BAND_COLOUR} title="Recruitment events" testId="events">
-            {record.events.length === 0 ? (
-              <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
-                {NOT_RECORDED}
+            <RecordField label="Degree field" value={person.degreeField ?? null} readOnly />
+            <Box sx={{ pt: 1.5 }}>
+              <SendQuestionnaireButton
+                prospectId={record.prospectId}
+                track="personal"
+                displayName={record.displayName}
+                lastSentAt={record.personal.lastSentAt}
+                canSend={canSendPersonal}
+                disabledReason={personalDisabledReason}
+                blockedByDecline={blockedByStatus}
+              />
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: "block", mt: 0.5 }}
+                data-testid="personal-send-caption"
+              >
+                {record.personal.lastSentAt
+                  ? `Sent — last sent ${formatWhen(new Date(record.personal.lastSentAt))}`
+                  : record.personal.queuedFor
+                    ? `Queued for ${formatWhen(new Date(record.personal.queuedFor))}`
+                    : "Not sent"}
               </Typography>
-            ) : (
-              <Box sx={{ overflowX: "auto" }}>
-                <Table size="small" data-testid="recruitment-record-events">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Event</TableCell>
-                      <TableCell>Date</TableCell>
-                      <TableCell>RSVP</TableCell>
-                      <TableCell>Attendance</TableCell>
-                      <TableCell>Event status</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {record.events.map((event) => (
-                      <TableRow key={event.eventId}>
-                        <TableCell>{event.name}</TableCell>
-                        <TableCell>{event.date ? formatDay(event.date) : NOT_RECORDED}</TableCell>
-                        <TableCell>{event.rsvp ? RSVP_LABEL[event.rsvp] : NOT_RECORDED}</TableCell>
-                        <TableCell>
-                          {event.attendance ? ATTENDANCE_LABEL[event.attendance] : NOT_RECORDED}
-                        </TableCell>
-                        <TableCell>{EVENT_STATUS_LABEL[event.eventStatus]}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Box>
-            )}
-          </Section>
-        </Grid>
-
-        {/* ------------------------------------------------------------- Notes -- */}
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Section colours={BAND_COLOURS.person} title="Notes" testId="notes">
-            <Box sx={{ py: 1 }}>
-              <NotesCard prospectId={record.prospectId} notes={record.notes} />
             </Box>
           </Section>
-        </Grid>
 
-        {/* ---------------------------------------------------- Status history -- */}
-        <Grid size={{ xs: 12 }}>
-          <Section colours={BAND_COLOURS.person} title="Status history" testId="status-history">
-            {record.statusHistory.length === 0 ? (
-              <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
-                {NOT_RECORDED}
+          {/* ------------------------------------------------------- Recruitment -- */}
+          <Section variant="banded" band="recruitment" title="Recruitment" testId="recruitment">
+            <StatusRow
+              status={record.status}
+              prospectId={record.prospectId}
+              displayName={record.displayName}
+              seasonLabel={record.seasonLabel}
+            />
+            <RecordField label="Source" value={record.source} readOnly />
+            <RecordField
+              label="First contact"
+              value={record.firstContactOn ? formatDay(record.firstContactOn) : null}
+              readOnly
+            />
+            <RecordField
+              label="Committed on"
+              value={record.committedOn ? formatDay(record.committedOn) : null}
+              readOnly
+            />
+            <RecordField label="WhatsApp consent" value={CONSENT_LABELS[record.consent]} readOnly />
+            <RecordField
+              label="Played before"
+              value={record.answers.playedBefore ? RSVP_LABEL[record.answers.playedBefore] : null}
+              readOnly
+            />
+            <RecordField
+              label="Watched before"
+              value={record.answers.watchedBefore ? RSVP_LABEL[record.answers.watchedBefore] : null}
+              readOnly
+            />
+            <RecordField
+              label="Position interest"
+              value={record.answers.positionInterest}
+              readOnly
+            />
+            <RecordField label="Gear owned" value={record.answers.gearOwned} readOnly />
+            <RecordField label="How they heard" value={record.answers.howTheyHeard} readOnly />
+            <RecordField label="Anything else" value={record.answers.anythingElse} readOnly />
+            <Box sx={{ pt: 1.5 }}>
+              <SendQuestionnaireButton
+                prospectId={record.prospectId}
+                track="recruitment"
+                displayName={record.displayName}
+                lastSentAt={record.recruitment.lastSentAt}
+                canSend={canSendRecruitment}
+                disabledReason={recruitmentDisabledReason}
+                blockedByDecline={blockedByStatus}
+              />
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: "block", mt: 0.5 }}
+                data-testid="recruitment-send-caption"
+              >
+                {record.recruitment.lastSentAt
+                  ? `Sent — last sent ${formatWhen(new Date(record.recruitment.lastSentAt))}`
+                  : record.recruitment.queuedFor
+                    ? `Queued for ${formatWhen(new Date(record.recruitment.queuedFor))}`
+                    : "Not sent"}
               </Typography>
-            ) : (
-              <Box sx={{ overflowX: "auto" }}>
-                <Table size="small" data-testid="recruitment-record-history">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>From</TableCell>
-                      <TableCell>To</TableCell>
-                      <TableCell>When</TableCell>
-                      <TableCell>By</TableCell>
-                      <TableCell>Reason</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {record.statusHistory.map((event) => (
-                      <TableRow key={event.id}>
-                        <TableCell>
-                          {event.fromStatus
-                            ? PROSPECT_STATUS_LABELS[event.fromStatus]
-                            : NOT_RECORDED}
-                        </TableCell>
-                        <TableCell>{PROSPECT_STATUS_LABELS[event.toStatus]}</TableCell>
-                        <TableCell>{new Date(event.occurredAt).toLocaleString()}</TableCell>
-                        <TableCell>{event.actorLabel}</TableCell>
-                        <TableCell>{event.reason ?? NOT_RECORDED}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Box>
-            )}
+            </Box>
           </Section>
+        </Stack>
+
+        <Grid container spacing={2}>
+          {/* ------------------------------------------------- Recruitment events -- */}
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Section variant="banded" band="attendance" title="Recruitment events" testId="events">
+              {record.events.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
+                  {NOT_RECORDED}
+                </Typography>
+              ) : (
+                <Box sx={{ overflowX: "auto" }}>
+                  <Table size="small" data-testid="recruitment-record-events">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Event</TableCell>
+                        <TableCell>Date</TableCell>
+                        <TableCell>RSVP</TableCell>
+                        <TableCell>Attendance</TableCell>
+                        <TableCell>Event status</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {record.events.map((event) => (
+                        <TableRow key={event.eventId}>
+                          <TableCell>{event.name}</TableCell>
+                          <TableCell>{event.date ? formatDay(event.date) : NOT_RECORDED}</TableCell>
+                          <TableCell>
+                            {event.rsvp ? RSVP_LABEL[event.rsvp] : NOT_RECORDED}
+                          </TableCell>
+                          <TableCell>
+                            {event.attendance ? ATTENDANCE_LABEL[event.attendance] : NOT_RECORDED}
+                          </TableCell>
+                          <TableCell>{EVENT_STATUS_LABEL[event.eventStatus]}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Box>
+              )}
+            </Section>
+          </Grid>
+
+          {/* ------------------------------------------------------------- Notes -- */}
+          <Grid size={{ xs: 12, md: 6 }}>
+            <Section variant="banded" band="person" title="Notes" testId="notes">
+              <Box sx={{ py: 1 }}>
+                <NotesCard prospectId={record.prospectId} notes={record.notes} />
+              </Box>
+            </Section>
+          </Grid>
+
+          {/* ---------------------------------------------------- Status history -- */}
+          <Grid size={{ xs: 12 }}>
+            <Section collapsible title="Status history" testId="status-history">
+              {record.statusHistory.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
+                  {NOT_RECORDED}
+                </Typography>
+              ) : (
+                <Box sx={{ overflowX: "auto" }}>
+                  <Table size="small" data-testid="recruitment-record-history">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>From</TableCell>
+                        <TableCell>To</TableCell>
+                        <TableCell>When</TableCell>
+                        <TableCell>By</TableCell>
+                        <TableCell>Reason</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {record.statusHistory.map((event) => (
+                        <TableRow key={event.id}>
+                          <TableCell>
+                            {event.fromStatus
+                              ? PROSPECT_STATUS_LABELS[event.fromStatus]
+                              : NOT_RECORDED}
+                          </TableCell>
+                          <TableCell>{PROSPECT_STATUS_LABELS[event.toStatus]}</TableCell>
+                          <TableCell>{new Date(event.occurredAt).toLocaleString()}</TableCell>
+                          <TableCell>{event.actorLabel}</TableCell>
+                          <TableCell>{event.reason ?? NOT_RECORDED}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Box>
+              )}
+            </Section>
+          </Grid>
         </Grid>
-      </Grid>
-
-      <Button variant="outlined" href="/operate/recruitment" sx={{ mt: 3, minHeight: 44 }}>
-        BACK TO RECRUITMENT
-      </Button>
-    </Box>
-  );
-}
-
-/**
- * V-8, correction round 2 — the shipped player record's own "strip of
- * labelled facts" (`Headline`, `../../roster/[membershipId]/record-view.tsx`),
- * brought into this record's own shape. A local copy rather than an import:
- * that file is a separate LAN-204 surface this correction is not otherwise
- * touching, and the two components' own value/colour shapes have already
- * diverged (this one's `colour` is `STATUS_COLOUR_FOR_PILL`'s own wider set).
- */
-function Headline({
-  value,
-  label,
-  colour,
-}: {
-  value: ReactNode;
-  label: string;
-  colour?: "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning";
-}) {
-  return (
-    <Box>
-      {colour ? (
-        <Chip size="small" label={value} color={colour} />
-      ) : (
-        <Typography variant="body1" sx={{ fontWeight: 700 }}>
-          {value}
-        </Typography>
-      )}
-      <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 0.5 }}>
-        {label}
-      </Typography>
-    </Box>
+      </Box>
+    </OutcomeSlotProvider>
   );
 }
 
@@ -453,26 +415,13 @@ function StatusRow({
   seasonLabel: string;
 }) {
   return (
-    <Stack
-      direction={{ xs: "column", sm: "row" }}
-      spacing={{ xs: 0.25, sm: 2 }}
-      sx={{ py: 1, borderTop: "none", alignItems: { sm: "baseline" } }}
-      data-testid="record-row"
-      data-label="Status"
-    >
-      <Box sx={{ minWidth: { sm: 200 }, flexShrink: 0 }}>
-        <Typography variant="body2" color="text.secondary">
-          Status
-        </Typography>
-      </Box>
-      <Box sx={{ minWidth: 0, flexGrow: 1 }}>
-        <StatusCell
-          prospectId={prospectId}
-          status={status}
-          displayName={displayName}
-          seasonLabel={seasonLabel}
-        />
-      </Box>
-    </Stack>
+    <RecordRow label="Status">
+      <StatusCell
+        prospectId={prospectId}
+        status={status}
+        displayName={displayName}
+        seasonLabel={seasonLabel}
+      />
+    </RecordRow>
   );
 }

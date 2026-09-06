@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Box from "@mui/material/Box";
+import { PublicShell } from "@/components/public-shell";
 
 import { withTransaction } from "@/lib/db";
 import { resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
@@ -44,10 +44,8 @@ export default async function StopMessagesPage({ params }: PageProps) {
   if (seasonLabel === null) notFound();
 
   return (
-    <Box sx={{ minHeight: "100dvh", bgcolor: "grey.100", py: { xs: 3, sm: 6 }, px: 2 }}>
-      <Box sx={{ maxWidth: 640, mx: "auto" }}>
-        <StopFlow seasonLabel={seasonLabel} withdraw={withdrawMessagingConsent.bind(null, token)} />
-      </Box>
-    </Box>
+    <PublicShell layout="stack">
+      <StopFlow seasonLabel={seasonLabel} withdraw={withdrawMessagingConsent.bind(null, token)} />
+    </PublicShell>
   );
 }

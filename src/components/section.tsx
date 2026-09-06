@@ -59,6 +59,8 @@ export function Section({
   summary,
   children,
   testId,
+  titleTestId,
+  headingLevel = 2,
 }: {
   title: string;
   variant?: "plain" | "banded";
@@ -77,6 +79,9 @@ export function Section({
   /** Omitted for a section whose heading and description are the whole message (a register panel). */
   children?: ReactNode;
   testId?: string;
+  titleTestId?: string;
+  /** Nested sections follow their page section in the heading outline. */
+  headingLevel?: 2 | 3;
 }) {
   if (variant === "banded") {
     const colours = BAND_COLOURS[band];
@@ -102,7 +107,12 @@ export function Section({
             flexWrap: "wrap",
           }}
         >
-          <Typography variant="overline" component="h2" sx={{ fontWeight: 700, color: "inherit" }}>
+          <Typography
+            variant="overline"
+            component={headingLevel === 2 ? "h2" : "h3"}
+            data-testid={titleTestId}
+            sx={{ fontWeight: 700, color: "inherit" }}
+          >
             {title}
           </Typography>
           {action ?? null}
@@ -125,7 +135,11 @@ export function Section({
       }}
     >
       <Box sx={{ minWidth: 0 }}>
-        <Typography variant="h3" component="h2">
+        <Typography
+          variant="h3"
+          component={headingLevel === 2 ? "h2" : "h3"}
+          data-testid={titleTestId}
+        >
           {summary ?? title}
         </Typography>
         {description ? (
@@ -167,5 +181,20 @@ export function Section({
       {head}
       {children}
     </Paper>
+  );
+}
+
+/** A labelled group within a section, such as one emergency contact. */
+export function FieldGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <Box
+      component="fieldset"
+      sx={{ m: 0, minWidth: 0, border: 1, borderColor: "divider", borderRadius: 1, p: 2 }}
+    >
+      <Typography component="legend" variant="subtitle2" sx={{ px: 0.5 }}>
+        {title}
+      </Typography>
+      {children}
+    </Box>
   );
 }

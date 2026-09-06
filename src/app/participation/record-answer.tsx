@@ -1,24 +1,20 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { ActionBar } from "@/components/action-bar";
+import { FieldGroup } from "@/components/section";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import FormLabel from "@mui/material/FormLabel";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field, DateField, TimeField } from "@/components/field";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
-import { DatePicker } from "@mui/x-date-pickers/DatePicker";
-import { TimePicker } from "@mui/x-date-pickers/TimePicker";
-import { enGB } from "date-fns/locale/en-GB";
 
 import {
   dateFromScheduledOn,
@@ -33,7 +29,6 @@ import { EMPTY_RECORD_ANSWER_STATE } from "./record-answer-state";
 import {
   CANCEL,
   EVENT_QUESTIONS_HEADING,
-  EVENT_QUESTIONS_HELPER,
   QUESTION_OPTIONAL,
   QUESTION_REQUIRED_OF_PLAYER_OPTIONAL_HERE,
   REASON_LABEL,
@@ -184,13 +179,12 @@ function QuestionField({
   }
 
   return (
-    <TextField
+    <Field
       label={`${question.prompt} (${questionOptionalLabel(question)})`}
       name={fieldName}
       value={value}
       onChange={(event) => onChange(event.target.value)}
       disabled={disabled}
-      fullWidth
       multiline
     />
   );
@@ -356,14 +350,12 @@ export function RecordAnswerControl({
           <input type="hidden" name="eventId" value={eventId} />
           <input type="hidden" name="invitationId" value={invitationId} />
           <input type="hidden" name="response" value={response ?? ""} />
-          <input type="hidden" name="respondedAtDate" value={scheduledOn} />
-          <input type="hidden" name="respondedAtTime" value={timeString} />
           <DialogContent dividers>
             <Stack spacing={2}>
               {state.error ? (
-                <Alert severity="error" data-testid="record-answer-error">
+                <Notice severity="error" testId="record-answer-error">
                   {state.error}
-                </Alert>
+                </Notice>
               ) : null}
 
               <Box>
@@ -398,65 +390,62 @@ export function RecordAnswerControl({
                 </ToggleButtonGroup>
               </Box>
 
-              <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={enGB}>
-                <Box>
-                  <FormLabel component="legend">{WHEN_DID_THEY_TELL_YOU}</FormLabel>
-                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 1 }}>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <DatePicker
-                        label="Date"
-                        value={dateFromScheduledOn(scheduledOn)}
-                        onChange={(next) => {
-                          if (!next) return;
-                          const merged = new Date(next);
-                          merged.setHours(when.getHours(), when.getMinutes(), 0, 0);
-                          setWhen(merged);
-                        }}
-                        // Not `disableFuture`: MUI computes "today" from the
-                        // browser's own real clock and zone, but this
-                        // control's value is deliberately the *club's* wall
-                        // clock (see `nowInClubZoneAsLocalDate` above) held in
-                        // a `Date` whose local getters echo London's day, not
-                        // the operator's. Whenever the operator's machine
-                        // sits west of London and it is already past midnight
-                        // there, `disableFuture` reads that as "tomorrow" and
-                        // permanently flags the field as an error with
-                        // nothing the operator did wrong (OWNER-LAN170-04).
-                        // `maxDate` computed the same club-zone way compares
-                        // like with like regardless of the operator's own
-                        // time zone.
-                        maxDate={nowInClubZoneAsLocalDate()}
-                        disabled={pending}
-                        format="dd/MM/yyyy"
-                        slotProps={{ textField: { fullWidth: true } }}
-                      />
-                    </Box>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <TimePicker
-                        label="Time"
-                        value={dateFromTimeString(timeString)}
-                        onChange={(next) => {
-                          const timeValue = timeStringFromDate(next);
-                          const parsed = dateFromTimeString(timeValue);
-                          if (!parsed) return;
-                          const merged = new Date(when);
-                          merged.setHours(parsed.getHours(), parsed.getMinutes(), 0, 0);
-                          setWhen(merged);
-                        }}
-                        disabled={pending}
-                        ampm={true}
-                        format="hh:mm a"
-                        minutesStep={5}
-                        timeSteps={{ minutes: 5 }}
-                        slotProps={{ textField: { fullWidth: true } }}
-                      />
-                    </Box>
-                  </Stack>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    {WHEN_HELPER}
-                  </Typography>
-                </Box>
-              </LocalizationProvider>
+              <Box>
+                <FormLabel component="legend">{WHEN_DID_THEY_TELL_YOU}</FormLabel>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 1 }}>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <DateField
+                      label="Date"
+                      name="respondedAtDate"
+                      value={scheduledOn}
+                      dateValue={dateFromScheduledOn(scheduledOn)}
+                      helperText=""
+                      onDateChange={(next) => {
+                        if (!next) return;
+                        const merged = new Date(next);
+                        merged.setHours(when.getHours(), when.getMinutes(), 0, 0);
+                        setWhen(merged);
+                      }}
+                      // Not `disableFuture`: MUI computes "today" from the
+                      // browser's own real clock and zone, but this
+                      // control's value is deliberately the *club's* wall
+                      // clock (see `nowInClubZoneAsLocalDate` above) held in
+                      // a `Date` whose local getters echo London's day, not
+                      // the operator's. Whenever the operator's machine
+                      // sits west of London and it is already past midnight
+                      // there, `disableFuture` reads that as "tomorrow" and
+                      // permanently flags the field as an error with
+                      // nothing the operator did wrong (OWNER-LAN170-04).
+                      // `maxDate` computed the same club-zone way compares
+                      // like with like regardless of the operator's own
+                      // time zone.
+                      maxDate={nowInClubZoneAsLocalDate()}
+                      disabled={pending}
+                    />
+                  </Box>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <TimeField
+                      label="Time"
+                      name="respondedAtTime"
+                      value={timeString}
+                      dateValue={dateFromTimeString(timeString)}
+                      helperText=""
+                      onDateChange={(next) => {
+                        const timeValue = timeStringFromDate(next);
+                        const parsed = dateFromTimeString(timeValue);
+                        if (!parsed) return;
+                        const merged = new Date(when);
+                        merged.setHours(parsed.getHours(), parsed.getMinutes(), 0, 0);
+                        setWhen(merged);
+                      }}
+                      disabled={pending}
+                    />
+                  </Box>
+                </Stack>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  {WHEN_HELPER}
+                </Typography>
+              </Box>
 
               {/*
                * OWNER-LAN170-07: one branch's fields at a time. The reason
@@ -466,7 +455,7 @@ export function RecordAnswerControl({
                */}
               {response === "no" ? (
                 <Box>
-                  <TextField
+                  <Field
                     label={REASON_LABEL}
                     name="reason"
                     value={reason}
@@ -474,7 +463,6 @@ export function RecordAnswerControl({
                     disabled={pending}
                     multiline
                     minRows={2}
-                    fullWidth
                     placeholder={REASON_PLACEHOLDER}
                     helperText={REASON_REQUIRED_FOR_NO}
                     required
@@ -486,13 +474,7 @@ export function RecordAnswerControl({
               ) : null}
 
               {response === "yes" && questions.length > 0 ? (
-                <Box>
-                  <Typography variant="overline" color="text.secondary" component="h3">
-                    {EVENT_QUESTIONS_HEADING}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {EVENT_QUESTIONS_HELPER}
-                  </Typography>
+                <FieldGroup title={EVENT_QUESTIONS_HEADING}>
                   <Stack spacing={2} sx={{ mt: 1 }}>
                     {questions.map((question) => (
                       <QuestionField
@@ -504,24 +486,30 @@ export function RecordAnswerControl({
                       />
                     ))}
                   </Stack>
-                </Box>
+                </FieldGroup>
               ) : null}
             </Stack>
           </DialogContent>
-          <DialogActions sx={{ p: 2 }}>
-            <Button onClick={() => setOpen(false)} disabled={pending} sx={{ minHeight: 44 }}>
-              {CANCEL}
-            </Button>
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={pending || response === null}
-              sx={{ minHeight: 44 }}
-              data-testid="record-answer-submit"
-            >
-              {pending ? RECORDING : RECORD_ANSWER}
-            </Button>
-          </DialogActions>
+          <Box sx={{ px: 2, py: 1.5 }}>
+            <ActionBar
+              primary={
+                <Button
+                  type="submit"
+                  variant="contained"
+                  disabled={pending || response === null}
+                  data-testid="record-answer-submit"
+                >
+                  {pending ? RECORDING : RECORD_ANSWER}
+                </Button>
+              }
+              cancel={
+                <Button onClick={() => setOpen(false)} disabled={pending}>
+                  {CANCEL}
+                </Button>
+              }
+              note={response === null ? "Choose Yes or No to record the answer." : undefined}
+            />
+          </Box>
         </Box>
       </Dialog>
     </>

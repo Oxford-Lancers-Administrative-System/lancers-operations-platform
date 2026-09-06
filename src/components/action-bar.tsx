@@ -18,6 +18,7 @@ export function ActionBar({
   cancel,
   note,
   testId,
+  sticky = true,
 }: {
   primary: ReactNode;
   secondary?: ReactNode;
@@ -25,12 +26,14 @@ export function ActionBar({
   /** What would enable the primary action, when it is disabled. */
   note?: string;
   testId?: string;
+  /** Repeated independent forms keep their own save control in flow. */
+  sticky?: boolean;
 }) {
   return (
     <Box
       component="footer"
       sx={{
-        position: { xs: "sticky", md: "static" },
+        position: { xs: sticky ? "sticky" : "static", md: "static" },
         bottom: 0,
         // A number, not a theme function: this is a Server Component and a function
         // inside `sx` cannot cross to the client. MUI's appBar is 1100.

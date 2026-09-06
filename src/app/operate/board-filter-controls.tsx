@@ -1,7 +1,7 @@
 "use client";
 
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
+import { StatusChip, type StatusDomain } from "@/components/status-chip";
 import Divider from "@mui/material/Divider";
 import MuiMenu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
@@ -152,13 +152,15 @@ export function ColumnFilterMenu<TColumn extends FilterMenuColumn>({
  * nothing else — is what has to match.
  */
 export function StatusPill({
-  color,
+  domain,
+  status,
   label,
 }: {
-  color: "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning";
+  domain: StatusDomain;
+  status: string;
   label: string;
 }) {
-  return <Chip size="small" color={color} label={label} />;
+  return <StatusChip domain={domain} status={status} label={label} />;
 }
 
 /** The minimum a column needs to carry for the banding helpers below to work with it. */

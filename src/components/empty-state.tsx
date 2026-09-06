@@ -16,6 +16,7 @@ export function EmptyState({
   searched,
   description,
   action,
+  actions,
   testId,
 }: {
   title: string;
@@ -24,6 +25,8 @@ export function EmptyState({
   description?: ReactNode;
   /** The route that resolves it — create the record, clear the filter. */
   action?: { href: string; label: string };
+  /** Existing recovery choices when an empty list has more than one. */
+  actions?: ReactNode;
   testId?: string;
 }) {
   return (
@@ -42,6 +45,7 @@ export function EmptyState({
             {description}
           </Typography>
         ) : null}
+        {actions ?? null}
         {action ? (
           <Button href={action.href} variant="outlined" data-testid="empty-state-action">
             {action.label}

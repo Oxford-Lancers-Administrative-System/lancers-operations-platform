@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { ActionBar } from "@/components/action-bar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
@@ -54,23 +55,27 @@ export function ApproveEventForm({ eventId }: { eventId: string }) {
       <Stack spacing={2}>
         <input type="hidden" name="eventId" value={eventId} />
         {state.error ? (
-          <Alert severity="error" data-testid="approval-error">
+          <Notice variant="refusal" testId="approval-error">
             {state.error}
-          </Alert>
+          </Notice>
         ) : null}
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-          <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
-            {pending ? "Approving…" : "Approve event"}
-          </Button>
-          <Button
-            variant="outlined"
-            href={`/operate/events/${eventId}?step=audience`}
-            disabled={pending}
-            sx={{ minHeight: 44 }}
-          >
-            Back to audience
-          </Button>
-        </Stack>
+        <ActionBar
+          primary={
+            <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
+              {pending ? "Approving…" : "Approve event"}
+            </Button>
+          }
+          cancel={
+            <Button
+              variant="outlined"
+              href={`/operate/events/${eventId}?step=audience`}
+              disabled={pending}
+              sx={{ minHeight: 44 }}
+            >
+              Back to audience
+            </Button>
+          }
+        />
       </Stack>
     </Box>
   );

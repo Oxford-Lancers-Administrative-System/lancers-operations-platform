@@ -278,7 +278,7 @@ async function fixture(
             `insert into public.events
                (season_id, name, event_type, status, scheduled_on, starts_at,
                 audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
-             values ($1, $2, 'practice', 'approved', '2026-09-06'::date, $4::time,
+             values ($1, $2, 'practice', 'approved', ((now() + interval '48 hours') at time zone 'Europe/London')::date, $4::time,
                      now(), $3, now(), $3)
              returning id`,
             [seasonId, `${MARKER} practice`, personId, options.startsAt],

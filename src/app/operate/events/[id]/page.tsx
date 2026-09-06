@@ -1,9 +1,12 @@
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { Fact, FactGrid, FactList } from "@/components/fact";
+import { Metric, MetricRow } from "@/components/metric";
+import { Section } from "@/components/section";
+import { PageHeader } from "@/components/page-header";
+import { StatusChip } from "@/components/status-chip";
+import { OutcomeSlotProvider, ArrivalNotice } from "@/components/outcome-slot";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Divider from "@mui/material/Divider";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
@@ -88,7 +91,6 @@ import {
   DISTRIBUTION_BEGINS_AFTER_APPROVAL,
   EMPTY_AUDIENCE_DETAIL,
   EMPTY_AUDIENCE_HEADLINE,
-  EMPTY_AUDIENCE_SERVER_NOTE,
   formatDeadline,
   formatDetailWhen,
   formatTermAndWeek,
@@ -96,7 +98,6 @@ import {
   labelFor,
   NO_DISTRIBUTION_DETAIL,
   NO_DISTRIBUTION_HEADLINE,
-  NO_DISTRIBUTION_RULE,
   JOINING_URL_IS_NEVER_PUBLIC,
   NOTHING_DELIVERED_YET,
   PLAN_MISSING_HEADLINE,
@@ -341,20 +342,19 @@ export default async function EventDetailPage({
 function ApprovalLayout({ event, children }: { event: EventDetail; children: React.ReactNode }) {
   return (
     <Stack spacing={3} sx={{ maxWidth: 900 }} data-testid="approval-step">
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {event.name}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {`${labelFor(STATUS_LABELS, event.status)} · ${formatDetailWhen(event)}`}
-        </Typography>
-      </Box>
+      <PageHeader
+        title={event.name}
+        subtitle={formatDetailWhen(event)}
+        back={{ href: `/operate/events/${event.id}`, label: "Back to event" }}
+        status={
+          <StatusChip
+            domain="event"
+            status={event.status}
+            label={labelFor(STATUS_LABELS, event.status)}
+          />
+        }
+      />
       {children}
-      <Box>
-        <Button variant="text" href={`/operate/events/${event.id}`}>
-          Back to event
-        </Button>
-      </Box>
     </Stack>
   );
 }
@@ -362,15 +362,10 @@ function ApprovalLayout({ event, children }: { event: EventDetail; children: Rea
 /** UX-42 — refused before anything is written, and said as a screen. */
 function EmptyAudienceRefusal({ eventId }: { eventId: string }) {
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="empty-audience-refusal">
+    <Section title={EMPTY_AUDIENCE_HEADLINE} testId="empty-audience-refusal">
       <Stack spacing={2}>
-        <Typography variant="h6" component="h2">
-          {EMPTY_AUDIENCE_HEADLINE}
-        </Typography>
-        <Alert severity="warning">{EMPTY_AUDIENCE_DETAIL}</Alert>
-        <Typography variant="body2" color="text.secondary">
-          {EMPTY_AUDIENCE_SERVER_NOTE}
-        </Typography>
+        <Notice variant="refusal">{EMPTY_AUDIENCE_DETAIL}</Notice>
+
         <Box>
           <Button
             variant="contained"
@@ -381,7 +376,7 @@ function EmptyAudienceRefusal({ eventId }: { eventId: string }) {
           </Button>
         </Box>
       </Stack>
-    </Paper>
+    </Section>
   );
 }
 
@@ -395,12 +390,9 @@ function EmptyAudienceRefusal({ eventId }: { eventId: string }) {
  */
 function IncompleteRefusal({ eventId, missing }: { eventId: string; missing: string[] }) {
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="incomplete-refusal">
+    <Section title={INCOMPLETE_EVENT_HEADLINE} testId="incomplete-refusal">
       <Stack spacing={2}>
-        <Typography variant="h6" component="h2">
-          {INCOMPLETE_EVENT_HEADLINE}
-        </Typography>
-        <Alert severity="warning">{describeMissingForApproval(missing)}</Alert>
+        <Notice variant="refusal">{describeMissingForApproval(missing)}</Notice>
         <Box>
           <Button
             variant="contained"
@@ -411,7 +403,7 @@ function IncompleteRefusal({ eventId, missing }: { eventId: string; missing: str
           </Button>
         </Box>
       </Stack>
-    </Paper>
+    </Section>
   );
 }
 
@@ -456,11 +448,9 @@ function QuestionList({
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
               {question.prompt}
             </Typography>
-            <Chip
-              size="small"
-              color={question.isRequired ? "primary" : "default"}
-              label={question.isRequired ? "Required" : "Optional"}
-            />
+            <Typography variant="caption" color="text.secondary">
+              {question.isRequired ? "Required" : "Optional"}
+            </Typography>
           </Stack>
           <Typography variant="body2" color="text.secondary">
             {describeQuestionAnswer(question)}
@@ -495,12 +485,8 @@ function ApprovalReview({
   const stale = audience.filter((member) => !member.stillSelectable).length;
 
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="approval-review">
+    <Section title={`${APPROVAL_HEADLINE_PREFIX} ${event.name}`} testId="approval-review">
       <Stack spacing={3}>
-        <Typography variant="h6" component="h2">
-          {`${APPROVAL_HEADLINE_PREFIX} ${event.name}`}
-        </Typography>
-
         {/*
           The audience by its groups, before its people — Brian, 2026-08-21:
           "it should say at the very top what groups it would be ... You don't
@@ -535,11 +521,11 @@ function ApprovalReview({
           // Approval honours the confirmed list as-is, so this is information
           // rather than an obstacle — but an approver should not discover it
           // afterwards in the Monday report.
-          <Alert severity="info" data-testid="stale-audience-note">
+          <Notice severity="info" testId="stale-audience-note">
             {stale === 1
               ? "One person in this audience is no longer active. They will still be invited."
               : `${stale} people in this audience are no longer active. They will still be invited.`}
-          </Alert>
+          </Notice>
         ) : null}
 
         <Box
@@ -627,7 +613,7 @@ function ApprovalReview({
 
         {approvable ? <ApproveEventForm eventId={event.id} /> : null}
       </Stack>
-    </Paper>
+    </Section>
   );
 }
 
@@ -706,9 +692,13 @@ function AudienceList({
             </Typography>
             <Stack direction="row" spacing={1}>
               {member.stillSelectable ? null : (
-                <Chip size="small" color="warning" label="No longer active" />
+                <Typography variant="caption" color="text.secondary">
+                  No longer active
+                </Typography>
               )}
-              <Chip size="small" label={labelFor(CAPACITY_LABELS, member.capacity)} />
+              <Typography variant="caption" color="text.secondary">
+                {labelFor(CAPACITY_LABELS, member.capacity)}
+              </Typography>
             </Stack>
           </Box>
         ))}
@@ -742,14 +732,7 @@ function AudienceList({
  */
 function HeadlineNumbers({ summary }: { summary: AttendanceSummary }) {
   return (
-    <Box
-      sx={{
-        display: "grid",
-        gap: 2,
-        gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
-      }}
-      data-testid="headline-numbers"
-    >
+    <MetricRow columns={3} testId="headline-numbers">
       <Metric
         value={String(summary.invited)}
         label={HEADLINE_INVITED_LABEL}
@@ -765,49 +748,7 @@ function HeadlineNumbers({ summary }: { summary: AttendanceSummary }) {
         label={HEADLINE_SHOWED_LABEL}
         testId="headline-showed"
       />
-    </Box>
-  );
-}
-
-function Metric({ value, label, testId }: { value: string; label: string; testId?: string }) {
-  return (
-    <Paper variant="outlined" sx={{ p: 2 }} data-testid={testId}>
-      <Typography variant="h5" component="p" sx={{ fontWeight: 700 }}>
-        {value}
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        {label}
-      </Typography>
-    </Paper>
-  );
-}
-
-/** One labelled fact. The same two-line shape the wireframe's cards use. */
-function Fact({
-  label,
-  value,
-  note,
-  testId,
-}: {
-  label: string;
-  value: string;
-  note?: string;
-  testId?: string;
-}) {
-  return (
-    <Box sx={{ minWidth: 0 }} data-testid={testId}>
-      <Typography variant="overline" color="text.secondary" component="p">
-        {label}
-      </Typography>
-      <Typography variant="body1" sx={{ fontWeight: 600 }}>
-        {value}
-      </Typography>
-      {note ? (
-        <Typography variant="body2" color="text.secondary">
-          {note}
-        </Typography>
-      ) : null}
-    </Box>
+    </MetricRow>
   );
 }
 
@@ -829,11 +770,11 @@ function RegisterPanel({ event, registerSaved }: { event: EventDetail; registerS
   const available = isRegisterAvailable(event, registerSaved);
 
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="register-panel">
+    <Section
+      title={available ? "Attendance is open" : REGISTER_NOT_YET_HEADLINE}
+      testId="register-panel"
+    >
       <Stack spacing={2}>
-        <Typography variant="h6" component="h2">
-          {available ? "Attendance is open" : REGISTER_NOT_YET_HEADLINE}
-        </Typography>
         <Typography variant="body2" color="text.secondary">
           {available
             ? ATTENDANCE_OPEN_DETAIL
@@ -853,7 +794,7 @@ function RegisterPanel({ event, registerSaved }: { event: EventDetail; registerS
           </Box>
         ) : null}
       </Stack>
-    </Paper>
+    </Section>
   );
 }
 
@@ -911,192 +852,173 @@ function EventDetailView({
   const derived = derivedEventState(event, todayInClubZone());
 
   return (
-    <Stack
-      spacing={3}
-      sx={{ maxWidth: 1200 }}
-      data-testid="event-detail"
-      data-status={event.status}
-    >
-      <Box>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={1}
-          sx={{
-            justifyContent: "space-between",
-            alignItems: { xs: "flex-start", sm: "center" },
-          }}
-        >
-          <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-            {event.name}
-          </Typography>
-          {/*
-            §4.15: issuing and sharing the club link is this workflow's, and it
-            is offered beside the event's name because that is where the
-            approved mockup puts it. `mayManage` decides whether it is drawn;
-            the action and the service both refuse on their own behalf.
-          */}
-          {mayManage && event.status !== "draft" ? (
-            <Button
-              variant="outlined"
-              size="small"
-              href={`/operate/events/${event.id}?share=1`}
-              data-testid="share-link-button"
-            >
-              {SHARE_LINK}
-            </Button>
-          ) : null}
-        </Stack>
-        {/*
-          The derived state sits beside the stored one only where it says
-          something the stored one does not — which is an approved event, and
-          only that. A cancelled event would read "Cancelled · Cancelled", and a
-          past draft would read "Draft · Occurred", which is worse than
-          redundant: a draft nobody approved did not happen.
-        */}
-        <Typography variant="body2" color="text.secondary" data-testid="event-subtitle">
-          {[
-            labelFor(STATUS_LABELS, event.status),
-            event.status === "approved" ? labelFor(DERIVED_STATE_LABELS, derived) : null,
-            formatDetailWhen(event),
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </Typography>
-      </Box>
-
-      {share ? (
-        <SharePanel
-          eventId={event.id}
-          url={share.url}
-          blockedReason={share.blockedReason}
-          errorRule={share.errorRule}
-          closeHref={`/operate/events/${event.id}`}
+    <OutcomeSlotProvider>
+      <Stack
+        spacing={3}
+        sx={{ maxWidth: 1200 }}
+        data-testid="event-detail"
+        data-status={event.status}
+      >
+        <PageHeader
+          title={event.name}
+          eyebrow={labelFor(TYPE_LABELS, event.eventType)}
+          back={{ href: "/operate/events", label: "Back to events" }}
+          subtitle={<span data-testid="event-subtitle">{formatDetailWhen(event)}</span>}
+          status={
+            <Stack direction="row" spacing={0.75}>
+              <StatusChip
+                domain="event"
+                status={event.status}
+                label={labelFor(STATUS_LABELS, event.status)}
+              />
+              {event.status === "approved" ? (
+                <StatusChip
+                  domain="event"
+                  status={derived}
+                  label={labelFor(DERIVED_STATE_LABELS, derived)}
+                />
+              ) : null}
+            </Stack>
+          }
+          actions={
+            mayManage && event.status !== "draft" ? (
+              <Button
+                variant="outlined"
+                href={`/operate/events/${event.id}?share=1`}
+                data-testid="share-link-button"
+              >
+                {SHARE_LINK}
+              </Button>
+            ) : undefined
+          }
         />
-      ) : null}
 
-      {justApproved && event.status === "approved" ? (
-        <Alert severity="success" data-testid="event-approved-note">
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            {`${APPROVED_HEADLINE} — ${event.invitationCount} ${
-              event.invitationCount === 1 ? "invitation" : "invitations"
-            } created`}
-          </Typography>
-          <Typography variant="body2">{APPROVED_NOTHING_SENT_YET}</Typography>
-        </Alert>
-      ) : null}
-
-      {event.status === "cancelled" ? (
-        <CancelledPanel reason={event.decisionReason} entry={cancellation} />
-      ) : null}
-
-      {summary ? <HeadlineNumbers summary={summary} /> : null}
-
-      {mayApprove && changeWentOutSilently && lastAmendment ? (
-        <RenotifyPanel
-          eventId={event.id}
-          recipients={event.invitationCount}
-          notice={silentChangeNotice(lastAmendment)}
-        />
-      ) : null}
-
-      {preApproval ? (
-        <Alert severity="info" data-testid="no-invitations-note">
-          {NO_DISTRIBUTION_RULE}
-        </Alert>
-      ) : null}
-
-      {event.status === "approved" ? (
-        <RegisterPanel event={event} registerSaved={summary?.registerSaved ?? false} />
-      ) : null}
-
-      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
-        <Box
-          sx={{
-            display: "grid",
-            gap: 3,
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
-          }}
-        >
-          <Fact label="Type" value={labelFor(TYPE_LABELS, event.eventType)} />
-          <Fact label="Where" value={labelFor(DELIVERY_MODE_LABELS, event.deliveryMode)} />
-          <Fact
-            label={venueLabel(event.deliveryMode)}
-            value={event.venue ?? "Not decided yet"}
-            testId="venue-fact"
+        {share ? (
+          <SharePanel
+            eventId={event.id}
+            url={share.url}
+            blockedReason={share.blockedReason}
+            errorRule={share.errorRule}
+            closeHref={`/operate/events/${event.id}`}
           />
-          <Fact label="Term / week" value={formatTermAndWeek(event.termLabel, event.weekNumber)} />
-          <Fact label="Attendance" value={describeAttendance(event.isMandatory)} />
-          <Fact
-            label="Required equipment"
-            value={event.requiredEquipment ?? "Nothing listed"}
-            testId="equipment-fact"
+        ) : null}
+
+        {justApproved && event.status === "approved" ? (
+          <ArrivalNotice severity="success" testId="event-approved-note">
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {`${APPROVED_HEADLINE} — ${event.invitationCount} ${
+                event.invitationCount === 1 ? "invitation" : "invitations"
+              } created`}
+            </Typography>
+            <Typography variant="body2">{APPROVED_NOTHING_SENT_YET}</Typography>
+          </ArrivalNotice>
+        ) : null}
+
+        {event.status === "cancelled" ? (
+          <CancelledPanel reason={event.decisionReason} entry={cancellation} />
+        ) : null}
+
+        {summary ? <HeadlineNumbers summary={summary} /> : null}
+
+        {mayApprove && changeWentOutSilently && lastAmendment ? (
+          <RenotifyPanel
+            eventId={event.id}
+            recipients={event.invitationCount}
+            notice={silentChangeNotice(lastAmendment)}
           />
-          {event.description ? (
-            <Fact label="Description" value={event.description} testId="description-fact" />
-          ) : null}
-          {/*
+        ) : null}
+
+        {event.status === "approved" ? (
+          <RegisterPanel event={event} registerSaved={summary?.registerSaved ?? false} />
+        ) : null}
+
+        <Section title="Details">
+          <FactGrid>
+            <Fact label="Type" value={labelFor(TYPE_LABELS, event.eventType)} />
+            <Fact label="Where" value={labelFor(DELIVERY_MODE_LABELS, event.deliveryMode)} />
+            <Fact
+              label={venueLabel(event.deliveryMode)}
+              value={event.venue ?? "Not decided yet"}
+              testId="venue-fact"
+            />
+            <Fact
+              label="Term / week"
+              value={formatTermAndWeek(event.termLabel, event.weekNumber)}
+            />
+            <Fact label="Attendance" value={describeAttendance(event.isMandatory)} />
+            <Fact
+              label="Required equipment"
+              value={event.requiredEquipment ?? "Nothing listed"}
+              testId="equipment-fact"
+            />
+            {event.description ? (
+              <Fact label="Description" value={event.description} testId="description-fact" />
+            ) : null}
+            {/*
             REQ-no-joining-url. Operator tier only, and this route is operator
             tier. It is never rendered on a public surface, never in a feed, and
             never in a payload behind one.
           */}
-          {event.joiningUrl ? (
-            <Fact
-              label="Joining link"
-              value={event.joiningUrl}
-              note={JOINING_URL_IS_NEVER_PUBLIC}
-              testId="joining-url-fact"
-            />
-          ) : null}
-          {/*
+            {event.joiningUrl ? (
+              <Fact
+                label="Joining link"
+                value={event.joiningUrl}
+                note={JOINING_URL_IS_NEVER_PUBLIC}
+                testId="joining-url-fact"
+              />
+            ) : null}
+            {/*
             A cancelled event's reason is shown by `CancelledPanel`, with the
             sentence that says it is internal and reaches nobody who was
             invited. Showing it here as well would be two surfaces answering
             "why is this off?" — `docs/ux/standards.md` rule 7 — and the one
             without that sentence is the one that reads as publishable.
           */}
-          {event.decisionReason && event.status !== "cancelled" ? (
-            <Fact label="Reason" value={event.decisionReason} testId="decision-reason" />
-          ) : null}
-        </Box>
-      </Paper>
+            {event.decisionReason && event.status !== "cancelled" ? (
+              <Fact label="Reason" value={event.decisionReason} testId="decision-reason" />
+            ) : null}
+          </FactGrid>
+        </Section>
 
-      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
-        <Stack spacing={3}>
-          <Fact
-            label="Audience"
-            value={
-              event.audienceCount === 0
-                ? NO_AUDIENCE_YET
-                : proposed
-                  ? `${event.audienceCount} chosen, not yet approved`
-                  : `${event.audienceCount} confirmed`
-            }
-            note={
-              event.audienceCount === 0
-                ? undefined
-                : proposed
-                  ? "Saved against this draft. Nothing is sent until it is approved."
-                  : AUDIENCE_FROZEN_AT_APPROVAL
-            }
-            testId="audience-fact"
-          />
-          <Divider />
-          <Fact
-            label="Distribution"
-            value={event.invitationCount === 0 ? NO_DISTRIBUTION_HEADLINE : "Invitations created"}
-            note={
-              event.invitationCount === 0
-                ? NO_DISTRIBUTION_DETAIL
-                : `${event.invitationCount} invitations · ${event.responseCount} responses · ${NOTHING_DELIVERED_YET}`
-            }
-            testId="distribution-fact"
-          />
-          {/*
+        <Section title="Audience and distribution">
+          <FactList>
+            <Fact
+              layout="inline"
+              label="Audience"
+              value={
+                event.audienceCount === 0
+                  ? NO_AUDIENCE_YET
+                  : proposed
+                    ? `${event.audienceCount} chosen, not yet approved`
+                    : `${event.audienceCount} confirmed`
+              }
+              note={
+                event.audienceCount === 0
+                  ? undefined
+                  : proposed
+                    ? "Saved against this draft. Nothing is sent until it is approved."
+                    : AUDIENCE_FROZEN_AT_APPROVAL
+              }
+              testId="audience-fact"
+            />
+            <Fact
+              layout="inline"
+              label="Distribution"
+              value={event.invitationCount === 0 ? NO_DISTRIBUTION_HEADLINE : "Invitations created"}
+              note={
+                event.invitationCount === 0
+                  ? NO_DISTRIBUTION_DETAIL
+                  : `${event.invitationCount} invitations · ${event.responseCount} responses · ${NOTHING_DELIVERED_YET}`
+              }
+              testId="distribution-fact"
+            />
+            {/*
             W7: the audience list "becomes the full table". It survives for the
             one state the table cannot describe — a draft whose audience is
             chosen but not yet approved, which has no invitations, no answers
             and no attendance to put in columns (invariant P1).
           */}
+          </FactList>
           {audience.length > 0 && participation === null && audienceGroupSummary !== null ? (
             <AudienceList
               audience={audience}
@@ -1105,163 +1027,163 @@ function EventDetailView({
               testId="event-audience"
             />
           ) : null}
-        </Stack>
-      </Paper>
+        </Section>
 
-      {/*
+        {/*
         W1's purpose extends past the review step: once approved, this is what
         was actually committed. Frozen — `REQ-schedule-not-retroactive` — so a
         later change to the club's schedule never rewrites what this page says
         already ran.
       */}
-      {frozenPlan ? (
-        <MessagingPlanDisclosure
-          display={frozenPlanForDisplay(frozenPlan)}
-          audienceSize={audience.filter((member) => member.capacity !== "recruit").length}
-          recruitAudienceSize={audience.filter((member) => member.capacity === "recruit").length}
-          approved
-        />
-      ) : event.status === "approved" ? (
-        <Alert severity="warning" data-testid="messaging-plan-missing">
-          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-            {PLAN_MISSING_HEADLINE}
-          </Typography>
-          <Typography variant="body2">{PLAN_MISSING_NOTE}</Typography>
-        </Alert>
-      ) : null}
+        {frozenPlan ? (
+          <MessagingPlanDisclosure
+            display={frozenPlanForDisplay(frozenPlan)}
+            audienceSize={audience.filter((member) => member.capacity !== "recruit").length}
+            recruitAudienceSize={audience.filter((member) => member.capacity === "recruit").length}
+            approved
+          />
+        ) : event.status === "approved" ? (
+          <Notice severity="warning" testId="messaging-plan-missing">
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+              {PLAN_MISSING_HEADLINE}
+            </Typography>
+            <Typography variant="body2">{PLAN_MISSING_NOTE}</Typography>
+          </Notice>
+        ) : null}
 
-      {/*
+        {/*
         §4.13. Below the facts and above the actions, because it answers a
         question about the past and the buttons are about the future.
       */}
-      {event.status !== "draft" ? <ChangeHistoryPanel entries={history} /> : null}
+        {event.status !== "draft" ? <ChangeHistoryPanel entries={history} /> : null}
 
-      {/*
+        {/*
         Amendment W4-A1. The questions are read here and written on the form:
         "it's ingrained in the process, so you separated that inappropriately."
         The RSVP's own first question is not repeated — this panel is about what
         this event adds, and the approval review is where the whole page is read
         in order.
       */}
-      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="event-questions">
-        <Stack spacing={2}>
-          <Typography variant="h6" component="h2">
-            {QUESTIONS_HEADLINE}
-          </Typography>
-          {/*
+        <Section title={QUESTIONS_HEADLINE} testId="event-questions">
+          <Stack spacing={2}>
+            {/*
             C4. There was filler here — "Nothing extra is asked. Add a
             question if this event needs one." — and Brian's reaction was
             "I hate extra text like this." The heading above already says
             what this panel is; an event with nothing extra to ask says so by
             showing nothing.
           */}
-          {questions.length === 0 ? null : (
-            <QuestionList questions={questions} leadWithRsvp={false} testId="event-question-list" />
-          )}
-        </Stack>
-      </Paper>
+            {questions.length === 0 ? null : (
+              <QuestionList
+                questions={questions}
+                leadWithRsvp={false}
+                testId="event-question-list"
+              />
+            )}
+          </Stack>
+        </Section>
 
-      {/*
+        {/*
         REQ-delete-draft, D29. On the draft's own page, low emphasis, and only
         where the operator could actually do it — an approved event is cancelled
         rather than deleted, and W6 owns that.
       */}
-      {mayManage && event.status === "draft" ? (
-        <DeleteDraft eventId={event.id} name={event.name} />
-      ) : null}
+        {mayManage && event.status === "draft" ? (
+          <DeleteDraft eventId={event.id} name={event.name} />
+        ) : null}
 
-      {/*
+        {/*
         REQ-participation-table — W7's centre. One row per person: who was
         asked, what they said, and whether they came, with delivery at this
         tier and one column per question.
       */}
-      {participation ? (
-        <Stack spacing={2}>
-          {/* D68's counts, collapsed. The per-person answers are in the table. */}
-          <QuestionCounts participation={participation} />
-          <ParticipationFilterBar
-            basePath={`/operate/events/${event.id}`}
-            filters={participationFilters}
-            showDelivery
-          />
-          <ParticipationTable
-            basePath={`/operate/events/${event.id}`}
-            participation={participation}
-            filters={participationFilters}
-          />
-        </Stack>
-      ) : null}
-
-      <Stack spacing={2} sx={{ maxWidth: 420 }}>
-        {mayApprove && event.status === "approved" ? (
-          <ApprovedEventActions eventId={event.id} />
-        ) : null}
-
-        {mayAdministerDelivery && !preApproval ? (
-          // LAN-78's surface, reachable only once there is something to look
-          // at. The route guards itself on `delivery_administration`; this is
-          // the courtesy that stops an operator finding it by guessing.
-          <Button
-            variant="outlined"
-            href={`/operate/events/${event.id}/delivery`}
-            fullWidth
-            sx={{ minHeight: 44 }}
-          >
-            Delivery
-          </Button>
-        ) : null}
-
-        {mayApprove && event.status === "draft" ? (
-          <Stack spacing={1}>
-            <Button
-              variant="contained"
-              href={`/operate/events/${event.id}?step=${audience.length > 0 ? "review" : "audience"}`}
-              fullWidth
-              sx={{ minHeight: 44 }}
-            >
-              {audience.length > 0 ? "Review audience and approve" : "Choose audience and approve"}
-            </Button>
-            <Typography variant="body2" color="text.secondary">
-              Nothing is sent until you have chosen who this event is for and approved it.
-            </Typography>
+        {participation ? (
+          <Stack spacing={2}>
+            {/* D68's counts, collapsed. The per-person answers are in the table. */}
+            <QuestionCounts participation={participation} />
+            <ParticipationFilterBar
+              basePath={`/operate/events/${event.id}`}
+              filters={participationFilters}
+              showDelivery
+            />
+            <ParticipationTable
+              basePath={`/operate/events/${event.id}`}
+              participation={participation}
+              filters={participationFilters}
+            />
           </Stack>
         ) : null}
 
-        {mayManage && event.status === "draft" ? (
-          <Button variant="contained" href={`/operate/events/${event.id}/edit`} fullWidth>
-            Edit draft
-          </Button>
-        ) : null}
+        <Stack spacing={2} sx={{ maxWidth: 420 }}>
+          {mayApprove && event.status === "approved" ? (
+            <ApprovedEventActions eventId={event.id} />
+          ) : null}
 
-        {/*
+          {mayAdministerDelivery && !preApproval ? (
+            // LAN-78's surface, reachable only once there is something to look
+            // at. The route guards itself on `delivery_administration`; this is
+            // the courtesy that stops an operator finding it by guessing.
+            <Button
+              variant="outlined"
+              href={`/operate/events/${event.id}/delivery`}
+              fullWidth
+              sx={{ minHeight: 44 }}
+            >
+              Delivery
+            </Button>
+          ) : null}
+
+          {mayApprove && event.status === "draft" ? (
+            <Stack spacing={1}>
+              <Button
+                variant="contained"
+                href={`/operate/events/${event.id}?step=${audience.length > 0 ? "review" : "audience"}`}
+                fullWidth
+                sx={{ minHeight: 44 }}
+              >
+                {audience.length > 0
+                  ? "Review audience and approve"
+                  : "Choose audience and approve"}
+              </Button>
+            </Stack>
+          ) : null}
+
+          {mayManage && event.status === "draft" ? (
+            <Button variant="contained" href={`/operate/events/${event.id}/edit`} fullWidth>
+              Edit draft
+            </Button>
+          ) : null}
+
+          {/*
           D39, as Brian settled it on 2026-08-22: duplicate opens the create
           form prefilled, and nothing is written until the operator saves. It is
           offered on every status, because the event worth copying is usually one
           that already happened.
         */}
-        {mayManage ? (
-          <Button
-            variant="outlined"
-            href={`/operate/events/new?from=${event.id}`}
-            fullWidth
-            sx={{ minHeight: 44 }}
-            data-testid="duplicate-event"
-          >
-            {DUPLICATE_ACTION}
+          {mayManage ? (
+            <Button
+              variant="outlined"
+              href={`/operate/events/new?from=${event.id}`}
+              fullWidth
+              sx={{ minHeight: 44 }}
+              data-testid="duplicate-event"
+            >
+              {DUPLICATE_ACTION}
+            </Button>
+          ) : null}
+
+          {mayManage ? null : (
+            <Typography variant="body2" color="text.secondary" data-testid="read-only-note">
+              You can see the club calendar. Creating and changing events is done by the President,
+              Vice-President, Secretary and General Manager.
+            </Typography>
+          )}
+
+          <Button variant="text" href="/operate/events">
+            Back to events
           </Button>
-        ) : null}
-
-        {mayManage ? null : (
-          <Typography variant="body2" color="text.secondary" data-testid="read-only-note">
-            You can see the club calendar. Creating and changing events is done by the President,
-            Vice-President, Secretary and General Manager.
-          </Typography>
-        )}
-
-        <Button variant="text" href="/operate/events">
-          Back to events
-        </Button>
+        </Stack>
       </Stack>
-    </Stack>
+    </OutcomeSlotProvider>
   );
 }

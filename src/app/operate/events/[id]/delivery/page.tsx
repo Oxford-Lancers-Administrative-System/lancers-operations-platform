@@ -1,13 +1,19 @@
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { PageHeader } from "@/components/page-header";
+import { Section } from "@/components/section";
+import { Fact, FactGrid } from "@/components/fact";
+import { Metric, MetricRow } from "@/components/metric";
+import { EmptyState } from "@/components/empty-state";
+import { StatusChip } from "@/components/status-chip";
+import { OutcomeSlotProvider } from "@/components/outcome-slot";
+import { RowCard, RowCardList, DesktopOnly } from "@/components/row-card";
+import { TableFrame } from "@/components/sortable-header";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
@@ -25,11 +31,9 @@ import { gateShellPage } from "../../../gate";
 import DeliveryFilters from "./delivery-filters";
 import { RetryDeliveryForm, RevokeAndReissueForm } from "./repair-forms";
 import {
-  deliveryRowColour,
   deliveryRowLabel,
   describeRetryability,
   DIAGNOSTICS_HEADING,
-  DIAGNOSTICS_NOTE,
   FALLBACK_NOTE,
   FALLBACK_VALUE,
   formatAttemptTime,
@@ -40,10 +44,7 @@ import {
   NO_ACTION_NEEDED,
   OPEN_THEIR_RECORD,
   OVERVIEW_FACTS,
-  OVERVIEW_NOTE,
-  OVERVIEW_SUBTITLE,
   REPAIR_HEADING,
-  REPAIR_NOTE,
   SAFE_REASON_PREFIX,
   TOKEN_LABELS,
   VIEW_DIAGNOSTICS,
@@ -165,31 +166,20 @@ function DeliveryLayout({
   children: React.ReactNode;
 }) {
   return (
-    <Stack spacing={3} sx={{ maxWidth: 1100 }} data-testid="delivery-screen">
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {`Delivery · ${delivery.eventName}`}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {OVERVIEW_SUBTITLE}
-        </Typography>
-      </Box>
-
-      <Alert severity="info" data-testid="delivery-policy-note">
-        {OVERVIEW_NOTE}
-      </Alert>
-
-      {children}
-
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-        <Button variant="text" href={basePath}>
-          Delivery overview
-        </Button>
-        <Button variant="text" href={`/operate/events/${delivery.eventId}`}>
-          Back to event
-        </Button>
+    <OutcomeSlotProvider>
+      <Stack spacing={3} sx={{ maxWidth: 1100 }} data-testid="delivery-screen">
+        <PageHeader
+          title={`Delivery · ${delivery.eventName}`}
+          back={{ href: `/operate/events/${delivery.eventId}`, label: "Back to event" }}
+          actions={
+            <Button href={basePath} variant="outlined">
+              Delivery overview
+            </Button>
+          }
+        />
+        {children}
       </Stack>
-    </Stack>
+    </OutcomeSlotProvider>
   );
 }
 
@@ -199,19 +189,12 @@ function Overview({ delivery, basePath }: { delivery: EventDelivery; basePath: s
 
   return (
     <Stack spacing={3}>
-      <Box
-        sx={{
-          display: "grid",
-          gap: 2,
-          gridTemplateColumns: { xs: "repeat(2, 1fr)", md: "repeat(4, minmax(0, 1fr))" },
-        }}
-        data-testid="delivery-counts"
-      >
+      <MetricRow columns={4} testId="delivery-counts">
         <Metric value={counts.audience} label="Audience" testId="count-audience" />
         <Metric value={counts.delivered} label="Delivered" testId="count-delivered" />
         <Metric value={counts.queued + counts.attempted} label="Queued" testId="count-queued" />
         <Metric value={counts.failed + counts.retryable} label="Failed" testId="count-failed" />
-      </Box>
+      </MetricRow>
 
       {/*
         LAN-156, at the visual gate. A held message is the one state this screen
@@ -227,11 +210,11 @@ function Overview({ delivery, basePath }: { delivery: EventDelivery; basePath: s
         implement. Says only what happened, and stops.
       */}
       {counts.held > 0 ? (
-        <Alert severity="warning" data-testid="delivery-held">
+        <Notice severity="warning" testId="delivery-held">
           {counts.held === 1
             ? "1 message is held after a change to this event."
             : `${counts.held} messages are held after a change to this event.`}
-        </Alert>
+        </Notice>
       ) : null}
 
       {delivery.rows.length === 0 ? (
@@ -242,22 +225,18 @@ function Overview({ delivery, basePath }: { delivery: EventDelivery; basePath: s
         // are created when the event is approved"), which is false on an event
         // that IS approved and whose invitations were never dispatched — the
         // state Brian found. It now says what is true and stops.
-        <Alert severity="info" data-testid="delivery-empty">
-          No invitations have been sent for this event.
-        </Alert>
+        <EmptyState
+          title="No invitations have been sent for this event."
+          testId="delivery-empty"
+          action={{ href: `/operate/events/${delivery.eventId}`, label: "Back to event" }}
+        />
       ) : null}
 
-      <Box
-        sx={{
-          display: "grid",
-          gap: 2,
-          gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
-        }}
-      >
+      <FactGrid columns={2}>
         {OVERVIEW_FACTS.map((fact) => (
           <Fact key={fact.label} label={fact.label} value={fact.value} note={fact.note} />
         ))}
-      </Box>
+      </FactGrid>
 
       <NeedsAttention delivery={delivery} />
 
@@ -291,16 +270,12 @@ function NeedsAttention({ delivery }: { delivery: EventDelivery }) {
   if (rows.length === 0) return null;
 
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="needs-attention">
+    <Section
+      title={NEEDS_ATTENTION_HEADING}
+      description={NEEDS_ATTENTION_NOTE}
+      testId="needs-attention"
+    >
       <Stack spacing={2}>
-        <Box>
-          <Typography variant="h6" component="h2">
-            {NEEDS_ATTENTION_HEADING}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {NEEDS_ATTENTION_NOTE}
-          </Typography>
-        </Box>
         {/*
           No `divider` prop — MUI v9's `Stack` divider throws during server
           rendering ("Element type is invalid… got: undefined"), a defect
@@ -340,11 +315,17 @@ function NeedsAttention({ delivery }: { delivery: EventDelivery }) {
                 </Typography>
               </Box>
               <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-                <Chip
-                  size="small"
-                  color={deliveryRowColour(row)}
+                <StatusChip
+                  domain="delivery"
+                  status={
+                    row.noUsableRoute
+                      ? "no_channel"
+                      : row.whatsappUnresponsive
+                        ? "whatsapp_unresponsive"
+                        : row.state
+                  }
                   label={deliveryRowLabel(row)}
-                  data-testid="needs-attention-state"
+                  testId="needs-attention-state"
                 />
                 {row.noUsableRoute && row.seasonMembershipId ? (
                   <Button
@@ -364,7 +345,7 @@ function NeedsAttention({ delivery }: { delivery: EventDelivery }) {
           ))}
         </Stack>
       </Stack>
-    </Paper>
+    </Section>
   );
 }
 
@@ -407,102 +388,88 @@ function Diagnostics({
   );
 
   return (
-    <Stack spacing={2}>
-      <Box>
-        <Typography variant="h6" component="h2">
-          {DIAGNOSTICS_HEADING}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {`${delivery.eventName} · ${delivery.counts.audience} intended recipients`}
-        </Typography>
-      </Box>
+    <Section
+      title={DIAGNOSTICS_HEADING}
+      description={`${delivery.eventName} · ${delivery.counts.audience} intended recipients`}
+    >
+      <Stack spacing={2}>
+        <DeliveryFilters basePath={basePath} search={search} status={status} />
 
-      <Typography variant="body2" color="text.secondary">
-        {DIAGNOSTICS_NOTE}
-      </Typography>
+        {rows.length === 0 ? (
+          <EmptyState
+            testId="attempt-log-empty"
+            title={
+              attempts.length === 0
+                ? "Nothing has been attempted for this event yet."
+                : "No attempt matches this search."
+            }
+            searched={search || undefined}
+            action={{ href: `${basePath}?view=diagnostics`, label: "Clear filters" }}
+          />
+        ) : (
+          <DesktopOnly>
+            <TableFrame>
+              <Table size="small" data-testid="attempt-log-table">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Person</TableCell>
+                    <TableCell>Channel</TableCell>
+                    <TableCell>Attempt</TableCell>
+                    <TableCell>When</TableCell>
+                    <TableCell>Outcome</TableCell>
+                    <TableCell>Provider reference</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {rows.map((attempt) => (
+                    <TableRow key={attempt.attemptId} data-testid="attempt-log-row">
+                      <TableCell sx={{ fontWeight: 600 }}>{attempt.inviteeName}</TableCell>
+                      <TableCell>{describeChannel(attempt.channel)}</TableCell>
+                      <TableCell>{attempt.attemptNumber}</TableCell>
+                      <TableCell>{formatAttemptTime(attempt.requestedAt)}</TableCell>
+                      <TableCell>
+                        <StatusChip
+                          domain="delivery"
+                          status={attempt.outcome}
+                          label={describeAttemptOutcome(attempt.outcome)}
+                        />
+                      </TableCell>
+                      <TableCell sx={{ fontFamily: "monospace", fontSize: "0.8em" }}>
+                        {attempt.providerReference ?? "not recorded"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableFrame>
+          </DesktopOnly>
+        )}
 
-      <DeliveryFilters basePath={basePath} search={search} status={status} />
-
-      {rows.length === 0 ? (
-        <Alert severity="info" data-testid="attempt-log-empty">
-          {attempts.length === 0
-            ? "Nothing has been attempted for this event yet."
-            : "No attempt matches this search."}
-        </Alert>
-      ) : (
-        <TableContainer
-          component={Paper}
-          variant="outlined"
-          sx={{ display: { xs: "none", md: "block" }, overflowX: "auto" }}
-        >
-          <Table size="small" data-testid="attempt-log-table">
-            <TableHead>
-              <TableRow>
-                <TableCell>Person</TableCell>
-                <TableCell>Channel</TableCell>
-                <TableCell>Attempt</TableCell>
-                <TableCell>When</TableCell>
-                <TableCell>Outcome</TableCell>
-                <TableCell>Provider reference</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {rows.map((attempt) => (
-                <TableRow key={attempt.attemptId} data-testid="attempt-log-row">
-                  <TableCell sx={{ fontWeight: 600 }}>{attempt.inviteeName}</TableCell>
-                  <TableCell>{describeChannel(attempt.channel)}</TableCell>
-                  <TableCell>{attempt.attemptNumber}</TableCell>
-                  <TableCell>{formatAttemptTime(attempt.requestedAt)}</TableCell>
-                  <TableCell>
-                    <Chip size="small" label={describeAttemptOutcome(attempt.outcome)} />
-                  </TableCell>
-                  <TableCell sx={{ fontFamily: "monospace", fontSize: "0.8em" }}>
-                    {attempt.providerReference ?? "—"}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
-
-      {/* Phone: cards, per § 7. */}
-      {rows.length > 0 ? (
-        <Stack spacing={1} sx={{ display: { xs: "flex", md: "none" } }}>
-          {rows.map((attempt) => (
-            <Paper
-              key={attempt.attemptId}
-              variant="outlined"
-              sx={{ p: 2 }}
-              data-testid="attempt-log-card"
-            >
-              <Stack spacing={0.5}>
-                <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between" }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {attempt.inviteeName}
-                  </Typography>
-                  <Chip size="small" label={describeAttemptOutcome(attempt.outcome)} />
-                </Stack>
-                <Typography variant="body2" color="text.secondary">
-                  {`${describeChannel(attempt.channel)} · attempt ${attempt.attemptNumber} · ${formatAttemptTime(
-                    attempt.requestedAt,
-                  )}`}
-                </Typography>
-                {attempt.providerReference ? (
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    sx={{ fontFamily: "monospace" }}
-                  >
-                    {attempt.providerReference}
-                  </Typography>
-                ) : null}
-              </Stack>
-            </Paper>
-          ))}
-        </Stack>
-      ) : null}
-    </Stack>
+        {/* Phone: cards, per § 7. */}
+        {rows.length > 0 ? (
+          <RowCardList>
+            {rows.map((attempt) => (
+              <RowCard
+                key={attempt.attemptId}
+                title={attempt.inviteeName}
+                testId="attempt-log-card"
+                chips={
+                  <StatusChip
+                    domain="delivery"
+                    status={attempt.outcome}
+                    label={describeAttemptOutcome(attempt.outcome)}
+                  />
+                }
+                sublines={[
+                  `${describeChannel(attempt.channel)} · attempt ${attempt.attemptNumber} · ${formatAttemptTime(attempt.requestedAt)}`,
+                  attempt.providerReference ?? "not recorded",
+                ]}
+              />
+            ))}
+          </RowCardList>
+        ) : null}
+      </Stack>
+    </Section>
   );
 }
 
@@ -538,28 +505,13 @@ function RepairPanel({
   const retryable = row.retryable;
 
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="repair-panel">
+    <Section
+      title={REPAIR_HEADING}
+      description={`${row.inviteeName} · ${delivery.eventName}`}
+      testId="repair-panel"
+    >
       <Stack spacing={3}>
-        <Box>
-          <Typography variant="h6" component="h2">
-            {REPAIR_HEADING}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {`${row.inviteeName} · ${delivery.eventName}`}
-          </Typography>
-        </Box>
-
-        <Typography variant="body2" color="text.secondary">
-          {REPAIR_NOTE}
-        </Typography>
-
-        <Box
-          sx={{
-            display: "grid",
-            gap: 2,
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
-          }}
-        >
+        <FactGrid columns={2}>
           <Fact
             label="Latest result"
             value={deliveryRowLabel(row)}
@@ -592,7 +544,7 @@ function RepairPanel({
             note={FALLBACK_NOTE}
             testId="fallback-fact"
           />
-        </Box>
+        </FactGrid>
 
         <Stack spacing={2} sx={{ maxWidth: 420 }}>
           <RetryDeliveryForm
@@ -613,7 +565,7 @@ function RepairPanel({
           />
         </Stack>
       </Stack>
-    </Paper>
+    </Section>
   );
 }
 
@@ -623,45 +575,4 @@ function describeChannel(channel: string): string {
   if (channel === "email") return "Email fallback";
   if (channel === "sms") return "SMS fallback";
   return channel;
-}
-
-function Metric({ value, label, testId }: { value: number; label: string; testId?: string }) {
-  return (
-    <Paper variant="outlined" sx={{ p: 2 }} data-testid={testId}>
-      <Typography variant="h5" component="p" sx={{ fontWeight: 700 }}>
-        {value}
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        {label}
-      </Typography>
-    </Paper>
-  );
-}
-
-function Fact({
-  label,
-  value,
-  note,
-  testId,
-}: {
-  label: string;
-  value: string;
-  note?: string;
-  testId?: string;
-}) {
-  return (
-    <Box sx={{ minWidth: 0 }} data-testid={testId}>
-      <Typography variant="overline" color="text.secondary" component="p">
-        {label}
-      </Typography>
-      <Typography variant="body1" sx={{ fontWeight: 600 }}>
-        {value}
-      </Typography>
-      {note ? (
-        <Typography variant="body2" color="text.secondary">
-          {note}
-        </Typography>
-      ) : null}
-    </Box>
-  );
 }

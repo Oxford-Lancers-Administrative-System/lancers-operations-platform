@@ -4,8 +4,7 @@ import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
+import { Field } from "@/components/field";
 
 import {
   ANSWER_FILTERS,
@@ -29,7 +28,6 @@ import {
   FILTER_CAPACITY_LABEL,
   FILTER_DELIVERY_LABEL,
   FILTER_SEARCH_LABEL,
-  FILTERS_COMBINE,
   NEEDS_ATTENTION_FILTER_LABEL,
   NOT_RECORDED,
   PRESENCE_LABELS,
@@ -91,9 +89,8 @@ function FilterSelect({
   minWidth: number;
 }) {
   return (
-    <TextField
+    <Field
       select
-      size="small"
       label={label}
       value={value}
       onChange={(event) => onPick(event.target.value)}
@@ -110,7 +107,7 @@ function FilterSelect({
           {option.label}
         </option>
       ))}
-    </TextField>
+    </Field>
   );
 }
 
@@ -164,8 +161,7 @@ export function ParticipationFilterBar({
       sx={{ flexWrap: "wrap", gap: 1, alignItems: "center" }}
       data-testid="participation-filters"
     >
-      <TextField
-        size="small"
+      <Field
         label={FILTER_SEARCH_LABEL}
         value={typed}
         onChange={(event) => setTyped(event.target.value)}
@@ -223,11 +219,7 @@ export function ParticipationFilterBar({
         <Button size="small" href={basePath} data-testid="filter-clear">
           {CLEAR_FILTERS}
         </Button>
-      ) : (
-        <Typography variant="body2" color="text.secondary">
-          {FILTERS_COMBINE}
-        </Typography>
-      )}
+      ) : null}
     </Stack>
   );
 }

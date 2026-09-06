@@ -1,6 +1,8 @@
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Paper from "@mui/material/Paper";
+import { PublicShell } from "@/components/public-shell";
+import { PageHeader } from "@/components/page-header";
+import { ActionBar } from "@/components/action-bar";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
@@ -13,9 +15,9 @@ import {
   splitMultiAnswer,
 } from "@/lib/services/recruitment-vocabulary";
 import { QuestionField } from "./question-field";
-import { GroupedMultiSelectField, MultiSelectField } from "./multi-select-checkboxes";
+import { GroupedMultiSelectField, MultiSelectField } from "@/components/multi-select-field";
 import { submitInterestQuestionnaire } from "./interest-actions";
-import { BANNER, PRIVACY_NOTE } from "./presentation";
+import { PRIVACY_NOTE } from "./presentation";
 
 /**
  * Questionnaire B — "how you came to football". `W4`, LAN-206.
@@ -100,35 +102,9 @@ function questionsFor(answers: RecruitmentQuestionnaireAnswers): readonly EventQ
 
 export function QuestionnaireBShell({ children }: { children: React.ReactNode }) {
   return (
-    <Box sx={{ minHeight: "100dvh", bgcolor: "grey.100", py: { xs: 3, sm: 6 }, px: 2 }}>
-      <Box sx={{ maxWidth: 720, mx: "auto" }}>
-        <Typography
-          component="p"
-          sx={{
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            color: "text.secondary",
-            mb: 2,
-          }}
-        >
-          {BANNER}
-        </Typography>
-        <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2 }}>
-          {children}
-        </Paper>
-      </Box>
-    </Box>
-  );
-}
-
-function NameKicker({ displayName }: { displayName: string }) {
-  return (
-    <Typography
-      sx={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", color: "primary.main" }}
-    >
-      {displayName.toUpperCase()}
-    </Typography>
+    <PublicShell caption="Football background">
+      <Stack spacing={3}>{children}</Stack>
+    </PublicShell>
   );
 }
 
@@ -136,10 +112,7 @@ function NameKicker({ displayName }: { displayName: string }) {
 function AnswersReceivedScreen({ token, displayName }: { token: string; displayName: string }) {
   return (
     <QuestionnaireBShell>
-      <NameKicker displayName={displayName} />
-      <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700, mt: 0.5 }}>
-        Answers received
-      </Typography>
+      <PageHeader title="Answers received" eyebrow={displayName} />
       <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 1 }}>
         Nothing further is needed.
       </Typography>
@@ -159,10 +132,7 @@ function AnswersReceivedScreen({ token, displayName }: { token: string; displayN
 function AlreadyCompletedScreen({ token, displayName }: { token: string; displayName: string }) {
   return (
     <QuestionnaireBShell>
-      <NameKicker displayName={displayName} />
-      <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700, mt: 0.5 }}>
-        Already completed
-      </Typography>
+      <PageHeader title="Already completed" eyebrow={displayName} />
       <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 1 }}>
         You can change any answer.
       </Typography>
@@ -193,10 +163,7 @@ function QuestionnaireBForm({
 
   return (
     <QuestionnaireBShell>
-      <NameKicker displayName={displayName} />
-      <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700, mt: 0.5 }}>
-        Football background
-      </Typography>
+      <PageHeader title="Football background" eyebrow={displayName} />
       <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 1 }}>
         For the coaching staff. Every question is optional.
       </Typography>
@@ -211,7 +178,7 @@ function QuestionnaireBForm({
               multi-tick... That's awful" of the inline checkbox list
               correction round 1 shipped): the same outlined `TextField
               select` idiom `played`/`watched`/`heard` above already use,
-              carrying tick boxes in its own menu — `multi-select-checkboxes.tsx`'s
+              carrying tick boxes in its own menu — `multi-select-field.tsx`'s
               own module note has the mockup citation and the wiring detail.
               The option sets are unchanged from round 1. */}
           <GroupedMultiSelectField
@@ -234,15 +201,15 @@ function QuestionnaireBForm({
           <QuestionField question={heard} enforceRequired={false} />
           <QuestionField question={anythingElse} enforceRequired={false} />
         </Stack>
-        <Button
-          type="submit"
-          variant="contained"
-          fullWidth
-          sx={{ minHeight: 48, mt: 3 }}
-          data-testid="questionnaire-b-submit"
-        >
-          Submit
-        </Button>
+        <Box sx={{ mt: 3 }}>
+          <ActionBar
+            primary={
+              <Button type="submit" variant="contained" data-testid="questionnaire-b-submit">
+                Submit
+              </Button>
+            }
+          />
+        </Box>
       </Box>
 
       <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 3 }}>{PRIVACY_NOTE}</Typography>

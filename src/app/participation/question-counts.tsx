@@ -1,5 +1,5 @@
 import Box from "@mui/material/Box";
-import Paper from "@mui/material/Paper";
+import { Section } from "@/components/section";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
@@ -53,22 +53,14 @@ export function QuestionCounts({ participation }: { participation: OperatorParti
   if (participation.questions.length === 0) return null;
 
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="question-counts">
-      <Box component="details">
-        <Box
-          component="summary"
-          sx={{ cursor: "pointer", listStyle: "revert", "&::marker": { color: "text.secondary" } }}
-        >
-          <Typography variant="overline" component="span">
-            {QUESTIONS_HEADING}
-          </Typography>
-        </Box>
+    <Box data-testid="question-counts">
+      <Section title={QUESTIONS_HEADING} collapsible>
         <Stack spacing={1.5} sx={{ mt: 1.5 }}>
           {participation.questions.map((question) => (
             <QuestionLine key={question.id} question={question} people={participation.people} />
           ))}
         </Stack>
-      </Box>
-    </Paper>
+      </Section>
+    </Box>
   );
 }

@@ -1,7 +1,7 @@
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
+import { PageHeader } from "@/components/page-header";
+import { Notice } from "@/components/notice";
+import { EmptyState } from "@/components/empty-state";
 import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import { todayInClubZone } from "@/lib/club-time";
 import { isServiceError } from "@/lib/db";
 import { bucketEventsByPeriod, bucketedCount, PERIOD_LABELS } from "@/lib/services/event-periods";
@@ -67,9 +67,9 @@ export default async function PublicCalendarPage({ searchParams }: PageProps<"/c
     if (!isServiceError(error)) throw error;
     return (
       <PublicShell seasonLabel={null}>
-        <Alert severity="info" data-testid="public-calendar-unavailable">
+        <Notice severity="info" testId="public-calendar-unavailable">
           {error.message}
-        </Alert>
+        </Notice>
       </PublicShell>
     );
   }
@@ -97,11 +97,7 @@ export default async function PublicCalendarPage({ searchParams }: PageProps<"/c
   return (
     <PublicShell seasonLabel={list.season.label} action={<SubscribeToCalendarButton />}>
       <Stack spacing={3}>
-        <Box>
-          <Typography variant="h6" component="h1">
-            What&rsquo;s on
-          </Typography>
-        </Box>
+        <PageHeader title="What’s on" />
 
         <ViewSwitch
           label="Calendar view"
@@ -144,9 +140,19 @@ export default async function PublicCalendarPage({ searchParams }: PageProps<"/c
         />
 
         {bucketedCount(buckets) === 0 ? (
-          <Alert severity="info" data-testid={emptyTestId(list, query.filtered)}>
-            {emptyMessage(list, query.filtered, PERIOD_LABELS[query.period])}
-          </Alert>
+          <EmptyState
+            testId={emptyTestId(list, query.filtered)}
+            title={emptyMessage(list, query.filtered, PERIOD_LABELS[query.period])}
+            searched={query.search || undefined}
+            action={
+              list.totalInSeason > 0
+                ? {
+                    href: "/calendar?period=all",
+                    label: query.filtered ? "Clear filters" : "All events",
+                  }
+                : undefined
+            }
+          />
         ) : (
           <PublicList
             buckets={buckets}

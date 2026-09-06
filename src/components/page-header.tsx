@@ -47,8 +47,11 @@ export function PageHeader({
   actions,
   status,
   testId,
+  struckThrough = false,
 }: {
   title: string;
+  /** A cancelled record keeps its established struck-through title. */
+  struckThrough?: boolean;
   /** The operating year, a count, a date, or what the page is. Never a sentence of help. */
   subtitle?: ReactNode;
   /** A short overline above the title: the record kind, the section. */
@@ -76,7 +79,11 @@ export function PageHeader({
             </Typography>
           ) : null}
           <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", flexWrap: "wrap" }}>
-            <Typography variant="h1" component="h1">
+            <Typography
+              variant="h1"
+              component="h1"
+              sx={struckThrough ? { textDecoration: "line-through" } : undefined}
+            >
               {title}
             </Typography>
             {status ?? null}

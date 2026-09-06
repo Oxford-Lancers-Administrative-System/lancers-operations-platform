@@ -7,12 +7,16 @@ import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import Select from "@mui/material/Select";
+import { Field } from "@/components/field";
+import { Fact, FactGrid, NotRecorded } from "@/components/fact";
+import { RowCard, RowCardList } from "@/components/row-card";
+import { TableFrame } from "@/components/sortable-header";
+import { EmptyState } from "@/components/empty-state";
+import { StatusChip } from "@/components/status-chip";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TableSortLabel from "@mui/material/TableSortLabel";
@@ -153,7 +157,6 @@ export default function AttendanceSection({ events }: { events: readonly Attenda
       {activeFilters.map(([key, value]) => (
         <Chip
           key={key}
-          size="small"
           label={
             <>
               <Box component="span" sx={{ fontWeight: 700 }}>
@@ -204,14 +207,12 @@ export default function AttendanceSection({ events }: { events: readonly Attenda
       {chips}
 
       {events.length === 0 ? (
-        <Typography color="text.secondary" sx={{ py: 2 }}>
-          No invitations sent this season.
-        </Typography>
+        <EmptyState title="No invitations sent this season." />
       ) : (
         <>
           {/* Tablet and up: a sortable, filterable table — the board's own idiom. */}
           <Box sx={{ display: { xs: "none", md: "block" } }} data-testid="attendance-desktop">
-            <TableContainer sx={{ overflowX: "auto" }}>
+            <TableFrame>
               <Table size="small">
                 <TableHead>
                   <TableRow>
@@ -260,9 +261,10 @@ export default function AttendanceSection({ events }: { events: readonly Attenda
                   {sorted.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={COLUMNS.length}>
-                        <Typography color="text.secondary" sx={{ py: 1 }}>
-                          No events match the current filters.
-                        </Typography>
+                        <EmptyState
+                          title="No events match the current filters."
+                          actions={<Button onClick={clearAll}>Clear all</Button>}
+                        />
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -293,7 +295,7 @@ export default function AttendanceSection({ events }: { events: readonly Attenda
                   )}
                 </TableBody>
               </Table>
-            </TableContainer>
+            </TableFrame>
           </Box>
 
           {/* Below the board's breakpoint: a table and a header funnel both have
@@ -303,13 +305,17 @@ export default function AttendanceSection({ events }: { events: readonly Attenda
           <Box sx={{ display: { xs: "block", md: "none" } }} data-testid="attendance-phone">
             <Stack direction="row" spacing={1} sx={{ pb: 1, flexWrap: "wrap", gap: 1 }}>
               {FILTERABLE.map((column) => (
-                <Select
+                <Field
+                  select
                   key={column.key}
-                  size="small"
-                  displayEmpty
                   value={filters[column.key]}
                   onChange={(event) => setFilter(column.key, event.target.value)}
-                  inputProps={{ "aria-label": `Filter ${column.label}` }}
+                  slotProps={{
+                    select: {
+                      displayEmpty: true,
+                      inputProps: { "aria-label": `Filter ${column.label}` },
+                    },
+                  }}
                   sx={{ minWidth: 132, flexGrow: 1 }}
                 >
                   <MenuItem value="">{`${column.label}: All`}</MenuItem>
@@ -318,15 +324,15 @@ export default function AttendanceSection({ events }: { events: readonly Attenda
                       {`${column.label}: ${option}`}
                     </MenuItem>
                   ))}
-                </Select>
+                </Field>
               ))}
             </Stack>
             <Stack direction="row" spacing={1} sx={{ pb: 1.5 }}>
-              <Select
-                size="small"
+              <Field
+                select
                 value={sort.key}
                 onChange={(event) => cycleSort(event.target.value as SortKey)}
-                inputProps={{ "aria-label": "Sort attendance by" }}
+                slotProps={{ select: { inputProps: { "aria-label": "Sort attendance by" } } }}
                 sx={{ flexGrow: 1 }}
               >
                 {COLUMNS.map((column) => (
@@ -334,7 +340,7 @@ export default function AttendanceSection({ events }: { events: readonly Attenda
                     {`Sort: ${column.label}`}
                   </MenuItem>
                 ))}
-              </Select>
+              </Field>
               <Box
                 component="button"
                 type="button"
@@ -365,49 +371,60 @@ export default function AttendanceSection({ events }: { events: readonly Attenda
               </Box>
             </Stack>
             {sorted.length === 0 ? (
-              <Typography color="text.secondary" sx={{ py: 1 }}>
-                No events match the current filters.
-              </Typography>
+              <EmptyState
+                title="No events match the current filters."
+                actions={<Button onClick={clearAll}>Clear all</Button>}
+              />
             ) : (
-              <Stack spacing={1.5}>
+              <RowCardList>
                 {sorted.map((event) => (
-                  <Box
+                  <RowCard
                     key={event.id}
-                    data-testid="attendance-card"
-                    sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 1.5 }}
-                  >
-                    <Stack direction="row" sx={{ justifyContent: "space-between", gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                        {event.eventName}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0 }}>
-                        {event.date === null ? "not recorded" : formatDay(event.date)}
-                      </Typography>
-                    </Stack>
-                    <Stack
-                      direction="row"
-                      spacing={2.5}
-                      sx={{ pt: 0.75, flexWrap: "wrap", rowGap: 0.5 }}
-                    >
-                      <CardStat label="Mandatory" value={event.isMandatory ? "Yes" : "No"} />
-                      <CardStat
-                        label="RSVP"
-                        value={event.rsvp === null ? null : RSVP_LABEL[event.rsvp]}
-                      />
-                      <CardStat
-                        label="Attendance"
-                        value={
-                          event.attendance === null ? null : ATTENDANCE_LABEL[event.attendance]
-                        }
-                      />
-                      <CardStat
-                        label="Event status"
-                        value={EVENT_STATUS_LABEL[event.eventStatus]}
-                      />
-                    </Stack>
-                  </Box>
+                    testId="attendance-card"
+                    title={event.eventName}
+                    sublines={[
+                      event.date === null ? <NotRecorded /> : formatDay(event.date),
+                      <FactGrid key="facts" columns={2}>
+                        <Fact label="Mandatory" value={event.isMandatory ? "Yes" : "No"} />
+                        <Fact
+                          label="RSVP"
+                          value={
+                            event.rsvp === null ? null : (
+                              <StatusChip
+                                domain="rsvp"
+                                status={event.rsvp}
+                                label={RSVP_LABEL[event.rsvp]}
+                              />
+                            )
+                          }
+                        />
+                        <Fact
+                          label="Attendance"
+                          value={
+                            event.attendance === null ? null : (
+                              <StatusChip
+                                domain="attendance"
+                                status={event.attendance}
+                                label={ATTENDANCE_LABEL[event.attendance]}
+                              />
+                            )
+                          }
+                        />
+                        <Fact
+                          label="Event status"
+                          value={
+                            <StatusChip
+                              domain="event"
+                              status={event.eventStatus}
+                              label={EVENT_STATUS_LABEL[event.eventStatus]}
+                            />
+                          }
+                        />
+                      </FactGrid>,
+                    ]}
+                  />
                 ))}
-              </Stack>
+              </RowCardList>
             )}
           </Box>
         </>
@@ -570,39 +587,14 @@ function comparable(event: AttendanceEvent, key: SortKey): string {
   }
 }
 
-/** A value, or the record's own explicit `not recorded` — never blank. */
+/** A value, or the kit's explicit missing value. */
 function ValueOrNotRecorded({ value }: { value: string | null }) {
-  if (value === null) {
-    return (
-      <Typography
-        component="span"
-        variant="body2"
-        sx={{ color: "text.disabled", fontStyle: "italic" }}
-      >
-        not recorded
-      </Typography>
-    );
-  }
-  return (
+  return value === null ? (
+    <NotRecorded />
+  ) : (
     <Typography component="span" variant="body2">
       {value}
     </Typography>
-  );
-}
-
-/** One label/value pair on a phone card. */
-function CardStat({ label, value }: { label: string; value: string | null }) {
-  return (
-    <Box>
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        sx={{ display: "block", lineHeight: 1.3 }}
-      >
-        {label}
-      </Typography>
-      <ValueOrNotRecorded value={value} />
-    </Box>
   );
 }
 
@@ -634,8 +626,8 @@ function FilterButton({
           alignItems: "center",
           justifyContent: "center",
           flexShrink: 0,
-          width: 24,
-          height: 24,
+          width: 44,
+          height: 44,
           p: 0,
           cursor: "pointer",
           borderRadius: 1,

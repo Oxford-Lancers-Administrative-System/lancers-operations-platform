@@ -244,7 +244,9 @@ describe("the register panel, which decides nothing", () => {
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.getByTestId("register-panel").textContent).toContain("Attendance is open");
+    expect(screen.getByTestId("section-register-panel").textContent).toContain(
+      "Attendance is open",
+    );
     expect(screen.getByTestId("open-attendance").getAttribute("href")).toBe(
       `/operate/events/${EVENT_ID}/attendance`,
     );
@@ -255,7 +257,9 @@ describe("the register panel, which decides nothing", () => {
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.getByTestId("register-panel").textContent).toContain(REGISTER_NOT_YET_HEADLINE);
+    expect(screen.getByTestId("section-register-panel").textContent).toContain(
+      REGISTER_NOT_YET_HEADLINE,
+    );
     expect(screen.queryByTestId("open-attendance")).toBeNull();
   });
 
@@ -308,7 +312,7 @@ describe("the register panel, which decides nothing", () => {
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.queryByTestId("register-panel")).toBeNull();
+    expect(screen.queryByTestId("section-register-panel")).toBeNull();
   });
 
   /**
@@ -379,7 +383,7 @@ describe("the register before its buffer lifts", () => {
 
     expect(screen.getByTestId("register-not-open-yet")).toBeVisible();
     expect(container.textContent).toContain("The register is not open yet");
-    expect(screen.getByTestId("register-opens-at").textContent).toBe(
+    expect(screen.getByText("It opens on 1 Jan 2099, 14:00.").textContent).toBe(
       "It opens on 1 Jan 2099, 14:00.",
     );
     expect(container.textContent).not.toContain("2099-01-01T14:00:00.000Z");
@@ -398,7 +402,7 @@ describe("the register before its buffer lifts", () => {
 
     const { container } = render(await AttendancePage(attendanceProps()));
 
-    expect(screen.getByTestId("register-opens-at").textContent).toBe(
+    expect(screen.getByText("It opens on 1 Jan 2099, 14:00.").textContent).toBe(
       "It opens on 1 Jan 2099, 14:00.",
     );
     for (const policy of [
@@ -597,6 +601,34 @@ describe("UX-72 — the attendance board", () => {
     vi.mocked(readAttendanceBoard).mockResolvedValue(board());
   });
 
+  it("shows only the latest row action's error without changing either committed value", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({
+        participants: [
+          participant(),
+          participant({
+            key: "player:77777777-7777-4777-8777-777777777777",
+            displayName: "Nora Vale",
+          }),
+        ],
+      }),
+    );
+    vi.mocked(recordAttendance)
+      .mockRejectedValueOnce(new NotFound("First save refused."))
+      .mockRejectedValueOnce(new NotFound("Second save refused."));
+    render(await AttendancePage(attendanceProps()));
+    fireEvent.click(screen.getAllByRole("button", { name: "Present" })[0]);
+    expect(await screen.findByText("First save refused.")).toBeVisible();
+    fireEvent.click(screen.getAllByRole("button", { name: "Present" })[1]);
+    expect(await screen.findByText("Second save refused.")).toBeVisible();
+    expect(screen.queryByText("First save refused.")).toBeNull();
+    expect(screen.getAllByTestId("attendance-save-error")).toHaveLength(1);
+    for (const row of screen.getAllByTestId("attendance-row")) {
+      expect(row).toHaveAttribute("data-presence", "none");
+    }
+    expect(recordAttendance).toHaveBeenCalledTimes(2);
+  });
+
   it("offers all four states, with the approved labels", async () => {
     render(await AttendancePage(attendanceProps()));
 
@@ -605,11 +637,11 @@ describe("UX-72 — the attendance board", () => {
     }
   });
 
-  it("states that RSVP and attendance stay separate and are never reconciled", async () => {
+  it("does not repeat the standing RSVP-versus-attendance explanation", async () => {
     const { container } = render(await AttendancePage(attendanceProps()));
 
-    expect(container.textContent).toContain("RSVP and attendance remain separate");
-    expect(container.textContent).toContain("never auto-reconciled");
+    expect(container.textContent).not.toContain("RSVP and attendance remain separate");
+    expect(container.textContent).not.toContain("never auto-reconciled");
   });
 
   it("shows the standing RSVP for context, prefixed so it cannot read as attendance", async () => {
@@ -770,7 +802,7 @@ describe("UX-72 — the attendance board", () => {
     expect(screen.getByTestId("attendance-filter-empty")).toBeTruthy();
   });
 
-  it("offers the walk-up and the finish, and says what finishing means", async () => {
+  it("offers the walk-up and finish without a standing workflow explanation", async () => {
     const { container } = render(await AttendancePage(attendanceProps()));
 
     expect(screen.getByTestId("add-walk-up").getAttribute("href")).toBe(
@@ -778,7 +810,7 @@ describe("UX-72 — the attendance board", () => {
     );
     expect(screen.getByTestId("complete-attendance").textContent).toContain("Complete attendance");
     // Honest about a lock the schema does not have.
-    expect(container.textContent).toContain("Values stay correctable afterwards");
+    expect(container.textContent).not.toContain("Values stay correctable afterwards");
   });
 
   it("puts no RSVP reason, contact detail or availability note in the payload", async () => {
@@ -948,14 +980,14 @@ describe("UX-91 — the coach's board", () => {
     expect(screen.getByTestId("add-walk-up")).toBeVisible();
   });
 
-  it("states what the surface withholds, rather than leaving it to be noticed", async () => {
+  it("omits reviewer-facing withholding guidance while preserving the coach context", async () => {
     givenCoach();
     vi.mocked(readAttendanceBoard).mockResolvedValue(board());
 
     const { container } = render(await AttendancePage(attendanceProps()));
 
-    expect(screen.getByTestId("coach-scope-note")).toBeVisible();
-    expect(container.textContent).toContain(
+    expect(screen.queryByTestId("coach-scope-note")).toBeNull();
+    expect(container.textContent).not.toContain(
       "RSVP reasons, contact, availability and administration are omitted",
     );
     expect(container.textContent).toContain(COACH_BOARD_SUBTITLE);
@@ -1195,7 +1227,7 @@ describe("UX-96 — you cannot record attendance for this event", () => {
       "This account does not have an active Head Coach, Offensive Coordinator or Defensive " +
         "Coordinator assignment for this scope.",
     );
-    expect(container.textContent).toContain(
+    expect(container.textContent).not.toContain(
       "No roster, contact, RSVP reason, availability, attendance data or operator navigation " +
         "is exposed.",
     );

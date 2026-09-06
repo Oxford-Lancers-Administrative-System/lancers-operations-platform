@@ -1,9 +1,6 @@
-import Alert from "@mui/material/Alert";
+import { Refusal } from "@/components/refusal";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Paper from "@mui/material/Paper";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import { signOut } from "../login/actions";
 
 /**
@@ -46,47 +43,26 @@ export default function NotPermittedScreen({
   requirement,
   returnHref,
 }: {
-  /** One sentence naming the role the action requires. Never the roles held. */
   requirement: string;
-  /** A destination this operator can actually open, when there is one. */
   returnHref?: string;
 }) {
-  return (
-    <Box sx={{ display: "flex", justifyContent: "center", px: 2, py: { xs: 4, md: 8 } }}>
-      <Paper
-        variant="outlined"
-        sx={{ maxWidth: 640, p: { xs: 2.5, md: 5 }, width: "100%" }}
-        data-testid="operator-not-permitted"
-      >
-        <Stack spacing={3} sx={{ alignItems: "flex-start" }}>
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
-            {NOT_PERMITTED_HEADING}
-          </Typography>
-          <Typography color="text.secondary">{NOT_PERMITTED_MESSAGE}</Typography>
-          <Alert severity="warning" sx={{ width: "100%" }} data-testid="required-role">
-            {requirement}
-          </Alert>
-          <Alert severity="info" sx={{ width: "100%" }}>
-            {NOT_PERMITTED_NOTE}
-          </Alert>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={2}
-            sx={{ width: "100%", alignItems: { xs: "stretch", sm: "center" } }}
-          >
-            {returnHref ? (
-              <Button variant="contained" href={returnHref}>
-                Return to an authorized area
-              </Button>
-            ) : null}
-            <Box component="form" action={signOut}>
-              <Button type="submit" variant="outlined" fullWidth>
-                Sign out
-              </Button>
-            </Box>
-          </Stack>
-        </Stack>
-      </Paper>
+  const signOutControl = (
+    <Box component="form" action={signOut}>
+      <Button type="submit" variant="outlined">
+        Sign out
+      </Button>
     </Box>
+  );
+  return (
+    <Refusal
+      title={NOT_PERMITTED_HEADING}
+      message={NOT_PERMITTED_MESSAGE}
+      requirement={requirement}
+      testId="operator-not-permitted"
+      action={
+        returnHref ? { href: returnHref, label: "Return to an authorized area" } : signOutControl
+      }
+      secondary={returnHref ? signOutControl : undefined}
+    />
   );
 }

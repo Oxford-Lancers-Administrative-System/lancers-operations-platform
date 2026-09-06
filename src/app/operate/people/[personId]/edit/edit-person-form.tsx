@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useActionState } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { PageHeader } from "@/components/page-header";
+import { Section, FieldGroup } from "@/components/section";
+import { ActionBar } from "@/components/action-bar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field, DateField } from "@/components/field";
 import Typography from "@mui/material/Typography";
 
 import type { PersonRecord } from "@/lib/services/person-record";
@@ -72,50 +73,19 @@ export default function EditPersonForm({
       <input type="hidden" name="expectedVersion" value={expectedVersion ?? ""} />
 
       <Stack spacing={3}>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={2}
-          sx={{ justifyContent: "space-between", alignItems: "flex-start" }}
-        >
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="body2" color="text.secondary">
-              <Button
-                href={`/operate/people/${personId}`}
-                sx={{ p: 0, minHeight: 0, textTransform: "none" }}
-              >
-                ← {record.displayName}
-              </Button>
-            </Typography>
-            <Typography variant="h5" component="h1" sx={{ fontWeight: 700, mt: 0.5 }}>
-              Correct this record
-            </Typography>
-          </Box>
-          <Stack direction="row" spacing={2}>
-            <Button
-              href={`/operate/people/${personId}`}
-              sx={{ minHeight: MIN_TOUCH_TARGET, textTransform: "none" }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={pending}
-              sx={{ minHeight: MIN_TOUCH_TARGET }}
-            >
-              Save
-            </Button>
-          </Stack>
-        </Stack>
+        <PageHeader
+          title="Correct this record"
+          back={{ href: `/operate/people/${personId}`, label: `Back to ${record.displayName}` }}
+        />
 
-        {state.formError ? <Alert severity="warning">{state.formError}</Alert> : null}
+        {state.formError ? <Notice severity="warning">{state.formError}</Notice> : null}
         {state.concurrentEditMessage ? (
-          <Alert severity="warning" data-testid="concurrent-edit-banner">
+          <Notice severity="warning" testId="concurrent-edit-banner">
             {state.concurrentEditMessage}
-          </Alert>
+          </Notice>
         ) : null}
         {state.emailConflict ? (
-          <Alert severity="warning" data-testid="email-conflict-banner">
+          <Notice severity="warning" testId="email-conflict-banner">
             <Stack spacing={1}>
               <Typography variant="body2">
                 <strong>{state.emailConflict.displayName}</strong> already holds this email. Two
@@ -140,7 +110,7 @@ export default function EditPersonForm({
                 </Stack>
               ) : null}
             </Stack>
-          </Alert>
+          </Notice>
         ) : null}
 
         <Section title="Who they are">
@@ -172,7 +142,6 @@ export default function EditPersonForm({
               label="Mobile phone"
               original={mobile?.rawValue ?? ""}
               error={state.errors.mobile}
-              unchangedHelperText="Validated and read back before saving."
               renderExtra={(value, changed) =>
                 changed ? (
                   <MobilePreview
@@ -245,7 +214,7 @@ export default function EditPersonForm({
                 subject — the way the record itself reads it as a single
                 `Fact` — so its five fields render as their own labelled
                 group, not loose among the restricted fields. */}
-            <Subsection title="Emergency contact">
+            <FieldGroup title="Emergency contact">
               <Stack spacing={2}>
                 <CorrectableField
                   name="emergencyGivenName"
@@ -278,37 +247,18 @@ export default function EditPersonForm({
                   original={ec?.email ?? ""}
                 />
               </Stack>
-            </Subsection>
+            </FieldGroup>
           </Stack>
         </Section>
+        <ActionBar
+          primary={
+            <Button type="submit" variant="contained" disabled={pending}>
+              Save
+            </Button>
+          }
+          cancel={<Button href={`/operate/people/${personId}`}>Cancel</Button>}
+        />
       </Stack>
-    </Box>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <Paper variant="outlined" sx={{ p: 3 }}>
-      <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
-        {title}
-      </Typography>
-      {children}
-    </Paper>
-  );
-}
-
-/**
- * A titled group nested inside a `Section` — B2's "one subject" grouping for
- * the emergency contact, visually distinct without being a second `Section`
- * (the record's own four top-level sections stay four).
- */
-function Subsection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 2 }}>
-      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
-        {title}
-      </Typography>
-      {children}
     </Box>
   );
 }
@@ -345,32 +295,38 @@ function CorrectableField({
   renderExtra?: (value: string, changed: boolean) => React.ReactNode;
 }) {
   const [value, setValue] = useState(original);
+  const [pickerDate, setPickerDate] = useState<Date | null | undefined>(undefined);
   const changed = value.trim() !== original.trim();
   const needsReason = changed && original.trim() !== "";
 
   return (
     <>
-      <TextField
-        name={name}
-        label={label}
-        type={type}
-        required={required}
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        error={Boolean(error)}
-        helperText={error ?? (changed ? undefined : unchangedHelperText)}
-        slotProps={type === "date" ? { inputLabel: { shrink: true } } : undefined}
-        fullWidth
-      />
-      {renderExtra ? renderExtra(value, changed) : null}
-      {needsReason ? (
-        <TextField
-          name={reasonName}
-          label="Reason for the change"
-          helperText="Required only if you change this value."
-          fullWidth
+      {type === "date" ? (
+        <DateField
+          name={name}
+          label={label}
+          value={value}
+          onChange={setValue}
+          dateValue={pickerDate}
+          onDateChange={setPickerDate}
+          required={required}
+          error={Boolean(error)}
+          helperText={error}
         />
-      ) : null}
+      ) : (
+        <Field
+          name={name}
+          label={label}
+          type={type}
+          required={required}
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          error={Boolean(error)}
+          helperText={error ?? (changed ? undefined : unchangedHelperText)}
+        />
+      )}
+      {renderExtra ? renderExtra(value, changed) : null}
+      {needsReason ? <Field name={reasonName} label="Reason for the change" /> : null}
     </>
   );
 }
@@ -406,9 +362,9 @@ function MobilePreview({
         Will be saved as <strong>+{validation.e164}</strong>
       </Typography>
       {seam.message ? (
-        <Alert severity="warning" data-testid="whatsapp-seam-banner">
+        <Notice severity="warning" testId="whatsapp-seam-banner">
           {seam.message}
-        </Alert>
+        </Notice>
       ) : null}
     </Stack>
   );
@@ -444,7 +400,9 @@ function AliasesEditor({ personId, record }: { personId: string; record: PersonR
               {alias.alias}
             </Typography>
             {alias.isDisplayName ? (
-              <Chip size="small" variant="outlined" label="display name" />
+              <Typography variant="caption" color="text.secondary">
+                display name
+              </Typography>
             ) : null}
             {!alias.isDisplayName ? (
               <Button
@@ -452,7 +410,7 @@ function AliasesEditor({ personId, record }: { personId: string; record: PersonR
                 formAction={submitSetDisplayAlias.bind(null, personId, alias.id)}
                 formNoValidate
                 size="small"
-                sx={{ textTransform: "none", minHeight: 0, p: 0 }}
+                sx={{ minHeight: 44 }}
               >
                 Make display name
               </Button>
@@ -463,7 +421,7 @@ function AliasesEditor({ personId, record }: { personId: string; record: PersonR
               formNoValidate
               size="small"
               color="inherit"
-              sx={{ textTransform: "none", minHeight: 0, p: 0 }}
+              sx={{ minHeight: 44 }}
             >
               Remove
             </Button>
@@ -471,7 +429,7 @@ function AliasesEditor({ personId, record }: { personId: string; record: PersonR
         ))}
       </Stack>
       <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-        <TextField name="newAlias" label="Add an alias" size="small" sx={{ flexGrow: 1 }} />
+        <Field name="newAlias" label="Add an alias" sx={{ flexGrow: 1 }} />
         <Button
           type="submit"
           formAction={addAction}

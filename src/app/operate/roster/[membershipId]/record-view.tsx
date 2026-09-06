@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
-import Alert from "@mui/material/Alert";
+import { useState, useTransition } from "react";
+import { Notice } from "@/components/notice";
+import { PageHeader } from "@/components/page-header";
+import { Metric, MetricRow } from "@/components/metric";
+import { StatusChip } from "@/components/status-chip";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
-import Chip from "@mui/material/Chip";
 import ListItemText from "@mui/material/ListItemText";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
@@ -43,7 +45,6 @@ import type {
 import {
   AVAILABILITY_LABELS,
   AVAILABILITY_VALUES,
-  bandOf,
   BLUES_VALUES,
   COACH_GROUPS,
   ELIGIBILITY_LABELS,
@@ -53,10 +54,11 @@ import {
   FORMALWEAR_LABELS,
   STATUS_OPTION_LABELS,
   STATUSES,
-  type BandDef,
 } from "../board-columns";
 import JerseyPicker from "../jersey-picker";
-import { NOT_RECORDED, NotRecorded, RecordField, Row, Section } from "../../record-shell";
+import { NOT_RECORDED, NotRecorded } from "@/components/fact";
+import { RecordField, RecordRow as Row } from "@/components/record-field";
+import { Section } from "@/components/section";
 import AttendanceSection from "./attendance-section";
 import {
   ENTRY_LABELS,
@@ -64,7 +66,6 @@ import {
   formatWhen,
   labelFor,
   MEMBERSHIP_STATUS_LABELS,
-  membershipStatusColour,
 } from "../presentation";
 import {
   recordCommitAvailabilityAction,
@@ -264,38 +265,31 @@ export default function PlayerRecordView({
 
   return (
     <Stack spacing={3} sx={{ maxWidth: 900 }}>
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {justCreated ? "Returning player added" : (person.displayName ?? record.membershipId)}
-        </Typography>
-        {justCreated ? (
-          <Typography color="text.secondary" sx={{ mt: 1 }} data-testid="created-summary">
-            Person and {record.seasonLabel} membership were created together.
-          </Typography>
-        ) : (
-          <Typography color="text.secondary" sx={{ mt: 1 }} data-testid="membership-subtitle">
-            {`${record.seasonLabel} membership · ${labelFor(ENTRY_LABELS, record.entry)} · ${labelFor(
-              MEMBERSHIP_STATUS_LABELS,
-              record.status,
-            )}`}
-          </Typography>
-        )}
-      </Box>
-
-      {justCreated ? (
-        <Alert severity="success">
-          The confirmation identifies the resulting person and membership. Raw contact values are
-          retained as entered.
-        </Alert>
-      ) : null}
-
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ flexWrap: "wrap", gap: 2 }}>
-        <Headline
-          value={labelFor(MEMBERSHIP_STATUS_LABELS, record.status)}
+      <PageHeader
+        title={justCreated ? "Returning player added" : (person.displayName ?? record.membershipId)}
+        back={{ href: "/operate/roster", label: "Back to roster" }}
+        subtitle={
+          justCreated ? (
+            <span data-testid="created-summary">
+              Person and {record.seasonLabel} membership were created together.
+            </span>
+          ) : (
+            <span data-testid="membership-subtitle">{`${record.seasonLabel} membership · ${labelFor(ENTRY_LABELS, record.entry)} · ${labelFor(MEMBERSHIP_STATUS_LABELS, record.status)}`}</span>
+          )
+        }
+      />
+      <MetricRow columns={3}>
+        <Metric
+          value={
+            <StatusChip
+              domain="membership"
+              status={record.status}
+              label={labelFor(MEMBERSHIP_STATUS_LABELS, record.status)}
+            />
+          }
           label="Membership"
-          colour={membershipStatusColour(record.status)}
         />
-        <Headline
+        <Metric
           value={
             record.onboardingItems.length === 0
               ? "No items configured"
@@ -303,31 +297,30 @@ export default function PlayerRecordView({
           }
           label="Onboarding items resolved"
         />
-        <Headline value={labelFor(ENTRY_LABELS, record.entry)} label="Entry" />
-        <Headline value={bluesTotal} label="Blues total · all seasons" />
-        <Headline
+        <Metric value={labelFor(ENTRY_LABELS, record.entry)} label="Entry" />
+        <Metric value={bluesTotal} label="Blues total · all seasons" />
+        <Metric
           value={record.isConstitutionalMember ? "Yes" : "No"}
           label="Constitutional member · derived"
         />
         {person.missingRequiredFields && person.missingRequiredFields.length > 0 ? (
-          <Headline
+          <Metric
             value={
-              <Chip
-                size="small"
-                color="warning"
-                variant="outlined"
-                label={`${person.missingRequiredFields.length} missing`}
+              <Typography
+                variant="body2"
+                color="warning.main"
                 data-testid="missing-flag"
-              />
+              >{`${person.missingRequiredFields.length} missing`}</Typography>
             }
             label="Missing required data"
           />
         ) : null}
-      </Stack>
+      </MetricRow>
 
       {/* ------------------------------------------------------------ Person -- */}
       <Section
-        colours={sectionColours("person")}
+        variant="banded"
+        band="person"
         title="Person"
         testId="person"
         action={
@@ -378,7 +371,7 @@ export default function PlayerRecordView({
       </Section>
 
       {/* -------------------------------------------------------- Onboarding -- */}
-      <Section colours={sectionColours("onboarding")} title="Onboarding" testId="onboarding">
+      <Section variant="banded" band="onboarding" title="Onboarding" testId="onboarding">
         {record.onboardingItems.length === 0 ? (
           <Typography color="text.secondary" sx={{ py: 2 }} data-testid="onboarding-empty">
             This season has no onboarding items configured, so this membership has none.
@@ -403,32 +396,33 @@ export default function PlayerRecordView({
           ))
         )}
         {record.outstandingRequired.length > 0 ? (
-          <Alert severity="info" sx={{ mt: 1 }} data-testid="outstanding-note">
+          <Notice severity="info" testId="outstanding-note">
             {/* W3, Q-19: Brian had to check every Required badge against every
                 status to find the one still outstanding. Naming it here keeps
                 the alert's own approved shape and register — the count
                 sentence, unchanged, plus the name(s) as a value, never a
                 second explanatory sentence. */}
             {`${record.outstandingRequired.length === 1 ? "One required item is" : `${record.outstandingRequired.length} required items are`} still outstanding: ${record.outstandingRequired.map((item) => item.label).join(", ")}.`}
-          </Alert>
+          </Notice>
         ) : null}
       </Section>
 
       {/* --------------------------------------------------------- Activity -- */}
-      <Section colours={sectionColours("onboarding")} title="Activity" testId="activity">
+      <Section variant="banded" band="onboarding" title="Activity" testId="activity">
         <ActivityLog sections={record.activityLog} />
       </Section>
 
       {/* ------------------------------------------------------------ Season -- */}
       <Section
-        colours={sectionColours("season")}
+        variant="banded"
+        band="season"
         title={`Season · ${record.seasonLabel}`}
         testId="season"
       >
         <RecordField
           label="Status"
           value={labelFor(MEMBERSHIP_STATUS_LABELS, record.status)}
-          chip={membershipStatusColour(record.status)}
+          status={{ domain: "membership", code: record.status }}
           options={[...STATUSES]}
           optionLabels={STATUS_OPTION_LABELS}
           editing={editing === "status"}
@@ -599,22 +593,18 @@ export default function PlayerRecordView({
       </Section>
 
       {/* ----------------------------------------------------- Attendance -- */}
-      <Section colours={sectionColours("attendance")} title="Attendance" testId="attendance">
+      <Section variant="banded" band="attendance" title="Attendance" testId="attendance">
         <AttendanceSection events={record.attendance} />
       </Section>
 
       {/* ---------------------------------------------------- Other seasons -- */}
-      <Section
-        colours={sectionColours("person")}
-        title="Their other seasons"
-        testId="other-seasons"
-      >
+      <Section variant="banded" band="history" title="Their other seasons" testId="other-seasons">
         <OtherSeasons seasons={record.otherSeasons} />
       </Section>
 
       {/* --------------------------------------------------------- History -- */}
       <Section
-        colours={sectionColours("person")}
+        collapsible
         title="Status history"
         testId="status-history"
         action={
@@ -630,15 +620,6 @@ export default function PlayerRecordView({
         <StatusHistory history={record.statusHistory} />
       </Section>
 
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        sx={{ alignItems: { sm: "center" } }}
-      >
-        <Button href="/operate/roster" variant="contained" sx={{ minHeight: 44 }}>
-          Back to roster
-        </Button>
-      </Stack>
       {pending ? null : null}
     </Stack>
   );
@@ -647,62 +628,6 @@ export default function PlayerRecordView({
 // ---------------------------------------------------------------------------
 // Presentational pieces
 // ---------------------------------------------------------------------------
-
-function Headline({
-  value,
-  label,
-  colour,
-}: {
-  value: ReactNode;
-  label: string;
-  colour?: "default" | "info" | "success" | "warning";
-}) {
-  return (
-    <Box>
-      {colour ? (
-        typeof value === "string" ? (
-          <Chip label={value} color={colour} />
-        ) : (
-          value
-        )
-      ) : typeof value === "string" ? (
-        <Typography variant="h6" component="div" sx={{ fontWeight: 700 }}>
-          {value}
-        </Typography>
-      ) : (
-        value
-      )}
-      <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 0.5 }}>
-        {label}
-      </Typography>
-    </Box>
-  );
-}
-
-/**
- * Attendance's own colour — `Q15-attendance`. Violet, constructed the same
- * way as the board's three (a dark hex on a ~5% alpha wash), and defined here
- * rather than added to `board-columns.ts`'s `BANDS`: that file drives the
- * board's own columns, this package does not edit it, and Attendance is not a
- * board column. Deliberately not red, orange or green — the band carries a
- * percentage, and a traffic-light hue would read as a verdict on the number.
- */
-const ATTENDANCE_BAND: Pick<BandDef, "header" | "tint"> = Object.freeze({
-  header: "#4527a0",
-  tint: "rgba(69, 39, 160, 0.05)",
-});
-
-/**
- * Resolves a band's colours for `../../record-shell.tsx`'s `Section` — the
- * board's own three groups (`bandOf`), plus Attendance's own
- * (`ATTENDANCE_BAND`, above), so every surface reads as one product.
- */
-function sectionColours(band: "person" | "onboarding" | "season" | "attendance"): {
-  header: string;
-  tint: string;
-} {
-  return band === "attendance" ? ATTENDANCE_BAND : bandOf(band);
-}
 
 /** A position column, with the code-and-name open list the board's own walkthrough asked for. */
 function PositionField({
@@ -986,9 +911,15 @@ function OnboardingRow({
         spacing={1}
         sx={{ alignItems: "center", flexWrap: "wrap", gap: 0.5, mb: 0.5 }}
       >
-        {item.isRequired ? <Chip size="small" variant="outlined" label="Required" /> : null}
+        {item.isRequired ? (
+          <StatusChip domain="onboardingItem" status="required" label="Required" />
+        ) : null}
         {item.isSubscription ? (
-          <Chip size="small" variant="outlined" label="Never blocks activation" />
+          <StatusChip
+            domain="onboardingItem"
+            status="never_blocks"
+            label="Never blocks activation"
+          />
         ) : null}
       </Stack>
       {editing ? (
@@ -1171,7 +1102,11 @@ function OtherSeasons({ seasons }: { seasons: readonly OtherSeasonSummary[] }) {
               </Typography>
             ) : null}
           </Box>
-          <Chip size="small" label={labelFor(MEMBERSHIP_STATUS_LABELS, season.status)} />
+          <StatusChip
+            domain="membership"
+            status={season.status}
+            label={labelFor(MEMBERSHIP_STATUS_LABELS, season.status)}
+          />
         </Stack>
       ))}
     </Stack>

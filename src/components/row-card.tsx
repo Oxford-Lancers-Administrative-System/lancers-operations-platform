@@ -22,9 +22,15 @@ export function RowCard({
   href,
   trailing,
   actions,
+  actionWidth = ACTION_COLUMN,
   testId,
+  struckThrough = false,
+  emphasized = false,
 }: {
-  title: string;
+  title: ReactNode;
+  struckThrough?: boolean;
+  /** Highlight a row such as today’s session, without inventing a status. */
+  emphasized?: boolean;
   sublines?: ReadonlyArray<ReactNode>;
   /** Status and type chips, in one row under the title. */
   chips?: ReactNode;
@@ -40,6 +46,8 @@ export function RowCard({
    * with `href`: a card cannot be one tap target and carry two buttons.
    */
   actions?: ReactNode;
+  /** Wider inline controls, such as the four-state attendance recorder. */
+  actionWidth?: number | string;
   testId?: string;
 }) {
   const body = (
@@ -49,7 +57,11 @@ export function RowCard({
         spacing={1}
         sx={{ justifyContent: "space-between", alignItems: "baseline" }}
       >
-        <Typography variant="subtitle1" component="p" sx={{ minWidth: 0 }}>
+        <Typography
+          variant="subtitle1"
+          component="p"
+          sx={{ minWidth: 0, textDecoration: struckThrough ? "line-through" : undefined }}
+        >
           {title}
         </Typography>
         {trailing ? (
@@ -73,7 +85,15 @@ export function RowCard({
 
   if (actions) {
     return (
-      <Card variant="outlined" data-testid={testId ?? "row-card"}>
+      <Card
+        variant="outlined"
+        data-testid={testId ?? "row-card"}
+        sx={
+          emphasized
+            ? { borderColor: "primary.main", borderWidth: 2, bgcolor: "action.hover" }
+            : undefined
+        }
+      >
         {/*
           Beside the content at `sm` and up, under it on a phone. Stacking the
           controls under every row at desktop too is what turned a 45-row list
@@ -94,7 +114,7 @@ export function RowCard({
               pt: { xs: 1.5, sm: 2 },
               flexShrink: 0,
               alignSelf: { xs: "stretch", sm: "center" },
-              width: { xs: "auto", sm: ACTION_COLUMN },
+              width: { xs: "auto", sm: actionWidth },
             }}
             data-testid="row-card-actions"
           >
@@ -106,7 +126,15 @@ export function RowCard({
   }
 
   return (
-    <Card variant="outlined" data-testid={testId ?? "row-card"}>
+    <Card
+      variant="outlined"
+      data-testid={testId ?? "row-card"}
+      sx={
+        emphasized
+          ? { borderColor: "primary.main", borderWidth: 2, bgcolor: "action.hover" }
+          : undefined
+      }
+    >
       {href ? (
         <CardActionArea href={href} sx={{ display: "block", textAlign: "left" }}>
           {body}
@@ -129,17 +157,23 @@ export function RowCard({
  */
 export function RowCardList({
   at = "phone",
+  component = "div",
   children,
   testId,
 }: {
   at?: "phone" | "all";
+  component?: "div" | "ul";
   children: ReactNode;
   testId?: string;
 }) {
   return (
     <Stack
+      component={component}
       spacing={1.5}
-      sx={{ display: at === "all" ? "flex" : { xs: "flex", md: "none" } }}
+      sx={{
+        display: at === "all" ? "flex" : { xs: "flex", md: "none" },
+        ...(component === "ul" ? { listStyle: "none", p: 0, m: 0 } : {}),
+      }}
       data-testid={testId}
     >
       {children}

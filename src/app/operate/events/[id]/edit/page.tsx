@@ -1,8 +1,6 @@
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
+import { PageHeader } from "@/components/page-header";
+import { Refusal as KitRefusal } from "@/components/refusal";
 import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import {
   EDIT_REFUSAL_MESSAGE,
@@ -91,14 +89,11 @@ export default async function EditEventPage({ params }: PageProps<"/operate/even
 
   return (
     <Stack spacing={3}>
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          Edit draft
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Record the operational facts before resolving an audience.
-        </Typography>
-      </Box>
+      <PageHeader
+        title="Edit draft"
+        subtitle={event.name}
+        back={{ href: `/operate/events/${event.id}`, label: "Back to event" }}
+      />
 
       <EventForm
         mode="edit"
@@ -115,21 +110,14 @@ export default async function EditEventPage({ params }: PageProps<"/operate/even
 
 function Refusal({ message, eventId }: { message: string; eventId?: string }) {
   return (
-    <Stack spacing={2} sx={{ maxWidth: 720 }}>
-      <Typography variant="h6" component="h1">
-        Edit draft
-      </Typography>
-      <Alert severity="warning" data-testid="edit-refused">
-        {message}
-      </Alert>
-      <Box>
-        <Button
-          variant="outlined"
-          href={eventId ? `/operate/events/${eventId}` : "/operate/events"}
-        >
-          {eventId ? "Back to the event" : "Back to events"}
-        </Button>
-      </Box>
-    </Stack>
+    <KitRefusal
+      title="Edit draft"
+      message={message}
+      testId="edit-refused"
+      action={{
+        href: eventId ? `/operate/events/${eventId}` : "/operate/events",
+        label: eventId ? "Back to the event" : "Back to events",
+      }}
+    />
   );
 }

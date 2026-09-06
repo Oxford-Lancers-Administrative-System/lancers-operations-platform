@@ -1,5 +1,4 @@
-import TableCell from "@mui/material/TableCell";
-import TableSortLabel from "@mui/material/TableSortLabel";
+import { SortableHeader as KitSortableHeader } from "@/components/sortable-header";
 
 /**
  * One sortable column header, shared by both lists. LAN-153.
@@ -37,19 +36,14 @@ export default function SortableHeader({
   const active = sort === link.column;
 
   return (
-    <TableCell
+    <KitSortableHeader
+      column={link.column}
+      label={children}
+      href={link.href}
+      active={active}
+      direction={active && direction === "asc" ? "asc" : "desc"}
       align={align}
-      sortDirection={active ? (direction === "asc" ? "asc" : "desc") : false}
-    >
-      <TableSortLabel
-        active={active}
-        direction={active && direction === "asc" ? "asc" : "desc"}
-        href={link.href}
-        component="a"
-        data-testid={`sort-${link.column}`}
-      >
-        {children}
-      </TableSortLabel>
-    </TableCell>
+      testId={`sort-${link.column}`}
+    />
   );
 }

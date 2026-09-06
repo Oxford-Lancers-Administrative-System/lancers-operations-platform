@@ -1,10 +1,11 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import Alert from "@mui/material/Alert";
+import { RowCard } from "@/components/row-card";
+import { Notice } from "@/components/notice";
+import { useOutcomeSlot } from "@/components/outcome-slot";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import {
@@ -83,6 +84,7 @@ export function AttendanceRow({
    */
   mayRemove?: boolean;
 }) {
+  const slot = useOutcomeSlot(`record-${participant.key}`);
   const [state, formAction, pending] = useActionState(recordAttendanceAction, EMPTY_SAVE_STATE);
 
   // The state only speaks for the row it came from. Without this check a
@@ -116,7 +118,7 @@ export function AttendanceRow({
   const committed: AttendancePresence | null = participant.presence;
   const savedLine = describeCommitted(participant.recordedAt, participant.recordedByName);
   const mismatch = showMismatch ? describeMismatch(participant.mismatch) : null;
-  const failure = mine && state.error !== null ? state.error : null;
+  const failure = slot.showing && mine && state.error !== null ? state.error : null;
 
   return (
     <Box
@@ -124,39 +126,33 @@ export function AttendanceRow({
       data-testid="attendance-row"
       data-participant={participant.key}
       data-presence={committed ?? "none"}
-      sx={{
-        listStyle: "none",
-        py: 2,
-        borderBottom: 1,
-        borderColor: "divider",
-        display: "grid",
-        gap: 1.5,
-        gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) minmax(0, 2fr)" },
-        alignItems: "center",
-      }}
+      sx={{ listStyle: "none" }}
     >
-      <Box sx={{ minWidth: 0 }}>
-        <Typography variant="body1" sx={{ fontWeight: 600 }}>
-          {participant.displayName}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {describeRsvp(participant.rsvp, participant.isWalkUp)}
-        </Typography>
-        <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: "wrap", gap: 0.5 }}>
-          {participant.isWalkUp ? (
-            <Chip size="small" color="warning" label={WALK_UP_CHIP} data-testid="walk-up-chip" />
-          ) : null}
-          {mismatch ? (
-            <Chip size="small" variant="outlined" label={mismatch} data-testid="mismatch-chip" />
-          ) : null}
-        </Stack>
-      </Box>
-
-      <Box component="form" action={formAction}>
-        <input type="hidden" name="eventId" value={eventId} />
-        <input type="hidden" name="participantKey" value={participant.key} />
-        <Stack spacing={1}>
-          {/*
+      <RowCard
+        title={participant.displayName}
+        sublines={[describeRsvp(participant.rsvp, participant.isWalkUp)]}
+        chips={
+          <>
+            {participant.isWalkUp ? (
+              <Typography variant="body2" color="text.secondary" data-testid="walk-up-chip">
+                {WALK_UP_CHIP}
+              </Typography>
+            ) : null}
+            {mismatch ? (
+              <Typography variant="body2" data-testid="mismatch-chip">
+                {mismatch}
+              </Typography>
+            ) : null}
+          </>
+        }
+        actionWidth="65%"
+        actions={
+          <Stack spacing={1} sx={{ width: "100%" }}>
+            <Box component="form" action={formAction} onSubmit={slot.claim}>
+              <input type="hidden" name="eventId" value={eventId} />
+              <input type="hidden" name="participantKey" value={participant.key} />
+              <Stack spacing={1}>
+                {/*
             A grid, not a wrapping row. Brian's verdict on the real phone: four
             buttons flowing until they run out of width put three on the first
             line and one orphaned underneath, at three different widths — "super
@@ -167,67 +163,74 @@ export function AttendanceRow({
             predictable target square whichever state you are reaching for. Four
             across on the desktop, where there is room and a row scans faster.
           */}
-          <Box
-            role="group"
-            aria-label={`Attendance for ${participant.displayName}`}
-            sx={{
-              display: "grid",
-              gap: 1,
-              gridTemplateColumns: {
-                xs: "repeat(2, minmax(0, 1fr))",
-                md: "repeat(4, minmax(0, 1fr))",
-              },
-            }}
-          >
-            {ATTENDANCE_PRESENCES.map((presence) => {
-              const selected = committed === presence;
-              return (
-                <Button
-                  key={presence}
-                  type="submit"
-                  name="presence"
-                  value={presence}
-                  size="small"
-                  disabled={pending}
-                  aria-pressed={selected}
-                  variant={selected ? "contained" : "outlined"}
-                  color={selected ? PRESENCE_COLORS[presence] : "inherit"}
-                  sx={{ minHeight: 44, width: "100%" }}
+                <Box
+                  role="group"
+                  aria-label={`Attendance for ${participant.displayName}`}
+                  sx={{
+                    display: "grid",
+                    gap: 1,
+                    gridTemplateColumns: {
+                      xs: "repeat(2, minmax(0, 1fr))",
+                      md: "repeat(4, minmax(0, 1fr))",
+                    },
+                  }}
                 >
-                  {PRESENCE_LABELS[presence]}
-                </Button>
-              );
-            })}
-          </Box>
+                  {ATTENDANCE_PRESENCES.map((presence) => {
+                    const selected = committed === presence;
+                    return (
+                      <Button
+                        key={presence}
+                        type="submit"
+                        name="presence"
+                        value={presence}
+                        size="small"
+                        disabled={pending}
+                        aria-pressed={selected}
+                        variant={selected ? "contained" : "outlined"}
+                        color={selected ? PRESENCE_COLORS[presence] : "inherit"}
+                        sx={{ minHeight: 44, width: "100%" }}
+                      >
+                        {PRESENCE_LABELS[presence]}
+                      </Button>
+                    );
+                  })}
+                </Box>
 
-          {failure ? (
-            // § 9's failed save: the attempted value stays visible, and so does
-            // what is actually recorded, because those are two different facts
-            // and the operator has to be able to tell them apart.
-            <Alert severity="error" data-testid="attendance-save-error">
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                {SAVE_FAILED_HEADLINE}
-              </Typography>
-              <Typography variant="body2">{failure}</Typography>
-              {state.attempted ? (
-                <Typography variant="body2">
-                  {`Not saved: ${PRESENCE_LABELS[state.attempted]}. Recorded: ${
-                    committed ? PRESENCE_LABELS[committed] : NOT_MARKED
-                  }.`}
-                </Typography>
-              ) : null}
-            </Alert>
-          ) : (
-            <Typography variant="body2" color="text.secondary" data-testid="attendance-committed">
-              {pending ? SAVING : (savedLine ?? NOT_MARKED)}
-            </Typography>
-          )}
-        </Stack>
-      </Box>
+                {failure ? (
+                  // § 9's failed save: the attempted value stays visible, and so does
+                  // what is actually recorded, because those are two different facts
+                  // and the operator has to be able to tell them apart.
+                  <Notice severity="error" testId="attendance-save-error">
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {SAVE_FAILED_HEADLINE}
+                    </Typography>
+                    <Typography variant="body2">{failure}</Typography>
+                    {state.attempted ? (
+                      <Typography variant="body2">
+                        {`Not saved: ${PRESENCE_LABELS[state.attempted]}. Recorded: ${
+                          committed ? PRESENCE_LABELS[committed] : NOT_MARKED
+                        }.`}
+                      </Typography>
+                    ) : null}
+                  </Notice>
+                ) : (
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    data-testid="attendance-committed"
+                  >
+                    {pending ? SAVING : (savedLine ?? NOT_MARKED)}
+                  </Typography>
+                )}
+              </Stack>
+            </Box>
 
-      {committed === null || !mayRemove ? null : (
-        <RemoveAttendance eventId={eventId} participant={participant} />
-      )}
+            {committed === null || !mayRemove ? null : (
+              <RemoveAttendance eventId={eventId} participant={participant} />
+            )}
+          </Stack>
+        }
+      />
     </Box>
   );
 }
@@ -267,6 +270,7 @@ function RemoveAttendance({
   eventId: string;
   participant: AttendanceParticipant;
 }) {
+  const slot = useOutcomeSlot(`remove-${participant.key}`);
   const [state, formAction, pending] = useActionState(removeAttendanceAction, EMPTY_SAVE_STATE);
   const [open, setOpen] = useState(false);
 
@@ -291,6 +295,7 @@ function RemoveAttendance({
     <Box
       component="form"
       action={formAction}
+      onSubmit={slot.claim}
       data-testid="remove-attendance-form"
       sx={{ gridColumn: { md: "2" } }}
     >
@@ -302,10 +307,10 @@ function RemoveAttendance({
             correction — it leaves no observation at all, and it is what you do when the
             record belongs to a different event.`}
         </Typography>
-        {state.key === participant.key && state.error ? (
-          <Alert severity="error" data-testid="remove-attendance-error">
+        {slot.showing && state.key === participant.key && state.error ? (
+          <Notice severity="error" testId="remove-attendance-error">
             {state.error}
-          </Alert>
+          </Notice>
         ) : null}
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
           <Button variant="outlined" onClick={() => setOpen(false)} disabled={pending}>

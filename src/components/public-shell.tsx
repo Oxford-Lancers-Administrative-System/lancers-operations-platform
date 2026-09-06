@@ -63,7 +63,18 @@ export function PublicShell({
           }}
         >
           <BrandMark tone="onDark" size={32} caption={caption} testId="public-brand" />
-          {action ?? null}
+          {action ? (
+            <Box
+              sx={{
+                "& .MuiButton-root": {
+                  color: "common.white",
+                  borderColor: "rgba(255,255,255,0.6)",
+                },
+              }}
+            >
+              {action}
+            </Box>
+          ) : null}
         </Stack>
       </Box>
       <Box component="main" sx={{ px: { xs: 2, md: 3 }, py: { xs: 2.5, md: 6 } }}>

@@ -10,7 +10,7 @@ import { administrationDestinationsFor, destinationsFor } from "@/app/operate/de
 import { COACH_SECTION, OPERATOR_CAPTION, OPERATOR_SECTION } from "@/app/operate/layout";
 // The preview's own copy of the proposed shell, so `/operate`'s real one is
 // untouched on this branch and merging changes nobody's navigation.
-import ShellNav from "./shell-nav";
+import ShellNav from "@/app/operate/shell-nav";
 
 /**
  * The proposed operator shell — LAN-225 screen 0.

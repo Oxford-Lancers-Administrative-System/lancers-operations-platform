@@ -1,12 +1,10 @@
-import Card from "@mui/material/Card";
-import CardActionArea from "@mui/material/CardActionArea";
-import Chip from "@mui/material/Chip";
-import Paper from "@mui/material/Paper";
+import { StatusChip } from "@/components/status-chip";
+import { RowCard, RowCardList, DesktopOnly } from "@/components/row-card";
+import { TableFrame } from "@/components/sortable-header";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
@@ -72,115 +70,97 @@ export default function PublicList({
             {`${bucket.label} · ${bucket.events.length} ${bucket.events.length === 1 ? "event" : "events"}`}
           </Typography>
 
-          <TableContainer
-            component={Paper}
-            variant="outlined"
-            sx={{ display: { xs: "none", md: "block" } }}
-          >
-            <Table size="small" aria-label={bucket.label}>
-              <TableHead>
-                <TableRow>
-                  <SortableHeader link={sortLinkFor("name")} sort={sort} direction={direction}>
-                    Event
-                  </SortableHeader>
-                  <SortableHeader link={sortLinkFor("type")} sort={sort} direction={direction}>
-                    Type
-                  </SortableHeader>
-                  <SortableHeader link={sortLinkFor("date")} sort={sort} direction={direction}>
-                    Date
-                  </SortableHeader>
-                  <SortableHeader link={sortLinkFor("term")} sort={sort} direction={direction}>
-                    Term and week
-                  </SortableHeader>
-                  <SortableHeader link={sortLinkFor("venue")} sort={sort} direction={direction}>
-                    Where
-                  </SortableHeader>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {bucket.events.map((event) => (
-                  <TableRow key={event.id} hover data-testid="public-event-row">
-                    <TableCell>
-                      <Stack direction="row" spacing={1} sx={{ alignItems: "baseline" }}>
-                        <Typography
-                          component="a"
-                          href={publicEventHref(event.id)}
-                          variant="body2"
-                          sx={{
-                            fontWeight: 700,
-                            textDecoration: event.isCancelled ? "line-through" : "underline",
-                            color: "text.primary",
-                          }}
-                        >
-                          {event.name}
-                        </Typography>
-                        {event.isCancelled ? (
-                          <Chip
-                            size="small"
-                            color="warning"
-                            label={labelFor(STATUS_LABELS, "cancelled")}
-                          />
-                        ) : null}
-                      </Stack>
-                      {event.startsAt ? (
-                        <Typography variant="caption" component="p" color="text.secondary">
-                          {event.startsAt}
-                        </Typography>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>{labelFor(TYPE_LABELS, event.eventType)}</TableCell>
-                    <TableCell>{formatShortDate(event.scheduledOn)}</TableCell>
-                    <TableCell>{coordinateOf(event)}</TableCell>
-                    <TableCell>{whereItIs(event)}</TableCell>
+          <DesktopOnly>
+            <TableFrame>
+              <Table size="small" aria-label={bucket.label}>
+                <TableHead>
+                  <TableRow>
+                    <SortableHeader link={sortLinkFor("name")} sort={sort} direction={direction}>
+                      Event
+                    </SortableHeader>
+                    <SortableHeader link={sortLinkFor("type")} sort={sort} direction={direction}>
+                      Type
+                    </SortableHeader>
+                    <SortableHeader link={sortLinkFor("date")} sort={sort} direction={direction}>
+                      Date
+                    </SortableHeader>
+                    <SortableHeader link={sortLinkFor("term")} sort={sort} direction={direction}>
+                      Term and week
+                    </SortableHeader>
+                    <SortableHeader link={sortLinkFor("venue")} sort={sort} direction={direction}>
+                      Where
+                    </SortableHeader>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                </TableHead>
+                <TableBody>
+                  {bucket.events.map((event) => (
+                    <TableRow key={event.id} hover data-testid="public-event-row">
+                      <TableCell>
+                        <Stack direction="row" spacing={1} sx={{ alignItems: "baseline" }}>
+                          <Typography
+                            component="a"
+                            href={publicEventHref(event.id)}
+                            variant="body2"
+                            sx={{
+                              fontWeight: 700,
+                              textDecoration: event.isCancelled ? "line-through" : "underline",
+                              color: "text.primary",
+                            }}
+                          >
+                            {event.name}
+                          </Typography>
+                          {event.isCancelled ? (
+                            <StatusChip
+                              domain="event"
+                              status="cancelled"
+                              label={labelFor(STATUS_LABELS, "cancelled")}
+                            />
+                          ) : null}
+                        </Stack>
+                        {event.startsAt ? (
+                          <Typography variant="caption" component="p" color="text.secondary">
+                            {event.startsAt}
+                          </Typography>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>{labelFor(TYPE_LABELS, event.eventType)}</TableCell>
+                      <TableCell>{formatShortDate(event.scheduledOn)}</TableCell>
+                      <TableCell>{coordinateOf(event)}</TableCell>
+                      <TableCell>{whereItIs(event)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableFrame>
+          </DesktopOnly>
 
-          <Stack spacing={1.5} sx={{ display: { xs: "flex", md: "none" } }}>
+          <RowCardList>
             {bucket.events.map((event) => (
-              <Card key={event.id} variant="outlined" data-testid="public-event-card">
-                <CardActionArea href={publicEventHref(event.id)} sx={{ p: 2 }}>
-                  <Stack spacing={1}>
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      sx={{ justifyContent: "space-between", alignItems: "baseline" }}
-                    >
-                      <Typography
-                        variant="subtitle2"
-                        sx={{
-                          fontWeight: 700,
-                          textDecoration: event.isCancelled ? "line-through" : "none",
-                        }}
-                      >
-                        {event.name}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {event.startsAt ?? ""}
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body2" color="text.secondary">
-                      {formatShortDate(event.scheduledOn)}
-                    </Typography>
-                    <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-                      <Chip size="small" label={labelFor(TYPE_LABELS, event.eventType)} />
-                      {event.isCancelled ? (
-                        <Chip
-                          size="small"
-                          color="warning"
-                          label={labelFor(STATUS_LABELS, "cancelled")}
-                        />
-                      ) : null}
-                      <Chip size="small" variant="outlined" label={coordinateOf(event)} />
-                      <Chip size="small" variant="outlined" label={whereItIs(event)} />
-                    </Stack>
-                  </Stack>
-                </CardActionArea>
-              </Card>
+              <RowCard
+                key={event.id}
+                testId="public-event-card"
+                title={event.name}
+                href={publicEventHref(event.id)}
+                struckThrough={event.isCancelled}
+                trailing={event.startsAt ?? undefined}
+                chips={
+                  event.isCancelled ? (
+                    <StatusChip
+                      domain="event"
+                      status="cancelled"
+                      label={labelFor(STATUS_LABELS, "cancelled")}
+                    />
+                  ) : undefined
+                }
+                sublines={[
+                  formatShortDate(event.scheduledOn),
+                  labelFor(TYPE_LABELS, event.eventType),
+                  coordinateOf(event),
+                  whereItIs(event),
+                ]}
+              />
             ))}
-          </Stack>
+          </RowCardList>
         </Stack>
       ))}
     </Stack>

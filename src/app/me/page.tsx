@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
-import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Container from "@mui/material/Container";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import OperatorShell from "../operate/operator-shell";
+import { PageHeader } from "@/components/page-header";
+import { ActionBar } from "@/components/action-bar";
 
 import { resolveOperator } from "@/lib/auth/operator";
 
@@ -38,20 +39,20 @@ export default async function MyPageEntry() {
   }
 
   return (
-    <Container maxWidth="sm">
-      <Box sx={{ py: { xs: 6, sm: 10 } }}>
-        <Stack spacing={3} sx={{ alignItems: "flex-start" }}>
-          <Typography variant="h5" component="h1">
-            {PAGE_HEADING}
-          </Typography>
-          <Typography color="text.secondary">{PAGE_HELP}</Typography>
-          <form action={openMyPage}>
-            <Button type="submit" variant="contained" sx={{ minHeight: 44 }}>
-              {OPEN_MY_PAGE}
-            </Button>
-          </form>
-        </Stack>
-      </Box>
-    </Container>
+    <OperatorShell operator={operator}>
+      <Stack spacing={3} sx={{ alignItems: "flex-start" }}>
+        <PageHeader title={PAGE_HEADING} />
+        <Typography color="text.secondary">{PAGE_HELP}</Typography>
+        <form action={openMyPage}>
+          <ActionBar
+            primary={
+              <Button type="submit" variant="contained">
+                {OPEN_MY_PAGE}
+              </Button>
+            }
+          />
+        </form>
+      </Stack>
+    </OperatorShell>
   );
 }

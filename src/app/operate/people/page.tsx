@@ -1,17 +1,17 @@
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
+import { StatusChip } from "@/components/status-chip";
+import { NotRecorded } from "@/components/fact";
+import { RowCard, RowCardList, DesktopOnly } from "@/components/row-card";
+import { SortableHeader, TableFrame } from "@/components/sortable-header";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Card from "@mui/material/Card";
-import CardActionArea from "@mui/material/CardActionArea";
-import Chip from "@mui/material/Chip";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import TableSortLabel from "@mui/material/TableSortLabel";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import {
@@ -24,14 +24,7 @@ import {
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../gate";
 import PeopleFilters from "./people-filters";
-import {
-  labelFor,
-  personType,
-  personTypeColour,
-  PERSON_TYPE_LABELS,
-  statusColour,
-  STATUS_LABELS,
-} from "./presentation";
+import { labelFor, personType, PERSON_TYPE_LABELS, STATUS_LABELS } from "./presentation";
 
 /**
  * `W1-01` … `W1-04` — the People list, its search, its two empty states and
@@ -105,43 +98,22 @@ export default async function PeoplePage({ searchParams }: PageProps<"/operate/p
 
   return (
     <Stack spacing={3}>
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        sx={{ alignItems: { sm: "flex-start" }, justifyContent: "space-between" }}
-      >
-        <Box>
-          <Typography variant="h6" component="h1">
-            People
-          </Typography>
-          <Typography variant="body2" color="text.secondary" data-testid="people-scope-label">
-            {subline}
-          </Typography>
-        </Box>
-        {/*
-          Amendment W1-A3: the header carries Add a person beside the season
-          action, in the roster's own position for "Add player". Both hide
-          while an empty state is showing — `roster/page.tsx`'s own rule
-          against one primary action appearing twice on the same screen.
-        */}
-        {list.entries.length > 0 ? (
-          <Stack direction="row" spacing={2} sx={{ flexWrap: "wrap" }}>
-            {scope === "in_season" ? (
-              <Button variant="outlined" href={outsideHref} sx={{ minHeight: 44 }}>
-                See people outside this season
+      <PageHeader
+        title="People"
+        subtitle={<span data-testid="people-scope-label">{subline}</span>}
+        actions={
+          list.entries.length > 0 ? (
+            <>
+              <Button variant="contained" href="/operate/people/new">
+                Add a person
               </Button>
-            ) : (
-              <Button variant="outlined" href={backHref} sx={{ minHeight: 44 }}>
-                Back to this season
+              <Button variant="outlined" href={scope === "in_season" ? outsideHref : backHref}>
+                {scope === "in_season" ? "See people outside this season" : "Back to this season"}
               </Button>
-            )}
-            {/* LAN-185 builds `/operate/people/new`; this renders the route it owns. */}
-            <Button variant="contained" href="/operate/people/new" sx={{ minHeight: 44 }}>
-              Add a person
-            </Button>
-          </Stack>
-        ) : null}
-      </Stack>
+            </>
+          ) : undefined
+        }
+      />
 
       <PeopleFilters
         basePath={basePath}
@@ -158,71 +130,69 @@ export default async function PeoplePage({ searchParams }: PageProps<"/operate/p
         <EmptyPeople scope={scope} filtered={filtered} outsideHref={outsideHref} />
       ) : (
         <>
-          <TableContainer
-            component={Paper}
-            variant="outlined"
-            sx={{ display: { xs: "none", md: "block" } }}
-          >
-            <Table size="small" aria-label="People">
-              <TableHead>
-                <TableRow>
-                  <SortableHeader
-                    column="name"
-                    label="Name"
-                    sort={sort}
-                    direction={direction}
-                    query={params}
-                  />
-                  <SortableHeader
-                    column="status"
-                    label="Status"
-                    sort={sort}
-                    direction={direction}
-                    query={params}
-                  />
-                  <SortableHeader
-                    column="club"
-                    label="To the club"
-                    sort={sort}
-                    direction={direction}
-                    query={params}
-                  />
-                  <SortableHeader
-                    column="contactable"
-                    label="Contactable"
-                    sort={sort}
-                    direction={direction}
-                    query={params}
-                  />
-                  <SortableHeader
-                    column="missing"
-                    label="Missing"
-                    sort={sort}
-                    direction={direction}
-                    query={params}
-                  />
-                  <SortableHeader
-                    column="type"
-                    label="Type"
-                    sort={sort}
-                    direction={direction}
-                    query={params}
-                  />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {list.entries.map((person) => (
-                  <PersonRow key={person.personId} person={person} />
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          <DesktopOnly>
+            <TableFrame>
+              <Table size="small" aria-label="People">
+                <TableHead>
+                  <TableRow>
+                    <PeopleSortableHeader
+                      column="name"
+                      label="Name"
+                      sort={sort}
+                      direction={direction}
+                      query={params}
+                    />
+                    <PeopleSortableHeader
+                      column="status"
+                      label="Status"
+                      sort={sort}
+                      direction={direction}
+                      query={params}
+                    />
+                    <PeopleSortableHeader
+                      column="club"
+                      label="To the club"
+                      sort={sort}
+                      direction={direction}
+                      query={params}
+                    />
+                    <PeopleSortableHeader
+                      column="contactable"
+                      label="Contactable"
+                      sort={sort}
+                      direction={direction}
+                      query={params}
+                    />
+                    <PeopleSortableHeader
+                      column="missing"
+                      label="Missing"
+                      sort={sort}
+                      direction={direction}
+                      query={params}
+                    />
+                    <PeopleSortableHeader
+                      column="type"
+                      label="Type"
+                      sort={sort}
+                      direction={direction}
+                      query={params}
+                    />
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {list.entries.map((person) => (
+                    <PersonRow key={person.personId} person={person} />
+                  ))}
+                </TableBody>
+              </Table>
+            </TableFrame>
+          </DesktopOnly>
 
-          <Stack spacing={2} sx={{ display: { xs: "flex", md: "none" } }}>
+          <RowCardList>
             {list.entries.map((person) => (
               <PersonCard key={person.personId} person={person} />
             ))}
-          </Stack>
+          </RowCardList>
         </>
       )}
     </Stack>
@@ -253,11 +223,9 @@ function EmptyPeople({
       : "Every person the club holds is tied to this season";
 
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 4 } }}>
-      <Stack spacing={2} sx={{ maxWidth: 640 }}>
-        <Typography variant="h6" component="h2">
-          {title}
-        </Typography>
+    <EmptyState
+      title={title}
+      actions={
         <Stack
           direction={{ xs: "column", sm: "row" }}
           spacing={2}
@@ -281,8 +249,8 @@ function EmptyPeople({
             Add a person
           </Button>
         </Stack>
-      </Stack>
-    </Paper>
+      }
+    />
   );
 }
 
@@ -291,7 +259,7 @@ function EmptyPeople({
  * `q`, `status`, `missing` and `scope` through so a sort never drops a filter
  * or silently returns to the season in view.
  */
-function SortableHeader({
+function PeopleSortableHeader({
   column,
   label,
   sort,
@@ -316,22 +284,25 @@ function SortableHeader({
   params.set("dir", next);
 
   return (
-    <TableCell sortDirection={active ? (direction === "asc" ? "asc" : "desc") : false}>
-      <TableSortLabel
-        active={active}
-        direction={active && direction === "desc" ? "desc" : "asc"}
-        href={`/operate/people?${params.toString()}`}
-        component="a"
-      >
-        {label}
-      </TableSortLabel>
-    </TableCell>
+    <SortableHeader
+      column={column}
+      label={label}
+      active={active}
+      direction={active && direction === "desc" ? "desc" : "asc"}
+      href={`/operate/people?${params.toString()}`}
+    />
   );
 }
 
 function StatusCell({ status }: { status: PersonListEntry["status"] }) {
-  if (status === null) return <Typography color="text.secondary">—</Typography>;
-  return <Chip size="small" label={labelFor(STATUS_LABELS, status)} color={statusColour(status)} />;
+  if (status === null) return <NotRecorded />;
+  return (
+    <StatusChip
+      domain={status === "recruit" ? "personType" : "membership"}
+      status={status}
+      label={labelFor(STATUS_LABELS, status)}
+    />
+  );
 }
 
 function NameCell({ person }: { person: PersonListEntry }) {
@@ -360,12 +331,12 @@ function NameCell({ person }: { person: PersonListEntry }) {
 
 function ContactableCell({ person }: { person: PersonListEntry }) {
   if (!person.hasMobile && !person.hasPersonalEmail) {
-    return <Typography color="text.secondary">—</Typography>;
+    return <NotRecorded />;
   }
   return (
     <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-      {person.hasMobile ? <Chip size="small" variant="outlined" label="Mobile" /> : null}
-      {person.hasPersonalEmail ? <Chip size="small" variant="outlined" label="Email" /> : null}
+      {person.hasMobile ? <Typography variant="caption">Mobile</Typography> : null}
+      {person.hasPersonalEmail ? <Typography variant="caption">Email</Typography> : null}
     </Stack>
   );
 }
@@ -377,7 +348,7 @@ function ContactableCell({ person }: { person: PersonListEntry }) {
  */
 function MissingCell({ person }: { person: PersonListEntry }) {
   if (person.missingRequiredFields.length === 0) {
-    return <Typography color="text.secondary">—</Typography>;
+    return <Typography variant="body2">0</Typography>;
   }
   const count = person.missingRequiredFields.length;
   return (
@@ -385,7 +356,11 @@ function MissingCell({ person }: { person: PersonListEntry }) {
       href={`/operate/people/missing?q=${encodeURIComponent(person.displayName)}`}
       sx={{ p: 0, minHeight: 0, textTransform: "none" }}
     >
-      <Chip size="small" variant="outlined" color="warning" label={`${count} missing`} />
+      <Typography
+        component="span"
+        variant="body2"
+        color="warning.main"
+      >{`${count} missing`}</Typography>
     </Button>
   );
 }
@@ -399,9 +374,7 @@ function PersonRow({ person }: { person: PersonListEntry }) {
       <TableCell>
         <StatusCell status={person.status} />
       </TableCell>
-      <TableCell>
-        {person.clubRoleSummary ?? <Typography color="text.secondary">—</Typography>}
-      </TableCell>
+      <TableCell>{person.clubRoleSummary ?? <NotRecorded />}</TableCell>
       <TableCell>
         <ContactableCell person={person} />
       </TableCell>
@@ -419,51 +392,29 @@ function PersonRow({ person }: { person: PersonListEntry }) {
 function TypeCell({ status }: { status: PersonListEntry["status"] }) {
   const type = personType(status);
   return (
-    <Chip
-      size="small"
-      variant="outlined"
-      color={personTypeColour(type)}
+    <StatusChip
+      domain="personType"
+      status={type}
       label={PERSON_TYPE_LABELS[type]}
-      data-testid="person-type-chip"
+      testId="person-type-chip"
     />
   );
 }
 
 function PersonCard({ person }: { person: PersonListEntry }) {
   return (
-    <Card variant="outlined" data-testid="people-card">
-      <CardActionArea href={`/operate/people/${person.personId}`} sx={{ p: 2 }}>
-        <Stack spacing={1}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-            {person.displayName}
-          </Typography>
-          {person.matchedAlias ? (
-            <Typography variant="caption" color="text.secondary">
-              matched alias &ldquo;{person.matchedAlias}&rdquo;
-            </Typography>
-          ) : null}
-          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-            {person.status !== null ? (
-              <Chip
-                size="small"
-                label={labelFor(STATUS_LABELS, person.status)}
-                color={statusColour(person.status)}
-              />
-            ) : null}
-            {person.clubRoleSummary ? (
-              <Chip size="small" variant="outlined" label={person.clubRoleSummary} />
-            ) : null}
-            {person.missingRequiredFields.length > 0 ? (
-              <Chip
-                size="small"
-                variant="outlined"
-                color="warning"
-                label={`${person.missingRequiredFields.length} missing`}
-              />
-            ) : null}
-          </Stack>
-        </Stack>
-      </CardActionArea>
-    </Card>
+    <RowCard
+      testId="people-card"
+      title={person.displayName}
+      href={`/operate/people/${person.personId}`}
+      chips={person.status !== null ? <StatusCell status={person.status} /> : undefined}
+      sublines={[
+        ...(person.matchedAlias ? [`matched alias “${person.matchedAlias}”`] : []),
+        ...(person.clubRoleSummary ? [person.clubRoleSummary] : []),
+        ...(person.missingRequiredFields.length > 0
+          ? [`${person.missingRequiredFields.length} missing`]
+          : []),
+      ]}
+    />
   );
 }

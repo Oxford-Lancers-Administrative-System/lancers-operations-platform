@@ -1,11 +1,11 @@
 "use client";
 
 import { useActionState } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field } from "@/components/field";
 import { FORGOT_PASSWORD_PATH } from "@/lib/auth/recovery";
 import { signIn, type LoginState } from "./actions";
 
@@ -28,23 +28,15 @@ export default function LoginForm({ redirectTo }: { redirectTo: string }) {
     <Box component="form" action={formAction}>
       <Stack spacing={2}>
         <input type="hidden" name="redirectTo" value={redirectTo} />
-        <TextField
-          label="Email address"
-          name="email"
-          type="email"
-          autoComplete="username"
-          required
-          fullWidth
-        />
-        <TextField
+        <Field label="Email address" name="email" type="email" autoComplete="username" required />
+        <Field
           label="Password"
           name="password"
           type="password"
           autoComplete="current-password"
           required
-          fullWidth
         />
-        {state.error ? <Alert severity="error">{state.error}</Alert> : null}
+        {state.error ? <Notice severity="error">{state.error}</Notice> : null}
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
           <Button type="submit" variant="contained" disabled={pending}>
             {pending ? "Signing in…" : "Sign in"}
