@@ -1,10 +1,11 @@
 "use client";
 
 import { useActionState } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { useOutcomeSlot } from "@/components/outcome-slot";
+import { Section } from "@/components/section";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { renotifyEventAction } from "./change-actions";
@@ -40,27 +41,25 @@ export default function RenotifyPanel({
   notice: string | null;
 }) {
   const [state, formAction, pending] = useActionState(renotifyEventAction, EMPTY_TRANSITION_STATE);
+  const slot = useOutcomeSlot("renotify");
 
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="renotify-panel">
-      <Box component="form" action={formAction}>
+    <Section title={RENOTIFY_HEADING} testId="renotify-panel">
+      <Box component="form" action={formAction} onSubmit={slot.claim}>
         <input type="hidden" name="eventId" value={eventId} />
         <Stack spacing={2}>
           {notice ? (
-            <Alert severity="warning" data-testid="silent-change-notice">
+            <Notice severity="warning" testId="silent-change-notice">
               {notice}
-            </Alert>
+            </Notice>
           ) : null}
 
-          {state.error ? (
-            <Alert severity="error" data-testid="renotify-error">
+          {slot.showing && state.error ? (
+            <Notice severity="error" testId="renotify-error">
               {state.error}
-            </Alert>
+            </Notice>
           ) : null}
 
-          <Typography variant="h6" component="h2">
-            {RENOTIFY_HEADING}
-          </Typography>
           <Typography variant="body2" color="text.secondary" data-testid="renotify-detail">
             {`${renotifySends(recipients)} ${RENOTIFY_DETAIL}`}
           </Typography>
@@ -78,6 +77,6 @@ export default function RenotifyPanel({
           </Box>
         </Stack>
       </Box>
-    </Paper>
+    </Section>
   );
 }

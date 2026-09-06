@@ -1,25 +1,14 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { Section } from "@/components/section";
+import { Field, SelectField, ChoiceField, DateField, TimeField } from "@/components/field";
+import { ActionBar } from "@/components/action-bar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import FormControl from "@mui/material/FormControl";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import FormHelperText from "@mui/material/FormHelperText";
-import FormLabel from "@mui/material/FormLabel";
-import MenuItem from "@mui/material/MenuItem";
-import Paper from "@mui/material/Paper";
-import Radio from "@mui/material/Radio";
-import RadioGroup from "@mui/material/RadioGroup";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
-import { DatePicker } from "@mui/x-date-pickers/DatePicker";
-import { TimePicker } from "@mui/x-date-pickers/TimePicker";
-import { enGB } from "date-fns/locale/en-GB";
 import {
   deriveTermCoordinate,
   DRAFTABLE_EVENT_TYPES,
@@ -30,12 +19,7 @@ import { endTimeFromStart } from "@/lib/services/event-template-input";
 import type { RawEventQuestion } from "@/lib/services/event-questions-input";
 import type { EventTypeFormDefaults } from "@/lib/services/event-template-input";
 import { createEventDraftAction, updateEventDraftAction } from "./actions";
-import {
-  dateFromScheduledOn,
-  dateFromTimeString,
-  scheduledOnFromDate,
-  timeStringFromDate,
-} from "./date-time-controls";
+import { dateFromScheduledOn, scheduledOnFromDate } from "./date-time-controls";
 import { EMPTY_FORM_STATE, type EventFormState } from "./form-state";
 import QuestionEditor from "./question-editor";
 import VenueField from "./venue-field";
@@ -308,7 +292,7 @@ export default function EventForm({
     if (!first || !formRef.current) return;
     const wrapper = formRef.current.querySelector<HTMLElement>(`[data-field="${first.field}"]`);
     const control = wrapper?.querySelector<HTMLElement>(
-      'input:not([type="hidden"]):not([aria-hidden="true"]), [role="combobox"], textarea',
+      'input:not([type="hidden"]):not([aria-hidden="true"]), [role="combobox"], [role="spinbutton"], textarea',
     );
     (control ?? wrapper)?.focus();
   }, [state.issues]);
@@ -318,26 +302,21 @@ export default function EventForm({
       {eventId ? <input type="hidden" name="eventId" value={eventId} /> : null}
 
       <Stack spacing={3} sx={{ maxWidth: 760 }}>
-        <Alert severity="info" data-testid="draft-boundary-note">
-          Draft events have no invitations, responses or attendance. Saving a draft does not
-          distribute anything.
-        </Alert>
-
         {duplicatedFromName ? (
-          <Alert severity="info" icon={false} data-testid="duplicated-from">
+          <Notice severity="info" testId="duplicated-from">
             {duplicatedFrom(duplicatedFromName)}
-          </Alert>
+          </Notice>
         ) : null}
 
         {state.error ? (
-          <Alert severity="error" data-testid="event-form-error">
+          <Notice severity="error" testId="event-form-error">
             {state.error}
-          </Alert>
+          </Notice>
         ) : null}
 
-        <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
+        <Section title="Event">
           <Stack spacing={3}>
-            <TextField
+            <Field
               label="Name"
               name="name"
               data-field="name"
@@ -347,7 +326,6 @@ export default function EventForm({
                 issueFor(state, "name") ??
                 (eventType === "game" ? "The opponent goes in the name." : undefined)
               }
-              fullWidth
             />
 
             {/*
@@ -358,24 +336,19 @@ export default function EventForm({
               edit screen; every other field on this form notches correctly
               because every other field can legitimately be empty.
             */}
-            <TextField
-              select
+            <SelectField
               label="Type"
               name="eventType"
-              data-field="eventType"
+              field="eventType"
               value={eventType}
               onChange={(event) => changeType(event.target.value)}
               error={Boolean(issueFor(state, "eventType"))}
               helperText={issueFor(state, "eventType")}
-              slotProps={{ inputLabel: { shrink: true } }}
-              fullWidth
-            >
-              {DRAFTABLE_EVENT_TYPES.map((type) => (
-                <MenuItem key={type} value={type}>
-                  {labelFor(TYPE_LABELS, type)}
-                </MenuItem>
-              ))}
-            </TextField>
+              options={DRAFTABLE_EVENT_TYPES.map((type) => ({
+                value: type,
+                label: labelFor(TYPE_LABELS, type),
+              }))}
+            />
 
             {/*
               C1 + C2. A native `<input type="date">`/`<input type="time">`
@@ -403,89 +376,53 @@ export default function EventForm({
               still post plain 24-hour `HH:mm` through the hidden input;
               `dateFromTimeString`/`timeStringFromDate` never changed.
             */}
-            <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={enGB}>
-              {/*
-                D1 (round 2). At desktop this row overflowed its card — the End
-                field and its clock adornment sat against the right edge,
-                clipped. A `flex: 1` child's default `minWidth` is `auto`,
-                which floors it at its own content's intrinsic width rather
-                than letting it shrink to its fair third of the row; three
-                fields whose content (a day-month-year date, an AM/PM time)
-                cannot all fit their intrinsic widths inside 760px pushed the
-                last one out past the card's edge instead of wrapping or
-                shrinking. `minWidth: 0` is the standard fix for exactly this
-                flexbox behaviour — it lets each field actually shrink to the
-                width `flex: 1` gives it, so the three sit evenly instead of
-                the row overflowing.
-              */}
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <Box data-field="scheduledOn" sx={{ flex: 1, minWidth: 0 }}>
-                  <DatePicker
-                    label="Date"
-                    value={scheduledOnDate}
-                    onChange={(next) => setScheduledOnDate(next)}
-                    format="dd/MM/yyyy"
-                    slotProps={{
-                      textField: {
-                        fullWidth: true,
-                        error: Boolean(issueFor(state, "scheduledOn")),
-                        helperText:
-                          issueFor(state, "scheduledOn") ??
-                          "Day, month, year — e.g. 24/08/2026. A draft may have no date yet.",
-                      },
-                    }}
-                  />
-                  <input type="hidden" name="scheduledOn" value={scheduledOn} />
-                </Box>
-                <Box data-field="startsAt" sx={{ flex: 1, minWidth: 0 }}>
-                  <TimePicker
-                    label="Start"
-                    value={dateFromTimeString(startsAt)}
-                    onChange={(next) => changeStart(timeStringFromDate(next))}
-                    ampm={true}
-                    format="hh:mm a"
-                    minutesStep={5}
-                    timeSteps={{ minutes: 5 }}
-                    slotProps={{
-                      textField: {
-                        fullWidth: true,
-                        error: Boolean(issueFor(state, "startsAt")),
-                        helperText:
-                          issueFor(state, "startsAt") ??
-                          "12-hour clock, five-minute steps, e.g. 08:00 PM.",
-                      },
-                    }}
-                  />
-                  <input type="hidden" name="startsAt" value={startsAt} />
-                </Box>
-                <Box data-field="endsAt" sx={{ flex: 1, minWidth: 0 }}>
-                  <TimePicker
-                    label="End"
-                    value={dateFromTimeString(endsAt)}
-                    onChange={(next) => {
-                      setEndTouched(true);
-                      setEndsAt(timeStringFromDate(next));
-                    }}
-                    ampm={true}
-                    format="hh:mm a"
-                    minutesStep={5}
-                    timeSteps={{ minutes: 5 }}
-                    slotProps={{
-                      textField: {
-                        fullWidth: true,
-                        error: Boolean(issueFor(state, "endsAt")),
-                        helperText:
-                          issueFor(state, "endsAt") ??
-                          (template?.durationMinutes !== null && template !== undefined
-                            ? "Follows the start; adjust it."
-                            : "Must be after the start."),
-                      },
-                    }}
-                  />
-                  <input type="hidden" name="endsAt" value={endsAt} />
-                </Box>
-              </Stack>
-            </LocalizationProvider>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <DateField
+                  label="Date"
+                  name="scheduledOn"
+                  value={scheduledOn}
+                  dateValue={scheduledOnDate}
+                  onDateChange={setScheduledOnDate}
+                  error={Boolean(issueFor(state, "scheduledOn"))}
+                  helperText={
+                    issueFor(state, "scheduledOn") ??
+                    "Day, month, year — e.g. 24/08/2026. A draft may have no date yet."
+                  }
+                />
+              </Box>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <TimeField
+                  label="Start"
+                  name="startsAt"
+                  value={startsAt}
+                  onChange={changeStart}
+                  error={Boolean(issueFor(state, "startsAt"))}
+                  helperText={
+                    issueFor(state, "startsAt") ??
+                    "12-hour clock, five-minute steps, e.g. 08:00 PM."
+                  }
+                />
+              </Box>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <TimeField
+                  label="End"
+                  name="endsAt"
+                  value={endsAt}
+                  onChange={(next) => {
+                    setEndTouched(true);
+                    setEndsAt(next);
+                  }}
+                  error={Boolean(issueFor(state, "endsAt"))}
+                  helperText={
+                    issueFor(state, "endsAt") ??
+                    (template?.durationMinutes !== null && template !== undefined
+                      ? "Follows the start; adjust it."
+                      : "Must be after the start.")
+                  }
+                />
+              </Box>
+            </Stack>
 
             {/*
               D86. C1/C2 fixed the date and time *format*; neither field says
@@ -503,7 +440,12 @@ export default function EventForm({
               right — never an input. `aria-live` because it changes under them
               in response to the date rather than to anything they focused.
             */}
-            <Alert severity="info" icon={false} data-testid="derived-term" aria-live="polite">
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              data-testid="derived-term"
+              aria-live="polite"
+            >
               {!isFormattableScheduledOn(scheduledOn) ? (
                 "Choose a date and the Oxford term and week are worked out from it."
               ) : (
@@ -513,7 +455,7 @@ export default function EventForm({
                   {describeTermCoordinate(term, terms)}
                 </>
               )}
-            </Alert>
+            </Typography>
 
             {/*
               D20. Where the event is, as a property, rather than something
@@ -521,22 +463,21 @@ export default function EventForm({
               what that field then means (D21) and whether a joining link is a
               thing this event can have at all.
             */}
-            <FormControl error={Boolean(issueFor(state, "deliveryMode"))} data-field="deliveryMode">
-              <FormLabel id="delivery-mode-label">Where</FormLabel>
-              <RadioGroup
-                aria-labelledby="delivery-mode-label"
-                name="deliveryMode"
-                value={where}
-                onChange={(event) => setWhere(event.target.value)}
-              >
-                <FormControlLabel value="in_person" control={<Radio />} label="In person" />
-                <FormControlLabel value="online" control={<Radio />} label="Online" />
-              </RadioGroup>
-              <FormHelperText>
-                {issueFor(state, "deliveryMode") ??
-                  "In person takes an address; online takes the destination, such as Teams."}
-              </FormHelperText>
-            </FormControl>
+            <ChoiceField
+              label="Where"
+              name="deliveryMode"
+              value={where}
+              onChange={setWhere}
+              error={Boolean(issueFor(state, "deliveryMode"))}
+              helperText={
+                issueFor(state, "deliveryMode") ??
+                "In person takes an address; online takes the destination, such as Teams."
+              }
+              options={[
+                { value: "in_person", label: "In person" },
+                { value: "online", label: "Online" },
+              ]}
+            />
 
             {/*
               LAN-115 replaced the plain venue text field with a searchable
@@ -546,7 +487,7 @@ export default function EventForm({
               not searching a map, so it gets a plain field for its destination.
             */}
             {where === "online" ? (
-              <TextField
+              <Field
                 label="Destination"
                 name="venue"
                 data-field="venue"
@@ -554,7 +495,6 @@ export default function EventForm({
                 onChange={(event) => setVenue(event.target.value)}
                 error={Boolean(issueFor(state, "venue"))}
                 helperText={issueFor(state, "venue") ?? "Where online — Teams, Zoom, a Discord."}
-                fullWidth
               />
             ) : (
               <VenueField
@@ -572,23 +512,22 @@ export default function EventForm({
               does not pretend otherwise.
             */}
             {where === "online" ? (
-              <TextField
+              <Field
                 label="Joining link"
                 name="joiningUrl"
                 data-field="joiningUrl"
                 defaultValue={value("joiningUrl")}
                 error={Boolean(issueFor(state, "joiningUrl"))}
                 helperText={issueFor(state, "joiningUrl") ?? JOINING_URL_IS_NEVER_PUBLIC}
-                fullWidth
               />
             ) : null}
           </Stack>
-        </Paper>
+        </Section>
 
-        <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
+        <Section title="Participation">
           <Stack spacing={3}>
             {/* D18. */}
-            <TextField
+            <Field
               label="Description"
               name="description"
               data-field="description"
@@ -600,11 +539,10 @@ export default function EventForm({
               }
               multiline
               minRows={3}
-              fullWidth
             />
 
             {/* D17: its own field, so it is not buried in a paragraph. */}
-            <TextField
+            <Field
               label="Required equipment"
               name="requiredEquipment"
               data-field="requiredEquipment"
@@ -614,36 +552,30 @@ export default function EventForm({
               helperText={
                 issueFor(state, "requiredEquipment") ?? "What to bring. Leave empty if nothing."
               }
-              fullWidth
             />
 
-            <FormControl error={Boolean(issueFor(state, "attendance"))} data-field="attendance">
-              <FormLabel id="attendance-label">Attendance</FormLabel>
-              <RadioGroup
-                aria-labelledby="attendance-label"
-                name="attendance"
-                value={attendance}
-                onChange={(event) => setAttendance(event.target.value)}
-              >
-                <FormControlLabel value="mandatory" control={<Radio />} label="Mandatory" />
-                <FormControlLabel value="optional" control={<Radio />} label="Optional" />
-              </RadioGroup>
-              <FormHelperText>
-                {issueFor(state, "attendance") ?? "Whether attendance is expected of the audience."}
-              </FormHelperText>
-            </FormControl>
+            <ChoiceField
+              label="Attendance"
+              name="attendance"
+              value={attendance}
+              onChange={setAttendance}
+              error={Boolean(issueFor(state, "attendance"))}
+              helperText={
+                issueFor(state, "attendance") ?? "Whether attendance is expected of the audience."
+              }
+              options={[
+                { value: "mandatory", label: "Mandatory" },
+                { value: "optional", label: "Optional" },
+              ]}
+            />
 
             {/*
               D23 removed "Response requested" from this form. It was not a real
               concept: mandatory or optional already carries it, and everyone
               sent an event is expected to answer.
             */}
-            <Typography variant="body2" color="text.secondary" data-testid="everyone-answers-note">
-              Everyone this event is sent to is asked to answer. Mandatory or optional says whether
-              the club expects them to be there, not whether it wants to know.
-            </Typography>
           </Stack>
-        </Paper>
+        </Section>
 
         <QuestionEditor
           questions={questions}
@@ -653,35 +585,30 @@ export default function EventForm({
           disabled={pending}
         />
 
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={2}
-          sx={{ alignItems: { sm: "center" } }}
-        >
-          <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
-            {pending ? "Saving…" : "Save draft"}
-          </Button>
-          {/*
-            The same submission, landing somewhere else. `formAction` is not
-            available on a React Server Action form, so the destination travels
-            as a field the action reads — which also means a browser cannot send
-            it anywhere the action does not already know about.
-          */}
-          <Button
-            type="submit"
-            name="then"
-            value="audience"
-            variant="outlined"
-            disabled={pending}
-            data-testid="save-and-choose-audience"
-            sx={{ minHeight: 44 }}
-          >
-            Save and choose audience
-          </Button>
-          <Button variant="text" href={cancelHref} disabled={pending}>
-            Cancel
-          </Button>
-        </Stack>
+        <ActionBar
+          primary={
+            <Button type="submit" variant="contained" disabled={pending}>
+              {pending ? "Saving…" : "Save draft"}
+            </Button>
+          }
+          secondary={
+            <Button
+              type="submit"
+              name="then"
+              value="audience"
+              variant="outlined"
+              disabled={pending}
+              data-testid="save-and-choose-audience"
+            >
+              Save and choose audience
+            </Button>
+          }
+          cancel={
+            <Button variant="text" href={cancelHref} disabled={pending}>
+              Cancel
+            </Button>
+          }
+        />
       </Stack>
     </Box>
   );

@@ -1,7 +1,7 @@
+import { PageHeader } from "@/components/page-header";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { listTermWindows } from "@/lib/services/seasons";
@@ -101,14 +101,10 @@ export default async function NewEventPage({ searchParams }: PageProps<"/operate
 
   return (
     <Stack spacing={3}>
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          Create event
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Record the operational facts before resolving an audience.
-        </Typography>
-      </Box>
+      <PageHeader
+        title="Create event"
+        back={{ href: "/operate/events", label: "Back to events" }}
+      />
 
       <EventForm
         mode="create"

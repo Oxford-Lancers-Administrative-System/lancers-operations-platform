@@ -1,12 +1,10 @@
-import Card from "@mui/material/Card";
-import CardActionArea from "@mui/material/CardActionArea";
-import Chip from "@mui/material/Chip";
-import Paper from "@mui/material/Paper";
+import { StatusChip } from "@/components/status-chip";
+import { RowCard, RowCardList, DesktopOnly } from "@/components/row-card";
+import { TableFrame } from "@/components/sortable-header";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
@@ -57,7 +55,7 @@ export default function OperatorList({
   sort,
   direction,
   statusLabelOf,
-  statusColourOf,
+  statusCodeOf,
   coordinateOf,
 }: {
   buckets: readonly PeriodBucket<EventListEntry>[];
@@ -65,7 +63,7 @@ export default function OperatorList({
   sort: string;
   direction: string;
   statusLabelOf: (event: EventListEntry) => string;
-  statusColourOf: (label: string) => "default" | "info" | "success" | "warning";
+  statusCodeOf: (event: EventListEntry) => string;
   coordinateOf: (event: EventListEntry) => string;
 }) {
   return (
@@ -77,135 +75,119 @@ export default function OperatorList({
           </Typography>
 
           {/* Desktop: the scannable command view. */}
-          <TableContainer
-            component={Paper}
-            variant="outlined"
-            sx={{ display: { xs: "none", md: "block" } }}
-          >
-            <Table size="small" aria-label={bucket.label}>
-              <TableHead>
-                <TableRow>
-                  <SortableHeader link={sortLinkFor("name")} sort={sort} direction={direction}>
-                    Event
-                  </SortableHeader>
-                  <SortableHeader link={sortLinkFor("type")} sort={sort} direction={direction}>
-                    Type
-                  </SortableHeader>
-                  <SortableHeader link={sortLinkFor("date")} sort={sort} direction={direction}>
-                    Date
-                  </SortableHeader>
-                  <SortableHeader link={sortLinkFor("term")} sort={sort} direction={direction}>
-                    Term and week
-                  </SortableHeader>
-                  <SortableHeader link={sortLinkFor("status")} sort={sort} direction={direction}>
-                    Status
-                  </SortableHeader>
-                  <SortableHeader
-                    link={sortLinkFor("invited")}
-                    sort={sort}
-                    direction={direction}
-                    align="right"
-                  >
-                    Invited
-                  </SortableHeader>
-                  <SortableHeader
-                    link={sortLinkFor("said_yes")}
-                    sort={sort}
-                    direction={direction}
-                    align="right"
-                  >
-                    Said yes
-                  </SortableHeader>
-                  <SortableHeader
-                    link={sortLinkFor("showed")}
-                    sort={sort}
-                    direction={direction}
-                    align="right"
-                  >
-                    Showed / Invited
-                  </SortableHeader>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {bucket.events.map((event) => (
-                  <TableRow key={event.id} hover data-testid="event-row">
-                    <TableCell>
-                      <Typography
-                        component="a"
-                        href={operatorEventHref(event.id)}
-                        variant="body2"
-                        sx={{ fontWeight: 700, color: "text.primary" }}
-                      >
-                        {event.name}
-                      </Typography>
-                      <Typography variant="caption" component="p" color="text.secondary">
-                        {`${event.startsAt ?? "No time"} · ${whereItIs(event)}`}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>{labelFor(TYPE_LABELS, event.eventType)}</TableCell>
-                    <TableCell>{formatShortDate(event.scheduledOn)}</TableCell>
-                    <TableCell>{coordinateOf(event)}</TableCell>
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        label={statusLabelOf(event)}
-                        color={statusColourOf(statusLabelOf(event))}
-                      />
-                    </TableCell>
-                    <TableCell align="right">{event.invitationCount}</TableCell>
-                    <TableCell align="right">{event.saidYesCount}</TableCell>
-                    <TableCell align="right" data-testid="showed-against-invited">
-                      {showedAgainstInvited(event)}
-                    </TableCell>
+          <DesktopOnly>
+            <TableFrame>
+              <Table size="small" aria-label={bucket.label}>
+                <TableHead>
+                  <TableRow>
+                    <SortableHeader link={sortLinkFor("name")} sort={sort} direction={direction}>
+                      Event
+                    </SortableHeader>
+                    <SortableHeader link={sortLinkFor("type")} sort={sort} direction={direction}>
+                      Type
+                    </SortableHeader>
+                    <SortableHeader link={sortLinkFor("date")} sort={sort} direction={direction}>
+                      Date
+                    </SortableHeader>
+                    <SortableHeader link={sortLinkFor("term")} sort={sort} direction={direction}>
+                      Term and week
+                    </SortableHeader>
+                    <SortableHeader link={sortLinkFor("status")} sort={sort} direction={direction}>
+                      Status
+                    </SortableHeader>
+                    <SortableHeader
+                      link={sortLinkFor("invited")}
+                      sort={sort}
+                      direction={direction}
+                      align="right"
+                    >
+                      Invited
+                    </SortableHeader>
+                    <SortableHeader
+                      link={sortLinkFor("said_yes")}
+                      sort={sort}
+                      direction={direction}
+                      align="right"
+                    >
+                      Said yes
+                    </SortableHeader>
+                    <SortableHeader
+                      link={sortLinkFor("showed")}
+                      sort={sort}
+                      direction={direction}
+                      align="right"
+                    >
+                      Showed / Invited
+                    </SortableHeader>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                </TableHead>
+                <TableBody>
+                  {bucket.events.map((event) => (
+                    <TableRow key={event.id} hover data-testid="event-row">
+                      <TableCell>
+                        <Typography
+                          component="a"
+                          href={operatorEventHref(event.id)}
+                          variant="body2"
+                          sx={{ fontWeight: 700, color: "text.primary" }}
+                        >
+                          {event.name}
+                        </Typography>
+                        <Typography variant="caption" component="p" color="text.secondary">
+                          {`${event.startsAt ?? "No time"} · ${whereItIs(event)}`}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{labelFor(TYPE_LABELS, event.eventType)}</TableCell>
+                      <TableCell>{formatShortDate(event.scheduledOn)}</TableCell>
+                      <TableCell>{coordinateOf(event)}</TableCell>
+                      <TableCell>
+                        <StatusChip
+                          domain="event"
+                          status={statusCodeOf(event)}
+                          label={statusLabelOf(event)}
+                        />
+                      </TableCell>
+                      <TableCell align="right">{event.invitationCount}</TableCell>
+                      <TableCell align="right">{event.saidYesCount}</TableCell>
+                      <TableCell align="right" data-testid="showed-against-invited">
+                        {showedAgainstInvited(event)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableFrame>
+          </DesktopOnly>
 
           {/* Phone: one condensed card per event, with nothing left out. */}
-          <Stack spacing={1.5} sx={{ display: { xs: "flex", md: "none" } }}>
+          <RowCardList>
             {bucket.events.map((event) => (
-              <Card key={event.id} variant="outlined" data-testid="event-card">
-                <CardActionArea href={operatorEventHref(event.id)} sx={{ p: 2 }}>
-                  <Stack spacing={1}>
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      sx={{ justifyContent: "space-between", alignItems: "baseline" }}
-                    >
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                        {event.name}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {event.startsAt ?? ""}
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body2" color="text.secondary">
-                      {formatShortDate(event.scheduledOn)}
-                    </Typography>
-                    <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-                      <Chip
-                        size="small"
-                        label={statusLabelOf(event)}
-                        color={statusColourOf(statusLabelOf(event))}
-                      />
-                      <Chip size="small" label={labelFor(TYPE_LABELS, event.eventType)} />
-                      <Chip size="small" variant="outlined" label={coordinateOf(event)} />
-                      <Chip size="small" variant="outlined" label={whereItIs(event)} />
-                    </Stack>
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      data-testid="showed-against-invited"
-                    >
-                      {`Invited ${event.invitationCount} · Said yes ${event.saidYesCount} · Showed ${showedAgainstInvited(event)}`}
-                    </Typography>
-                  </Stack>
-                </CardActionArea>
-              </Card>
+              <RowCard
+                key={event.id}
+                testId="event-card"
+                title={event.name}
+                href={operatorEventHref(event.id)}
+                trailing={event.startsAt ?? undefined}
+                chips={
+                  <StatusChip
+                    domain="event"
+                    status={statusCodeOf(event)}
+                    label={statusLabelOf(event)}
+                  />
+                }
+                sublines={[
+                  formatShortDate(event.scheduledOn),
+                  labelFor(TYPE_LABELS, event.eventType),
+                  coordinateOf(event),
+                  whereItIs(event),
+                  <span
+                    key="counts"
+                    data-testid="showed-against-invited"
+                  >{`Invited ${event.invitationCount} · Said yes ${event.saidYesCount} · Showed ${showedAgainstInvited(event)}`}</span>,
+                ]}
+              />
             ))}
-          </Stack>
+          </RowCardList>
         </Stack>
       ))}
     </Stack>

@@ -1,15 +1,14 @@
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
-import Paper from "@mui/material/Paper";
+import { EmptyState } from "@/components/empty-state";
+import { StatusChip } from "@/components/status-chip";
+import { RowCard, RowCardList, DesktopOnly } from "@/components/row-card";
+import { TableFrame } from "@/components/sortable-header";
+import { Fact, FactGrid } from "@/components/fact";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import { readEventYear } from "@/app/calendar/year";
 import { formatDeadline } from "@/app/operate/events/presentation";
@@ -22,7 +21,6 @@ import {
   readFollowUpsQueue,
   type FollowUpEvent,
   type FollowUpRow,
-  type FollowUpStatus,
 } from "@/lib/services/follow-ups";
 import { sortColumnHref, sortColumnState, stableSortRows } from "@/lib/services/participation-view";
 import { readCurrentSeason } from "@/lib/services/seasons";
@@ -35,7 +33,6 @@ import {
   DEADLINE_UNSET,
   EMPTY_QUEUE,
   PAGE_HEADING,
-  STATUS_COLOURS,
   STATUS_LABELS,
   subheading,
   TABLE_CHASE,
@@ -312,83 +309,87 @@ export default async function FollowUpsPage({
       />
 
       {sorted.length === 0 ? (
-        <Alert severity="info" data-testid="follow-ups-empty">
-          {rows.length === 0 ? EMPTY_QUEUE : "No one matches this search."}
-        </Alert>
+        <EmptyState
+          testId="follow-ups-empty"
+          title={rows.length === 0 ? EMPTY_QUEUE : "No one matches this search."}
+          searched={rows.length > 0 ? search : undefined}
+          action={rows.length > 0 ? { href: FOLLOW_UPS_PATH, label: "Clear filters" } : undefined}
+        />
       ) : (
-        <Paper variant="outlined">
+        <>
           {/* Desktop: one continuous table, per W5-01. */}
-          <TableContainer sx={{ display: { xs: "none", md: "block" }, overflowX: "auto" }}>
-            <Table size="small" data-testid="follow-ups-table">
-              <TableHead>
-                <TableRow>
-                  <FollowUpsHeading filters={filters} column="person" label={TABLE_PERSON} />
-                  <FollowUpsHeading filters={filters} column="event" label={TABLE_EVENT} />
-                  <FollowUpsHeading filters={filters} column="when" label={TABLE_WHEN} />
-                  <FollowUpsHeading filters={filters} column="deadline" label={TABLE_DEADLINE} />
-                  <FollowUpsHeading filters={filters} column="chase" label={TABLE_CHASE} />
-                  <FollowUpsHeading filters={filters} column="status" label={TABLE_STATUS} />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {sorted.map((row) => (
-                  <TableRow key={row.invitationId} data-testid="follow-ups-row">
-                    <TableCell sx={{ fontWeight: 600 }}>{row.personName}</TableCell>
-                    <TableCell>{row.eventName}</TableCell>
-                    <TableCell>
-                      {row.scheduledOn ? formatLongDate(row.scheduledOn) : CHASE_NONE}
-                    </TableCell>
-                    <TableCell>
-                      {row.deadline ? formatDeadline(row.deadline) : DEADLINE_UNSET}
-                    </TableCell>
-                    <TableCell>{row.chasePosition ?? CHASE_NONE}</TableCell>
-                    <TableCell>
-                      <StatusChip status={row.status} />
-                    </TableCell>
+          <DesktopOnly>
+            <TableFrame>
+              <Table size="small" data-testid="follow-ups-table">
+                <TableHead>
+                  <TableRow>
+                    <FollowUpsHeading filters={filters} column="person" label={TABLE_PERSON} />
+                    <FollowUpsHeading filters={filters} column="event" label={TABLE_EVENT} />
+                    <FollowUpsHeading filters={filters} column="when" label={TABLE_WHEN} />
+                    <FollowUpsHeading filters={filters} column="deadline" label={TABLE_DEADLINE} />
+                    <FollowUpsHeading filters={filters} column="chase" label={TABLE_CHASE} />
+                    <FollowUpsHeading filters={filters} column="status" label={TABLE_STATUS} />
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                </TableHead>
+                <TableBody>
+                  {sorted.map((row) => (
+                    <TableRow key={row.invitationId} data-testid="follow-ups-row">
+                      <TableCell sx={{ fontWeight: 600 }}>{row.personName}</TableCell>
+                      <TableCell>{row.eventName}</TableCell>
+                      <TableCell>
+                        {row.scheduledOn ? formatLongDate(row.scheduledOn) : CHASE_NONE}
+                      </TableCell>
+                      <TableCell>
+                        {row.deadline ? formatDeadline(row.deadline) : DEADLINE_UNSET}
+                      </TableCell>
+                      <TableCell>{row.chasePosition ?? CHASE_NONE}</TableCell>
+                      <TableCell>
+                        <StatusChip
+                          domain="delivery"
+                          status={row.status}
+                          label={STATUS_LABELS[row.status] ?? row.status}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableFrame>
+          </DesktopOnly>
 
           {/* Phone: one card per row, per § 7 — no horizontal scrolling. */}
-          <Stack sx={{ display: { xs: "flex", md: "none" } }}>
+          <RowCardList>
             {sorted.map((row) => (
-              <Box
+              <RowCard
                 key={row.invitationId}
-                sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}
-                data-testid="follow-ups-card"
-              >
-                <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between" }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {row.personName}
-                  </Typography>
-                  <StatusChip status={row.status} />
-                </Stack>
-                <Typography variant="body2" color="text.secondary">
-                  {row.eventName}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {row.deadline ? formatDeadline(row.deadline) : DEADLINE_UNSET}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {row.chasePosition ?? CHASE_NONE}
-                </Typography>
-              </Box>
+                testId="follow-ups-card"
+                title={row.personName}
+                chips={
+                  <StatusChip
+                    domain="delivery"
+                    status={row.status}
+                    label={STATUS_LABELS[row.status] ?? row.status}
+                  />
+                }
+                sublines={[
+                  row.eventName,
+                  <FactGrid key="facts" columns={2}>
+                    <Fact
+                      label={TABLE_WHEN}
+                      value={row.scheduledOn ? formatLongDate(row.scheduledOn) : null}
+                    />
+                    <Fact
+                      label={TABLE_DEADLINE}
+                      value={row.deadline ? formatDeadline(row.deadline) : DEADLINE_UNSET}
+                    />
+                    <Fact label={TABLE_CHASE} value={row.chasePosition} />
+                  </FactGrid>,
+                ]}
+              />
             ))}
-          </Stack>
-        </Paper>
+          </RowCardList>
+        </>
       )}
     </Stack>
-  );
-}
-
-function StatusChip({ status }: { status: FollowUpStatus }) {
-  return (
-    <Chip
-      size="small"
-      color={STATUS_COLOURS[status] ?? "default"}
-      label={STATUS_LABELS[status] ?? status}
-    />
   );
 }

@@ -185,10 +185,10 @@ describe("UX-10 — Add player", () => {
   it("shows the approved heading and body", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Add player");
     expect(
-      screen.getByText(
+      screen.queryByText(
         "Enter the person’s details. A duplicate check runs before anything is written.",
       ),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
   });
 
   it("does not lecture the operator about when writes happen", () => {
@@ -331,11 +331,11 @@ describe("UX-11 — Review possible matches", () => {
       "2 people match the supplied names or contact details.",
     );
     expect(
-      screen.getByText(
+      screen.queryByText(
         "The operator must make an explicit choice. The system never silently merges or " +
           "silently creates a person.",
       ),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
   });
 
   it("offers both explicit decisions, with the approved labels", () => {

@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { useOutcomeSlot } from "@/components/outcome-slot";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
@@ -9,8 +10,8 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
-import Paper from "@mui/material/Paper";
-import Stack from "@mui/material/Stack";
+import { Section } from "@/components/section";
+import { ActionBar } from "@/components/action-bar";
 import Typography from "@mui/material/Typography";
 import { deleteEventDraftAction } from "../actions";
 import { EMPTY_TRANSITION_STATE } from "../form-state";
@@ -54,27 +55,20 @@ import {
  */
 export default function DeleteDraft({ eventId, name }: { eventId: string; name: string }) {
   const [open, setOpen] = useState(false);
+  const slot = useOutcomeSlot("delete-draft");
   const [state, formAction, pending] = useActionState(
     deleteEventDraftAction,
     EMPTY_TRANSITION_STATE,
   );
 
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="delete-draft-panel">
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        sx={{ justifyContent: "space-between", alignItems: { sm: "center" } }}
-      >
-        <Box>
-          <Typography variant="overline" color="text.secondary" component="p">
-            {DELETE_DRAFT_HEADLINE}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {DELETE_DRAFT_DETAIL}
-          </Typography>
-        </Box>
-        <Box>
+    <Section
+      title={DELETE_DRAFT_HEADLINE}
+      description={DELETE_DRAFT_DETAIL}
+      testId="delete-draft-panel"
+    >
+      <ActionBar
+        primary={
           <Button
             variant="outlined"
             color="error"
@@ -85,13 +79,13 @@ export default function DeleteDraft({ eventId, name }: { eventId: string; name: 
           >
             {DELETE_DRAFT_ACTION}
           </Button>
-        </Box>
-      </Stack>
+        }
+      />
 
-      {state.error ? (
-        <Alert severity="error" sx={{ mt: 2 }} data-testid="delete-draft-error">
+      {slot.showing && state.error ? (
+        <Notice severity="error" testId="delete-draft-error">
           {state.error}
-        </Alert>
+        </Notice>
       ) : null}
 
       <Dialog
@@ -115,7 +109,7 @@ export default function DeleteDraft({ eventId, name }: { eventId: string; name: 
           <Button onClick={() => setOpen(false)} disabled={pending} sx={{ minHeight: 44 }}>
             {DELETE_DRAFT_KEEP}
           </Button>
-          <Box component="form" action={formAction}>
+          <Box component="form" action={formAction} onSubmit={slot.claim}>
             <input type="hidden" name="eventId" value={eventId} />
             <Button
               type="submit"
@@ -130,6 +124,6 @@ export default function DeleteDraft({ eventId, name }: { eventId: string; name: 
           </Box>
         </DialogActions>
       </Dialog>
-    </Paper>
+    </Section>
   );
 }

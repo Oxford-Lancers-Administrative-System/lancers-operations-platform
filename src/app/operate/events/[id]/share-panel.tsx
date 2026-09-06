@@ -1,9 +1,8 @@
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { Section } from "@/components/section";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 
 import {
   CLUB_LINK_NEEDS_AN_AUDIENCE_MESSAGE,
@@ -76,25 +75,18 @@ export function SharePanel({
   const error = errorRule === null ? null : (REFUSAL_MESSAGES[errorRule] ?? REFUSED);
 
   return (
-    <Paper variant="outlined" sx={{ p: 2 }} data-testid="share-panel">
+    <Section title={SHARE_HEADLINE} description={SHARE_CONSEQUENCE} testId="share-panel">
       <Stack spacing={1.5}>
-        <Typography variant="h6" component="h2">
-          {SHARE_HEADLINE}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {SHARE_CONSEQUENCE}
-        </Typography>
-
         {error ? (
-          <Alert severity="warning" data-testid="share-error">
+          <Notice variant="refusal" testId="share-error">
             {error}
-          </Alert>
+          </Notice>
         ) : null}
 
         {blockedReason ? (
-          <Alert severity="info" data-testid="share-blocked">
+          <Notice variant="refusal" testId="share-blocked">
             {blockedReason}
-          </Alert>
+          </Notice>
         ) : url === null ? (
           <form action={issueClubLinkAction}>
             <input type="hidden" name="eventId" value={eventId} />
@@ -130,6 +122,6 @@ export function SharePanel({
           </Button>
         </Box>
       </Stack>
-    </Paper>
+    </Section>
   );
 }

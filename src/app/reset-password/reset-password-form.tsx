@@ -1,11 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field } from "@/components/field";
+import { ActionBar } from "@/components/action-bar";
 import {
   FORGOT_PASSWORD_PATH,
   MINIMUM_PASSWORD_LENGTH,
@@ -35,7 +36,7 @@ export default function ResetPasswordForm({ redirectTo }: { redirectTo: string }
   if (state.expired) {
     return (
       <Stack spacing={3}>
-        <Alert severity="warning">{state.error}</Alert>
+        <Notice severity="warning">{state.error}</Notice>
         <Button href={FORGOT_PASSWORD_PATH} variant="contained">
           Request a new link
         </Button>
@@ -47,29 +48,31 @@ export default function ResetPasswordForm({ redirectTo }: { redirectTo: string }
     <Box component="form" action={formAction}>
       <Stack spacing={2}>
         <input type="hidden" name="redirectTo" value={redirectTo} />
-        <TextField
+        <Field
           label="New password"
           name="password"
           type="password"
           autoComplete="new-password"
           required
-          fullWidth
           slotProps={{ htmlInput: { minLength: MINIMUM_PASSWORD_LENGTH } }}
           helperText={PASSWORD_POLICY_HINT}
         />
-        <TextField
+        <Field
           label="Confirm new password"
           name="confirmPassword"
           type="password"
           autoComplete="new-password"
           required
-          fullWidth
           slotProps={{ htmlInput: { minLength: MINIMUM_PASSWORD_LENGTH } }}
         />
-        {state.error ? <Alert severity="error">{state.error}</Alert> : null}
-        <Button type="submit" variant="contained" disabled={pending}>
-          {pending ? "Saving…" : "Set new password"}
-        </Button>
+        {state.error ? <Notice severity="error">{state.error}</Notice> : null}
+        <ActionBar
+          primary={
+            <Button type="submit" variant="contained" disabled={pending}>
+              {pending ? "Saving…" : "Set new password"}
+            </Button>
+          }
+        />
       </Stack>
     </Box>
   );

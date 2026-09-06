@@ -1,8 +1,7 @@
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
 import Box from "@mui/material/Box";
-import Paper from "@mui/material/Paper";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
+import { RowCard, RowCardList } from "@/components/row-card";
+import { EmptyState } from "@/components/empty-state";
 import { roleLabel } from "@/lib/auth/capabilities";
 import type { AdministrationHistoryEntry } from "@/lib/services/administration-audit";
 import { formatInstant } from "./presentation";
@@ -58,56 +57,34 @@ export default function AdministrationHistory({
   identify: "target" | "role";
 }) {
   if (entries.length === 0) {
-    return (
-      <Typography variant="body2" color="text.secondary" data-testid={`${testId}-empty`}>
-        {emptyMessage}
-      </Typography>
-    );
+    return <EmptyState title={emptyMessage} testId={`${testId}-empty`} />;
   }
 
   return (
-    <Paper variant="outlined" data-testid={testId}>
-      <Stack divider={<Box sx={{ borderTop: 1, borderColor: "divider" }} />}>
-        {entries.map((entry) => (
-          <Box key={entry.id} sx={{ p: 2 }} data-testid="history-entry">
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              spacing={{ xs: 0.5, sm: 2 }}
-              sx={{ justifyContent: "space-between", alignItems: { sm: "baseline" } }}
-            >
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                {entry.label}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {formatInstant(entry.occurredAt)}
-              </Typography>
-            </Stack>
-
-            {describeSubject(entry, identify) ? (
-              <Typography variant="body2" data-testid="history-entry-subject">
+    <RowCardList at="all" testId={testId}>
+      {entries.map((entry) => (
+        <RowCard
+          key={entry.id}
+          testId="history-entry"
+          title={entry.label}
+          sublines={[
+            formatInstant(entry.occurredAt),
+            describeSubject(entry, identify) ? (
+              <Box key="subject" data-testid="history-entry-subject">
                 {describeSubject(entry, identify)}
-              </Typography>
-            ) : null}
-
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-              {describeActor(entry)}
-            </Typography>
-
-            {entry.reason ? (
-              <Typography variant="body2" sx={{ mt: 0.5 }}>
-                {entry.reason}
-              </Typography>
-            ) : null}
-
-            {entry.unreadable ? (
-              <Alert severity="info" sx={{ mt: 1 }} data-testid="history-entry-unreadable">
+              </Box>
+            ) : null,
+            describeActor(entry),
+            entry.reason,
+            entry.unreadable ? (
+              <Notice key="unreadable" severity="info" testId="history-entry-unreadable">
                 {entry.unreadable.message}
-              </Alert>
-            ) : null}
-          </Box>
-        ))}
-      </Stack>
-    </Paper>
+              </Notice>
+            ) : null,
+          ].filter(Boolean)}
+        />
+      ))}
+    </RowCardList>
   );
 }
 

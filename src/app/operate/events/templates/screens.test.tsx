@@ -147,7 +147,7 @@ describe("W8-01 — seven types, seven templates", () => {
     );
   });
 
-  it("offers no way to add a template, and says why there is none", async () => {
+  it("offers no way to add a template without standing policy copy", async () => {
     // The place an operator would look for **Add a type** is the place to say
     // that adding one is a decision about the club's own model.
     const { container } = render(await EventTemplatesPage());
@@ -157,9 +157,7 @@ describe("W8-01 — seven types, seven templates", () => {
     );
     expect(labels.some((label) => label.includes("add") && label.includes("template"))).toBe(false);
     expect(labels.some((label) => label.includes("new type"))).toBe(false);
-    expect(flatten(screen.getByTestId("templates-are-fixed").textContent)).toContain(
-      "cannot be added or removed",
-    );
+    expect(screen.queryByTestId("templates-are-fixed")).not.toBeInTheDocument();
   });
 
   it("offers no way to delete one either", async () => {
@@ -248,11 +246,12 @@ describe("W8-01 — seven types, seven templates", () => {
 // ---------------------------------------------------------------------------
 
 describe("W8-02 — one template", () => {
-  it("says whose template it is and that anything may be left undecided", async () => {
+  it("names the template and leaves every field optional", async () => {
     render(await EventTemplatePage(typeProps()));
 
     expect(screen.getByRole("heading", { name: "Practice" })).toBeVisible();
-    expect(flatten(document.body.textContent)).toContain("Leave anything undecided");
+    expect(document.querySelectorAll("input[required], textarea[required]")).toHaveLength(0);
+    expect(flatten(document.body.textContent)).not.toContain("Leave anything undecided");
   });
 
   it("refuses a type that is not one of the seven, as content rather than a crash", async () => {
@@ -492,7 +491,7 @@ describe("choosing what a type invites by default (D47)", () => {
     // "No person appears anywhere. A template names groups, never people."
     const { container } = editor(["active_players"]);
 
-    expect(flatten(container.textContent)).toContain("Groups, never people");
+    expect(flatten(container.textContent)).not.toContain("Groups, never people");
   });
 });
 
@@ -516,7 +515,7 @@ describe("W8-03 — what the change will touch", () => {
   it("shows no confirmation until one has been asked for", () => {
     editor();
 
-    expect(screen.queryByTestId("plan-taking")).toBeNull();
+    expect(screen.queryByTestId("section-plan-taking")).toBeNull();
   });
 
   it("keeps Save behind the confirmation rather than writing on the first press", () => {
@@ -582,7 +581,7 @@ describe("the confirmation reads as W8-03 specifies", () => {
   it("names the drafts that will take the change", async () => {
     await confirmWith({ taking: [TAKING] });
 
-    const panel = flatten(screen.getByTestId("plan-taking").textContent);
+    const panel = flatten(screen.getByTestId("section-plan-taking").textContent);
     expect(panel).toContain("1 draft will take this change");
     expect(panel).toContain("Practice — hilary week 6");
   });
@@ -597,7 +596,7 @@ describe("the confirmation reads as W8-03 specifies", () => {
       holding: [{ ...HOLDING, id: "a", name: TAKING.name }],
     });
 
-    const panel = flatten(screen.getByTestId("plan-taking").textContent);
+    const panel = flatten(screen.getByTestId("section-plan-taking").textContent);
     expect(panel).toContain("Its required equipment takes the new value.");
     expect(panel).toContain("Its audience takes the new default.");
     expect(panel).toContain("Its questions take the change.");
@@ -606,7 +605,7 @@ describe("the confirmation reads as W8-03 specifies", () => {
   it("leaves out what a draft does not take", async () => {
     await confirmWith({ taking: [TAKING] });
 
-    const panel = flatten(screen.getByTestId("plan-taking").textContent);
+    const panel = flatten(screen.getByTestId("section-plan-taking").textContent);
     expect(panel).toContain("Its required equipment takes the new value.");
     expect(panel).not.toContain("Its audience takes the new default.");
     expect(panel).not.toContain("Its questions take the change.");
@@ -617,7 +616,7 @@ describe("the confirmation reads as W8-03 specifies", () => {
     // will not, and why."
     await confirmWith({ taking: [TAKING], holding: [HOLDING] });
 
-    const panel = flatten(screen.getByTestId("plan-holding").textContent);
+    const panel = flatten(screen.getByTestId("section-plan-holding").textContent);
     expect(panel).toContain("1 draft will not");
     expect(panel).toContain("Sunday session");
     expect(panel).toContain("edited by hand");
@@ -626,7 +625,7 @@ describe("the confirmation reads as W8-03 specifies", () => {
   it("states what will not move at all, and gives both reasons", async () => {
     await confirmWith({ taking: [TAKING], untouched: { approved: 9, past: 31 } });
 
-    const panel = flatten(screen.getByTestId("plan-untouched").textContent);
+    const panel = flatten(screen.getByTestId("section-plan-untouched").textContent);
     expect(panel).toContain("9 approved practices keep what they were approved with.");
     expect(panel).toContain("31 past practices are untouched.");
   });
@@ -652,7 +651,9 @@ describe("the confirmation reads as W8-03 specifies", () => {
     const nothing = flatten(screen.getByTestId("plan-touches-nothing").textContent);
     expect(nothing).not.toContain("No drafts of this type are waiting");
     expect(nothing).toContain("No draft takes this change");
-    expect(flatten(screen.getByTestId("plan-holding").textContent)).toContain("2 drafts will not");
+    expect(flatten(screen.getByTestId("section-plan-holding").textContent)).toContain(
+      "2 drafts will not",
+    );
   });
 
   it("makes the button say what it will do", async () => {
@@ -689,7 +690,7 @@ describe("the confirmation reads as W8-03 specifies", () => {
 
   it("closes on Back without writing anything", async () => {
     await confirmWith({ taking: [TAKING] });
-    expect(screen.getByTestId("plan-taking")).toBeVisible();
+    expect(screen.getByTestId("section-plan-taking")).toBeVisible();
 
     await act(async () => {
       fireEvent.click(screen.getByTestId("dismiss-template-confirm"));

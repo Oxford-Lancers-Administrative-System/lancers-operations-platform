@@ -1,16 +1,16 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
-import Alert from "@mui/material/Alert";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { Notice } from "@/components/notice";
+import { Field, CheckField, DateField } from "@/components/field";
+import { Section } from "@/components/section";
+import { ActionBar } from "@/components/action-bar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import FormHelperText from "@mui/material/FormHelperText";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
 
 import { saveDetails } from "./actions";
-import { CheckboxField } from "./checkbox-field";
 import {
   firstInvalidDetailsField,
   type DetailsFormState,
@@ -107,6 +107,10 @@ export function DetailsForm({
     errors: INITIAL_STATE_ERRORS,
   });
   const { values, errors } = state;
+  const [birthDay, setBirthDay] = useState(initialValues.date_of_birth);
+  const [birthDate, setBirthDate] = useState<Date | null>(() =>
+    initialValues.date_of_birth ? new Date(`${initialValues.date_of_birth}T00:00:00`) : null,
+  );
   const firstInvalid = firstInvalidDetailsField(errors);
   const focusTarget = useRef<HTMLInputElement | null>(null);
 
@@ -120,24 +124,33 @@ export function DetailsForm({
     extra: { type?: string; fieldMeta?: FieldMeta } = {},
   ) => (
     <Box>
-      <TextField
-        name={name}
-        label={label}
-        defaultValue={values[name]}
-        required
-        error={Boolean(errors[name])}
-        helperText={errors[name]}
-        inputRef={firstInvalid === name ? focusTarget : undefined}
-        fullWidth
-        type={extra.type ?? "text"}
-        slotProps={extra.type === "date" ? { inputLabel: { shrink: true } } : undefined}
-      />
+      {extra.type === "date" ? (
+        <DateField
+          name={name}
+          label={label}
+          value={birthDay}
+          dateValue={birthDate}
+          onChange={setBirthDay}
+          onDateChange={setBirthDate}
+          required
+          error={Boolean(errors[name])}
+          helperText={errors[name] || undefined}
+          inputRef={firstInvalid === name ? focusTarget : undefined}
+        />
+      ) : (
+        <Field
+          name={name}
+          label={label}
+          defaultValue={values[name]}
+          required
+          error={Boolean(errors[name])}
+          helperText={errors[name]}
+          inputRef={firstInvalid === name ? focusTarget : undefined}
+          type={extra.type ?? "text"}
+        />
+      )}
       {extra.fieldMeta?.source ? <FormHelperText>{extra.fieldMeta.source}</FormHelperText> : null}
-      {extra.fieldMeta?.disputed ? (
-        <Alert severity="info" sx={{ mt: 0.75 }}>
-          {DISPUTED_NOTICE}
-        </Alert>
-      ) : null}
+      {extra.fieldMeta?.disputed ? <Notice severity="info">{DISPUTED_NOTICE}</Notice> : null}
     </Box>
   );
 
@@ -146,64 +159,64 @@ export function DetailsForm({
       <input type="hidden" name="token" value={token} />
       <Stack spacing={2.5}>
         {needsConsentStep ? (
-          <Box>
-            <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: 1 }}>
-              {CONSENT_HEADING}
-            </Typography>
-            <CheckboxField name="consent" label={CONSENT_LABEL} />
-          </Box>
+          <Section title={CONSENT_HEADING}>
+            <CheckField name="consent" label={CONSENT_LABEL} />
+          </Section>
         ) : (
-          <Alert severity="success">{CONSENT_ALREADY_GRANTED}</Alert>
+          <Notice severity="success">{CONSENT_ALREADY_GRANTED}</Notice>
         )}
 
         <FormHelperText sx={{ fontSize: 13 }}>{REQUIRED_NOTE}</FormHelperText>
 
-        <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700 }}>
-          {SECTION_WHO_YOU_ARE}
-        </Typography>
-        {field("given_name", FIELD_GIVEN_NAME, { fieldMeta: meta.given_name })}
-        {field("family_name", FIELD_FAMILY_NAME, { fieldMeta: meta.family_name })}
-        {field("mobile", FIELD_MOBILE)}
-        {field("personal_email", FIELD_PERSONAL_EMAIL, { type: "email" })}
-
-        <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700 }}>
-          {SECTION_WHERE_YOU_STUDY}
-        </Typography>
-        {field("college", FIELD_COLLEGE, { fieldMeta: meta.college })}
-        {field("matriculation_year", FIELD_MATRICULATION_YEAR, {
-          fieldMeta: meta.matriculation_year,
-        })}
-        {field("expected_graduation_year", FIELD_EXPECTED_GRADUATION, {
-          fieldMeta: meta.expected_graduation_year,
-        })}
-        {field("degree_field", FIELD_DEGREE_FIELD, { fieldMeta: meta.degree_field })}
-
-        <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700 }}>
-          {SECTION_KEPT_PRIVATE}
-        </Typography>
-        {field("date_of_birth", FIELD_DATE_OF_BIRTH, {
-          type: "date",
-          fieldMeta: meta.date_of_birth,
-        })}
-
-        <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700 }}>
-          {SECTION_EMERGENCY_CONTACT}
-        </Typography>
-        {field("ec_given_name", FIELD_EC_GIVEN_NAME)}
-        {field("ec_family_name", FIELD_EC_FAMILY_NAME)}
-        {/* Never required, never shape-checked — unchanged by this correction. */}
-        <TextField
-          name="ec_relationship"
-          label={FIELD_EC_RELATIONSHIP}
-          defaultValue={values.ec_relationship}
-          fullWidth
+        <Section title={SECTION_WHO_YOU_ARE}>
+          <Stack spacing={2}>
+            {field("given_name", FIELD_GIVEN_NAME, { fieldMeta: meta.given_name })}
+            {field("family_name", FIELD_FAMILY_NAME, { fieldMeta: meta.family_name })}
+            {field("mobile", FIELD_MOBILE)}
+            {field("personal_email", FIELD_PERSONAL_EMAIL, { type: "email" })}
+          </Stack>
+        </Section>
+        <Section title={SECTION_WHERE_YOU_STUDY}>
+          <Stack spacing={2}>
+            {field("college", FIELD_COLLEGE, { fieldMeta: meta.college })}
+            {field("matriculation_year", FIELD_MATRICULATION_YEAR, {
+              fieldMeta: meta.matriculation_year,
+            })}
+            {field("expected_graduation_year", FIELD_EXPECTED_GRADUATION, {
+              fieldMeta: meta.expected_graduation_year,
+            })}
+            {field("degree_field", FIELD_DEGREE_FIELD, { fieldMeta: meta.degree_field })}
+          </Stack>
+        </Section>
+        <Section title={SECTION_KEPT_PRIVATE}>
+          <Stack spacing={2}>
+            {field("date_of_birth", FIELD_DATE_OF_BIRTH, {
+              type: "date",
+              fieldMeta: meta.date_of_birth,
+            })}
+          </Stack>
+        </Section>
+        <Section title={SECTION_EMERGENCY_CONTACT}>
+          <Stack spacing={2}>
+            {field("ec_given_name", FIELD_EC_GIVEN_NAME)}
+            {field("ec_family_name", FIELD_EC_FAMILY_NAME)}
+            {/* Never required, never shape-checked — unchanged by this correction. */}
+            <Field
+              name="ec_relationship"
+              label={FIELD_EC_RELATIONSHIP}
+              defaultValue={values.ec_relationship}
+            />
+            {field("ec_phone", FIELD_EC_PHONE)}
+            {field("ec_email", FIELD_EC_EMAIL, { type: "email" })}
+          </Stack>
+        </Section>
+        <ActionBar
+          primary={
+            <Button type="submit" variant="contained" disabled={pending}>
+              {isReturning ? SAVE_CHANGES : SAVE_AND_CONTINUE}
+            </Button>
+          }
         />
-        {field("ec_phone", FIELD_EC_PHONE)}
-        {field("ec_email", FIELD_EC_EMAIL, { type: "email" })}
-
-        <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 48 }}>
-          {isReturning ? SAVE_CHANGES : SAVE_AND_CONTINUE}
-        </Button>
       </Stack>
     </Box>
   );

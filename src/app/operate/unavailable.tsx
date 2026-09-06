@@ -1,7 +1,5 @@
+import { Refusal } from "@/components/refusal";
 import type { ReactNode } from "react";
-import Alert from "@mui/material/Alert";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 
 /**
  * What a screen shows when the service refused to hand it anything.
@@ -36,20 +34,8 @@ export function UnavailableScreen({
 }: {
   title: string;
   message: string;
-  /** Omitted only where the screen never had one. */
   testId?: string;
-  /** A way out, where the screen offers one. */
   children?: ReactNode;
 }) {
-  return (
-    <Stack spacing={2} sx={{ maxWidth: 720 }}>
-      <Typography variant="h6" component="h1">
-        {title}
-      </Typography>
-      <Alert severity="warning" data-testid={testId}>
-        {message}
-      </Alert>
-      {children}
-    </Stack>
-  );
+  return <Refusal title={title} message={message} testId={testId} action={children} />;
 }

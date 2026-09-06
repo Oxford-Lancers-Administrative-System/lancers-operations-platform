@@ -1,5 +1,4 @@
-import MenuItem from "@mui/material/MenuItem";
-import TextField from "@mui/material/TextField";
+import { Field, SelectField } from "@/components/field";
 
 import type { EventQuestionForAnswer } from "@/lib/services/player-home";
 
@@ -49,12 +48,10 @@ export function QuestionField({
     return (
       <>
         {kindField}
-        <TextField
-          select
+        <SelectField
           name={name}
           label={question.prompt}
           required={required}
-          fullWidth
           defaultValue={
             question.currentAnswer?.boolean === true
               ? "true"
@@ -62,11 +59,12 @@ export function QuestionField({
                 ? "false"
                 : ""
           }
-        >
-          <MenuItem value="">(no answer)</MenuItem>
-          <MenuItem value="true">Yes</MenuItem>
-          <MenuItem value="false">No</MenuItem>
-        </TextField>
+          options={[
+            { value: "", label: "(no answer)" },
+            { value: "true", label: "Yes" },
+            { value: "false", label: "No" },
+          ]}
+        />
       </>
     );
   }
@@ -74,32 +72,26 @@ export function QuestionField({
     return (
       <>
         {kindField}
-        <TextField
-          select
+        <SelectField
           name={name}
           label={question.prompt}
           required={required}
-          fullWidth
           defaultValue={question.currentAnswer?.choice ?? ""}
-        >
-          <MenuItem value="">(no answer)</MenuItem>
-          {(question.choices ?? []).map((choice) => (
-            <MenuItem key={choice} value={choice}>
-              {choice}
-            </MenuItem>
-          ))}
-        </TextField>
+          options={[
+            { value: "", label: "(no answer)" },
+            ...(question.choices ?? []).map((choice) => ({ value: choice, label: choice })),
+          ]}
+        />
       </>
     );
   }
   return (
     <>
       {kindField}
-      <TextField
+      <Field
         name={name}
         label={question.prompt}
         required={required}
-        fullWidth
         defaultValue={question.currentAnswer?.text ?? ""}
         slotProps={{ htmlInput: { maxLength: 500 } }}
       />

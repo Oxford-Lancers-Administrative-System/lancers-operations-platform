@@ -151,7 +151,7 @@ describe("REQ-authority — four-role only, for the grid and every column on it"
     render(await RosterPage(pageProps()));
 
     expect(screen.getByTestId("operator-not-permitted")).toBeInTheDocument();
-    expect(screen.getByTestId("required-role")).toHaveTextContent("President");
+    expect(screen.getByTestId("refusal-requirement")).toHaveTextContent("President");
     expect(listRosterBoard).not.toHaveBeenCalled();
   });
 

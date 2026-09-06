@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { PageHeader } from "@/components/page-header";
+import { PublicShell } from "@/components/public-shell";
+import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import AuthShell from "../auth-shell";
 import { safeRelativeDestination } from "@/lib/auth/destination";
 import LoginForm from "./login-form";
 
@@ -31,24 +33,23 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const justReset = params.reset === "1";
 
   return (
-    <AuthShell
-      heading="Sign in to Lancers Operations"
-      intro="Use the email address connected to your operator profile."
-    >
-      {justReset ? (
-        <Alert severity="success">
-          Your password has been changed. Sign in with your new password.
-        </Alert>
-      ) : null}
-      <Alert severity="info">
-        Authentication does not grant access by itself. The linked operator profile and current role
-        assignments are checked on every protected action.
-      </Alert>
-      <LoginForm redirectTo={redirectTo} />
-      <Typography variant="body2" color="text.secondary">
-        Accounts are provided by the club. There is no public registration — ask the club
-        administrator for access.
-      </Typography>
-    </AuthShell>
+    <PublicShell caption="Operations" width="narrow">
+      <Stack spacing={3}>
+        <PageHeader
+          title="Sign in to Lancers Operations"
+          subtitle="Use the email address connected to your operator profile."
+        />
+        {justReset ? (
+          <Notice severity="success">
+            Your password has been changed. Sign in with your new password.
+          </Notice>
+        ) : null}
+        <LoginForm redirectTo={redirectTo} />
+        <Typography variant="body2" color="text.secondary">
+          Accounts are provided by the club. There is no public registration — ask the club
+          administrator for access.
+        </Typography>
+      </Stack>
+    </PublicShell>
   );
 }

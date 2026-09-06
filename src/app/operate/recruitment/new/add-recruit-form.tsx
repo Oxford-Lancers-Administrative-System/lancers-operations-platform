@@ -1,14 +1,17 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { PageHeader } from "@/components/page-header";
+import { Section, FieldGroup } from "@/components/section";
+import { Surface } from "@/components/surface";
+import { RowCard } from "@/components/row-card";
+import { StatusChip } from "@/components/status-chip";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
 import MenuItem from "@mui/material/MenuItem";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field, DateField } from "@/components/field";
 import Typography from "@mui/material/Typography";
 
 import { MEMBERSHIP_STATUS_LABELS } from "@/app/operate/roster/presentation";
@@ -68,6 +71,7 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
   // (the server's own "Required" refusal for a blank field) and this
   // client-only format check compose — a required-but-blank field shows the
   // server's message; a filled-but-malformed one shows this one.
+  const [dateOfBirth, setDateOfBirth] = useState(values.dateOfBirth);
   const [mobile, setMobile] = useState(values.mobile);
   const [personalEmail, setPersonalEmail] = useState(values.personalEmail);
   const [matriculationYear, setMatriculationYear] = useState(values.matriculationYear);
@@ -139,49 +143,34 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
   return (
     <Box component="form" action={formAction} sx={{ maxWidth: 880 }}>
       <Stack spacing={3}>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={2}
-          sx={{ justifyContent: "space-between", alignItems: "flex-start" }}
-        >
-          <Box>
-            <Typography variant="body2" color="text.secondary">
-              <Button
-                href="/operate/recruitment"
-                sx={{ p: 0, minHeight: 0, textTransform: "none" }}
-              >
-                ← Recruitment
-              </Button>
-            </Typography>
-            <Typography variant="h5" component="h1" sx={{ fontWeight: 700, mt: 0.5 }}>
-              Add a recruit
-            </Typography>
-            {requiredCount > 0 ? (
-              <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>
+        <PageHeader
+          title="Add a recruit"
+          back={{ href: "/operate/recruitment", label: "Back to recruitment" }}
+          subtitle={
+            requiredCount > 0 ? (
+              <Box component="span" sx={{ color: "error.main" }}>
                 {requiredCount} required field{requiredCount === 1 ? "" : "s"}
-              </Typography>
-            ) : null}
-          </Box>
-          <Stack direction="row" spacing={2}>
-            <Button
-              href="/operate/recruitment"
-              sx={{ minHeight: MIN_TOUCH_TARGET, textTransform: "none" }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              name="intent"
-              value="check"
-              variant="contained"
-              disabled={pending || formatInvalid}
-              sx={{ minHeight: MIN_TOUCH_TARGET }}
-              data-testid="add-recruit-check"
-            >
-              Check for duplicates
-            </Button>
-          </Stack>
-        </Stack>
+              </Box>
+            ) : (
+              seasonLabel
+            )
+          }
+          actions={
+            <>
+              <Button
+                type="submit"
+                name="intent"
+                value="check"
+                variant="contained"
+                disabled={pending || formatInvalid}
+                data-testid="add-recruit-check"
+              >
+                Check for duplicates
+              </Button>
+              <Button href="/operate/recruitment">Cancel</Button>
+            </>
+          }
+        />
         {formatInvalid ? (
           <Typography
             variant="caption"
@@ -192,7 +181,7 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
           </Typography>
         ) : null}
 
-        {state.formError ? <Alert severity="warning">{state.formError}</Alert> : null}
+        {state.formError ? <Notice severity="warning">{state.formError}</Notice> : null}
 
         {candidates !== null ? (
           <Section title={candidates.length > 0 ? "Already in the club" : "Duplicate check"}>
@@ -207,10 +196,10 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
                   <Box key={candidate.personId}>
                     <CandidateRow candidate={candidate} pending={pending} />
                     {candidate.identity.kind === "player" ? (
-                      <Alert severity="warning" sx={{ mt: 0.5 }}>
+                      <Notice severity="warning">
                         They already hold a membership this season — a player is not a recruit, so
                         linking here is refused.
-                      </Alert>
+                      </Notice>
                     ) : null}
                   </Box>
                 ))}
@@ -245,10 +234,10 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
 
         {exactMatch ? (
           <Section title="Why this is a different person">
-            <TextField
+            <Field
               name="overrideReason"
               label="Reason"
-              fullWidth
+
               autoFocus
               error={Boolean(state.reasonError)}
               helperText={state.reasonError}
@@ -258,7 +247,7 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
 
         <Section title="Who they are">
           <Stack spacing={2}>
-            <TextField
+            <Field
               name="givenName"
               label="First name"
               required
@@ -266,18 +255,16 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
               error={Boolean(errors.givenName)}
               helperText={errors.givenName}
               autoFocus={!errors.givenName}
-              fullWidth
             />
-            <TextField
+            <Field
               name="familyName"
               label="Last name"
               required
               defaultValue={values.familyName}
               error={Boolean(errors.familyName)}
               helperText={errors.familyName}
-              fullWidth
             />
-            <TextField
+            <Field
               name="mobile"
               label="Mobile phone"
               required
@@ -285,27 +272,26 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
               onChange={(event) => setMobile(event.target.value)}
               error={Boolean(errors.mobile) || Boolean(mobileFormatError)}
               helperText={errors.mobile ?? mobileFormatError ?? undefined}
-              fullWidth
+
               data-testid="mobile-field"
             />
-            <TextField
+            <Field
               name="personalEmail"
               label="Personal email"
               value={personalEmail}
               onChange={(event) => setPersonalEmail(event.target.value)}
               error={Boolean(errors.personalEmail) || Boolean(emailFormatError)}
               helperText={errors.personalEmail ?? emailFormatError ?? undefined}
-              fullWidth
+
               data-testid="personal-email-field"
             />
             {/* V-2, correction round 2 — the shipped intake forms' own
                 "Known as" (`signup-form.tsx`). */}
-            <TextField
+            <Field
               name="knownAs"
               label="Known as"
               defaultValue={values.knownAs}
               helperText="Only if it differs from their first name."
-              fullWidth
             />
           </Stack>
         </Section>
@@ -318,31 +304,24 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
             still names only first name, last name and mobile. */}
         <Section title="Academic">
           <Stack spacing={2}>
-            <TextField name="college" label="College" defaultValue={values.college} fullWidth />
-            <TextField
+            <Field name="college" label="College" defaultValue={values.college} />
+            <Field
               name="matriculationYear"
               label="Matriculation year"
               value={matriculationYear}
               onChange={(event) => setMatriculationYear(event.target.value)}
               error={Boolean(matricFormatError)}
               helperText={matricFormatError ?? undefined}
-              fullWidth
             />
-            <TextField
+            <Field
               name="expectedGraduationYear"
               label="Expected graduation"
               value={expectedGraduationYear}
               onChange={(event) => setExpectedGraduationYear(event.target.value)}
               error={Boolean(gradFormatError)}
               helperText={gradFormatError ?? undefined}
-              fullWidth
             />
-            <TextField
-              name="degreeField"
-              label="Degree field"
-              defaultValue={values.degreeField}
-              fullWidth
-            />
+            <Field name="degreeField" label="Degree field" defaultValue={values.degreeField} />
           </Stack>
         </Section>
 
@@ -352,54 +331,47 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
             from the ordinary academic facts above. */}
         <Section title="Restricted">
           <Stack spacing={2}>
-            <TextField
+            <DateField
               name="dateOfBirth"
               label="Date of birth"
-              type="date"
-              defaultValue={values.dateOfBirth}
-              slotProps={{ inputLabel: { shrink: true } }}
-              fullWidth
+              value={dateOfBirth}
+              onChange={setDateOfBirth}
             />
-            <Subsection title="Emergency contact">
+            <FieldGroup title="Emergency contact">
               <Stack spacing={2}>
-                <TextField
+                <Field
                   name="emergencyGivenName"
                   label="First name"
                   defaultValue={values.emergencyGivenName}
-                  fullWidth
                 />
-                <TextField
+                <Field
                   name="emergencyFamilyName"
                   label="Last name"
                   defaultValue={values.emergencyFamilyName}
-                  fullWidth
                 />
-                <TextField
+                <Field
                   name="emergencyRelationship"
                   label="Relationship"
                   defaultValue={values.emergencyRelationship}
-                  fullWidth
                 />
-                <TextField
+                <Field
                   name="emergencyPhone"
                   label="Phone"
                   value={emergencyPhone}
                   onChange={(event) => setEmergencyPhone(event.target.value)}
                   error={Boolean(emergencyPhoneFormatError)}
                   helperText={emergencyPhoneFormatError ?? undefined}
-                  fullWidth
                 />
-                <TextField
+                <Field
                   name="emergencyEmail"
                   label="Email"
                   value={emergencyEmail}
                   onChange={(event) => setEmergencyEmail(event.target.value)}
                   error={Boolean(emergencyEmailFormatError)}
                   helperText={emergencyEmailFormatError ?? undefined}
-                  fullWidth
                 />
               </Stack>
-            </Subsection>
+            </FieldGroup>
           </Stack>
         </Section>
 
@@ -416,12 +388,12 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
             {RECRUITMENT_ADD_EXPLANATION}
           </Typography>
           <Stack spacing={2}>
-            <TextField
+            <Field
               select
               name="optInEvidence"
               label={RECRUITMENT_ADD_OPT_IN_LABEL}
               defaultValue={values.optInEvidence}
-              fullWidth
+
               data-testid="opt-in-evidence"
             >
               <MenuItem value="">
@@ -432,12 +404,12 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
                   {option.label}
                 </MenuItem>
               ))}
-            </TextField>
-            <TextField
+            </Field>
+            <Field
               name="optInNote"
               label={RECRUITMENT_ADD_OPT_IN_NOTE_LABEL}
               defaultValue={values.optInNote}
-              fullWidth
+
               multiline
               minRows={2}
               helperText={RECRUITMENT_ADD_OPT_IN_NOTE_HELPER}
@@ -469,14 +441,12 @@ function AlreadyMemberScreen({
     alreadyMember.membershipStatus;
   return (
     <Stack spacing={3} sx={{ maxWidth: 720 }} data-testid="add-recruit-already-member">
-      <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-        {`${alreadyMember.displayName} is already a member`}
-      </Typography>
-      <Paper variant="outlined" sx={{ p: 3 }}>
+      <PageHeader title={`${alreadyMember.displayName} is already a member`} />
+      <Surface>
         <Typography color="text.secondary">
           {`They already hold a ${alreadyMember.seasonLabel} membership (${statusLabel}). A player is not a recruit, so no changes have been made.`}
         </Typography>
-      </Paper>
+      </Surface>
       <Box>
         <Button
           href="/operate/recruitment"
@@ -488,29 +458,6 @@ function AlreadyMemberScreen({
         </Button>
       </Box>
     </Stack>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <Paper variant="outlined" sx={{ p: 3 }}>
-      <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
-        {title}
-      </Typography>
-      {children}
-    </Paper>
-  );
-}
-
-/** `edit-person-form.tsx`'s own grouping shape, for the emergency contact's five fields inside "Restricted". */
-function Subsection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 2 }}>
-      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>
-        {title}
-      </Typography>
-      {children}
-    </Box>
   );
 }
 
@@ -540,59 +487,60 @@ function CandidateRow({
     .filter(Boolean)
     .join(" · ");
   const identity = identityLabel(candidate);
-  const isCurrentPlayer = candidate.identity.kind === "player";
   return (
-    <Stack
-      direction={{ xs: "column", sm: "row" }}
-      spacing={1}
-      sx={{
-        justifyContent: "space-between",
-        alignItems: { sm: "center" },
-        py: 1.25,
-        borderBottom: 1,
-        borderColor: "divider",
-        "&:last-child": { borderBottom: 0 },
-      }}
-    >
-      <Box sx={{ minWidth: 0 }}>
-        <Typography sx={{ fontWeight: 700 }}>{candidate.displayName}</Typography>
-        {identity ? (
-          <Chip
-            size="small"
-            label={identity}
-            color={isCurrentPlayer ? "success" : "default"}
-            variant={isCurrentPlayer ? "filled" : "outlined"}
-            sx={{ mt: 0.5, mr: 0.5 }}
-            data-testid="candidate-identity"
-          />
-        ) : null}
-        {detail ? (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            {detail}
-          </Typography>
-        ) : null}
-        <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
-          {candidate.matchedOn.map((field) => (
-            <Chip
-              key={field}
-              size="small"
-              color="warning"
-              variant="outlined"
-              label={`matched ${field}`}
+    <RowCard
+      title={candidate.displayName}
+      sublines={[
+        ...(identity
+          ? [
+              <Box component="span" data-testid="candidate-identity" key="identity">
+                {identity}
+              </Box>,
+            ]
+          : []),
+        ...(detail ? [detail] : []),
+      ]}
+      chips={
+        <>
+          {candidate.identity.kind === "player" ? (
+            <StatusChip
+              domain="membership"
+              status={candidate.identity.membershipStatus}
+              label={
+                MEMBERSHIP_STATUS_LABELS[candidate.identity.membershipStatus as MembershipStatus] ??
+                candidate.identity.membershipStatus
+              }
             />
+          ) : null}
+          {candidate.identity.kind === "recruit" ? (
+            <StatusChip
+              domain="recruitment"
+              status={candidate.identity.prospectStatus}
+              label={
+                PROSPECT_STATUS_LABELS[candidate.identity.prospectStatus as ProspectStatus] ??
+                candidate.identity.prospectStatus
+              }
+            />
+          ) : null}
+          {candidate.matchedOn.map((field) => (
+            <Typography key={field} variant="caption">
+              matched {field}
+            </Typography>
           ))}
-        </Stack>
-      </Box>
-      <Button
-        type="submit"
-        name="linkPersonId"
-        value={candidate.personId}
-        variant="outlined"
-        disabled={pending}
-        sx={{ minHeight: MIN_TOUCH_TARGET, alignSelf: { xs: "flex-start", sm: "center" } }}
-      >
-        This is them
-      </Button>
-    </Stack>
+        </>
+      }
+      actions={
+        <Button
+          type="submit"
+          name="linkPersonId"
+          value={candidate.personId}
+          variant="outlined"
+          disabled={pending}
+          sx={{ minHeight: MIN_TOUCH_TARGET, alignSelf: { xs: "flex-start", sm: "center" } }}
+        >
+          This is them
+        </Button>
+      }
+    />
   );
 }

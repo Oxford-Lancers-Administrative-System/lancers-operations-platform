@@ -1,14 +1,18 @@
-import Alert from "@mui/material/Alert";
+import { PageHeader } from "@/components/page-header";
+import { Section as KitSection } from "@/components/section";
+import { Notice } from "@/components/notice";
+import { EmptyState } from "@/components/empty-state";
+import { StatusChip, type StatusDomain } from "@/components/status-chip";
+import { RowCard, RowCardList } from "@/components/row-card";
+import { Metric, MetricRow } from "@/components/metric";
+import { TableFrame } from "@/components/sortable-header";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Tooltip from "@mui/material/Tooltip";
@@ -61,7 +65,6 @@ import {
   RECRUITMENT_EMPTY,
   RECRUITMENT_HEADLINE,
   REPORT_HEADLINE,
-  STORED_NOTE,
   todayInClubZone,
   WALK_UPS_EMPTY,
   WALK_UPS_HEADLINE,
@@ -126,12 +129,10 @@ export default async function ReportPage({ searchParams }: PageProps<"/operate/r
     if (!isServiceError(error)) throw error;
     return (
       <Stack spacing={3} sx={{ maxWidth: 720 }} data-testid="report-unavailable-screen">
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {REPORT_HEADLINE}
-        </Typography>
-        <Alert severity="warning" data-testid="report-unavailable">
+        <PageHeader title={REPORT_HEADLINE} />
+        <Notice severity="warning" testId="report-unavailable">
           {error.message}
-        </Alert>
+        </Notice>
         <ReportDateForm date={isDate(date) ? date : todayInClubZone()} />
       </Stack>
     );
@@ -147,22 +148,15 @@ export default async function ReportPage({ searchParams }: PageProps<"/operate/r
   const content = parseReportContent(report.content);
 
   return (
-    <Stack spacing={4} sx={{ maxWidth: 1000 }} data-testid="monday-report" data-report={report.id}>
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {REPORT_HEADLINE}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {formatReportDate(report.reportOn)}
-        </Typography>
-      </Box>
+    <Stack spacing={4} data-testid="monday-report" data-report={report.id}>
+      <PageHeader title={REPORT_HEADLINE} subtitle={formatReportDate(report.reportOn)} />
 
       <ReportDateForm date={report.reportOn} />
 
       {content === null ? (
-        <Alert severity="info" data-testid="other-metric-version">
+        <Notice severity="info" testId="other-metric-version">
           {OTHER_METRIC_VERSION_NOTE}
-        </Alert>
+        </Notice>
       ) : (
         <ReportBody
           content={content}
@@ -174,7 +168,7 @@ export default async function ReportPage({ searchParams }: PageProps<"/operate/r
       <Box>
         <Divider sx={{ mb: 1.5 }} />
         <Typography variant="body2" color="text.secondary" data-testid="stored-note">
-          {`${STORED_NOTE} Opened ${formatInstant(report.generatedAt)}.`}
+          {`Opened ${formatInstant(report.generatedAt)}.`}
         </Typography>
       </Box>
     </Stack>
@@ -206,11 +200,7 @@ function ReportBody({
 
   return (
     <>
-      {quiet ? (
-        <Alert severity="info" data-testid="nothing-at-all">
-          {NOTHING_AT_ALL}
-        </Alert>
-      ) : null}
+      {quiet ? <EmptyState title={NOTHING_AT_ALL} testId="nothing-at-all" /> : null}
 
       <LastWeek content={content} />
       <ChaseGrid content={content} sort={sort} />
@@ -228,7 +218,7 @@ function ReportBody({
  * A section: a heading that carries its own count and the span it covers, and
  * either its body or the one sentence that says there is none.
  */
-function Section({
+function ReportSection({
   testId,
   headline,
   count,
@@ -251,34 +241,20 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <Box component="section" data-testid={`section-${testId}`} data-count={count}>
-      <Stack
-        direction="row"
-        spacing={1.5}
-        sx={{ alignItems: "baseline", mb: 1.5, flexWrap: "wrap" }}
+    <Box data-count={count}>
+      <KitSection
+        title={`${headline}${showCount ? ` · ${count}` : ""}`}
+        description={span}
+        testId={testId}
       >
-        <Typography variant="h6" component="h2" sx={{ fontWeight: 700 }}>
-          {headline}
-        </Typography>
-        {showCount ? (
-          <Typography variant="h6" component="p" color="text.secondary" sx={{ fontWeight: 700 }}>
-            {count}
+        {count === 0 ? (
+          <Typography variant="body2" color="text.secondary" data-testid={`empty-${testId}`}>
+            {empty}
           </Typography>
-        ) : null}
-        {span ? (
-          <Typography variant="body2" color="text.secondary">
-            {span}
-          </Typography>
-        ) : null}
-      </Stack>
-
-      {count === 0 ? (
-        <Typography variant="body2" color="text.secondary" data-testid={`empty-${testId}`}>
-          {empty}
-        </Typography>
-      ) : (
-        children
-      )}
+        ) : (
+          children
+        )}
+      </KitSection>
     </Box>
   );
 }
@@ -297,7 +273,7 @@ function Section({
  */
 function LastWeek({ content }: { content: WeeklyReportContent }) {
   return (
-    <Section
+    <ReportSection
       testId="last-week"
       headline={LAST_WEEK_HEADLINE}
       count={content.lastWeek.length}
@@ -305,7 +281,7 @@ function LastWeek({ content }: { content: WeeklyReportContent }) {
       empty={LAST_WEEK_EMPTY}
       showCount={false}
     >
-      <TableContainer component={Paper} variant="outlined" sx={{ overflowX: "auto" }}>
+      <TableFrame>
         <Table size="small" aria-label={LAST_WEEK_HEADLINE}>
           <TableHead>
             <TableRow>
@@ -324,8 +300,8 @@ function LastWeek({ content }: { content: WeeklyReportContent }) {
             ))}
           </TableBody>
         </Table>
-      </TableContainer>
-    </Section>
+      </TableFrame>
+    </ReportSection>
   );
 }
 
@@ -420,7 +396,7 @@ function ChaseGrid({ content, sort }: { content: WeeklyReportContent; sort: Grid
     sort.by === by ? (sort.ascending ? "ascending" : "descending") : undefined;
 
   return (
-    <Section
+    <ReportSection
       testId="grid"
       headline={GRID_HEADLINE}
       count={rows.length}
@@ -428,7 +404,7 @@ function ChaseGrid({ content, sort }: { content: WeeklyReportContent; sort: Grid
       empty={GRID_EMPTY}
       showCount={false}
     >
-      <TableContainer component={Paper} variant="outlined" sx={{ overflowX: "auto" }}>
+      <TableFrame>
         <Table size="small" aria-label={GRID_HEADLINE}>
           <TableHead>
             <TableRow>
@@ -521,8 +497,8 @@ function ChaseGrid({ content, sort }: { content: WeeklyReportContent; sort: Grid
             ))}
           </TableBody>
         </Table>
-      </TableContainer>
-    </Section>
+      </TableFrame>
+    </ReportSection>
   );
 }
 
@@ -625,31 +601,30 @@ function SortHeader({ label, href, active }: { label: string; href: string; acti
  */
 function Availability({ content }: { content: WeeklyReportContent }) {
   return (
-    <Section
+    <ReportSection
       testId="availability"
       headline={AVAILABILITY_HEADLINE}
       count={content.availability.length}
       empty={AVAILABILITY_EMPTY}
     >
-      <Paper variant="outlined">
-        <Box component="ul" sx={{ listStyle: "none", p: 0, m: 0 }}>
-          {content.availability.map((entry, index) => (
-            <Row
-              key={`availability-${index}`}
-              primary={entry.person}
-              badge={labelFor(AVAILABILITY_LABELS, entry.level)}
-              badgeColor={entry.level === "red" ? "warning" : "default"}
-              secondary={[
-                entry.since ? `since ${formatShortDay(entry.since)}` : null,
-                entry.reviewOn ? `review ${formatShortDay(entry.reviewOn)}` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            />
-          ))}
-        </Box>
-      </Paper>
-    </Section>
+      <RowCardList at="all" component="ul">
+        {content.availability.map((entry, index) => (
+          <Row
+            key={`availability-${index}`}
+            primary={entry.person}
+            badge={labelFor(AVAILABILITY_LABELS, entry.level)}
+            badgeDomain="availability"
+            badgeStatus={entry.level}
+            secondary={[
+              entry.since ? `since ${formatShortDay(entry.since)}` : null,
+              entry.reviewOn ? `review ${formatShortDay(entry.reviewOn)}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          />
+        ))}
+      </RowCardList>
+    </ReportSection>
   );
 }
 
@@ -666,7 +641,7 @@ function Availability({ content }: { content: WeeklyReportContent }) {
  */
 function NextWeek({ content }: { content: WeeklyReportContent }) {
   return (
-    <Section
+    <ReportSection
       testId="next-week"
       headline={NEXT_WEEK_HEADLINE}
       count={content.nextWeek.length}
@@ -688,7 +663,7 @@ function NextWeek({ content }: { content: WeeklyReportContent }) {
           <UpcomingCard key={event.id} event={event} />
         ))}
       </Box>
-    </Section>
+    </ReportSection>
   );
 }
 
@@ -699,47 +674,22 @@ function UpcomingCard({ event }: { event: UpcomingEvent }) {
     event.invited === 0 ? "No invitations sent" : `${event.answered} of ${event.invited} answered`;
 
   return (
-    <Paper
-      variant="outlined"
-      sx={{ p: 2 }}
-      data-testid={`upcoming-${event.id}`}
-      data-status={event.status}
-    >
-      <Stack spacing={0.75}>
-        <Stack
-          direction="row"
-          spacing={1}
-          sx={{ alignItems: "center", flexWrap: "wrap", gap: 0.5 }}
-        >
-          <Chip
-            size="small"
-            label={labelFor(EVENT_STATUS_LABELS, event.status)}
-            color={event.status === "approved" ? "primary" : "default"}
-            variant={event.status === "approved" ? "filled" : "outlined"}
-          />
-          <Typography variant="body2" color="text.secondary">
-            {formatShortDay(event.on)}
-          </Typography>
-        </Stack>
-        <Button
-          href={`/operate/events/${event.id}`}
-          size="small"
-          sx={{
-            p: 0,
-            minWidth: 0,
-            justifyContent: "flex-start",
-            fontWeight: 700,
-            textTransform: "none",
-          }}
-        >
-          {event.name}
-        </Button>
-        <Typography variant="body2" color="text.secondary">
-          {invitations}
-          {event.isMandatory ? " · mandatory" : ""}
-        </Typography>
-      </Stack>
-    </Paper>
+    <RowCard
+      testId={`upcoming-${event.id}`}
+      title={event.name}
+      href={`/operate/events/${event.id}`}
+      chips={
+        <StatusChip
+          domain="event"
+          status={event.status}
+          label={labelFor(EVENT_STATUS_LABELS, event.status)}
+        />
+      }
+      sublines={[
+        formatShortDay(event.on),
+        `${invitations}${event.isMandatory ? " · mandatory" : ""}`,
+      ]}
+    />
   );
 }
 
@@ -749,56 +699,52 @@ function UpcomingCard({ event }: { event: UpcomingEvent }) {
 
 function WalkUps({ content }: { content: WeeklyReportContent }) {
   return (
-    <Section
+    <ReportSection
       testId="walk-ups"
       headline={WALK_UPS_HEADLINE}
       count={content.walkUps.length}
       empty={WALK_UPS_EMPTY}
     >
-      <Paper variant="outlined">
-        <Box component="ul" sx={{ listStyle: "none", p: 0, m: 0 }}>
-          {content.walkUps.map((entry, index) => (
-            <Row
-              key={`walk-up-${index}`}
-              primary={entry.person}
-              badge={null}
-              secondary={`${entry.event} · ${formatShortDay(entry.on)}`}
-            />
-          ))}
-        </Box>
-      </Paper>
-    </Section>
+      <RowCardList at="all" component="ul">
+        {content.walkUps.map((entry, index) => (
+          <Row
+            key={`walk-up-${index}`}
+            primary={entry.person}
+            badge={null}
+            secondary={`${entry.event} · ${formatShortDay(entry.on)}`}
+          />
+        ))}
+      </RowCardList>
+    </ReportSection>
   );
 }
 
 function Recruitment({ content }: { content: WeeklyReportContent }) {
   return (
-    <Section
+    <ReportSection
       testId="recruitment"
       headline={RECRUITMENT_HEADLINE}
       count={content.recruitment.length}
       empty={RECRUITMENT_EMPTY}
     >
-      <Paper variant="outlined">
-        <Box component="ul" sx={{ listStyle: "none", p: 0, m: 0 }}>
-          {content.recruitment.map((entry, index) => (
-            <Row
-              key={`recruit-${index}`}
-              primary={entry.person}
-              badge={entry.status}
-              secondary={[
-                entry.source,
-                entry.firstContactOn
-                  ? `first contact ${formatShortDay(entry.firstContactOn)}`
-                  : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            />
-          ))}
-        </Box>
-      </Paper>
-    </Section>
+      <RowCardList at="all" component="ul">
+        {content.recruitment.map((entry, index) => (
+          <Row
+            key={`recruit-${index}`}
+            primary={entry.person}
+            badge={entry.status}
+            badgeDomain="recruitment"
+            badgeStatus={entry.status}
+            secondary={[
+              entry.source,
+              entry.firstContactOn ? `first contact ${formatShortDay(entry.firstContactOn)}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          />
+        ))}
+      </RowCardList>
+    </ReportSection>
   );
 }
 
@@ -825,14 +771,14 @@ function Onboarding({ content, sort }: { content: WeeklyReportContent; sort: Gri
     sort.by === by ? (sort.ascending ? "ascending" : "descending") : undefined;
 
   return (
-    <Section
+    <ReportSection
       testId="onboarding"
       headline={ONBOARDING_HEADLINE}
       count={rows.length}
       empty={ONBOARDING_EMPTY}
       showCount={false}
     >
-      <TableContainer component={Paper} variant="outlined" sx={{ overflowX: "auto" }}>
+      <TableFrame>
         <Table size="small" aria-label={ONBOARDING_HEADLINE}>
           <TableHead>
             <TableRow>
@@ -881,7 +827,7 @@ function Onboarding({ content, sort }: { content: WeeklyReportContent; sort: Gri
                 <TableCell sx={{ fontWeight: 600 }}>
                   {row.person}
                   {row.membershipStatus === "onboarding" ? (
-                    <Chip size="small" label="Onboarding" variant="outlined" sx={{ ml: 1 }} />
+                    <StatusChip domain="membership" status="onboarding" label="Onboarding" />
                   ) : null}
                 </TableCell>
                 {columns.map((column) => {
@@ -921,8 +867,8 @@ function Onboarding({ content, sort }: { content: WeeklyReportContent; sort: Gri
             ))}
           </TableBody>
         </Table>
-      </TableContainer>
-    </Section>
+      </TableFrame>
+    </ReportSection>
   );
 }
 
@@ -946,43 +892,26 @@ function Row({
   primary,
   secondary,
   badge,
-  badgeColor = "default",
+  badgeDomain,
+  badgeStatus,
 }: {
   primary: string;
   secondary: string;
   badge: string | null;
-  badgeColor?: "default" | "warning";
+  badgeDomain?: StatusDomain;
+  badgeStatus?: string;
 }) {
   return (
-    <Box
-      component="li"
-      sx={{
-        px: 2,
-        py: 1.5,
-        display: "flex",
-        flexDirection: { xs: "column", sm: "row" },
-        gap: { xs: 0.5, sm: 2 },
-        alignItems: { sm: "baseline" },
-        borderTop: 1,
-        borderColor: "divider",
-        "&:first-of-type": { borderTop: 0 },
-      }}
-    >
-      <Typography variant="body1" sx={{ fontWeight: 600, minWidth: { sm: 180 } }}>
-        {primary}
-      </Typography>
-      {badge ? (
-        <Chip
-          size="small"
-          label={badge}
-          color={badgeColor}
-          variant="outlined"
-          sx={{ alignSelf: { xs: "flex-start", sm: "auto" } }}
-        />
-      ) : null}
-      <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
-        {secondary}
-      </Typography>
+    <Box component="li">
+      <RowCard
+        title={primary}
+        sublines={[secondary]}
+        chips={
+          badge && badgeDomain && badgeStatus ? (
+            <StatusChip domain={badgeDomain} status={badgeStatus} label={badge} />
+          ) : undefined
+        }
+      />
     </Box>
   );
 }
@@ -997,21 +926,25 @@ function WeekInNumbers({ content }: { content: WeeklyReportContent }) {
   const yes = content.lastWeek.reduce((total, event) => total + event.respondedYes, 0);
 
   return (
-    <Box component="section" data-testid="week-in-numbers">
-      <Typography variant="subtitle2" component="h2" color="text.secondary" sx={{ mb: 1 }}>
-        {WEEK_IN_NUMBERS}
-      </Typography>
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="body2" color="text.secondary" data-testid="week-events">
-          {`${content.lastWeek.length} events · ${asked} people asked · ${yes} said yes`}
-        </Typography>
-        <Typography variant="body2" color="text.secondary" data-testid="week-attendance">
-          {`Present ${attendance.present} · Late ${attendance.late} · Excused ${attendance.excused} · Absent ${attendance.absent}`}
-        </Typography>
-        <Typography variant="body2" color="text.secondary" data-testid="availability-levels">
-          {`${AVAILABILITY_LABELS.green} ${content.availabilityCounts.green} · ${AVAILABILITY_LABELS.orange} ${content.availabilityCounts.orange} · ${AVAILABILITY_LABELS.red} ${content.availabilityCounts.red}`}
-        </Typography>
-      </Paper>
-    </Box>
+    <KitSection title={WEEK_IN_NUMBERS} testId="week-in-numbers">
+      <Stack spacing={2}>
+        <MetricRow testId="week-events">
+          <Metric label="Events" value={content.lastWeek.length} />
+          <Metric label="People asked" value={asked} />
+          <Metric label="Said yes" value={yes} />
+        </MetricRow>
+        <MetricRow columns={4} testId="week-attendance">
+          <Metric label={ATTENDANCE_LABELS.present} value={attendance.present} />
+          <Metric label={ATTENDANCE_LABELS.late} value={attendance.late} />
+          <Metric label={ATTENDANCE_LABELS.excused} value={attendance.excused} />
+          <Metric label={ATTENDANCE_LABELS.absent} value={attendance.absent} />
+        </MetricRow>
+        <MetricRow testId="availability-levels">
+          <Metric label={AVAILABILITY_LABELS.green} value={content.availabilityCounts.green} />
+          <Metric label={AVAILABILITY_LABELS.orange} value={content.availabilityCounts.orange} />
+          <Metric label={AVAILABILITY_LABELS.red} value={content.availabilityCounts.red} />
+        </MetricRow>
+      </Stack>
+    </KitSection>
   );
 }

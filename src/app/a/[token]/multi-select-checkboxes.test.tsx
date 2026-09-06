@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { GroupedMultiSelectField, MultiSelectField } from "./multi-select-checkboxes";
+import { GroupedMultiSelectField, MultiSelectField } from "@/components/multi-select-field";
 
 describe("MultiSelectField", () => {
   it("renders one field trigger and no checkboxes at all while closed — not an always-visible list", () => {

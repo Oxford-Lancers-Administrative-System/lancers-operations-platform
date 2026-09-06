@@ -150,10 +150,10 @@ describe("who may open the Follow-ups queue", () => {
 });
 
 describe("the queue itself", () => {
-  it("lists every outstanding person across both events, and says nobody compiled it", async () => {
+  it("lists every outstanding person across both events without standing instructions", async () => {
     const { container } = await renderPage();
     expect(container.textContent).toContain("4 people across 2 approved events");
-    expect(container.textContent).toContain("nobody compiles this list");
+    expect(container.textContent).not.toContain("nobody compiles this list");
     expect(screen.getAllByTestId("follow-ups-row")).toHaveLength(4);
   });
 

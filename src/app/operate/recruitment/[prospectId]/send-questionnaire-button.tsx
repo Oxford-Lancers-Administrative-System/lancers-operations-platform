@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import Stack from "@mui/material/Stack";
+import { useOutcomeSlot } from "@/components/outcome-slot";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
@@ -65,6 +67,7 @@ export default function SendQuestionnaireButton({
   disabledReason: string | null;
   blockedByDecline?: boolean;
 }) {
+  const slot = useOutcomeSlot(`send-${track}`);
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{
@@ -74,6 +77,7 @@ export default function SendQuestionnaireButton({
   } | null>(null);
 
   function confirm() {
+    slot.claim();
     startTransition(async () => {
       const outcome = await sendRecruitmentQuestionnaireAction({ prospectId, track });
       setResult(outcome);
@@ -88,6 +92,7 @@ export default function SendQuestionnaireButton({
         disabled={blockedByDecline}
         title={blockedByDecline && disabledReason ? disabledReason : undefined}
         onClick={() => {
+          slot.claim();
           setResult(null);
           setOpen(true);
         }}
@@ -100,35 +105,31 @@ export default function SendQuestionnaireButton({
       <Dialog open={open} onClose={() => (pending ? undefined : setOpen(false))}>
         <DialogTitle>{TRACK_LABEL[track]}</DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            {lastSentAt
-              ? `Last sent to ${displayName} on ${formatWhen(new Date(lastSentAt))}.`
-              : `Not yet sent to ${displayName}.`}
-          </DialogContentText>
-          {!canSend && disabledReason ? (
-            <Alert
-              severity="warning"
-              sx={{ mt: 2 }}
-              data-testid={`recruitment-send-${track}-refused`}
-            >
-              {disabledReason}
-            </Alert>
-          ) : null}
-          {result?.error ? (
-            <Alert severity="error" sx={{ mt: 2 }}>
-              {result.error}
-            </Alert>
-          ) : null}
-          {result && !result.error && result.created.length === 0 ? (
-            <Alert severity="info" sx={{ mt: 2 }} data-testid={`recruitment-send-${track}-no-op`}>
-              {result.reason ? REASON_LABEL[result.reason] : "Nothing new was sent."}
-            </Alert>
-          ) : null}
-          {result && !result.error && result.created.length > 0 ? (
-            <Alert severity="success" sx={{ mt: 2 }} data-testid={`recruitment-send-${track}-ok`}>
-              Queued.
-            </Alert>
-          ) : null}
+          <Stack spacing={2}>
+            <DialogContentText>
+              {lastSentAt
+                ? `Last sent to ${displayName} on ${formatWhen(new Date(lastSentAt))}.`
+                : `Not yet sent to ${displayName}.`}
+            </DialogContentText>
+            {!canSend && disabledReason ? (
+              <Notice variant="refusal" testId={`recruitment-send-${track}-refused`}>
+                {disabledReason}
+              </Notice>
+            ) : null}
+            {slot.showing && result?.error ? (
+              <Notice severity="error">{result.error}</Notice>
+            ) : null}
+            {slot.showing && result && !result.error && result.created.length === 0 ? (
+              <Notice severity="info" testId={`recruitment-send-${track}-no-op`}>
+                {result.reason ? REASON_LABEL[result.reason] : "Nothing new was sent."}
+              </Notice>
+            ) : null}
+            {result && !result.error && result.created.length > 0 ? (
+              <Notice severity="success" testId={`recruitment-send-${track}-ok`}>
+                Queued.
+              </Notice>
+            ) : null}
+          </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)} disabled={pending} sx={{ minHeight: 44 }}>

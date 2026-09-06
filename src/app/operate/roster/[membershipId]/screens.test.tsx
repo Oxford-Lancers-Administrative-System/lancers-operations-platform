@@ -1221,17 +1221,22 @@ describe("the single exit off a player's record", () => {
 
     const exit = screen.getByRole("link", { name: "Back to roster" });
     expect(exit).toHaveAttribute("href", "/operate/roster");
-    expect(exit).toHaveStyle({ minHeight: "44px" });
+    expect(exit).toHaveStyle({ minHeight: "36px" });
     expect(screen.queryByRole("link", { name: "View membership" })).not.toBeInTheDocument();
   });
 });
 
 describe("the confirmation banner's contact-values disclosure", () => {
-  it("states that raw contact values are retained as entered", async () => {
+  it("omits the implementation explanation while keeping the creation result", async () => {
     givenRecord();
     render(await PlayerRecordPage(pageProps({ created: "1" })));
 
-    expect(screen.getByText(/Raw contact values are retained as entered/)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Raw contact values are retained as entered/),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("created-summary")).toHaveTextContent(
+      "membership were created together",
+    );
   });
 });
 

@@ -1,12 +1,12 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field } from "@/components/field";
 import type { MembershipStatus, OnboardingItem } from "@/lib/services/membership";
 import { resolveOnboardingItemAction, setMembershipStatusAction } from "./actions";
 import { EMPTY_MEMBERSHIP_ACTION_STATE } from "./action-state";
@@ -39,21 +39,18 @@ export function MembershipStatusControl({
   membershipId,
   status,
   label = "Status",
-  size = "small",
 }: {
   membershipId: string;
   status: MembershipStatus;
   label?: string;
-  size?: "small" | "medium";
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   return (
     <Stack spacing={1}>
-      <TextField
+      <Field
         select
-        size={size}
         label={label}
         value={status}
         disabled={pending}
@@ -75,11 +72,11 @@ export function MembershipStatusControl({
             {labelFor(MEMBERSHIP_STATUS_LABELS, value)}
           </MenuItem>
         ))}
-      </TextField>
+      </Field>
       {error ? (
-        <Alert severity="error" data-testid="status-error">
+        <Notice severity="error" testId="status-error">
           {error}
-        </Alert>
+        </Notice>
       ) : null}
     </Stack>
   );
@@ -118,9 +115,8 @@ export function OnboardingItemForm({
       <input type="hidden" name="itemId" value={item.id} />
       <Stack spacing={1.5}>
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ alignItems: "stretch" }}>
-          <TextField
+          <Field
             select
-            size="small"
             name="status"
             value={resolution}
             onChange={(event) => setResolution(event.target.value)}
@@ -131,7 +127,7 @@ export function OnboardingItemForm({
             <MenuItem value="complete">Complete</MenuItem>
             <MenuItem value="waived">Waived</MenuItem>
             <MenuItem value="not_applicable">Not applicable</MenuItem>
-          </TextField>
+          </Field>
           <Button
             type="submit"
             variant="outlined"
@@ -143,21 +139,13 @@ export function OnboardingItemForm({
         </Stack>
 
         {resolution === "waived" ? (
-          <TextField
-            label="Why is this waived?"
-            name="reason"
-            size="small"
-            multiline
-            minRows={2}
-            fullWidth
-            required
-          />
+          <Field label="Why is this waived?" name="reason" multiline minRows={2} required />
         ) : null}
 
         {state.error ? (
-          <Alert severity="error" data-testid="onboarding-item-error">
+          <Notice severity="error" testId="onboarding-item-error">
             {state.error}
-          </Alert>
+          </Notice>
         ) : null}
       </Stack>
     </Box>

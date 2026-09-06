@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { useOutcomeSlot } from "@/components/outcome-slot";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
@@ -11,12 +12,11 @@ import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
 import MenuItem from "@mui/material/MenuItem";
 import Select, { type SelectChangeEvent } from "@mui/material/Select";
-import TextField from "@mui/material/TextField";
+import { Field } from "@/components/field";
 import Typography from "@mui/material/Typography";
 import { PROSPECT_STATUS_LABELS, type ProspectStatus } from "@/lib/services/recruitment-vocabulary";
 import { StatusPill } from "../board-filter-controls";
 import { flipRecruitmentProspectAction, setRecruitmentStatusAction } from "./board-actions";
-import { STATUS_COLOUR_FOR_PILL } from "./status-colour";
 
 const STATUS_ORDER: readonly ProspectStatus[] = [
   "identified",
@@ -57,6 +57,7 @@ export default function StatusCell({
   seasonLabel: string;
   size?: "small" | "medium";
 }) {
+  const slot = useOutcomeSlot(`status-${prospectId}`);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [voidOpen, setVoidOpen] = useState(false);
@@ -65,6 +66,7 @@ export default function StatusCell({
   const [editing, setEditing] = useState(false);
 
   function commitStatus(toStatus: Exclude<ProspectStatus, "joined">, reason?: string) {
+    slot.claim();
     startTransition(async () => {
       const result = await setRecruitmentStatusAction({ prospectId, toStatus, reason });
       setError(result.error);
@@ -75,6 +77,7 @@ export default function StatusCell({
     const next = event.target.value as ProspectStatus;
     setEditing(false);
     if (next === status) return;
+    slot.claim();
     if (next === "joined") {
       setFlipOpen(true);
       return;
@@ -129,17 +132,10 @@ export default function StatusCell({
               : { outline: "1px solid", outlineColor: "primary.light" },
           }}
         >
-          <StatusPill
-            color={STATUS_COLOUR_FOR_PILL[status]}
-            label={PROSPECT_STATUS_LABELS[status]}
-          />
+          <StatusPill domain="recruitment" status={status} label={PROSPECT_STATUS_LABELS[status]} />
         </Box>
       )}
-      {error ? (
-        <Typography variant="caption" color="error" component="p" sx={{ mt: 0.5 }}>
-          {error}
-        </Typography>
-      ) : null}
+      {slot.showing && error && !flipOpen ? <Notice severity="error">{error}</Notice> : null}
 
       <Dialog open={voidOpen} onClose={() => (pending ? undefined : setVoidOpen(false))}>
         <DialogTitle>Void this record</DialogTitle>
@@ -147,9 +143,8 @@ export default function StatusCell({
           <DialogContentText sx={{ mb: 2 }}>
             The record was a mistake and should never have existed. Say why.
           </DialogContentText>
-          <TextField
+          <Field
             autoFocus
-            fullWidth
             multiline
             minRows={2}
             label="Reason"
@@ -192,11 +187,7 @@ export default function StatusCell({
             </Box>
             <Typography variant="body2">It will not make them active.</Typography>
           </DialogContentText>
-          {error ? (
-            <Alert severity="error" sx={{ mt: 2 }}>
-              {error}
-            </Alert>
-          ) : null}
+          {slot.showing && error ? <Notice severity="error">{error}</Notice> : null}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setFlipOpen(false)} disabled={pending} sx={{ minHeight: 44 }}>
