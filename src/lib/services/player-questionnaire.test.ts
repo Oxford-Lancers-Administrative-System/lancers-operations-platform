@@ -833,6 +833,90 @@ describe("readQuestionnaireView — the finishing sequence", () => {
     expect(view?.itemStatus.code_of_conduct).toBeNull(); // still honestly unconfigured
     expect(view?.nextStep).toBe("photo_release"); // but no longer stuck resuming here
   });
+
+  // B1 (LAN-230 correction round 1) — the identical deadlock as the test
+  // above, for the two trust items, which the first correction round missed:
+  // `bucsDone`/`hudlDone` had no item-independent signal, so a player who
+  // genuinely claimed both on a membership with no configured items was left
+  // `nothingOutstanding: false`, `nextStep: "bucs_play"`, on every reopen of
+  // the link, forever. Restoring `bucsDone`/`hudlDone` to check only
+  // `itemStatus` (dropping the `|| trustClaimed…` half) reproduces exactly
+  // this.
+  it("lets the player finish after claiming BUCS Play and Hudl, even with no configured items — B1", async () => {
+    const { personId, membershipId } = await givenPlayerWithNoItems();
+    await saveDetailsStep(baseDetailsInput(personId, openSeasonId, membershipId));
+    await agreeOnboardingDocument({
+      personId,
+      seasonId: openSeasonId,
+      membershipId,
+      agreementType: "code_of_conduct",
+    });
+    await agreeOnboardingDocument({
+      personId,
+      seasonId: openSeasonId,
+      membershipId,
+      agreementType: "photo_release",
+    });
+
+    await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "bucs_play" });
+    await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "hudl_access" });
+
+    const view = await readQuestionnaireView(personId, openSeasonId);
+    expect(view?.itemStatus.bucs_play).toBeNull(); // still honestly unconfigured
+    expect(view?.itemStatus.hudl_access).toBeNull();
+    expect(view?.nothingOutstanding).toBe(true); // but no longer stuck forever
+    expect(view?.nextStep).toBe("done");
+  });
+
+  // The mirror case: claiming only one of the two must not silently resolve
+  // the other — `trustClaimed` is per-code, not a single blanket flag.
+  it("still resumes at Hudl when only BUCS Play was claimed, with no configured items", async () => {
+    const { personId, membershipId } = await givenPlayerWithNoItems();
+    await saveDetailsStep(baseDetailsInput(personId, openSeasonId, membershipId));
+    await agreeOnboardingDocument({
+      personId,
+      seasonId: openSeasonId,
+      membershipId,
+      agreementType: "code_of_conduct",
+    });
+    await agreeOnboardingDocument({
+      personId,
+      seasonId: openSeasonId,
+      membershipId,
+      agreementType: "photo_release",
+    });
+    await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "bucs_play" });
+
+    const view = await readQuestionnaireView(personId, openSeasonId);
+    expect(view?.nothingOutstanding).toBe(false);
+    expect(view?.nextStep).toBe("hudl");
+  });
+
+  // Hudl's "no invitation has reached me" answer must never masquerade as a
+  // claim — it does not complete the item when one exists, and must not
+  // complete it item-independently either.
+  it("never treats 'no invitation has reached me' as a Hudl claim, with no configured items", async () => {
+    const { personId, membershipId } = await givenPlayerWithNoItems();
+    await saveDetailsStep(baseDetailsInput(personId, openSeasonId, membershipId));
+    await agreeOnboardingDocument({
+      personId,
+      seasonId: openSeasonId,
+      membershipId,
+      agreementType: "code_of_conduct",
+    });
+    await agreeOnboardingDocument({
+      personId,
+      seasonId: openSeasonId,
+      membershipId,
+      agreementType: "photo_release",
+    });
+    await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "bucs_play" });
+    await recordHudlNoInvitation({ personId, seasonId: openSeasonId, membershipId });
+
+    const view = await readQuestionnaireView(personId, openSeasonId);
+    expect(view?.nothingOutstanding).toBe(false);
+    expect(view?.nextStep).toBe("hudl");
+  });
 });
 
 describe("readQuestionnaireView — F4: who actually supplied each field (LAN-230)", () => {

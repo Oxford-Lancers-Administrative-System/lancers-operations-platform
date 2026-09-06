@@ -700,7 +700,8 @@ function DonePage({ view, token }: { view: QuestionnaireView; token: string }) {
           {DONE_HEADING}
         </Typography>
         <Typography sx={{ fontSize: 14, color: "text.secondary", mt: 1 }}>
-          {view.person.displayName} · {formatLongDate(new Date())}
+          {view.person.displayName}
+          {view.lastAnsweredAt ? ` · ${formatLongDate(view.lastAnsweredAt)}` : null}
         </Typography>
         <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 1.5 }}>
           {PRIVACY_NOTE}

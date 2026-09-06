@@ -236,6 +236,33 @@ export interface QuestionnaireView {
   outstandingSections: OutstandingSection[];
   /** The first step the sequence should resume at, or `"done"` when nothing needs it. */
   nextStep: QuestionnaireStep;
+  /**
+   * When this membership's most recent player answer was actually recorded —
+   * B2 (LAN-230 correction round 1). The Done screen is revisitable for the
+   * whole season (`W4`/`W5`), so `new Date()` there misstated the date on
+   * every reopen after the day it was first shown. `null` only for a
+   * membership `readQuestionnaireView` can somehow reach with no recorded
+   * answer at all — not expected on a page reached by having answered
+   * something, but never assumed.
+   */
+  lastAnsweredAt: Date | null;
+}
+
+/**
+ * The most recent time this membership actually saved something — B2
+ * (LAN-230 correction round 1). `onboarding_activity_log` already carries one
+ * `kind = 'answer'` row per save (`recordOnboardingActivityIn`, written by
+ * every action in this module), so this is a read of substrate already kept
+ * for exactly this reason, not a new one.
+ */
+async function readLastAnsweredAtIn(tx: Tx, membershipId: string): Promise<Date | null> {
+  const result = await tx.query<{ occurred_at: Date | null }>(
+    `select max(occurred_at) as occurred_at
+       from public.onboarding_activity_log
+      where season_membership_id = $1::uuid and kind = 'answer'`,
+    [membershipId],
+  );
+  return result.rows[0]?.occurred_at ?? null;
 }
 
 async function readAgreementsByTypeIn(
@@ -280,7 +307,11 @@ export async function readQuestionnaireViewIn(
     emergencyContactIsComplete(emergencyContact) &&
     !needsConsentStep;
 
-  const itemStatus = await readDisplayedItemStatusesIn(tx, ask.membershipId);
+  const [itemStatus, trustClaimed, lastAnsweredAt] = await Promise.all([
+    readDisplayedItemStatusesIn(tx, ask.membershipId),
+    readTrustClaimedIn(tx, ask.membershipId),
+    readLastAnsweredAtIn(tx, ask.membershipId),
+  ]);
 
   // The `|| agreements… !== null` half is F2's own necessary companion, found
   // walking the fix live: `agreeDocument` advances by *resuming* to the next
@@ -296,12 +327,17 @@ export async function readQuestionnaireViewIn(
     itemStatus.code_of_conduct === "complete" || agreements.code_of_conduct !== null;
   const photoReleaseDone =
     itemStatus.photo_release === "complete" || agreements.photo_release !== null;
+  // B1 (LAN-230 correction round 1): `trustClaimed`'s `|| ` half is the exact
+  // same necessary companion as `agreements` above, for the two trust items —
+  // see `readTrustClaimedIn`'s own module note.
   const bucsDone =
     itemStatus.bucs_play === "claimed" ||
-    (itemStatus.bucs_play !== null && RESOLVED_ITEM_STATUSES.includes(itemStatus.bucs_play));
+    (itemStatus.bucs_play !== null && RESOLVED_ITEM_STATUSES.includes(itemStatus.bucs_play)) ||
+    trustClaimed.bucs_play;
   const hudlDone =
     itemStatus.hudl_access === "claimed" ||
-    (itemStatus.hudl_access !== null && RESOLVED_ITEM_STATUSES.includes(itemStatus.hudl_access));
+    (itemStatus.hudl_access !== null && RESOLVED_ITEM_STATUSES.includes(itemStatus.hudl_access)) ||
+    trustClaimed.hudl_access;
 
   const sections: OutstandingSection[] = [];
 
@@ -377,6 +413,7 @@ export async function readQuestionnaireViewIn(
     nothingOutstanding,
     outstandingSections: sections,
     nextStep,
+    lastAnsweredAt,
   };
 }
 
@@ -448,6 +485,41 @@ async function readDisplayedItemStatusesIn(
     photo_release: byCode.get("photo_release") ?? null,
     bucs_play: byCode.get("bucs_play") ?? null,
     hudl_access: byCode.get("hudl_access") ?? null,
+  };
+}
+
+/**
+ * The item-independent counterpart to `agreements` for the two trust items —
+ * B1 (LAN-230 correction round 1), the identical deadlock `agreements` above
+ * already fixes for Code of Conduct/photo release, reproduced live on a
+ * zero-`onboarding_items` membership: `bucsDone`/`hudlDone` had no signal
+ * except `itemStatus`, so a player who genuinely claimed both was left
+ * `nothingOutstanding: false`, `nextStep: "bucs_play"`, forever, on every
+ * reopen of the link. `claimTrustItem` already logs the player's own claim to
+ * `onboarding_activity_log` whether or not there is an item to move
+ * (`channel: "signed link"`, F2's own fix) — that recorded answer is this
+ * signal, read back the same way `agreements` reads back an `onboarding_agreements`
+ * row. Scoped to `kind = 'answer'` and `channel = 'signed link'` specifically
+ * so Hudl's distinct "no invitation has reached me" answer
+ * (`recordHudlNoInvitation`'s own `channel`) never counts as a claim — exactly
+ * as it already does not complete the `hudl_access` item when one exists.
+ */
+async function readTrustClaimedIn(
+  tx: Tx,
+  membershipId: string,
+): Promise<Record<(typeof TRUST_ITEM_CODES)[number], boolean>> {
+  const sections = TRUST_ITEM_CODES.map((code) => TRUST_SECTION_LABEL[code]);
+  const result = await tx.query<{ section: string }>(
+    `select distinct section from public.onboarding_activity_log
+      where season_membership_id = $1::uuid
+        and kind = 'answer' and channel = 'signed link'
+        and section = any($2::text[])`,
+    [membershipId, sections],
+  );
+  const claimed = new Set(result.rows.map((row) => row.section));
+  return {
+    bucs_play: claimed.has(TRUST_SECTION_LABEL.bucs_play),
+    hudl_access: claimed.has(TRUST_SECTION_LABEL.hudl_access),
   };
 }
 

@@ -130,6 +130,7 @@ function view(overrides: Partial<QuestionnaireView> = {}): QuestionnaireView {
     nothingOutstanding: false,
     outstandingSections: [],
     nextStep: "details",
+    lastAnsweredAt: null,
     ...overrides,
   };
 }
@@ -390,6 +391,7 @@ describe("F3 — the Done screen carries every approved section", () => {
         hudl_access: "claimed",
       },
       outstandingSections: [],
+      lastAnsweredAt: new Date("2026-08-15T10:00:00Z"),
       ...overrides,
     });
   }
@@ -402,6 +404,23 @@ describe("F3 — the Done screen carries every approved section", () => {
     expect(text).toContain("2026-27");
     expect(text).toContain("Jordan Ashworth");
     expect(text).toContain(CONSENT_HEADING);
+  });
+
+  // B2 (LAN-230 correction round 1): the person/date line used to render
+  // `formatLongDate(new Date())` — today, unconditionally — which misstates
+  // the date on every reopen of this revisitable-for-the-whole-season screen.
+  // Restoring that reproduces exactly this: the fixed `lastAnsweredAt` below
+  // (15 August) would never appear, and whatever today's date happens to be
+  // would, regardless of what the view actually carries.
+  it("shows when the record was actually last saved, not today's date — B2", async () => {
+    givenValid(doneView({ lastAnsweredAt: new Date("2026-08-15T10:00:00Z") }));
+    const { container: augustRender } = await renderPage({ step: "done" });
+    expect(augustRender.textContent).toContain("15 August 2026");
+
+    givenValid(doneView({ lastAnsweredAt: new Date("2025-01-03T10:00:00Z") }));
+    const { container: januaryRender } = await renderPage({ step: "done" });
+    expect(januaryRender.textContent).toContain("3 January 2025");
+    expect(januaryRender.textContent).not.toContain("15 August 2026");
   });
 
   it("shows 'What the club now has', 'If something here is wrong', Close and the R3-G reassurance line", async () => {
