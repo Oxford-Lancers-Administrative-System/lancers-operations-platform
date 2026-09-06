@@ -45,10 +45,19 @@ import type { PersonRecord } from "@/lib/services/person-record";
 import PlayerDetailsPage from "./page";
 import {
   ALREADY_COMPLETE_HEADING,
+  BUCS_CLAIM_SUBNOTE,
+  BUCS_CONTINUE_ANYWAY_NOTE,
+  BUCS_STATUS_CONFIRMED_BY,
+  BUCS_STATUS_INSTRUCTIONS,
+  CLOSE,
   CONSENT_ALREADY_GRANTED,
+  CONSENT_HEADING,
   CONSENT_LABEL,
   DETAILS_HEADING,
   DISPUTED_NOTICE,
+  IF_SOMETHING_WRONG_HEADING,
+  R3G_REASSURANCE,
+  WHAT_CLUB_HAS_HEADING,
 } from "./presentation";
 
 const TOKEN = "durable-token-plaintext-000000000000000000000";
@@ -102,6 +111,15 @@ function view(overrides: Partial<QuestionnaireView> = {}): QuestionnaireView {
     missingRequiredFields: [],
     detailsComplete: false,
     openDisputedFields: new Set(),
+    fieldSuppliedBy: {
+      given_name: null,
+      family_name: null,
+      college: null,
+      matriculation_year: null,
+      expected_graduation_year: null,
+      degree_field: null,
+      date_of_birth: null,
+    },
     agreements: { code_of_conduct: null, photo_release: null },
     itemStatus: {
       code_of_conduct: "pending",
@@ -112,6 +130,7 @@ function view(overrides: Partial<QuestionnaireView> = {}): QuestionnaireView {
     nothingOutstanding: false,
     outstandingSections: [],
     nextStep: "details",
+    lastAnsweredAt: null,
     ...overrides,
   };
 }
@@ -268,5 +287,167 @@ describe("acceptance 11 — the disputed notice", () => {
     givenValid(view());
     const { container } = await renderPage();
     expect(container.textContent).not.toContain(DISPUTED_NOTICE);
+  });
+});
+
+// F4 (LAN-230): provenance reflects who actually supplied the value —
+// derived per field, never hard-coded by field name — and the retired
+// disputed-fact copy is gone from every source line.
+describe("F4 — provenance reflects who actually supplied each value", () => {
+  it("says 'The club' for a field the club actually supplied, whatever the field", async () => {
+    givenValid(
+      view({
+        person: personRecord({ givenNameSource: "Caspian Hallowfield" }),
+        fieldSuppliedBy: {
+          given_name: "club",
+          family_name: null,
+          college: null,
+          matriculation_year: null,
+          expected_graduation_year: null,
+          degree_field: null,
+          date_of_birth: null,
+        },
+      }),
+    );
+    const { container } = await renderPage();
+    expect(container.textContent).toContain("The club");
+  });
+
+  it("says 'You' for a field the player actually supplied, whatever the field", async () => {
+    // "You" already appears once as baseline copy (`DETAILS_SECONDARY`), so
+    // this counts occurrences rather than a plain `toContain` — proving the
+    // college field's own source line is what changed, not incidental copy.
+    givenValid(
+      view({
+        person: personRecord({ collegeSource: "Jordan Ashworth" }),
+        fieldSuppliedBy: {
+          given_name: null,
+          family_name: null,
+          college: null,
+          matriculation_year: null,
+          expected_graduation_year: null,
+          degree_field: null,
+          date_of_birth: null,
+        },
+      }),
+    );
+    const baseline = (await renderPage()).container.textContent ?? "";
+    const baselineCount = baseline.split("You").length - 1;
+
+    givenValid(
+      view({
+        person: personRecord({ collegeSource: "Jordan Ashworth" }),
+        fieldSuppliedBy: {
+          given_name: null,
+          family_name: null,
+          college: "you",
+          matriculation_year: null,
+          expected_graduation_year: null,
+          degree_field: null,
+          date_of_birth: null,
+        },
+      }),
+    );
+    const withSource = (await renderPage()).container.textContent ?? "";
+    const withSourceCount = withSource.split("You").length - 1;
+
+    expect(withSourceCount).toBeGreaterThan(baselineCount);
+    expect(withSource).not.toContain("The club");
+  });
+
+  it("never renders the retired disputed-fact clause, whatever the source", async () => {
+    givenValid(
+      view({
+        person: personRecord({ givenNameSource: "Caspian Hallowfield", collegeSource: "Jordan" }),
+        fieldSuppliedBy: {
+          given_name: "club",
+          family_name: null,
+          college: "you",
+          matriculation_year: null,
+          expected_graduation_year: null,
+          degree_field: null,
+          date_of_birth: null,
+        },
+      }),
+    );
+    const { container } = await renderPage();
+    expect(container.textContent).not.toMatch(/checked by a person/i);
+  });
+});
+
+// F3 (LAN-230): the Done and BUCS Play screens carry every section their
+// approved mockups show.
+describe("F3 — the Done screen carries every approved section", () => {
+  function doneView(overrides: Partial<QuestionnaireView> = {}) {
+    return view({
+      nextStep: "done",
+      nothingOutstanding: true,
+      needsConsentStep: false,
+      detailsComplete: true,
+      itemStatus: {
+        code_of_conduct: "complete",
+        photo_release: "complete",
+        bucs_play: "claimed",
+        hudl_access: "claimed",
+      },
+      outstandingSections: [],
+      lastAnsweredAt: new Date("2026-08-15T10:00:00Z"),
+      ...overrides,
+    });
+  }
+
+  it("shows the season status chip, the person/date line, and the messaging consent row", async () => {
+    givenValid(doneView());
+    const { container } = await renderPage({ step: "done" });
+    const text = container.textContent ?? "";
+    expect(text).toMatch(/onboarding/i);
+    expect(text).toContain("2026-27");
+    expect(text).toContain("Jordan Ashworth");
+    expect(text).toContain(CONSENT_HEADING);
+  });
+
+  // B2 (LAN-230 correction round 1): the person/date line used to render
+  // `formatLongDate(new Date())` — today, unconditionally — which misstates
+  // the date on every reopen of this revisitable-for-the-whole-season screen.
+  // Restoring that reproduces exactly this: the fixed `lastAnsweredAt` below
+  // (15 August) would never appear, and whatever today's date happens to be
+  // would, regardless of what the view actually carries.
+  it("shows when the record was actually last saved, not today's date — B2", async () => {
+    givenValid(doneView({ lastAnsweredAt: new Date("2026-08-15T10:00:00Z") }));
+    const { container: augustRender } = await renderPage({ step: "done" });
+    expect(augustRender.textContent).toContain("15 August 2026");
+
+    givenValid(doneView({ lastAnsweredAt: new Date("2025-01-03T10:00:00Z") }));
+    const { container: januaryRender } = await renderPage({ step: "done" });
+    expect(januaryRender.textContent).toContain("3 January 2025");
+    expect(januaryRender.textContent).not.toContain("15 August 2026");
+  });
+
+  it("shows 'What the club now has', 'If something here is wrong', Close and the R3-G reassurance line", async () => {
+    givenValid(doneView());
+    const { container } = await renderPage({ step: "done" });
+    const text = container.textContent ?? "";
+    expect(text).toContain(WHAT_CLUB_HAS_HEADING);
+    expect(text).toContain(IF_SOMETHING_WRONG_HEADING);
+    expect(text).toContain(CLOSE);
+    expect(text).toContain(R3G_REASSURANCE);
+  });
+});
+
+describe("F3 — the BUCS Play screen carries its status box and both footer notes", () => {
+  it("shows the two-column status box, naming the confirming-by and instructions facts", async () => {
+    givenValid(view({ nextStep: "bucs_play" }));
+    const { container } = await renderPage({ step: "bucs_play" });
+    const text = container.textContent ?? "";
+    expect(text).toContain(BUCS_STATUS_CONFIRMED_BY);
+    expect(text).toContain(BUCS_STATUS_INSTRUCTIONS);
+  });
+
+  it("shows both footer notes", async () => {
+    givenValid(view({ nextStep: "bucs_play" }));
+    const { container } = await renderPage({ step: "bucs_play" });
+    const text = container.textContent ?? "";
+    expect(text).toContain(BUCS_CLAIM_SUBNOTE);
+    expect(text).toContain(BUCS_CONTINUE_ANYWAY_NOTE);
   });
 });

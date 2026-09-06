@@ -130,12 +130,22 @@ function literalNextStepUrl(token: string, current: QuestionnaireStep): string {
  * (`./details-form.tsx`), every submission reaches this action regardless of
  * what was or was not typed — the browser no longer refuses a blank required
  * field before this code ever runs. This is therefore where "required" is
- * actually enforced from now on: `validateRequiredDetails` runs first, and
- * only a submission that clears it is ever handed to `saveDetailsStep` for
- * its own shape checks. Either check failing returns the same shape — the
- * player's own typed values plus a per-field error map — for
- * `useActionState` to redraw the form with, rather than a redirect: nothing
- * written, nothing lost, no navigation.
+ * enforced: `validateRequiredDetails` names every blank required field.
+ *
+ * F1 (LAN-230, critical — Brian's own confirmed requirement, 2026-09-02:
+ * "Whatever a step saved stays saved… never discards"): this used to return
+ * the moment `validateRequiredDetails` found even one blank required field,
+ * *never calling `saveDetailsStep` at all* — nine valid answers submitted
+ * alongside one blank required one were silently discarded, not merely left
+ * unmarked as complete. `saveDetailsStep` is now always called, and always
+ * writes every field that validated, whether or not a required field was
+ * left blank or another field failed its own shape check (that module's own
+ * fix, `player-questionnaire.ts`). The two error maps are merged afterwards —
+ * a shape error `saveDetailsStep` already reported for a field wins over a
+ * generic "required" one, since a value that failed shape *was* submitted —
+ * for `useActionState` to redraw the form with, rather than a redirect:
+ * everything that validated is already saved, nothing typed is lost, and no
+ * navigation happens while anything still needs fixing.
  */
 export async function saveDetails(
   _previous: DetailsFormState,
@@ -155,9 +165,6 @@ export async function saveDetails(
   }
 
   const requiredErrors = validateRequiredDetails(values);
-  if (Object.keys(requiredErrors).length > 0) {
-    return { values, errors: requiredErrors };
-  }
 
   const input: DetailsStepInput = {
     personId: resolution.personId,
@@ -185,8 +192,13 @@ export async function saveDetails(
   };
 
   const result = await saveDetailsStep(input);
-  if (Object.keys(result.errors).length > 0) {
-    return { values, errors: mapServiceErrors(result.errors) };
+  const shapeErrors = mapServiceErrors(result.errors);
+  // A field the service itself flagged (it was submitted, but malformed)
+  // takes precedence over a generic "required" one for the same field — the
+  // player typed something; say what is wrong with it, not that it is blank.
+  const errors: DetailsFormState["errors"] = { ...requiredErrors, ...shapeErrors };
+  if (Object.keys(errors).length > 0) {
+    return { values, errors };
   }
 
   redirect(await nextStepUrl(token, resolution));

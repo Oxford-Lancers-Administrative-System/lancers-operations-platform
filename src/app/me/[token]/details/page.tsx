@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
 import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
 import Alert from "@mui/material/Alert";
@@ -33,15 +34,23 @@ import {
   ALREADY_COMPLETE_REST_NOTE,
   BANNER,
   BUCS_CLAIM_LABEL,
+  BUCS_CLAIM_SUBNOTE,
+  BUCS_CONTINUE_ANYWAY_NOTE,
   BUCS_HAVE_YOU_DONE_IT,
   BUCS_HEADING,
   BUCS_LEAD,
   BUCS_OWED_NOTE,
+  BUCS_STATUS_CONFIRMED_BY,
+  BUCS_STATUS_CONFIRMED_BY_LABEL,
+  BUCS_STATUS_INSTRUCTIONS,
+  BUCS_STATUS_INSTRUCTIONS_LABEL,
   BUCS_STEPS,
   BUSY_MESSAGE,
+  CLOSE,
   CODE_OF_CONDUCT_AGREE_LABEL,
   CODE_OF_CONDUCT_HEADING,
   CODE_OF_CONDUCT_LEAD,
+  CONSENT_HEADING,
   CONTINUE,
   DETAILS_HEADING,
   DETAILS_LEAD_RETURNING,
@@ -49,6 +58,7 @@ import {
   DETAILS_SECONDARY,
   DOCUMENT_PRIVACY_NOTE,
   DONE_HEADING,
+  DONE_STATUS_LABEL,
   FINISH,
   HUDL_ARE_YOU_IN,
   HUDL_CLAIM_LABEL,
@@ -58,6 +68,8 @@ import {
   HUDL_OWED_NOTE,
   HUDL_STEPS,
   HUDL_TWO_PARTS_NOTE,
+  IF_SOMETHING_WRONG_BODY,
+  IF_SOMETHING_WRONG_HEADING,
   MUST_AGREE_ERROR,
   OUTSTANDING_HEADING,
   OUTSTANDING_SAME_LINK_NOTE,
@@ -66,8 +78,11 @@ import {
   PHOTO_RELEASE_LEAD,
   PLACEHOLDER_LABEL,
   PRIVACY_NOTE,
+  R3G_REASSURANCE,
   sourceLine,
   stepLabel,
+  WHAT_CLUB_HAS_BODY,
+  WHAT_CLUB_HAS_HEADING,
 } from "./presentation";
 
 export const dynamic = "force-dynamic";
@@ -253,6 +268,48 @@ function ChecklistStrip({
   );
 }
 
+/**
+ * F3 (LAN-230): the two-column status box `W4-07-proposed` (Done) and
+ * `W4-05-proposed` (BUCS Play) each show above their steps — one `dl` grid
+ * shared by both rather than two copies of the same layout. `positive`
+ * colours a row's value the same way this route already colours an `Alert`
+ * (`success.main`/`warning.main`), matching the mockups' green/amber without
+ * a new colour convention.
+ */
+function FactGrid({ rows }: { rows: Array<[string, string, boolean?]> }) {
+  return (
+    <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 3 }, borderRadius: 2, mb: 3 }}>
+      <Box component="dl" sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, m: 0 }}>
+        {rows.map(([label, value, positive]) => (
+          <Box key={label}>
+            <Typography
+              component="dt"
+              sx={{ fontSize: 11, fontWeight: 700, color: "text.secondary" }}
+            >
+              {label}
+            </Typography>
+            <Typography
+              component="dd"
+              sx={{
+                m: 0,
+                fontSize: 13,
+                color:
+                  positive === undefined
+                    ? "text.primary"
+                    : positive
+                      ? "success.main"
+                      : "warning.main",
+              }}
+            >
+              {value}
+            </Typography>
+          </Box>
+        ))}
+      </Box>
+    </Paper>
+  );
+}
+
 function Shell({
   children,
   view,
@@ -296,6 +353,21 @@ function currentContact(view: QuestionnaireView, kind: "phone" | "email"): strin
     (c) => c.kind === kind && c.validUntil === null && (kind === "phone" || c.scope === "personal"),
   );
   return contact?.rawValue ?? "";
+}
+
+/**
+ * F4 (LAN-230): the source line for one of the seven disputable fields, read
+ * from who actually supplied it (`view.fieldSuppliedBy`) rather than a
+ * hard-coded "you" or "the club" per field name. `null` when nobody
+ * attributable did — the same "nothing to say" case the field already
+ * rendered silently.
+ */
+function sourceOf(
+  view: QuestionnaireView,
+  field: keyof QuestionnaireView["fieldSuppliedBy"],
+): string | null {
+  const who = view.fieldSuppliedBy[field];
+  return who ? sourceLine(who, null) : null;
 }
 
 /**
@@ -344,31 +416,31 @@ function DetailsStepPage({ view, token }: { view: QuestionnaireView; token: stri
           initialValues={initialValues}
           meta={{
             given_name: {
-              source: p.givenNameSource ? sourceLine("you", null) : null,
+              source: sourceOf(view, "given_name"),
               disputed: view.openDisputedFields.has("given_name"),
             },
             family_name: {
-              source: p.familyNameSource ? sourceLine("you", null) : null,
+              source: sourceOf(view, "family_name"),
               disputed: view.openDisputedFields.has("family_name"),
             },
             college: {
-              source: p.collegeSource ? sourceLine("club", null) : null,
+              source: sourceOf(view, "college"),
               disputed: view.openDisputedFields.has("college"),
             },
             matriculation_year: {
-              source: p.matriculationYearSource ? sourceLine("club", null) : null,
+              source: sourceOf(view, "matriculation_year"),
               disputed: view.openDisputedFields.has("matriculation_year"),
             },
             expected_graduation_year: {
-              source: p.expectedGraduationYearSource ? sourceLine("you", null) : null,
+              source: sourceOf(view, "expected_graduation_year"),
               disputed: view.openDisputedFields.has("expected_graduation_year"),
             },
             degree_field: {
-              source: p.degreeFieldSource ? sourceLine("you", null) : null,
+              source: sourceOf(view, "degree_field"),
               disputed: view.openDisputedFields.has("degree_field"),
             },
             date_of_birth: {
-              source: p.dateOfBirthSource ? sourceLine("you", null) : null,
+              source: sourceOf(view, "date_of_birth"),
               disputed: view.openDisputedFields.has("date_of_birth"),
             },
           }}
@@ -461,6 +533,8 @@ function DocumentStepPage({
 // ---------------------------------------------------------------------------
 
 function BucsStepPage({ view, token }: { view: QuestionnaireView; token: string }) {
+  const photoReleaseAgreed = view.itemStatus.photo_release === "complete";
+  const bucsClaimed = view.itemStatus.bucs_play === "claimed";
   return (
     <BucsHudlShell
       view={view}
@@ -468,6 +542,16 @@ function BucsStepPage({ view, token }: { view: QuestionnaireView; token: string 
       token={token}
       heading={BUCS_HEADING}
       lead={BUCS_LEAD}
+      statusRows={[
+        [
+          stepLabel("photo_release"),
+          photoReleaseAgreed ? "Agreed" : "Outstanding",
+          photoReleaseAgreed,
+        ],
+        [stepLabel("bucs_play"), bucsClaimed ? "Claimed" : "Outstanding", bucsClaimed],
+        [BUCS_STATUS_CONFIRMED_BY_LABEL, BUCS_STATUS_CONFIRMED_BY],
+        [BUCS_STATUS_INSTRUCTIONS_LABEL, BUCS_STATUS_INSTRUCTIONS, false],
+      ]}
     >
       <ol style={{ margin: 0, paddingLeft: 22 }}>
         {BUCS_STEPS.map((line) => (
@@ -483,11 +567,17 @@ function BucsStepPage({ view, token }: { view: QuestionnaireView; token: string 
         {BUCS_HAVE_YOU_DONE_IT}
       </Typography>
       <CheckboxField name="claim" label={BUCS_CLAIM_LABEL} />
+      <Typography sx={{ fontSize: 12, color: "text.secondary", mt: 0.5 }}>
+        {BUCS_CLAIM_SUBNOTE}
+      </Typography>
       <Box sx={{ mt: 2 }}>
         <Button type="submit" variant="contained" sx={{ minHeight: 48 }}>
           {CONTINUE}
         </Button>
       </Box>
+      <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 2, textAlign: "center" }}>
+        {BUCS_CONTINUE_ANYWAY_NOTE}
+      </Typography>
     </BucsHudlShell>
   );
 }
@@ -540,6 +630,7 @@ function BucsHudlShell({
   heading,
   lead,
   code,
+  statusRows,
   children,
 }: {
   view: QuestionnaireView;
@@ -548,6 +639,8 @@ function BucsHudlShell({
   heading: string;
   lead: string;
   code?: "hudl_access";
+  /** F3 (LAN-230): the `W4-05` two-column status box — BUCS Play only. */
+  statusRows?: Array<[string, string, boolean?]>;
   children: React.ReactNode;
 }) {
   return (
@@ -563,6 +656,9 @@ function BucsHudlShell({
         <Typography sx={{ fontSize: 13, color: "text.secondary", mb: 2 }}>
           {PRIVACY_NOTE}
         </Typography>
+      </Paper>
+      {statusRows ? <FactGrid rows={statusRows} /> : null}
+      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
         <Box component="form" action={submitTrustStep}>
           <input type="hidden" name="token" value={token} />
           <input type="hidden" name="code" value={code ?? "bucs_play"} />
@@ -577,20 +673,62 @@ function BucsHudlShell({
 // Done — outstanding by section, each a link back to its step
 // ---------------------------------------------------------------------------
 
+/** F3 (LAN-230): "5 September 2026" — the person/date line's own format. */
+function formatLongDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeZone: "Europe/London" }).format(
+    date,
+  );
+}
+
 function DonePage({ view, token }: { view: QuestionnaireView; token: string }) {
+  const consentGiven = !view.needsConsentStep;
+  const codeOfConductAgreed = view.itemStatus.code_of_conduct === "complete";
+  const photoReleaseAgreed = view.itemStatus.photo_release === "complete";
+  const bucsClaimed = view.itemStatus.bucs_play === "claimed";
+  const hudlClaimed = view.itemStatus.hudl_access === "claimed";
+
   return (
     <>
       <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
+        <Chip
+          label={DONE_STATUS_LABEL(view.seasonLabel)}
+          size="small"
+          color="primary"
+          sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", mb: 2 }}
+        />
         <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
           {DONE_HEADING}
+        </Typography>
+        <Typography sx={{ fontSize: 14, color: "text.secondary", mt: 1 }}>
+          {view.person.displayName}
+          {view.lastAnsweredAt ? ` · ${formatLongDate(view.lastAnsweredAt)}` : null}
         </Typography>
         <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 1.5 }}>
           {PRIVACY_NOTE}
         </Typography>
       </Paper>
-      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
-        <ChecklistStrip view={view} currentStep="details" />
-      </Paper>
+      <FactGrid
+        rows={[
+          [CONSENT_HEADING, consentGiven ? "Given" : "Outstanding", consentGiven],
+          [
+            stepLabel("details"),
+            view.detailsComplete ? "Saved" : "Still needed",
+            view.detailsComplete,
+          ],
+          [
+            stepLabel("code_of_conduct"),
+            codeOfConductAgreed ? "Agreed" : "Outstanding",
+            codeOfConductAgreed,
+          ],
+          [
+            stepLabel("photo_release"),
+            photoReleaseAgreed ? "Agreed" : "Outstanding",
+            photoReleaseAgreed,
+          ],
+          [stepLabel("bucs_play"), bucsClaimed ? "Claimed" : "Outstanding", bucsClaimed],
+          [stepLabel("hudl"), hudlClaimed ? "Claimed" : "Outstanding", hudlClaimed],
+        ]}
+      />
       {view.outstandingSections.length > 0 ? (
         <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
           <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: 1 }}>
@@ -629,6 +767,28 @@ function DonePage({ view, token }: { view: QuestionnaireView; token: string }) {
           </Typography>
         </Paper>
       ) : null}
+      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
+        <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: 1 }}>
+          {WHAT_CLUB_HAS_HEADING}
+        </Typography>
+        <Typography sx={{ fontSize: 14, color: "text.secondary" }}>{WHAT_CLUB_HAS_BODY}</Typography>
+      </Paper>
+      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
+        <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: 1 }}>
+          {IF_SOMETHING_WRONG_HEADING}
+        </Typography>
+        <Typography sx={{ fontSize: 14, color: "text.secondary" }}>
+          {IF_SOMETHING_WRONG_BODY}
+        </Typography>
+      </Paper>
+      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 2 }}>
+        <Button component="span" variant="contained" fullWidth sx={{ minHeight: 48 }}>
+          {CLOSE}
+        </Button>
+      </Paper>
+      <Typography sx={{ fontSize: 13, color: "text.secondary", textAlign: "center" }}>
+        {R3G_REASSURANCE}
+      </Typography>
     </>
   );
 }

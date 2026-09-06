@@ -206,16 +206,63 @@ export interface QuestionnaireView {
   detailsComplete: boolean;
   /** Open disputes on the seven `people` fields — `REQ-no-silent-overwrite`'s own visible trace. */
   openDisputedFields: ReadonlySet<DisputedPersonField>;
+  /**
+   * Who actually supplied each of the seven disputable fields' current value
+   * — F4 (LAN-230). `"you"` when the most recent `person_<field>_updated` row
+   * names this same person, `"club"` when it names anybody else, `null` when
+   * there is no such row at all (seeded, imported, or never edited — nothing
+   * to attribute). The display used to hard-code "you" or "the club" by
+   * field *name* regardless of this; this is the one comparison
+   * `PersonRecord`'s own `<field>Source` (a display name, not an id) cannot
+   * make on its own — see `readFieldSuppliedByIn`.
+   */
+  fieldSuppliedBy: Record<DisputedPersonField, "you" | "club" | null>;
   agreements: Record<OnboardingAgreementType, OnboardingAgreement | null>;
+  /**
+   * `null` means no `onboarding_items` row of this code exists for this
+   * membership at all — F2 (LAN-230): "a season with no configured item
+   * types yields no items… a real configuration state, not a failure"
+   * (`generateOnboardingItems`'s own module note), and it must read that way
+   * here too rather than defaulting to `"complete"`. Never treated as done by
+   * anything in this module — matching the operator record's own "This
+   * season has no onboarding items configured" honesty.
+   */
   itemStatus: Record<
     (typeof TRUST_ITEM_CODES)[number] | (typeof DIRECT_PLAYER_ITEM_CODES)[number],
-    OnboardingItemStatus
+    OnboardingItemStatus | null
   >;
   /** Everything still outstanding for the player, in the sequence's own order. */
   nothingOutstanding: boolean;
   outstandingSections: OutstandingSection[];
   /** The first step the sequence should resume at, or `"done"` when nothing needs it. */
   nextStep: QuestionnaireStep;
+  /**
+   * When this membership's most recent player answer was actually recorded —
+   * B2 (LAN-230 correction round 1). The Done screen is revisitable for the
+   * whole season (`W4`/`W5`), so `new Date()` there misstated the date on
+   * every reopen after the day it was first shown. `null` only for a
+   * membership `readQuestionnaireView` can somehow reach with no recorded
+   * answer at all — not expected on a page reached by having answered
+   * something, but never assumed.
+   */
+  lastAnsweredAt: Date | null;
+}
+
+/**
+ * The most recent time this membership actually saved something — B2
+ * (LAN-230 correction round 1). `onboarding_activity_log` already carries one
+ * `kind = 'answer'` row per save (`recordOnboardingActivityIn`, written by
+ * every action in this module), so this is a read of substrate already kept
+ * for exactly this reason, not a new one.
+ */
+async function readLastAnsweredAtIn(tx: Tx, membershipId: string): Promise<Date | null> {
+  const result = await tx.query<{ occurred_at: Date | null }>(
+    `select max(occurred_at) as occurred_at
+       from public.onboarding_activity_log
+      where season_membership_id = $1::uuid and kind = 'answer'`,
+    [membershipId],
+  );
+  return result.rows[0]?.occurred_at ?? null;
 }
 
 async function readAgreementsByTypeIn(
@@ -241,14 +288,16 @@ export async function readQuestionnaireViewIn(
   const ask = await readCompiledOutstandingAskIn(tx, personId, seasonId);
   if (!ask) return null;
 
-  const [person, emergencyContact, consent, agreements, seasonLabel, disputes] = await Promise.all([
-    readPersonRecordIn(tx, personId),
-    readEmergencyContactFactsIn(tx, personId),
-    readSeasonMessagingConsentIn(tx, personId, seasonId),
-    readAgreementsByTypeIn(tx, personId, seasonId),
-    readSeasonLabelIn(tx, seasonId),
-    readOpenPersonFactDisputesIn(tx, personId),
-  ]);
+  const [person, emergencyContact, consent, agreements, seasonLabel, disputes, fieldSuppliedBy] =
+    await Promise.all([
+      readPersonRecordIn(tx, personId),
+      readEmergencyContactFactsIn(tx, personId),
+      readSeasonMessagingConsentIn(tx, personId, seasonId),
+      readAgreementsByTypeIn(tx, personId, seasonId),
+      readSeasonLabelIn(tx, seasonId),
+      readOpenPersonFactDisputesIn(tx, personId),
+      readFieldSuppliedByIn(tx, personId),
+    ]);
   const openDisputedFields = new Set(disputes.map((d) => d.field));
 
   const needsConsentStep = ask.hasGrantedConsent === false;
@@ -258,24 +307,37 @@ export async function readQuestionnaireViewIn(
     emergencyContactIsComplete(emergencyContact) &&
     !needsConsentStep;
 
-  const itemByCode = new Map(ask.outstandingItems.map((item) => [item.code, item.status]));
-  const itemStatus: QuestionnaireView["itemStatus"] = {
-    code_of_conduct: itemByCode.get("code_of_conduct") ?? "complete",
-    photo_release: itemByCode.get("photo_release") ?? "complete",
-    bucs_play: itemByCode.get("bucs_play") ?? "complete",
-    hudl_access: itemByCode.get("hudl_access") ?? "complete",
-  };
-  // `readCompiledOutstandingAskIn` only lists items still `pending`/`invited`/
-  // `claimed` — an absent code means resolved, and every code above genuinely
-  // exists once `generateOnboardingItems` has run (LAN-214), so `"complete"`
-  // is a safe fallback rather than a guess.
+  const [itemStatus, trustClaimed, lastAnsweredAt] = await Promise.all([
+    readDisplayedItemStatusesIn(tx, ask.membershipId),
+    readTrustClaimedIn(tx, ask.membershipId),
+    readLastAnsweredAtIn(tx, ask.membershipId),
+  ]);
 
-  const codeOfConductDone = itemStatus.code_of_conduct === "complete";
-  const photoReleaseDone = itemStatus.photo_release === "complete";
+  // The `|| agreements… !== null` half is F2's own necessary companion, found
+  // walking the fix live: `agreeDocument` advances by *resuming* to the next
+  // outstanding step (`nextStepUrl`), never by a literal one (unlike BUCS/Hudl,
+  // which always advance regardless — `literalNextStepUrl`, "nothing gates").
+  // With no configured `code_of_conduct`/`photo_release` item,
+  // `completePlayerOrDerivedItemIn` has nothing to mark complete, so
+  // `itemStatus` alone would leave a player who *did* agree stuck resuming to
+  // the same step forever — a deadlock this fix would otherwise introduce.
+  // `agreements` (`onboarding_agreements`, read above) is the item-independent
+  // record of that same fact, already on hand.
+  const codeOfConductDone =
+    itemStatus.code_of_conduct === "complete" || agreements.code_of_conduct !== null;
+  const photoReleaseDone =
+    itemStatus.photo_release === "complete" || agreements.photo_release !== null;
+  // B1 (LAN-230 correction round 1): `trustClaimed`'s `|| ` half is the exact
+  // same necessary companion as `agreements` above, for the two trust items —
+  // see `readTrustClaimedIn`'s own module note.
   const bucsDone =
-    itemStatus.bucs_play === "claimed" || RESOLVED_ITEM_STATUSES.includes(itemStatus.bucs_play);
+    itemStatus.bucs_play === "claimed" ||
+    (itemStatus.bucs_play !== null && RESOLVED_ITEM_STATUSES.includes(itemStatus.bucs_play)) ||
+    trustClaimed.bucs_play;
   const hudlDone =
-    itemStatus.hudl_access === "claimed" || RESOLVED_ITEM_STATUSES.includes(itemStatus.hudl_access);
+    itemStatus.hudl_access === "claimed" ||
+    (itemStatus.hudl_access !== null && RESOLVED_ITEM_STATUSES.includes(itemStatus.hudl_access)) ||
+    trustClaimed.hudl_access;
 
   const sections: OutstandingSection[] = [];
 
@@ -345,11 +407,13 @@ export async function readQuestionnaireViewIn(
     missingRequiredFields,
     detailsComplete,
     openDisputedFields,
+    fieldSuppliedBy,
     agreements,
     itemStatus,
     nothingOutstanding,
     outstandingSections: sections,
     nextStep,
+    lastAnsweredAt,
   };
 }
 
@@ -384,6 +448,79 @@ async function findOnboardingItemIn(
   );
   const row = result.rows[0];
   return row ? { id: row.id, status: row.status } : null;
+}
+
+/** The four codes `readQuestionnaireViewIn` displays and gates the sequence on. */
+const DISPLAYED_ITEM_CODES: readonly string[] = Object.freeze([
+  ...DIRECT_PLAYER_ITEM_CODES,
+  ...TRUST_ITEM_CODES,
+]);
+
+/**
+ * The four items' real current status, read directly rather than inferred
+ * from what `readCompiledOutstandingAskIn` leaves out — F2 (LAN-230).
+ * `outstandingItems` only lists `pending`/`invited`/`claimed` rows, so
+ * "absent from that list" used to be read as "resolved" and defaulted to
+ * `"complete"`. That conflates two different facts: a resolved item, and a
+ * membership with **no row of this code at all** (never generated, or a
+ * season with no configured item types — a real, unexceptional state
+ * `generateOnboardingItems`'s own module note names). This reads every one of
+ * the four codes' actual rows, so the second case reads `null` rather than
+ * a guess, and is never treated as done.
+ */
+async function readDisplayedItemStatusesIn(
+  tx: Tx,
+  membershipId: string,
+): Promise<QuestionnaireView["itemStatus"]> {
+  const result = await tx.query<{ code: string; status: OnboardingItemStatus }>(
+    `select t.code, i.status::text as status
+       from public.onboarding_items i
+       join public.onboarding_item_types t on t.id = i.item_type_id
+      where i.season_membership_id = $1::uuid and t.code = any($2::text[])`,
+    [membershipId, DISPLAYED_ITEM_CODES],
+  );
+  const byCode = new Map(result.rows.map((row) => [row.code, row.status]));
+  return {
+    code_of_conduct: byCode.get("code_of_conduct") ?? null,
+    photo_release: byCode.get("photo_release") ?? null,
+    bucs_play: byCode.get("bucs_play") ?? null,
+    hudl_access: byCode.get("hudl_access") ?? null,
+  };
+}
+
+/**
+ * The item-independent counterpart to `agreements` for the two trust items —
+ * B1 (LAN-230 correction round 1), the identical deadlock `agreements` above
+ * already fixes for Code of Conduct/photo release, reproduced live on a
+ * zero-`onboarding_items` membership: `bucsDone`/`hudlDone` had no signal
+ * except `itemStatus`, so a player who genuinely claimed both was left
+ * `nothingOutstanding: false`, `nextStep: "bucs_play"`, forever, on every
+ * reopen of the link. `claimTrustItem` already logs the player's own claim to
+ * `onboarding_activity_log` whether or not there is an item to move
+ * (`channel: "signed link"`, F2's own fix) — that recorded answer is this
+ * signal, read back the same way `agreements` reads back an `onboarding_agreements`
+ * row. Scoped to `kind = 'answer'` and `channel = 'signed link'` specifically
+ * so Hudl's distinct "no invitation has reached me" answer
+ * (`recordHudlNoInvitation`'s own `channel`) never counts as a claim — exactly
+ * as it already does not complete the `hudl_access` item when one exists.
+ */
+async function readTrustClaimedIn(
+  tx: Tx,
+  membershipId: string,
+): Promise<Record<(typeof TRUST_ITEM_CODES)[number], boolean>> {
+  const sections = TRUST_ITEM_CODES.map((code) => TRUST_SECTION_LABEL[code]);
+  const result = await tx.query<{ section: string }>(
+    `select distinct section from public.onboarding_activity_log
+      where season_membership_id = $1::uuid
+        and kind = 'answer' and channel = 'signed link'
+        and section = any($2::text[])`,
+    [membershipId, sections],
+  );
+  const claimed = new Set(result.rows.map((row) => row.section));
+  return {
+    bucs_play: claimed.has(TRUST_SECTION_LABEL.bucs_play),
+    hudl_access: claimed.has(TRUST_SECTION_LABEL.hudl_access),
+  };
 }
 
 /**
@@ -498,6 +635,45 @@ async function lastFieldActorPersonIdIn(
     [personId, PROVENANCE_ACTION_BY_FIELD[field]],
   );
   return result.rows[0]?.actor_person_id ?? null;
+}
+
+/**
+ * The batched, display-only counterpart to {@link lastFieldActorPersonIdIn}
+ * — F4 (LAN-230). One query for all seven fields rather than seven, each
+ * resolved to `"you"` / `"club"` / `null` for `QuestionnaireView.fieldSuppliedBy`
+ * to render straight, with no name string to compare and no risk of two
+ * people sharing a display name reading as the same person.
+ */
+async function readFieldSuppliedByIn(
+  tx: Tx,
+  personId: string,
+): Promise<Record<DisputedPersonField, "you" | "club" | null>> {
+  const actions = DISPUTABLE_FIELDS.map((field) => PROVENANCE_ACTION_BY_FIELD[field]);
+  const result = await tx.query<{ action: string; actor_person_id: string | null }>(
+    `select action, actor_person_id
+       from public.audit_events
+      where entity_table = 'people' and entity_id = $1::uuid
+        and action = any($2::text[])
+      order by occurred_at desc`,
+    [personId, actions],
+  );
+
+  const actionToField = new Map(
+    DISPUTABLE_FIELDS.map((field) => [PROVENANCE_ACTION_BY_FIELD[field], field]),
+  );
+  const latestActorByField = new Map<DisputedPersonField, string | null>();
+  for (const row of result.rows) {
+    const field = actionToField.get(row.action);
+    if (!field || latestActorByField.has(field)) continue; // newest row for this field is already kept
+    latestActorByField.set(field, row.actor_person_id);
+  }
+
+  const suppliedBy = {} as Record<DisputedPersonField, "you" | "club" | null>;
+  for (const field of DISPUTABLE_FIELDS) {
+    const actorId = latestActorByField.get(field);
+    suppliedBy[field] = actorId === undefined ? null : actorId === personId ? "you" : "club";
+  }
+  return suppliedBy;
 }
 
 const PERSON_FIELD_SOURCE_KEY: Readonly<Record<DisputedPersonField, keyof PersonRecord>> =
@@ -658,20 +834,28 @@ export interface DetailsStepResult {
 }
 
 /**
- * Validates first, writes only what actually changed — the same posture
- * `/operate/people/[personId]/edit`'s own action takes: nothing is written
- * until every submitted value that needs a shape check has passed one, so a
- * single malformed field never leaves the record half-updated.
+ * Validates first, then writes every field that validated — never all or
+ * nothing. F1 (LAN-230, a critical fix on Brian's own confirmed requirement,
+ * 2026-09-02: "Whatever a step saved stays saved… never discards"; CE-008,
+ * `REQ-required-set`: "the required set… blocks the form and never the
+ * player, and whatever a step saved stays saved"): a submission this module
+ * used to abort *entirely* the moment any single field failed its own shape
+ * check, discarding nine valid answers over one malformed one. Each of the
+ * six independently-checked slots below (mobile, personal email, the two
+ * emergency-contact fields, and the two academic years) now gates only its
+ * own write; every other slot, and the five disputable fields with no shape
+ * check at all, commit regardless of what else in the same submission failed.
+ * `errors` is still returned in full, so the player sees exactly what still
+ * needs fixing — it just never again means nothing was kept.
  *
  * Every write below is its own already-audited, already-transactional call
  * (`updatePersonField`, `supersedeContactPoint`, `updateEmergencyContactField`)
  * — none of them expose a transaction-scoped variant, so this save is a
- * sequence of independently-committed steps
- * rather than one all-or-nothing transaction. That is not a shortcut: it is
- * the exact semantics `REQ-required-set` asks for — "whatever a step saved
- * stays saved" — a save interrupted partway through still keeps everything
- * that committed before the interruption, rather than losing it to a
- * rollback.
+ * sequence of independently-committed steps rather than one all-or-nothing
+ * transaction. That is not a shortcut: it is the exact semantics
+ * `REQ-required-set` asks for — a save interrupted partway through, or one
+ * that arrived with some fields invalid, still keeps everything that
+ * validated and committed, rather than losing it to an all-or-nothing gate.
  */
 export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsStepResult> {
   const current = await readPersonRecord(input.personId);
@@ -692,12 +876,12 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
   const emailChanged =
     input.personalEmail.trim() !== "" && needsPersonalEmailWrite(current, input.personalEmail);
   if (emailChanged && !looksLikeEmail(input.personalEmail)) errors.personalEmail = EMAIL_SHAPE;
-  if (input.emergencyContact.phone.trim() !== "" && !looksLikePhone(input.emergencyContact.phone)) {
-    errors.ec_phone = PHONE_SHAPE;
-  }
-  if (input.emergencyContact.email.trim() !== "" && !looksLikeEmail(input.emergencyContact.email)) {
-    errors.ec_email = EMAIL_SHAPE;
-  }
+  const ecPhoneInvalid =
+    input.emergencyContact.phone.trim() !== "" && !looksLikePhone(input.emergencyContact.phone);
+  if (ecPhoneInvalid) errors.ec_phone = PHONE_SHAPE;
+  const ecEmailInvalid =
+    input.emergencyContact.email.trim() !== "" && !looksLikeEmail(input.emergencyContact.email);
+  if (ecEmailInvalid) errors.ec_email = EMAIL_SHAPE;
   if (input.fields.matriculation_year) {
     const validation = validateAcademicYear(input.fields.matriculation_year, "Matriculation year");
     if (!validation.valid) errors.matriculation_year = validation.message;
@@ -710,14 +894,11 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
     if (!validation.valid) errors.expected_graduation_year = validation.message;
   }
 
-  if (Object.keys(errors).length > 0) {
-    return { errors, outcomes: {} };
-  }
-
   if (input.grantConsent) {
     // Idempotent by construction: a crafted resubmission of an already-granted
     // tick must never bump `changed_at` again, so this is checked and granted
-    // inside one transaction rather than granted unconditionally.
+    // inside one transaction rather than granted unconditionally. Consent is
+    // never gated on any other field's validity — it is its own tick.
     await withTransaction(async (tx) => {
       const granted = await hasGrantedSeasonMessagingConsentIn(tx, input.personId, input.seasonId);
       if (!granted) await grantSeasonMessagingConsentIn(tx, input.personId, input.seasonId);
@@ -726,6 +907,12 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
 
   const outcomes: Partial<Record<DisputedPersonField, FieldSaveOutcome>> = {};
   for (const field of DISPUTABLE_FIELDS) {
+    // `matriculation_year`/`expected_graduation_year` are the only two of the
+    // seven with a shape check (`validateAcademicYear`, above); a value that
+    // failed it is left unwritten rather than parsed and stored anyway — the
+    // other five fields have no shape check at all and always attempt to
+    // write (a blank one is already a no-op inside `applyDisputableFieldIn`).
+    if (errors[field]) continue;
     const raw = input.fields[field];
     if (raw === undefined) continue;
     const outcome = await withTransaction((tx) =>
@@ -739,7 +926,7 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
     outcomes[field] = outcome;
   }
 
-  if (mobileChanged) {
+  if (mobileChanged && !errors.mobile) {
     await supersedeContactPoint({
       actorPersonId: input.personId,
       personId: input.personId,
@@ -749,7 +936,7 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
       reason: "Player self-service correction.",
     });
   }
-  if (emailChanged) {
+  if (emailChanged && !errors.personalEmail) {
     await supersedeContactPoint({
       actorPersonId: input.personId,
       personId: input.personId,
@@ -761,7 +948,15 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
     });
   }
 
-  await writeEmergencyContactIn(input.personId, input.emergencyContact);
+  // A malformed emergency-contact phone or email is blanked before reaching
+  // `writeEmergencyContactIn`, whose own "never clears a field" rule then
+  // treats it exactly as "not submitted" — every other emergency-contact
+  // field submitted alongside it still writes.
+  await writeEmergencyContactIn(input.personId, {
+    ...input.emergencyContact,
+    phone: ecPhoneInvalid ? "" : input.emergencyContact.phone,
+    email: ecEmailInvalid ? "" : input.emergencyContact.email,
+  });
 
   await withTransaction(async (tx) => {
     await syncDerivedItemsIn(tx, {
@@ -779,7 +974,7 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
     });
   });
 
-  return { errors: {}, outcomes };
+  return { errors, outcomes };
 }
 
 function needsMobileWrite(record: PersonRecord, raw: string): boolean {
@@ -928,6 +1123,14 @@ const TRUST_SECTION_LABEL: Record<(typeof TRUST_ITEM_CODES)[number], string> = {
  * `onboarding_item_already_in_that_state` refusal, because "someone
  * returning part-way" (W4) must never see an error for a step they already
  * finished.
+ *
+ * F2 (LAN-230): a season with no configured item of this code (`!item`,
+ * exactly the state `completePlayerOrDerivedItemIn`'s own module note
+ * describes — real, and not this module's invariant to assume away) used to
+ * make this whole call a silent no-op: the player's own claim vanished with
+ * nothing recorded anywhere. There being no item to move is never a reason to
+ * drop the player's answer — the activity log is not gated on one existing,
+ * so it is always written below, whether or not there was an item to claim.
  */
 export async function claimTrustItem(params: {
   personId: string;
@@ -938,15 +1141,17 @@ export async function claimTrustItem(params: {
   const item = await withTransaction((tx) =>
     findOnboardingItemIn(tx, params.membershipId, params.code),
   );
-  if (!item || item.status === "claimed" || RESOLVED_ITEM_STATUSES.includes(item.status)) {
+  if (item && (item.status === "claimed" || RESOLVED_ITEM_STATUSES.includes(item.status))) {
     return;
   }
 
-  await claimOnboardingItem({
-    actorPersonId: params.personId,
-    membershipId: params.membershipId,
-    itemId: item.id,
-  });
+  if (item) {
+    await claimOnboardingItem({
+      actorPersonId: params.personId,
+      membershipId: params.membershipId,
+      itemId: item.id,
+    });
+  }
 
   await withTransaction((tx) =>
     recordOnboardingActivityIn(tx, {
