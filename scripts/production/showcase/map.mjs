@@ -1439,8 +1439,11 @@ export const WORKFLOWS = Object.freeze([
     [
       "/operate/events/{event.occurred.register}",
       "/operate/events/{event.occurred.register}/attendance",
-      "/e/{link.club.extra:film-review}",
-      "/e/{link.club.game:home-1}",
+      // The generic key, not one named event's: the plan offers five live club
+      // links and each seat is dealt its own, because opening one records a use
+      // against the token it was opened with.
+      "/e/{link.club.any}",
+      "/e/{link.club.reissued}",
     ],
     [
       "event.occurred.register",

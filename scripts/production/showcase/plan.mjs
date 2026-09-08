@@ -34,7 +34,12 @@
  */
 
 import { createContext } from "./plan/context.mjs";
-import { buildReference, CURRENT_SEASON_LABEL, ARCHIVED_SEASON_LABEL } from "./plan/reference.mjs";
+import {
+  OPERATOR_KEYS,
+  buildReference,
+  CURRENT_SEASON_LABEL,
+  ARCHIVED_SEASON_LABEL,
+} from "./plan/reference.mjs";
 import { buildPeople } from "./plan/people.mjs";
 import { buildRecruitment } from "./plan/recruitment.mjs";
 import { buildCalendar } from "./plan/calendar.mjs";
@@ -123,7 +128,7 @@ export function buildPlan({ termCard, params, existing = EMPTY_EXISTING, anchor 
       recruits: recruitment.recruits,
       events: calendar.events,
       memberships: onboarding.memberships,
-      liveLinksFor: params.liveLinksFor ?? ["tester5"],
+      liveLinksFor: params.liveLinksFor ?? [...OPERATOR_KEYS],
     },
   };
 }

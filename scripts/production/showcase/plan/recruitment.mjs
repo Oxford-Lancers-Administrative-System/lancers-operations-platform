@@ -598,7 +598,8 @@ export function buildRecruitment(ctx, reference, people) {
         [spent ? "token.interest.spent" : "token.interest.revoked"],
         key === "r04" ? "token.interest.spent" : null,
       );
-      if (key === "r04") ctx.example("link.interest.spent", minted.plaintext);
+      // One per seat: five testers each open a spent interest link of their own.
+      ctx.example("link.interest.spent", minted.plaintext);
     }
 
     recruits.push({

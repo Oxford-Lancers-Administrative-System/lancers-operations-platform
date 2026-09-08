@@ -23,6 +23,7 @@
  */
 
 import { id } from "../ids.mjs";
+import { OPERATOR_KEYS } from "./reference.mjs";
 import { addHours, addMinutes, weekdayOf } from "./context.mjs";
 
 const NO_REASONS = Object.freeze([
@@ -111,7 +112,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
       recruit_follow_up_cadence_hours: eventType === "recruitment" ? 72 : null,
     };
 
-  const liveFor = new Set(params.liveLinksFor ?? ["tester5"]);
+  const liveFor = new Set(params.liveLinksFor ?? OPERATOR_KEYS);
   const nowIso = `${anchor}T00:00:00Z`;
   const isPast = (iso) => iso < nowIso;
 
@@ -541,14 +542,12 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
             ? "token.rsvp.live.player"
             : null,
         );
-        if (
-          liveAllowed &&
-          member.operatorKey === "tester5" &&
-          !ctx.examples.has("link.rsvp.player")
-        ) {
+        // One per seat, not one overall: every tester answers an invitation of
+        // their own rather than five people racing to answer the same one.
+        if (liveAllowed && member.operatorKey) {
           ctx.example("link.rsvp.player", minted.plaintext);
         }
-        if (!liveAllowed && position === 0 && !ctx.examples.has("link.rsvp.expired")) {
+        if (!liveAllowed && position === 0) {
           ctx.example("link.rsvp.expired", minted.plaintext);
         }
       }
@@ -1854,12 +1853,31 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
       [revoked ? "club-link.revoked" : "club-link.live"],
       example,
     );
-    if (!revoked) ctx.example(`link.club.${record.key}`, minted.plaintext);
+    if (!revoked) {
+      ctx.example(`link.club.${record.key}`, minted.plaintext);
+      // Also offered under the generic key, so five seats each get a club
+      // link of their own rather than sharing one event's.
+      ctx.example("link.club.any", minted.plaintext);
+    }
     return minted;
   };
   const heldEvent = events.find((record) => record.spec.ladder === "held");
   const homeGame = events.find((record) => record.key === "game:home-1");
   if (heldEvent) clubLinkFor(heldEvent, { example: "club-link.live" });
+  // Five live club links, not one. Every tester opens a club link, and the
+  // page records a use against the token it was opened with — one link between
+  // five people means one row carrying five testers' visits.
+  for (const record of events
+    .filter(
+      (entry) =>
+        entry !== heldEvent &&
+        entry !== homeGame &&
+        entry.spec.status === "approved" &&
+        entry.spec.audience !== "none",
+    )
+    .slice(0, 4)) {
+    clubLinkFor(record, {});
+  }
   if (homeGame) {
     clubLinkFor(homeGame, { revoked: true, example: "club-link.revoked" });
     const minted = mintToken("club_link_tokens", homeGame.key, "reissued");
@@ -1880,7 +1898,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
       { source: `reissued club link for ${homeGame.key}` },
       ["club-link.live"],
     );
-    ctx.example("link.club.game:home-1", minted.plaintext);
+    ctx.example("link.club.reissued", minted.plaintext);
   }
 
   // Ladders, now that every event and invitation exists.

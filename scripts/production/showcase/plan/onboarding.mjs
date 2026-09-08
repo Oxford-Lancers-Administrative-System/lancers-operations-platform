@@ -18,7 +18,7 @@
  */
 
 import { id } from "../ids.mjs";
-import { ONBOARDING_TYPES } from "./reference.mjs";
+import { ONBOARDING_TYPES, OPERATOR_KEYS } from "./reference.mjs";
 import { addHours } from "./context.mjs";
 
 const STORY_ITEMS = Object.freeze({
@@ -82,7 +82,12 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
         index: 99,
         createdAt: at(-37, "10:00"),
       })),
-    ...(people.seatPlayer ? [{ ...people.seatPlayer, createdAt: at(-30, "09:00") }] : []),
+    // Every seat is a player too, so its own link opens onto a form with
+    // something left to answer rather than a 404.
+    ...people.seatPlayers.map((seat, position) => ({
+      ...seat,
+      createdAt: at(-30 + position, "09:00"),
+    })),
   ];
 
   const history = (
@@ -582,17 +587,20 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
     ["dispute.resolved"],
   );
 
-  // The one live player-side link, for the seat whose list walks it. Permitted
-  // because that seat is named in `liveLinksFor`, which is what `verify` checks
-  // every live player-page link against.
-  const seat = reference.operators.find((operator) => operator.key === "tester5");
-  if (seat && (ctx.params.liveLinksFor ?? ["tester5"]).includes("tester5")) {
-    const minted = ctx.mintToken("person_access_tokens", "durable", "tester5");
+  // One live player-side link per seat. Every tester walks W4 and W5, and
+  // `verify` refuses a live player link for anybody who is not a named seat —
+  // so this mints one for each seat in `liveLinksFor` rather than sharing a
+  // single link, which would also mean five people editing one person's
+  // answers.
+  const liveFor = ctx.params.liveLinksFor ?? OPERATOR_KEYS;
+  for (const operator of reference.operators) {
+    if (!liveFor.includes(operator.key)) continue;
+    const minted = ctx.mintToken("person_access_tokens", "durable", operator.key);
     add(
       "public.person_access_tokens",
       {
-        id: id("person_access_tokens", labels.currentSeason, "durable", "tester5"),
-        person_id: seat.personId,
+        id: id("person_access_tokens", labels.currentSeason, "durable", operator.key),
+        person_id: operator.personId,
         season_id: seasonId,
         token_hash: minted.hash,
         single_use: false,
@@ -606,12 +614,11 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
         purpose: null,
       },
       "illustrative",
-      { source: "the player-side link handed out with seat 5's list" },
-      // `token.onboarding.live` as well: this seat holds a membership at
+      { source: `the player-side link handed out with ${operator.key}'s list` },
+      // `token.onboarding.live` as well: each seat holds a membership at
       // `onboarding` with a checklist still open (`people.mjs`), so the link
       // lands on the five-step form rather than the already-complete page.
       ["token.durable.live", "token.onboarding.live"],
-      "token.durable.live.player",
     );
     ctx.example("link.me.player", minted.plaintext);
   }

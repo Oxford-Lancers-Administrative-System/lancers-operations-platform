@@ -956,43 +956,43 @@ export function buildPeople(ctx, reference) {
   }
 
   // ---------------------------------------------------------------------------
-  // The seat that walks the player's own pages needs to be a player
+  // Every seat is a player, because every seat walks the player's own pages
   // ---------------------------------------------------------------------------
   //
   // `/me/<token>/details` resolves the token to a person and then compiles that
   // person's outstanding ask; `readCompiledOutstandingAskIn` returns null when
-  // they hold no membership this season, and the page 404s. The seat named in
-  // `liveLinksFor` holds the one live player link, so without a membership of
-  // its own that link opens onto nothing and W4 and W5 cannot be walked at all.
+  // they hold no membership this season, and the page 404s. Every tester walks
+  // W4 and W5, and `verify` refuses a live player link for anybody who is not a
+  // named seat — so each seat needs a membership of its own rather than five
+  // people sharing one link and one another's answers.
   //
   // At `onboarding` with a checklist still open, which is what makes the link
   // land on the five-step form rather than the already-complete page. A coach
-  // who also plays is an ordinary thing at this club; what matters here is that
-  // the person holding the link has something left to answer.
-  const linkSeat = reference.operators.find((operator) => operator.key === "tester5");
-  let seatPlayer = null;
-  if (linkSeat) {
-    const membershipId = id("season_memberships", labels.currentSeason, "seat:tester5");
+  // who also plays is an ordinary thing at this club; what matters is that the
+  // person holding the link has something left to answer.
+  const seatPlayers = [];
+  for (const [position, operator] of reference.operators.entries()) {
+    const membershipId = id("season_memberships", labels.currentSeason, `seat:${operator.key}`);
     add(
       "public.season_memberships",
       {
         id: membershipId,
-        person_id: linkSeat.personId,
+        person_id: operator.personId,
         season_id: seasonId,
         status: "onboarding",
         entry: "new",
         carried_forward_from_id: null,
-        confirmed_on: day(-30),
+        confirmed_on: day(-30 + position),
         activated_on: null,
         departed_on: null,
         expected_return_on: null,
         departure_reason: null,
         inactivity_label: null,
-        created_at: at(-30, "09:00"),
-        updated_at: at(-30, "09:00"),
+        created_at: at(-30 + position, "09:00"),
+        updated_at: at(-30 + position, "09:00"),
       },
       "illustrative",
-      { source: "the player membership behind the seat's own link" },
+      { source: `the player membership behind ${operator.key}'s own link` },
       ["membership.onboarding", "membership.entry.new"],
     );
     add(
@@ -1001,30 +1001,31 @@ export function buildPeople(ctx, reference) {
         id: id(
           "season_membership_status_events",
           labels.currentSeason,
-          "seat:tester5",
+          `seat:${operator.key}`,
           "onboarding",
         ),
         season_membership_id: membershipId,
         from_status: null,
         to_status: "onboarding",
-        occurred_at: at(-30, "09:00"),
+        occurred_at: at(-30 + position, "09:00"),
         actor_person_id: actorPersonId,
         actor_label: null,
         reason: null,
       },
       "illustrative",
-      { source: "the player membership behind the seat's own link" },
+      { source: `the player membership behind ${operator.key}'s own link` },
       ["membership.status-event"],
     );
-    seatPlayer = {
-      key: "seat:tester5",
+    seatPlayers.push({
+      key: `seat:${operator.key}`,
+      operatorKey: operator.key,
       membershipId,
-      personId: linkSeat.personId,
+      personId: operator.personId,
       status: "onboarding",
       story: "midway",
-      index: 41,
-    };
+      index: 50 + position,
+    });
   }
 
-  return { players, dupA, dupB, playerStaff, seatPlayer };
+  return { players, dupA, dupB, playerStaff, seatPlayers };
 }
