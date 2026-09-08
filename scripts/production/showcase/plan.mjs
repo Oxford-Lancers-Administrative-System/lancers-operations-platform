@@ -107,6 +107,7 @@ export function buildPlan({ termCard, params, existing = EMPTY_EXISTING, anchor 
     provenance: ctx.provenance,
     states: ctx.states,
     examples: ctx.examples,
+    candidates: ctx.candidates,
     byTable: ctx.byTable,
     notes: reference.notes,
     context: {

@@ -1646,6 +1646,10 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
     audience: "committee",
     ladder: "late",
     extraStates: ["event.non-soliciting"],
+    // A second approved, late-ladder event. Two seats amend and cancel one of
+    // these; sending both to the kicking clinic means the first to cancel takes
+    // the state away from the other.
+    example: "event.approved.late",
   });
   event({
     key: "meeting:agm",
@@ -1677,6 +1681,26 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
     story: "fully_delivered",
     register: true,
     headcount: 38,
+    example: "event.recruitment.occurred",
+  });
+  event({
+    // The second taster, for the same reason the second late-ladder event
+    // exists: two seats take a register on a recruitment event, and one row
+    // between them means they contend over the same attendance marks.
+    key: "recruitment:taster-2",
+    offset: -21,
+    name: "Second Rookie Taster",
+    eventType: "recruitment",
+    venue: "Iffley Road",
+    startsAt: "11:00",
+    endsAt: "13:00",
+    status: "approved",
+    audience: "squad-30",
+    recruits: true,
+    ladder: "full",
+    story: "fully_delivered",
+    register: true,
+    headcount: 31,
     example: "event.recruitment.occurred",
   });
   event({

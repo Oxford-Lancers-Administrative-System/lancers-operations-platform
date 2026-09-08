@@ -25,7 +25,11 @@ import {
   resolveRoute,
   routePattern,
 } from "../scripts/production/showcase/map.mjs";
-import { coverage } from "../scripts/production/showcase/checklists.mjs";
+import {
+  coverage,
+  renderChecklists,
+  seatViews,
+} from "../scripts/production/showcase/checklists.mjs";
 import { buildPlan } from "../scripts/production/showcase/plan.mjs";
 import { syntheticTermCard } from "../scripts/production/showcase/sources.mjs";
 import { testExisting, testParams } from "./helpers/showcase-fixture.mjs";
@@ -240,6 +244,79 @@ describe("the rendered map", () => {
       expect(content).not.toMatch(/07700 900\d{3}/);
       for (const link of links) expect(content).not.toContain(link);
       expect(content).toContain("{event.held}");
+    }
+  });
+});
+
+describe("five testers in one environment", () => {
+  const plan = buildPlan({
+    termCard: syntheticTermCard(),
+    params: testParams(),
+    existing: testExisting(),
+    anchor: "2026-09-03",
+  });
+  const lists = renderChecklists({
+    plan,
+    baseUrl: "https://app.example",
+    formUrl: "https://form.example",
+  });
+
+  it("sends no two seats to the same row without saying so", () => {
+    // Up to five people are in the environment at once. Two seats pointed at
+    // one membership means whoever activates it first takes the state away from
+    // the other, and the second tester reports a defect that is really a
+    // collision. A placeholder a seat has to share is declared on that seat's
+    // own list; anything else must be its own row.
+    const views = seatViews(plan);
+    const seen = new Map<string, string[]>();
+    for (const [seat, { view, shared }] of views) {
+      // Only the placeholders this seat is actually sent to: `view` carries
+      // every example in the plan, most of which this seat never opens.
+      const used = new Set<string>();
+      for (const workflow of WORKFLOWS) {
+        if (workflow.tester !== seat) continue;
+        for (const template of workflow.routes) {
+          for (const [, key] of template.matchAll(/\{([^}]+)\}/g)) used.add(key);
+        }
+      }
+      for (const key of used) {
+        if (shared.has(key) || !view.has(key)) continue;
+        const at = `${key}=${String(view.get(key))}`;
+        if (!seen.has(at)) seen.set(at, []);
+        seen.get(at)!.push(seat);
+      }
+    }
+    const contended = [...seen]
+      .filter(([, seats]) => seats.length > 1)
+      .map(([at, seats]) => `${at} → ${seats.join(", ")}`);
+    expect(contended).toEqual([]);
+  });
+
+  it("declares every row it could not give a seat of its own", () => {
+    // Three rows in the whole dataset are genuinely single. In each the other
+    // seat only reads the page, so a declared share is honest rather than a
+    // gap: `role.kit_manager` is one role and `event.approved.late` has two
+    // events for three seats.
+    const views = seatViews(plan);
+    const declared = [...views]
+      .flatMap(([seat, { shared }]) => [...shared.keys()].map((key) => `${seat}:${key}`))
+      .sort();
+    expect(declared).toEqual(["tester3:role.kit_manager", "tester5:event.approved.late"]);
+  });
+
+  it("names nobody, on any list", () => {
+    for (const [seat, markdown] of lists) {
+      expect(markdown, `${seat} names a person`).not.toMatch(/Stewart|Clint|\bBrian\b/);
+    }
+  });
+
+  it("gives every seat its own file and some work", () => {
+    expect([...lists.keys()]).toEqual(Object.keys(TESTERS));
+    for (const [seat, markdown] of lists) {
+      expect(
+        markdown.split("\n").filter((line) => line.startsWith("- [ ] Open http")).length,
+        `${seat} has no links`,
+      ).toBeGreaterThan(0);
     }
   });
 });

@@ -217,7 +217,7 @@ Workflows: 56 (2 kept as empty slots). States: 176 (10 arriving with later packa
 | `onboarding.log.answer`                         | An answer in the activity log                                     | `onboarding_activity_log`             | 20    |                                         |
 | `onboarding.agreement.code_of_conduct`          | A Code of Conduct agreed, versioned                               | `onboarding_agreements`               | 10    |                                         |
 | `onboarding.agreement.photo_release`            | A photo release agreed, versioned                                 | `onboarding_agreements`               | 10    |                                         |
-| `onboarding.membership.ready`                   | A player with nothing outstanding — ready to activate             | `season_memberships`                  | 1     |                                         |
+| `onboarding.membership.ready`                   | A player with nothing outstanding — ready to activate             | `season_memberships`                  | 2     |                                         |
 | `onboarding.membership.outstanding`             | A player midway through onboarding                                | `season_memberships`                  | 3     |                                         |
 | `onboarding.membership.refused`                 | A player who refused messaging consent                            | `season_memberships`                  | 1     |                                         |
 | `onboarding.membership.active-with-outstanding` | An active player with a checklist item still open — nothing gates | `season_memberships`                  | 2     |                                         |

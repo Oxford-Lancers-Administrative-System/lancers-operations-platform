@@ -76,8 +76,19 @@ export function createContext({ params, existing, anchor, labels }) {
   const provenance = [];
   /** state key → ordered list of row identifiers that carry it. */
   const states = new Map();
-  /** example key → row identifier (or plaintext, for a token). */
+  /** example key → row identifier (or plaintext, for a token). The first offered. */
   const examples = new Map();
+  /**
+   * example key → every row offered for it, in plan order.
+   *
+   * `examples` answers "which row is *the* example", which is what a state's
+   * own evidence needs. `candidates` answers "which rows could serve", which is
+   * what the checklists need: with up to five people in the environment at once,
+   * two seats pointed at one membership means whoever activates it first takes
+   * the state away from the other. `renderChecklists` deals a distinct row to
+   * each seat that asks for the same key, and says so when supply runs out.
+   */
+  const candidates = new Map();
   /** table → identifiers, for verify and rollback. */
   const byTable = new Map();
 
@@ -127,8 +138,17 @@ export function createContext({ params, existing, anchor, labels }) {
     return add(table, columns, classification, source);
   };
 
-  /** First one wins: an example is "the" row for a state, and the first row is as good as any. */
+  /**
+   * Offers `value` as an example of `key`.
+   *
+   * First one wins for `examples` — an example is "the" row for a state, and
+   * the first is as good as any — while every offer is kept in `candidates`,
+   * in plan order, for the checklists to deal out one per seat.
+   */
   const example = (key, value) => {
+    if (!candidates.has(key)) candidates.set(key, []);
+    const offered = candidates.get(key);
+    if (!offered.includes(value)) offered.push(value);
     if (!examples.has(key)) examples.set(key, value);
     return examples.get(key);
   };
@@ -144,6 +164,7 @@ export function createContext({ params, existing, anchor, labels }) {
     provenance,
     states,
     examples,
+    candidates,
     byTable,
     add,
     adopt,

@@ -56,6 +56,7 @@ const GIVEN = Object.freeze([
   "Lavinia",
   "Montague",
   "Ottoline",
+  "Perpetua",
 ]);
 
 const FAMILY = Object.freeze([
@@ -149,6 +150,9 @@ const DEGREES = Object.freeze([
  * 2 departed, plus two returners still to confirm this season who exist only
  * in the archived season (indexes 40, 41 — "carried forward, not yet in").
  */
+// Two of these are `ready`: with five people in the environment at once, one
+// membership ready to activate means whoever presses Activate first takes the
+// state away from the other seat that was sent to it.
 const STATUS_BY_INDEX = Object.freeze([
   ...Array(28).fill("active"),
   "inactive",
@@ -163,6 +167,7 @@ const STATUS_BY_INDEX = Object.freeze([
   "departed",
   "active",
   "active",
+  "onboarding",
 ]);
 
 /** Which onboarding story each `onboarding` player tells — see onboarding.mjs. */
@@ -172,6 +177,7 @@ export const ONBOARDING_STORIES = Object.freeze({
   33: "disputed", // answered with a value the club disagrees with
   34: "ready", // everything complete or claimed — ready to activate
   35: "refused", // refused messaging consent; a chase can go nowhere
+  40: "ready", // a second one, so two seats can each activate their own
 });
 
 const AVAILABILITY_BY_INDEX = (index) => {
@@ -204,7 +210,7 @@ export function buildPeople(ctx, reference) {
 
   const players = [];
 
-  for (let index = 0; index < 40; index += 1) {
+  for (let index = 0; index < 41; index += 1) {
     const key = `p${String(index + 1).padStart(2, "0")}`;
     const givenName = GIVEN[index];
     const familyName = firstNameOnly(index) ? null : FAMILY[(index * 7 + 3) % FAMILY.length];
@@ -239,7 +245,7 @@ export function buildPeople(ctx, reference) {
         ...(index === 37 ? ["person.under-18"] : []),
         ...(index % 4 === 3 ? ["person.missing-required"] : []),
       ],
-      index === 0 ? "person.player.first" : index === 37 ? "person.under-18" : null,
+      index < 3 ? "person.player.first" : index === 37 ? "person.under-18" : null,
     );
 
     // Contact points, in the shapes the club really types. Four people have

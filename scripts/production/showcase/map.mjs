@@ -1038,7 +1038,7 @@ const STATE_ROWS = [
     "A player with nothing outstanding — ready to activate",
     "public.season_memberships",
     "t.status = 'onboarding' and not exists (select 1 from public.onboarding_items i where i.season_membership_id = t.id and i.status in ('pending','invited'))",
-    1,
+    2,
   ],
   [
     "onboarding.membership.outstanding",
