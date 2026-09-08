@@ -23,7 +23,7 @@ export function renderChecklists({ plan, baseUrl, formUrl, logins = {} }) {
     lines.push(`# Tester week — ${tester.name}`);
     lines.push("");
     lines.push(
-      `**Role:** ${tester.role}. **Sign in at:** ${baseUrl}/login${logins[testerKey] ? ` as ${logins[testerKey]}` : ""}.`,
+      `**This seat needs:** ${tester.needs}. **Sign in at:** ${baseUrl}/login${logins[testerKey] ? ` as ${logins[testerKey]}` : ""}.`,
     );
     lines.push("");
     lines.push(

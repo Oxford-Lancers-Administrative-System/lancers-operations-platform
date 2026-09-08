@@ -63,6 +63,7 @@ import {
   writePlan,
 } from "./showcase/db.mjs";
 import { buildPlan, todayUtc } from "./showcase/plan.mjs";
+import { OPERATOR_KEYS } from "./showcase/plan/reference.mjs";
 import { readTermCard, syntheticTermCard } from "./showcase/sources.mjs";
 import { resolveTarget } from "./showcase/target.mjs";
 import { readWorkbook } from "./showcase/workbook.mjs";
@@ -131,13 +132,7 @@ function readParameters(pathname) {
 
 /** Says what the parameters contain without saying what any of it is. */
 function describeParameters(params) {
-  const people = [
-    "brian",
-    "stewart",
-    "clint",
-    "coach",
-    ...(params.others ?? []).map((p) => p.key ?? "other"),
-  ];
+  const people = [...OPERATOR_KEYS, ...(params.others ?? []).map((p) => p.key ?? "other")];
   return people
     .filter((key) => params[key] || (params.others ?? []).some((p) => (p.key ?? "other") === key))
     .map((key) => {
@@ -150,7 +145,7 @@ function describeParameters(params) {
       return `  ${key}: ${has.length === 0 ? "name only" : has.join(", ")}`;
     })
     .concat([
-      `  live links for: ${(params.liveLinksFor ?? ["brian", "stewart"]).join(", ") || "nobody"}`,
+      `  live links for: ${(params.liveLinksFor ?? ["tester5"]).join(", ") || "nobody"}`,
       `  strays to remove on rollback: ${params.strays?.personIds?.length ?? 0}`,
       `  token secret: ${params.tokenSecret ? "present" : "absent"}`,
     ])
@@ -228,16 +223,16 @@ async function preflight(client, target, params, sources, plan) {
   );
 
   notes.push(`Parameters supplied:\n${describeParameters(params)}`);
-  if (!params.brian?.authUserId) {
-    notes.push(
-      "  note: brian has no authUserId, so no operator account will be linked. Run the LAN-138 bootstrap first if you intend to sign in as him.",
-    );
+  for (const key of OPERATOR_KEYS) {
+    if (params[key] && !params[key].authUserId) {
+      notes.push(
+        `  note: ${key} has no authUserId, so no operator account will be linked. Run the LAN-138 bootstrap first if you intend that seat to sign in.`,
+      );
+    }
   }
 
   // Durable identities — inventoried, never duplicated.
-  const authUserIds = ["brian", "stewart", "clint", "coach"]
-    .map((key) => params[key]?.authUserId)
-    .filter(Boolean);
+  const authUserIds = OPERATOR_KEYS.map((key) => params[key]?.authUserId).filter(Boolean);
   if (authUserIds.length > 0) {
     const linked = await client.query(
       `select oa.auth_user_id, oa.is_active, p.given_name, p.family_name
@@ -249,7 +244,7 @@ async function preflight(client, target, params, sources, plan) {
       `Durable identities: ${linked.rowCount} of ${authUserIds.length} supplied Auth users already resolve to a Person. Those are adopted, not duplicated.`,
     );
     for (const row of linked.rows) {
-      const key = ["brian", "stewart", "clint", "coach"].find(
+      const key = OPERATOR_KEYS.find(
         (candidate) => params[candidate]?.authUserId === row.auth_user_id,
       );
       const supplied = `${params[key].givenName} ${params[key].familyName ?? ""}`.trim();
@@ -1091,9 +1086,7 @@ async function main() {
 
   const client = await connect(target);
   try {
-    const authUserIds = ["brian", "stewart", "clint", "coach"]
-      .map((key) => params[key]?.authUserId)
-      .filter(Boolean);
+    const authUserIds = OPERATOR_KEYS.map((key) => params[key]?.authUserId).filter(Boolean);
     const existing = await readExisting(client, { authUserIds });
     const plan = buildPlan({ ...sources, params, existing, anchor });
     const adopted = plan.provenance.filter((entry) => entry.note?.startsWith("adopted")).length;

@@ -511,16 +511,17 @@
           <div><b>7</b> arriving with Mission 7's remaining packages</div>
           <div><b>165</b> data states the loader produces and verifies</div>
           <div><b>10</b> states that arrive later</div>
-          <div><b>16</b> for Stewart</div>
-          <div><b>20</b> for Clint</div>
-          <div><b>14</b> for Brian</div>
-          <div><b>4</b> for The coach seat</div>
+          <div><b>21</b> for Tester 1</div>
+          <div><b>14</b> for Tester 2</div>
+          <div><b>8</b> for Tester 3</div>
+          <div><b>4</b> for Tester 4</div>
+          <div><b>7</b> for Tester 5</div>
         </div>
         <h2 class="mission" id="M-OPERATOR-ADMIN-WITHOUT-SQL">M1 — Operator administration</h2>
         <section class="doc" id="M-OPERATOR-ADMIN-WITHOUT-SQL:WF-open-administration">
           <header>
             <h2>WF-open-administration — Open administration</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 3</span>
           </header>
           <p>
             <strong>Outcome.</strong> The selected application context shows one year's current
@@ -589,7 +590,7 @@
         <section class="doc" id="M-OPERATOR-ADMIN-WITHOUT-SQL:WF-invite-operator">
           <header>
             <h2>WF-invite-operator — Invite an operator</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Brian · IT Officer</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 3</span>
           </header>
           <p>
             <strong>Outcome.</strong> The existing or newly created Person is bound one-to-one to a
@@ -655,7 +656,7 @@
         <section class="doc" id="M-OPERATOR-ADMIN-WITHOUT-SQL:WF-assign-or-end-role">
           <header>
             <h2>WF-assign-or-end-role — Assign or end a role</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 2</span>
           </header>
           <p>
             <strong>Outcome.</strong> The selected context shows the current holder while
@@ -671,7 +672,7 @@
           <h3>Routes</h3>
           <ul class="routes">
             <li><code>/operate/admin/roles/{role.kit_manager}</code></li>
-            <li><code>/operate/admin/operators/{operator.brian}</code></li>
+            <li><code>/operate/admin/operators/{operator.spare}</code></li>
           </ul>
           <p class="placement">
             <em>/operate/admin/operators/[operatorId] or /operate/admin/roles/[roleId]</em>
@@ -710,7 +711,7 @@
         <section class="doc" id="M-OPERATOR-ADMIN-WITHOUT-SQL:WF-deactivate-reinstate">
           <header>
             <h2>WF-deactivate-reinstate — Deactivate and reinstate an operator</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Brian · IT Officer</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 3</span>
           </header>
           <p>
             <strong>Outcome.</strong> Sign-in access ends or resumes independently of Person,
@@ -724,7 +725,7 @@
           <p><strong>Trigger.</strong> An operator leaves, loses access or returns</p>
           <h3>Routes</h3>
           <ul class="routes">
-            <li><code>/operate/admin/operators/{operator.brian}</code></li>
+            <li><code>/operate/admin/operators/{operator.spare}</code></li>
           </ul>
           <p class="placement"><em>/operate/admin/operators/[operatorId]</em></p>
           <h3>What the tester should see</h3>
@@ -767,7 +768,7 @@
         <section class="doc" id="M-OPERATOR-ADMIN-WITHOUT-SQL:WF-rehome-email">
           <header>
             <h2>WF-rehome-email — Move an operator to a new email</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Brian · IT Officer</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 3</span>
           </header>
           <p>
             <strong>Outcome.</strong> Verified access moves to the new email while the same Person,
@@ -783,7 +784,7 @@
           </p>
           <h3>Routes</h3>
           <ul class="routes">
-            <li><code>/operate/admin/operators/{operator.brian}</code></li>
+            <li><code>/operate/admin/operators/{operator.spare}</code></li>
           </ul>
           <p class="placement"><em>/operate/admin/operators/[operatorId]</em></p>
           <h3>What the tester should see</h3>
@@ -813,7 +814,7 @@
         <section class="doc" id="M-OPERATOR-ADMIN-WITHOUT-SQL:WF-audit-evidence">
           <header>
             <h2>WF-audit-evidence — Read the audit evidence</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 3</span>
           </header>
           <p>
             <strong>Outcome.</strong> Authorized administrators can review access changes from the
@@ -826,7 +827,7 @@
           </p>
           <h3>Routes</h3>
           <ul class="routes">
-            <li><code>/operate/admin/operators/{operator.brian}</code></li>
+            <li><code>/operate/admin/operators/{operator.spare}</code></li>
             <li><code>/operate/admin/roles/{role.kit_manager}</code></li>
           </ul>
           <p class="placement">
@@ -861,8 +862,7 @@
         <section class="doc" id="M-OPERATOR-ADMIN-WITHOUT-SQL:WF-role-management-authority">
           <header>
             <h2>WF-role-management-authority — Be refused where authority is missing</h2>
-            <span class="chip ok">on main</span
-            ><span class="chip tester">The coach seat · Head Coach — on a phone, at the pitch</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 4</span>
           </header>
           <p>
             <strong>Outcome.</strong> President, General Manager and IT Officer may administer lower
@@ -909,7 +909,7 @@
         <section class="doc" id="M-OPERATOR-ADMIN-WITHOUT-SQL:WF-onboard-coach">
           <header>
             <h2>WF-onboard-coach — Seat a coach</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Brian · IT Officer</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 3</span>
           </header>
           <p>
             <strong>Outcome.</strong> External coaches and coach-players share the same
@@ -968,8 +968,7 @@
         <section class="doc" id="M-EVENTS-CALENDAR-TARGET-STATE:W1">
           <header>
             <h2>W1 — Find and read events</h2>
-            <span class="chip ok">on main</span
-            ><span class="chip tester">Stewart · General Manager</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 5</span>
           </header>
           <p><strong>Outcome.</strong> they know when and where the club's events are, and</p>
           <p>
@@ -1042,7 +1041,7 @@
         <section class="doc" id="M-EVENTS-CALENDAR-TARGET-STATE:W2">
           <header>
             <h2>W2 — Subscribe to the club calendar</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 5</span>
           </header>
           <p><strong>Outcome.</strong> the season's events appear inside their own calendar</p>
           <p>
@@ -1116,8 +1115,7 @@
         <section class="doc" id="M-EVENTS-CALENDAR-TARGET-STATE:W3">
           <header>
             <h2>W3 — Load and correct a term's events by import</h2>
-            <span class="chip ok">on main</span
-            ><span class="chip tester">Stewart · General Manager</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p><strong>Outcome.</strong> a season's worth of drafts on the calendar, or an</p>
           <p>
@@ -1178,7 +1176,7 @@
         <section class="doc" id="M-EVENTS-CALENDAR-TARGET-STATE:W4">
           <header>
             <h2>W4 — Draft an event and approve it with its audience</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 2</span>
           </header>
           <p><strong>Outcome.</strong> an approved event with an explicitly confirmed</p>
           <p>
@@ -1274,8 +1272,7 @@
         <section class="doc" id="M-EVENTS-CALENDAR-TARGET-STATE:W5">
           <header>
             <h2>W5 — Amend or reschedule an approved event</h2>
-            <span class="chip ok">on main</span
-            ><span class="chip tester">Stewart · General Manager</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p><strong>Outcome.</strong> the event is right, every response still stands, and</p>
           <p><strong>Performed by.</strong> an operator holding event approval — President,</p>
@@ -1346,7 +1343,7 @@
         <section class="doc" id="M-EVENTS-CALENDAR-TARGET-STATE:W6">
           <header>
             <h2>W6 — Cancel an event</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 2</span>
           </header>
           <p><strong>Outcome.</strong> the event is visibly cancelled, everyone invited has</p>
           <p><strong>Performed by.</strong> any one of the four operator roles — President,</p>
@@ -1408,8 +1405,7 @@
         <section class="doc" id="M-EVENTS-CALENDAR-TARGET-STATE:W7">
           <header>
             <h2>W7 — See who is coming, and who turned up</h2>
-            <span class="chip ok">on main</span
-            ><span class="chip tester">The coach seat · Head Coach — on a phone, at the pitch</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 4</span>
           </header>
           <p><strong>Outcome.</strong> they know.</p>
           <p>
@@ -1471,7 +1467,7 @@
         <section class="doc" id="M-EVENTS-CALENDAR-TARGET-STATE:W8">
           <header>
             <h2>W8 — Administer event-type templates</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Brian · IT Officer</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p><strong>Outcome.</strong> every future draft of that type arrives with the</p>
           <p>
@@ -1526,7 +1522,7 @@
         <section class="doc" id="M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY:W1">
           <header>
             <h2>W1 — Approve an event knowing what it will send</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 2</span>
           </header>
           <p><strong>Outcome.</strong> Before approving, they can read the whole messaging</p>
           <p>
@@ -1632,7 +1628,7 @@
         <section class="doc" id="M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY:W2">
           <header>
             <h2>W2 — Answer an invitation</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Brian · IT Officer</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 5</span>
           </header>
           <p><strong>Outcome.</strong> The player immediately sees what their button did,</p>
           <p><strong>Performed by.</strong> The invited player.</p>
@@ -1642,9 +1638,9 @@
           </p>
           <h3>Routes</h3>
           <ul class="routes">
-            <li><code>/rsvp/{link.rsvp.brian}</code></li>
+            <li><code>/rsvp/{link.rsvp.player}</code></li>
             <li><code>/rsvp/{link.rsvp.expired}</code></li>
-            <li><code>/me/{link.me.brian}</code></li>
+            <li><code>/me/{link.me.player}</code></li>
           </ul>
           <p class="placement"><em>The choice opens the no-login RSVP experience. It begins</em></p>
           <h3>What the tester should see</h3>
@@ -1708,8 +1704,7 @@
         <section class="doc" id="M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY:W3">
           <header>
             <h2>W3 — Record an answer somebody gave you in person</h2>
-            <span class="chip ok">on main</span
-            ><span class="chip tester">Stewart · General Manager</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p><strong>Outcome.</strong> The row stops saying nobody has answered, says who</p>
           <p><strong>Performed by.</strong> The operator who was told.</p>
@@ -1799,8 +1794,7 @@
         <section class="doc" id="M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY:W4">
           <header>
             <h2>W4 — See who is coming, and who has not answered</h2>
-            <span class="chip ok">on main</span
-            ><span class="chip tester">Stewart · General Manager</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p><strong>Outcome.</strong> The operator knows whether a silent person has been</p>
           <p><strong>Performed by.</strong> Any operator who can already see the event.</p>
@@ -1865,7 +1859,7 @@
         <section class="doc" id="M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY:W5">
           <header>
             <h2>W5 — Chase the people who have not answered</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 2</span>
           </header>
           <p><strong>Outcome.</strong> The President learns there is a problem without</p>
           <p><strong>Performed by.</strong> The President, and any operator working follow-ups.</p>
@@ -1925,7 +1919,7 @@
         <section class="doc" id="M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY:W6">
           <header>
             <h2>W6 — Repair a delivery that failed</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Brian · IT Officer</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p><strong>Outcome.</strong> The operator knows exactly who could not be reached,</p>
           <p><strong>Performed by.</strong> An operator triaging delivery for one event.</p>
@@ -2011,7 +2005,7 @@
         <section class="doc" id="M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY:W7">
           <header>
             <h2>W7 — Find out what the club's messaging rules are, and change them</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Brian · IT Officer</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 3</span>
           </header>
           <p><strong>Outcome.</strong> The rules are legible in the product, and the way to</p>
           <p><strong>Performed by.</strong> An operator reading the rules; Brian changing them.</p>
@@ -2078,8 +2072,7 @@
         <section class="doc" id="M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY:W8">
           <header>
             <h2>W8 — Keep queued messages honest when an event changes</h2>
-            <span class="chip ok">on main</span
-            ><span class="chip tester">Stewart · General Manager</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p><strong>Outcome.</strong> No player receives an invitation to an event that</p>
           <p>
@@ -2139,8 +2132,7 @@
         <section class="doc" id="M-PEOPLE-AND-ROSTER:W1">
           <header>
             <h2>W1 — Look up any person the club holds</h2>
-            <span class="chip ok">on main</span
-            ><span class="chip tester">Stewart · General Manager</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p>
             <strong>Outcome.</strong> the person's durable record, showing what is known, what is
@@ -2271,7 +2263,7 @@
         <section class="doc" id="M-PEOPLE-AND-ROSTER:W2">
           <header>
             <h2>W2 — Correct a person's record</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 2</span>
           </header>
           <p>
             <strong>Outcome.</strong> the record now says the right thing, the change is on the
@@ -2407,8 +2399,7 @@
         <section class="doc" id="M-PEOPLE-AND-ROSTER:W3">
           <header>
             <h2>W3 — Add or link a person who holds no membership</h2>
-            <span class="chip ok">on main</span
-            ><span class="chip tester">Stewart · General Manager</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p>
             <strong>Outcome.</strong> a Person exists — either newly minted, or the existing record
@@ -2502,7 +2493,7 @@
         <section class="doc" id="M-PEOPLE-AND-ROSTER:W4">
           <header>
             <h2>W4 — Merge two records for the same human</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 2</span>
           </header>
           <p>
             <strong>Outcome.</strong> one surviving record, every reference re-pointed, the losing
@@ -2595,8 +2586,7 @@
         <section class="doc" id="M-PEOPLE-AND-ROSTER:W5">
           <header>
             <h2>W5 — Work this season's roster</h2>
-            <span class="chip ok">on main</span
-            ><span class="chip tester">Stewart · General Manager</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p>
             <strong>Outcome.</strong> the season's squad as a working command surface, carrying the
@@ -2839,7 +2829,7 @@
         <section class="doc" id="M-PEOPLE-AND-ROSTER:W6">
           <header>
             <h2>W6 — Open one player's record</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p>
             <strong>Outcome.</strong> one season's membership in full, with the durable person facts
@@ -3009,8 +2999,7 @@
         <section class="doc" id="M-PEOPLE-AND-ROSTER:W7">
           <header>
             <h2>W7 — Work the missing-data queue</h2>
-            <span class="chip ok">on main</span
-            ><span class="chip tester">Stewart · General Manager</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p>
             <strong>Outcome.</strong> a filtered list of people, each row saying exactly which
@@ -3089,7 +3078,7 @@
         <section class="doc" id="M-RECRUITMENT:W1">
           <header>
             <h2>W1 — The recruit board</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p>
             <strong>Outcome.</strong> One board carrying every recruit in the season, with the
@@ -3227,8 +3216,7 @@
         <section class="doc" id="M-RECRUITMENT:W2">
           <header>
             <h2>W2 — One recruit's record</h2>
-            <span class="chip ok">on main</span
-            ><span class="chip tester">Stewart · General Manager</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p>
             <strong>Outcome.</strong> One page carrying the whole recruit, with the person half
@@ -3375,7 +3363,7 @@
         <section class="doc" id="M-RECRUITMENT:W4">
           <header>
             <h2>W4 — Fill in your details</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Brian · IT Officer</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 5</span>
           </header>
           <p>
             <strong>Outcome.</strong> What the recruit chose to tell the club is on their record,
@@ -3461,8 +3449,7 @@
         <section class="doc" id="M-RECRUITMENT:W5">
           <header>
             <h2>W5 — Capture a walk-up as a recruit</h2>
-            <span class="chip ok">on main</span
-            ><span class="chip tester">The coach seat · Head Coach — on a phone, at the pitch</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 4</span>
           </header>
           <p>
             <strong>Outcome.</strong> The person exists, they are on the recruit board, and the
@@ -3556,8 +3543,7 @@
         <section class="doc" id="M-RECRUITMENT:W6">
           <header>
             <h2>W6 — Add a recruit by hand</h2>
-            <span class="chip ok">on main</span
-            ><span class="chip tester">Stewart · General Manager</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p>
             <strong>Outcome.</strong> The recruit exists, deduped, is on the board, and the
@@ -3635,7 +3621,7 @@
         <section class="doc" id="M-RECRUITMENT:W7">
           <header>
             <h2>W7 — Sign yourself in</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Brian · IT Officer</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 5</span>
           </header>
           <p>
             <strong>Outcome.</strong> They are a recruit, they are in the group because they ticked
@@ -3737,8 +3723,7 @@
         <section class="doc" id="M-RECRUITMENT:W8">
           <header>
             <h2>W8 — Resolve a possible duplicate</h2>
-            <span class="chip ok">on main</span
-            ><span class="chip tester">Stewart · General Manager</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p>
             <strong>Outcome.</strong> The operator links to the existing person or creates a new
@@ -3848,7 +3833,7 @@
         <section class="doc" id="M-RECRUITMENT:W10">
           <header>
             <h2>W10 — Administer recruitment's messages, cycles and QR</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Brian · IT Officer</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p>
             <strong>Outcome.</strong> The change takes effect for events approved afterwards, and
@@ -3923,7 +3908,7 @@
         <section class="doc" id="M-RECRUITMENT:W11">
           <header>
             <h2>W11 — Run a recruitment event</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 2</span>
           </header>
           <p>
             <strong>Outcome.</strong> An approved event whose audience the operator understood, each
@@ -4057,8 +4042,7 @@
         <section class="doc" id="M-RECRUITMENT:W12">
           <header>
             <h2>W12 — Take attendance at a recruitment event</h2>
-            <span class="chip ok">on main</span
-            ><span class="chip tester">The coach seat · Head Coach — on a phone, at the pitch</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 4</span>
           </header>
           <p>
             <strong>Outcome.</strong> Attendance recorded, walk-ups captured, and who showed up read
@@ -4135,7 +4119,7 @@
         <section class="doc" id="M-RECRUITMENT:W13">
           <header>
             <h2>W13 — Take a recruit off the board</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 2</span>
           </header>
           <p>
             <strong>Outcome.</strong> They are off the working part of the board, their record and
@@ -4221,7 +4205,7 @@
         <section class="doc" id="M-RECRUITMENT:W14">
           <header>
             <h2>W14 — Flip a recruit to joined</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 2</span>
           </header>
           <p>
             <strong>Outcome.</strong> They are on the roster as joined for this season, onboarding
@@ -4328,7 +4312,7 @@
           <header>
             <h2>W1 — Bring last season's squad in</h2>
             <span class="chip warn">arrives with LAN-215</span
-            ><span class="chip tester">Stewart · General Manager</span>
+            ><span class="chip tester">Tester 1</span>
           </header>
           <p>
             <strong>Outcome.</strong> The named people are on this season's roster with status
@@ -4519,7 +4503,7 @@
           <header>
             <h2>W2 — Add one player by hand</h2>
             <span class="chip warn">arrives with LAN-215</span
-            ><span class="chip tester">Stewart · General Manager</span>
+            ><span class="chip tester">Tester 1</span>
           </header>
           <p>
             <strong>Outcome.</strong> The person is on the roster at <code>onboarding</code>, their
@@ -4659,7 +4643,7 @@
         <section class="doc" id="M-ONBOARDING-AND-INFORMATION-COMPLETION:W3">
           <header>
             <h2>W3 — A flipped recruit lands in onboarding</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 2</span>
           </header>
           <p>
             <strong>Outcome.</strong> They are on the roster in onboarding with a checklist
@@ -4787,7 +4771,7 @@
           <header>
             <h2>W4 — Say yes and fill in your details</h2>
             <span class="chip warn">arrives with LAN-216</span
-            ><span class="chip tester">Brian · IT Officer</span>
+            ><span class="chip tester">Tester 5</span>
           </header>
           <p>
             <strong>Outcome.</strong> A page that says what was saved and what is still outstanding,
@@ -4805,7 +4789,7 @@
           </p>
           <h3>Routes</h3>
           <ul class="routes">
-            <li><code>/me/{link.me.brian}</code></li>
+            <li><code>/me/{link.me.player}</code></li>
           </ul>
           <p class="placement">
             <em
@@ -5089,7 +5073,7 @@
           <header>
             <h2>W5 — Fix something the club has wrong</h2>
             <span class="chip warn">arrives with LAN-216</span
-            ><span class="chip tester">Brian · IT Officer</span>
+            ><span class="chip tester">Tester 5</span>
           </header>
           <p>
             <strong>Outcome.</strong> the record is what the player says it is — except where an
@@ -5103,7 +5087,7 @@
           </p>
           <h3>Routes</h3>
           <ul class="routes">
-            <li><code>/me/{link.me.brian}</code></li>
+            <li><code>/me/{link.me.player}</code></li>
           </ul>
           <p class="placement">
             <em
@@ -5200,7 +5184,7 @@
         <section class="doc" id="M-ONBOARDING-AND-INFORMATION-COMPLETION:W6">
           <header>
             <h2>W6 — One player's onboarding record</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p>
             <strong>Outcome.</strong> the record answers &quot;where is this person up to, who said
@@ -5327,7 +5311,7 @@
         <section class="doc" id="M-ONBOARDING-AND-INFORMATION-COMPLETION:W7">
           <header>
             <h2>W7 — Settle a disputed fact</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 2</span>
           </header>
           <p>
             <strong>Outcome.</strong> one value stands, the other is retained, and the record says
@@ -5451,7 +5435,7 @@
           <header>
             <h2>W8 — Work the queue and nudge</h2>
             <span class="chip warn">arrives with LAN-218</span
-            ><span class="chip tester">Stewart · General Manager</span>
+            ><span class="chip tester">Tester 1</span>
           </header>
           <p>
             <strong>Outcome.</strong> messages go out, each person gets their own link, and the
@@ -5583,7 +5567,7 @@
           <header>
             <h2>W9 — Pick up a chase that ran out</h2>
             <span class="chip warn">arrives with LAN-218</span
-            ><span class="chip tester">Clint · President</span>
+            ><span class="chip tester">Tester 2</span>
           </header>
           <p>
             <strong>Outcome.</strong> a person who stopped answering is picked up by a human, and
@@ -5700,7 +5684,7 @@
         <section class="doc" id="M-ONBOARDING-AND-INFORMATION-COMPLETION:W10">
           <header>
             <h2>W10 — Activate a player</h2>
-            <span class="chip ok">on main</span><span class="chip tester">Clint · President</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 2</span>
           </header>
           <p>
             <strong>Outcome.</strong> the membership reads <code>active</code>, and the person is
@@ -5811,7 +5795,7 @@
           <header>
             <h2>W11 — Set onboarding's chase</h2>
             <span class="chip warn">arrives with LAN-218</span
-            ><span class="chip tester">Brian · IT Officer</span>
+            ><span class="chip tester">Tester 3</span>
           </header>
           <p>
             <strong>Outcome.</strong> the chase runs to the club's policy rather than to a constant

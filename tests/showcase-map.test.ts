@@ -182,12 +182,12 @@ describe("every route the map names", () => {
         );
       }
     }
-    // The routes Mission 7's remaining packages will add; anything else
-    // unserved is a defect in the map.
-    expect(notYet).toEqual(["M-ONBOARDING-AND-INFORMATION-COMPLETION:W1 /operate/roster/import"]);
+    // Mission 7 has merged, so every route the map names is served now. Any
+    // entry here is a defect in the map.
+    expect(notYet).toEqual([]);
   });
 
-  it("resolves from the plan's examples, apart from the operator record, which needs an Auth user", () => {
+  it("resolves from the plan's examples, apart from the spare operator, which needs an Auth user", () => {
     const plan = buildPlan({
       termCard: syntheticTermCard(),
       params: testParams(),
@@ -200,7 +200,11 @@ describe("every route the map names", () => {
         for (const key of resolveRoute(template, plan.examples).missing) missing.add(key);
       }
     }
-    expect([...missing]).toEqual(["operator.brian"]);
+    // `operator.spare` is the one placeholder a plan alone cannot fill: an
+    // operator record needs an `auth.users` row, and creating those is Brian's.
+    // The fixture supplies no Auth user for any seat, so the spare is unresolved
+    // here and resolved on a real load.
+    expect([...missing]).toEqual(["operator.spare"]);
   });
 });
 

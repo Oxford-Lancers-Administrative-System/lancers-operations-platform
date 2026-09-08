@@ -111,7 +111,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
       recruit_follow_up_cadence_hours: eventType === "recruitment" ? 72 : null,
     };
 
-  const liveFor = new Set(params.liveLinksFor ?? ["brian", "stewart"]);
+  const liveFor = new Set(params.liveLinksFor ?? ["tester5"]);
   const nowIso = `${anchor}T00:00:00Z`;
   const isPast = (iso) => iso < nowIso;
 
@@ -536,13 +536,17 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
             ...(used ? ["token.rsvp.used"] : []),
           ],
           liveAllowed &&
-            member.operatorKey === "brian" &&
-            !ctx.examples.has("token.rsvp.live.brian")
-            ? "token.rsvp.live.brian"
+            member.operatorKey === "tester5" &&
+            !ctx.examples.has("token.rsvp.live.player")
+            ? "token.rsvp.live.player"
             : null,
         );
-        if (liveAllowed && member.operatorKey === "brian" && !ctx.examples.has("link.rsvp.brian")) {
-          ctx.example("link.rsvp.brian", minted.plaintext);
+        if (
+          liveAllowed &&
+          member.operatorKey === "tester5" &&
+          !ctx.examples.has("link.rsvp.player")
+        ) {
+          ctx.example("link.rsvp.player", minted.plaintext);
         }
         if (!liveAllowed && position === 0 && !ctx.examples.has("link.rsvp.expired")) {
           ctx.example("link.rsvp.expired", minted.plaintext);
@@ -597,7 +601,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
               presence,
               recorded_at: addHours(startsAtIso, 3),
               recorded_by_person_id:
-                reference.operators.find((o) => o.key === "coach")?.personId ?? actorPersonId,
+                reference.operators.find((o) => o.key === "tester4")?.personId ?? actorPersonId,
             },
             "illustrative",
             { source: `register for ${key}` },

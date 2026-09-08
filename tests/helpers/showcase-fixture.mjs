@@ -4,7 +4,7 @@
  * `testExisting()` is what `readExisting` returns against an empty target
  * apart from the migration-owned reference rows every target has: the role
  * catalogue, the messaging schedules and the two agreement versions.
- * `testParams()` names invented testers with no Auth users and its own
+ * `testParams()` fills the five seats and the spare with invented names and no Auth users and its own
  * season labels, so a load in the automated suite stays out of every
  * "current season" query the rest of the suite makes.
  */
@@ -70,15 +70,17 @@ export function testExisting() {
 
 export function testParams(overrides = {}) {
   return {
-    brian: {
+    tester1: {
       givenName: "Showcase",
-      familyName: "Owner",
+      familyName: "Seat One",
       phone: "07700 900901",
-      roles: ["it_officer"],
+      roles: ["general_manager"],
     },
-    stewart: { givenName: "Showcase", familyName: "Manager", roles: ["kit_manager"] },
-    clint: { givenName: "Showcase", familyName: "President", roles: ["media_secretary"] },
-    coach: { givenName: "Showcase", familyName: "Coach", roles: ["special_teams_coach"] },
+    tester2: { givenName: "Showcase", familyName: "Seat Two", roles: ["president"] },
+    tester3: { givenName: "Showcase", familyName: "Seat Three", roles: ["it_officer"] },
+    tester4: { givenName: "Showcase", familyName: "Seat Four", roles: ["special_teams_coach"] },
+    tester5: { givenName: "Showcase", familyName: "Seat Five", roles: ["defence_coach"] },
+    spare: { givenName: "Showcase", familyName: "Spare Seat", roles: ["kit_manager"] },
     tokenSecret: "showcase-test-secret-0123456789",
     accessEndsOn: "2026-12-31",
     labels: {

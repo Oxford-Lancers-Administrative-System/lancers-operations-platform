@@ -97,7 +97,7 @@ beforeAll(async () => {
   directory = mkdtempSync(path.join(tmpdir(), "lancers-tester-week-"));
   client = await openLocalClient();
   paramsPath = path.join(directory, "params.json");
-  writeFileSync(paramsPath, JSON.stringify(testParams({ liveLinksFor: ["brian"] })));
+  writeFileSync(paramsPath, JSON.stringify(testParams({ liveLinksFor: ["tester5"] })));
 }, 60_000);
 
 afterAll(async () => {
@@ -200,7 +200,7 @@ describe("verification", () => {
     }
   });
 
-  it("proves nothing the sweep would send, and no live link but Brian's, is left behind", () => {
+  it("proves nothing the sweep would send, and no live link but the named seat's, is left behind", () => {
     const output = run("verify");
     expect(output).toMatch(
       /notification jobs the automatic sweep would dispatch, this dataset \(0 expected\): 0/,
@@ -325,22 +325,22 @@ describe("checklists", () => {
         if (text.includes(`. ${workflow.name}`)) covered.add(workflow.id);
       }
     }
-    expect([...unresolved]).toEqual(["operator.brian"]);
+    expect([...unresolved]).toEqual(["operator.spare"]);
     for (const workflow of workflows.filter((w) => !w.notAWorkflow)) {
       expect(covered.has(workflow.id), `${workflow.id} is on nobody's checklist`).toBe(true);
     }
   });
 
-  it("gives Brian his own live links and nobody else's", async () => {
+  it("gives the named seat its own live links and no other seat any", async () => {
     const out = path.join(directory, "checklists");
-    const brian = readFileSync(path.join(out, "brian.md"), "utf8");
+    const seat = readFileSync(path.join(out, "tester-5.md"), "utf8");
     const current = await plan();
-    expect(brian).toContain(`/rsvp/${current.examples.get("link.rsvp.brian")}`);
-    expect(brian).toContain(`/me/${current.examples.get("link.me.brian")}`);
-    for (const file of ["stewart.md", "clint.md", "coach.md"]) {
+    expect(seat).toContain(`/rsvp/${current.examples.get("link.rsvp.player")}`);
+    expect(seat).toContain(`/me/${current.examples.get("link.me.player")}`);
+    for (const file of ["tester-1.md", "tester-2.md", "tester-3.md", "tester-4.md"]) {
       const text = readFileSync(path.join(out, file), "utf8");
-      expect(text).not.toContain(current.examples.get("link.rsvp.brian") as string);
-      expect(text).not.toContain(current.examples.get("link.me.brian") as string);
+      expect(text).not.toContain(current.examples.get("link.rsvp.player") as string);
+      expect(text).not.toContain(current.examples.get("link.me.player") as string);
     }
     // Every routed link is a page the application serves.
     for (const workflow of WORKFLOWS)
@@ -555,7 +555,7 @@ describe("rollback", () => {
     writeFileSync(
       withStray,
       JSON.stringify(
-        testParams({ liveLinksFor: ["brian"], strays: { personIds: [stray.rows[0].id] } }),
+        testParams({ liveLinksFor: ["tester5"], strays: { personIds: [stray.rows[0].id] } }),
       ),
     );
 
@@ -583,7 +583,7 @@ describe("rollback", () => {
     writeFileSync(
       withOperator,
       JSON.stringify(
-        testParams({ liveLinksFor: ["brian"], strays: { personIds: [keeper.rows[0].id] } }),
+        testParams({ liveLinksFor: ["tester5"], strays: { personIds: [keeper.rows[0].id] } }),
       ),
     );
     expect(runExpectingFailure("preflight", [], withOperator)).toMatch(/hold an operator account/);

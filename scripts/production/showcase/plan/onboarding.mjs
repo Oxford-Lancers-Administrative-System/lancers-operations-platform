@@ -401,16 +401,17 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
     ["dispute.resolved"],
   );
 
-  // Brian's own durable player page, live — the one player-side link a tester
-  // can open. Permitted because he is named in the parameters.
-  const brian = reference.operators.find((operator) => operator.key === "brian");
-  if (brian && (ctx.params.liveLinksFor ?? ["brian", "stewart"]).includes("brian")) {
-    const minted = ctx.mintToken("person_access_tokens", "durable", "brian");
+  // The one live player-side link, for the seat whose list walks it. Permitted
+  // because that seat is named in `liveLinksFor`, which is what `verify` checks
+  // every live player-page link against.
+  const seat = reference.operators.find((operator) => operator.key === "tester5");
+  if (seat && (ctx.params.liveLinksFor ?? ["tester5"]).includes("tester5")) {
+    const minted = ctx.mintToken("person_access_tokens", "durable", "tester5");
     add(
       "public.person_access_tokens",
       {
-        id: id("person_access_tokens", labels.currentSeason, "durable", "brian"),
-        person_id: brian.personId,
+        id: id("person_access_tokens", labels.currentSeason, "durable", "tester5"),
+        person_id: seat.personId,
         season_id: seasonId,
         token_hash: minted.hash,
         single_use: false,
@@ -424,11 +425,11 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
         purpose: null,
       },
       "illustrative",
-      { source: "Brian's own player page link" },
+      { source: "the player-side link handed out with seat 5's list" },
       ["token.durable.live"],
-      "token.durable.live.brian",
+      "token.durable.live.player",
     );
-    ctx.example("link.me.brian", minted.plaintext);
+    ctx.example("link.me.player", minted.plaintext);
   }
 
   return { memberships };

@@ -126,13 +126,13 @@ describe("nothing deliverable to a real person", () => {
       expect(rows.length).toBeGreaterThan(0);
       for (const row of rows) expect(String(row.columns.token_hash)).toMatch(/^[0-9a-f]{64}$/);
     }
-    const link = plan.examples.get("link.rsvp.brian") as string;
+    const link = plan.examples.get("link.rsvp.player") as string;
     expect(link).toMatch(/^[A-Za-z0-9_-]{43}$/);
     const stored = plan.rows.find(
       (row: Row) =>
         row.table === "public.rsvp_access_tokens" && row.columns.token_hash === tokenHash(link),
     );
-    expect(stored, "Brian's live link is not the one stored").toBeDefined();
+    expect(stored, "the seat's live link is not the one stored").toBeDefined();
     // A different secret is a different link, so a public repository cannot
     // compute a live credential.
     expect(token("another-secret-entirely-0123", "rsvp_access_tokens", "x")).not.toBe(
@@ -142,8 +142,10 @@ describe("nothing deliverable to a real person", () => {
   });
 
   it("issues live links only to the people the parameters permit", () => {
-    const plan = build({ liveLinksFor: ["brian"] });
-    const brian = plan.context.actorPersonId;
+    const plan = build({ liveLinksFor: ["tester5"] });
+    const seatPersonId = plan.context.operators.find(
+      (operator: { key: string; personId: string }) => operator.key === "tester5",
+    )!.personId;
     const nowIso = "2026-09-03T00:00:00Z";
     const rsvp = plan.rows.filter((row: Row) => row.table === "public.rsvp_access_tokens") as Row[];
     const invitations = new Map(
@@ -166,7 +168,7 @@ describe("nothing deliverable to a real person", () => {
       const person =
         invitation.person_id ??
         memberships.get(invitation.season_membership_id as string)?.person_id;
-      expect(person).toBe(brian);
+      expect(person).toBe(seatPersonId);
     }
     const durable = plan.rows.filter(
       (row: Row) =>
@@ -174,7 +176,7 @@ describe("nothing deliverable to a real person", () => {
         !row.columns.single_use &&
         row.columns.revoked_at === null,
     ) as Row[];
-    expect(durable.map((row) => row.columns.person_id)).toEqual([brian]);
+    expect(durable.map((row) => row.columns.person_id)).toEqual([seatPersonId]);
     const singleUse = plan.rows.filter(
       (row: Row) => row.table === "public.person_access_tokens" && row.columns.single_use,
     ) as Row[];
@@ -189,7 +191,7 @@ describe("nothing deliverable to a real person", () => {
         String(row.columns.expires_at) > nowIso,
     );
     expect(noneLive).toEqual([]);
-    expect(nobody.examples.has("link.rsvp.brian")).toBe(false);
+    expect(nobody.examples.has("link.rsvp.player")).toBe(false);
   });
 });
 

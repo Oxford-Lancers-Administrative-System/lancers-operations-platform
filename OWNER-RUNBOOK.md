@@ -45,9 +45,9 @@ The deployed application, against the hosted database, holding:
 - **A persisted Monday report** whose numbers reconcile with the pages, and its
   follow-ups.
 - **Nothing that can send.** No job the sweep would dispatch, no live link for
-  anybody but you and Stewart. `verify` fails closed otherwise (§ 7).
-- **Three checklists and a coach's**, one per tester, every link resolving
-  (§ 8).
+  anybody but the seat named in `liveLinksFor`. `verify` fails closed
+  otherwise (§ 7).
+- **Five checklists**, one per seat, every link resolving (§ 8).
 
 **What it is not.** It is not the real-roster cutover. The dataset is removable
 in one command (§ 10), apart from the residue § 10 explains.
@@ -71,13 +71,29 @@ curl -s https://app.oxfordlancers.com/api/health
       Expect `"status":"ok"`, `"databaseConfigured":true`, `"schemaCompatible":true`.
 
 - [ ] **Connection smoke test** (`scripts/production/README.md`).
-- [ ] **Accounts**: the LAN-138 bootstrap, dry run then real — Clint
-      (President), Stewart (General Manager), you (IT Officer). Note each
-      person's **Auth user UUID** from the Supabase dashboard. If Garrett or
-      Glenn are testing, invite them through `/operate/admin/operators/new`
-      after the load; an invitation that does not arrive is finding #1.
-- [ ] **The coach seat**: an Auth user for `brian.daniel.schuster+coach@gmail.com`
-      if you want the coach checklist run on a phone.
+- [ ] **Accounts — six Auth users**: the LAN-138 bootstrap, dry run then real.
+      Five are the tester seats and one is the spare; the table below says what
+      each needs. Note every **Auth user UUID** from the Supabase dashboard.
+
+### The seats
+
+Seats, not people: decide who sits in each one when you hand the lists out. What
+a seat needs is fixed, because a checklist that tells its reader to press
+something their account cannot press is a broken checklist.
+
+| Seat      | Needs                                                                               | Roles to give it  |
+| --------- | ----------------------------------------------------------------------------------- | ----------------- |
+| `tester1` | An operator holding the core four roles                                             | `general_manager` |
+| `tester2` | The same, including the President's office                                          | `president`       |
+| `tester3` | Administration — operators, roles, messaging                                        | `it_officer`      |
+| `tester4` | A coach, used on a phone at the pitch                                               | `head_coach`      |
+| `tester5` | A coach, and the player and recruit links handed out with the list                  | `offence_coach`   |
+| `spare`   | **Not a tester.** The operator record `tester3` deactivates, rehomes and reinstates | `kit_manager`     |
+
+The spare exists so the administration workflows never act on an account
+somebody is testing with. Without it, `tester3` deactivating an operator locks a
+live tester out of their own list.
+
 - [ ] **WhatsApp stays off.** `WHATSAPP_PHONE_NUMBER_ID` must not be set on the
       service until § 11 is done. Check:
 
@@ -97,48 +113,61 @@ your clone.
 
 ```json
 {
-  "brian": {
-    "givenName": "Brian",
-    "familyName": "Schuster",
+  "tester1": {
+    "givenName": "FIRST",
+    "familyName": "LAST",
     "phone": "+44 7xxx xxxxxx",
-    "authUserId": "PASTE-YOUR-AUTH-UUID",
-    "roles": ["it_officer"]
-  },
-  "stewart": {
-    "givenName": "Stewart",
-    "familyName": "SURNAME",
-    "phone": "+44 7xxx xxxxxx",
-    "authUserId": "PASTE-STEWARTS-AUTH-UUID",
+    "authUserId": "PASTE-AUTH-UUID",
     "roles": ["general_manager"]
   },
-  "clint": {
-    "givenName": "Clint",
-    "familyName": "SURNAME",
-    "authUserId": "PASTE-CLINTS-AUTH-UUID",
+  "tester2": {
+    "givenName": "FIRST",
+    "familyName": "LAST",
+    "authUserId": "PASTE-AUTH-UUID",
     "roles": ["president"]
   },
-  "coach": {
-    "givenName": "Brian",
-    "familyName": "Schuster",
-    "authUserId": "PASTE-COACH-AUTH-UUID",
+  "tester3": {
+    "givenName": "FIRST",
+    "familyName": "LAST",
+    "phone": "+44 7xxx xxxxxx",
+    "authUserId": "PASTE-AUTH-UUID",
+    "roles": ["it_officer"]
+  },
+  "tester4": {
+    "givenName": "FIRST",
+    "familyName": "LAST",
+    "authUserId": "PASTE-AUTH-UUID",
     "roles": ["head_coach"]
   },
-  "liveLinksFor": ["brian", "stewart"],
+  "tester5": {
+    "givenName": "FIRST",
+    "familyName": "LAST",
+    "authUserId": "PASTE-AUTH-UUID",
+    "roles": ["offence_coach"]
+  },
+  "spare": {
+    "givenName": "FIRST",
+    "familyName": "LAST",
+    "authUserId": "PASTE-AUTH-UUID",
+    "roles": ["kit_manager"]
+  },
+  "liveLinksFor": ["tester5"],
   "tokenSecret": "PASTE-A-LONG-RANDOM-STRING",
   "accessEndsOn": "2026-12-31",
   "formUrl": "https://www.notion.so/PASTE-THE-QA-FORM-LINK",
   "logins": {
-    "brian": "your usual address",
-    "stewart": "his address",
-    "clint": "his address",
-    "coach": "the +coach address"
+    "tester1": "their address",
+    "tester2": "their address",
+    "tester3": "their address",
+    "tester4": "their address",
+    "tester5": "their address"
   },
   "strays": { "personIds": [] }
 }
 ```
 
-- [ ] Put a real secret in `tokenSecret`. It is what makes your and Stewart's
-      live links uncomputable from the public repository:
+- [ ] Put a real secret in `tokenSecret`. It is what makes the live links
+      uncomputable from the public repository:
 
 ```
 node -e 'console.log(require("crypto").randomBytes(24).toString("base64url"))'
@@ -151,8 +180,11 @@ chmod 600 ~/lancers-tester-week-params.json
 ```
 
 **What each field does.** `roles` seats the person; a seat somebody else already
-holds is left alone and noted. `liveLinksFor` names who gets a live RSVP link
-and a live player page — everyone else's links are already spent or expired.
+holds is left alone and noted. `liveLinksFor` names which seats get a live RSVP
+link and a live player page — every other link the loader writes is already
+spent or expired. It defaults to `tester5`, the seat whose list walks the
+player's and the recruit's own pages; `verify` accepts live links for exactly
+the seats named here and refuses any other.
 `accessEndsOn` end-dates every seat the loader makes, including the fictional
 committee. `strays.personIds` are the Person rows created on 2026-08-21 while
 testing operator invitations (LAN-196 item 2): preflight prints a hint with
@@ -205,11 +237,13 @@ Target: hosted project fggbgeraiadetyiyjlvb
 Roles already present: 20
 Seasons already present: …
 Parameters supplied:
-  brian: auth user, telephone number, roles: it_officer
-  stewart: auth user, telephone number, roles: general_manager
-  clint: auth user, roles: president
-  coach: auth user, roles: head_coach
-  live links for: brian, stewart
+  tester1: auth user, telephone number, roles: general_manager
+  tester2: auth user, roles: president
+  tester3: auth user, telephone number, roles: it_officer
+  tester4: auth user, roles: head_coach
+  tester5: auth user, roles: offence_coach
+  spare: auth user, roles: kit_manager
+  live links for: tester5
   strays to remove on rollback: N
   token secret: present
 Durable identities: 4 of 4 supplied Auth users already resolve to a Person. Those are adopted, not duplicated.
@@ -321,11 +355,12 @@ node scripts/production/showcase.mjs manifest --confirm-target fggbgeraiadetyiyj
 node scripts/production/showcase.mjs checklists --confirm-target fggbgeraiadetyiyjlvb --params ~/lancers-tester-week-params.json --base-url https://app.oxfordlancers.com --out ~/tester-week-checklists
 ```
 
-Four files: `stewart.md`, `clint.md`, `brian.md`, `coach.md`. Each is a list of
+Five files: `tester-1.md` … `tester-5.md`. Each is a list of
 "open this link — you should see this — tick it, or report it", the form link
-at the top, covering that person's slice of the map so the four together cover
-every workflow. **Your file and Stewart's carry live links.** Hand each file to
-its tester only; never commit them, never paste them into Linear.
+at the top, covering that seat's slice of the map so the five together cover
+every workflow. **The file for the seat named in `liveLinksFor` carries live
+links.** Hand each file to its tester only; never commit them, never paste them
+into Linear.
 
 - [ ] Open three links from your own file before handing anything out — a
       person, an event, your RSVP link — and confirm each resolves.
@@ -404,7 +439,7 @@ node scripts/production/showcase.mjs verify --after-rollback --confirm-target fg
 else behind.)
 
 **What is never removed:** identities the loader adopted rather than created
-(you, Stewart, Clint, the coach seat), reference rows that were already there,
+(the five seats and the spare), reference rows that were already there,
 and history the **application** wrote — a tester's approval, a correction, a
 generated report — together with whatever that history names. History that
 can be deleted to tidy up is not history. The loader's own audit rows are not
@@ -454,7 +489,7 @@ node scripts/production/showcase.mjs verify --confirm-target fggbgeraiadetyiyjlv
   Accepted is the provider taking the message, not the phone receiving it.
 - **`DELIVERY_RECIPIENT_ALLOWLIST`** stays the control that limits who the
   application can message. During tester week it does not matter — nothing is
-  configured to send — but set it to your number and Stewart's before LAN-168.
+  configured to send — but set it to the numbers you intend before LAN-168.
 
 ---
 

@@ -122,7 +122,7 @@ export function buildPlan({ termCard, params, existing = EMPTY_EXISTING, anchor 
       recruits: recruitment.recruits,
       events: calendar.events,
       memberships: onboarding.memberships,
-      liveLinksFor: params.liveLinksFor ?? ["brian", "stewart"],
+      liveLinksFor: params.liveLinksFor ?? ["tester5"],
     },
   };
 }

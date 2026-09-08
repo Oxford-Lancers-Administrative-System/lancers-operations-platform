@@ -57,7 +57,23 @@ export const ONBOARDING_TYPES = Object.freeze([
 ]);
 
 /** The parameter keys the loader understands, in the order they are seated. */
-export const OPERATOR_KEYS = Object.freeze(["brian", "stewart", "clint", "coach"]);
+/**
+ * The seats the private parameter file names, in seat order.
+ *
+ * Seats, not people — `TESTERS` in `../map.mjs` says what each one needs and
+ * Brian decides who sits in it. `spare` is not a tester: it is one extra
+ * operator account for the administration workflows to act on, so deactivating
+ * or rehoming an operator during tester week never locks a tester out of their
+ * own list.
+ */
+export const OPERATOR_KEYS = Object.freeze([
+  "tester1",
+  "tester2",
+  "tester3",
+  "tester4",
+  "tester5",
+  "spare",
+]);
 
 /**
  * Fictional holders of every seat the parameters do not fill. `player` names a
@@ -253,15 +269,20 @@ export function buildReference(ctx, { termCard }) {
     operators.push({ key, personId, roles: person.roles ?? [], linked: Boolean(linked) });
   }
 
-  const brian = operators.find((operator) => operator.key === "brian");
-  if (!brian) {
+  // Seat 1 is the club's own hand in this dataset: seasons record who opened
+  // them, audiences record who confirmed them, and every audit row names an
+  // actor. That is attribution for history the loader writes, not a statement
+  // about who tests — but it has to be somebody, and seat 1 is the first
+  // operator seat the parameter file is required to fill.
+  const actor = operators.find((operator) => operator.key === "tester1");
+  if (!actor) {
     throw new Error(
-      "The private parameters must include `brian`: seasons record who opened them, " +
-        "audiences record who confirmed them, and every audit row here names him.",
+      "The private parameters must include `tester1`: seasons record who opened them, " +
+        "audiences record who confirmed them, and every audit row here names an actor.",
     );
   }
-  const actorPersonId = brian.personId;
-  ctx.example("person.operator.brian", actorPersonId);
+  const actorPersonId = actor.personId;
+  ctx.example("person.operator.actor", actorPersonId);
 
   // ---------------------------------------------------------------------------
   // Seasons
