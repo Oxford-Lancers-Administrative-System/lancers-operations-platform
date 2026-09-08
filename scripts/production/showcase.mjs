@@ -64,6 +64,7 @@ import {
 } from "./showcase/db.mjs";
 import { buildPlan, todayUtc } from "./showcase/plan.mjs";
 import { OPERATOR_KEYS } from "./showcase/plan/reference.mjs";
+import { CONSENT_SOURCE_FOR_CAPTURE_SOURCE } from "./showcase/plan/recruitment.mjs";
 import { readTermCard, syntheticTermCard } from "./showcase/sources.mjs";
 import { resolveTarget } from "./showcase/target.mjs";
 import { readWorkbook } from "./showcase/workbook.mjs";
@@ -684,7 +685,109 @@ async function verify(
     0,
   );
 
-  // 6. The report reconciles with the pages.
+  // 6. No recruit's record contradicts itself about how they were captured —
+  //    LAN-238. The recruitment questionnaire is gated on the recruit's own
+  //    grant *through the sign-up form* (`hasGrantedViaSignupFormIn`,
+  //    `Q-read-back-authorises-how-much`), and nothing on the record shows
+  //    which door a grant came through. So a recruit displaying one capture
+  //    source while carrying another's consent provenance is a refusal with no
+  //    visible cause, and a tester files it as an application defect. It is
+  //    not one; it was the dataset, and until this check existed `verify` said
+  //    "Everything reconciles" over sixteen of them.
+  check(
+    "recruits whose capture source contradicts their consent provenance (0 expected)",
+    await count(
+      `select count(*)::int as count
+         from public.recruitment_prospects p
+         join public.season_messaging_consents c
+           on c.person_id = p.person_id and c.season_id = p.season_id
+        where p.id = any($1) and c.source is not null
+          and c.source::text <> coalesce($2::jsonb ->> p.source, c.source::text)`,
+      [ids("public.recruitment_prospects"), JSON.stringify(CONSENT_SOURCE_FOR_CAPTURE_SOURCE)],
+    ),
+    0,
+  );
+  // And the state, not just the provenance: the sign-up form cannot be saved
+  // without the consent tick (`SIGNUP_REQUIRES_CONSENT_RULE`), so a recruit
+  // captured through it has granted. `asked` there refuses both sends with
+  // "Consent has not been granted for this season" on a record that says they
+  // filled the form in themselves. (`refused` and `withdrawn` are not this:
+  // both are reachable afterwards, and both are named on the record.)
+  const formCaptures = Object.entries(CONSENT_SOURCE_FOR_CAPTURE_SOURCE)
+    .filter(([, consentSource]) => consentSource === "qr_self_entry")
+    .map(([capture]) => capture);
+  check(
+    "recruits captured on the sign-up form who never granted (0 expected)",
+    await count(
+      `select count(*)::int as count
+         from public.recruitment_prospects p
+         join public.season_messaging_consents c
+           on c.person_id = p.person_id and c.season_id = p.season_id
+        where p.id = any($1) and p.source = any($2::text[])
+          and c.state in ('asked', 'never_asked')`,
+      [ids("public.recruitment_prospects"), formCaptures],
+    ),
+    0,
+  );
+  // The three kinds of evidence that the interest track ran: the ask itself,
+  // the link it carries, and the answers that come back. Each one asserts a
+  // send the application refuses without a `qr_self_entry` grant, so each one
+  // on a recruit without that grant is a record of something that cannot have
+  // happened — and the record then says "Sent" beside a button saying no.
+  const withoutFormGrant = `not exists (
+      select 1 from public.season_messaging_consents c
+       where c.person_id = %s and c.season_id = $1::uuid and c.source = 'qr_self_entry')`;
+  check(
+    "recruitment questionnaire asks sent without a sign-up-form grant (0 expected)",
+    await count(
+      `select count(*)::int as count from public.notification_jobs j
+        where j.id = any($2) and j.idempotency_key like 'recruit-cycle:interest\\_%' escape '\\'
+          and ${withoutFormGrant.replace("%s", "j.person_id")}`,
+      [seasonId, ids("public.notification_jobs")],
+    ),
+    0,
+  );
+  check(
+    "recruit questionnaire links held without a sign-up-form grant (0 expected)",
+    await count(
+      `select count(*)::int as count from public.person_access_tokens t
+        where t.id = any($2) and t.purpose = 'recruit_interest_request'
+          and ${withoutFormGrant.replace("%s", "t.person_id")}`,
+      [seasonId, ids("public.person_access_tokens")],
+    ),
+    0,
+  );
+  check(
+    "recruitment questionnaire answers given without a sign-up-form grant (0 expected)",
+    await count(
+      `select count(*)::int as count from public.recruitment_questionnaire_responses r
+         join public.recruitment_prospects p on p.id = r.prospect_id
+        where r.id = any($2) and ${withoutFormGrant.replace("%s", "p.person_id")}`,
+      [seasonId, ids("public.recruitment_questionnaire_responses")],
+    ),
+    0,
+  );
+  // The mirror image. The welcome track carries the link to the sign-up form,
+  // so `declareRecruitmentCycleJobsIn` skips it entirely once the recruit has
+  // been through that form (`welcomeStepComplete`). A welcome declared at or
+  // after the moment their grant was recorded is a message the application
+  // would not have created.
+  check(
+    "welcome messages declared after the recruit had already used the form (0 expected)",
+    await count(
+      `select count(*)::int as count from public.notification_jobs j
+         join public.season_messaging_consents c
+           on c.person_id = j.person_id and c.season_id = $1::uuid
+        where j.id = any($2)
+          and (j.idempotency_key like 'recruit-cycle:welcome:%'
+               or j.idempotency_key like 'recruit-cycle:details\\_reminder:%' escape '\\')
+          and c.source = 'qr_self_entry' and j.created_at >= c.changed_at`,
+      [seasonId, ids("public.notification_jobs")],
+    ),
+    0,
+  );
+
+  // 7. The report reconciles with the pages.
   const rids = reportIds(plan);
   const filed = await readFiledReport(client, plan);
   check("report filed as version 2", filed?.version ?? 0, 2);

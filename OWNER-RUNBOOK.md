@@ -332,6 +332,20 @@ The lines that matter most, and on hosted they cover the **whole database**:
 - `report reconciles: …` — the filed report against a fresh computation
 - one `state …` line per data state the map names, each `PASS`
 
+Six more added by LAN-238, which say the dataset does not contradict itself
+about how each recruit was captured — the class of defect that makes a tester
+file a correct refusal as an application bug:
+
+- `recruits whose capture source contradicts their consent provenance (0 expected): 0`
+- `recruits captured on the sign-up form who never granted (0 expected): 0`
+- `recruitment questionnaire asks sent without a sign-up-form grant (0 expected): 0`
+- `recruit questionnaire links held without a sign-up-form grant (0 expected): 0`
+- `recruitment questionnaire answers given without a sign-up-form grant (0 expected): 0`
+- `welcome messages declared after the recruit had already used the form (0 expected): 0`
+
+If any of those six fails on a database loaded from commit `4c9fbb6` or
+earlier, that is LAN-238 itself and § 15 is the fix.
+
 Those are what say tester week's queue cannot start sending the day
 `WHATSAPP_PHONE_NUMBER_ID` is set.
 
@@ -508,6 +522,7 @@ node scripts/production/showcase.mjs verify --confirm-target fggbgeraiadetyiyjlv
 | A checklist link 404s                       | The load and the checklist were made with different `--anchor` or parameters. Regenerate the checklists; do not reload. |
 | `verify` fails a `state …` line             | A row the loader wrote was changed or removed — by a tester, or by a migration. Send me the line.                       |
 | `verify` fails a whole-database line        | Something live exists. § 11.                                                                                            |
+| `verify` fails a sign-up-form line          | The dataset predates LAN-238, or its residue was not run. § 15.                                                         |
 | `permission denied for table …` on rollback | Cannot happen: rollback checks its privileges first and writes residue instead. If it does, send me the output.         |
 | Rollback refuses                            | Expected after testing — § 10 "If it refuses instead". Nothing was deleted.                                             |
 | Application is broken                       | `gh workflow run deploy.yml -f image_tag=<previous-commit-sha>`. Safe — no schema changed.                              |
@@ -523,3 +538,91 @@ node scripts/production/showcase.mjs verify --confirm-target fggbgeraiadetyiyjlv
 - [ ] The residue file, after it was run
 - [ ] Which testers had which checklist, and when
 - [ ] Whether you left it installed or rolled it back, and when — on LAN-221
+
+---
+
+## 15. Correcting a loaded dataset — LAN-238
+
+The dataset loaded from `4c9fbb6` contradicts itself about how sixteen of its
+thirty-five recruits were captured. A recruit's record shows **Source · QR
+sign-up at the Freshers' Fair** and **WhatsApp consent · Granted**, and
+**Send recruitment questionnaire** refuses — correctly, because that grant was
+recorded by an operator, not through the form, and only the recruit's own grant
+through the form authorises that track (`Q-read-back-authorises-how-much`,
+2026-09-02). Nothing on the screen shows which door the grant came through, so
+the refusal looks like a defect. It is not one. Seven records also claim that
+questionnaire was already **sent** while the button refuses to send it.
+
+The application is right; the loader was wrong, and is fixed. This is how to
+replace what is installed. **Do it before the checklists go out** — after that,
+a reload destroys what the testers have done.
+
+### What has to happen, and why it is not one command
+
+A plain `load` is not enough. It updates the rows it owns, so it corrects every
+capture source — but the rows that must now _disappear_ (messages that were
+never sendable, links and answers that could not have been given) are not in the
+new plan, so nothing removes them. They have to be rolled back first, with the
+loader that created them.
+
+And rollback on hosted cannot finish alone: the connected role holds no `DELETE`
+on the history tables, so rollback deletes what it may and writes the rest to a
+residue file for you to run as the owner. That is the one manual step in the
+middle. `verify` now fails closed if it is skipped, so you cannot ship the
+half-corrected state by accident.
+
+- [ ] Connection string into the shell, and a manual backup taken (as § 4):
+
+```
+export DATABASE_URL="$(gcloud secrets versions access latest --secret=database-url)"
+```
+
+- [ ] **One.** Roll back with the loader that wrote it — the commit named in
+      the checklist header, `4c9fbb6`:
+
+```
+git worktree add /tmp/showcase-lan221 4c9fbb6 && node /tmp/showcase-lan221/scripts/production/showcase.mjs rollback --force --confirm-target fggbgeraiadetyiyjlvb --params ~/lancers-tester-week-params.json --residue ~/lan238-residue.sql && git worktree remove /tmp/showcase-lan221
+```
+
+- [ ] **Two.** Open `~/lan238-residue.sql`, paste it into the Supabase SQL
+      editor as the owner, run it. Identifiers only, no personal data. Then:
+
+```
+node scripts/production/showcase.mjs verify --after-rollback --confirm-target fggbgeraiadetyiyjlvb --params ~/lancers-tester-week-params.json --residue ~/lan238-residue.sql
+```
+
+- [ ] **Three.** Load the corrected dataset, file the report, verify, and write
+      fresh checklists — one command, in order, stopping at the first failure:
+
+```
+node scripts/production/showcase.mjs load --confirm-target fggbgeraiadetyiyjlvb --params ~/lancers-tester-week-params.json && node scripts/production/showcase.mjs report --confirm-target fggbgeraiadetyiyjlvb --params ~/lancers-tester-week-params.json && node scripts/production/showcase.mjs verify --confirm-target fggbgeraiadetyiyjlvb --params ~/lancers-tester-week-params.json && node scripts/production/showcase.mjs checklists --confirm-target fggbgeraiadetyiyjlvb --params ~/lancers-tester-week-params.json --base-url https://app.oxfordlancers.com --out ~/tester-week-checklists
+```
+
+**Expect** `Everything reconciles.` including the six sign-up-form lines in
+§ 7, and a fresh checklist per tester. The links change: the identifiers are
+derived from the recruits' keys and the interest links moved to the recruits who
+could actually have been sent them. **Hand out the new checklists, not the old
+ones.**
+
+### If step three's verify still fails a sign-up-form line
+
+The residue was not run, or not run completely. The rows it names are exactly
+the ones that make the dataset lie. Run it, then repeat step three.
+
+### The one row to look at afterwards
+
+`r07` is the only recruit whose door itself changes — they now come through the
+form rather than a referral — so their first status event is the only row whose
+actor could differ between what is installed and what a fresh load writes.
+
+Which way it lands depends on the residue. `recruitment_prospect_status_events`
+is append-only and undeletable by the connected role, so a plain reload cannot
+rewrite it. But rollback defers a parent into the residue file whenever a child
+it may not delete still points at it, and that row's parent is the recruit — so
+step two may well remove both, leaving step three to write the row correctly.
+Independent review traced that and could not settle it without a database.
+
+Either way it is one synthetic recruit's audit-trail actor: nothing reads it for
+a decision and no checklist mentions it. **Look at it once after step three** and
+tell me which way it went, so this paragraph can say one thing rather than two.
+Everything else is replaced.
