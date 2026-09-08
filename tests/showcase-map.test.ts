@@ -191,7 +191,7 @@ describe("every route the map names", () => {
     expect(notYet).toEqual([]);
   });
 
-  it("resolves from the plan's examples, apart from the spare operator, which needs an Auth user", () => {
+  it("resolves from the plan's examples, apart from the operator record, which needs an Auth user", () => {
     const plan = buildPlan({
       termCard: syntheticTermCard(),
       params: testParams(),
@@ -204,11 +204,11 @@ describe("every route the map names", () => {
         for (const key of resolveRoute(template, plan.examples).missing) missing.add(key);
       }
     }
-    // `operator.spare` is the one placeholder a plan alone cannot fill: an
+    // `operator.other-seat` is the one placeholder a plan alone cannot fill: an
     // operator record needs an `auth.users` row, and creating those is Brian's.
-    // The fixture supplies no Auth user for any seat, so the spare is unresolved
-    // here and resolved on a real load.
-    expect([...missing]).toEqual(["operator.spare"]);
+    // The fixture supplies no Auth user for any seat, so it is unresolved here
+    // and resolved on a real load.
+    expect([...missing]).toEqual(["operator.other-seat"]);
   });
 });
 

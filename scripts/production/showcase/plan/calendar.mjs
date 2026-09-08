@@ -1265,11 +1265,39 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
   const wednesdays = instancesOf("wednesday");
   const conditioning = instancesOf("conditioning");
   const pastOf = (offsets) => offsets.filter((offset) => offset < 0);
-  const notHeldSunday = pastOf(sundays).at(-3);
-  const silentSunday = pastOf(sundays).at(-1);
-  const registerSunday = pastOf(sundays).at(-2);
-  const cancelledWednesday = wednesdays.find((offset) => offset >= 7);
-  const noRegisterSessions = new Set(pastOf(conditioning).slice(-2));
+  // Five of each, not one. Every tester walks every workflow, so five people
+  // are each cancelling an event, reading an amendment, taking a register.
+  // One instance between them means the first to act takes the state away from
+  // the other four, who then report a defect that is really a collision.
+  //
+  // Still chosen by rank rather than fixed offset, so the same states exist
+  // whatever weekday the anchor falls on — just five ranks deep instead of one.
+  const PER_SEAT = 5;
+  // Each state gets a series of its own. Eight past instances per weekday
+  // cannot carry five not-held plus five silently amended plus a register, so
+  // the states are spread across the four series rather than stacked on the
+  // Sundays — where they used to fit only because there was one of each.
+  const chalk = instancesOf("chalk");
+  const notHeldSundays = new Set(pastOf(sundays).slice(0, PER_SEAT));
+  const registerSunday = pastOf(sundays).at(-1);
+  // Chalk runs fortnightly, so it alone cannot supply five. Topped up from the
+  // conditioning sessions that are not already carrying "occurred without a
+  // register", and keyed by series *and* offset so the two cannot be confused.
+  const noRegisterOffsets = pastOf(conditioning).slice(-PER_SEAT);
+  const silentSessions = new Set([
+    ...pastOf(chalk).map((offset) => `chalk:${offset}`),
+    ...pastOf(conditioning)
+      .filter((offset) => !noRegisterOffsets.includes(offset))
+      .map((offset) => `conditioning:${offset}`),
+  ]);
+  const cancelledWednesdays = new Set(
+    wednesdays.filter((offset) => offset >= 7).slice(0, PER_SEAT),
+  );
+  const noRegisterSessions = new Set(noRegisterOffsets);
+  // Amended with notice, as against the silent five above. Drawn from the
+  // Wednesday and conditioning series so they do not compete with the Sundays
+  // that already carry the not-held, silent-amendment and register states.
+  const notifiedAmendments = new Set(pastOf(wednesdays).slice(-PER_SEAT));
 
   for (const [seriesKey, name, eventType, venue, starts, ends, , mandatory] of SERIES) {
     for (const offset of instancesOf(seriesKey)) {
@@ -1279,7 +1307,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
       const past = offset < 0;
       const weekIndex = Math.floor((offset + 56) / 7);
 
-      if (seriesKey === "sunday" && offset === notHeldSunday) {
+      if (seriesKey === "sunday" && notHeldSundays.has(offset)) {
         event({
           key,
           name,
@@ -1300,7 +1328,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
         });
         continue;
       }
-      if (seriesKey === "wednesday" && offset === cancelledWednesday) {
+      if (seriesKey === "wednesday" && cancelledWednesdays.has(offset)) {
         event({
           key,
           name,
@@ -1324,7 +1352,9 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
       if (past) {
         const recent = offset >= -35;
         const noRegister = noRegisterSessions.has(offset) && seriesKey === "conditioning";
-        const amendedSilently = seriesKey === "sunday" && offset === silentSunday;
+        const amendedSilently = silentSessions.has(`${seriesKey}:${offset}`);
+        const amendedWithNotice =
+          !amendedSilently && seriesKey === "wednesday" && notifiedAmendments.has(offset);
         event({
           key,
           name,
@@ -1351,14 +1381,24 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
                 previous: { ends_at: ends },
                 source: "venue",
               }
-            : null,
+            : amendedWithNotice
+              ? {
+                  at: at(offset - 3, "09:00"),
+                  notified: true,
+                  previous: { venue: "Iffley Road" },
+                  source: "venue",
+                }
+              : null,
+          extraStates: amendedWithNotice ? ["event.amended.notified"] : [],
           example: noRegister
             ? "event.occurred.no-register"
-            : amendedSilently
-              ? "event.amended.silent"
-              : seriesKey === "sunday" && offset === registerSunday
-                ? "event.occurred.register"
-                : null,
+            : amendedWithNotice
+              ? "event.amended.notified"
+              : amendedSilently
+                ? "event.amended.silent"
+                : seriesKey === "sunday" && offset === registerSunday
+                  ? "event.occurred.register"
+                  : null,
           extraStates: amendedSilently ? ["event.amended.silent"] : [],
         });
         approvedPast += 1;

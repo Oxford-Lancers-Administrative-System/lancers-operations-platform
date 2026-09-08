@@ -325,7 +325,7 @@ describe("checklists", () => {
         if (text.includes(`. ${workflow.name}`)) covered.add(workflow.id);
       }
     }
-    expect([...unresolved]).toEqual(["operator.spare"]);
+    expect([...unresolved]).toEqual(["operator.other-seat"]);
     for (const workflow of workflows.filter((w) => !w.notAWorkflow)) {
       expect(covered.has(workflow.id), `${workflow.id} is on nobody's checklist`).toBe(true);
     }

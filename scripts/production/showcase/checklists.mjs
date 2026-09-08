@@ -85,6 +85,24 @@ export function seatViews(plan) {
     const shared = new Map();
     for (const [key, using] of seats) {
       if (!using.includes(testerKey)) continue;
+      // The administration workflows deactivate, rehome and reinstate an
+      // operator record. Brian creates five accounts and no throwaway sixth, so
+      // each seat is dealt a *different* seat's record — seat 1 works on seat
+      // 5's, seat 2 on seat 4's — rather than five people contending over one.
+      // The workflow is reversible, so the checklist tells them to reinstate
+      // before moving on.
+      if (key === "operator.other-seat") {
+        // A shift of two rather than a reversal: reversing an odd-length list
+        // leaves the middle seat pointed at its own account, which is the one
+        // record it must not deactivate.
+        const order = Object.keys(TESTERS);
+        const mine = order[(order.indexOf(testerKey) + 2) % order.length];
+        const account = plan.examples?.get(`operator.${mine}`);
+        if (account !== undefined && mine !== testerKey) {
+          view.set(key, account);
+          continue;
+        }
+      }
       const pool = poolFor(key, plan);
       if (pool.length === 0) continue;
       const index = using.indexOf(testerKey);
@@ -153,11 +171,17 @@ export function renderChecklists({ plan, baseUrl, formUrl, logins = {} }) {
             .map(([, key]) => shared.get(key))
             .filter(Boolean)
             .flat();
+          // These four workflows end another seat's access. Everybody has to put
+          // it back, or the tester whose account it was cannot finish their own
+          // list.
+          const reinstate = template.includes("{operator.other-seat}")
+            ? " — **this is another tester's login. Reinstate it before you move on.**"
+            : "";
           const note =
             contended.length > 0
               ? ` — **shared with ${[...new Set(contended)].join(" and ")}.** If it is not in the state below, say so on the form but expect they got there first.`
               : "";
-          lines.push(`${BOX} Open ${baseUrl}${route}${note}`);
+          lines.push(`${BOX} Open ${baseUrl}${route}${reinstate}${note}`);
         }
         lines.push(`${BOX} You should see: ${workflow.expect}`);
         lines.push("");

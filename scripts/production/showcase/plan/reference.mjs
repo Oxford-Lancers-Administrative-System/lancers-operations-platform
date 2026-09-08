@@ -61,19 +61,12 @@ export const ONBOARDING_TYPES = Object.freeze([
  * The seats the private parameter file names, in seat order.
  *
  * Seats, not people — `TESTERS` in `../map.mjs` says what each one needs and
- * Brian decides who sits in it. `spare` is not a tester: it is one extra
- * operator account for the administration workflows to act on, so deactivating
- * or rehoming an operator during tester week never locks a tester out of their
- * own list.
+ * Brian decides who sits in it. Brian, this session: five accounts, which he
+ * creates himself against his own mailbox, so there is no sixth throwaway
+ * operator for the administration workflows to act on. `checklists.mjs` deals
+ * each seat a *different* seat's record to deactivate and reinstate instead.
  */
-export const OPERATOR_KEYS = Object.freeze([
-  "tester1",
-  "tester2",
-  "tester3",
-  "tester4",
-  "tester5",
-  "spare",
-]);
+export const OPERATOR_KEYS = Object.freeze(["tester1", "tester2", "tester3", "tester4", "tester5"]);
 
 /**
  * Fictional holders of every seat the parameters do not fill. `player` names a
