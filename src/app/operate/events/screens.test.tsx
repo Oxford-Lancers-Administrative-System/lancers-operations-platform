@@ -932,7 +932,7 @@ describe("UX-30 — the current season's events", () => {
 
     render(await EventsPage(listProps()));
 
-    expect(screen.getByTestId("events-unavailable").textContent).toBe("No season is open.");
+    expect(screen.getByTestId("events-unavailable").textContent).toContain("No season is open.");
   });
 });
 
@@ -941,14 +941,12 @@ describe("UX-30 — the current season's events", () => {
 // ---------------------------------------------------------------------------
 
 describe("UX-31 — creating an event", () => {
-  it("carries the wireframe's heading and its draft boundary note", async () => {
+  it("keeps the heading without the standing draft explanation", async () => {
     render(await NewEventPage(newProps()));
 
     expect(screen.getByRole("heading", { name: "Create event" })).toBeVisible();
-    expect(flatten(screen.getByTestId("draft-boundary-note").textContent)).toBe(
-      "Draft events have no invitations, responses or attendance. Saving a draft does not " +
-        "distribute anything.",
-    );
+    expect(screen.queryByTestId("draft-boundary-note")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeVisible();
   });
 
   it("asks where the event is, and says what the venue field then means", async () => {
@@ -976,11 +974,8 @@ describe("UX-31 — creating an event", () => {
       "Europe/London",
     );
 
-    // D23's replacement sentence, so nobody reads the removal as the club no
-    // longer wanting an answer.
-    expect(flatten(screen.getByTestId("everyone-answers-note").textContent)).toContain(
-      "asked to answer",
-    );
+    // LAN-232 removes the standing explanation, not the attendance choice.
+    expect(screen.queryByTestId("everyone-answers-note")).not.toBeInTheDocument();
   });
 
   it("starts attendance on the type's template answer, visibly", async () => {
@@ -1219,10 +1214,7 @@ describe("UX-32 — a draft event", () => {
 
     render(await EventDetailPage(detailProps()));
 
-    expect(flatten(screen.getByTestId("no-invitations-note").textContent)).toBe(
-      "A draft can carry no invitations, responses or attendance. " +
-        "Nothing is sent until the designated approver approves it.",
-    );
+    expect(screen.queryByTestId("no-invitations-note")).not.toBeInTheDocument();
     expect(flatten(screen.getByTestId("distribution-fact").textContent)).toContain(
       "Nothing distributed",
     );
@@ -1272,7 +1264,7 @@ describe("UX-32 — a draft event", () => {
     render(await EventDetailPage(detailProps()));
 
     expect(screen.queryByRole("link", { name: "Choose audience and approve" })).toBeNull();
-    expect(screen.queryByTestId("audience-builder")).toBeNull();
+    expect(screen.queryByTestId("section-audience-builder")).toBeNull();
   });
 
   it("states the record's own fields — where it is, what to bring, what it is", async () => {
@@ -1338,7 +1330,7 @@ describe("UX-32 — a draft event", () => {
     // A draft carries the stored status alone: the derived state only says
     // something the stored one does not for an approved event.
     expect(flatten(screen.getByTestId("event-subtitle").textContent)).toBe(
-      "Draft · Wednesday, 14 October 2026 · 20:00–22:00",
+      "Wednesday, 14 October 2026 · 20:00–22:00",
     );
     expect(text).toContain("Michaelmas 2026-27 · Week 2");
 
@@ -1357,26 +1349,30 @@ describe("UX-32 — a draft event", () => {
     // never collapses the two into one word.
     vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
     const upcoming = render(await EventDetailPage(detailProps()));
-    expect(flatten(screen.getByTestId("event-subtitle").textContent)).toContain(
-      "Approved · Upcoming",
-    );
+    expect(
+      upcoming.container.querySelector('[data-domain="event"][data-status="approved"]'),
+    ).toHaveTextContent("Approved");
+    expect(
+      upcoming.container.querySelector('[data-domain="event"][data-status="upcoming"]'),
+    ).toHaveTextContent("Upcoming");
     upcoming.unmount();
 
     vi.mocked(readEvent).mockResolvedValue(
       detail({ status: "approved", scheduledOn: "2020-10-14" }),
     );
     const past = render(await EventDetailPage(detailProps()));
-    expect(flatten(screen.getByTestId("event-subtitle").textContent)).toContain(
-      "Approved · Occurred",
-    );
+    expect(
+      past.container.querySelector('[data-domain="event"][data-status="approved"]'),
+    ).toHaveTextContent("Approved");
+    expect(
+      past.container.querySelector('[data-domain="event"][data-status="occurred"]'),
+    ).toHaveTextContent("Occurred");
     past.unmount();
 
     // And a cancelled event says it once, not twice.
     vi.mocked(readEvent).mockResolvedValue(detail({ status: "cancelled" }));
     render(await EventDetailPage(detailProps()));
-    const subtitle = flatten(screen.getByTestId("event-subtitle").textContent);
-    expect(subtitle).toContain("Cancelled");
-    expect(subtitle).not.toContain("Cancelled · Cancelled");
+    expect(screen.getAllByText("Cancelled", { selector: ".MuiChip-label" })).toHaveLength(1);
   });
 
   it("says so plainly when the event has no date yet", async () => {
@@ -1386,7 +1382,7 @@ describe("UX-32 — a draft event", () => {
 
     render(await EventDetailPage(detailProps()));
 
-    expect(flatten(screen.getByTestId("event-subtitle").textContent)).toBe("Draft · No date yet");
+    expect(flatten(screen.getByTestId("event-subtitle").textContent)).toBe("No date yet");
   });
 
   it("explains an event it cannot find", async () => {
@@ -1394,7 +1390,7 @@ describe("UX-32 — a draft event", () => {
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.getByTestId("event-unavailable").textContent).toBe(
+    expect(screen.getByTestId("event-unavailable").textContent).toContain(
       "That event no longer exists.",
     );
   });
@@ -1462,9 +1458,7 @@ describe("a saved event is a draft, and there is nothing to submit", () => {
 
     // The approver reads it under the action they are about to take.
     const approver = render(await EventDetailPage(detailProps()));
-    expect(flatten(approver.container.textContent)).toContain(
-      "Nothing is sent until you have chosen who this event is for and approved it.",
-    );
+    expect(screen.getByTestId("distribution-fact")).toHaveTextContent("Nothing distributed");
     approver.unmount();
 
     // Everybody else reads the structural rule, which is on the page for every
@@ -1475,9 +1469,7 @@ describe("a saved event is a draft, and there is nothing to submit", () => {
       operator: operator(["treasurer"]),
     });
     render(await EventDetailPage(detailProps()));
-    expect(flatten(screen.getByTestId("no-invitations-note").textContent)).toContain(
-      "Nothing is sent until the designated approver approves it",
-    );
+    expect(screen.getByTestId("distribution-fact")).toHaveTextContent("Nothing distributed");
     expect(screen.queryByRole("link", { name: "Choose audience and approve" })).toBeNull();
   });
 
@@ -1547,7 +1539,7 @@ describe("the edit view — UX-31 against an existing draft", () => {
 
     render(await EditEventPage(editProps()));
 
-    expect(flatten(screen.getByTestId("edit-refused").textContent)).toBe(
+    expect(flatten(screen.getByTestId("edit-refused").textContent)).toContain(
       "Only a draft can be edited. This event is approved.",
     );
     expect(screen.queryByTestId("event-form")).toBeNull();
@@ -1617,7 +1609,7 @@ describe("an operator without a calendar role reads the calendar and changes not
     render(await EditEventPage(editProps()));
 
     expect(screen.getByTestId("operator-not-permitted")).toBeVisible();
-    expect(flatten(screen.getByTestId("required-role").textContent)).toContain("President");
+    expect(flatten(screen.getByTestId("refusal-requirement").textContent)).toContain("President");
     expect(readEvent).not.toHaveBeenCalled();
   });
 
@@ -1625,7 +1617,9 @@ describe("an operator without a calendar role reads the calendar and changes not
     render(await NewEventPage(newProps()));
 
     expect(screen.getByTestId("operator-not-permitted")).toBeVisible();
-    expect(flatten(screen.getByTestId("required-role").textContent)).toContain("General Manager");
+    expect(flatten(screen.getByTestId("refusal-requirement").textContent)).toContain(
+      "General Manager",
+    );
   });
 
   it("is never told which roles it holds", async () => {
@@ -1763,7 +1757,7 @@ describe("UX-40 — building the audience", () => {
   it("opens with nothing selected when the draft has no audience yet", async () => {
     await openBuilder();
 
-    expect(screen.getByTestId("audience-builder")).toBeVisible();
+    expect(screen.getByTestId("section-audience-builder")).toBeVisible();
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 0 selected");
 
     // The rule this screen exists to keep: no default, no silent whole roster.
@@ -1922,7 +1916,7 @@ describe("UX-40 — building the audience", () => {
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 4 selected");
     // And no sentence explaining the arithmetic — Brian removed it.
     expect(screen.queryByTestId("dedupe-note")).toBeNull();
-    expect(flatten(screen.getByTestId("audience-builder").textContent)).not.toContain(
+    expect(flatten(screen.getByTestId("section-audience-builder").textContent)).not.toContain(
       "selections resolve to",
     );
   });
@@ -1987,10 +1981,10 @@ describe("UX-42 — an empty audience is refused before anything is written", ()
 
     render(await EventDetailPage(detailProps({ step: "review" })));
 
-    const refusal = screen.getByTestId("empty-audience-refusal");
+    const refusal = screen.getByTestId("section-empty-audience-refusal");
     expect(flatten(refusal.textContent)).toContain("The resolved audience is empty");
     expect(flatten(refusal.textContent)).toContain("No invitations or notification jobs");
-    expect(flatten(refusal.textContent)).toContain(
+    expect(refusal).not.toHaveTextContent(
       "Approval is refused on the server even if this screen is bypassed",
     );
     expect(screen.queryByRole("button", { name: "Approve event" })).toBeNull();
@@ -2075,7 +2069,7 @@ describe("UX-41 — confirming exactly who will be asked", () => {
   it("says delivery is automated and begins only after approval", async () => {
     await reachReview();
 
-    const text = flatten(screen.getByTestId("approval-review").textContent);
+    const text = flatten(screen.getByTestId("section-approval-review").textContent);
     expect(text).toContain("Automated 1:1 WhatsApp");
     expect(text).toContain("Begins only after approval");
     // Manual posting is never this slice's delivery path, and the screen must
@@ -2092,7 +2086,7 @@ describe("UX-41 — confirming exactly who will be asked", () => {
     // it. The screen shows what is being approved; the button says what it does.
     await reachReview();
 
-    const review = flatten(screen.getByTestId("approval-review").textContent);
+    const review = flatten(screen.getByTestId("section-approval-review").textContent);
     expect(review).not.toContain("The audience is frozen once approved");
     expect(review).not.toContain("Approval is limited to the designated approver");
     expect(review).not.toContain("queues automated delivery");
@@ -2161,7 +2155,7 @@ describe("UX-43 — the event is approved", () => {
     // The freeze, as an absence rather than as a sentence: LAN-77 ships no
     // post-approval audience edit, no late addition and no resend.
     expect(screen.queryByRole("link", { name: /audience/i })).toBeNull();
-    expect(screen.queryByTestId("audience-builder")).toBeNull();
+    expect(screen.queryByTestId("section-audience-builder")).toBeNull();
     expect(readApprovalPreview).not.toHaveBeenCalled();
   });
 
@@ -2329,7 +2323,7 @@ describe("sharing the club link — W7-04", () => {
 
     render(await EventDetailPage(detailProps({ share: "1" })));
 
-    const panel = flatten(screen.getByTestId("share-panel").textContent);
+    const panel = flatten(screen.getByTestId("section-share-panel").textContent);
     expect(panel).toContain("Anyone with this link can see who was asked");
     expect(panel).toContain("cannot change anything and do not need an account");
     // The mockup's second paragraph is D81's reasoning, and Brian has rejected
@@ -2466,7 +2460,7 @@ describe("the questions an event asks are read on its page (amendment W4-A1)", (
 
     render(await EventDetailPage(detailProps()));
 
-    const panel = flatten(screen.getByTestId("event-questions").textContent);
+    const panel = flatten(screen.getByTestId("section-event-questions").textContent);
     expect(panel).toContain("Can you get yourself to the ground?");
     expect(panel).toContain("Required");
     expect(panel).toContain("S · M · L");
@@ -2483,7 +2477,7 @@ describe("the questions an event asks are read on its page (amendment W4-A1)", (
 
     expect(screen.queryByTestId("no-event-questions")).not.toBeInTheDocument();
     expect(screen.queryByText(/Nothing extra is asked/)).not.toBeInTheDocument();
-    expect(screen.getByTestId("event-questions")).toBeVisible();
+    expect(screen.getByTestId("section-event-questions")).toBeVisible();
   });
 });
 

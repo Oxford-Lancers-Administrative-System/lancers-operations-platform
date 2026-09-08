@@ -1,15 +1,16 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Switch from "@mui/material/Switch";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import { Section } from "@/components/section";
+import { Notice } from "@/components/notice";
+import { Field } from "@/components/field";
+import { ActionBar } from "@/components/action-bar";
 import { cancellationSilenceNeedsConfirmation } from "@/lib/services/event-amendment-rules";
 import { cancelEventAction } from "../change-actions";
 import { EMPTY_CANCEL_STATE } from "../change-state";
@@ -98,17 +99,13 @@ export default function CancelForm({
 
       <Stack spacing={3}>
         {state.error ? (
-          <Alert severity="error" data-testid="cancel-error">
+          <Notice severity="error" testId="cancel-error">
             {state.error}
-          </Alert>
+          </Notice>
         ) : null}
 
-        <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
+        <Section title={cancelHeadline(typeLabel)} testId="cancel-headline">
           <Stack spacing={3}>
-            <Typography variant="h6" component="h2" data-testid="cancel-headline">
-              {cancelHeadline(typeLabel)}
-            </Typography>
-
             <Typography variant="h5" component="p" sx={{ fontWeight: 700 }} data-testid="expecting">
               {expectingToBeThere(saidYes)}
             </Typography>
@@ -117,14 +114,13 @@ export default function CancelForm({
               {notify ? everyoneWillBeTold(invited) : nobodyWillBeTold(invited)}
             </Typography>
 
-            <TextField
+            <Field
               name="reason"
               label={CANCEL_REASON_LABEL}
               defaultValue={state.reason}
               helperText={CANCEL_REASON_HELP}
               multiline
               minRows={2}
-              fullWidth
               required
               data-testid="cancel-reason"
             />
@@ -158,73 +154,79 @@ export default function CancelForm({
               ) : null}
             </Box>
 
-            <Alert severity="warning" data-testid="cancel-irreversible">
+            <Notice severity="warning" testId="cancel-irreversible">
               {CANCEL_IRREVERSIBLE}
-            </Alert>
+            </Notice>
 
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-              <Button
-                type="submit"
-                variant="contained"
-                color="warning"
-                disabled={pending || asking}
-                sx={{ minHeight: 44 }}
-                data-testid="confirm-cancel"
-              >
-                {pending ? "Cancelling…" : cancelConfirmLabel(typeLabel)}
-              </Button>
-              <Button
-                variant="outlined"
-                href={`/operate/events/${eventId}`}
-                disabled={pending}
-                sx={{ minHeight: 44 }}
-                data-testid="keep-event"
-              >
-                {CANCEL_KEEP_LABEL}
-              </Button>
-            </Stack>
+            <ActionBar
+              primary={
+                <Button
+                  type="submit"
+                  variant="contained"
+                  color="error"
+                  disabled={pending || asking}
+                  sx={{ minHeight: 44 }}
+                  data-testid="confirm-cancel"
+                >
+                  {pending ? "Cancelling…" : cancelConfirmLabel(typeLabel)}
+                </Button>
+              }
+              secondary={
+                <Button
+                  variant="outlined"
+                  href={`/operate/events/${eventId}`}
+                  disabled={pending}
+                  sx={{ minHeight: 44 }}
+                  data-testid="keep-event"
+                >
+                  {CANCEL_KEEP_LABEL}
+                </Button>
+              }
+              note={asking ? "Confirm whether to tell the audience before cancelling." : undefined}
+            />
           </Stack>
-        </Paper>
+        </Section>
 
         {asking ? (
-          <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="cancel-silence-step">
+          <Section title={CANCEL_SILENCE_HEADLINE} testId="cancel-silence-step">
             <Stack spacing={2}>
-              <Typography variant="h6" component="h2">
-                {CANCEL_SILENCE_HEADLINE}
-              </Typography>
-              <Alert severity="warning" data-testid="cancel-silence-consequence">
+              <Notice severity="warning" testId="cancel-silence-consequence">
                 {cancelSilenceConsequence(saidYes, venue)}
-              </Alert>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <Button
-                  type="button"
-                  variant="contained"
-                  onClick={() => {
-                    setNotify(true);
-                    setSilenceConfirmed(false);
-                    setAsking(false);
-                  }}
-                  sx={{ minHeight: 44 }}
-                  data-testid="cancel-silence-notify-instead"
-                >
-                  {SILENCE_TELL_THEM_LABEL}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outlined"
-                  color="warning"
-                  onClick={() => {
-                    setSilenceConfirmed(true);
-                    setAsking(false);
-                  }}
-                  sx={{ minHeight: 44 }}
-                  data-testid="cancel-silence-accept"
-                >
-                  {SILENCE_CANCEL_PROCEED_LABEL}
-                </Button>
-              </Stack>
+              </Notice>
+              <ActionBar
+                primary={
+                  <Button
+                    type="button"
+                    variant="contained"
+                    onClick={() => {
+                      setNotify(true);
+                      setSilenceConfirmed(false);
+                      setAsking(false);
+                    }}
+                    sx={{ minHeight: 44 }}
+                    data-testid="cancel-silence-notify-instead"
+                  >
+                    {SILENCE_TELL_THEM_LABEL}
+                  </Button>
+                }
+                secondary={
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    color="error"
+                    onClick={() => {
+                      setSilenceConfirmed(true);
+                      setAsking(false);
+                    }}
+                    sx={{ minHeight: 44 }}
+                    data-testid="cancel-silence-accept"
+                  >
+                    {SILENCE_CANCEL_PROCEED_LABEL}
+                  </Button>
+                }
+              />
             </Stack>
-          </Paper>
+          </Section>
         ) : null}
       </Stack>
     </Box>

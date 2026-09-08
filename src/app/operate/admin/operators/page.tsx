@@ -1,14 +1,14 @@
+import { EmptyState } from "@/components/empty-state";
+import { NotRecorded } from "@/components/fact";
+import { StatusChip } from "@/components/status-chip";
+import { RowCard, RowCardList, DesktopOnly } from "@/components/row-card";
+import { TableFrame } from "@/components/sortable-header";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Card from "@mui/material/Card";
-import CardActionArea from "@mui/material/CardActionArea";
-import Chip from "@mui/material/Chip";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
@@ -22,7 +22,6 @@ import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../../gate";
 import AdminPageHeading from "../page-heading";
 import {
-  accountStateColour,
   accountStateLabel,
   describeInvitationProgress,
   describeSeats,
@@ -98,15 +97,7 @@ export default async function OperatorsPage() {
       />
 
       {count === 0 ? (
-        <Paper variant="outlined" sx={{ p: 3 }} data-testid="operators-empty">
-          <Typography variant="subtitle1" component="h2" gutterBottom>
-            Nobody has an operator account yet
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Inviting somebody creates their sign-in and gives them the role they are being invited
-            to do. It does not make them a player.
-          </Typography>
-        </Paper>
+        <EmptyState title="Nobody has an operator account yet" testId="operators-empty" />
       ) : (
         sections.map((section) => (
           <Box component="section" key={section.code || "unassigned"}>
@@ -114,73 +105,70 @@ export default async function OperatorsPage() {
               {section.label}
             </Typography>
 
-            <TableContainer
-              component={Paper}
-              variant="outlined"
-              sx={{ display: { xs: "none", md: "block" } }}
-            >
-              <Table size="small" aria-label={section.label}>
-                {/*
+            <DesktopOnly>
+              <TableFrame>
+                <Table size="small" aria-label={section.label}>
+                  {/*
                   The proportions are fixed rather than left to the content.
                   A delivery failure carries the transport's own sentence, which
                   is a paragraph, and an auto-sized table gives that paragraph
                   the room by taking it from the name and the roles beside it —
                   so one failed invitation reshapes the whole section.
                 */}
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ width: "24%" }}>Name</TableCell>
-                    <TableCell sx={{ width: "22%" }}>Current roles</TableCell>
-                    <TableCell sx={{ whiteSpace: "nowrap" }}>Account status</TableCell>
-                    <TableCell sx={{ width: "34%" }}>Invitation</TableCell>
-                    <TableCell />
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {section.operators.map((operator) => (
-                    <TableRow key={operator.operatorAccountId} hover data-testid="operator-row">
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {operator.displayName}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {operator.loginEmail ?? "No sign-in address recorded"}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>{describeSeats(operator.roles)}</TableCell>
-                      <TableCell sx={{ whiteSpace: "nowrap" }}>
-                        <Chip
-                          size="small"
-                          label={accountStateLabel(operator.state)}
-                          color={accountStateColour(operator.state)}
-                          variant={operator.state === "active" ? "filled" : "outlined"}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
-                          {describeInvitationProgress(operator)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Button
-                          size="small"
-                          href={`/operate/admin/operators/${operator.operatorAccountId}`}
-                          sx={{ textTransform: "none" }}
-                        >
-                          View
-                        </Button>
-                      </TableCell>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ width: "24%" }}>Name</TableCell>
+                      <TableCell sx={{ width: "22%" }}>Current roles</TableCell>
+                      <TableCell sx={{ whiteSpace: "nowrap" }}>Account status</TableCell>
+                      <TableCell sx={{ width: "34%" }}>Invitation</TableCell>
+                      <TableCell />
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                  </TableHead>
+                  <TableBody>
+                    {section.operators.map((operator) => (
+                      <TableRow key={operator.operatorAccountId} hover data-testid="operator-row">
+                        <TableCell>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {operator.displayName}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {operator.loginEmail ?? <NotRecorded />}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>{describeSeats(operator.roles)}</TableCell>
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>
+                          <StatusChip
+                            domain="operator"
+                            status={operator.state}
+                            label={accountStateLabel(operator.state)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">
+                            {describeInvitationProgress(operator)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Button
+                            size="small"
+                            href={`/operate/admin/operators/${operator.operatorAccountId}`}
+                            sx={{ textTransform: "none" }}
+                          >
+                            View
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableFrame>
+            </DesktopOnly>
 
-            <Stack spacing={1.5} sx={{ display: { xs: "flex", md: "none" } }}>
+            <RowCardList>
               {section.operators.map((operator) => (
                 <OperatorCard key={operator.operatorAccountId} operator={operator} />
               ))}
-            </Stack>
+            </RowCardList>
           </Box>
         ))
       )}
@@ -191,32 +179,22 @@ export default async function OperatorsPage() {
 /** The 375px presentation of one row. Same facts, stacked. */
 function OperatorCard({ operator }: { operator: DirectoryOperator }) {
   return (
-    <Card variant="outlined" data-testid="operator-card">
-      <CardActionArea
-        href={`/operate/admin/operators/${operator.operatorAccountId}`}
-        sx={{ p: 2, display: "block", textAlign: "left" }}
-      >
-        <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-            {operator.displayName}
-          </Typography>
-          <Chip
-            size="small"
-            label={accountStateLabel(operator.state)}
-            color={accountStateColour(operator.state)}
-            variant={operator.state === "active" ? "filled" : "outlined"}
-          />
-        </Stack>
-        <Typography variant="body2" color="text.secondary">
-          {operator.loginEmail ?? "No sign-in address recorded"}
-        </Typography>
-        <Typography variant="body2" sx={{ mt: 0.5 }}>
-          {describeSeats(operator.roles)}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          {describeInvitationProgress(operator)}
-        </Typography>
-      </CardActionArea>
-    </Card>
+    <RowCard
+      testId="operator-card"
+      title={operator.displayName}
+      href={`/operate/admin/operators/${operator.operatorAccountId}`}
+      chips={
+        <StatusChip
+          domain="operator"
+          status={operator.state}
+          label={accountStateLabel(operator.state)}
+        />
+      }
+      sublines={[
+        operator.loginEmail ?? <NotRecorded />,
+        describeSeats(operator.roles),
+        describeInvitationProgress(operator),
+      ]}
+    />
   );
 }

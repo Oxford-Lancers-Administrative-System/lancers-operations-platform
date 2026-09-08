@@ -1,16 +1,18 @@
 "use client";
 
 import { useActionState, useState, type ReactNode } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Link from "@mui/material/Link";
-import Paper from "@mui/material/Paper";
+import { Section } from "@/components/section";
+import { ActionBar } from "@/components/action-bar";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field, DateField } from "@/components/field";
+import { dateFromScheduledOn } from "@/app/operate/events/date-time-controls";
 import Typography from "@mui/material/Typography";
 import { formatClubDay } from "@/lib/club-time";
 import {
@@ -20,7 +22,11 @@ import {
   searchCandidatesAction,
 } from "../../actions";
 import { EMPTY_ADMIN_ACTION_STATE, type AdminActionState } from "../../action-state";
-import AdminOutcome, { OutcomeSlotProvider, useOutcomeSlot } from "../../outcome";
+import {
+  Outcome as AdminOutcome,
+  OutcomeSlotProvider,
+  useOutcomeSlot,
+} from "@/components/outcome-slot";
 import type { PermittedRoleActions } from "../../permissions";
 
 /**
@@ -297,146 +303,143 @@ function PersonPanel({
   const searchedFor = typed.length > 0 ? typed.join(" ") : "those details";
 
   return (
-    <Paper variant="outlined" sx={{ p: 2 }} data-testid={testId}>
-      <Typography variant="subtitle2" component="h3" sx={{ fontWeight: 700 }}>
-        {title}
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        {explanation}
-      </Typography>
-
-      <Box component="form" action={searchAction} onSubmit={searchSlot.claim}>
-        <Stack spacing={2}>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            Find the person
-          </Typography>
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-            <TextField name="givenName" label="First name" fullWidth {...term("givenName")} />
-            <TextField name="familyName" label="Last name" fullWidth {...term("familyName")} />
+    <Box data-testid={testId}>
+      <Section title={title} description={explanation}>
+        <Box component="form" action={searchAction} onSubmit={searchSlot.claim}>
+          <Stack spacing={2}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              Find the person
+            </Typography>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              <Field name="givenName" label="First name" {...term("givenName")} />
+              <Field name="familyName" label="Last name" {...term("familyName")} />
+            </Stack>
+            <Field name="email" type="email" label="Email" {...term("email")} />
+            <Box>
+              <Button type="submit" disabled={searching} sx={{ minHeight: 44 }}>
+                Search
+              </Button>
+            </Box>
           </Stack>
-          <TextField name="email" type="email" label="Email" fullWidth {...term("email")} />
-          <Box>
-            <Button type="submit" disabled={searching} sx={{ minHeight: 44 }}>
-              Search
-            </Button>
-          </Box>
-        </Stack>
-      </Box>
+        </Box>
 
-      <AdminOutcome
-        state={{ ...search, notice: null, candidates: null }}
-        showing={searchSlot.showing}
-      />
+        <AdminOutcome state={{ ...search, notice: null }} showing={searchSlot.showing} />
 
-      {search.candidates ? (
-        search.candidates.length === 0 ? (
-          <Alert severity="info" sx={{ mt: 2 }} data-testid="no-candidates">
-            <Typography variant="body2" sx={{ mb: 1 }}>
-              Nobody in the club&rsquo;s records matches {searchedFor} exactly. The search matches
-              whole names and whole addresses, so a near miss finds nothing — check the spelling
-              first.
-            </Typography>
-            <Typography variant="body2">
-              If they are new to the club, they need a record before they can hold a seat.{" "}
-              <Link href="/operate/admin/operators/new">Invite them as an operator</Link>, then come
-              back to this role.
-            </Typography>
-          </Alert>
-        ) : (
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-              Choose the person
-            </Typography>
-            <RadioGroup value={chosen} onChange={(event) => setChosen(event.target.value)}>
-              {search.candidates.map((candidate) => (
-                <FormControlLabel
-                  key={candidate.personId}
-                  value={candidate.personId}
-                  control={<Radio />}
-                  data-testid="candidate-choice"
-                  label={
-                    <Box>
-                      <Typography variant="body2">{candidate.name}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {[
-                          candidate.email,
-                          candidate.operatorState
-                            ? `Operator account: ${candidate.operatorState}`
-                            : "No operator account",
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </Typography>
-                    </Box>
-                  }
-                />
-              ))}
-            </RadioGroup>
-          </Box>
-        )
-      ) : null}
-
-      <Box component="form" action={submitAction} sx={{ mt: 2 }} onSubmit={slot.claim}>
-        <Stack spacing={2}>
-          {children}
-          <input type="hidden" name={personField} value={chosen} />
-          {successorOf && successorOf.length > 0 ? (
-            <input type="hidden" name="roleAssignmentId" value={successorOf[0].roleAssignmentId} />
-          ) : null}
-          <TextField
-            name="effectiveFrom"
-            type="date"
-            label="Effective from"
-            required={!todayIsAllowed}
-            defaultValue={todayIsAllowed ? "" : earliestFrom}
-            slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: earliestFrom } }}
-            helperText={
-              todayIsAllowed
-                ? "Leave blank for today."
-                : `The holder this replaces started today, and an assignment cannot end on the ` +
-                  `day it started. The earliest handover is ${formatClubDay(earliestFrom ?? "")}.`
-            }
-            fullWidth
-          />
-          <TextField
-            name="reason"
-            label={reasonRequired ? "Reason" : "Reason (optional)"}
-            required={reasonRequired}
-            helperText={reasonHelp}
-            multiline
-            minRows={2}
-            fullWidth
-          />
-          <Box>
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={submitting || chosen === ""}
-              sx={{ minHeight: 44 }}
-            >
-              {submitLabel}
-            </Button>
-            {chosen === "" ? (
-              // A disabled control that does not say what would enable it is a
-              // dead end — LAN133-BRIAN-8. This is the one sentence that turns
-              // it back into a step.
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: "block", mt: 1 }}
-                data-testid="choose-somebody-first"
-              >
-                {search.candidates && search.candidates.length > 0
-                  ? "Choose the person above to enable this."
-                  : "Find the person above and choose them to enable this."}
+        {search.candidates ? (
+          search.candidates.length === 0 ? (
+            <Notice severity="info" testId="no-candidates">
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                Nobody in the club&rsquo;s records matches {searchedFor} exactly. The search matches
+                whole names and whole addresses, so a near miss finds nothing — check the spelling
+                first.
               </Typography>
-            ) : null}
-          </Box>
-        </Stack>
-      </Box>
+              <Typography variant="body2">
+                If they are new to the club, they need a record before they can hold a seat.{" "}
+                <Link href="/operate/admin/operators/new">Invite them as an operator</Link>, then
+                come back to this role.
+              </Typography>
+            </Notice>
+          ) : (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                Choose the person
+              </Typography>
+              <RadioGroup value={chosen} onChange={(event) => setChosen(event.target.value)}>
+                {search.candidates.map((candidate) => (
+                  <FormControlLabel
+                    key={candidate.personId}
+                    value={candidate.personId}
+                    control={<Radio />}
+                    data-testid="candidate-choice"
+                    label={
+                      <Box>
+                        <Typography variant="body2">{candidate.name}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {[
+                            candidate.email,
+                            candidate.operatorState
+                              ? `Operator account: ${candidate.operatorState}`
+                              : "No operator account",
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                ))}
+              </RadioGroup>
+            </Box>
+          )
+        ) : null}
 
-      <AdminOutcome state={result} showing={slot.showing} />
-    </Paper>
+        <Box component="form" action={submitAction} sx={{ mt: 2 }} onSubmit={slot.claim}>
+          <Stack spacing={2}>
+            {children}
+            <input type="hidden" name={personField} value={chosen} />
+            {successorOf && successorOf.length > 0 ? (
+              <input
+                type="hidden"
+                name="roleAssignmentId"
+                value={successorOf[0].roleAssignmentId}
+              />
+            ) : null}
+            <RoleDateField
+              name="effectiveFrom"
+              label="Effective from"
+              required={!todayIsAllowed}
+              defaultValue={todayIsAllowed ? "" : earliestFrom}
+              minDay={earliestFrom}
+              helperText={
+                todayIsAllowed
+                  ? "Leave blank for today."
+                  : `The holder this replaces started today, and an assignment cannot end on the ` +
+                    `day it started. The earliest handover is ${formatClubDay(earliestFrom ?? "")}.`
+              }
+            />
+            <Field
+              name="reason"
+              label={reasonRequired ? "Reason" : "Reason (optional)"}
+              required={reasonRequired}
+              helperText={reasonHelp}
+              multiline
+              minRows={2}
+            />
+            <Box>
+              <ActionBar
+                primary={
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={submitting || chosen === ""}
+                    sx={{ minHeight: 44 }}
+                  >
+                    {submitLabel}
+                  </Button>
+                }
+              />
+              {chosen === "" ? (
+                // A disabled control that does not say what would enable it is a
+                // dead end — LAN133-BRIAN-8. This is the one sentence that turns
+                // it back into a step.
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ display: "block", mt: 1 }}
+                  data-testid="choose-somebody-first"
+                >
+                  {search.candidates && search.candidates.length > 0
+                    ? "Choose the person above to enable this."
+                    : "Find the person above and choose them to enable this."}
+                </Typography>
+              ) : null}
+            </Box>
+          </Stack>
+        </Box>
+
+        <AdminOutcome state={result} showing={slot.showing} />
+      </Section>
+    </Box>
   );
 }
 
@@ -477,61 +480,93 @@ function EndPanel({
   const todayIsAllowed = earliestEnd === undefined || earliestEnd <= today;
 
   return (
-    <Paper variant="outlined" sx={{ p: 2 }} data-testid="end-panel">
-      <Typography variant="subtitle2" component="h3" sx={{ fontWeight: 700 }}>
-        End role
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Use this when the role ends with no immediate successor. The seat becomes Not assigned, the
-        assignment stays in the club&rsquo;s history, and the person&rsquo;s operator account is
-        untouched.
-      </Typography>
+    <Box data-testid="end-panel">
+      <Section title="End role">
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Use this when the role ends with no immediate successor. The seat becomes Not assigned,
+          the assignment stays in the club&rsquo;s history, and the person&rsquo;s operator account
+          is untouched.
+        </Typography>
 
-      <Box component="form" action={formAction} onSubmit={slot.claim}>
-        <Stack spacing={2}>
-          <input type="hidden" name="roleId" value={roleId} />
-          {holders.length > 1 ? (
-            <RadioGroup value={assignment} onChange={(event) => setAssignment(event.target.value)}>
-              {holders.map((holder) => (
-                <FormControlLabel
-                  key={holder.roleAssignmentId}
-                  value={holder.roleAssignmentId}
-                  control={<Radio />}
-                  label={holder.displayName}
-                />
-              ))}
-            </RadioGroup>
-          ) : (
-            <Typography variant="body2">{holders[0]?.displayName}</Typography>
-          )}
-          <input type="hidden" name="roleAssignmentId" value={assignment} />
-          <TextField
-            name="effectiveTo"
-            type="date"
-            label="Ends on"
-            required={!todayIsAllowed}
-            defaultValue={todayIsAllowed ? "" : earliestEnd}
-            key={earliestEnd ?? "none"}
-            slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: earliestEnd } }}
-            helperText={
-              todayIsAllowed
-                ? "Leave blank to end it today. A future date schedules it."
-                : `This assignment started today, and an assignment cannot end on the day it ` +
-                  `started. The earliest it can end is ${formatClubDay(earliestEnd ?? "")}, ` +
-                  `which schedules it.`
-            }
-            fullWidth
-          />
-          <TextField name="reason" label="Reason" required multiline minRows={2} fullWidth />
-          <Box>
-            <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
-              End role
-            </Button>
-          </Box>
-        </Stack>
-      </Box>
+        <Box component="form" action={formAction} onSubmit={slot.claim}>
+          <Stack spacing={2}>
+            <input type="hidden" name="roleId" value={roleId} />
+            {holders.length > 1 ? (
+              <RadioGroup
+                value={assignment}
+                onChange={(event) => setAssignment(event.target.value)}
+              >
+                {holders.map((holder) => (
+                  <FormControlLabel
+                    key={holder.roleAssignmentId}
+                    value={holder.roleAssignmentId}
+                    control={<Radio />}
+                    label={holder.displayName}
+                  />
+                ))}
+              </RadioGroup>
+            ) : (
+              <Typography variant="body2">{holders[0]?.displayName}</Typography>
+            )}
+            <input type="hidden" name="roleAssignmentId" value={assignment} />
+            <RoleDateField
+              name="effectiveTo"
+              label="Ends on"
+              required={!todayIsAllowed}
+              defaultValue={todayIsAllowed ? "" : earliestEnd}
+              key={earliestEnd ?? "none"}
+              minDay={earliestEnd}
+              helperText={
+                todayIsAllowed
+                  ? "Leave blank to end it today. A future date schedules it."
+                  : `This assignment started today, and an assignment cannot end on the day it ` +
+                    `started. The earliest it can end is ${formatClubDay(earliestEnd ?? "")}, ` +
+                    `which schedules it.`
+              }
+            />
+            <Field name="reason" label="Reason" required multiline minRows={2} />
+            <ActionBar
+              primary={
+                <Button type="submit" variant="contained" disabled={pending}>
+                  End role
+                </Button>
+              }
+            />
+          </Stack>
+        </Box>
 
-      <AdminOutcome state={state} showing={slot.showing} />
-    </Paper>
+        <AdminOutcome state={state} showing={slot.showing} />
+      </Section>
+    </Box>
+  );
+}
+
+/** Own the picker value while the containing action panel owns its lifetime. */
+function RoleDateField({
+  name,
+  label,
+  defaultValue = "",
+  minDay,
+  required,
+  helperText,
+}: {
+  name: string;
+  label: string;
+  defaultValue?: string;
+  minDay?: string;
+  required: boolean;
+  helperText: string;
+}) {
+  const [value, setValue] = useState(defaultValue);
+  return (
+    <DateField
+      name={name}
+      label={label}
+      value={value}
+      onChange={setValue}
+      minDate={minDay ? (dateFromScheduledOn(minDay) ?? undefined) : undefined}
+      required={required}
+      helperText={helperText}
+    />
   );
 }

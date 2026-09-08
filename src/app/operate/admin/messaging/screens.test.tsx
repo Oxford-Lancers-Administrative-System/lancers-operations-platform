@@ -265,10 +265,11 @@ describe("the table", () => {
     expect(practiceRow.querySelector('input[name="escalationHours"]')).toHaveValue(12);
   });
 
-  it("states there are no quiet hours", async () => {
+  it("omits the standing schedule-rule banner", async () => {
     render(await MessagingSchedulePage());
 
-    expect(screen.getByTestId("schedule-rule").textContent).toMatch(/no quiet hours/i);
+    expect(screen.queryByTestId("schedule-rule")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/quiet hours/i)).not.toBeInTheDocument();
   });
 
   it("keeps every row's worked example closed by default, on every row (OWNER-LAN171-09)", async () => {

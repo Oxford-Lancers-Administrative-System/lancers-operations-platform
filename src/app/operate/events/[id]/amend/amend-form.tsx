@@ -1,21 +1,16 @@
 "use client";
 
+import { Section } from "@/components/section";
+import { Notice } from "@/components/notice";
+import { Field, SelectField, ChoiceField, DateField, TimeField } from "@/components/field";
+import { ActionBar } from "@/components/action-bar";
+import { Metric, MetricRow } from "@/components/metric";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
-import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import FormControl from "@mui/material/FormControl";
 import FormControlLabel from "@mui/material/FormControlLabel";
-import FormHelperText from "@mui/material/FormHelperText";
-import FormLabel from "@mui/material/FormLabel";
-import MenuItem from "@mui/material/MenuItem";
-import Paper from "@mui/material/Paper";
-import Radio from "@mui/material/Radio";
-import RadioGroup from "@mui/material/RadioGroup";
 import Stack from "@mui/material/Stack";
 import Switch from "@mui/material/Switch";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import {
   deriveTermCoordinate,
@@ -48,7 +43,6 @@ import {
   AMEND_BACK_LABEL,
   AMEND_CONTINUE_LABEL,
   AMEND_DISCARD_LABEL,
-  AMEND_STAYS_APPROVED,
   AMEND_UNSAVED_BADGE,
   describeChange,
   notifyDefaultDetail,
@@ -174,6 +168,12 @@ export default function AmendForm({
   };
 
   const [scheduledOn, setScheduledOn] = useState(value("scheduledOn"));
+  const [scheduledDate, setScheduledDate] = useState<Date | null>(() =>
+    value("scheduledOn") ? new Date(`${value("scheduledOn")}T00:00:00`) : null,
+  );
+  const [startsAt, setStartsAt] = useState(value("startsAt"));
+  const [endsAt, setEndsAt] = useState(value("endsAt"));
+  const [attendance, setAttendance] = useState(value("attendance"));
   const [deliveryMode, setDeliveryMode] = useState(value("deliveryMode") || "in_person");
   // `VenueField` is a controlled combobox — see the doc comment above on
   // "The review reads the form, not a copy of it" for why that no longer
@@ -193,7 +193,11 @@ export default function AmendForm({
   useEffect(() => {
     const first = issues[0];
     if (!first) return;
-    const control = formRef.current?.elements.namedItem(first.field);
+    const wrapper = formRef.current?.querySelector<HTMLElement>(`[data-field="${first.field}"]`);
+    const control =
+      wrapper?.querySelector<HTMLElement>(
+        'input:not([type="hidden"]):not([aria-hidden="true"]), [role="combobox"], [role="spinbutton"], textarea',
+      ) ?? formRef.current?.elements.namedItem(first.field);
     if (control instanceof HTMLElement) control.focus();
   }, [issues]);
 
@@ -297,118 +301,98 @@ export default function AmendForm({
 
       <Stack spacing={3}>
         {state.error ? (
-          <Alert severity="error" data-testid="amend-error">
+          <Notice severity="error" testId="amend-error">
             {state.error}
-          </Alert>
+          </Notice>
         ) : null}
 
         <Box hidden={step !== "edit"} data-testid="amend-edit-step">
           <Stack spacing={3}>
-            <Alert severity="info" data-testid="stays-approved-note">
-              {AMEND_STAYS_APPROVED}
-            </Alert>
-
-            <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="already-sent">
+            <Section title={ALREADY_SENT_HEADING} testId="already-sent">
               <Stack spacing={1.5}>
-                <Typography variant="h6" component="h2">
-                  {ALREADY_SENT_HEADING}
-                </Typography>
-                <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-                  <Chip label={`${audience.invited} invited — kept`} data-testid="kept-invited" />
-                  <Chip label={`${audience.saidYes} said yes — kept`} data-testid="kept-said-yes" />
-                  <Chip label={`${audience.saidNo} said no — kept`} data-testid="kept-said-no" />
-                </Stack>
+                <MetricRow>
+                  <Metric value={audience.invited} label="Invited — kept" testId="kept-invited" />
+                  <Metric value={audience.saidYes} label="Said yes — kept" testId="kept-said-yes" />
+                  <Metric value={audience.saidNo} label="Said no — kept" testId="kept-said-no" />
+                </MetricRow>
                 <Typography variant="body2" color="text.secondary">
                   {ALREADY_SENT_DETAIL}
                 </Typography>
               </Stack>
-            </Paper>
+            </Section>
 
             {nothingChanged ? (
-              <Alert severity="info" data-testid="nothing-changed">
+              <Notice severity="info" testId="nothing-changed">
                 Nothing has changed yet.
-              </Alert>
+              </Notice>
             ) : null}
 
-            <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
+            <Section title="Event">
               <Stack spacing={3}>
-                <TextField
+                <Field
                   name="name"
                   label="Name"
                   defaultValue={value("name")}
                   error={Boolean(issueFor(issues, "name"))}
                   helperText={issueFor(issues, "name")}
-                  fullWidth
                 />
 
-                <TextField
+                <SelectField
                   name="eventType"
                   label="Kind of event"
-                  select
                   defaultValue={value("eventType")}
                   error={Boolean(issueFor(issues, "eventType"))}
                   helperText={issueFor(issues, "eventType")}
-                  // A MUI select does not shrink its own label from a
-                  // `defaultValue`, so without this the label sits on top of
-                  // the chosen type. The draft editor carries the same line.
-                  slotProps={{ inputLabel: { shrink: true } }}
-                  fullWidth
-                >
-                  {DRAFTABLE_EVENT_TYPES.map((type) => (
-                    <MenuItem key={type} value={type}>
-                      {labelFor(TYPE_LABELS, type)}
-                    </MenuItem>
-                  ))}
-                </TextField>
-
-                <TextField
-                  name="scheduledOn"
-                  label="Date"
-                  type="date"
-                  value={scheduledOn}
-                  onChange={(event) => setScheduledOn(event.target.value)}
-                  error={Boolean(issueFor(issues, "scheduledOn"))}
-                  helperText={issueFor(issues, "scheduledOn") ?? termLine}
-                  slotProps={{ inputLabel: { shrink: true } }}
-                  fullWidth
+                  options={DRAFTABLE_EVENT_TYPES.map((type) => ({
+                    value: type,
+                    label: labelFor(TYPE_LABELS, type),
+                  }))}
                 />
 
+                <DateField
+                  name="scheduledOn"
+                  label="Date"
+                  value={scheduledOn}
+                  dateValue={scheduledDate}
+                  onDateChange={setScheduledDate}
+                  onChange={setScheduledOn}
+                  error={Boolean(issueFor(issues, "scheduledOn"))}
+                  helperText={issueFor(issues, "scheduledOn") || undefined}
+                />
+                <Typography variant="caption" color="text.secondary" aria-live="polite">
+                  {termLine}
+                </Typography>
+
                 <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                  <TextField
+                  <TimeField
                     name="startsAt"
                     label="Start"
-                    type="time"
-                    defaultValue={value("startsAt")}
+                    value={startsAt}
+                    onChange={setStartsAt}
                     error={Boolean(issueFor(issues, "startsAt"))}
                     helperText={issueFor(issues, "startsAt") ?? CLUB_TIME_ZONE_NOTE}
-                    slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 300 } }}
-                    fullWidth
                   />
-                  <TextField
+                  <TimeField
                     name="endsAt"
                     label="End"
-                    type="time"
-                    defaultValue={value("endsAt")}
+                    value={endsAt}
+                    onChange={setEndsAt}
                     error={Boolean(issueFor(issues, "endsAt"))}
                     helperText={issueFor(issues, "endsAt")}
-                    slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 300 } }}
-                    fullWidth
                   />
                 </Stack>
 
-                <FormControl>
-                  <FormLabel id="amend-delivery-mode">Where it happens</FormLabel>
-                  <RadioGroup
-                    aria-labelledby="amend-delivery-mode"
-                    name="deliveryMode"
-                    value={deliveryMode}
-                    onChange={(event) => setDeliveryMode(event.target.value)}
-                    row
-                  >
-                    <FormControlLabel value="in_person" control={<Radio />} label="In person" />
-                    <FormControlLabel value="online" control={<Radio />} label="Online" />
-                  </RadioGroup>
-                </FormControl>
+                <ChoiceField
+                  name="deliveryMode"
+                  label="Where it happens"
+                  value={deliveryMode}
+                  onChange={setDeliveryMode}
+                  row
+                  options={[
+                    { value: "in_person", label: "In person" },
+                    { value: "online", label: "Online" },
+                  ]}
+                />
 
                 <VenueField
                   name="venue"
@@ -418,91 +402,81 @@ export default function AmendForm({
                 />
 
                 {deliveryMode === "online" ? (
-                  <TextField
+                  <Field
                     name="joiningUrl"
                     label="Joining link"
                     defaultValue={value("joiningUrl")}
                     error={Boolean(issueFor(issues, "joiningUrl"))}
                     helperText={issueFor(issues, "joiningUrl") ?? JOINING_URL_IS_NEVER_PUBLIC}
-                    fullWidth
                   />
                 ) : (
                   <input type="hidden" name="joiningUrl" value="" />
                 )}
 
-                <TextField
+                <Field
                   name="description"
                   label="Description"
                   defaultValue={value("description")}
                   multiline
                   minRows={2}
-                  fullWidth
                 />
 
-                <TextField
+                <Field
                   name="requiredEquipment"
                   label="Required equipment"
                   defaultValue={value("requiredEquipment")}
-                  fullWidth
                 />
 
-                <FormControl error={Boolean(issueFor(issues, "attendance"))}>
-                  <FormLabel id="amend-attendance">Attendance</FormLabel>
-                  <RadioGroup
-                    aria-labelledby="amend-attendance"
-                    name="attendance"
-                    defaultValue={value("attendance")}
-                    row
-                  >
-                    <FormControlLabel value="mandatory" control={<Radio />} label="Mandatory" />
-                    <FormControlLabel value="optional" control={<Radio />} label="Optional" />
-                  </RadioGroup>
-                  {issueFor(issues, "attendance") ? (
-                    <FormHelperText>{issueFor(issues, "attendance")}</FormHelperText>
-                  ) : null}
-                </FormControl>
+                <ChoiceField
+                  name="attendance"
+                  label="Attendance"
+                  value={attendance}
+                  onChange={setAttendance}
+                  row
+                  error={Boolean(issueFor(issues, "attendance"))}
+                  helperText={issueFor(issues, "attendance")}
+                  options={[
+                    { value: "mandatory", label: "Mandatory" },
+                    { value: "optional", label: "Optional" },
+                  ]}
+                />
               </Stack>
-            </Paper>
+            </Section>
 
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-              <Button
-                variant="contained"
-                type="button"
-                onClick={goToReview}
-                disabled={pending}
-                sx={{ minHeight: 44 }}
-                data-testid="continue-to-review"
-              >
-                {AMEND_CONTINUE_LABEL}
-              </Button>
-              <Button
-                variant="outlined"
-                href={`/operate/events/${eventId}`}
-                disabled={pending}
-                sx={{ minHeight: 44 }}
-                data-testid="discard-changes"
-              >
-                {AMEND_DISCARD_LABEL}
-              </Button>
-            </Stack>
+            <ActionBar
+              primary={
+                <Button
+                  variant="contained"
+                  type="button"
+                  onClick={goToReview}
+                  disabled={pending}
+                  sx={{ minHeight: 44 }}
+                  data-testid="continue-to-review"
+                >
+                  {AMEND_CONTINUE_LABEL}
+                </Button>
+              }
+              secondary={
+                <Button
+                  variant="outlined"
+                  href={`/operate/events/${eventId}`}
+                  disabled={pending}
+                  sx={{ minHeight: 44 }}
+                  data-testid="discard-changes"
+                >
+                  {AMEND_DISCARD_LABEL}
+                </Button>
+              }
+            />
           </Stack>
         </Box>
 
         {step === "review" ? (
-          <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="amend-review-step">
+          <Section title={`${REVIEW_HEADLINE_PREFIX} ${eventName}`} testId="amend-review-step">
             <Stack spacing={3}>
-              <Box>
-                <Typography variant="h6" component="h2">
-                  {`${REVIEW_HEADLINE_PREFIX} ${eventName}`}
-                </Typography>
-                <Chip
-                  size="small"
-                  color="warning"
-                  label={AMEND_UNSAVED_BADGE}
-                  sx={{ mt: 1 }}
-                  data-testid="unsaved-badge"
-                />
-              </Box>
+              <Notice severity="warning" testId="unsaved-badge">
+                {AMEND_UNSAVED_BADGE}
+              </Notice>
 
               <Box>
                 <Typography variant="overline" color="text.secondary" component="p">
@@ -575,77 +549,82 @@ export default function AmendForm({
               ) : null}
 
               {isReschedule ? (
-                <Alert severity="info" data-testid="reschedule-recomputes-note">
+                <Notice severity="info" testId="reschedule-recomputes-note">
                   {RESCHEDULE_RECOMPUTES_NOTE}
-                </Alert>
+                </Notice>
               ) : null}
 
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  disabled={pending}
-                  sx={{ minHeight: 44 }}
-                  data-testid="save-amendment"
-                >
-                  {pending ? "Saving…" : saveAndNotifyLabel(notify, audience.invited)}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outlined"
-                  onClick={() => setStep("edit")}
-                  disabled={pending}
-                  sx={{ minHeight: 44 }}
-                  data-testid="back-to-edit"
-                >
-                  {AMEND_BACK_LABEL}
-                </Button>
-              </Stack>
+              <ActionBar
+                primary={
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={pending}
+                    sx={{ minHeight: 44 }}
+                    data-testid="save-amendment"
+                  >
+                    {pending ? "Saving…" : saveAndNotifyLabel(notify, audience.invited)}
+                  </Button>
+                }
+                secondary={
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    onClick={() => setStep("edit")}
+                    disabled={pending}
+                    sx={{ minHeight: 44 }}
+                    data-testid="back-to-edit"
+                  >
+                    {AMEND_BACK_LABEL}
+                  </Button>
+                }
+              />
             </Stack>
-          </Paper>
+          </Section>
         ) : null}
 
         {step === "silence" ? (
-          <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="amend-silence-step">
+          <Section title={silenceHeadline(changes)} testId="amend-silence-step">
             <Stack spacing={2}>
-              <Typography variant="h6" component="h2" data-testid="silence-headline">
-                {silenceHeadline(changes)}
-              </Typography>
-              <Alert severity="warning" data-testid="silence-consequence">
+              <Notice severity="warning" testId="silence-consequence">
                 {silenceConsequence(audience.invited, changes)}
-              </Alert>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <Button
-                  type="button"
-                  variant="contained"
-                  onClick={() => {
-                    setNotify(true);
-                    setSilenceConfirmed(false);
-                    setStep("review");
-                  }}
-                  disabled={pending}
-                  sx={{ minHeight: 44 }}
-                  data-testid="silence-notify-instead"
-                >
-                  {SILENCE_NOTIFY_LABEL}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outlined"
-                  color="warning"
-                  onClick={() => {
-                    setSilenceConfirmed(true);
-                    setStep("review");
-                  }}
-                  disabled={pending}
-                  sx={{ minHeight: 44 }}
-                  data-testid="silence-accept"
-                >
-                  {SILENCE_PROCEED_LABEL}
-                </Button>
-              </Stack>
+              </Notice>
+              <ActionBar
+                primary={
+                  <Button
+                    type="button"
+                    variant="contained"
+                    onClick={() => {
+                      setNotify(true);
+                      setSilenceConfirmed(false);
+                      setStep("review");
+                    }}
+                    disabled={pending}
+                    sx={{ minHeight: 44 }}
+                    data-testid="silence-notify-instead"
+                  >
+                    {SILENCE_NOTIFY_LABEL}
+                  </Button>
+                }
+                secondary={
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    color="warning"
+                    onClick={() => {
+                      setSilenceConfirmed(true);
+                      setStep("review");
+                    }}
+                    disabled={pending}
+                    sx={{ minHeight: 44 }}
+                    data-testid="silence-accept"
+                  >
+                    {SILENCE_PROCEED_LABEL}
+                  </Button>
+                }
+              />
             </Stack>
-          </Paper>
+          </Section>
         ) : null}
       </Stack>
     </Box>

@@ -1,18 +1,22 @@
 "use client";
 
 import { useActionState, useEffect, useRef } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { PageHeader } from "@/components/page-header";
+import { ActionBar } from "@/components/action-bar";
+import { Refusal } from "@/components/refusal";
+import { Fact } from "@/components/fact";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
+import { StatusChip } from "@/components/status-chip";
 import FormControl from "@mui/material/FormControl";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import FormLabel from "@mui/material/FormLabel";
-import Paper from "@mui/material/Paper";
+import { Surface } from "@/components/surface";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field as InputField } from "@/components/field";
 import Typography from "@mui/material/Typography";
 
 import type { PersonCandidate } from "@/lib/services/roster";
@@ -92,30 +96,22 @@ function DetailsStep({
     label: string,
     extra: { type?: string; autoComplete?: string } = {},
   ) => (
-    <TextField
+    <InputField
       name={name}
       label={label}
       defaultValue={values[name]}
       error={Boolean(errors[name])}
       helperText={errors[name]}
       inputRef={firstInvalid === name ? focusTarget : undefined}
-      fullWidth
       {...extra}
     />
   );
 
   return (
     <Stack spacing={3}>
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          Add player
-        </Typography>
-        <Typography color="text.secondary" sx={{ mt: 1 }}>
-          Enter the person&rsquo;s details. A duplicate check runs before anything is written.
-        </Typography>
-      </Box>
+      <PageHeader title="Add player" back={{ href: "/operate/roster", label: "Back to roster" }} />
 
-      {state.formError ? <Alert severity="error">{state.formError}</Alert> : null}
+      {state.formError ? <Notice severity="error">{state.formError}</Notice> : null}
 
       {/* Four fields, in this order, and no others. All four departures from
           the approved wireframe are Brian's, taken while reviewing this screen
@@ -138,25 +134,25 @@ function DetailsStep({
         {field("phone", "Phone", { type: "tel", autoComplete: "off" })}
       </Stack>
 
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        sx={{ alignItems: { sm: "center" } }}
-      >
-        <Button
-          type="submit"
-          name="intent"
-          value="check"
-          variant="contained"
-          disabled={pending}
-          sx={{ minHeight: MIN_TOUCH_TARGET }}
-        >
-          {pending ? "Checking…" : "Check for matches"}
-        </Button>
-        <Button href="/operate/roster" variant="outlined" sx={{ minHeight: MIN_TOUCH_TARGET }}>
-          Cancel
-        </Button>
-      </Stack>
+      <ActionBar
+        primary={
+          <Button
+            type="submit"
+            name="intent"
+            value="check"
+            variant="contained"
+            disabled={pending}
+            sx={{ minHeight: MIN_TOUCH_TARGET }}
+          >
+            {pending ? "Checking…" : "Check for matches"}
+          </Button>
+        }
+        cancel={
+          <Button href="/operate/roster" variant="outlined" sx={{ minHeight: MIN_TOUCH_TARGET }}>
+            Cancel
+          </Button>
+        }
+      />
     </Stack>
   );
 }
@@ -190,23 +186,19 @@ function CandidatesStep({
     <Stack spacing={3}>
       <HiddenValues values={values} />
 
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          Review possible matches
-        </Typography>
-        <Typography color="text.secondary" sx={{ mt: 1 }} data-testid="candidate-count">
-          {none
-            ? "No existing person matches the supplied names or contact details."
-            : `${candidates.length} ${candidates.length === 1 ? "person matches" : "people match"} the supplied names or contact details.`}
-        </Typography>
-      </Box>
+      <PageHeader
+        title="Review possible matches"
+        back={{ href: "/operate/roster", label: "Back to roster" }}
+        subtitle={
+          <Typography component="span" variant="body2" data-testid="candidate-count">
+            {none
+              ? "No existing person matches the supplied names or contact details."
+              : `${candidates.length} ${candidates.length === 1 ? "person matches" : "people match"} the supplied names or contact details.`}
+          </Typography>
+        }
+      />
 
-      {state.formError ? <Alert severity="error">{state.formError}</Alert> : null}
-
-      <Alert severity="info">
-        The operator must make an explicit choice. The system never silently merges or silently
-        creates a person.
-      </Alert>
+      {state.formError ? <Notice severity="error">{state.formError}</Notice> : null}
 
       {none ? null : (
         <FormControl component="fieldset" sx={{ width: "100%" }}>
@@ -223,44 +215,63 @@ function CandidatesStep({
         </FormControl>
       )}
 
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        sx={{ alignItems: { sm: "center" } }}
-      >
-        {none ? null : (
+      <ActionBar
+        primary={
+          none ? (
+            <Button
+              type="submit"
+              name="intent"
+              value="confirm_new"
+              variant={none ? "contained" : "outlined"}
+              disabled={pending}
+              sx={{ minHeight: MIN_TOUCH_TARGET }}
+            >
+              Confirm this is a new person
+            </Button>
+          ) : (
+            <>
+              {none ? null : (
+                <Button
+                  type="submit"
+                  name="intent"
+                  value="use_existing"
+                  variant="contained"
+                  disabled={pending}
+                  sx={{ minHeight: MIN_TOUCH_TARGET }}
+                >
+                  Use selected person
+                </Button>
+              )}
+            </>
+          )
+        }
+        secondary={
+          none ? undefined : (
+            <Button
+              type="submit"
+              name="intent"
+              value="confirm_new"
+              variant={none ? "contained" : "outlined"}
+              disabled={pending}
+              sx={{ minHeight: MIN_TOUCH_TARGET }}
+            >
+              Confirm this is a new person
+            </Button>
+          )
+        }
+        cancel={
           <Button
             type="submit"
             name="intent"
-            value="use_existing"
-            variant="contained"
+            value="back_to_details"
+            variant="text"
             disabled={pending}
             sx={{ minHeight: MIN_TOUCH_TARGET }}
           >
-            Use selected person
+            Back to details
           </Button>
-        )}
-        <Button
-          type="submit"
-          name="intent"
-          value="confirm_new"
-          variant={none ? "contained" : "outlined"}
-          disabled={pending}
-          sx={{ minHeight: MIN_TOUCH_TARGET }}
-        >
-          Confirm this is a new person
-        </Button>
-        <Button
-          type="submit"
-          name="intent"
-          value="back_to_details"
-          variant="text"
-          disabled={pending}
-          sx={{ minHeight: MIN_TOUCH_TARGET }}
-        >
-          Back to details
-        </Button>
-      </Stack>
+        }
+      />
     </Stack>
   );
 }
@@ -283,7 +294,7 @@ function CandidateRow({ candidate }: { candidate: PersonCandidate }) {
     : candidate.givenName;
 
   return (
-    <Paper variant="outlined" sx={{ px: 2, py: 1.5 }} data-testid="candidate">
+    <Surface testId="candidate">
       <FormControlLabel
         value={candidate.personId}
         control={
@@ -316,18 +327,19 @@ function CandidateRow({ candidate }: { candidate: PersonCandidate }) {
                 </Typography>
               )}
             </Typography>
-            <Field label="Known as" value={candidate.displayAlias} />
-            <Field label="Email" value={candidate.email} />
-            <Field label="Phone" value={candidate.phone} />
+            <Fact label="Known as" value={candidate.displayAlias} />
+            <Fact label="Email" value={candidate.email} />
+            <Fact label="Phone" value={candidate.phone} />
             <Box>
-              <Label>Current season</Label>
+              <Typography variant="overline" component="p">
+                Current season
+              </Typography>
               {candidate.currentMembership ? (
-                <Chip
-                  size="small"
-                  color="warning"
-                  variant="outlined"
+                <StatusChip
+                  domain="membership"
+                  status={candidate.currentMembership.status}
                   label={`Already a member (${candidate.currentMembership.status})`}
-                  data-testid="candidate-has-membership"
+                  testId="candidate-has-membership"
                 />
               ) : (
                 <Typography variant="body2">No membership</Typography>
@@ -341,34 +353,7 @@ function CandidateRow({ candidate }: { candidate: PersonCandidate }) {
           </Box>
         }
       />
-    </Paper>
-  );
-}
-
-function Label({ children }: { children: React.ReactNode }) {
-  return (
-    <Typography
-      variant="caption"
-      color="text.secondary"
-      component="span"
-      sx={{ display: { xs: "inline", md: "block" } }}
-    >
-      {children}
-      <Box component="span" sx={{ display: { xs: "inline", md: "none" } }}>
-        :{" "}
-      </Box>
-    </Typography>
-  );
-}
-
-function Field({ label, value }: { label: string; value: string | null }) {
-  return (
-    <Box sx={{ minWidth: 0 }}>
-      <Label>{label}</Label>
-      <Typography variant="body2" sx={{ overflowWrap: "anywhere" }}>
-        {value ?? "—"}
-      </Typography>
-    </Box>
+    </Surface>
   );
 }
 
@@ -389,53 +374,38 @@ function MembershipRefusedStep({
     <Stack spacing={3}>
       <HiddenValues values={values} />
 
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          This person already has a current-season membership
-        </Typography>
-        {/* UX-12's body copy names the person and the season — "Avery Fielding
-            is already a member for the 2026–27 season. No duplicate membership
-            was created." A service module cannot write that sentence: it does
-            not know which candidate the operator clicked. So the interface
-            composes it, and falls back to the service's own sentence in the one
-            case where the person is no longer in the candidate list. */}
-        <Typography color="text.secondary" sx={{ mt: 1 }} data-testid="refusal-message">
-          {refusal.seasonLabel
-            ? `${refusal.personName} is already a member for the ${refusal.seasonLabel} season. ` +
-              "No duplicate membership was created."
-            : refusal.message}
-        </Typography>
-      </Box>
-
-      {/* The wireframe's warning strip is gone: the heading and the sentence
-          above already say the write was refused and nothing was changed, and
-          repeating it in an alert read as an error the operator had to act on
-          when in fact there is nothing wrong. Brian, 12 August 2026. */}
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        sx={{ alignItems: { sm: "center" } }}
-      >
-        {refusal.membershipId ? (
+      <Refusal
+        title="This person already has a current-season membership"
+        testId="refusal-message"
+        message={
+          refusal.seasonLabel
+            ? `${refusal.personName} is already a member for the ${refusal.seasonLabel} season. No duplicate membership was created.`
+            : refusal.message
+        }
+        action={
+          refusal.membershipId ? (
+            <Button
+              href={`/operate/roster/${refusal.membershipId}`}
+              variant="contained"
+              sx={{ minHeight: MIN_TOUCH_TARGET }}
+            >
+              View {refusal.personGivenName}&rsquo;s roster entry
+            </Button>
+          ) : undefined
+        }
+        secondary={
           <Button
-            href={`/operate/roster/${refusal.membershipId}`}
-            variant="contained"
+            type="submit"
+            name="intent"
+            value="back_to_candidates"
+            variant="outlined"
+            disabled={pending}
             sx={{ minHeight: MIN_TOUCH_TARGET }}
           >
-            View {refusal.personGivenName}&rsquo;s roster entry
+            Go back
           </Button>
-        ) : null}
-        <Button
-          type="submit"
-          name="intent"
-          value="back_to_candidates"
-          variant="outlined"
-          disabled={pending}
-          sx={{ minHeight: MIN_TOUCH_TARGET }}
-        >
-          Go back
-        </Button>
-      </Stack>
+        }
+      />
     </Stack>
   );
 }

@@ -1,4 +1,6 @@
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { EmptyState } from "@/components/empty-state";
+import { PageHeader } from "@/components/page-header";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
@@ -145,28 +147,20 @@ export default async function EventCalendarPage({
 
   return (
     <Stack spacing={3}>
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        sx={{ alignItems: { sm: "flex-start" }, justifyContent: "space-between" }}
-      >
-        <Box>
-          <Typography variant="h6" component="h1">
-            Events
-          </Typography>
-          <Typography variant="body2" color="text.secondary" data-testid="season-label">
-            {`Season ${list.season.label}`}
-          </Typography>
-        </Box>
-        <Stack direction="row" spacing={1.5}>
-          <SubscribeToCalendarButton />
-          {mayManage ? (
-            <Button variant="contained" href="/operate/events/new">
-              Create event
-            </Button>
-          ) : null}
-        </Stack>
-      </Stack>
+      <PageHeader
+        title="Events"
+        subtitle={<span data-testid="season-label">{`Season ${list.season.label}`}</span>}
+        actions={
+          <>
+            {mayManage ? (
+              <Button variant="contained" href="/operate/events/new">
+                Create event
+              </Button>
+            ) : null}
+            <SubscribeToCalendarButton />
+          </>
+        }
+      />
 
       <Stack spacing={1.5}>
         <ViewSwitch
@@ -251,9 +245,11 @@ function GregorianView({
       />
 
       {grid.placedCount === 0 ? (
-        <Alert severity="info" data-testid="month-empty">
-          {MONTH_EMPTY}
-        </Alert>
+        <EmptyState
+          testId="month-empty"
+          title={MONTH_EMPTY}
+          action={{ href: "/operate/events?period=all", label: "All events" }}
+        />
       ) : null}
 
       <TypeLegend events={monthGridEvents(grid)} />
@@ -284,9 +280,9 @@ function OxfordView({
   if (year === null || year.column.segments.length === 0) {
     return (
       <Stack spacing={2} data-testid="oxford-view">
-        <Alert severity="warning" data-testid="no-terms-configured">
+        <Notice severity="warning" testId="no-terms-configured">
           {NO_TERMS_CONFIGURED}
-        </Alert>
+        </Notice>
       </Stack>
     );
   }

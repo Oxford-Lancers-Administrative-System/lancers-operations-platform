@@ -1,4 +1,6 @@
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { EmptyState } from "@/components/empty-state";
+import { PageHeader } from "@/components/page-header";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -79,9 +81,9 @@ export default async function PublicCalendarViewPage({
     if (!isServiceError(error)) throw error;
     return (
       <PublicShell seasonLabel={null}>
-        <Alert severity="info" data-testid="public-calendar-unavailable">
+        <Notice severity="info" testId="public-calendar-unavailable">
           {error.message}
-        </Alert>
+        </Notice>
       </PublicShell>
     );
   }
@@ -114,11 +116,7 @@ export default async function PublicCalendarViewPage({
   return (
     <PublicShell seasonLabel={list.season.label} action={<SubscribeToCalendarButton />}>
       <Stack spacing={3}>
-        <Box>
-          <Typography variant="h6" component="h1">
-            What&rsquo;s on
-          </Typography>
-        </Box>
+        <PageHeader title="What’s on" />
 
         <Stack spacing={1.5}>
           <ViewSwitch
@@ -200,9 +198,11 @@ function GregorianArrangement({
       />
 
       {grid.placedCount === 0 ? (
-        <Alert severity="info" data-testid="public-month-empty">
-          {MONTH_EMPTY}
-        </Alert>
+        <EmptyState
+          testId="public-month-empty"
+          title={MONTH_EMPTY}
+          action={{ href: "/calendar?period=all", label: "All events" }}
+        />
       ) : null}
 
       <TypeLegend events={monthGridEvents(grid)} />
@@ -222,9 +222,9 @@ function OxfordArrangement({
   if (year === null || year.column.segments.length === 0) {
     return (
       <Stack spacing={2} data-testid="public-oxford-view">
-        <Alert severity="warning" data-testid="public-no-terms">
+        <Notice severity="warning" testId="public-no-terms">
           {NO_TERMS_CONFIGURED}
-        </Alert>
+        </Notice>
       </Stack>
     );
   }

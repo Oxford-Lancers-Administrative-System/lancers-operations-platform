@@ -1,7 +1,10 @@
-import Alert from "@mui/material/Alert";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
+import { Refusal } from "@/components/refusal";
+import { Metric, MetricRow } from "@/components/metric";
+import { ArrivalNotice, OutcomeSlotProvider } from "@/components/outcome-slot";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
@@ -22,19 +25,16 @@ import {
   ADD_WALK_UP,
   ATTENDANCE_HEADLINE_PREFIX,
   ATTENDANCE_LOCKED_HEADLINE,
-  COACH_BOARD_NOTE,
   COACH_BOARD_SUBTITLE,
   COACH_LOCKED_HEADLINE,
   describeCoachLock,
   describeOperatorLock,
   COACH_RETURN_TO_ELIGIBLE,
   COMPLETE_ATTENDANCE,
-  COMPLETE_ATTENDANCE_MEANING,
   describeRegisterOpensAt,
   NOBODY_INVITED,
   NO_MATCHING_PARTICIPANTS,
   REGISTER_NOT_YET_HEADLINE,
-  RSVP_STAYS_SEPARATE,
   WALK_UP_ADDED,
 } from "./presentation";
 
@@ -167,125 +167,110 @@ export default async function AttendancePage({
   const basePath = `/operate/events/${event.id}/attendance`;
 
   return (
-    <Stack
-      spacing={3}
-      sx={{ maxWidth: 1100 }}
-      data-testid="attendance-board"
-      data-view={isCoachView ? "coach" : "operator"}
-    >
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {isCoachView ? `${event.name} attendance` : `${ATTENDANCE_HEADLINE_PREFIX} ${event.name}`}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {isCoachView
-            ? COACH_BOARD_SUBTITLE
-            : `${labelFor(STATUS_LABELS, event.status)} · ${formatDetailWhen(event)}${
-                event.venue ? ` · ${event.venue}` : ""
-              }`}
-        </Typography>
-      </Box>
-
-      {justAdded ? (
-        <Alert severity="success" data-testid="walk-up-added" sx={{ py: 0 }}>
-          {WALK_UP_ADDED}
-        </Alert>
-      ) : null}
-
-      {isCoachView ? (
-        // UX-91's own line. It replaces the operator's mismatch note rather
-        // than joining it: § 3 withholds the RSVP *reason* from a coach, and
-        // "mismatches are visible and never auto-reconciled" is a sentence
-        // about a reconciliation workflow this surface does not offer them.
-        <Alert severity="info" data-testid="coach-scope-note">
-          {COACH_BOARD_NOTE}
-        </Alert>
-      ) : (
-        /*
-          Not a warning and not a footnote. The frozen model says mismatches are
-          "computed, surfaced as exceptions, and never silently reconciled", and
-          a recorder looking at somebody who said no and turned up needs to know
-          that recording Present is the correct thing to do rather than a conflict
-          to resolve.
-        */
-        <Alert severity="info" data-testid="rsvp-separate-note">
-          {RSVP_STAYS_SEPARATE}
-        </Alert>
-      )}
-
+    <OutcomeSlotProvider>
       <Stack
-        direction={{ xs: "column", md: "row" }}
-        spacing={2}
-        sx={{ alignItems: { md: "center" }, justifyContent: "space-between" }}
+        spacing={3}
+        sx={{ maxWidth: 1100 }}
+        data-testid="attendance-board"
+        data-view={isCoachView ? "coach" : "operator"}
       >
-        <AttendanceFilters
-          basePath={basePath}
-          search={search}
-          rsvp={rsvp}
-          attendance={attendance}
+        <PageHeader
+          title={
+            isCoachView ? `${event.name} attendance` : `${ATTENDANCE_HEADLINE_PREFIX} ${event.name}`
+          }
+          subtitle={
+            isCoachView
+              ? COACH_BOARD_SUBTITLE
+              : `${labelFor(STATUS_LABELS, event.status)} · ${formatDetailWhen(event)}${event.venue ? ` · ${event.venue}` : ""}`
+          }
+          back={{
+            href: isCoachView ? "/operate/events" : `/operate/events/${event.id}`,
+            label: isCoachView ? "Back to events" : "Back to event",
+          }}
         />
-        <Button
-          variant="outlined"
-          href={`${basePath}?add=walk-up`}
-          sx={{ minHeight: 44, whiteSpace: "nowrap" }}
-          data-testid="add-walk-up"
-        >
-          {ADD_WALK_UP}
-        </Button>
-      </Stack>
 
-      <Paper variant="outlined" sx={{ p: { xs: 1.5, md: 3 } }}>
-        {/*
+        {justAdded ? (
+          <ArrivalNotice severity="success" testId="walk-up-added">
+            {WALK_UP_ADDED}
+          </ArrivalNotice>
+        ) : null}
+
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={2}
+          sx={{ alignItems: { md: "center" }, justifyContent: "space-between" }}
+        >
+          <AttendanceFilters
+            basePath={basePath}
+            search={search}
+            rsvp={rsvp}
+            attendance={attendance}
+          />
+          <Button
+            variant="outlined"
+            href={`${basePath}?add=walk-up`}
+            sx={{ minHeight: 44, whiteSpace: "nowrap" }}
+            data-testid="add-walk-up"
+          >
+            {ADD_WALK_UP}
+          </Button>
+        </Stack>
+
+        <Stack spacing={3}>
+          {/*
           The counts are the operator's. Invited, Recorded and Walk-ups are
           fine for anyone, but Mismatches is a count of an exception class the
           Monday report acts on and the coach's surface deliberately does not —
           and UX-91 shows no counts row at all, on either presentation.
         */}
-        {isCoachView ? null : <Counts board={board} />}
+          {isCoachView ? null : <Counts board={board} />}
 
-        {board.participants.length === 0 ? (
-          <Alert severity="info" data-testid="attendance-empty">
-            {NOBODY_INVITED}
-          </Alert>
-        ) : visible.length === 0 ? (
-          <Alert severity="info" data-testid="attendance-filter-empty">
-            {NO_MATCHING_PARTICIPANTS}
-          </Alert>
-        ) : (
-          <AttendanceGroups
-            eventId={event.id}
-            eventType={event.eventType}
-            participants={visible}
-            search={search}
-            showMismatch={!isCoachView}
-            mayRemove={mayRemove}
-          />
-        )}
-      </Paper>
+          {board.participants.length === 0 ? (
+            <EmptyState
+              title={NOBODY_INVITED}
+              action={{ href: `${basePath}?add=walk-up`, label: ADD_WALK_UP }}
+              testId="attendance-empty"
+            />
+          ) : visible.length === 0 ? (
+            <EmptyState
+              title={NO_MATCHING_PARTICIPANTS}
+              searched={search || undefined}
+              action={{ href: basePath, label: "Clear filters" }}
+              testId="attendance-filter-empty"
+            />
+          ) : (
+            <AttendanceGroups
+              eventId={event.id}
+              eventType={event.eventType}
+              participants={visible}
+              search={search}
+              showMismatch={!isCoachView}
+              mayRemove={mayRemove}
+            />
+          )}
+        </Stack>
 
-      {/*
+        {/*
         **Complete attendance** returns to `/operate/events/[id]`, which is
         event administration and refuses a coach outright. Offering a coach a
         button to a screen that will refuse them is worse than offering none,
         and UX-91 shows the coach's board ending at the list.
       */}
-      {isCoachView ? null : (
-        <Stack spacing={1} sx={{ maxWidth: 420 }}>
-          <Button
-            variant="contained"
-            href={`/operate/events/${event.id}`}
-            fullWidth
-            sx={{ minHeight: 44 }}
-            data-testid="complete-attendance"
-          >
-            {COMPLETE_ATTENDANCE}
-          </Button>
-          <Typography variant="body2" color="text.secondary">
-            {COMPLETE_ATTENDANCE_MEANING}
-          </Typography>
-        </Stack>
-      )}
-    </Stack>
+        {isCoachView ? null : (
+          <Stack spacing={1} sx={{ maxWidth: 420 }}>
+            <Button
+              variant="contained"
+              href={`/operate/events/${event.id}`}
+              fullWidth
+              sx={{ minHeight: 44 }}
+              data-testid="complete-attendance"
+            >
+              {COMPLETE_ATTENDANCE}
+            </Button>
+          </Stack>
+        )}
+      </Stack>
+    </OutcomeSlotProvider>
   );
 }
 
@@ -311,77 +296,42 @@ function RegisterNotOpenYet({
   isCoachView: boolean;
 }) {
   return (
-    <Stack
-      spacing={3}
-      sx={{ maxWidth: 720 }}
-      data-testid="register-not-open-yet"
-      data-status={status}
-    >
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {REGISTER_NOT_YET_HEADLINE}
-        </Typography>
-        <Typography variant="body2" color="text.secondary" data-testid="register-opens-at">
-          {describeRegisterOpensAt(opensAt)}
-        </Typography>
-      </Box>
-      <Box>
-        <Button
-          variant="contained"
-          href={isCoachView ? "/operate/events" : `/operate/events/${eventId}`}
-          sx={{ minHeight: 44 }}
-        >
-          {isCoachView ? COACH_RETURN_TO_ELIGIBLE : "Return to event"}
-        </Button>
-      </Box>
-    </Stack>
+    <Box data-testid="register-not-open-yet" data-status={status}>
+      <Refusal
+        title={REGISTER_NOT_YET_HEADLINE}
+        message={describeRegisterOpensAt(opensAt)}
+        action={{
+          href: isCoachView ? "/operate/events" : `/operate/events/${eventId}`,
+          label: isCoachView ? COACH_RETURN_TO_ELIGIBLE : "Return to event",
+        }}
+      />
+    </Box>
   );
 }
 
 /** UX-90 — the lock, told to somebody who cannot lift it. */
 function CoachAttendanceLocked({ status }: { status: string }) {
   return (
-    <Stack
-      spacing={3}
-      sx={{ maxWidth: 720 }}
-      data-testid="coach-attendance-locked"
-      data-status={status}
-    >
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {COACH_LOCKED_HEADLINE}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {describeCoachLock(status)}
-        </Typography>
-      </Box>
-      <Box>
-        <Button variant="contained" href="/operate/events" sx={{ minHeight: 44 }}>
-          {COACH_RETURN_TO_ELIGIBLE}
-        </Button>
-      </Box>
-    </Stack>
+    <Box data-testid="coach-attendance-locked" data-status={status}>
+      <Refusal
+        title={COACH_LOCKED_HEADLINE}
+        message={describeCoachLock(status)}
+        action={{ href: "/operate/events", label: COACH_RETURN_TO_ELIGIBLE }}
+      />
+    </Box>
   );
 }
 
 /** UX-71, and the state UX-75 leaves an event in permanently. */
 function AttendanceLocked({ eventId, status }: { eventId: string; status: string }) {
   return (
-    <Stack spacing={3} sx={{ maxWidth: 720 }} data-testid="attendance-locked" data-status={status}>
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {ATTENDANCE_LOCKED_HEADLINE}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {describeOperatorLock(status)}
-        </Typography>
-      </Box>
-      <Box>
-        <Button variant="contained" href={`/operate/events/${eventId}`} sx={{ minHeight: 44 }}>
-          Return to event
-        </Button>
-      </Box>
-    </Stack>
+    <Box data-testid="attendance-locked" data-status={status}>
+      <Refusal
+        title={ATTENDANCE_LOCKED_HEADLINE}
+        message={describeOperatorLock(status)}
+        action={{ href: `/operate/events/${eventId}`, label: "Return to event" }}
+      />
+    </Box>
   );
 }
 
@@ -395,25 +345,11 @@ function Counts({ board }: { board: AttendanceBoard }) {
   ];
 
   return (
-    <Box
-      sx={{
-        display: "grid",
-        gap: 1.5,
-        gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(4, minmax(0, 1fr))" },
-        mb: 2,
-      }}
-    >
+    <MetricRow columns={4}>
       {entries.map((entry) => (
-        <Box key={entry.label} data-testid={entry.testId}>
-          <Typography variant="h6" component="p" sx={{ fontWeight: 700 }}>
-            {entry.value}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {entry.label}
-          </Typography>
-        </Box>
+        <Metric key={entry.label} value={entry.value} label={entry.label} testId={entry.testId} />
       ))}
-    </Box>
+    </MetricRow>
   );
 }
 

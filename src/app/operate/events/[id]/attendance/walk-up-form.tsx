@@ -1,17 +1,19 @@
 "use client";
 
 import { useActionState } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { PageHeader } from "@/components/page-header";
+import { Surface } from "@/components/surface";
+import { ActionBar } from "@/components/action-bar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field } from "@/components/field";
 import Typography from "@mui/material/Typography";
 import { recordWalkUpAction } from "./actions";
 import { EMPTY_WALK_UP_STATE } from "./action-state";
 import {
   WALK_UP_ALWAYS_PRESENT,
-  WALK_UP_DETAIL,
   WALK_UP_EMAIL_LABEL,
   WALK_UP_FAMILY_NAME_LABEL,
   WALK_UP_GIVEN_NAME_LABEL,
@@ -76,82 +78,82 @@ export function WalkUpForm({ eventId }: { eventId: string }) {
     <Box component="form" action={formAction} data-testid="walk-up-form" sx={{ maxWidth: 560 }}>
       <input type="hidden" name="eventId" value={eventId} />
       <Stack spacing={3}>
-        <Box>
-          <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-            {WALK_UP_HEADLINE}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {WALK_UP_DETAIL}
-          </Typography>
-        </Box>
-
-        <Alert severity="warning" data-testid="walk-up-reconciliation-note">
-          <Typography variant="body2">{WALK_UP_RECONCILIATION_NOTE}</Typography>
-        </Alert>
-
-        <Alert severity="info" data-testid="walk-up-send-note">
-          <Typography variant="body2">{WALK_UP_SEND_NOTE}</Typography>
-        </Alert>
-
-        {state.error ? (
-          <Alert severity="error" data-testid="walk-up-error">
-            {state.error}
-          </Alert>
-        ) : null}
-
-        <TextField
-          label={WALK_UP_GIVEN_NAME_LABEL}
-          name="givenName"
-          defaultValue={values?.givenName ?? ""}
-          required
-          fullWidth
-          autoFocus
+        <PageHeader
+          title={WALK_UP_HEADLINE}
+          back={{ href: `/operate/events/${eventId}/attendance`, label: "Back to attendance" }}
         />
-
-        <TextField
-          label={WALK_UP_FAMILY_NAME_LABEL}
-          name="familyName"
-          defaultValue={values?.familyName ?? ""}
-          required
-          fullWidth
-        />
-
-        <TextField
-          label={WALK_UP_PHONE_LABEL}
-          name="phone"
-          type="tel"
-          defaultValue={values?.phone ?? ""}
-          required
-          fullWidth
-          helperText="How the club follows them up. Stored exactly as it was given."
-        />
-
-        <TextField
-          label={WALK_UP_EMAIL_LABEL}
-          name="email"
-          type="email"
-          defaultValue={values?.email ?? ""}
-          fullWidth
-          helperText="Optional. Stored exactly as it was given."
-        />
-
-        <Typography variant="body2" color="text.secondary" data-testid="walk-up-presence-note">
-          {WALK_UP_ALWAYS_PRESENT}
-        </Typography>
-
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-          <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
-            {pending ? "Adding…" : WALK_UP_SUBMIT}
-          </Button>
-          <Button
-            variant="outlined"
-            href={`/operate/events/${eventId}/attendance`}
-            disabled={pending}
-            sx={{ minHeight: 44 }}
+        <Surface>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            data-testid="walk-up-reconciliation-note"
           >
-            Cancel
-          </Button>
-        </Stack>
+            {WALK_UP_RECONCILIATION_NOTE}
+          </Typography>
+
+          <Notice severity="info" testId="walk-up-send-note">
+            {WALK_UP_SEND_NOTE}
+          </Notice>
+
+          {state.error ? (
+            <Notice severity="error" testId="walk-up-error">
+              {state.error}
+            </Notice>
+          ) : null}
+
+          <Field
+            label={WALK_UP_GIVEN_NAME_LABEL}
+            name="givenName"
+            defaultValue={values?.givenName ?? ""}
+            required
+            autoFocus
+          />
+
+          <Field
+            label={WALK_UP_FAMILY_NAME_LABEL}
+            name="familyName"
+            defaultValue={values?.familyName ?? ""}
+            required
+          />
+
+          <Field
+            label={WALK_UP_PHONE_LABEL}
+            name="phone"
+            type="tel"
+            defaultValue={values?.phone ?? ""}
+            required
+          />
+
+          <Field
+            label={WALK_UP_EMAIL_LABEL}
+            name="email"
+            type="email"
+            defaultValue={values?.email ?? ""}
+            helperText="Optional."
+          />
+
+          <Typography variant="body2" color="text.secondary" data-testid="walk-up-presence-note">
+            {WALK_UP_ALWAYS_PRESENT}
+          </Typography>
+
+          <ActionBar
+            primary={
+              <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
+                {pending ? "Adding…" : WALK_UP_SUBMIT}
+              </Button>
+            }
+            cancel={
+              <Button
+                variant="outlined"
+                href={`/operate/events/${eventId}/attendance`}
+                disabled={pending}
+                sx={{ minHeight: 44 }}
+              >
+                Cancel
+              </Button>
+            }
+          />
+        </Surface>
       </Stack>
     </Box>
   );

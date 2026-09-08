@@ -25,14 +25,10 @@ on purpose: the components are in `src/components/`, and the evidence is on
 the review page for LAN-225. What is here is the rule for each, and the reason
 where a reason is not obvious.
 
-**Where the theme lives, and why not where you would expect.** The token
-values are in `src/theme-tokens.ts` (server-safe) and the MUI theme built from
-them is `src/app/design-preview/club-theme.ts`, applied to the preview route
-and nowhere else. It is not `src/theme.ts`, because the mockup branch has to
-be mergeable without repainting the running application half-finished — the
-real pages would take the tokens without the components. The implementation
-mission's first act is to move that file to `src/theme.ts`; until then the
-application's own theme is untouched.
+**Where the theme lives.** The token values are in `src/theme-tokens.ts`
+(server-safe) and the MUI theme built from them is `src/theme.ts`, mounted by
+the root layout. LAN-231 promotes the approved preview theme and shell into
+the application; the preview uses the same theme without a nested provider.
 
 ## 1. Palette
 
@@ -244,3 +240,13 @@ operator-in-two-groups rule (H8), the future "Showed" column (H9), the report's
 tense (H10), the agreement version a player is shown (P15), and whether
 player-facing dates keep their weekday (P16). Each stays a finding until Brian
 says otherwise.
+
+### Adoption support added in LAN-231–235
+
+The rollout shares existing interaction shapes rather than changing their rules:
+`ValueChoice` retains native comparison radio groups; `FieldGroup` labels nested
+fields; `DateField` accepts the existing bounds and focus ref; `TimeField` can
+retain the owning form's partially edited date. Nested `Section` headings may
+be level three. `ActionBar sticky={false}` keeps repeated independent panel
+forms in flow, so multiple save bars do not cover their fields at 375px.
+The single-form phone footer remains sticky by default.

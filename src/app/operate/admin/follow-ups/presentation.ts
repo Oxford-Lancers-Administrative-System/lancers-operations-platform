@@ -12,7 +12,7 @@ export const PAGE_HEADING = "Follow-ups";
 export function subheading(people: number, events: number): string {
   const peopleWord = people === 1 ? "person" : "people";
   const eventWord = events === 1 ? "event" : "events";
-  return `${people} ${peopleWord} across ${events} approved ${eventWord} · nobody compiles this list`;
+  return `${people} ${peopleWord} across ${events} approved ${eventWord}`;
 }
 
 export const EMPTY_QUEUE =
@@ -44,7 +44,7 @@ export const STATUS_COLOURS: Readonly<Record<string, "default" | "warning" | "er
   });
 
 export const DEADLINE_UNSET = "No deadline recorded";
-export const CHASE_NONE = "—";
+export const CHASE_NONE = "not recorded";
 
 /**
  * The mockup's own vocabulary, W5-01/OWNER-LAN173-01.

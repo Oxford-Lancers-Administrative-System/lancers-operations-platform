@@ -1,9 +1,6 @@
-import Accordion from "@mui/material/Accordion";
-import AccordionDetails from "@mui/material/AccordionDetails";
-import AccordionSummary from "@mui/material/AccordionSummary";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { Section } from "@/components/section";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import {
@@ -212,11 +209,9 @@ function PlanRows({ display, audienceSize }: { display: DisplayPlan; audienceSiz
               {row.note}
             </Typography>
           </Box>
-          <Chip
-            size="small"
-            label={row.side}
-            sx={{ justifySelf: { xs: "flex-start", sm: "flex-end" } }}
-          />
+          <Typography variant="caption" color="text.secondary">
+            {row.side}
+          </Typography>
         </Box>
       ))}
       {display.escalationAt ? (
@@ -242,12 +237,9 @@ function PlanRows({ display, audienceSize }: { display: DisplayPlan; audienceSiz
               Send the event and unanswered count to the President.
             </Typography>
           </Box>
-          <Chip
-            size="small"
-            color="warning"
-            label="President"
-            sx={{ justifySelf: { xs: "flex-start", sm: "flex-end" } }}
-          />
+          <Typography variant="caption" color="text.secondary">
+            President
+          </Typography>
         </Box>
       ) : null}
     </Stack>
@@ -304,11 +296,9 @@ function RecruitPlanRows({
                 : "The one follow-up. Only to recruits who have not answered, then silence."}
             </Typography>
           </Box>
-          <Chip
-            size="small"
-            label={rung.kind === "invitation" ? people : "Unanswered"}
-            sx={{ justifySelf: { xs: "flex-start", sm: "flex-end" } }}
-          />
+          <Typography variant="caption" color="text.secondary">
+            {rung.kind === "invitation" ? people : "Unanswered"}
+          </Typography>
         </Box>
       ))}
     </Stack>
@@ -338,46 +328,52 @@ export function MessagingPlanDisclosure({
     display.rungs.length + (display.escalationAt ? 1 : 0) + (display.recruit?.rungs.length ?? 0);
 
   return (
-    <Accordion
-      // Open by default before approval — the approver is reading this to
-      // decide whether to press Approve, exactly as the reviewed mockup
-      // shows it. Once approved it is a settled fact rather than a decision
-      // in progress, so the page defaults it closed and lets a reader who
-      // wants it open it, the same restraint the rest of the event page
-      // already shows a settled record.
-      defaultExpanded={!approved}
-      disableGutters
-      elevation={0}
-      data-testid="messaging-plan-disclosure"
-      sx={{ border: 1, borderColor: "divider", "&:before": { display: "none" } }}
+    <Section
+      title={`${MESSAGING_PLAN_HEADLINE} · ${describePlanStepCount(steps)}${approved ? " · approved" : ""}`}
+      collapsible
+      defaultOpen={!approved}
+      testId="messaging-plan-disclosure"
     >
-      <AccordionSummary aria-controls="messaging-plan-content" id="messaging-plan-header">
-        <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700 }}>
-          {`${MESSAGING_PLAN_HEADLINE} · ${describePlanStepCount(steps)}${approved ? " · approved" : ""}`}
+      <Stack spacing={2}>
+        <Typography variant="body2" color="text.secondary">
+          {`${approved ? PLAN_FROZEN_AT_APPROVAL : PLAN_COMMITS_ON_APPROVAL} ${PLAN_NO_QUIET_HOURS}`}
         </Typography>
-      </AccordionSummary>
-      <AccordionDetails>
-        <Stack spacing={2}>
-          <Typography variant="body2" color="text.secondary">
-            {`${approved ? PLAN_FROZEN_AT_APPROVAL : PLAN_COMMITS_ON_APPROVAL} ${PLAN_NO_QUIET_HOURS}`}
-          </Typography>
-          {display.lateApproval ? (
-            <Alert severity="warning" data-testid="plan-late-approval">
-              {PLAN_LATE_APPROVAL}
-            </Alert>
-          ) : display.dispatchesImmediately ? (
-            <Alert severity="info" data-testid="plan-dispatches-immediately">
-              {PLAN_DISPATCHES_IMMEDIATELY}
-            </Alert>
-          ) : null}
-          {/*
+        {display.lateApproval ? (
+          <Notice severity="warning" testId="plan-late-approval">
+            {PLAN_LATE_APPROVAL}
+          </Notice>
+        ) : display.dispatchesImmediately ? (
+          <Notice severity="info" testId="plan-dispatches-immediately">
+            {PLAN_DISPATCHES_IMMEDIATELY}
+          </Notice>
+        ) : null}
+        {/*
             REQ-approval-shows-both-ladders. Grouped by audience, exactly what
             approval will send to each — the "Regular players"/"Recruits"
             heading pair only appears once there is a second ladder to tell
             apart from the first; every event without a recruit ladder renders
             exactly as it always has, with no heading at all.
           */}
-          {display.recruit ? (
+        {display.recruit ? (
+          <Typography
+            variant="overline"
+            color="text.secondary"
+            component="p"
+            sx={{ mb: -1 }}
+            data-testid="plan-audience-heading"
+          >
+            Regular players
+          </Typography>
+        ) : null}
+        <PlanRows display={display} audienceSize={audienceSize} />
+        {display.recruit ? (
+          <>
+            {display.recruit.dispatchesImmediately && !display.lateApproval ? (
+              <Notice severity="info" testId="plan-recruit-dispatches-immediately">
+                The recruit invitation goes out now — the event is closer than the Recruits
+                group&apos;s own lead.
+              </Notice>
+            ) : null}
             <Typography
               variant="overline"
               color="text.secondary"
@@ -385,44 +381,24 @@ export function MessagingPlanDisclosure({
               sx={{ mb: -1 }}
               data-testid="plan-audience-heading"
             >
-              Regular players
+              Recruits
             </Typography>
-          ) : null}
-          <PlanRows display={display} audienceSize={audienceSize} />
-          {display.recruit ? (
-            <>
-              {display.recruit.dispatchesImmediately && !display.lateApproval ? (
-                <Alert severity="info" data-testid="plan-recruit-dispatches-immediately">
-                  The recruit invitation goes out now — the event is closer than the Recruits
-                  group&apos;s own lead.
-                </Alert>
-              ) : null}
-              <Typography
-                variant="overline"
-                color="text.secondary"
-                component="p"
-                sx={{ mb: -1 }}
-                data-testid="plan-audience-heading"
-              >
-                Recruits
-              </Typography>
-              <RecruitPlanRows
-                recruit={display.recruit}
-                recruitAudienceSize={recruitAudienceSize ?? 0}
-              />
-            </>
-          ) : null}
-          <Box>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              Recovery
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {PLAN_RECOVERY_NOTE}
-            </Typography>
-          </Box>
-        </Stack>
-      </AccordionDetails>
-    </Accordion>
+            <RecruitPlanRows
+              recruit={display.recruit}
+              recruitAudienceSize={recruitAudienceSize ?? 0}
+            />
+          </>
+        ) : null}
+        <Box>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            Recovery
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {PLAN_RECOVERY_NOTE}
+          </Typography>
+        </Box>
+      </Stack>
+    </Section>
   );
 }
 
@@ -443,48 +419,39 @@ export function WhatsAppErrorsAlert({
 
   return (
     <Stack spacing={1} data-testid="whatsapp-errors">
-      <Alert severity="error">{describeWhatsAppErrorCount(unreachable.length)}</Alert>
-      <Accordion
-        disableGutters
-        elevation={0}
-        sx={{ border: 1, borderColor: "divider", "&:before": { display: "none" } }}
-      >
-        <AccordionSummary aria-controls="whatsapp-errors-content" id="whatsapp-errors-header">
-          <Typography variant="body2">
-            {whatsAppErrorDisclosureLabel(unreachable.length)}
-          </Typography>
-        </AccordionSummary>
-        <AccordionDetails>
-          <Stack component="ul" spacing={0} sx={{ listStyle: "none", p: 0, m: 0 }}>
-            {unreachable.map(({ member }) => (
-              <Box
-                component="li"
-                key={member.id}
-                data-testid="whatsapp-error-row"
-                sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: 1,
-                  py: 1,
-                  borderBottom: 1,
-                  borderColor: "divider",
-                }}
-              >
-                <Box>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {member.displayName}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {WHATSAPP_ERROR_DETAIL}
-                  </Typography>
-                </Box>
-                <Chip size="small" color="error" label="Error" />
+      <Notice severity="error">{describeWhatsAppErrorCount(unreachable.length)}</Notice>
+      <Section title={whatsAppErrorDisclosureLabel(unreachable.length)} collapsible>
+        <Stack component="ul" spacing={0} sx={{ listStyle: "none", p: 0, m: 0 }}>
+          {unreachable.map(({ member }) => (
+            <Box
+              component="li"
+              key={member.id}
+              data-testid="whatsapp-error-row"
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 1,
+                py: 1,
+                borderBottom: 1,
+                borderColor: "divider",
+              }}
+            >
+              <Box>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {member.displayName}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {WHATSAPP_ERROR_DETAIL}
+                </Typography>
               </Box>
-            ))}
-          </Stack>
-        </AccordionDetails>
-      </Accordion>
+              <Typography variant="caption" color="error.main">
+                Error
+              </Typography>
+            </Box>
+          ))}
+        </Stack>
+      </Section>
     </Stack>
   );
 }

@@ -1,16 +1,15 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { Section } from "@/components/section";
+import { ActionBar } from "@/components/action-bar";
+import { EmptyState } from "@/components/empty-state";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Checkbox from "@mui/material/Checkbox";
 import Divider from "@mui/material/Divider";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import MenuItem from "@mui/material/MenuItem";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field, SelectField, CheckField } from "@/components/field";
 import Typography from "@mui/material/Typography";
 import {
   groupsForEventType,
@@ -157,12 +156,9 @@ export function AudienceBuilder({
   }
 
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="audience-builder">
+    <Section title={AUDIENCE_BUILDER_HEADLINE} testId="audience-builder">
       <Stack spacing={3}>
         <Box>
-          <Typography variant="h6" component="h2">
-            {AUDIENCE_BUILDER_HEADLINE}
-          </Typography>
           <Typography variant="body2" color="text.secondary" data-testid="builder-default-note">
             {describeBuilderDefault(labelFor(TYPE_LABELS, eventType), templateGroupLabels)}
           </Typography>
@@ -204,56 +200,55 @@ export function AudienceBuilder({
         </Box>
 
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-          <TextField
+          <Field
             label="Search name, role or contact"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            size="small"
-            fullWidth
           />
-          <TextField
-            select
+          <SelectField
             label="Capacity"
             value={capacity}
             onChange={(event) => setCapacity(event.target.value as "all" | AudienceCapacity)}
-            size="small"
-            sx={{ minWidth: { sm: 160 } }}
-          >
-            <MenuItem value="all">All</MenuItem>
-            <MenuItem value="player">{`Players (${counts.player})`}</MenuItem>
-            <MenuItem value="coach">{`Coaches (${counts.coach})`}</MenuItem>
-            <MenuItem value="committee">{`Committee (${counts.committee})`}</MenuItem>
-            {/*
-              D46 again: recruits exist on a Recruitment event and nowhere else,
-              so the filter offers them only where there are any to filter to.
-            */}
-            {counts.recruit > 0 ? (
-              <MenuItem value="recruit">{`Recruits (${counts.recruit})`}</MenuItem>
-            ) : null}
-          </TextField>
-          <TextField
-            select
+            options={[
+              { value: "all", label: "All" },
+              { value: "player", label: `Players (${counts.player})` },
+              { value: "coach", label: `Coaches (${counts.coach})` },
+              { value: "committee", label: `Committee (${counts.committee})` },
+              ...(counts.recruit > 0
+                ? [{ value: "recruit", label: `Recruits (${counts.recruit})` }]
+                : []),
+            ]}
+          />
+          <SelectField
             label="Unit"
             value={unit}
             onChange={(event) => setUnit(event.target.value)}
-            size="small"
-            sx={{ minWidth: { sm: 160 } }}
-          >
-            <MenuItem value="all">All</MenuItem>
-            {UNITS.map((value) => (
-              <MenuItem key={value} value={value}>
-                {value}
-              </MenuItem>
-            ))}
-          </TextField>
+            options={[
+              { value: "all", label: "All" },
+              ...UNITS.map((value) => ({ value, label: value })),
+            ]}
+          />
         </Stack>
 
         <Divider />
 
         {visible.length === 0 ? (
-          <Alert severity="info" data-testid="no-candidates">
-            Nobody matches those filters. Clear them to see everyone who can be invited.
-          </Alert>
+          <Stack spacing={1}>
+            <EmptyState
+              title="Nobody matches those filters."
+              searched={search || undefined}
+              testId="no-candidates"
+            />
+            <Button
+              onClick={() => {
+                setSearch("");
+                setCapacity("all");
+                setUnit("all");
+              }}
+            >
+              Clear filters
+            </Button>
+          </Stack>
         ) : (
           <Stack
             component="ul"
@@ -267,22 +262,11 @@ export function AudienceBuilder({
                 key={candidate.key}
                 sx={{ borderBottom: 1, borderColor: "divider", py: 0.5 }}
               >
-                <FormControlLabel
-                  sx={{ width: "100%", m: 0, alignItems: "flex-start" }}
-                  control={
-                    <Checkbox
-                      checked={selected.has(candidate.key)}
-                      onChange={() => toggle(candidate.key)}
-                      slotProps={{
-                        input: {
-                          "aria-label": `Include ${candidate.displayName} as ${labelFor(
-                            CAPACITY_LABELS,
-                            candidate.capacity,
-                          )}`,
-                        },
-                      }}
-                    />
-                  }
+                <CheckField
+                  name={`candidate-${candidate.key}`}
+                  checked={selected.has(candidate.key)}
+                  onChange={() => toggle(candidate.key)}
+                  inputLabel={`Include ${candidate.displayName} as ${labelFor(CAPACITY_LABELS, candidate.capacity)}`}
                   label={
                     <Box sx={{ py: 1, minWidth: 0 }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -307,9 +291,9 @@ export function AudienceBuilder({
         )}
 
         {state.error ? (
-          <Alert severity="error" data-testid="audience-save-error">
+          <Notice severity="error" testId="audience-save-error">
             {state.error}
-          </Alert>
+          </Notice>
         ) : null}
 
         <Box component="form" action={formAction}>
@@ -317,27 +301,25 @@ export function AudienceBuilder({
           {keys.map((key) => (
             <input key={key} type="hidden" name="audienceKey" value={key} />
           ))}
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={pending}
-              data-testid="review-selection"
-              sx={{ minHeight: 44 }}
-            >
-              {pending ? "Saving…" : `Review ${people} selected`}
-            </Button>
-            <Button
-              variant="outlined"
-              href={`/operate/events/${eventId}`}
-              disabled={pending}
-              sx={{ minHeight: 44 }}
-            >
-              Cancel
-            </Button>
-          </Stack>
+          <ActionBar
+            primary={
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={pending}
+                data-testid="review-selection"
+              >
+                {pending ? "Saving…" : `Review ${people} selected`}
+              </Button>
+            }
+            cancel={
+              <Button variant="outlined" href={`/operate/events/${eventId}`} disabled={pending}>
+                Cancel
+              </Button>
+            }
+          />
         </Box>
       </Stack>
-    </Paper>
+    </Section>
   );
 }

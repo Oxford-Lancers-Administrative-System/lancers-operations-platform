@@ -1,8 +1,7 @@
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { operatorHasCapability } from "@/lib/auth/guards";
@@ -111,18 +110,6 @@ function statusLabel(event: EventListEntry, today: string): string {
  * Keyed on the word the chip actually shows rather than on the stored status, so
  * an `Occurred` chip cannot be shaded as though it read `Approved`.
  */
-function statusColour(label: string): "default" | "info" | "success" | "warning" {
-  switch (label) {
-    case "Approved":
-      return "success";
-    case "Occurred":
-      return "warning";
-    case "Draft":
-      return "info";
-    default:
-      return "default";
-  }
-}
 
 /**
  * A stopgap for one problem, and only that one — LAN-165.
@@ -222,25 +209,17 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
 
   return (
     <Stack spacing={3}>
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        sx={{ alignItems: { sm: "flex-start" }, justifyContent: "space-between" }}
-      >
-        <Box>
-          <Typography variant="h6" component="h1">
-            Events
-          </Typography>
-          <Typography variant="body2" color="text.secondary" data-testid="season-label">
-            {`Season ${list.season.label}`}
-          </Typography>
-        </Box>
-        <Stack direction="row" spacing={1.5} sx={{ flexWrap: "wrap", gap: 1.5 }}>
-          {mayManage ? <EditTemplatesButton /> : null}
-          <SubscribeToCalendarButton />
-          {mayManage ? <CreateEventMenu /> : null}
-        </Stack>
-      </Stack>
+      <PageHeader
+        title="Events"
+        subtitle={<span data-testid="season-label">{`Season ${list.season.label}`}</span>}
+        actions={
+          <>
+            {mayManage ? <CreateEventMenu /> : null}
+            {mayManage ? <EditTemplatesButton /> : null}
+            <SubscribeToCalendarButton />
+          </>
+        }
+      />
 
       <ViewSwitch
         label="Events view"
@@ -281,9 +260,21 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
       />
 
       {bucketedCount(buckets) === 0 ? (
-        <Alert severity="info" data-testid={emptyTestId(list, query.filtered)}>
-          {emptyMessage(list, query.filtered, mayManage, PERIOD_LABELS[query.period])}
-        </Alert>
+        <EmptyState
+          testId={emptyTestId(list, query.filtered)}
+          title={emptyMessage(list, query.filtered, mayManage, PERIOD_LABELS[query.period])}
+          searched={query.search || undefined}
+          action={
+            list.totalInSeason === 0
+              ? mayManage
+                ? { href: "/operate/events/new", label: "Create event" }
+                : undefined
+              : {
+                  href: "/operate/events?period=all",
+                  label: query.filtered ? "Clear filters" : "All events",
+                }
+          }
+        />
       ) : (
         <OperatorList
           buckets={buckets}
@@ -291,7 +282,11 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
           sort={query.sort}
           direction={query.direction}
           statusLabelOf={(event) => statusLabel(event, today)}
-          statusColourOf={statusColour}
+          statusCodeOf={(event) =>
+            event.status === "approved" && derivedEventState(event, today) === "occurred"
+              ? "occurred"
+              : event.status
+          }
           coordinateOf={(event) => (year === null ? "—" : year.coordinateLabel(event.scheduledOn))}
         />
       )}

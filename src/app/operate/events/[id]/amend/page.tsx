@@ -1,8 +1,6 @@
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
+import { PageHeader } from "@/components/page-header";
+import { Refusal as KitRefusal } from "@/components/refusal";
 import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import { listTermWindows } from "@/lib/services/seasons";
 import {
@@ -80,14 +78,13 @@ export default async function AmendEventPage({ params }: PageProps<"/operate/eve
 
   return (
     <Stack spacing={3} sx={{ maxWidth: 900 }} data-testid="amend-screen">
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {`${AMEND_HEADLINE_PREFIX} ${event.name}`}
-        </Typography>
-        <Typography variant="body2" color="text.secondary" data-testid="amend-subtitle">
-          {`${labelFor(STATUS_LABELS, event.status)} · ${formatDetailWhen(event)}`}
-        </Typography>
-      </Box>
+      <PageHeader
+        title={`${AMEND_HEADLINE_PREFIX} ${event.name}`}
+        back={{ href: `/operate/events/${event.id}`, label: "Back to event" }}
+        subtitle={
+          <span data-testid="amend-subtitle">{`${labelFor(STATUS_LABELS, event.status)} · ${formatDetailWhen(event)}`}</span>
+        }
+      />
 
       <AmendForm
         eventId={event.id}
@@ -117,19 +114,14 @@ export default async function AmendEventPage({ params }: PageProps<"/operate/eve
 
 function Refusal({ message, eventId }: { message: string; eventId?: string }) {
   return (
-    <Stack spacing={2} sx={{ maxWidth: 640 }} data-testid="amend-refusal">
-      <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-        Edit event
-      </Typography>
-      <Alert severity="info">{message}</Alert>
-      <Box>
-        <Button
-          variant="outlined"
-          href={eventId ? `/operate/events/${eventId}` : "/operate/events"}
-        >
-          {eventId ? "Back to event" : "Back to events"}
-        </Button>
-      </Box>
-    </Stack>
+    <KitRefusal
+      title="Edit event"
+      message={message}
+      testId="amend-refusal"
+      action={{
+        href: eventId ? `/operate/events/${eventId}` : "/operate/events",
+        label: eventId ? "Back to event" : "Back to events",
+      }}
+    />
   );
 }

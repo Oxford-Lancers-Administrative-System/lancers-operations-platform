@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field } from "@/components/field";
 import { useFilterSearch } from "@/app/operate/filter-search";
 import { EVENT_PERIODS, PERIOD_LABELS, type EventPeriod } from "@/lib/services/event-periods";
 import { SEARCH_LABEL, STATUS_FILTER_OPTIONS } from "./presentation";
@@ -74,21 +74,19 @@ export default function FollowUpsFilter({
         spacing={2}
         sx={{ width: "100%", alignItems: { sm: "flex-end" } }}
       >
-        <TextField
+        <Field
           label={SEARCH_LABEL}
           name="q"
           value={typed}
           onChange={(event) => setTyped(event.target.value)}
-          size="small"
           sx={{ width: { xs: "100%", sm: 320 } }}
         />
-        <TextField
+        <Field
           select
           label="Status"
           name="status"
           value={status}
           onChange={(event) => router.push(hrefFor({ status: event.target.value }))}
-          size="small"
           sx={{ minWidth: { sm: 220 }, width: { xs: "100%", sm: "auto" } }}
         >
           {STATUS_FILTER_OPTIONS.map((option) => (
@@ -96,14 +94,13 @@ export default function FollowUpsFilter({
               {option.label}
             </MenuItem>
           ))}
-        </TextField>
-        <TextField
+        </Field>
+        <Field
           select
           label="When"
           name="period"
           value={period}
           onChange={(event) => router.push(hrefFor({ period: event.target.value }))}
-          size="small"
           sx={{ minWidth: { sm: 220 }, width: { xs: "100%", sm: "auto" } }}
           data-testid="follow-ups-period"
         >
@@ -112,7 +109,7 @@ export default function FollowUpsFilter({
               {PERIOD_LABELS[value]}
             </MenuItem>
           ))}
-        </TextField>
+        </Field>
       </Stack>
     </Box>
   );

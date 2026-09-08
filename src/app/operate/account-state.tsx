@@ -1,9 +1,6 @@
-import Alert from "@mui/material/Alert";
+import { Refusal } from "@/components/refusal";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Paper from "@mui/material/Paper";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import { signOut } from "../login/actions";
 
 /**
@@ -58,33 +55,20 @@ export type AccountStateKind = keyof typeof COPY;
 
 export default function OperatorAccountState({ state }: { state: AccountStateKind }) {
   const { heading, message } = COPY[state];
-
   return (
-    <Box sx={{ display: "flex", justifyContent: "center", px: 2, py: { xs: 4, md: 8 } }}>
-      <Paper
-        variant="outlined"
-        sx={{ maxWidth: 640, p: { xs: 2.5, md: 5 }, width: "100%" }}
-        data-testid="operator-account-state"
-        data-state={state}
-      >
-        <Stack spacing={3} sx={{ alignItems: "flex-start" }}>
-          <Typography variant="overline" color="text.secondary">
-            Lancers Operations
-          </Typography>
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
-            {heading}
-          </Typography>
-          <Typography color="text.secondary">{message}</Typography>
-          <Alert severity="info" sx={{ width: "100%" }}>
-            {NO_DATA_NOTE}
-          </Alert>
+    <Box data-state={state}>
+      <Refusal
+        title={heading}
+        message={message}
+        testId="operator-account-state"
+        action={
           <Box component="form" action={signOut}>
             <Button type="submit" variant="contained">
               Sign out
             </Button>
           </Box>
-        </Stack>
-      </Paper>
+        }
+      />
     </Box>
   );
 }

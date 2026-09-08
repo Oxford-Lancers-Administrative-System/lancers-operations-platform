@@ -1,13 +1,15 @@
 "use client";
 
 import { useActionState } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { PageHeader } from "@/components/page-header";
+import { Section } from "@/components/section";
+import { ActionBar } from "@/components/action-bar";
+import { RowCard, RowCardList } from "@/components/row-card";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field } from "@/components/field";
 import Typography from "@mui/material/Typography";
 
 import type { PersonDuplicateCandidate } from "@/lib/services/person-duplicate";
@@ -36,47 +38,17 @@ export default function CreatePersonForm() {
   return (
     <Box component="form" action={formAction} sx={{ maxWidth: 880 }}>
       <Stack spacing={3}>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={2}
-          sx={{ justifyContent: "space-between", alignItems: "flex-start" }}
-        >
-          <Box>
-            <Typography variant="body2" color="text.secondary">
-              <Button href="/operate/people" sx={{ p: 0, minHeight: 0, textTransform: "none" }}>
-                ← People
-              </Button>
-            </Typography>
-            <Typography variant="h5" component="h1" sx={{ fontWeight: 700, mt: 0.5 }}>
-              Add a person
-            </Typography>
-            {requiredCount > 0 ? (
-              <Typography variant="body2" color="error" sx={{ mt: 0.5 }}>
-                {requiredCount} required field{requiredCount === 1 ? "" : "s"}
-              </Typography>
-            ) : null}
-          </Box>
-          <Stack direction="row" spacing={2}>
-            <Button
-              href="/operate/people"
-              sx={{ minHeight: MIN_TOUCH_TARGET, textTransform: "none" }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              name="intent"
-              value={exactMatch ? "create" : candidates !== null ? "create" : "check"}
-              variant="contained"
-              disabled={pending}
-              sx={{ minHeight: MIN_TOUCH_TARGET }}
-            >
-              {primaryLabel}
-            </Button>
-          </Stack>
-        </Stack>
+        <PageHeader
+          title="Add a person"
+          back={{ href: "/operate/people", label: "Back to people" }}
+        />
+        {requiredCount > 0 ? (
+          <Typography variant="body2" color="error">
+            {requiredCount} required field{requiredCount === 1 ? "" : "s"}
+          </Typography>
+        ) : null}
 
-        {state.formError ? <Alert severity="warning">{state.formError}</Alert> : null}
+        {state.formError ? <Notice severity="warning">{state.formError}</Notice> : null}
 
         {/* B4, LAN-185 correction round 2 (Brian's walk): the duplicate check
             must answer even when it finds nothing — a silent no-match reads
@@ -96,21 +68,20 @@ export default function CreatePersonForm() {
                 : `${candidates.length} ${candidates.length === 1 ? "person matches" : "people match"} the supplied names or contact details.`}
             </Typography>
             {candidates.length > 0 ? (
-              <Stack spacing={0}>
+              <RowCardList at="all">
                 {candidates.map((candidate) => (
                   <CandidateRow key={candidate.personId} candidate={candidate} pending={pending} />
                 ))}
-              </Stack>
+              </RowCardList>
             ) : null}
           </Section>
         ) : null}
 
         {exactMatch ? (
           <Section title="Why this is a different person">
-            <TextField
+            <Field
               name="overrideReason"
               label="Reason"
-              fullWidth
               autoFocus
               error={Boolean(state.reasonError)}
               helperText={state.reasonError}
@@ -120,7 +91,7 @@ export default function CreatePersonForm() {
 
         <Section title="Who they are">
           <Stack spacing={2}>
-            <TextField
+            <Field
               name="givenName"
               label="First name"
               required
@@ -128,48 +99,47 @@ export default function CreatePersonForm() {
               error={Boolean(errors.givenName)}
               helperText={errors.givenName}
               autoFocus={!errors.givenName}
-              fullWidth
             />
-            <TextField
+            <Field
               name="familyName"
               label="Last name"
               required
               defaultValue={values.familyName}
               error={Boolean(errors.familyName)}
               helperText={errors.familyName}
-              fullWidth
             />
-            <TextField
+            <Field
               name="mobile"
               label="Mobile phone"
               defaultValue={values.mobile}
               error={Boolean(errors.mobile)}
               helperText={errors.mobile}
-              fullWidth
             />
-            <TextField
+            <Field
               name="personalEmail"
               label="Personal email"
               defaultValue={values.personalEmail}
               error={Boolean(errors.personalEmail)}
               helperText={errors.personalEmail}
-              fullWidth
             />
           </Stack>
         </Section>
+        <ActionBar
+          primary={
+            <Button
+              type="submit"
+              name="intent"
+              value={exactMatch ? "create" : candidates !== null ? "create" : "check"}
+              variant="contained"
+              disabled={pending}
+            >
+              {primaryLabel}
+            </Button>
+          }
+          cancel={<Button href="/operate/people">Cancel</Button>}
+        />
       </Stack>
     </Box>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <Paper variant="outlined" sx={{ p: 3 }}>
-      <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
-        {title}
-      </Typography>
-      {children}
-    </Paper>
   );
 }
 
@@ -184,47 +154,24 @@ function CandidateRow({
     .filter(Boolean)
     .join(" · ");
   return (
-    <Stack
-      direction={{ xs: "column", sm: "row" }}
-      spacing={1}
-      sx={{
-        justifyContent: "space-between",
-        alignItems: { sm: "center" },
-        py: 1.25,
-        borderBottom: 1,
-        borderColor: "divider",
-        "&:last-child": { borderBottom: 0 },
-      }}
-    >
-      <Box sx={{ minWidth: 0 }}>
-        <Typography sx={{ fontWeight: 700 }}>{candidate.displayName}</Typography>
-        {detail ? (
-          <Typography variant="body2" color="text.secondary">
-            {detail}
-          </Typography>
-        ) : null}
-        <Stack direction="row" spacing={0.5} sx={{ flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
-          {candidate.matchedOn.map((field) => (
-            <Chip
-              key={field}
-              size="small"
-              color="warning"
-              variant="outlined"
-              label={`matched ${field}`}
-            />
-          ))}
-        </Stack>
-      </Box>
-      <Button
-        type="submit"
-        name="linkPersonId"
-        value={candidate.personId}
-        variant="outlined"
-        disabled={pending}
-        sx={{ minHeight: MIN_TOUCH_TARGET, alignSelf: { xs: "flex-start", sm: "center" } }}
-      >
-        This is them
-      </Button>
-    </Stack>
+    <RowCard
+      title={candidate.displayName}
+      sublines={[
+        ...(detail ? [detail] : []),
+        candidate.matchedOn.map((field) => `matched ${field}`).join(" · "),
+      ]}
+      actions={
+        <Button
+          type="submit"
+          name="linkPersonId"
+          value={candidate.personId}
+          variant="outlined"
+          disabled={pending}
+          sx={{ minHeight: MIN_TOUCH_TARGET }}
+        >
+          This is them
+        </Button>
+      }
+    />
   );
 }

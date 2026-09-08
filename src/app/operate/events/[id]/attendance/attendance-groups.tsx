@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { RowCardList } from "@/components/row-card";
+import { ControlledSection } from "@/components/controlled-section";
 import Box from "@mui/material/Box";
-import ButtonBase from "@mui/material/ButtonBase";
-import Chip from "@mui/material/Chip";
-import Collapse from "@mui/material/Collapse";
 import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import type { AttendanceParticipant } from "@/lib/services/attendance-vocabulary";
 import { AttendanceRow } from "./attendance-row";
 import { groupParticipants, type ParticipantGroupKey } from "./presentation";
@@ -149,76 +147,17 @@ export function AttendanceGroups({
 
         return (
           <Box key={group.key} data-testid={`attendance-group-${group.key}`} data-open={isOpen}>
-            <ButtonBase
-              onClick={() => toggle(setOpen, group.key)}
-              aria-expanded={isOpen}
-              aria-controls={`attendance-group-panel-${group.key}`}
-              data-testid={`attendance-group-toggle-${group.key}`}
-              sx={{
-                width: "100%",
-                alignItems: "center",
-                justifyContent: "flex-start",
-                gap: 1.5,
-                px: 1,
-                py: 1.5,
-                minHeight: 44,
-                borderRadius: 1,
-                textAlign: "left",
-              }}
+            <ControlledSection
+              title={group.label}
+              description={group.detail}
+              count={group.participants.length}
+              open={isOpen}
+              onToggle={() => toggle(setOpen, group.key)}
+              panelId={`attendance-group-panel-${group.key}`}
+              toggleTestId={`attendance-group-toggle-${group.key}`}
+              countTestId={`attendance-group-count-${group.key}`}
             >
-              {/*
-                Drawn rather than typed. The first version used "▸" and "▾", and
-                on the real screen the glyphs came out as faint specks — the
-                theme's face draws those two characters small and light, and a
-                control the recorder is meant to press should not depend on how
-                a typeface feels about geometric shapes. One chevron, rotated,
-                so it also keeps its weight and width between the two states and
-                the heading beside it does not shift as the group opens.
-              */}
-              <Box
-                aria-hidden
-                component="svg"
-                viewBox="0 0 24 24"
-                sx={{
-                  flexShrink: 0,
-                  width: 22,
-                  height: 22,
-                  color: "text.primary",
-                  transition: (theme) => theme.transitions.create("transform"),
-                  transform: isOpen ? "rotate(90deg)" : "none",
-                }}
-              >
-                <path
-                  d="M9 5l7 7-7 7"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </Box>
-              <Box sx={{ minWidth: 0 }}>
-                <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700 }}>
-                  {group.label}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {group.detail}
-                </Typography>
-              </Box>
-              <Chip
-                size="small"
-                label={group.participants.length}
-                sx={{ ml: "auto" }}
-                data-testid={`attendance-group-count-${group.key}`}
-              />
-            </ButtonBase>
-
-            <Collapse in={isOpen} unmountOnExit>
-              <Box
-                component="ul"
-                id={`attendance-group-panel-${group.key}`}
-                sx={{ listStyle: "none", p: 0, m: 0 }}
-              >
+              <RowCardList component="ul" at="all">
                 {group.participants.map((participant) => (
                   <AttendanceRow
                     key={participant.key}
@@ -228,8 +167,8 @@ export function AttendanceGroups({
                     mayRemove={mayRemove}
                   />
                 ))}
-              </Box>
-            </Collapse>
+              </RowCardList>
+            </ControlledSection>
           </Box>
         );
       })}

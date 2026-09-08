@@ -1,23 +1,28 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { Section } from "@/components/section";
+import { ActionBar } from "@/components/action-bar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import MenuItem from "@mui/material/MenuItem";
-import Paper from "@mui/material/Paper";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import Stack from "@mui/material/Stack";
 import Step from "@mui/material/Step";
 import StepLabel from "@mui/material/StepLabel";
 import Stepper from "@mui/material/Stepper";
-import TextField from "@mui/material/TextField";
+import { Field, DateField } from "@/components/field";
 import Typography from "@mui/material/Typography";
 import { inviteOperatorAction, searchCandidatesAction } from "../../actions";
 import { EMPTY_ADMIN_ACTION_STATE } from "../../action-state";
-import AdminOutcome from "../../outcome";
+import {
+  Outcome as AdminOutcome,
+  OutcomeSlotProvider,
+  useOutcomeSlot,
+} from "@/components/outcome-slot";
 
 /** One assignable seat, as the page read it from the catalogue. */
 export interface AssignableRole {
@@ -65,6 +70,14 @@ const CREATE_NEW = "";
  * would have to be a second place to recover from one.
  */
 export default function InviteOperatorForm({ roles }: { roles: readonly AssignableRole[] }) {
+  return (
+    <OutcomeSlotProvider>
+      <InviteForm roles={roles} />
+    </OutcomeSlotProvider>
+  );
+}
+
+function InviteForm({ roles }: { roles: readonly AssignableRole[] }) {
   const [search, searchAction, searching] = useActionState(
     searchCandidatesAction,
     EMPTY_ADMIN_ACTION_STATE,
@@ -80,6 +93,9 @@ export default function InviteOperatorForm({ roles }: { roles: readonly Assignab
   const [phone, setPhone] = useState("");
   const [personId, setPersonId] = useState(CREATE_NEW);
   const [roleCode, setRoleCode] = useState("");
+  const [effectiveFrom, setEffectiveFrom] = useState("");
+  const searchSlot = useOutcomeSlot("person-search");
+  const inviteSlot = useOutcomeSlot("invite");
 
   const chosen = search.candidates?.find((candidate) => candidate.personId === personId) ?? null;
   const step = roleCode === "" ? (search.candidates ? 1 : 0) : 2;
@@ -94,50 +110,38 @@ export default function InviteOperatorForm({ roles }: { roles: readonly Assignab
         ))}
       </Stepper>
 
-      <Paper variant="outlined" sx={{ p: 2 }} component="section">
-        <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700 }}>
-          Who is this?
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Check first. If they are already in the club&rsquo;s records — as a player, a coach or an
-          officer — link that record rather than creating a second one.
-        </Typography>
-
+      <Section title="Who is this?">
         <Stack spacing={2}>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-            <TextField
+            <Field
               label="First name"
               value={givenName}
               onChange={(event) => setGivenName(event.target.value)}
-              fullWidth
               required
             />
-            <TextField
+            <Field
               label="Last name"
               value={familyName}
               onChange={(event) => setFamilyName(event.target.value)}
-              fullWidth
               required
             />
           </Stack>
-          <TextField
+          <Field
             label="Email"
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            fullWidth
             required
             helperText="The invitation goes here, and this becomes their sign-in address."
           />
-          <TextField
+          <Field
             label="Phone (optional)"
             type="tel"
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
-            fullWidth
           />
 
-          <Box component="form" action={searchAction}>
+          <Box component="form" action={searchAction} onSubmit={searchSlot.claim}>
             <input type="hidden" name="givenName" value={givenName} />
             <input type="hidden" name="familyName" value={familyName} />
             <input type="hidden" name="email" value={email} />
@@ -148,13 +152,13 @@ export default function InviteOperatorForm({ roles }: { roles: readonly Assignab
           </Box>
         </Stack>
 
-        <AdminOutcome state={{ ...search, notice: null, candidates: null }} />
+        <AdminOutcome state={{ ...search, notice: null }} showing={searchSlot.showing} />
 
         {search.candidates ? (
           search.candidates.length === 0 ? (
-            <Alert severity="info" sx={{ mt: 2 }} data-testid="no-existing-person">
+            <Notice severity="info" testId="no-existing-person">
               Nobody in the club&rsquo;s records matches. A new record will be created for them.
-            </Alert>
+            </Notice>
           ) : (
             <Box sx={{ mt: 2 }} data-testid="existing-people">
               <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
@@ -198,24 +202,16 @@ export default function InviteOperatorForm({ roles }: { roles: readonly Assignab
         ) : null}
 
         {chosen?.operatorState ? (
-          <Alert severity="warning" sx={{ mt: 2 }} data-testid="already-has-login">
+          <Notice severity="warning" testId="already-has-login">
             {chosen.name} already has an operator login ({chosen.operatorState}). One person has one
             login, however many roles they hold — open their record instead to give them another
             role, resend their invitation, or restore their access.
-          </Alert>
+          </Notice>
         ) : null}
-      </Paper>
+      </Section>
 
-      <Box component="form" action={inviteAction}>
-        <Paper variant="outlined" sx={{ p: 2 }} component="section">
-          <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700 }}>
-            What are they being invited to do?
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            An invitation has to give at least one role. The operating year is the club&rsquo;s
-            current one, and the role starts today unless you say otherwise.
-          </Typography>
-
+      <Box component="form" action={inviteAction} onSubmit={inviteSlot.claim}>
+        <Section title="What are they being invited to do?">
           <Stack spacing={2}>
             <input type="hidden" name="personId" value={personId} />
             <input type="hidden" name="givenName" value={givenName} />
@@ -223,53 +219,59 @@ export default function InviteOperatorForm({ roles }: { roles: readonly Assignab
             <input type="hidden" name="email" value={email} />
             <input type="hidden" name="phone" value={phone} />
 
-            <TextField
+            <Field
               select
               name="roleCode"
               label="Role"
               value={roleCode}
               onChange={(event) => setRoleCode(event.target.value)}
               required
-              fullWidth
             >
               {roles.map((role) => (
                 <MenuItem key={role.code} value={role.code}>
                   {role.groupLabel} — {role.label}
                 </MenuItem>
               ))}
-            </TextField>
+            </Field>
 
-            <TextField
+            <DateField
               name="effectiveFrom"
-              type="date"
               label="Starts"
-              slotProps={{ inputLabel: { shrink: true } }}
-              helperText="Leave blank for today. A future date is fine."
-              fullWidth
+              value={effectiveFrom}
+              onChange={setEffectiveFrom}
+              helperText="Day, month, year. Leave blank for today; a future date is fine."
             />
-            <TextField
+            <Field
               name="reason"
               label="Reason (optional)"
               helperText="Required only when the start date is before today."
               multiline
               minRows={2}
-              fullWidth
             />
 
-            <Box>
-              <Button
-                type="submit"
-                variant="contained"
-                disabled={sending || roleCode === "" || email.trim() === ""}
-                sx={{ minHeight: 44 }}
-              >
-                Send invitation
-              </Button>
-            </Box>
+            <ActionBar
+              sticky={false}
+              primary={
+                <Button
+                  type="submit"
+                  variant="contained"
+                  disabled={sending || roleCode === "" || email.trim() === ""}
+                  sx={{ minHeight: 44 }}
+                >
+                  Send invitation
+                </Button>
+              }
+              cancel={<Button href="/operate/admin/operators">Cancel</Button>}
+              note={
+                roleCode === "" || email.trim() === ""
+                  ? "Choose a role and enter an email address to send."
+                  : undefined
+              }
+            />
           </Stack>
 
-          <AdminOutcome state={invite} />
-        </Paper>
+          <AdminOutcome state={invite} showing={inviteSlot.showing} />
+        </Section>
       </Box>
     </Stack>
   );

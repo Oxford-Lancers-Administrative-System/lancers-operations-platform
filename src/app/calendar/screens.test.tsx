@@ -259,7 +259,7 @@ describe("the public list", () => {
     // would ever have to switch a calendar."
     const { container } = render(await PublicCalendarPage(listProps()));
 
-    expect(flatten(screen.getByTestId("public-season-label").textContent)).toBe(
+    expect(flatten(screen.getByTestId("public-brand").textContent)).toContain(
       "Club calendar · Season 2026-27",
     );
     expect(container.querySelector('[data-testid="season-select"]')).toBeNull();

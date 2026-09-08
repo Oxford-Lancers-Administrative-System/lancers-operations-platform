@@ -1,7 +1,6 @@
-import Box from "@mui/material/Box";
-import Paper from "@mui/material/Paper";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
+import { Fact, FactGrid } from "@/components/fact";
+import { Section } from "@/components/section";
+import { Metric, MetricRow } from "@/components/metric";
 
 import { labelFor, TYPE_LABELS } from "@/lib/services/event-vocabulary";
 import type { ClubLinkEvent, ParticipationHeadline } from "@/lib/services/participation-view";
@@ -67,26 +66,13 @@ export function formatEventWhen(event: {
   return to === null ? `${date} · ${from}` : `${date} · ${from}–${to}`;
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <Box>
-      <Typography variant="overline" color="text.secondary">
-        {label}
-      </Typography>
-      <Typography variant="body1" sx={{ fontWeight: 700 }}>
-        {value}
-      </Typography>
-    </Box>
-  );
-}
-
 export function EventFacts({ event }: { event: ClubLinkEvent }) {
   const online = event.deliveryMode === "online";
   const facts: { label: string; value: string }[] = [
     { label: "Type", value: labelFor(TYPE_LABELS, event.eventType) },
     {
       label: online ? "Destination" : "Where",
-      value: event.venue ?? (online ? "Online" : "Not recorded"),
+      value: event.venue ?? (online ? "Online" : ""),
     },
   ];
   if (event.termLabel !== null) {
@@ -104,19 +90,13 @@ export function EventFacts({ event }: { event: ClubLinkEvent }) {
   if (event.description) facts.push({ label: "Description", value: event.description });
 
   return (
-    <Paper variant="outlined" sx={{ p: 2 }} data-testid="event-facts">
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-          gap: 2,
-        }}
-      >
+    <Section title="Details" testId="event-facts">
+      <FactGrid>
         {facts.map((fact) => (
           <Fact key={fact.label} label={fact.label} value={fact.value} />
         ))}
-      </Box>
-    </Paper>
+      </FactGrid>
+    </Section>
   );
 }
 
@@ -136,19 +116,15 @@ export function HeadlineNumbers({ headline }: { headline: ParticipationHeadline 
   ];
 
   return (
-    <Paper variant="outlined" sx={{ p: 2 }} data-testid="headline-numbers">
-      <Stack direction="row" sx={{ gap: 4, flexWrap: "wrap" }}>
-        {numbers.map((number) => (
-          <Box key={number.label}>
-            <Typography variant="h4" component="p" data-testid={number.testId}>
-              {number.value}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {number.label}
-            </Typography>
-          </Box>
-        ))}
-      </Stack>
-    </Paper>
+    <MetricRow testId="headline-numbers">
+      {numbers.map((number) => (
+        <Metric
+          key={number.label}
+          label={number.label}
+          value={number.value}
+          testId={number.testId}
+        />
+      ))}
+    </MetricRow>
   );
 }

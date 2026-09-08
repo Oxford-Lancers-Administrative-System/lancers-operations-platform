@@ -4,9 +4,8 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field, SelectField } from "@/components/field";
 import { useFilterSearch } from "./filter-search";
 
 /**
@@ -153,12 +152,11 @@ export default function ListFilters({
         spacing={2}
         sx={{ alignItems: { md: "center" } }}
       >
-        <TextField
+        <Field
           label={searchLabel}
           name="q"
           value={typed}
           onChange={(event) => setTyped(event.target.value)}
-          size="small"
           placeholder={searchPlaceholder}
           sx={{ flexGrow: 1, minWidth: { md: searchMinWidth } }}
         />
@@ -184,22 +182,14 @@ export default function ListFilters({
           sx={{ display: { xs: showFilters ? "flex" : "none", md: "flex" }, alignItems: "center" }}
         >
           {fields.map((field) => (
-            <TextField
+            <SelectField
               key={field.name}
-              select
               label={field.label}
-              size="small"
               value={field.value}
               onChange={(event) => apply({ [field.name]: event.target.value })}
               sx={{ minWidth: field.minWidth }}
-            >
-              <MenuItem value="">{field.allLabel}</MenuItem>
-              {field.options.map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
-              ))}
-            </TextField>
+              options={[{ value: "", label: field.allLabel }, ...field.options]}
+            />
           ))}
 
           {/*
@@ -207,35 +197,21 @@ export default function ListFilters({
             looks for it — so these are phone-only, where there is no table and
             therefore no header to click.
           */}
-          <TextField
-            select
+          <SelectField
             label="Sort by"
-            size="small"
             value={sort}
             onChange={(event) => apply({ sort: event.target.value })}
             sx={{ display: { xs: "flex", md: "none" }, minWidth: 150 }}
-          >
-            {sortColumns.map((column) => (
-              <MenuItem key={column.value} value={column.value}>
-                {column.label}
-              </MenuItem>
-            ))}
-          </TextField>
+            options={sortColumns}
+          />
 
-          <TextField
-            select
+          <SelectField
             label="Order"
-            size="small"
             value={direction}
             onChange={(event) => apply({ dir: event.target.value })}
             sx={{ display: { xs: "flex", md: "none" }, minWidth: 150 }}
-          >
-            {directionOptions.map((option) => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </TextField>
+            options={directionOptions}
+          />
         </Stack>
       </Stack>
     </Box>

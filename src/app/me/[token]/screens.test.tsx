@@ -57,7 +57,7 @@ import {
   FOLLOW_UP_HEADING,
   FOLLOW_UP_ONLY_HEADING,
   FOLLOW_UP_ONLY_HELP,
-  FURTHER_OUT_HEADING,
+  FURTHER_OUT_SUMMARY,
   NEW_INVITATIONS_HEADING,
   NO_OUTSTANDING_EVENTS,
   NO_REASON_GIVEN,
@@ -193,7 +193,7 @@ describe("OWNER-LAN172-03 — the 21-day horizon's further-out section", () => {
     const { container } = await renderPage();
     const text = container.textContent ?? "";
 
-    expect(text).toContain(FURTHER_OUT_HEADING);
+    expect(text).toContain(FURTHER_OUT_SUMMARY);
     expect(text).toContain(FURTHER_OUT_ENTRY.eventName);
   });
 });
@@ -302,7 +302,7 @@ describe("OWNER-LAN172-14 — the heading never denies live follow-up work", () 
     const text = container.textContent ?? "";
 
     expect(text).toContain(FOLLOW_UP_ONLY_HEADING);
-    expect(text).toContain(FOLLOW_UP_ONLY_HELP);
+    expect(text).not.toContain(FOLLOW_UP_ONLY_HELP);
     expect(text).not.toContain(NO_OUTSTANDING_EVENTS);
     expect(text).not.toContain(EMPTY_HELP);
     expect(text).not.toMatch(/nothing else needs an answer/i);
@@ -324,7 +324,7 @@ describe("OWNER-LAN172-14 — the heading never denies live follow-up work", () 
     const text = container.textContent ?? "";
 
     expect(text).toContain(NO_OUTSTANDING_EVENTS);
-    expect(text).toContain(EMPTY_HELP);
+    expect(text).not.toContain(EMPTY_HELP);
   });
 });
 
@@ -549,6 +549,6 @@ describe("OWNER-LAN172-11 — the row's secondary control reads 'Change answer'"
     expect(text).toContain("Change answer");
     expect(text).not.toContain("Change to No");
     // The paired affirmative control keeps its own wording and filled treatment.
-    expect(container.querySelector(".MuiButton-contained.MuiButton-colorSuccess")).not.toBeNull();
+    expect(container.querySelector(".MuiButton-contained.MuiButton-colorPrimary")).not.toBeNull();
   });
 });

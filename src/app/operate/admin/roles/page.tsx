@@ -1,13 +1,11 @@
+import { RowCard, RowCardList, DesktopOnly } from "@/components/row-card";
+import { TableFrame } from "@/components/sortable-header";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Card from "@mui/material/Card";
-import CardActionArea from "@mui/material/CardActionArea";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
@@ -84,84 +82,76 @@ export default async function RolesPage() {
         help
       />
 
-      <Typography variant="body2" color="text.secondary">
-        These are the club&rsquo;s approved roles. What each one can do is read from the same
-        definition the application enforces, and neither the roles nor what they can do are editable
-        here — only who holds them.
-      </Typography>
-
       {catalogue.groups.map((group) => (
         <Box component="section" key={group.code}>
           <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700, mb: 1 }}>
             {group.label}
           </Typography>
 
-          <TableContainer
-            component={Paper}
-            variant="outlined"
-            sx={{ display: { xs: "none", md: "block" } }}
-          >
-            <Table size="small" aria-label={group.label}>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Role</TableCell>
-                  <TableCell>Current holder</TableCell>
-                  <TableCell>Permissions</TableCell>
-                  <TableCell />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {group.roles.map((role) => (
-                  <TableRow key={role.id} hover data-testid="role-row">
-                    {/*
+          <DesktopOnly>
+            <TableFrame>
+              <Table size="small" aria-label={group.label}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Role</TableCell>
+                    <TableCell>Current holder</TableCell>
+                    <TableCell>Permissions</TableCell>
+                    <TableCell />
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {group.roles.map((role) => (
+                    <TableRow key={role.id} hover data-testid="role-row">
+                      {/*
                       The seat's name does not wrap. "Vice-President" broken
                       after its hyphen reads as two words, and the column a
                       reader scans twenty rows down is the one that must stay
                       scannable.
                     */}
-                    <TableCell sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>
-                      {role.label}
-                    </TableCell>
-                    <TableCell>
-                      <Typography
-                        variant="body2"
-                        color={role.vacant ? "text.secondary" : "text.primary"}
-                      >
-                        {describeHolders(role)}
-                      </Typography>
-                    </TableCell>
-                    <TableCell sx={{ width: "45%" }}>
-                      <Typography variant="body2" color="text.secondary">
-                        {permissionsPreview(role.code)}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Button
-                        size="small"
-                        href={`/operate/admin/roles/${role.id}`}
-                        sx={{ textTransform: "none" }}
-                      >
-                        {/*
+                      <TableCell sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>
+                        {role.label}
+                      </TableCell>
+                      <TableCell>
+                        <Typography
+                          variant="body2"
+                          color={role.vacant ? "text.secondary" : "text.primary"}
+                        >
+                          {describeHolders(role)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={{ width: "45%" }}>
+                        <Typography variant="body2" color="text.secondary">
+                          {permissionsPreview(role.code)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Button
+                          size="small"
+                          href={`/operate/admin/roles/${role.id}`}
+                          sx={{ textTransform: "none" }}
+                        >
+                          {/*
                           `assignable` rather than `!cycleMissing`: a season in
                           `closing` exists to read and takes no new coaching
                           appointment, so offering Assign there would send the
                           administrator to a form the service is certain to
                           refuse — LAN-141 findings 2 and 4.
                         */}
-                        {role.vacant && role.assignable ? "Assign" : "View"}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                          {role.vacant && role.assignable ? "Assign" : "View"}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableFrame>
+          </DesktopOnly>
 
-          <Stack spacing={1.5} sx={{ display: { xs: "flex", md: "none" } }}>
+          <RowCardList>
             {group.roles.map((role) => (
               <RoleCard key={role.id} role={role} />
             ))}
-          </Stack>
+          </RowCardList>
         </Box>
       ))}
     </Stack>
@@ -171,21 +161,11 @@ export default async function RolesPage() {
 /** The 375px presentation of one seat. */
 function RoleCard({ role }: { role: CatalogueRole }) {
   return (
-    <Card variant="outlined" data-testid="role-card">
-      <CardActionArea
-        href={`/operate/admin/roles/${role.id}`}
-        sx={{ p: 2, display: "block", textAlign: "left" }}
-      >
-        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-          {role.label}
-        </Typography>
-        <Typography variant="body2" color={role.vacant ? "text.secondary" : "text.primary"}>
-          {describeHolders(role)}
-        </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-          {permissionsPreview(role.code)}
-        </Typography>
-      </CardActionArea>
-    </Card>
+    <RowCard
+      testId="role-card"
+      title={role.label}
+      href={`/operate/admin/roles/${role.id}`}
+      sublines={[describeHolders(role), permissionsPreview(role.code)]}
+    />
   );
 }

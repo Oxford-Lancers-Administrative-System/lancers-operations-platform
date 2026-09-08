@@ -6,7 +6,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field } from "@/components/field";
 import { ATTENDANCE_PRESENCES } from "@/lib/services/attendance-vocabulary";
 import { useFilterSearch } from "../../../filter-search";
 import { NOT_MARKED, PRESENCE_LABELS } from "./presentation";
@@ -72,12 +72,11 @@ export function AttendanceFilters({
         spacing={2}
         sx={{ alignItems: { md: "center" } }}
       >
-        <TextField
+        <Field
           label="Search player"
           name="q"
           value={typed}
           onChange={(event) => setTyped(event.target.value)}
-          size="small"
           sx={{ flexGrow: 1, minWidth: { md: 220 } }}
         />
 
@@ -97,10 +96,9 @@ export function AttendanceFilters({
           spacing={2}
           sx={{ display: { xs: showFilters ? "flex" : "none", md: "flex" } }}
         >
-          <TextField
+          <Field
             select
             label="RSVP"
-            size="small"
             value={rsvp}
             onChange={(event) => apply({ rsvp: event.target.value })}
             sx={{ minWidth: 170 }}
@@ -109,12 +107,11 @@ export function AttendanceFilters({
             <MenuItem value="yes">Attending</MenuItem>
             <MenuItem value="no">Not attending</MenuItem>
             <MenuItem value="none">No response</MenuItem>
-          </TextField>
+          </Field>
 
-          <TextField
+          <Field
             select
             label="Attendance"
-            size="small"
             value={attendance}
             onChange={(event) => apply({ attendance: event.target.value })}
             sx={{ minWidth: 170 }}
@@ -126,7 +123,7 @@ export function AttendanceFilters({
                 {PRESENCE_LABELS[presence]}
               </MenuItem>
             ))}
-          </TextField>
+          </Field>
         </Stack>
       </Stack>
     </Box>

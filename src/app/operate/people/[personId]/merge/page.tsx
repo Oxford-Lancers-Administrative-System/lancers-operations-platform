@@ -1,9 +1,5 @@
 import { notFound } from "next/navigation";
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
+import { Refusal as KitRefusal } from "@/components/refusal";
 import { isServiceError } from "@/lib/db";
 import { previewPersonMerge, type PersonMergePreview } from "@/lib/services/person-merge";
 import { readPersonRecord, searchPeople } from "@/lib/services/person-record";
@@ -72,18 +68,11 @@ export default async function MergePage({
 
 function Refusal({ message, personId }: { message: string; personId: string }) {
   return (
-    <Stack spacing={2} sx={{ maxWidth: 720 }}>
-      <Typography variant="h6" component="h1">
-        Merge two records
-      </Typography>
-      <Alert severity="warning" data-testid="merge-preview-refused">
-        {message}
-      </Alert>
-      <Box>
-        <Button variant="outlined" href={`/operate/people/${personId}`}>
-          Back to the record
-        </Button>
-      </Box>
-    </Stack>
+    <KitRefusal
+      title="Merge two records"
+      message={message}
+      testId="merge-preview-refused"
+      action={{ href: `/operate/people/${personId}`, label: "Back to the record" }}
+    />
   );
 }

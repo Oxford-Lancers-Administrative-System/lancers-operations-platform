@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field } from "@/components/field";
 import { useFilterSearch } from "../../../filter-search";
 import { SEARCH_LABEL, STATUS_FILTERS } from "./presentation";
 
@@ -59,21 +59,18 @@ export default function DeliveryFilters({
         spacing={2}
         sx={{ width: "100%", alignItems: { sm: "flex-end" } }}
       >
-        <TextField
+        <Field
           label={SEARCH_LABEL}
           name="q"
           value={typed}
           onChange={(event) => setTyped(event.target.value)}
-          fullWidth
-          size="small"
         />
-        <TextField
+        <Field
           select
           label="Status"
           name="status"
           value={status}
           onChange={(event) => router.push(hrefFor({ status: event.target.value }))}
-          size="small"
           sx={{ minWidth: { sm: 220 }, width: { xs: "100%", sm: "auto" } }}
         >
           {STATUS_FILTERS.map((option) => (
@@ -81,7 +78,7 @@ export default function DeliveryFilters({
               {option.label}
             </MenuItem>
           ))}
-        </TextField>
+        </Field>
       </Stack>
     </Box>
   );

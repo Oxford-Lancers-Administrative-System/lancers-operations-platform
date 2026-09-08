@@ -1,4 +1,3 @@
-import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
 import { isServiceError } from "@/lib/db";
 import { readRoleCatalogue } from "@/lib/services/administration-directory";
@@ -49,11 +48,11 @@ export default async function InviteOperatorPage() {
 
   return (
     <Stack spacing={3}>
-      <AdminPageHeading title="Invite operator" subtitle="One guided account and role flow" />
-
-      <Link href="/operate/admin/operators" variant="body2">
-        Back to Operators
-      </Link>
+      <AdminPageHeading
+        title="Invite operator"
+        subtitle="One guided account and role flow"
+        back={{ href: "/operate/admin/operators", label: "Back to operators" }}
+      />
 
       <InviteOperatorForm roles={roles} />
     </Stack>

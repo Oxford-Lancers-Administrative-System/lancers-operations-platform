@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { Section } from "@/components/section";
+import { StatusChip } from "@/components/status-chip";
+import { Fact } from "@/components/fact";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
-import Link from "@mui/material/Link";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
@@ -21,7 +21,6 @@ import { gateShellPage } from "../../../gate";
 import AdminPageHeading from "../../page-heading";
 import { permittedAccountActions } from "../../permissions";
 import {
-  accountStateColour,
   accountStateLabel,
   describePeriod,
   formatInstant,
@@ -29,7 +28,7 @@ import {
   sectionLabelForGroup,
 } from "../../presentation";
 import AdministrationHistory from "../../history";
-import { ArrivalNotice, OutcomeSlotProvider } from "../../outcome";
+import { ArrivalNotice, OutcomeSlotProvider } from "@/components/outcome-slot";
 import OperatorActions from "./operator-actions";
 
 /**
@@ -105,13 +104,10 @@ export default async function OperatorRecordPage({
         <AdminPageHeading
           title={operator.displayName}
           subtitle="Operator account and current roles"
+          back={{ href: "/operate/admin/operators", label: "Back to operators" }}
         />
 
-        <Link href="/operate/admin/operators" variant="body2">
-          Back to Operators
-        </Link>
-
-        {notice ? <ArrivalNotice severity={notice.severity} message={notice.message} /> : null}
+        {notice ? <ArrivalNotice severity={notice.severity}>{notice.message}</ArrivalNotice> : null}
 
         <Box
           sx={{
@@ -120,96 +116,94 @@ export default async function OperatorRecordPage({
             gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" },
           }}
         >
-          <Paper variant="outlined" sx={{ p: 2 }} data-testid="operator-account-panel">
-            <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700, mb: 1.5 }}>
-              Operator account
-            </Typography>
+          <Box data-testid="operator-account-panel">
+            <Section title="Operator account">
+              <Stack spacing={1.5}>
+                <Box>
+                  <StatusChip
+                    domain="operator"
+                    status={operator.state}
+                    label={accountStateLabel(operator.state)}
+                    testId="account-state-chip"
+                  />
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    {definition.description}
+                  </Typography>
+                </Box>
 
-            <Stack spacing={1.5}>
-              <Box>
-                <Chip
-                  label={accountStateLabel(operator.state)}
-                  color={accountStateColour(operator.state)}
-                  variant={operator.state === "active" ? "filled" : "outlined"}
-                  data-testid="account-state-chip"
-                />
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  {definition.description}
-                </Typography>
-              </Box>
-
-              {/*
+                {/*
               LAN131-A5. The transport's own sentence, shown wherever Delivery
               failed is. It is the only place an administrator is told that an
               invitation which was opened and abandoned is recovered through
               Forgot password rather than through another invitation.
             */}
-              {operator.state === "delivery_failed" && operator.deliveryFailureReason ? (
-                <Alert severity="warning" data-testid="delivery-failure-reason">
-                  {operator.deliveryFailureReason}
-                </Alert>
-              ) : null}
+                {operator.state === "delivery_failed" && operator.deliveryFailureReason ? (
+                  <Notice severity="warning" testId="delivery-failure-reason">
+                    {operator.deliveryFailureReason}
+                  </Notice>
+                ) : null}
 
-              <Fact label="Sign-in email" value={operator.loginEmail ?? "None recorded"} />
-              <Fact
-                label="Invitation sent"
-                value={
-                  operator.invitedAt ? formatInstant(operator.invitedAt) : "No invitation recorded"
-                }
-              />
-              <Fact
-                label="Accepted"
-                value={operator.activatedAt ? formatInstant(operator.activatedAt) : "Not yet"}
-              />
-              {operator.deliveryFailedAt ? (
-                <Fact label="Delivery failed" value={formatInstant(operator.deliveryFailedAt)} />
-              ) : null}
-              {operator.emailRehomePendingAt ? (
+                <Fact label="Sign-in email" value={operator.loginEmail ?? "None recorded"} />
                 <Fact
-                  label="Email change started"
-                  value={formatInstant(operator.emailRehomePendingAt)}
+                  label="Invitation sent"
+                  value={
+                    operator.invitedAt
+                      ? formatInstant(operator.invitedAt)
+                      : "No invitation recorded"
+                  }
                 />
-              ) : null}
-            </Stack>
-          </Paper>
+                <Fact
+                  label="Accepted"
+                  value={operator.activatedAt ? formatInstant(operator.activatedAt) : "Not yet"}
+                />
+                {operator.deliveryFailedAt ? (
+                  <Fact label="Delivery failed" value={formatInstant(operator.deliveryFailedAt)} />
+                ) : null}
+                {operator.emailRehomePendingAt ? (
+                  <Fact
+                    label="Email change started"
+                    value={formatInstant(operator.emailRehomePendingAt)}
+                  />
+                ) : null}
+              </Stack>
+            </Section>
+          </Box>
 
-          <Paper variant="outlined" sx={{ p: 2 }} data-testid="operator-relationships-panel">
-            <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700, mb: 1.5 }}>
-              Current relationships
-            </Typography>
+          <Box data-testid="operator-relationships-panel">
+            <Section title="Current relationships">
+              <Stack spacing={1.5}>
+                {operator.roles.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    This person holds no club role at the moment. Their account still exists and
+                    their history is unchanged.
+                  </Typography>
+                ) : (
+                  operator.roles.map((role) => (
+                    <Box key={role.roleAssignmentId}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {role.label}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {sectionLabelForGroup(role.groupCode, role.groupLabel)} ·{" "}
+                        {describePeriod(role)}
+                      </Typography>
+                    </Box>
+                  ))
+                )}
 
-            <Stack spacing={1.5}>
-              {operator.roles.length === 0 ? (
-                <Typography variant="body2" color="text.secondary">
-                  This person holds no club role at the moment. Their account still exists and their
-                  history is unchanged.
-                </Typography>
-              ) : (
-                operator.roles.map((role) => (
-                  <Box key={role.roleAssignmentId}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {role.label}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {sectionLabelForGroup(role.groupCode, role.groupLabel)} ·{" "}
-                      {describePeriod(role)}
-                    </Typography>
-                  </Box>
-                ))
-              )}
+                <Divider />
 
-              <Divider />
-
-              <Fact
-                label="Player"
-                value={
-                  membership
-                    ? `${membershipStatusLabel(membership.status)} · ${membership.seasonLabel}`
-                    : "No current player membership"
-                }
-              />
-            </Stack>
-          </Paper>
+                <Fact
+                  label="Player"
+                  value={
+                    membership
+                      ? `${membershipStatusLabel(membership.status)} · ${membership.seasonLabel}`
+                      : "No current player membership"
+                  }
+                />
+              </Stack>
+            </Section>
+          </Box>
         </Box>
 
         <Box component="section">
@@ -247,18 +241,6 @@ export default async function OperatorRecordPage({
         </Box>
       </Stack>
     </OutcomeSlotProvider>
-  );
-}
-
-/** One labelled fact. A definition list would be heavier than this earns. */
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <Box>
-      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-        {label}
-      </Typography>
-      <Typography variant="body2">{value}</Typography>
-    </Box>
   );
 }
 

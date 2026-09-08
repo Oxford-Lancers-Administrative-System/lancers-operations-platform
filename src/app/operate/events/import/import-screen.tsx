@@ -1,12 +1,17 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { PageHeader } from "@/components/page-header";
+import { Section } from "@/components/section";
+import { Metric, MetricRow } from "@/components/metric";
+import { RowCard, RowCardList, DesktopOnly } from "@/components/row-card";
+import { TableFrame } from "@/components/sortable-header";
+import { ActionBar } from "@/components/action-bar";
+import { OutcomeSlotProvider, useOutcomeSlot } from "@/components/outcome-slot";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -25,7 +30,6 @@ import {
   describeApplied,
   describeProposal,
   OUTCOME_LABELS,
-  outcomeColour,
   previousText,
   SHOWN_COLUMNS,
 } from "./presentation";
@@ -72,38 +76,63 @@ export interface ImportScreenProps {
 }
 
 export default function ImportScreen(props: ImportScreenProps) {
+  return (
+    <OutcomeSlotProvider>
+      <ImportContent {...props} />
+    </OutcomeSlotProvider>
+  );
+}
+
+function ImportContent(props: ImportScreenProps) {
+  const slot = useOutcomeSlot("import");
   const [state, formAction, pending] = useActionState(importEventsAction, EMPTY_IMPORT_STATE);
   const plan = state.plan;
 
   return (
     <Stack spacing={3}>
-      <Box>
-        <Typography variant="h6" component="h1">
-          {plan === null ? "Bulk import" : `Import — ${plan.fileName ?? "your file"}`}
-        </Typography>
-        <Typography variant="body2" color="text.secondary" data-testid="import-subheading">
-          {plan === null
-            ? `Season ${props.seasonLabel}`
-            : describeProposal(props.seasonLabel, plan.rowCount)}
-        </Typography>
-      </Box>
+      <PageHeader
+        title={plan === null ? "Bulk import" : `Import — ${plan.fileName ?? "your file"}`}
+        subtitle={
+          <span data-testid="import-subheading">
+            {plan === null
+              ? `Season ${props.seasonLabel}`
+              : describeProposal(props.seasonLabel, plan.rowCount)}
+          </span>
+        }
+        back={{ href: "/operate/events", label: "Back to events" }}
+      />
 
-      {state.error === null ? null : (
-        <Alert severity="warning" data-testid="import-error">
+      {!slot.showing || pending || state.error === null ? null : (
+        <Notice severity="warning" testId="import-error">
           <strong>Nothing was changed.</strong> {state.error}
-        </Alert>
+        </Notice>
       )}
 
-      {state.applied === null ? null : (
-        <Alert severity="success" data-testid="import-applied">
+      {!slot.showing || pending || state.applied === null ? null : (
+        <Notice severity="success" testId="import-applied">
           {describeApplied(state.applied)}
-        </Alert>
+        </Notice>
       )}
 
       {plan === null ? (
-        <StartHere {...props} formAction={formAction} pending={pending} />
+        <StartHere
+          {...props}
+          formAction={(data) => {
+            slot.claim();
+            formAction(data);
+          }}
+          pending={pending}
+        />
       ) : (
-        <Confirmation plan={plan} state={state} formAction={formAction} pending={pending} />
+        <Confirmation
+          plan={plan}
+          state={state}
+          formAction={(data) => {
+            slot.claim();
+            formAction(data);
+          }}
+          pending={pending}
+        />
       )}
 
       <Boundaries />
@@ -122,25 +151,24 @@ export default function ImportScreen(props: ImportScreenProps) {
  */
 function Boundaries() {
   return (
-    <Paper variant="outlined" sx={{ p: 2 }} data-testid="import-boundaries">
-      <Typography variant="overline" color="text.secondary" component="p">
-        What an import can never do
-      </Typography>
-      <Box component="ul" sx={{ pl: 2.5, mt: 1, mb: 0 }}>
-        <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-          <strong>Delete anything.</strong> Events are upsert only. An event missing from the file
-          is left exactly as it was.
-        </Typography>
-        <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-          <strong>Change an approved event.</strong> Those rows are refused by name; amend the event
-          on its own page.
-        </Typography>
-        <Typography component="li" variant="body2">
-          <strong>Approve, cancel, or send.</strong> An import produces drafts, and nothing leaves
-          the building.
-        </Typography>
-      </Box>
-    </Paper>
+    <Box data-testid="import-boundaries">
+      <Section title="What an import can never do">
+        <Box component="ul" sx={{ pl: 2.5, mt: 1, mb: 0 }}>
+          <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+            <strong>Delete anything.</strong> Events are upsert only. An event missing from the file
+            is left exactly as it was.
+          </Typography>
+          <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+            <strong>Change an approved event.</strong> Those rows are refused by name; amend the
+            event on its own page.
+          </Typography>
+          <Typography component="li" variant="body2">
+            <strong>Approve, cancel, or send.</strong> An import produces drafts, and nothing leaves
+            the building.
+          </Typography>
+        </Box>
+      </Section>
+    </Box>
   );
 }
 
@@ -154,31 +182,20 @@ function StartHere(
   const empty = props.total === 0;
 
   return (
-    <Paper variant="outlined" sx={{ p: 2 }}>
-      <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700 }}>
-        {empty
+    <Section
+      title={
+        empty
           ? "No events in this season yet"
-          : `This season has ${props.total} event${props.total === 1 ? "" : "s"}`}
-      </Typography>
-
-      {empty ? (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          The club’s term card looks different every year, so this does not try to read it. Convert
-          it to a spreadsheet in the shape below — your own AI tool will do this in one go — and
-          bring the file back here.
-        </Typography>
-      ) : (
+          : `This season has ${props.total} event${props.total === 1 ? "" : "s"}`
+      }
+    >
+      {empty ? null : (
         <>
-          <Stack
-            direction="row"
-            spacing={3}
-            sx={{ mt: 1.5, flexWrap: "wrap", rowGap: 1.5 }}
-            data-testid="season-counts"
-          >
-            <Count value={props.drafts} label="Drafts — an import can change these" />
-            <Count value={props.approved} label="Approved — edit these one at a time" />
-            <Count value={props.cancelled} label="Cancelled" />
-          </Stack>
+          <MetricRow testId="season-counts">
+            <Metric value={props.drafts} label="Drafts — an import can change these" />
+            <Metric value={props.approved} label="Approved — edit these one at a time" />
+            <Metric value={props.cancelled} label="Cancelled" />
+          </MetricRow>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
             Start from what is already here rather than from an empty file: the export carries each
             event’s identifier, which is how the system knows you are changing an event rather than
@@ -229,26 +246,13 @@ function StartHere(
           </Typography>
         </>
       )}
-    </Paper>
-  );
-}
-
-function Count({ value, label }: { value: number; label: string }) {
-  return (
-    <Box>
-      <Typography variant="h5" component="p" sx={{ fontWeight: 700 }}>
-        {value}
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        {label}
-      </Typography>
-    </Box>
+    </Section>
   );
 }
 
 function HowItWorks({ first }: { first: string }) {
   return (
-    <Box component="ol" sx={{ pl: 2.5, mt: 1.5, mb: 0 }}>
+    <Box component="ol" sx={{ listStyleType: "decimal", pl: 2.5, mt: 1.5, mb: 0 }}>
       {[
         first,
         "Copy the prompt. Paste it into ChatGPT, Claude or whatever you use, along with the term card, and it will hand you back a file in the right shape.",
@@ -273,6 +277,7 @@ function HowItWorks({ first }: { first: string }) {
  */
 function CopyPromptButton({ prompt }: { prompt: string }) {
   const [said, setSaid] = useState<string | null>(null);
+  const slot = useOutcomeSlot("copy-prompt");
 
   return (
     <>
@@ -281,6 +286,8 @@ function CopyPromptButton({ prompt }: { prompt: string }) {
         size="small"
         data-testid="copy-prompt"
         onClick={() => {
+          slot.claim();
+          setSaid(null);
           void navigator.clipboard
             ?.writeText(prompt)
             .then(() => setSaid("Copied."))
@@ -292,7 +299,7 @@ function CopyPromptButton({ prompt }: { prompt: string }) {
       >
         Copy the prompt
       </Button>
-      {said === null ? null : (
+      {!slot.showing || said === null ? null : (
         <Typography variant="body2" color="text.secondary" role="status">
           {said}
         </Typography>
@@ -347,28 +354,21 @@ function Confirmation({
 }) {
   return (
     <>
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Stack direction="row" spacing={3} sx={{ flexWrap: "wrap", rowGap: 1.5 }}>
-          <Count value={plan.totals.new} label="New" />
-          <Count value={plan.totals.updated} label="Updated" />
-          <Count value={plan.totals.unchanged} label="Unchanged" />
-          <Count value={plan.totals.refused} label="Refused" />
-        </Stack>
-      </Paper>
+      <MetricRow columns={4}>
+        <Metric value={plan.totals.new} label="New" />
+        <Metric value={plan.totals.updated} label="Updated" />
+        <Metric value={plan.totals.unchanged} label="Unchanged" />
+        <Metric value={plan.totals.refused} label="Refused" />
+      </MetricRow>
 
-      <Paper variant="outlined" sx={{ overflow: "hidden" }}>
-        <Box sx={{ display: { xs: "block", md: "none" }, p: 1.5 }} data-testid="import-cards">
-          <Stack spacing={1.5}>
-            {plan.rows.map((row) => (
-              <RowCard key={row.line} row={row} />
-            ))}
-          </Stack>
-        </Box>
+      <RowCardList testId="import-cards">
+        {plan.rows.map((row) => (
+          <ImportRowCard key={row.line} row={row} />
+        ))}
+      </RowCardList>
 
-        <Box
-          sx={{ display: { xs: "none", md: "block" }, overflowX: "auto" }}
-          data-testid="import-table"
-        >
+      <DesktopOnly>
+        <TableFrame testId="import-table">
           <Table size="small" sx={{ minWidth: 1460 }}>
             <TableHead>
               <TableRow>
@@ -384,14 +384,7 @@ function Confirmation({
             <TableBody>
               {plan.rows.map((row) => (
                 <TableRow key={row.line} data-testid={`import-row-${row.line}`}>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={OUTCOME_LABELS[row.outcome]}
-                      color={outcomeColour(row.outcome)}
-                      variant={row.outcome === "unchanged" ? "filled" : "outlined"}
-                    />
-                  </TableCell>
+                  <TableCell>{OUTCOME_LABELS[row.outcome]}</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>{row.name}</TableCell>
                   {SHOWN_COLUMNS.map((column) => {
                     const cell = row.cells[column];
@@ -428,30 +421,32 @@ function Confirmation({
               ))}
             </TableBody>
           </Table>
-        </Box>
-      </Paper>
+        </TableFrame>
+      </DesktopOnly>
 
-      <Box
-        component="form"
-        action={formAction}
-        sx={{ display: "flex", gap: 1, justifyContent: "flex-end", flexWrap: "wrap" }}
-      >
+      <Box component="form" action={formAction}>
         <input type="hidden" name="csvText" value={state.csvText ?? ""} />
         <input type="hidden" name="digest" value={plan.digest} />
         <input type="hidden" name="fileName" value={state.fileName ?? ""} />
-        <Button type="submit" name="intent" value="cancel" disabled={pending}>
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          name="intent"
-          value="apply"
-          variant="contained"
-          disabled={pending || plan.applicableCount === 0}
-          data-testid="apply-import"
-        >
-          {pending ? "Applying…" : applyLabel(plan.applicableCount)}
-        </Button>
+        <ActionBar
+          primary={
+            <Button
+              type="submit"
+              name="intent"
+              value="apply"
+              variant="contained"
+              disabled={pending || plan.applicableCount === 0}
+              data-testid="apply-import"
+            >
+              {pending ? "Applying…" : applyLabel(plan.applicableCount)}
+            </Button>
+          }
+          cancel={
+            <Button type="submit" name="intent" value="cancel" disabled={pending}>
+              Cancel
+            </Button>
+          }
+        />
       </Box>
     </>
   );
@@ -465,72 +460,34 @@ function Confirmation({
  * which is the same information the highlighted cells carry, arranged for a
  * reader holding the phone in one hand.
  */
-function RowCard({ row }: { row: PlannedRow }) {
-  const changed = row.changes;
-
+function ImportRowCard({ row }: { row: PlannedRow }) {
   return (
-    <Paper variant="outlined" sx={{ p: 1.5 }} data-testid={`import-card-${row.line}`}>
-      <Stack
-        direction="row"
-        spacing={1}
-        sx={{ alignItems: "center", justifyContent: "space-between" }}
-      >
-        <Chip
-          size="small"
-          label={OUTCOME_LABELS[row.outcome]}
-          color={outcomeColour(row.outcome)}
-          variant={row.outcome === "unchanged" ? "filled" : "outlined"}
-        />
-        <Typography variant="body2" color="text.secondary">
-          {row.status}
-        </Typography>
-      </Stack>
-
-      <Typography variant="body2" sx={{ fontWeight: 600, mt: 1 }}>
-        {row.name}
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        {[cellText(row.cells.type), cellText(row.cells.date), cellText(row.cells.venue)].join(
-          " · ",
-        )}
-      </Typography>
-
-      {row.outcome === "refused" ? (
-        <Typography variant="body2" color="error.main" sx={{ mt: 1 }}>
-          {changeSummary(row)}
-        </Typography>
-      ) : null}
-      {row.outcome === "new" ? (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          Will be created as a draft
-        </Typography>
-      ) : null}
-      {row.outcome === "unchanged" ? (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          Nothing differs
-        </Typography>
-      ) : null}
-
-      {changed.length === 0
-        ? null
-        : changed.map((change) => (
-            <Box key={change.column} sx={{ mt: 1 }}>
-              <Typography variant="caption" color="text.secondary" component="span">
-                {change.column}
+    <RowCard
+      testId={`import-card-${row.line}`}
+      title={row.name}
+      trailing={row.status}
+      sublines={[
+        OUTCOME_LABELS[row.outcome],
+        [cellText(row.cells.type), cellText(row.cells.date), cellText(row.cells.venue)].join(" · "),
+        changeSummary(row),
+        ...row.changes.map((change) => (
+          <Box key={change.column}>
+            <Typography variant="caption" component="span">
+              {change.column}
+            </Typography>
+            <Typography variant="body2" component="p">
+              {change.to === "" ? "Not recorded" : change.to}
+              <Typography
+                variant="caption"
+                component="span"
+                sx={{ display: "block", textDecoration: "line-through" }}
+              >
+                {change.from === "" ? "(empty)" : change.from}
               </Typography>
-              <Typography variant="body2" component="p">
-                {change.to === "" ? "—" : change.to}
-                <Typography
-                  variant="caption"
-                  component="span"
-                  color="text.secondary"
-                  sx={{ display: "block", textDecoration: "line-through" }}
-                >
-                  {change.from === "" ? "(empty)" : change.from}
-                </Typography>
-              </Typography>
-            </Box>
-          ))}
-    </Paper>
+            </Typography>
+          </Box>
+        )),
+      ]}
+    />
   );
 }

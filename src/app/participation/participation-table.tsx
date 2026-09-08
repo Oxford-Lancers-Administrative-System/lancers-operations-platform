@@ -1,14 +1,16 @@
-import Link from "next/link";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
-import Paper from "@mui/material/Paper";
+import { StatusChip } from "@/components/status-chip";
+import { Section } from "@/components/section";
+import { Fact, FactGrid } from "@/components/fact";
+import { EmptyState } from "@/components/empty-state";
+import { RowCard, RowCardList, DesktopOnly } from "@/components/row-card";
+import { SortableHeader, TableFrame } from "@/components/sortable-header";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import TableSortLabel from "@mui/material/TableSortLabel";
 import Typography from "@mui/material/Typography";
 
 import type { AttendancePresence } from "@/lib/services/attendance-vocabulary";
@@ -26,8 +28,6 @@ import {
 
 import {
   answerLabel,
-  ANSWER_NO,
-  ANSWER_YES,
   capacityLabel,
   DELIVERY_LABELS,
   DELIVERY_NOT_QUEUED,
@@ -40,7 +40,6 @@ import {
   NOT_DISPATCHED_NO_CHANNEL,
   NOTHING,
   presenceLabel,
-  SORTABLE_NOTE,
   TABLE_HEADINGS,
   WHATSAPP_UNRESPONSIVE,
 } from "./presentation";
@@ -86,15 +85,6 @@ function formatWhen(value: string | null): string {
   }).format(when);
 }
 
-const PRESENCE_COLOURS: Readonly<
-  Record<AttendancePresence, "default" | "success" | "warning" | "error">
-> = Object.freeze({
-  present: "success",
-  late: "warning",
-  excused: "default",
-  absent: "error",
-});
-
 function AnswerChip({ person }: { person: ParticipationPerson }) {
   const label = answerLabel(person);
   if (label === NOTHING) {
@@ -104,14 +94,7 @@ function AnswerChip({ person }: { person: ParticipationPerson }) {
       </Typography>
     );
   }
-  return (
-    <Chip
-      size="small"
-      label={label}
-      color={label === ANSWER_YES ? "success" : label === ANSWER_NO ? "error" : "default"}
-      variant={label === ANSWER_YES || label === ANSWER_NO ? "filled" : "outlined"}
-    />
-  );
+  return <StatusChip domain="rsvp" status={person.answer ?? "none"} label={label} />;
 }
 
 /**
@@ -169,7 +152,7 @@ function AttendanceChip({ presence }: { presence: AttendancePresence | null }) {
       </Typography>
     );
   }
-  return <Chip size="small" label={presenceLabel(presence)} color={PRESENCE_COLOURS[presence]} />;
+  return <StatusChip domain="attendance" status={presence} label={presenceLabel(presence)} />;
 }
 
 /**
@@ -184,20 +167,6 @@ function deliveryChipLabel(person: OperatorParticipationPerson, state: string): 
   if (person.noUsableRoute) return NOT_DISPATCHED_NO_CHANNEL;
   if (person.whatsappUnresponsive) return WHATSAPP_UNRESPONSIVE;
   return DELIVERY_LABELS[state] ?? state;
-}
-
-function deliveryChipColour(
-  person: OperatorParticipationPerson,
-  state: string,
-): "success" | "error" | "warning" | "default" {
-  if (person.noUsableRoute) return "error";
-  // Reached, and the club's own channel failed — visible, not a failure the
-  // operator can do anything about (W6). Warning, not error: the message got
-  // through.
-  if (person.whatsappUnresponsive) return "warning";
-  if (state === "delivered") return "success";
-  if (state === "failed") return "error";
-  return "default";
 }
 
 function DeliveryCell({
@@ -228,11 +197,7 @@ function DeliveryCell({
   }
   return (
     <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
-      <Chip
-        size="small"
-        label={deliveryChipLabel(person, state)}
-        color={deliveryChipColour(person, state)}
-      />
+      <StatusChip domain="delivery" status={state} label={deliveryChipLabel(person, state)} />
       {/*
         W4's chase position — the rung already sent and the next one due, or
         Chase stopped / Escalated to the President. `null` for an answered row,
@@ -243,30 +208,6 @@ function DeliveryCell({
           {person.chasePosition}
         </Typography>
       ) : null}
-    </Stack>
-  );
-}
-
-/**
- * R157C-B5. A label in front of a mobile-card value, so a bare "Nothing
- * queued" or "Not recorded" says which fact it is answering.
- *
- * The desktop table gets this for free from its column headers; the card has
- * no headers, so each value that is not already self-evident from its
- * position (name, capacity, the dated "Invitation sent" line) carries its
- * `TABLE_HEADINGS` string instead — the same word the desktop column uses,
- * never a second vocabulary invented for the card. Follows the events list's
- * "Invited 47 · Said yes 33 · Showed — / 47" pattern
- * (`src/app/operate/events/operator-list.tsx`): a small secondary-coloured
- * label immediately before the value.
- */
-function LabeledField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
-      <Typography component="span" variant="caption" color="text.secondary">
-        {label}
-      </Typography>
-      {children}
     </Stack>
   );
 }
@@ -288,52 +229,8 @@ function DiscrepancyMark({ person }: { person: ParticipationPerson }) {
   );
 }
 
-/**
- * The generic column-heading link and arrow — every other bit of
- * `SortableHeading` below is participation's own href/state, computed from
- * `ParticipationFilters`. Exported so another sortable table on this branch
- * can render the identical markup and interaction from its own href/state
- * rather than a second copy of this JSX — the Follow-ups queue
- * (OWNER-LAN173-05) is the first other caller, pairing it with
- * `@/lib/services/participation-view`'s generic `sortColumnHref`/
- * `sortColumnState`.
- */
-export function SortableColumnHeading({
-  column,
-  label,
-  href,
-  active,
-  direction,
-}: {
-  column: string;
-  label: string;
-  href: string;
-  active: boolean;
-  direction: "asc" | "desc";
-}) {
-  return (
-    <TableCell sortDirection={active ? direction : false}>
-      <Link
-        href={href}
-        data-sort={column}
-        style={{ color: "inherit", textDecoration: "none" }}
-        // R157C-B1. Sorting re-orders the rows already on screen; it must not
-        // bounce the reader to the top of a table they are part-way down.
-        // `scroll={false}` is Next.js's own scroll-restoration control for
-        // `<Link>`, and the href above still carries every filter, so the URL
-        // stays the source of truth for the view.
-        scroll={false}
-      >
-        {/* `component="span"`: TableSortLabel renders a button by default, and a
-            button inside an anchor is invalid HTML that browsers repair
-            unpredictably. */}
-        <TableSortLabel active={active} direction={direction} component="span">
-          {label}
-        </TableSortLabel>
-      </Link>
-    </TableCell>
-  );
-}
+// Kept as an export for the follow-ups queue; the kit owns the markup.
+export { SortableHeader as SortableColumnHeading } from "@/components/sortable-header";
 
 function SortableHeading({
   basePath,
@@ -348,7 +245,7 @@ function SortableHeading({
 }) {
   const { active, direction } = participationSortState(filters, column);
   return (
-    <SortableColumnHeading
+    <SortableHeader
       column={column}
       label={label}
       href={participationSortHref(basePath, filters, column)}
@@ -383,252 +280,190 @@ export function ParticipationTable({
   const event = participation.event;
 
   return (
-    <Paper variant="outlined" data-testid="participation-table" data-tier={participation.tier}>
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={1}
-        sx={{
-          px: 2,
-          py: 1.5,
-          borderBottom: 1,
-          borderColor: "divider",
-          justifyContent: "space-between",
-        }}
-      >
-        <Typography variant="overline" data-testid="participation-total">
-          {everyoneAsked(total)}
-        </Typography>
-        {/*
-          W157-F6. "Sortable on every column" is desktop-only copy: below `md`
-          this component renders one card per person, with no columns and no
-          sort control, and the sentence described a capability the phone does
-          not have. The discrepancy legend is not hidden with it — the `≠` is
-          beside the name on the card too, so the legend still explains
-          something the reader can see.
-
-          **R157C-A5, two corrections to that.**
-
-          The paragraph above claimed the legend survives because the `≠` is on
-          the card too. True of the *mark*, which `DiscrepancyMark` renders on
-          every row at every tier and every width — and not true of the
-          *legend*, which was gated `operator ? … : null`. So a coach opening
-          `/e/<token>` on a phone met `≠` beside a player's name with nothing on
-          the page saying what it meant. The legend now renders at both tiers,
-          because the thing it defines does.
-
-          That is conformance rather than widening: the ticket contract names
-          the discrepancy marker as a property of the table and names exactly
-          one tier difference, the delivery column.
-
-          And the wrapper no longer renders empty. At club tier below `md` the
-          hidden span held the only content and the legend was `null`, leaving
-          an empty `<p>` still taking its slot in a spaced `Stack`. There is now
-          always content, so there is no empty case left to guard.
-        */}
+    <Box data-testid="participation-table" data-tier={participation.tier}>
+      <Section title={everyoneAsked(total)} titleTestId="participation-total">
         <Typography variant="body2" color="text.secondary">
-          <Box
-            component="span"
-            data-testid="sortable-note"
-            sx={{ display: { xs: "none", md: "inline" } }}
-          >
-            {SORTABLE_NOTE}
-            {" · "}
-          </Box>
           {DISCREPANCY_LEGEND}
         </Typography>
-      </Stack>
 
-      {total === 0 ? (
-        <Typography sx={{ p: 2 }} color="text.secondary" data-testid="participation-empty">
-          {NOBODY_ASKED}
-        </Typography>
-      ) : people.length === 0 ? (
-        <Typography sx={{ p: 2 }} color="text.secondary" data-testid="participation-no-matches">
-          {NO_MATCHING_PEOPLE}
-        </Typography>
-      ) : (
-        <>
-          {/*
-            Phone: one card per person.
-
-            No `divider` prop. MUI v9's `Stack` divider **throws during server
-            rendering** — "Element type is invalid … got: undefined" — and the
-            page then recovers on the client, so it looks fine in a browser and
-            returns 500 to anything that reads the status. `next build` compiled
-            it and every jsdom test rendered it; only loading the real page
-            caught it. The separators are borders on the cards instead.
-          */}
-          <Stack sx={{ display: { xs: "flex", md: "none" } }}>
-            {people.map((person) => (
-              <Box
-                key={person.key}
-                data-testid="participation-card"
-                data-person={person.key}
-                sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: "divider" }}
-              >
-                <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between" }}>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                    {person.displayName}
-                    <DiscrepancyMark person={person} />
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {capacityLabel(person)}
-                  </Typography>
-                </Stack>
-                <Stack direction="row" spacing={1.25} sx={{ mt: 0.5, flexWrap: "wrap", gap: 0.75 }}>
-                  <LabeledField label={TABLE_HEADINGS.answer}>
-                    <AnswerCell
-                      operator={operator}
-                      event={event}
-                      person={person}
-                      questions={questions}
-                    />
-                  </LabeledField>
-                  <LabeledField label={TABLE_HEADINGS.attendance}>
-                    <AttendanceChip presence={person.presence} />
-                  </LabeledField>
-                  {operator ? (
-                    <LabeledField label={TABLE_HEADINGS.delivery}>
-                      <DeliveryCell
-                        person={person as OperatorParticipationPerson}
-                        isWalkUp={person.isWalkUp}
-                      />
-                    </LabeledField>
-                  ) : null}
-                </Stack>
-                {person.reason ? (
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    {person.reason}
-                  </Typography>
-                ) : null}
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  {TABLE_HEADINGS.invited}: {formatWhen(person.invitedAt)}
-                </Typography>
-                {questions.map((question) => (
-                  <Typography
-                    key={question.id}
-                    variant="body2"
-                    color="text.secondary"
-                    data-question={question.id}
-                  >
-                    {question.prompt} {questionAnswer(person, question)}
-                  </Typography>
-                ))}
-              </Box>
-            ))}
-          </Stack>
-
-          {/* Desktop: the full table, scrolling inside its own container. */}
-          <Box sx={{ display: { xs: "none", md: "block" }, overflowX: "auto" }}>
-            <Table size="small" sx={{ minWidth: operator ? 1080 : 940 }}>
-              <TableHead>
-                <TableRow>
-                  <SortableHeading
-                    basePath={basePath}
-                    filters={filters}
-                    column="name"
-                    label={TABLE_HEADINGS.name}
-                  />
-                  <SortableHeading
-                    basePath={basePath}
-                    filters={filters}
-                    column="capacity"
-                    label={TABLE_HEADINGS.capacity}
-                  />
-                  <SortableHeading
-                    basePath={basePath}
-                    filters={filters}
-                    column="invited"
-                    label={TABLE_HEADINGS.invited}
-                  />
-                  {operator ? (
-                    <SortableHeading
-                      basePath={basePath}
-                      filters={filters}
-                      column="delivery"
-                      label={TABLE_HEADINGS.delivery}
-                    />
-                  ) : null}
-                  <SortableHeading
-                    basePath={basePath}
-                    filters={filters}
-                    column="answer"
-                    label={TABLE_HEADINGS.answer}
-                  />
-                  <SortableHeading
-                    basePath={basePath}
-                    filters={filters}
-                    column="reason"
-                    label={TABLE_HEADINGS.reason}
-                  />
-                  <SortableHeading
-                    basePath={basePath}
-                    filters={filters}
-                    column="attendance"
-                    label={TABLE_HEADINGS.attendance}
-                  />
-                  {questions.map((question) => (
-                    <SortableHeading
-                      key={question.id}
-                      basePath={basePath}
-                      filters={filters}
-                      column={`q:${question.id}`}
-                      label={question.prompt}
-                    />
-                  ))}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {people.map((person) => (
-                  <TableRow
-                    key={person.key}
-                    data-testid="participation-row"
-                    data-person={person.key}
-                  >
-                    <TableCell>
-                      <Typography variant="body2" component="span" sx={{ fontWeight: 700 }}>
+        {total === 0 ? (
+          <EmptyState title={NOBODY_ASKED} testId="participation-empty" />
+        ) : people.length === 0 ? (
+          <EmptyState title={NO_MATCHING_PEOPLE} testId="participation-no-matches" />
+        ) : (
+          <>
+            <RowCardList>
+              {people.map((person) => (
+                <Box key={person.key} data-testid="participation-card" data-person={person.key}>
+                  <RowCard
+                    title={
+                      <>
                         {person.displayName}
-                      </Typography>
-                      <DiscrepancyMark person={person} />
-                    </TableCell>
-                    <TableCell>{capacityLabel(person)}</TableCell>
-                    <TableCell>{formatWhen(person.invitedAt)}</TableCell>
-                    {operator ? (
-                      <TableCell data-testid="delivery-cell">
-                        <DeliveryCell
-                          person={person as OperatorParticipationPerson}
-                          isWalkUp={person.isWalkUp}
+                        <DiscrepancyMark person={person} />
+                      </>
+                    }
+                    trailing={capacityLabel(person)}
+                    sublines={[
+                      <FactGrid key="facts">
+                        <Fact
+                          label={TABLE_HEADINGS.answer}
+                          value={
+                            <AnswerCell
+                              operator={operator}
+                              event={event}
+                              person={person}
+                              questions={questions}
+                            />
+                          }
                         />
-                      </TableCell>
-                    ) : null}
-                    <TableCell>
-                      <AnswerCell
-                        operator={operator}
-                        event={event}
-                        person={person}
-                        questions={questions}
+                        <Fact
+                          label={TABLE_HEADINGS.attendance}
+                          value={<AttendanceChip presence={person.presence} />}
+                        />
+                        {operator ? (
+                          <Fact
+                            label={TABLE_HEADINGS.delivery}
+                            value={
+                              <DeliveryCell
+                                person={person as OperatorParticipationPerson}
+                                isWalkUp={person.isWalkUp}
+                              />
+                            }
+                          />
+                        ) : null}
+                        <Fact label={TABLE_HEADINGS.invited} value={formatWhen(person.invitedAt)} />
+                        {person.reason ? (
+                          <Fact label={TABLE_HEADINGS.reason} value={person.reason} />
+                        ) : null}
+                        {questions.map((question) => (
+                          <Box key={question.id} data-question={question.id}>
+                            <Fact
+                              label={question.prompt}
+                              value={person.answers[question.id] ?? null}
+                            />
+                          </Box>
+                        ))}
+                      </FactGrid>,
+                    ]}
+                  />
+                </Box>
+              ))}
+            </RowCardList>
+
+            {/* Desktop: the full table, scrolling inside its own container. */}
+            <DesktopOnly>
+              <TableFrame>
+                <Table size="small" sx={{ minWidth: operator ? 1080 : 940 }}>
+                  <TableHead>
+                    <TableRow>
+                      <SortableHeading
+                        basePath={basePath}
+                        filters={filters}
+                        column="name"
+                        label={TABLE_HEADINGS.name}
                       />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {person.reason ?? NOTHING}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <AttendanceChip presence={person.presence} />
-                    </TableCell>
-                    {questions.map((question) => (
-                      <TableCell key={question.id} data-question={question.id}>
-                        {questionAnswer(person, question)}
-                      </TableCell>
+                      <SortableHeading
+                        basePath={basePath}
+                        filters={filters}
+                        column="capacity"
+                        label={TABLE_HEADINGS.capacity}
+                      />
+                      <SortableHeading
+                        basePath={basePath}
+                        filters={filters}
+                        column="invited"
+                        label={TABLE_HEADINGS.invited}
+                      />
+                      {operator ? (
+                        <SortableHeading
+                          basePath={basePath}
+                          filters={filters}
+                          column="delivery"
+                          label={TABLE_HEADINGS.delivery}
+                        />
+                      ) : null}
+                      <SortableHeading
+                        basePath={basePath}
+                        filters={filters}
+                        column="answer"
+                        label={TABLE_HEADINGS.answer}
+                      />
+                      <SortableHeading
+                        basePath={basePath}
+                        filters={filters}
+                        column="reason"
+                        label={TABLE_HEADINGS.reason}
+                      />
+                      <SortableHeading
+                        basePath={basePath}
+                        filters={filters}
+                        column="attendance"
+                        label={TABLE_HEADINGS.attendance}
+                      />
+                      {questions.map((question) => (
+                        <SortableHeading
+                          key={question.id}
+                          basePath={basePath}
+                          filters={filters}
+                          column={`q:${question.id}`}
+                          label={question.prompt}
+                        />
+                      ))}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {people.map((person) => (
+                      <TableRow
+                        key={person.key}
+                        data-testid="participation-row"
+                        data-person={person.key}
+                      >
+                        <TableCell>
+                          <Typography variant="body2" component="span" sx={{ fontWeight: 700 }}>
+                            {person.displayName}
+                          </Typography>
+                          <DiscrepancyMark person={person} />
+                        </TableCell>
+                        <TableCell>{capacityLabel(person)}</TableCell>
+                        <TableCell>{formatWhen(person.invitedAt)}</TableCell>
+                        {operator ? (
+                          <TableCell data-testid="delivery-cell">
+                            <DeliveryCell
+                              person={person as OperatorParticipationPerson}
+                              isWalkUp={person.isWalkUp}
+                            />
+                          </TableCell>
+                        ) : null}
+                        <TableCell>
+                          <AnswerCell
+                            operator={operator}
+                            event={event}
+                            person={person}
+                            questions={questions}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary">
+                            {person.reason ?? NOTHING}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <AttendanceChip presence={person.presence} />
+                        </TableCell>
+                        {questions.map((question) => (
+                          <TableCell key={question.id} data-question={question.id}>
+                            {questionAnswer(person, question)}
+                          </TableCell>
+                        ))}
+                      </TableRow>
                     ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Box>
-        </>
-      )}
-    </Paper>
+                  </TableBody>
+                </Table>
+              </TableFrame>
+            </DesktopOnly>
+          </>
+        )}
+      </Section>
+    </Box>
   );
 }

@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
-import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
-import Paper from "@mui/material/Paper";
+import { PublicShell } from "@/components/public-shell";
+import { PageHeader } from "@/components/page-header";
+import { StatusChip } from "@/components/status-chip";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
@@ -18,7 +18,6 @@ import { EventFacts, formatEventWhen, HeadlineNumbers } from "../../participatio
 import { ParticipationFilterBar } from "../../participation/participation-filters";
 import { ParticipationTable } from "../../participation/participation-table";
 import {
-  CLUB_LINK_BRAND,
   CLUB_LINK_SUBTITLE,
   CLUB_LINK_UNAVAILABLE_DETAIL,
   CLUB_LINK_UNAVAILABLE_HEADLINE,
@@ -115,16 +114,14 @@ export default async function ClubLinkPage({ params, searchParams }: PageProps) 
 
   if (page.state !== "live") {
     return (
-      <Box sx={{ maxWidth: 640, mx: "auto", p: 3 }}>
-        <Paper variant="outlined" sx={{ p: 3 }} data-testid="club-link-unavailable">
-          <Typography variant="h6" component="h1">
-            {CLUB_LINK_UNAVAILABLE_HEADLINE}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+      <PublicShell testId="club-link-unavailable">
+        <Stack spacing={2}>
+          <PageHeader title={CLUB_LINK_UNAVAILABLE_HEADLINE} />
+          <Typography variant="body2" color="text.secondary">
             {CLUB_LINK_UNAVAILABLE_DETAIL}
           </Typography>
-        </Paper>
-      </Box>
+        </Stack>
+      </PublicShell>
     );
   }
 
@@ -145,52 +142,35 @@ export default async function ClubLinkPage({ params, searchParams }: PageProps) 
   const filters = readParticipationFilters(query, participation.questions, participation.tier);
 
   return (
-    <Box sx={{ maxWidth: 1200, mx: "auto", p: { xs: 2, md: 3 } }}>
+    <PublicShell width="wide">
       <Stack spacing={2}>
-        <Box>
-          <Typography variant="overline" color="text.secondary">
-            {CLUB_LINK_BRAND}
-          </Typography>
-          {/*
-            The struck-through name and the warning chip are the public event
-            page's treatment of a cancelled event, reused rather than reinvented
-            — `docs/ux/standards.md` rule 7, and the public page is the tier
-            whose reader is closest to this one. The subtitle then carries the
-            status word first, exactly as the operator's own subtitle does.
-          */}
-          <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
-            <Typography
-              variant="h6"
-              component="h1"
-              sx={{ textDecoration: cancelled ? "line-through" : "none" }}
-            >
-              {participation.event.name}
-            </Typography>
-            {notApproved ? (
-              <Chip
-                color="warning"
-                size="small"
+        <PageHeader
+          title={participation.event.name}
+          struckThrough={cancelled}
+          status={
+            notApproved ? (
+              <StatusChip
+                domain="event"
+                status={participation.event.status}
                 label={labelFor(STATUS_LABELS, participation.event.status)}
-                data-testid="club-link-status"
+                testId="club-link-status"
               />
-            ) : null}
-          </Stack>
-          <Typography variant="body2" color="text.secondary">
-            {[
-              notApproved ? labelFor(STATUS_LABELS, participation.event.status) : null,
-              formatEventWhen(participation.event),
-              CLUB_LINK_SUBTITLE,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </Typography>
-        </Box>
+            ) : undefined
+          }
+          subtitle={[
+            notApproved ? labelFor(STATUS_LABELS, participation.event.status) : null,
+            formatEventWhen(participation.event),
+            CLUB_LINK_SUBTITLE,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        />
 
         <EventFacts event={participation.event} />
         <HeadlineNumbers headline={participation.headline} />
         <ParticipationFilterBar basePath={basePath} filters={filters} showDelivery={false} />
         <ParticipationTable basePath={basePath} participation={participation} filters={filters} />
       </Stack>
-    </Box>
+    </PublicShell>
   );
 }
