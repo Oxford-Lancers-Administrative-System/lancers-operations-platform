@@ -15,6 +15,7 @@ import { syntheticTermCard } from "../scripts/production/showcase/sources.mjs";
 import { token, tokenHash } from "../scripts/production/showcase/ids.mjs";
 import { NO_USABLE_NUMBER_REASON } from "../scripts/production/showcase/plan/calendar.mjs";
 import { testExisting, testParams } from "./helpers/showcase-fixture.mjs";
+import { buildAcademicYear } from "@/lib/services/oxford-year";
 
 type Row = { table: string; columns: Record<string, unknown> };
 
@@ -269,5 +270,61 @@ describe("the shape the ticket asks for", () => {
         row.columns.role_id === existing.roles.get("treasurer")!.id,
     );
     expect(treasurer).toEqual([]);
+  });
+});
+
+describe("the Oxford year the environment is loaded with", () => {
+  it("is both academic years, all six terms, on the real boundaries", () => {
+    const plan = build();
+    const terms = (plan.rows as Row[]).filter((row) => row.table === "public.terms");
+    expect(
+      terms.map((row) => [row.columns.name, row.columns.starts_on, row.columns.ends_on]),
+    ).toEqual([
+      ["michaelmas", "2025-09-28", "2025-12-06"],
+      ["hilary", "2026-01-11", "2026-03-14"],
+      ["trinity", "2026-04-19", "2026-06-20"],
+      ["michaelmas", "2026-09-27", "2026-12-05"],
+      ["hilary", "2027-01-10", "2027-03-13"],
+      ["trinity", "2027-04-18", "2027-06-19"],
+    ]);
+    // Michaelmas runs from week −1; Hilary and Trinity from 0th (SDA §5.4).
+    expect(terms.map((row) => row.columns.first_week)).toEqual([-1, 0, 0, -1, 0, 0]);
+  });
+
+  it("renders the whole year, which one term cannot", () => {
+    const plan = build();
+    const windows = (plan.rows as Row[])
+      .filter((row) => row.table === "public.terms")
+      .map((row) => ({
+        id: String(row.columns.id),
+        name: row.columns.name as "michaelmas" | "hilary" | "trinity",
+        academicYear: String(row.columns.academic_year),
+        startsOn: String(row.columns.starts_on),
+        endsOn: String(row.columns.ends_on),
+        firstWeek: Number(row.columns.first_week),
+        lastWeek: Number(row.columns.last_week),
+      }));
+    const currentYear = windows[3].academicYear;
+    const whole = buildAcademicYear(currentYear, windows, [], { today: "2026-11-01" });
+    expect(whole.segments.map((segment) => segment.name)).toEqual([
+      "Long Vacation",
+      "michaelmas",
+      "Christmas Vacation",
+      "hilary",
+      "Easter Vacation",
+      "trinity",
+      "Long Vacation",
+    ]);
+
+    // What the loader used to plant. The leading Long Vacation has no previous
+    // Trinity to number its weeks from, and the year stops in December — which
+    // is why all six rows are loaded rather than the one the term card names.
+    const michaelmasOnly = buildAcademicYear(currentYear, [windows[3]], [], {
+      today: "2026-11-01",
+    });
+    expect(michaelmasOnly.segments.map((segment) => segment.name)).toEqual([
+      "michaelmas",
+      "Christmas Vacation",
+    ]);
   });
 });

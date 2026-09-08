@@ -141,23 +141,67 @@ export function buildReference(ctx, { termCard }) {
     positionIds.set(code, { id: positionId, side });
   });
 
-  const michaelmasStart = termCard.length > 0 ? termCard[0].scheduledOn : "2026-09-27";
-  const michaelmasEnd = termCard.length > 0 ? termCard.at(-1).scheduledOn : "2026-12-05";
-  const termId = adopt(
-    existing.terms?.get("michaelmas:2026-27"),
-    "public.terms",
-    {
-      id: id("terms", "michaelmas", "2026-27"),
-      name: "michaelmas",
-      academic_year: "2026–27",
-      starts_on: michaelmasStart,
-      ends_on: michaelmasEnd,
-      first_week: -1,
-      last_week: 8,
-    },
-    "illustrative",
-    { source: "the Michaelmas term card" },
-  );
+  // Both academic years, all six terms, on the real Oxford boundaries.
+  //
+  // Brian, this session: "I really want the real calendar that's been updated
+  // in the environment … lawn vacation, Michaelmas, Hilary, everything needs to
+  // be loaded." The events on top stay fictional; the year they sit in does
+  // not.
+  //
+  // One term is not enough, and not only because five sevenths of the year
+  // would be missing. `buildAcademicYear` derives the vacations from these
+  // rows — Long Vacation, Michaelmas, Christmas Vacation, Hilary, Easter
+  // Vacation, Trinity, Long Vacation — and its own note says it needs *every*
+  // term, not just this year's, because the leading Long Vacation numbers its
+  // weeks from the end of the previous year's Trinity. Loading Michaelmas
+  // alone ends the calendar in December and leaves the vacation before it
+  // unnumbered.
+  //
+  // These are the same six rows and the same dates `scripts/seed-local.mjs`
+  // carries (its own `TERM_SPEC`, SDA §11.2). They are public, non-identifying
+  // and exact, and the week arithmetic on every calendar page depends on them
+  // being exact.
+  //
+  // `academic_year` is the season's own label rather than a second string that
+  // could drift from it — the seed's rule, and what keeps a test load's terms
+  // out of every "current season" query the rest of the suite makes.
+  const TERM_SPEC = [
+    ["michaelmas", "archived", "2025-09-28", "2025-12-06", -1],
+    ["hilary", "archived", "2026-01-11", "2026-03-14", 0],
+    ["trinity", "archived", "2026-04-19", "2026-06-20", 0],
+    ["michaelmas", "current", "2026-09-27", "2026-12-05", -1],
+    ["hilary", "current", "2027-01-10", "2027-03-13", 0],
+    ["trinity", "current", "2027-04-18", "2027-06-19", 0],
+  ];
+  const academicYearOf = {
+    current: labels.currentSeason,
+    archived: labels.archivedSeason,
+  };
+  let termId = null;
+  for (const [name, which, startsOn, endsOn, firstWeek] of TERM_SPEC) {
+    const academicYear = academicYearOf[which];
+    const planted = adopt(
+      existing.terms?.get(`${name}:${normaliseLabel(academicYear)}`),
+      "public.terms",
+      {
+        id: id("terms", name, academicYear),
+        name,
+        academic_year: academicYear,
+        starts_on: startsOn,
+        ends_on: endsOn,
+        first_week: firstWeek,
+        last_week: 8,
+      },
+      "illustrative",
+      { source: `the ${name} ${academicYear} term boundaries` },
+    );
+    // Tagged whether planted or adopted: what the map asserts is that the
+    // target holds the whole year, not that this loader wrote it.
+    ctx.tag("term.row", planted);
+    // The term card's own events hang off Michaelmas of the current year.
+    if (name === "michaelmas" && which === "current") termId = planted;
+  }
+  void termCard;
 
   const committeeYearId = adopt(
     existing.openCommitteeYear,

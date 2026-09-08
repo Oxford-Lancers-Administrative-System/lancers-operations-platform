@@ -1082,6 +1082,16 @@ const STATE_ROWS = [
     "not t.single_use and t.revoked_at is null",
     0,
   ],
+  // The Oxford year itself. Six rows, because the application derives the
+  // vacations from them and the leading Long Vacation numbers its weeks from
+  // the previous year's Trinity — one term leaves most of the calendar blank.
+  [
+    "term.row",
+    "An Oxford term on its real boundaries",
+    "public.terms",
+    "t.last_week = 8 and t.ends_on > t.starts_on",
+    6,
+  ],
   // Audit
   ["audit.row", "An audit row", "public.audit_events", "true", 100],
   [
