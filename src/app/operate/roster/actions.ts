@@ -7,7 +7,7 @@ import {
   resolveOnboardingItem,
   setMembershipStatus,
   type MembershipStatus,
-  type OnboardingItemResolution,
+  type OnboardingItemStatus,
 } from "@/lib/services/membership";
 import type { MembershipActionState } from "./action-state";
 
@@ -134,7 +134,7 @@ export async function resolveOnboardingItemAction(
       actorPersonId: operator.personId,
       membershipId,
       itemId: text(formData, "itemId"),
-      status: text(formData, "status") as OnboardingItemResolution,
+      status: text(formData, "status") as OnboardingItemStatus,
       reason: text(formData, "reason"),
     });
   } catch (error) {

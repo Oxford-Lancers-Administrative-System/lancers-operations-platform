@@ -7,6 +7,7 @@ import {
   resolveOnboardingItem,
   setMembershipStatus,
   type MembershipStatus,
+  type OnboardingItemStatus,
 } from "@/lib/services/membership";
 import {
   commitAvailability,
@@ -216,7 +217,8 @@ export async function recordCommitAvailabilityAction(params: {
 export async function recordResolveOnboardingItemAction(params: {
   membershipId: string;
   itemId: string;
-  status: "complete" | "waived" | "not_applicable";
+  /** The item's own target state, directly — `WP-operator-record`, LAN-217. */
+  status: OnboardingItemStatus;
   reason?: string;
 }): Promise<BoardActionState> {
   const operator = await requireCapability("person_record_authority");

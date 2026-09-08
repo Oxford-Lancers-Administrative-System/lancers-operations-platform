@@ -26,6 +26,7 @@ import { runMessagingSweep } from "./messaging-scheduler";
 import {
   addRecruitmentProspectNoteIn,
   flipRecruitmentProspectToJoinedIn,
+  RECRUIT_LINK_SUPERSEDED_BY_FLIP_REASON,
   readRecruitmentProspectIn,
   sendRecruitmentQuestionnaireIn,
   updateRecruitmentProspectStatusIn,
@@ -148,6 +149,25 @@ afterEach(async () => {
   );
   await observer.query(
     `delete from public.onboarding_items
+      where season_membership_id in (select id from public.season_memberships where person_id in ${people})`,
+    [MARKER],
+  );
+  // LAN-215: the flip now also queues the welcome, which
+  // `emitOnboardingOpenedWelcomeIn` logs as the membership's first
+  // `onboarding_activity_log` entry — `onboarding_activity_log_membership_season`
+  // refuses to let the membership go while it exists, on the identical reason
+  // `onboarding_items` is deleted first above.
+  await observer.query(
+    `delete from public.onboarding_activity_log
+      where season_membership_id in (select id from public.season_memberships where person_id in ${people})`,
+    [MARKER],
+  );
+  // LAN-215, B-008: the flip now also sets availability to Green, in the same
+  // transaction, via `commitAvailability` — `availability_statuses` restricts
+  // its own deletion of `season_memberships`, on the identical reason the
+  // block above does.
+  await observer.query(
+    `delete from public.availability_statuses
       where season_membership_id in (select id from public.season_memberships where person_id in ${people})`,
     [MARKER],
   );
@@ -499,6 +519,133 @@ describe("flipRecruitmentProspectToJoinedIn — W14", () => {
       flipRecruitmentProspectToJoinedIn(tx, actorPersonId, prospectId),
     );
     expect(result.membershipId).toBeTruthy();
+  });
+
+  // LAN-215, `WP-arrival-doors`. The far side of the flip: the welcome fires,
+  // the recruit's open link is superseded and audited, and consent is
+  // touched by nothing — all four inside this one transaction test.
+  describe("LAN-215 — the welcome, the superseded ask, and consent left alone", () => {
+    it("fires onboarding-opened: the same welcome emitter W1 and W2 queue, keyed to this membership", async () => {
+      const { personId, prospectId } = await newProspect("committed");
+      await grantConsentViaWalkUp(personId);
+
+      const result = await withTransaction((tx) =>
+        flipRecruitmentProspectToJoinedIn(tx, actorPersonId, prospectId),
+      );
+
+      const job = await observer.query<{ status: string; person_id: string }>(
+        `select status::text as status, person_id from public.notification_jobs
+          where idempotency_key = $1`,
+        [`onboarding-welcome:${result.membershipId}`],
+      );
+      expect(job.rows).toHaveLength(1);
+      expect(job.rows[0].status).toBe("pending");
+      expect(job.rows[0].person_id).toBe(personId);
+    });
+
+    it("B-008 — sets availability to green, in this same transaction, dated the joining date", async () => {
+      // Brian, this session: "When a player gets added into the board, their
+      // availability should be flipped to green by default." `newProspect`
+      // stamps `committed_on` at 2019-10-01, well before today — proving
+      // `effective_from` reads that date, not the day the flip executes,
+      // is what would catch a regression back to `commitAvailability`'s own
+      // default of "today".
+      const { prospectId } = await newProspect("committed");
+
+      const result = await withTransaction((tx) =>
+        flipRecruitmentProspectToJoinedIn(tx, actorPersonId, prospectId),
+      );
+
+      const row = await observer.query<{
+        level: string;
+        effective_from: string;
+        reported_by_person_id: string;
+        confirmed_by_person_id: string | null;
+      }>(
+        `select level::text as level, to_char(effective_from, 'YYYY-MM-DD') as effective_from,
+                reported_by_person_id, confirmed_by_person_id
+           from public.availability_statuses
+          where season_membership_id = $1::uuid`,
+        [result.membershipId],
+      );
+      expect(row.rows).toHaveLength(1);
+      expect(row.rows[0]).toMatchObject({
+        level: "green",
+        effective_from: "2019-10-01",
+        reported_by_person_id: actorPersonId,
+        confirmed_by_person_id: actorPersonId,
+      });
+    });
+
+    it("supersedes the recruit's open link, and audits it, inside the flip's own transaction", async () => {
+      const { personId, prospectId } = await newProspect("committed");
+      await grantConsentViaWalkUp(personId);
+
+      const openLink = await observer.query<{ id: string }>(
+        `insert into public.person_access_tokens (person_id, season_id, token_hash, single_use)
+         values ($1::uuid, $2::uuid, $3, false)
+         returning id`,
+        [personId, seasonId, crypto.randomUUID().replaceAll("-", "").padEnd(64, "0")],
+      );
+
+      await withTransaction((tx) =>
+        flipRecruitmentProspectToJoinedIn(tx, actorPersonId, prospectId),
+      );
+
+      const token = await observer.query<{
+        revoked_at: Date | null;
+        revoked_reason: string | null;
+      }>("select revoked_at, revoked_reason from public.person_access_tokens where id = $1::uuid", [
+        openLink.rows[0].id,
+      ]);
+      expect(token.rows[0].revoked_at).not.toBeNull();
+      expect(token.rows[0].revoked_reason).toBe(RECRUIT_LINK_SUPERSEDED_BY_FLIP_REASON);
+
+      const audit = await observer.query<{ n: string }>(
+        `select count(*)::text as n from public.audit_events
+          where entity_id = $1::uuid and action = 'recruitment_prospect.ask_superseded'
+            and context ->> 'supersededCount' = '1'`,
+        [prospectId],
+      );
+      expect(audit.rows[0].n).toBe("1");
+    });
+
+    it("audits the supersession as zero when the recruit held no open link at all", async () => {
+      // "Nothing to supersede" is a legitimate outcome, recorded as one
+      // rather than skipped — see `recruitment-prospect.ts`'s own doc comment.
+      const { prospectId } = await newProspect("committed");
+      await withTransaction((tx) =>
+        flipRecruitmentProspectToJoinedIn(tx, actorPersonId, prospectId),
+      );
+      const audit = await observer.query<{ n: string }>(
+        `select count(*)::text as n from public.audit_events
+          where entity_id = $1::uuid and action = 'recruitment_prospect.ask_superseded'
+            and context ->> 'supersededCount' = '0'`,
+        [prospectId],
+      );
+      expect(audit.rows[0].n).toBe("1");
+    });
+
+    it("copies and re-asks no consent — the door's own grant is the same row, untouched by the flip", async () => {
+      const { personId, prospectId } = await newProspect("committed");
+      await grantConsentViaWalkUp(personId);
+
+      const before = await observer.query<{ id: string; source: string; changed_at: Date }>(
+        "select id, source::text as source, changed_at from public.season_messaging_consents where person_id = $1::uuid and season_id = $2::uuid",
+        [personId, seasonId],
+      );
+
+      await withTransaction((tx) =>
+        flipRecruitmentProspectToJoinedIn(tx, actorPersonId, prospectId),
+      );
+
+      const after = await observer.query<{ id: string; source: string; changed_at: Date }>(
+        "select id, source::text as source, changed_at from public.season_messaging_consents where person_id = $1::uuid and season_id = $2::uuid",
+        [personId, seasonId],
+      );
+      expect(after.rows).toHaveLength(1);
+      expect(after.rows[0]).toEqual(before.rows[0]);
+    });
   });
 });
 

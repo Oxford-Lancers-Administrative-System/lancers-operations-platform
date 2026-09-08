@@ -13,12 +13,19 @@ import {
   updateRecruitmentCycleStepIn,
   type RecruitmentCycleStepName,
 } from "@/lib/services/recruitment-cycle";
+import {
+  readOnboardingChaseSettingsIn,
+  setOnboardingChaseSettingsIn,
+} from "@/lib/services/onboarding-chase";
 import { EMPTY_ADMIN_ACTION_STATE, type AdminActionState } from "../action-state";
 import { CYCLE_STEP_LABELS, readCycleStepsChange } from "./cycle-validation";
+import { onboardingChaseChanged, readOnboardingChaseChange } from "./onboarding-chase-validation";
 import {
   NO_SCHEDULE_CHANGES_NOTICE,
   cycleStepSavedNotice,
   cycleStepSaveFailedNotice,
+  onboardingChaseSavedNotice,
+  onboardingChaseSaveFailedNotice,
   scheduleSavedNotice,
   scheduleSaveFailedNotice,
 } from "./presentation";
@@ -168,6 +175,57 @@ export async function updateRecruitmentCycleStepsAction(
     return {
       ...EMPTY_ADMIN_ACTION_STATE,
       error: cycleStepSaveFailedNotice(rowLabel),
+    };
+  }
+}
+
+/**
+ * Saving the Onboarding section's one row — LAN-218, `W11`. One form, one
+ * SAVE, on the exact "one row, one form, one SAVE" law the Recruitment
+ * event type's own six fields and the recruitment cycle's own two rows both
+ * keep — three fields this time, and only three: how long after joining the
+ * first chase goes, how many times it asks, and how far apart. Written only
+ * if it actually changed, on `updateOneMessagingScheduleAction`'s own
+ * reasoning: `setOnboardingChaseSettingsIn` always records an audit row, and
+ * calling it for a submission that changed nothing would misreport the
+ * club's history.
+ */
+export async function updateOnboardingChaseSettingsAction(
+  _previous: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  const operator = await requireCapability("delivery_administration");
+
+  const validated = readOnboardingChaseChange(formData);
+  if (!validated.ok) {
+    return { ...EMPTY_ADMIN_ACTION_STATE, error: validated.message };
+  }
+
+  try {
+    const wrote = await withTransaction(async (tx) => {
+      const current = await readOnboardingChaseSettingsIn(tx);
+      if (!onboardingChaseChanged(current, validated.change)) return false;
+      await setOnboardingChaseSettingsIn(tx, {
+        actorPersonId: operator.personId,
+        ...validated.change,
+      });
+      return true;
+    });
+
+    revalidatePath("/operate/admin/messaging");
+
+    return {
+      ...EMPTY_ADMIN_ACTION_STATE,
+      notice: wrote ? onboardingChaseSavedNotice() : NO_SCHEDULE_CHANGES_NOTICE,
+    };
+  } catch (error) {
+    if (!isServiceError(error)) throw error;
+    if (error.kind === "not_permitted") {
+      return { ...EMPTY_ADMIN_ACTION_STATE, refusal: error.message };
+    }
+    return {
+      ...EMPTY_ADMIN_ACTION_STATE,
+      error: onboardingChaseSaveFailedNotice(),
     };
   }
 }

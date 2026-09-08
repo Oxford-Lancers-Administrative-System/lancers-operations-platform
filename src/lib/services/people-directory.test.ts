@@ -494,6 +494,40 @@ describe("listMissingDataQueue — W7", () => {
     expect(row).toBeDefined();
     expect(row!.missingRequiredFields).toEqual(["personal_email"]);
   });
+
+  // LAN-218, W8.
+  it("carries this season's own membership id, for the chase to key off", async () => {
+    const personId = await insertPerson({ givenName: unique("Membered") });
+    const membershipId = await insertMembership(personId, seasonId, "active");
+
+    const queue = await listMissingDataQueue({ scope: "in_season" });
+    const row = queue.entries.find((e) => e.personId === personId);
+    expect(row?.membershipId).toBe(membershipId);
+  });
+
+  it("onlyOnboardingPlayers restricts the queue, and its own total, to onboarding status alone", async () => {
+    const onboarding = await insertPerson({ givenName: unique("StillOnboarding") });
+    await insertMembership(onboarding, seasonId, "onboarding");
+    const active = await insertPerson({ givenName: unique("AlreadyActive") });
+    await insertMembership(active, seasonId, "active");
+
+    const restricted = await listMissingDataQueue({
+      scope: "in_season",
+      onlyOnboardingPlayers: true,
+    });
+    const restrictedIds = restricted.entries.map((e) => e.personId);
+    expect(restrictedIds).toContain(onboarding);
+    expect(restrictedIds).not.toContain(active);
+    // The total itself is scoped too — an operator narrowing to onboarding
+    // players sees a total that agrees with what is actually listed, not
+    // Mission 5's wider count with a filtered-looking table underneath it.
+    expect(restricted.totalMissing).toBe(restricted.entries.length);
+
+    const unrestricted = await listMissingDataQueue({ scope: "in_season" });
+    const unrestrictedIds = unrestricted.entries.map((e) => e.personId);
+    expect(unrestrictedIds).toContain(onboarding);
+    expect(unrestrictedIds).toContain(active);
+  });
 });
 
 describe("merge redirect and history — W1-09, W1-11", () => {

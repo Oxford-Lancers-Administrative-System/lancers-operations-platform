@@ -4805,6 +4805,7 @@ export type Database = {
         | "active_coaches"
         | "active_committee"
         | "recruits"
+        | "bps"
       availability_level: "green" | "orange" | "red"
       competition_scope: "club_play" | "bucs" | "varsity" | "bafa"
       contact_point_kind: "email" | "phone"
@@ -5068,6 +5069,7 @@ export const Constants = {
         "active_coaches",
         "active_committee",
         "recruits",
+        "bps",
       ],
       availability_level: ["green", "orange", "red"],
       competition_scope: ["club_play", "bucs", "varsity", "bafa"],

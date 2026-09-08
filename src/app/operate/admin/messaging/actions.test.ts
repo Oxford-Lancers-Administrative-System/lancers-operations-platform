@@ -73,6 +73,15 @@ vi.mock("@/lib/services/recruitment-cycle", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/services/onboarding-chase", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/onboarding-chase")>();
+  return {
+    ...actual,
+    readOnboardingChaseSettingsIn: vi.fn(),
+    setOnboardingChaseSettingsIn: vi.fn(),
+  };
+});
+
 import { revalidatePath } from "next/cache";
 import { ConstraintViolated, isServiceError } from "@/lib/db";
 import {
@@ -91,13 +100,24 @@ import {
   updateRecruitmentCycleStepIn,
   type RecruitmentCycleStep,
 } from "@/lib/services/recruitment-cycle";
-import { updateOneMessagingScheduleAction, updateRecruitmentCycleStepsAction } from "./actions";
+import {
+  readOnboardingChaseSettingsIn,
+  setOnboardingChaseSettingsIn,
+  type OnboardingChaseSettings,
+} from "@/lib/services/onboarding-chase";
+import {
+  updateOnboardingChaseSettingsAction,
+  updateOneMessagingScheduleAction,
+  updateRecruitmentCycleStepsAction,
+} from "./actions";
 import { EMPTY_ADMIN_ACTION_STATE } from "../action-state";
 import {
   NO_SCHEDULE_CHANGES_NOTICE,
   cycleStepSavedNotice,
+  onboardingChaseSavedNotice,
   scheduleSavedNotice,
 } from "./presentation";
+import { ONBOARDING_CHASE_FIELDS } from "./onboarding-chase-validation";
 import { SCHEDULE_FIELDS } from "./validation";
 
 const CHALK = "chalk";
@@ -465,5 +485,126 @@ describe("updateRecruitmentCycleStepsAction, holding delivery_administration", (
 
     expect(state.error).toMatch(/which recruitment cycle steps/i);
     expect(updateRecruitmentCycleStepIn).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-218 — updateOnboardingChaseSettingsAction, W11
+// ---------------------------------------------------------------------------
+
+function onboardingChaseSettings(
+  overrides: Partial<OnboardingChaseSettings> = {},
+): OnboardingChaseSettings {
+  return {
+    firstChaseAfterHours: 48,
+    chaseCount: 4,
+    chaseIntervalDays: 3,
+    updatedAt: new Date("2026-08-01T00:00:00Z"),
+    ...overrides,
+  };
+}
+
+function onboardingChaseForm(
+  overrides: Partial<Record<(typeof ONBOARDING_CHASE_FIELDS)[number]["key"], number>> = {},
+): FormData {
+  const values = { firstChaseAfterHours: 48, chaseCount: 4, chaseIntervalDays: 3, ...overrides };
+  const data = new FormData();
+  for (const field of ONBOARDING_CHASE_FIELDS) {
+    data.set(field.key, String(values[field.key]));
+  }
+  return data;
+}
+
+describe("updateOnboardingChaseSettingsAction", () => {
+  beforeEach(() => {
+    vi.mocked(readOnboardingChaseSettingsIn).mockResolvedValue(onboardingChaseSettings());
+    vi.mocked(setOnboardingChaseSettingsIn).mockImplementation(async (_tx, params) =>
+      onboardingChaseSettings(params),
+    );
+  });
+
+  it("refuses an operator outside delivery_administration, before touching the database", async () => {
+    givenSession({ state: "active", operator: actor(["treasurer"]) });
+
+    let thrown: unknown;
+    try {
+      await updateOnboardingChaseSettingsAction(EMPTY_ADMIN_ACTION_STATE, onboardingChaseForm());
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(isServiceError(thrown) && thrown.kind).toBe("not_permitted");
+    expect(setOnboardingChaseSettingsIn).not.toHaveBeenCalled();
+  });
+
+  it("saves a changed value and reports success", async () => {
+    givenSession({ state: "active", operator: actor(["president"]) });
+
+    const state = await updateOnboardingChaseSettingsAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      onboardingChaseForm({ chaseCount: 6 }),
+    );
+
+    expect(state.error).toBeNull();
+    expect(state.notice).toBe(onboardingChaseSavedNotice());
+    expect(setOnboardingChaseSettingsIn).toHaveBeenCalledWith(expect.anything(), {
+      actorPersonId: "22222222-2222-4222-8222-222222222222",
+      firstChaseAfterHours: 48,
+      chaseCount: 6,
+      chaseIntervalDays: 3,
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/operate/admin/messaging");
+  });
+
+  it("accepts a chase count of zero — legal, and means no automated chase", async () => {
+    givenSession({ state: "active", operator: actor(["president"]) });
+
+    const state = await updateOnboardingChaseSettingsAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      onboardingChaseForm({ chaseCount: 0 }),
+    );
+
+    expect(state.error).toBeNull();
+    expect(setOnboardingChaseSettingsIn).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ chaseCount: 0 }),
+    );
+  });
+
+  it("writes nothing, and says so, when the submission matches the current row exactly", async () => {
+    givenSession({ state: "active", operator: actor(["president"]) });
+
+    const state = await updateOnboardingChaseSettingsAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      onboardingChaseForm({ firstChaseAfterHours: 48, chaseCount: 4, chaseIntervalDays: 3 }),
+    );
+
+    expect(state.notice).toBe(NO_SCHEDULE_CHANGES_NOTICE);
+    expect(setOnboardingChaseSettingsIn).not.toHaveBeenCalled();
+  });
+
+  it("refuses a blank field before it reaches the database", async () => {
+    givenSession({ state: "active", operator: actor(["president"]) });
+
+    const form = onboardingChaseForm();
+    form.set("chaseCount", "");
+
+    const state = await updateOnboardingChaseSettingsAction(EMPTY_ADMIN_ACTION_STATE, form);
+
+    expect(state.error).toMatch(/Ask this many times/);
+    expect(setOnboardingChaseSettingsIn).not.toHaveBeenCalled();
+  });
+
+  it("refuses an out-of-bounds value, naming the field and the bounds", async () => {
+    givenSession({ state: "active", operator: actor(["president"]) });
+
+    const state = await updateOnboardingChaseSettingsAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      onboardingChaseForm({ chaseIntervalDays: 0 }),
+    );
+
+    expect(state.error).toMatch(/Every/);
+    expect(state.error).toMatch(/between 1 and 90/);
+    expect(setOnboardingChaseSettingsIn).not.toHaveBeenCalled();
   });
 });

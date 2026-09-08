@@ -294,3 +294,60 @@ export async function readOpenPersonFactDisputesIn(
   );
   return result.rows.map((r) => toDispute(r as unknown as DisputeRow));
 }
+
+/**
+ * One dispute, with the flag and the confirmation each named —
+ * `WP-operator-record` (LAN-217), `W7`'s "flag, correction and confirmation
+ * stay separately attributable". `raisedByName` is the player who flagged it
+ * (`raisedByPersonId`); `resolvedByName` is the four-role operator who
+ * resolved it (`resolvedByPersonId`), present only once it has been. The
+ * correction itself — the value actually changing on `people` — is already
+ * attributable through `updatePersonField`'s own `person_<field>_updated`
+ * audit row, read back by `person-record.ts`'s `Q-13` derivation; this is the
+ * one thing that path cannot show, because "keep the club's value" writes
+ * nothing to `people` at all.
+ */
+export interface PersonFactDisputeDisplay extends PersonFactDispute {
+  raisedByName: string | null;
+  resolvedByName: string | null;
+}
+
+/**
+ * The most recent dispute for each field this person has ever had one on,
+ * open or resolved — one row per field, `distinct on`. `W7-02`'s approved
+ * screen keeps the losing value visible on the record after resolution, not
+ * only in the general history; this is what that rendering reads.
+ */
+export async function readLatestPersonFactDisputesIn(
+  tx: Tx,
+  personId: string,
+): Promise<PersonFactDisputeDisplay[]> {
+  const result = await tx.query<
+    DisputeRow & { raised_by_name: string | null; resolved_by_name: string | null }
+  >(
+    `select distinct on (d.field)
+            d.id, d.person_id, d.field, d.club_value, d.player_value,
+            d.raised_by_person_id, d.raised_at, d.status::text as status,
+            d.resolution_note, d.resolved_by_person_id, d.resolved_at,
+            r.given_name || coalesce(' ' || r.family_name, '') as raised_by_name,
+            v.given_name || coalesce(' ' || v.family_name, '') as resolved_by_name
+       from public.person_fact_disputes d
+       left join public.people r on r.id = d.raised_by_person_id
+       left join public.people v on v.id = d.resolved_by_person_id
+      where d.person_id = $1::uuid
+      order by d.field, d.raised_at desc`,
+    [personId],
+  );
+  return result.rows.map((row) => ({
+    ...toDispute(row as unknown as DisputeRow),
+    raisedByName: row.raised_by_name,
+    resolvedByName: row.resolved_by_name,
+  }));
+}
+
+/** Convenience wrapper for a caller with no open transaction. */
+export async function readLatestPersonFactDisputes(
+  personId: string,
+): Promise<PersonFactDisputeDisplay[]> {
+  return withTransaction((tx) => readLatestPersonFactDisputesIn(tx, personId));
+}

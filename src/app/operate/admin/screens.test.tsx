@@ -798,11 +798,12 @@ describe("the Roles page", () => {
   it("shortens a long summary rather than filling the row with a paragraph", async () => {
     const { container } = render(await RolesPage());
 
-    // The General Manager holds eight — seven until LAN-183 added
+    // The General Manager holds nine — eight until LAN-215 added
+    // `roster_bulk_import`, seven until LAN-183 added
     // `person_record_authority`, and eight until LAN-151 before that retired
     // the occurrence assertion. The index shows three and counts the rest,
     // and the seat's own page shows every one.
-    expect(container.textContent).toContain("and 5 more.");
+    expect(container.textContent).toContain("and 6 more.");
     expect(container.textContent).not.toContain("read the Monday exception and action report");
   });
 

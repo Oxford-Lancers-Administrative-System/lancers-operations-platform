@@ -1,0 +1,420 @@
+{
+  "headSha": "76e09b09d853953f93049727415ce5a63e881cd2",
+  "at": "2026-09-05T18:44:26.891Z",
+  "captures": [
+    {
+      "id": "S1-roster",
+      "route": "/design-preview/roster",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S1-roster--desktop.png",
+      "pageHeight": 900,
+      "ms": 1815
+    },
+    {
+      "id": "S2-player",
+      "route": "/design-preview/player",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S2-player--desktop.png",
+      "pageHeight": 4768,
+      "ms": 2553
+    },
+    {
+      "id": "S3-event",
+      "route": "/design-preview/event",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S3-event--desktop.png",
+      "pageHeight": 3717,
+      "ms": 2217
+    },
+    {
+      "id": "S4-event-new",
+      "route": "/design-preview/event-new",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S4-event-new--desktop.png",
+      "pageHeight": 1597,
+      "ms": 1364
+    },
+    {
+      "id": "S5-rsvp",
+      "route": "/design-preview/rsvp",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S5-rsvp--desktop.png",
+      "pageHeight": 900,
+      "ms": 1297
+    },
+    {
+      "id": "S5-rsvp-unusable",
+      "route": "/design-preview/rsvp-unusable",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S5-rsvp-unusable--desktop.png",
+      "pageHeight": 900,
+      "ms": 1334
+    },
+    {
+      "id": "S6-report",
+      "route": "/design-preview/report",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S6-report--desktop.png",
+      "pageHeight": 4967,
+      "ms": 2372
+    },
+    {
+      "id": "S7-login",
+      "route": "/design-preview/login",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S7-login--desktop.png",
+      "pageHeight": 900,
+      "ms": 1314
+    },
+    {
+      "id": "S8-operators",
+      "route": "/design-preview/operators",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S8-operators--desktop.png",
+      "pageHeight": 900,
+      "ms": 1273
+    },
+    {
+      "id": "S8-operator",
+      "route": "/design-preview/operator",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S8-operator--desktop.png",
+      "pageHeight": 900,
+      "ms": 1245
+    },
+    {
+      "id": "S9-player-home",
+      "route": "/design-preview/player-home",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S9-player-home--desktop.png",
+      "pageHeight": 3000,
+      "ms": 4165
+    },
+    {
+      "id": "S10-player-details",
+      "route": "/design-preview/player-details",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S10-player-details--desktop.png",
+      "pageHeight": 2023,
+      "ms": 1705
+    },
+    {
+      "id": "S10b-player-agreement",
+      "route": "/design-preview/player-agreement",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S10b-player-agreement--desktop.png",
+      "pageHeight": 900,
+      "ms": 1325
+    },
+    {
+      "id": "S11-answer",
+      "route": "/design-preview/answer",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "S11-answer--desktop.png",
+      "pageHeight": 900,
+      "ms": 1287
+    },
+    {
+      "id": "K-kit",
+      "route": "/design-preview/kit",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "K-kit--desktop.png",
+      "pageHeight": 5399,
+      "ms": 1502
+    },
+    {
+      "id": "index",
+      "route": "/design-preview",
+      "viewport": "desktop",
+      "measured": {
+        "width": 1440,
+        "height": 900
+      },
+      "file": "index--desktop.png",
+      "pageHeight": 1399,
+      "ms": 1388
+    },
+    {
+      "id": "S1-roster",
+      "route": "/design-preview/roster",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S1-roster--phone.png",
+      "pageHeight": 5124,
+      "ms": 1664
+    },
+    {
+      "id": "S2-player",
+      "route": "/design-preview/player",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S2-player--phone.png",
+      "pageHeight": 11470,
+      "ms": 1950
+    },
+    {
+      "id": "S3-event",
+      "route": "/design-preview/event",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S3-event--phone.png",
+      "pageHeight": 9082,
+      "ms": 2018
+    },
+    {
+      "id": "S4-event-new",
+      "route": "/design-preview/event-new",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S4-event-new--phone.png",
+      "pageHeight": 2127,
+      "ms": 1305
+    },
+    {
+      "id": "S5-rsvp",
+      "route": "/design-preview/rsvp",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S5-rsvp--phone.png",
+      "pageHeight": 812,
+      "ms": 1237
+    },
+    {
+      "id": "S5-rsvp-unusable",
+      "route": "/design-preview/rsvp-unusable",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S5-rsvp-unusable--phone.png",
+      "pageHeight": 812,
+      "ms": 1152
+    },
+    {
+      "id": "S6-report",
+      "route": "/design-preview/report",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S6-report--phone.png",
+      "pageHeight": 7033,
+      "ms": 2508
+    },
+    {
+      "id": "S7-login",
+      "route": "/design-preview/login",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S7-login--phone.png",
+      "pageHeight": 812,
+      "ms": 1281
+    },
+    {
+      "id": "S8-operators",
+      "route": "/design-preview/operators",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S8-operators--phone.png",
+      "pageHeight": 868,
+      "ms": 1994
+    },
+    {
+      "id": "S8-operator",
+      "route": "/design-preview/operator",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S8-operator--phone.png",
+      "pageHeight": 1071,
+      "ms": 1383
+    },
+    {
+      "id": "S9-player-home",
+      "route": "/design-preview/player-home",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S9-player-home--phone.png",
+      "pageHeight": 4156,
+      "ms": 4145
+    },
+    {
+      "id": "S10-player-details",
+      "route": "/design-preview/player-details",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S10-player-details--phone.png",
+      "pageHeight": 2122,
+      "ms": 1868
+    },
+    {
+      "id": "S10b-player-agreement",
+      "route": "/design-preview/player-agreement",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S10b-player-agreement--phone.png",
+      "pageHeight": 1017,
+      "ms": 1239
+    },
+    {
+      "id": "S11-answer",
+      "route": "/design-preview/answer",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S11-answer--phone.png",
+      "pageHeight": 891,
+      "ms": 1315
+    },
+    {
+      "id": "K-kit",
+      "route": "/design-preview/kit",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "K-kit--phone.png",
+      "pageHeight": 7564,
+      "ms": 1462
+    },
+    {
+      "id": "index",
+      "route": "/design-preview",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "index--phone.png",
+      "pageHeight": 2273,
+      "ms": 1229
+    },
+    {
+      "id": "S4-actionbar",
+      "route": "/design-preview/event-new (sticky foot, viewport only)",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S4-actionbar--phone.png"
+    },
+    {
+      "id": "S10-actionbar",
+      "route": "/design-preview/player-details (sticky foot, viewport only)",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S10-actionbar--phone.png"
+    },
+    {
+      "id": "S0-drawer",
+      "route": "/design-preview/roster (drawer open)",
+      "viewport": "phone",
+      "measured": {
+        "width": 375,
+        "height": 812
+      },
+      "file": "S0-drawer--phone.png"
+    }
+  ]
+}

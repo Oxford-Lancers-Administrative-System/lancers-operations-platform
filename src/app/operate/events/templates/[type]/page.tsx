@@ -4,7 +4,7 @@ import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
-import { groupsForEventType } from "@/lib/services/audience-selection";
+import { templateGroupsForEventType } from "@/lib/services/audience-selection";
 import { joinQuestionChoices } from "@/lib/services/event-questions";
 import { readEventTemplate, type EventTemplate } from "@/lib/services/event-templates";
 import type { RawEventQuestion } from "@/lib/services/event-questions-input";
@@ -94,7 +94,7 @@ export default async function EventTemplatePage({
         eventTypeLabel={typeLabel}
         initial={initial}
         initialQuestions={initialQuestions}
-        groups={groupsForEventType(template.eventType)}
+        groups={templateGroupsForEventType(template.eventType)}
       />
 
       <Box>

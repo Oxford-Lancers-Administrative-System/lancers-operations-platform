@@ -164,6 +164,25 @@ const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
     "defensive_backs_coach",
     "special_teams_coach",
   ],
+  // LAN-215's roster_bulk_import reads as the identical Exec-plus-GM grant
+  // `membership_activation` already carries (see capabilities.ts's own comment
+  // on the entry), so the same roles must be refused here too.
+  roster_bulk_import: [
+    "social_secretary",
+    "gameday_secretary",
+    "kit_manager",
+    "media_secretary",
+    "head_coach",
+    "offence_coach",
+    "defence_coach",
+    "quarterbacks_coach",
+    "offensive_line_coach",
+    "wide_receivers_coach",
+    "defensive_line_coach",
+    "linebackers_coach",
+    "defensive_backs_coach",
+    "special_teams_coach",
+  ],
   event_calendar_management: [
     "treasurer",
     "social_secretary",
@@ -365,6 +384,49 @@ describe("row 11 — the membership-activation grant is Exec plus the General Ma
 
   it.each(MUST_REFUSE.membership_activation)("refuses %s", (code) => {
     expect(roleCodesPermit([code], "membership_activation")).toBe(false);
+  });
+});
+
+describe("R-002 — roster_bulk_import is the same Exec-plus-GM grant, six-role, proven directly", () => {
+  // LAN-215's own capabilities.ts comment reads this grant as "the Exec + GM
+  // grouping `membership_activation` already carries" plus `it_officer`, the
+  // administrative seat every capability holds (LAN-124). Before this block
+  // the only mention of `roster_bulk_import` in this file was the row-8
+  // completeness list, which does not fail if the six-code array is mutated
+  // in either direction. This proves it directly, mirroring the sibling
+  // capabilities above.
+  it("permits exactly the four offices, the General Manager and the IT Officer", () => {
+    expect(permittedSet("roster_bulk_import")).toEqual(
+      ["general_manager", "president", "secretary", "treasurer", "vice_president", ADMIN].sort(),
+    );
+  });
+
+  it.each(["president", "vice_president", "secretary", "treasurer", "general_manager", ADMIN])(
+    "permits %s on its own",
+    (code) => {
+      expect(roleCodesPermit([code], "roster_bulk_import")).toBe(true);
+    },
+  );
+
+  it.each(COACHES)("refuses %s — a coach never imports the roster", (code) => {
+    expect(roleCodesPermit([code], "roster_bulk_import")).toBe(false);
+  });
+
+  it.each(MUST_REFUSE.roster_bulk_import)("refuses %s", (code) => {
+    expect(roleCodesPermit([code], "roster_bulk_import")).toBe(false);
+  });
+
+  it("refuses an empty role list", () => {
+    expect(roleCodesPermit([], "roster_bulk_import")).toBe(false);
+  });
+
+  it("agrees with membership_activation, because W1 reads the same grouping", () => {
+    expect(permittedSet("roster_bulk_import")).toEqual(permittedSet("membership_activation"));
+  });
+
+  it("records who decided it and when", () => {
+    expect(CAPABILITIES.roster_bulk_import.decision).toMatch(/LAN-215/);
+    expect(CAPABILITIES.roster_bulk_import.decision).not.toMatch(/undecided/i);
   });
 });
 
@@ -624,6 +686,7 @@ describe("row 8 — the map is the single source of truth, and is not editable a
         "membership_activation",
         "person_record_authority",
         "role_management",
+        "roster_bulk_import",
       ].sort(),
     );
   });

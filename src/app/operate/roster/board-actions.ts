@@ -6,6 +6,7 @@ import { isServiceError } from "@/lib/db";
 import {
   commitAvailability,
   commitBlues,
+  commitBps,
   commitCoachGroup,
   commitEligibility,
   commitEntry,
@@ -14,11 +15,13 @@ import {
   commitPosition,
   type AvailabilityLevel,
   type BluesValue,
+  type BpsValue,
   type EligibilityStatus,
   type FormalwearItemKey,
   type Kit,
   type PositionColumn,
 } from "@/lib/services/roster-board";
+import { resolveOnboardingItem, type OnboardingItemStatus } from "@/lib/services/membership";
 import type { BoardActionState } from "./board-action-state";
 
 /**
@@ -133,6 +136,21 @@ export async function commitBluesAction(params: {
   return OK;
 }
 
+export async function commitBpsAction(params: {
+  membershipId: string;
+  seasonId: string;
+  value: BpsValue;
+}): Promise<BoardActionState> {
+  const operator = await requireCapability("person_record_authority");
+  try {
+    await commitBps({ actorPersonId: operator.personId, ...params });
+  } catch (error) {
+    return stateFor(error);
+  }
+  refresh();
+  return OK;
+}
+
 export async function commitEligibilityAction(params: {
   membershipId: string;
   seasonId: string;
@@ -155,6 +173,28 @@ export async function commitAvailabilityAction(params: {
   const operator = await requireCapability("person_record_authority");
   try {
     await commitAvailability({ actorPersonId: operator.personId, ...params });
+  } catch (error) {
+    return stateFor(error);
+  }
+  refresh();
+  return OK;
+}
+
+/**
+ * Correction round 2, item 5 (`WP-operator-record`, LAN-217): the board's
+ * own onboarding-item columns commit through `resolveOnboardingItem` in
+ * `membership.ts` — the same service call the record page's own row already
+ * makes — never a direct write of item state from the board, so history and
+ * the activity log keep recording exactly as they do from the record page.
+ */
+export async function commitOnboardingItemAction(params: {
+  membershipId: string;
+  itemId: string;
+  status: OnboardingItemStatus;
+}): Promise<BoardActionState> {
+  const operator = await requireCapability("person_record_authority");
+  try {
+    await resolveOnboardingItem({ actorPersonId: operator.personId, ...params });
   } catch (error) {
     return stateFor(error);
   }

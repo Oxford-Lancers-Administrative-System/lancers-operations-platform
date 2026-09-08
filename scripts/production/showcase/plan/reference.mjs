@@ -45,7 +45,7 @@ export const POSITIONS = Object.freeze([
 export const ONBOARDING_TYPES = Object.freeze([
   ["subs_invoiced", "Subscription invoiced", true, false, "direct"],
   ["subs_paid", "Subscription paid", false, true, "direct"],
-  ["kit_sorted", "Kit sorted", true, false, "direct"],
+  ["kit_sorted", "Kit Distributed", true, false, "direct"],
   ["bucs_play", "BUCS Play registration", true, false, "trust"],
   ["hudl_access", "Hudl access", false, false, "trust"],
   ["photo", "Squad photo", false, false, "direct"],

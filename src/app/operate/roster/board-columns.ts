@@ -1,4 +1,5 @@
 import { roleCodesPermit } from "@/lib/auth/capabilities";
+import { allowedItemStates } from "@/lib/services/onboarding-item-shapes";
 import type { PositionOptions, RosterBoardRow } from "@/lib/services/roster-board";
 import { MEMBERSHIP_STATUS_LABELS } from "./presentation";
 
@@ -98,7 +99,16 @@ export function bandOf(key: Band): BandDef {
  * the one in-cell dropdown Brian asked for, in place of the three bespoke
  * controls the board used to render for it.
  */
-export type EditKind = "none" | "record" | "select" | "multiselect" | "jersey";
+/**
+ * `onboarding` joined under correction round 2, item 5
+ * (`WP-operator-record`, LAN-217): one of the seven operator-ticked
+ * onboarding items, cloning the record page's own asymmetric row. D-002
+ * (correction round 6) collapsed the closed cell's displayed status and the
+ * open cell's offered choices into one list, `allowedItemStates(itemCode)` —
+ * there is no separate resolution vocabulary any more, and no `reopen`: the
+ * open dropdown offers exactly the states the closed cell can show.
+ */
+export type EditKind = "none" | "record" | "select" | "multiselect" | "jersey" | "onboarding";
 
 export interface ColumnDef {
   readonly key: string;
@@ -108,6 +118,8 @@ export interface ColumnDef {
   readonly options?: readonly string[];
   readonly optionLabels?: Readonly<Record<string, string>>;
   readonly kit?: "blue" | "white";
+  /** `edit: "onboarding"` only — the `onboarding_item_types.code` this column edits, keying `row.onboardingItems`. */
+  readonly itemCode?: string;
   readonly width: number;
   readonly sortable: boolean;
   readonly filterable: boolean;
@@ -144,11 +156,15 @@ export const AVAILABILITY_LABELS: Readonly<Record<string, string>> = Object.free
   orange: "Orange",
   red: "Red",
 });
+/** BPS — a plain yes/no, `WP-operator-record` (LAN-217). The value and its label are the same word, like eligibility and availability. */
+export const BPS_VALUES = Object.freeze(["Yes", "No"]);
 
 export const PLAYER_COLUMN_WIDTH = 200;
 
 /**
- * The nineteen non-player columns. Twenty with `Player`, which is rendered
+ * The non-player columns: nineteen from LAN-186, BPS and seven onboarding
+ * item columns from `WP-operator-record` (LAN-217, correction round 2, item
+ * 5) — twenty-seven, twenty-eight with `Player`, which is rendered
  * separately because it is pinned and carries no band.
  *
  * Position options are threaded in at call time because they are read from
@@ -227,6 +243,96 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       band: "onboarding",
       edit: "none",
       width: 190,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    // Correction round 2, item 5 — the seven operator-ticked items, cloning
+    // the record page's own Onboarding section into the board an operator
+    // already works from. The two derived items
+    // (`contact_academic_details`, `season_welcome_consent`) are not columns
+    // of their own here — nothing an operator ticks — and stay covered by
+    // the summary column above; see the package receipt.
+    {
+      key: "subsInvoiced",
+      label: "Sub invoiced",
+      band: "onboarding",
+      edit: "onboarding",
+      itemCode: "subs_invoiced",
+      options: allowedItemStates("subs_invoiced"),
+      width: 132,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    {
+      key: "subsPaid",
+      label: "Sub paid",
+      band: "onboarding",
+      edit: "onboarding",
+      itemCode: "subs_paid",
+      options: allowedItemStates("subs_paid"),
+      width: 132,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    {
+      key: "kitDistributed",
+      label: "Kit Distributed",
+      band: "onboarding",
+      edit: "onboarding",
+      itemCode: "kit_sorted",
+      options: allowedItemStates("kit_sorted"),
+      width: 120,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    {
+      key: "bucsPlay",
+      label: "BUCS Play",
+      band: "onboarding",
+      edit: "onboarding",
+      itemCode: "bucs_play",
+      options: allowedItemStates("bucs_play"),
+      width: 132,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    {
+      key: "hudlAccess",
+      label: "Hudl access",
+      band: "onboarding",
+      edit: "onboarding",
+      itemCode: "hudl_access",
+      options: allowedItemStates("hudl_access"),
+      width: 132,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    {
+      key: "squadPhoto",
+      label: "Squad photo",
+      band: "onboarding",
+      edit: "onboarding",
+      itemCode: "photo",
+      options: allowedItemStates("photo"),
+      width: 132,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
+    {
+      key: "commsGroup",
+      label: "Comms group",
+      band: "onboarding",
+      edit: "onboarding",
+      itemCode: "comms_groups",
+      options: allowedItemStates("comms_groups"),
+      width: 140,
       sortable: true,
       filterable: true,
       requires: "person_record_authority",
@@ -359,6 +465,20 @@ export function buildColumns(positionOptions: PositionOptions): readonly ColumnD
       filterable: true,
       requires: "person_record_authority",
     },
+    // Brian, 2026-09-05: BPS sits immediately before Availability, and
+    // Availability is the last column on the board (`WP-operator-record`,
+    // LAN-217, correction round 5).
+    {
+      key: "bps",
+      label: "BPS",
+      band: "season",
+      edit: "select",
+      options: BPS_VALUES,
+      width: 96,
+      sortable: true,
+      filterable: true,
+      requires: "person_record_authority",
+    },
     {
       key: "availability",
       label: "Availability",
@@ -420,6 +540,14 @@ const COLUMN_ROW_FIELDS: Readonly<Record<string, readonly (keyof RosterBoardRow)
     blues: ["blues"],
     eligibility: ["eligibility"],
     availability: ["availability"],
+    bps: ["bps"],
+    subsInvoiced: ["onboardingItems"],
+    subsPaid: ["onboardingItems"],
+    kitDistributed: ["onboardingItems"],
+    bucsPlay: ["onboardingItems"],
+    hudlAccess: ["onboardingItems"],
+    squadPhoto: ["onboardingItems"],
+    commsGroup: ["onboardingItems"],
   });
 
 /** Redacts a row to exactly the columns this viewer may see, plus identity fields. */

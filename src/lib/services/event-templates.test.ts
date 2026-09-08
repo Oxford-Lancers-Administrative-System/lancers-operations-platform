@@ -1116,4 +1116,24 @@ describe("a changed default audience follows the same rule", () => {
 
     expect(plan.audienceAfter).toEqual(["Recruits"]);
   });
+
+  // D-003 (correction round 3, Q-14, WP-operator-record, LAN-217): BPS was
+  // refused here — `public.audience_group` had no `bps` value — until this
+  // round's migration
+  // (`supabase/migrations/20260904120000_bps_event_template_audience.sql`)
+  // added one. Unlike Recruits, BPS carries no per-type restriction, so it
+  // is accepted on an ordinary Practice template, not only Recruitment.
+  it("accepts the BPS group on an ordinary template, pre-choosable exactly as the event's own picker already offers it (D-003)", async () => {
+    const plan = await saveEventTemplate(
+      actorPersonId,
+      "practice",
+      templateInput({ audienceGroups: ["bps"] }),
+      [],
+    );
+
+    expect(plan.audienceAfter).toEqual(["All Active BPS"]);
+
+    const stored = await readEventTemplate("practice");
+    expect(stored.audienceGroups).toEqual(["bps"]);
+  });
 });

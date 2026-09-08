@@ -83,6 +83,14 @@ export interface PersonListEntry {
   hasPersonalEmail: boolean;
   /** Every required field this person's rung asks for that is absent. Never a bare count. */
   missingRequiredFields: RequiredField[];
+  /**
+   * LAN-218, `W8`. This person's season membership for the season in view,
+   * where one exists — the chase's own unit of state. Optional and
+   * `undefined` where a caller has no use for it (`listPeople`, `W1`, never
+   * sets it), so it adds no obligation to every existing reader of this
+   * shared row shape.
+   */
+  membershipId?: string | null;
 }
 
 export interface PeopleListFilters {
@@ -113,6 +121,12 @@ export interface MissingQueueFilters {
   fact?: RequiredField | null;
   sort?: string | null;
   direction?: string | null;
+  /**
+   * LAN-218, `W8`. Restricts the queue to players currently in `onboarding`
+   * status — the locked default recommendation. `false`/`undefined` is
+   * Mission 5's original, unrestricted scope.
+   */
+  onlyOnboardingPlayers?: boolean;
 }
 
 export interface MissingQueue {
@@ -153,6 +167,8 @@ interface DirectoryRow {
   status: AssembledStatus;
   is_past_member: boolean | null;
   has_membership_tie: boolean;
+  /** LAN-218. This person's own season_memberships row for the season in view, if any. */
+  membership_id: string | null;
   has_prospect_tie: boolean;
   roles_in_view: string[] | null;
   latest_role_label: string | null;
@@ -201,7 +217,8 @@ async function fetchDirectoryRows(
         group by person_id
      ),
      season_membership_tie as (
-       select distinct person_id from public.season_memberships where season_id = $1::uuid
+       select person_id, id as membership_id
+         from public.season_memberships where season_id = $1::uuid
      ),
      season_prospect_tie as (
        select distinct person_id from public.recruitment_prospects where season_id = $1::uuid
@@ -231,6 +248,7 @@ async function fetchDirectoryRows(
        ${personAssembledStatusSql("p")} as status,
        ps.is_past_member,
        (smt.person_id is not null) as has_membership_tie,
+       smt.membership_id,
        (spt.person_id is not null) as has_prospect_tie,
        coalesce(sra.role_names, array[]::text[]) as roles_in_view,
        lr.label as latest_role_label,
@@ -347,6 +365,7 @@ function toEntry(
     hasMobile: row.has_mobile,
     hasPersonalEmail: row.has_personal_email,
     missingRequiredFields: missingRequiredFields(row.status, presenceOf(row)),
+    membershipId: row.membership_id,
   };
 }
 
@@ -478,6 +497,15 @@ export async function listMissingDataQueue(filters: MissingQueueFilters): Promis
     let entries = rows
       .map((row) => toEntry(row, season, filters.scope, term))
       .filter((entry) => entry.missingRequiredFields.length > 0);
+
+    // LAN-218, `W8`'s own locked recommendation: the queue defaults to
+    // onboarding players, Mission 5's own wider scope one click away.
+    // Applied before `totalMissing` is captured — a scope decision, on the
+    // same footing as `scope` itself, rather than a filter layered on top of
+    // an already-computed total the way `status`/`fact`/search are.
+    if (filters.onlyOnboardingPlayers) {
+      entries = entries.filter((entry) => entry.status === "onboarding");
+    }
 
     const totalMissing = entries.length;
 
