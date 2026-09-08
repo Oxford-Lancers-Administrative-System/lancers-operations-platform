@@ -240,7 +240,7 @@ export default function ShellNav({
           beneath it. Audit B2 removes that heading, so the crest and the name
           move here. Brian may revert to the bare hamburger at visual review.
         */}
-        <BrandMark tone="onDark" size={24} testId="phone-brand" />
+        <BrandMark tone="onDark" size={24} crestSize={32} testId="phone-brand" />
       </Box>
 
       {/*
@@ -347,7 +347,13 @@ export default function ShellNav({
           }}
         >
           {/* LAN-225 (audit B1): the crest, the club's name, the section caption. */}
-          <BrandMark tone="onDark" size={32} caption={sectionLabel} testId="sidebar-brand" />
+          <BrandMark
+            tone="onDark"
+            size={32}
+            crestSize={48}
+            caption={sectionLabel}
+            testId="sidebar-brand"
+          />
           {/*
             The first of the three approved dismiss paths. Hidden at `md`,
             where there is nothing to dismiss.

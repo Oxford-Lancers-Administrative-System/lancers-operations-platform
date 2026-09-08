@@ -248,3 +248,11 @@ which took AGENTS.md past the existing 250-line cap. Prose is reflowed without
 changing its words or commands; the generated block remains in place. The
 line-cap test and a separately rerun mission rehearsal both passed. Full
 verification and Brian's recheck are recorded on the PR at the resulting head.
+
+### Logo legibility follow-up
+
+Brian requested a clearer small header crest and said the rest of the UI looked
+great. The home/sign-in and sidebar crest now render at 48px, with the compact
+phone header at 32px. Wordmark typography stays at its existing size. The supplied
+SVG is unchanged. Browser measurements confirmed the displayed dimensions and
+no page overflow at 1440px and 375px. Final logo approval remains pending.

@@ -17,12 +17,15 @@ export const CLUB_NAME = "Oxford Lancers";
 export function BrandMark({
   tone = "onDark",
   size = 32,
+  crestSize = size,
   caption,
   testId,
 }: {
   tone?: "onDark" | "onLight";
   /** The crest's height in pixels. The wordmark scales with it. */
   size?: 24 | 32 | 40 | 56;
+  /** Display a detailed crest larger without enlarging the wordmark. */
+  crestSize?: number;
   /** The line under the name: the section ("Operations"), or what the page is. */
   caption?: string;
   testId?: string;
@@ -43,7 +46,7 @@ export function BrandMark({
         src={CREST_PATH}
         alt=""
         aria-hidden="true"
-        sx={{ width: size, height: size, flexShrink: 0, display: "block" }}
+        sx={{ width: crestSize, height: crestSize, flexShrink: 0, display: "block" }}
       />
       <Box sx={{ minWidth: 0 }}>
         <Typography

@@ -62,7 +62,13 @@ export function PublicShell({
             justifyContent: "space-between",
           }}
         >
-          <BrandMark tone="onDark" size={32} caption={caption} testId="public-brand" />
+          <BrandMark
+            tone="onDark"
+            size={32}
+            crestSize={48}
+            caption={caption}
+            testId="public-brand"
+          />
           {action ? (
             <Box
               sx={{
