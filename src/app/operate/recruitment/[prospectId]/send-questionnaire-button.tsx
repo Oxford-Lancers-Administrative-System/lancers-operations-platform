@@ -26,7 +26,7 @@ const REASON_LABEL: Readonly<Record<string, string>> = Object.freeze({
   // F-206-01. An outstanding, unanswered request already has a queued job —
   // never reported as "Already answered.", which was a false status on a
   // reachable path.
-  outstanding: "Already queued and not yet answered — made due again now.",
+  outstanding: "Queued — awaiting dispatch.",
 });
 
 /**
@@ -74,6 +74,7 @@ export default function SendQuestionnaireButton({
     error: string | null;
     created: readonly string[];
     reason: string | null;
+    delivery?: "accepted" | "refused" | "skipped";
   } | null>(null);
 
   function confirm() {
@@ -119,12 +120,32 @@ export default function SendQuestionnaireButton({
             {slot.showing && result?.error ? (
               <Notice severity="error">{result.error}</Notice>
             ) : null}
-            {slot.showing && result && !result.error && result.created.length === 0 ? (
+            {slot.showing && result && !result.error && result.delivery ? (
+              <Notice
+                severity={result.delivery === "accepted" ? "success" : "warning"}
+                testId={`recruitment-send-${track}-delivery`}
+              >
+                {result.delivery === "accepted"
+                  ? "Sent."
+                  : result.delivery === "refused"
+                    ? "Not sent — delivery could not be completed."
+                    : "Not sent — delivery is already in progress or this questionnaire is no longer eligible."}
+              </Notice>
+            ) : null}
+            {slot.showing &&
+            result &&
+            !result.error &&
+            !result.delivery &&
+            result.created.length === 0 ? (
               <Notice severity="info" testId={`recruitment-send-${track}-no-op`}>
                 {result.reason ? REASON_LABEL[result.reason] : "Nothing new was sent."}
               </Notice>
             ) : null}
-            {result && !result.error && result.created.length > 0 ? (
+            {slot.showing &&
+            result &&
+            !result.error &&
+            !result.delivery &&
+            result.created.length > 0 ? (
               <Notice severity="success" testId={`recruitment-send-${track}-ok`}>
                 Queued.
               </Notice>

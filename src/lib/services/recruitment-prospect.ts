@@ -2,6 +2,10 @@ import "server-only";
 
 import { withTransaction, InvalidTransition, NotFound, type Tx } from "@/lib/db";
 import { todayInClubZone } from "@/lib/club-time";
+import type { Transport } from "@/lib/delivery";
+import type { EnvironmentSource } from "@/lib/delivery/config";
+import { MAX_ATTEMPTS } from "./delivery";
+import { dispatchRecruitmentCycleJob } from "./messaging-scheduler";
 import { recordAudit } from "./audit";
 import { derivedEventState, type DerivedEventState, type EventStatus } from "./event-input";
 import {
@@ -36,15 +40,10 @@ import {
  * {@link sendRecruitmentQuestionnaireIn} is a thin wrapper around
  * `declareRecruitmentCycleJobsIn` (LAN-203) — the amendment of 2026-09-01 is
  * explicit that this package calls that function rather than writing a
- * second one. It is not track-selective on its own (it declares whichever of
- * the welcome/questionnaire tracks are still incomplete, in one call), so
- * this wrapper reports only the steps relevant to the questionnaire the
- * operator actually pressed — the underlying call is identical either way,
- * and idempotent, so a second press once a track is already declared creates
- * nothing further. That idempotency is what makes "send or resend" safe to
- * expose as one action: there is no way through this path to create a third
- * message for either track, which is the two-ask cap `recruitment-cycle.ts`
- * already builds structurally.
+ * second one. LAN-237 makes an operator request track-selective and due
+ * immediately. The automatic ask/reminder slots stay idempotent; an operator
+ * resend reuses the ask slot without accelerating its scheduled reminder.
+ * The existing delivery attempt ceiling, consent and completion gates remain.
  *
  * ## What "sent" and "last sent" mean here
  *
@@ -781,18 +780,9 @@ export async function flipRecruitmentProspectToJoined(
 
 export interface SendRecruitmentQuestionnaireResult {
   readonly created: readonly RecruitmentCycleStepName[];
-  /**
-   * `"outstanding"` — F-206-01. `declareRecruitmentCycleJobsIn`'s own
-   * `already_complete` covers two different facts with one word: the track
-   * is genuinely answered, or this track's job row already exists and simply
-   * was not re-created by this idempotent re-declare (`on conflict do
-   * nothing`). Conflating them told an operator pressing SEND/RESEND on an
-   * outstanding, unanswered request "Already answered." — a false status on
-   * a reachable path. This module distinguishes them by re-reading
-   * completion directly whenever declare reports nothing created; the
-   * `declareRecruitmentCycleJobsIn` contract itself, and its own existing
-   * callers and tests, are unchanged.
-   */
+  /** The selected ask to dispatch after this transaction commits. */
+  readonly jobId?: string;
+  /** An unanswered request already has its automatic cycle slots. */
   readonly reason: "not_consented" | "not_eligible" | "already_complete" | "outstanding" | null;
 }
 
@@ -818,25 +808,20 @@ export async function sendRecruitmentQuestionnaireIn(
       rule: "recruitment_prospect_not_found",
     });
 
-  const result = await declareRecruitmentCycleJobsIn(tx, row.person_id, row.season_id);
+  const requested = await tx.query<{ at: Date }>("select clock_timestamp() as at");
+  const askStep = track === "personal" ? "welcome" : "interest_ask";
+  const result = await declareRecruitmentCycleJobsIn(tx, row.person_id, row.season_id, {
+    step: askStep,
+    at: requested.rows[0].at,
+  });
   const relevantSteps = SENT_STEP_KEYS[track];
   const created = result.created.filter((step) => relevantSteps.includes(step));
 
   let reason: SendRecruitmentQuestionnaireResult["reason"] =
     created.length > 0 ? null : result.reason;
 
-  // F-206-01. Nothing new was created and declare's own reason is the
-  // ambiguous "already_complete" — re-read completion directly rather than
-  // trust that word for what it does not distinguish. An outstanding
-  // request's own job row already exists (which is exactly why the
-  // idempotent re-declare created nothing), so this never inserts a third
-  // row for either step and the two-ask cap is untouched; it only makes the
-  // existing, still-open row immediately eligible again — resend means
-  // resend, not "wait for the offset that already passed once."  Whichever
-  // token that row's own dispatch mints next (`dispatchRecruitmentCycleJob`)
-  // is a fresh one that supersedes whatever was open before it —
-  // `issueRecruitmentInterestTokenIn`'s own revoke-then-insert, unchanged
-  // here — which is what keeps the one-open-request substrate satisfied.
+  // An existing job is not the same thing as an answered questionnaire.
+  // Keep the completion refusal, but let an unanswered ask be sent again.
   if (created.length === 0 && reason === "already_complete") {
     const completion = await readRecruitmentCycleCompletionIn(
       tx,
@@ -846,20 +831,34 @@ export async function sendRecruitmentQuestionnaireIn(
     );
     const trackComplete =
       track === "personal" ? completion.welcomeStepComplete : completion.questionnaireBComplete;
-    if (!trackComplete) {
-      reason = "outstanding";
-      await tx.query(
-        `update public.notification_jobs
-            set scheduled_for = now(),
-                status = case when status = 'failed' then 'pending' else status end,
-                updated_at = now()
-          where person_id = $1::uuid
-            and idempotency_key = any($2::text[])
-            and status in ('pending', 'ready', 'failed')`,
-        [
-          row.person_id,
-          relevantSteps.map((step) => `recruit-cycle:${step}:${row.person_id}:${row.season_id}`),
-        ],
+    if (!trackComplete) reason = "outstanding";
+  }
+
+  let jobId: string | undefined;
+  if (created.length > 0 || reason === "outstanding") {
+    const job = await tx.query<{ id: string }>(
+      `update public.notification_jobs nj
+          set scheduled_for = $2, next_attempt_at = null, status = 'pending',
+              claimed_at = null, claimed_by = null, updated_at = now()
+        where idempotency_key = $1 and held_at is null and attempt_count < $3
+          and (status in ('pending', 'ready', 'failed', 'completed')
+            or (status = 'processing' and exists (
+              select 1 from public.delivery_attempts da
+               where da.notification_job_id = nj.id
+                 and da.attempt_number = nj.attempt_count and da.accepted_at is not null
+            )))
+        returning id`,
+      [
+        `recruit-cycle:${askStep}:${row.person_id}:${row.season_id}`,
+        requested.rows[0].at,
+        MAX_ATTEMPTS,
+      ],
+    );
+    jobId = job.rows[0]?.id;
+    if (!jobId) {
+      throw new InvalidTransition(
+        "This questionnaire cannot be resent while delivery is in progress or its attempt limit has been reached.",
+        { rule: "recruitment_questionnaire_not_resendable" },
       );
     }
   }
@@ -875,15 +874,23 @@ export async function sendRecruitmentQuestionnaireIn(
     context: { created, declaredReason: result.reason, reportedReason: reason },
   });
 
-  return { created, reason };
+  return { created, reason, ...(jobId ? { jobId } : {}) };
 }
 
 export async function sendRecruitmentQuestionnaire(
   actorPersonId: string,
   prospectId: string,
   track: RecruitmentQuestionnaireTrack,
-): Promise<SendRecruitmentQuestionnaireResult> {
-  return withTransaction((tx) =>
+  options: { source?: EnvironmentSource; transport?: Transport } = {},
+): Promise<
+  Omit<SendRecruitmentQuestionnaireResult, "jobId"> & {
+    delivery?: "accepted" | "refused" | "skipped";
+  }
+> {
+  const { jobId, ...result } = await withTransaction((tx) =>
     sendRecruitmentQuestionnaireIn(tx, actorPersonId, prospectId, track),
   );
+  if (!jobId) return result;
+  const delivery = await dispatchRecruitmentCycleJob(jobId, options);
+  return { ...result, delivery };
 }

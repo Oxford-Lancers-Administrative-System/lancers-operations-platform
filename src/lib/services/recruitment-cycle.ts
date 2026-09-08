@@ -336,6 +336,7 @@ export async function declareRecruitmentCycleJobsIn(
   tx: Tx,
   personId: string,
   seasonId: string,
+  operatorRequest?: { step: "welcome" | "interest_ask"; at: Date },
 ): Promise<DeclaredCycleJobs> {
   const prospect = await tx.query<{ id: string; status: string; created_at: Date }>(
     `select id, status::text as status, created_at
@@ -365,23 +366,32 @@ export async function declareRecruitmentCycleJobsIn(
     : await hasGrantedViaSignupFormIn(tx, personId, seasonId);
 
   const wanted: RecruitmentCycleStepName[] = [];
-  if (!completion.welcomeStepComplete && mayWelcome) {
+  if (!completion.welcomeStepComplete && mayWelcome && operatorRequest?.step !== "interest_ask") {
     wanted.push("welcome", "details_reminder");
   }
-  if (!completion.questionnaireBComplete && mayInterest) {
+  if (!completion.questionnaireBComplete && mayInterest && operatorRequest?.step !== "welcome") {
     wanted.push("interest_ask", "interest_reminder");
   }
 
   if (wanted.length === 0) {
-    const bothTracksComplete = completion.welcomeStepComplete && completion.questionnaireBComplete;
-    return { created: [], reason: bothTracksComplete ? "already_complete" : "not_consented" };
+    const complete = operatorRequest
+      ? operatorRequest.step === "welcome"
+        ? completion.welcomeStepComplete
+        : completion.questionnaireBComplete
+      : completion.welcomeStepComplete && completion.questionnaireBComplete;
+    return { created: [], reason: complete ? "already_complete" : "not_consented" };
   }
 
   const created: RecruitmentCycleStepName[] = [];
   for (const step of wanted) {
-    const scheduledFor = new Date(
-      prospectRow.created_at.getTime() + offsetFor(step) * 60 * 60 * 1000,
-    );
+    // LAN-237: the operator's ask is due now; its reminder keeps the
+    // configured interval. Automatic declarations still anchor to capture.
+    const scheduledFor = operatorRequest
+      ? new Date(
+          operatorRequest.at.getTime() +
+            Math.max(0, offsetFor(step) - offsetFor(operatorRequest.step)) * 60 * 60 * 1000,
+        )
+      : new Date(prospectRow.created_at.getTime() + offsetFor(step) * 60 * 60 * 1000);
     const idempotencyKey = `recruit-cycle:${step}:${personId}:${seasonId}`;
     const inserted = await tx.query(
       `insert into public.notification_jobs
@@ -393,6 +403,23 @@ export async function declareRecruitmentCycleJobsIn(
       [idempotencyKey, personId, scheduledFor],
     );
     if (inserted.rows[0]) created.push(step);
+    if (operatorRequest && step !== operatorRequest.step) {
+      // A capture-time reminder may already be overdue. Keep an unsent
+      // reminder at least one configured interval behind this manual ask.
+      await tx.query(
+        `update public.notification_jobs nj
+            set scheduled_for = greatest(scheduled_for, $2),
+                next_attempt_at = case when next_attempt_at is not null
+                  then greatest(next_attempt_at, $2) else null end,
+                updated_at = now()
+          where idempotency_key = $1 and status in ('pending', 'ready', 'failed')
+            and not exists (
+              select 1 from public.delivery_attempts da
+               where da.notification_job_id = nj.id and da.accepted_at is not null
+            )`,
+        [idempotencyKey, scheduledFor],
+      );
+    }
   }
 
   return { created, reason: created.length === 0 ? "already_complete" : null };

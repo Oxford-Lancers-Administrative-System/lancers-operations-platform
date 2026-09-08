@@ -13,7 +13,7 @@
  * the first time (F-LAN204-005).
  */
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
 vi.mock("./actions", () => ({
   addRecruitmentNoteAction: vi.fn().mockResolvedValue({ error: null }),
@@ -28,6 +28,7 @@ vi.mock("../status-cell", () => ({
 import type { PersonRecord } from "@/lib/services/person-record";
 import type { RecruitmentProspectRecord } from "@/lib/services/recruitment-prospect";
 import RecruitmentRecordView from "./record-view";
+import { sendRecruitmentQuestionnaireAction } from "./actions";
 
 const BASE_RECORD: RecruitmentProspectRecord = {
   prospectId: "prospect-1",
@@ -288,7 +289,7 @@ describe("V-6, correction round 2 — sending says something happened", () => {
       <RecruitmentRecordView
         record={{
           ...BASE_RECORD,
-          personal: { lastSentAt: null, queuedFor: "2026-09-05T12:00:00.000Z" },
+          personal: { lastSentAt: null, queuedFor: "2099-09-05T12:00:00.000Z" },
         }}
         person={NO_PERSON}
       />,
@@ -296,6 +297,48 @@ describe("V-6, correction round 2 — sending says something happened", () => {
     const caption = screen.getByTestId("personal-send-caption");
     expect(caption.textContent).toMatch(/^Queued for/);
     expect(caption.textContent).not.toBe("Not sent");
+  });
+
+  it.each(["personal", "recruitment"] as const)(
+    "uses awaiting dispatch for an overdue %s job",
+    (track) => {
+      render(
+        <RecruitmentRecordView
+          record={{
+            ...BASE_RECORD,
+            [track]: { lastSentAt: null, queuedFor: "2000-01-01T00:00:00Z" },
+          }}
+          person={NO_PERSON}
+        />,
+      );
+      expect(screen.getByTestId(`${track}-send-caption`)).toHaveTextContent(
+        "Queued — awaiting dispatch",
+      );
+    },
+  );
+
+  it("replaces a future caption when its due time arrives on an open page", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-08T12:00:00Z"));
+    try {
+      const view = render(
+        <RecruitmentRecordView
+          record={{
+            ...BASE_RECORD,
+            personal: { lastSentAt: null, queuedFor: "2026-09-08T12:00:01Z" },
+          }}
+          person={NO_PERSON}
+        />,
+      );
+      expect(screen.getByTestId("personal-send-caption")).toHaveTextContent("Queued for");
+      act(() => vi.advanceTimersByTime(1001));
+      expect(screen.getByTestId("personal-send-caption")).toHaveTextContent(
+        "Queued — awaiting dispatch",
+      );
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("reads 'Sent — last sent …' once a delivery is accepted, even if a later job is also queued", () => {
@@ -320,4 +363,33 @@ describe("V-6, correction round 2 — sending says something happened", () => {
     expect(screen.getByTestId("personal-send-caption").textContent).toBe("Not sent");
     expect(screen.getByTestId("recruitment-send-caption").textContent).toBe("Not sent");
   });
+});
+
+describe("LAN-237 — the manual send reports the dispatch outcome", () => {
+  it.each([
+    ["accepted", "Sent."],
+    ["refused", "Not sent — delivery could not be completed."],
+    [
+      "skipped",
+      "Not sent — delivery is already in progress or this questionnaire is no longer eligible.",
+    ],
+  ] as const)(
+    "reports %s without an optimistic Queued or Sent message",
+    async (delivery, message) => {
+      vi.mocked(sendRecruitmentQuestionnaireAction).mockResolvedValueOnce({
+        error: null,
+        created: ["welcome", "details_reminder"],
+        reason: null,
+        delivery,
+      });
+      render(<RecruitmentRecordView record={BASE_RECORD} person={NO_PERSON} />);
+      fireEvent.click(screen.getByTestId("recruitment-send-personal"));
+      fireEvent.click(screen.getByTestId("recruitment-send-personal-confirm"));
+      expect(await screen.findByTestId("recruitment-send-personal-delivery")).toHaveTextContent(
+        message,
+      );
+      expect(screen.queryByTestId("recruitment-send-personal-ok")).toBeNull();
+      expect(screen.queryByTestId("recruitment-send-personal-no-op")).toBeNull();
+    },
+  );
 });

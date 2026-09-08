@@ -47,6 +47,7 @@ export async function sendRecruitmentQuestionnaireAction(params: {
 }): Promise<
   RecruitmentActionState & {
     created: readonly string[];
+    delivery?: "accepted" | "refused" | "skipped";
     reason: "not_consented" | "not_eligible" | "already_complete" | "outstanding" | null;
   }
 > {
@@ -58,7 +59,12 @@ export async function sendRecruitmentQuestionnaireAction(params: {
       params.track,
     );
     refresh(params.prospectId);
-    return { error: null, created: result.created, reason: result.reason };
+    return {
+      error: null,
+      created: result.created,
+      reason: result.reason,
+      delivery: result.delivery,
+    };
   } catch (error) {
     return { ...stateFor(error), created: [], reason: null };
   }
