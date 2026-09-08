@@ -293,15 +293,24 @@ describe("five testers in one environment", () => {
   });
 
   it("declares every row it could not give a seat of its own", () => {
-    // Three rows in the whole dataset are genuinely single. In each the other
-    // seat only reads the page, so a declared share is honest rather than a
-    // gap: `role.kit_manager` is one role and `event.approved.late` has two
-    // events for three seats.
+    // A share is only honest when the dataset genuinely cannot supply one row
+    // per seat. Asserting the property rather than a snapshot: the exact set
+    // shrinks every time the plan grows another example, and a test pinned to
+    // the list would have to be rewritten each time rather than catching the
+    // thing that matters — a seat quietly sharing a row that was available.
     const views = seatViews(plan);
-    const declared = [...views]
-      .flatMap(([seat, { shared }]) => [...shared.keys()].map((key) => `${seat}:${key}`))
-      .sort();
-    expect(declared).toEqual(["tester3:role.kit_manager", "tester5:event.approved.late"]);
+    const seats = Object.keys(TESTERS).length;
+    const wrongly: string[] = [];
+    for (const [seat, { shared }] of views) {
+      for (const key of shared.keys()) {
+        const pool = new Set([
+          ...(plan.candidates?.get(key) ?? []),
+          ...(STATE_BY_KEY.has(key) ? (plan.states?.get(key) ?? []) : []),
+        ]);
+        if (pool.size >= seats) wrongly.push(`${seat}:${key} (pool ${pool.size})`);
+      }
+    }
+    expect(wrongly).toEqual([]);
   });
 
   it("names nobody, on any list", () => {

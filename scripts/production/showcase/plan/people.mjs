@@ -57,6 +57,16 @@ const GIVEN = Object.freeze([
   "Montague",
   "Ottoline",
   "Perpetua",
+  "Quenilda",
+  "Rowena",
+  "Sylvestra",
+  "Tarquin",
+  "Ursula",
+  "Valentine",
+  "Wilhelmina",
+  "Xanthe",
+  "Yseult",
+  "Zephyrine",
 ]);
 
 const FAMILY = Object.freeze([
@@ -154,30 +164,27 @@ const DEGREES = Object.freeze([
 // membership ready to activate means whoever presses Activate first takes the
 // state away from the other seat that was sent to it.
 const STATUS_BY_INDEX = Object.freeze([
-  ...Array(28).fill("active"),
-  "inactive",
-  "inactive",
-  "inactive",
-  "onboarding",
-  "onboarding",
-  "onboarding",
-  "onboarding",
-  "onboarding",
-  "departed",
-  "departed",
-  "active",
-  "active",
-  "onboarding",
+  ...Array(30).fill("active"),
+  ...Array(5).fill("inactive"),
+  ...Array(10).fill("onboarding"),
+  ...Array(5).fill("departed"),
 ]);
 
 /** Which onboarding story each `onboarding` player tells — see onboarding.mjs. */
 export const ONBOARDING_STORIES = Object.freeze({
-  31: "fresh", // welcome sent, nothing back yet
-  32: "midway", // some answered, BUCS claimed, subs invoiced
-  33: "disputed", // answered with a value the club disagrees with
-  34: "ready", // everything complete or claimed — ready to activate
-  35: "refused", // refused messaging consent; a chase can go nowhere
-  40: "ready", // a second one, so two seats can each activate their own
+  35: "fresh", // welcome sent, nothing back yet
+  36: "midway", // some answered, BUCS claimed, subs invoiced
+  37: "disputed", // answered with a value the club disagrees with
+  38: "refused", // refused messaging consent; a chase can go nowhere
+  // Five ready to activate: with five testers in one environment, one ready
+  // membership means whoever presses Activate first takes the state away from
+  // the other four, who then report a defect that is really a collision.
+  39: "ready",
+  40: "ready",
+  41: "ready",
+  42: "ready",
+  43: "ready",
+  44: "ready",
 });
 
 const AVAILABILITY_BY_INDEX = (index) => {
@@ -210,7 +217,7 @@ export function buildPeople(ctx, reference) {
 
   const players = [];
 
-  for (let index = 0; index < 41; index += 1) {
+  for (let index = 0; index < 50; index += 1) {
     const key = `p${String(index + 1).padStart(2, "0")}`;
     const givenName = GIVEN[index];
     const familyName = firstNameOnly(index) ? null : FAMILY[(index * 7 + 3) % FAMILY.length];
@@ -242,10 +249,10 @@ export function buildPeople(ctx, reference) {
       [
         "person.player",
         ...(familyName === null ? ["person.first-name-only"] : []),
-        ...(index === 37 ? ["person.under-18"] : []),
+        ...(index % 10 === 7 ? ["person.under-18"] : []),
         ...(index % 4 === 3 ? ["person.missing-required"] : []),
       ],
-      index < 3 ? "person.player.first" : index === 37 ? "person.under-18" : null,
+      index < 5 ? "person.player.first" : index % 10 === 7 ? "person.under-18" : null,
     );
 
     // Contact points, in the shapes the club really types. Four people have

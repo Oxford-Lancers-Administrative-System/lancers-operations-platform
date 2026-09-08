@@ -12,7 +12,100 @@
 import { id } from "../ids.mjs";
 import { dramaPhone, exampleEmail } from "./context.mjs";
 
-const RECRUITS = Object.freeze([
+/**
+ * Enough of every funnel stage that five testers each get one of their own.
+ *
+ * The fourteen hand-written recruits below carry the shapes that matter — the
+ * walk-up, the possible duplicate, the one flipped to joined — and these top
+ * each stage up to five. Five testers all flipping "the committed recruit"
+ * means the first takes the state away from the other four, who then report a
+ * defect that is really a collision.
+ *
+ * Generated rather than written out so the stage counts stay obviously equal,
+ * and deterministic because `id()` derives every identifier from the key.
+ */
+function fillFunnel(existing, perStage = 5) {
+  const stages = ["identified", "engaged", "committed", "joined", "declined", "disengaged", "void"];
+  const held = new Map(stages.map((stage) => [stage, 0]));
+  for (const row of existing) held.set(row[3], (held.get(row[3]) ?? 0) + 1);
+  const given = [
+    "Araminta",
+    "Bertram",
+    "Clemency",
+    "Dorothea",
+    "Ellery",
+    "Fenella",
+    "Godric",
+    "Hesper",
+    "Ivo",
+    "Jocasta",
+    "Kester",
+    "Lettice",
+    "Millicent",
+    "Nathaniel",
+    "Orlando",
+    "Petronella",
+    "Quillon",
+    "Rosalind",
+    "Somerled",
+    "Theodora",
+    "Ulric",
+    "Verity",
+    "Winifred",
+    "Xavier",
+    "Yolande",
+    "Zenobia",
+    "Alaric",
+    "Blanche",
+    "Corin",
+    "Delphine",
+  ];
+  const family = [
+    "Ashgrove",
+    "Bexley",
+    "Cardew",
+    "Drayton",
+    "Elverton",
+    "Fairholme",
+    "Garrow",
+    "Hollis",
+    "Inglewood",
+    "Jarrow",
+    "Kestrel",
+    "Langmere",
+    "Mowbray",
+    "Northcote",
+    "Oakhurst",
+    "Prideaux",
+  ];
+  const sources = [
+    "QR sign-up at the Freshers' Fair",
+    "Sign-up sheet at the stand",
+    "Referred by a current player",
+    "Rookie Taster Session",
+  ];
+  const doors = ["qr", "hand", "walk-up-invited", "qr"];
+  const rows = [];
+  let n = existing.length;
+  for (const stage of stages) {
+    for (let i = held.get(stage) ?? 0; i < perStage; i += 1) {
+      n += 1;
+      rows.push([
+        `r${String(n).padStart(2, "0")}`,
+        given[(n * 7) % given.length],
+        family[(n * 5) % family.length],
+        stage,
+        sources[n % sources.length],
+        -46 + (n % 30),
+        n % 6 === 0 ? "asked" : "granted",
+        doors[n % doors.length],
+      ]);
+    }
+  }
+  return rows;
+}
+
+const RECRUITS_AUTHORED = [
   // key, given, family, status, source, firstContactOffset, consent, door
   [
     "r01",
@@ -109,7 +202,9 @@ const RECRUITS = Object.freeze([
     "hand",
   ],
   ["r14", "Cassius", "Thorn", "void", "QR sign-up at the Freshers' Fair", -47, "granted", "qr"],
-]);
+];
+
+const RECRUITS = Object.freeze([...RECRUITS_AUTHORED, ...fillFunnel(RECRUITS_AUTHORED)]);
 
 export function buildRecruitment(ctx, reference, people) {
   const { add, labels, day, at, mintToken } = ctx;
