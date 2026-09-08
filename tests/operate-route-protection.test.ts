@@ -65,6 +65,32 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+describe("LAN-236 — public policies remain available without authentication services", () => {
+  it.each(["/privacy", "/data-deletion", "/terms"])(
+    "serves %s without reading a session",
+    async (path) => {
+      vi.mocked(createServerClient).mockImplementationOnce(() => {
+        throw new Error("Authentication service unavailable");
+      });
+      const response = await proxy(requestFor(path));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("location")).toBeNull();
+      expect(response.headers.get("set-cookie")).toBeNull();
+      expect(createServerClient).not.toHaveBeenCalled();
+      vi.mocked(createServerClient).mockReset();
+    },
+  );
+
+  it.each(["/privacy-extra", "/privacy/manage", "/terms/manage", "/data-deletion/manage"])(
+    "does not extend the session bypass to %s",
+    async (path) => {
+      givenSignedIn(false);
+      await proxy(requestFor(path));
+      expect(createServerClient).toHaveBeenCalledOnce();
+    },
+  );
+});
+
 /**
  * LAN-78. The provider webhook is the one route in the application an
  * unauthenticated stranger is meant to reach, and it authenticates its own
