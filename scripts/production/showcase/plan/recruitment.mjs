@@ -84,7 +84,10 @@ function fillFunnel(existing, perStage = 5) {
     "Referred by a current player",
     "Rookie Taster Session",
   ];
-  const doors = ["qr", "hand", "walk-up-invited", "qr"];
+  // Every fifth generated recruit arrives through the duplicate door, so five
+  // testers each resolve a possible duplicate of their own rather than four of
+  // them finding it already resolved.
+  const doors = ["qr", "hand", "walk-up-invited", "qr", "duplicate", "qr"];
   const rows = [];
   let n = existing.length;
   for (const stage of stages) {
@@ -209,7 +212,13 @@ const RECRUITS = Object.freeze([...RECRUITS_AUTHORED, ...fillFunnel(RECRUITS_AUT
 export function buildRecruitment(ctx, reference, people) {
   const { add, labels, day, at, mintToken } = ctx;
   const { seasonId, actorPersonId } = reference;
-  const { dupA } = people;
+  const { dupA, duplicatePeople = [] } = people;
+  // Each duplicate-door recruit points at a *different* near-duplicate person.
+  // They all used to reuse `dupA`, which was fine while there was one of them
+  // and a unique-consent-per-person-per-season violation as soon as there were
+  // five — and would have meant five testers resolving the same duplicate.
+  const duplicatePool = [dupA, ...duplicatePeople];
+  let duplicatesUsed = 0;
 
   const recruits = [];
 
@@ -218,7 +227,7 @@ export function buildRecruitment(ctx, reference, people) {
     // The duplicate uses the near-duplicate person from the squad module.
     const personId =
       door === "duplicate"
-        ? dupA
+        ? duplicatePool[duplicatesUsed++ % duplicatePool.length]
         : add(
             "public.people",
             {
@@ -427,7 +436,8 @@ export function buildRecruitment(ctx, reference, people) {
       [`consent.${consent}`],
     );
 
-    // Notes.
+    // Notes. Only these four carry note text; `recruitment_prospect_notes.note`
+    // is not-null, so widening this list means writing four more sentences.
     if (["r04", "r07", "r09", "r12"].includes(key)) {
       add(
         "public.recruitment_prospect_notes",
@@ -567,7 +577,8 @@ export function buildRecruitment(ctx, reference, people) {
     }
 
     // Interest links: spent where the questionnaire was answered, revoked at the flip.
-    if (["r04", "r07", "r09", "r12"].includes(key)) {
+    // Two more, so five testers each open a spent interest link of their own.
+    if (["r04", "r07", "r09", "r12", "r15", "r16"].includes(key)) {
       const minted = mintToken("person_access_tokens", "interest", key);
       const spent = key !== "r12";
       add(
@@ -636,6 +647,12 @@ export function buildRecruitment(ctx, reference, people) {
     "signup-code.live",
   );
   ctx.example("link.join.live", liveCode);
+  // Exactly one live code, because the database says so:
+  // `recruitment_signup_codes_one_live_per_season` permits a single live QR per
+  // season, so this is one of the three placeholders five testers must share.
+  // It is the safe kind of sharing — signing up through a code increments its
+  // counter rather than consuming it — except for deactivating it, which the
+  // checklists flag as shared.
   add(
     "public.recruitment_signup_codes",
     {

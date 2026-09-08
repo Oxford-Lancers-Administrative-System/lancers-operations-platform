@@ -193,13 +193,26 @@ const AVAILABILITY_BY_INDEX = (index) => {
   return "green";
 };
 
+// These track `ONBOARDING_STORIES` below: the player telling the "refused"
+// story is the one who refused consent, and the "fresh" one has been asked and
+// not answered. Both moved when the roster grew to fifty.
 const CONSENT_BY_INDEX = (index) => {
-  if (index === 35) return "refused";
+  if (index === 38) return "refused";
   if (index === 26) return "withdrawn";
-  if (index === 31) return "asked";
+  if (index === 35) return "asked";
   if (index === 30) return "never_asked";
   return "granted";
 };
+
+/**
+ * Five under 18, one per seat — an operator recording a date of birth under
+ * eighteen is a workflow, and it changes the record.
+ *
+ * Chosen explicitly rather than by a modulus, because `index % 4 === 3` leaves
+ * the date of birth null and "no date of birth on file" is a different state
+ * from "under 18". None of these five collides with it.
+ */
+const UNDER_18 = new Set([1, 5, 9, 17, 21]);
 
 /** A first name only, one in five. The club's own data rate is about that. */
 const firstNameOnly = (index) => index % 5 === 4;
@@ -238,8 +251,8 @@ export function buildPeople(ctx, reference) {
         date_of_birth:
           index % 4 === 3
             ? null
-            : index === 37
-              ? day(-365 * 17 - 40) // the one under-18: seventeen and a bit
+            : UNDER_18.has(index)
+              ? day(-365 * 17 - 40) // the under-18s: seventeen and a bit
               : `${2003 + (index % 5)}-${String(1 + (index % 12)).padStart(2, "0")}-${String(1 + (index % 27)).padStart(2, "0")}`,
         created_at: at(-70, "09:00"),
         updated_at: at(-70, "09:00"),
@@ -249,10 +262,10 @@ export function buildPeople(ctx, reference) {
       [
         "person.player",
         ...(familyName === null ? ["person.first-name-only"] : []),
-        ...(index % 10 === 7 ? ["person.under-18"] : []),
+        ...(UNDER_18.has(index) ? ["person.under-18"] : []),
         ...(index % 4 === 3 ? ["person.missing-required"] : []),
       ],
-      index < 5 ? "person.player.first" : index % 10 === 7 ? "person.under-18" : null,
+      index < 5 ? "person.player.first" : UNDER_18.has(index) ? "person.under-18" : null,
     );
 
     // Contact points, in the shapes the club really types. Four people have
@@ -326,8 +339,9 @@ export function buildPeople(ctx, reference) {
       );
     }
 
-    // One superseded college address, dated, kept and not preferred.
-    if (index === 2) {
+    // Five superseded college addresses, dated, kept and not preferred — one
+    // per seat, because correcting a contact point changes the record.
+    if (index % 10 === 2) {
       add(
         "public.contact_points",
         {
@@ -776,6 +790,11 @@ export function buildPeople(ctx, reference) {
   for (const [key, givenName, familyName] of [
     ["r-last-1", "Cressida", "Wolstenholme"],
     ["r-last-2", "Barnaby", "Quince"],
+    // Five, not two: the import proposes "carried forward" for each of these,
+    // and applying it consumes the row, so five testers need five.
+    ["r-last-3", "Hyacinth", "Ravensworth"],
+    ["r-last-4", "Peregrine", "Stallard"],
+    ["r-last-5", "I", "Marchbank"],
   ]) {
     const personId = add(
       "public.people",
@@ -789,7 +808,7 @@ export function buildPeople(ctx, reference) {
       "illustrative",
       { source: `last season's player ${key}` },
       ["person.past-member"],
-      key === "r-last-1" ? "person.past-member" : null,
+      "person.past-member",
     );
     const archivedId = add(
       "public.season_memberships",
@@ -939,6 +958,71 @@ export function buildPeople(ctx, reference) {
     "person.merged",
   );
 
+  // Four more of each, so five testers each resolve a duplicate and read a
+  // merge of their own. A merge is destructive — the loser is gone from every
+  // list the moment somebody presses it — so one between five people means four
+  // of them find nothing to do.
+  const duplicatePeople = [];
+  for (let n = 0; n < 4; n += 1) {
+    // Indices whose own phone is both present and normalised: the shape rota
+    // leaves some players with a null `normalised_value` and one in ten with no
+    // phone at all, and the duplicate check matches on the normalised value.
+    const twinIndex = 4 + n * 10;
+    const twin = players[twinIndex];
+    const merged = players[7 + n * 5];
+    if (!twin || !merged) continue;
+    const extra = add(
+      "public.people",
+      {
+        id: id("people", `dup-extra-${n}`),
+        given_name: twin.givenName.slice(0, 3),
+        family_name: twin.familyName,
+        created_at: at(-9 - n, "18:20"),
+        updated_at: at(-9 - n, "18:20"),
+      },
+      "illustrative",
+      { source: `near-duplicate of player ${twin.key} — entered fresh at a sign-up table` },
+      ["person.near-duplicate"],
+    );
+    ctx.example("person.near-duplicate", extra);
+    duplicatePeople.push(extra);
+    add(
+      "public.contact_points",
+      {
+        id: id("contact_points", `dup-extra-${n}`, "phone"),
+        person_id: extra,
+        kind: "phone",
+        scope: null,
+        raw_value: dramaPhone(twinIndex + 1, "plain"),
+        normalised_value: `07700900${String(twinIndex + 1).padStart(3, "0")}`,
+        is_preferred: true,
+        valid_from: day(-9 - n),
+        valid_until: null,
+        source: "walk-on attendance",
+      },
+      "illustrative",
+      { source: `near-duplicate of player ${twin.key}` },
+      ["contact.phone"],
+    );
+    add(
+      "public.people",
+      {
+        id: id("people", `merged-loser-${n}`),
+        given_name: merged.givenName,
+        family_name: merged.familyName,
+        merged_into_person_id: merged.personId,
+        merged_at: at(-30 - n, "11:00"),
+        merged_by_person_id: actorPersonId,
+        merge_reason: "Entered twice at the Freshers' Fair; same phone number.",
+        created_at: at(-62, "09:00"),
+        updated_at: at(-30 - n, "11:00"),
+      },
+      "illustrative",
+      { source: `the losing half of a merge into player ${merged.key}` },
+      ["person.merged"],
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Player-held seats the reference module deferred until the players existed.
   // ---------------------------------------------------------------------------
@@ -1027,5 +1111,5 @@ export function buildPeople(ctx, reference) {
     });
   }
 
-  return { players, dupA, dupB, playerStaff, seatPlayers };
+  return { players, dupA, dupB, duplicatePeople, playerStaff, seatPlayers };
 }

@@ -524,6 +524,33 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
   }
 
   // Disputed facts: one open, one resolved each way.
+  // Five open disputes, one per seat: settling a disputed fact resolves it, so
+  // five testers pointed at one dispute means four find it already settled.
+  for (const [offset, index] of [30, 31, 32, 44, 45].entries()) {
+    const player = people.players[index];
+    if (!player) continue;
+    add(
+      "public.person_fact_disputes",
+      {
+        id: id("person_fact_disputes", labels.currentSeason, player.key, "date_of_birth"),
+        person_id: player.personId,
+        field: "date_of_birth",
+        club_value: "2004-06-14",
+        player_value: `2004-06-0${offset + 1}`,
+        raised_by_person_id: player.personId,
+        raised_at: at(-3 - offset, "21:15"),
+        status: "open",
+        resolution_note: null,
+        resolved_by_person_id: null,
+        resolved_at: null,
+      },
+      "illustrative",
+      { source: `disputed fact on ${player.key}` },
+      ["dispute.open"],
+    );
+    ctx.example("person.disputed", player.personId);
+  }
+
   const disputed = people.players[33];
   const keptClub = people.players[4];
   const tookPlayer = people.players[5];

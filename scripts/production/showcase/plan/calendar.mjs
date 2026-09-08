@@ -94,6 +94,13 @@ const SERIES = Object.freeze([
   ],
 ]);
 
+/** `HH:MM` half an hour earlier, for a session amended to finish sooner. */
+function shortenedBy30(hhmm) {
+  const [hours, minutes] = hhmm.split(":").map(Number);
+  const total = hours * 60 + minutes - 30;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
 export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
   const { add, labels, day, at, anchor, mintToken, params, existing } = ctx;
   const { seasonId, termId, actorPersonId, presidentId, staff, operators } = reference;
@@ -359,7 +366,21 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
       }
     }
 
-    members.forEach((member, position) => {
+    // One row per person per audience. A player who also holds a committee or
+    // coaching seat appears in both the squad and the staff list, and a squad
+    // large enough to reach those players started producing two audience rows
+    // and two invitations for one human — which the database would then refuse
+    // on the invitation's own idempotency key. The squad membership wins,
+    // because that is the capacity the event was drawn for.
+    const byPerson = new Set();
+    const unique = members.filter((member) => {
+      const person = member.kind === "player" ? member.membershipId : member.personId;
+      if (byPerson.has(person)) return false;
+      byPerson.add(person);
+      return true;
+    });
+
+    unique.forEach((member, position) => {
       const audienceMemberId = add(
         "public.event_audience_members",
         {
@@ -1236,6 +1257,9 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
   // ---------------------------------------------------------------------------
   // The calendar itself
   // ---------------------------------------------------------------------------
+  // `genuine_failure` twice, because it is what produces both the terminal
+  // delivery failure and the "no usable route" invitee, and five testers each
+  // need one of their own to triage.
   const STORIES = [
     "fully_delivered",
     "escalated",
@@ -1243,6 +1267,8 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
     "whatsapp_carried_by_email",
     "plain",
     "escalated",
+    "genuine_failure",
+    "whatsapp_carried_by_email",
   ];
   let approvedPast = 0;
 
@@ -1360,7 +1386,12 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
           eventType,
           venue,
           startsAt: starts,
-          endsAt: amendedSilently ? "16:00" : ends,
+          // A silent amendment shortens the session by half an hour, relative
+          // to whatever this series actually ends at. It used to be a literal
+          // "16:00", which only ordered correctly for the Sundays it was
+          // written for — an evening session amended to 16:00 ends before it
+          // starts, and `events_times_ordered` refuses it.
+          endsAt: amendedSilently ? shortenedBy30(ends) : ends,
           offset,
           series: seriesKey,
           mandatory,
@@ -1489,6 +1520,87 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
     example: "event.held",
   });
 
+  // Four more of each singleton state, so five testers each get their own.
+  // These are the states a workflow *consumes*: approving a late-ladder event,
+  // amending a held one, approving a draft game or a draft recruitment event.
+  // One instance between five people means the first to press the button takes
+  // the state away from the other four.
+  for (let n = 1; n < 5; n += 1) {
+    event({
+      key: `extra:kicking-clinic-${n}`,
+      offset: 1 + n,
+      name: `Kicking Clinic ${n + 1}`,
+      eventType: "practice",
+      venue: "University Parks",
+      startsAt: "17:30",
+      endsAt: "19:00",
+      mandatory: false,
+      status: "approved",
+      audience: "squad",
+      ladder: "late",
+      story: "fully_delivered",
+      approvedAt: at(-2, "19:05"),
+      example: "event.approved.late",
+    });
+    event({
+      key: `extra:film-review-${n}`,
+      offset: 2 + n,
+      name: `Film Review ${n + 1}`,
+      eventType: "chalk",
+      venue: "Iffley Road",
+      startsAt: "18:00",
+      endsAt: "19:30",
+      mandatory: false,
+      status: "approved",
+      audience: "squad",
+      ladder: "held",
+      story: "fully_delivered",
+      approvedAt: at(-4, "19:05"),
+      heldAt: at(-1, "09:30"),
+      amendment: {
+        at: at(-1, "09:30"),
+        notified: true,
+        previous: { venue: "Microsoft Teams" },
+        source: "venue",
+      },
+      extraStates: ["event.amended.notified", "event.held"],
+      example: "event.held",
+    });
+    event({
+      key: `recruitment:taster-extra-${n}`,
+      offset: -21 - n,
+      name: `Rookie Taster ${n + 2}`,
+      eventType: "recruitment",
+      venue: "Iffley Road",
+      startsAt: "11:00",
+      endsAt: "13:00",
+      status: "approved",
+      audience: "squad-30",
+      recruits: true,
+      ladder: "full",
+      story: "fully_delivered",
+      register: true,
+      headcount: 30 + n,
+      example: "event.recruitment.occurred",
+    });
+    event({
+      key: `recruitment:social-${n}`,
+      offset: 9 + n,
+      name: `Recruitment Social ${n + 1}`,
+      eventType: "recruitment",
+      venue: "The Bear, Alfred Street",
+      startsAt: "19:00",
+      endsAt: "22:00",
+      status: "draft",
+      audience: "squad",
+      recruits: true,
+      confirmed: true,
+      ladder: "none",
+      headcount: null,
+      example: "event.recruitment.draft",
+    });
+  }
+
   // Fixtures, with transport questions.
   const questionsFor = (eventId, destination) =>
     [
@@ -1558,6 +1670,22 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
       status: "draft",
       confirmed: false,
     },
+    // Three more draft fixtures. Approving a draft consumes it, so five testers
+    // sharing one means four of them find it already approved.
+    ...[
+      ["game:home-3", 26, "Lancers vs Leeds Gryphons", "Iffley Road"],
+      ["game:away-3", 30, "Lancers vs Durham Saints", "Durham"],
+      ["game:home-4", 33, "Lancers vs Bristol Barracuda", "Iffley Road"],
+      ["game:away-4", 37, "Lancers vs Sheffield Sabres", "Sheffield"],
+    ].map(([key, offset, name, venue]) => ({
+      key,
+      offset,
+      name,
+      venue,
+      competition: "BUCS Division 1",
+      status: "draft",
+      confirmed: true,
+    })),
   ];
   for (const fixture of fixtures) {
     const eventId = id("events", "scenario", labels.currentSeason, fixture.key);
@@ -1577,7 +1705,7 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
       example:
         fixture.key === "game:away-1"
           ? "event.amended.notified"
-          : fixture.key === "game:home-2"
+          : fixture.status === "draft" && fixture.confirmed
             ? "event.game.draft"
             : fixture.key === "game:home-1"
               ? "event.questions"
@@ -1896,6 +2024,34 @@ export function buildCalendar(ctx, reference, people, recruits, { termCard }) {
       },
       "illustrative",
       { source: `reissued club link for ${homeGame.key}` },
+      ["club-link.live"],
+    );
+    ctx.example("link.club.reissued", minted.plaintext);
+  }
+  // Four more revoked-then-reissued pairs. Revoking a link is the workflow, and
+  // it consumes the live link it was issued for.
+  for (const [n, record] of events
+    .filter(
+      (entry) => entry.spec.status === "approved" && entry !== homeGame && entry !== heldEvent,
+    )
+    .slice(4, 8)
+    .entries()) {
+    const minted = mintToken("club_link_tokens", record.key, `reissued-${n}`);
+    add(
+      "public.club_link_tokens",
+      {
+        id: id("club_link_tokens", labels.currentSeason, record.key, `reissued-${n}`),
+        event_id: record.eventId,
+        token_hash: minted.hash,
+        issued_at: addHours(record.approvedAt, 49),
+        issued_by_person_id: actorPersonId,
+        revoked_at: null,
+        revoked_reason: null,
+        last_used_at: addHours(record.approvedAt, 60),
+        use_count: 4 - n,
+      },
+      "illustrative",
+      { source: `reissued club link for ${record.key}` },
       ["club-link.live"],
     );
     ctx.example("link.club.reissued", minted.plaintext);

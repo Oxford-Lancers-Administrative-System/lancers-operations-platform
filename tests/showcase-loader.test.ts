@@ -97,7 +97,10 @@ beforeAll(async () => {
   directory = mkdtempSync(path.join(tmpdir(), "lancers-tester-week-"));
   client = await openLocalClient();
   paramsPath = path.join(directory, "params.json");
-  writeFileSync(paramsPath, JSON.stringify(testParams({ liveLinksFor: ["tester5"] })));
+  // No `liveLinksFor`: the default is every seat, which is what a real tester
+  // week runs — each seat walks the player's own pages on a link of its own.
+  // The restricted case is proved separately by the injection test below.
+  writeFileSync(paramsPath, JSON.stringify(testParams()));
 }, 60_000);
 
 afterAll(async () => {
@@ -331,17 +334,29 @@ describe("checklists", () => {
     }
   });
 
-  it("gives the named seat its own live links and no other seat any", async () => {
+  it("gives every seat its own live links and no other seat's", async () => {
+    // Every tester walks the player's own pages, so each seat gets a link of
+    // its own rather than five people editing one person's answers. What must
+    // never happen is one seat's link appearing on another seat's list.
     const out = path.join(directory, "checklists");
-    const seat = readFileSync(path.join(out, "tester-5.md"), "utf8");
-    const current = await plan();
-    expect(seat).toContain(`/rsvp/${current.examples.get("link.rsvp.player")}`);
-    expect(seat).toContain(`/me/${current.examples.get("link.me.player")}`);
-    for (const file of ["tester-1.md", "tester-2.md", "tester-3.md", "tester-4.md"]) {
-      const text = readFileSync(path.join(out, file), "utf8");
-      expect(text).not.toContain(current.examples.get("link.rsvp.player") as string);
-      expect(text).not.toContain(current.examples.get("link.me.player") as string);
+    const files = ["tester-1.md", "tester-2.md", "tester-3.md", "tester-4.md", "tester-5.md"];
+    const lists = new Map(files.map((file) => [file, readFileSync(path.join(out, file), "utf8")]));
+
+    const playerLinks = new Map<string, string>();
+    for (const [file, text] of lists) {
+      const found = [...text.matchAll(/\/me\/([A-Za-z0-9_-]{43})/g)].map((match) => match[1]);
+      expect(new Set(found).size, `${file} carries no player link`).toBeGreaterThan(0);
+      for (const link of new Set(found)) playerLinks.set(link, file);
     }
+    // Five distinct links across five lists, each on exactly one.
+    expect(playerLinks.size).toBe(files.length);
+    for (const [link, owner] of playerLinks) {
+      for (const [file, text] of lists) {
+        if (file === owner) continue;
+        expect(text, `${file} carries ${owner}'s player link`).not.toContain(link);
+      }
+    }
+
     // Every routed link is a page the application serves.
     for (const workflow of WORKFLOWS)
       for (const template of workflow.routes) expect(routePattern(template)).toMatch(/^\//);
