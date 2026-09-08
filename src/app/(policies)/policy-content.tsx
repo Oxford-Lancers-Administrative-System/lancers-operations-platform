@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Box from "@mui/material/Box";
+import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
@@ -32,7 +33,8 @@ export function PrivacyContact() {
   return (
     <Typography>
       Contact the club’s General Manager for privacy questions, corrections and requests to delete
-      your information.
+      your information at{" "}
+      <Link href="mailto:american.football@sport.ox.ac.uk">american.football@sport.ox.ac.uk</Link>.
     </Typography>
   );
 }

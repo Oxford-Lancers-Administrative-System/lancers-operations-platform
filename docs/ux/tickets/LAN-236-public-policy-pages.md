@@ -4,6 +4,8 @@ Brian requested a draft PR on 8 September 2026 for `/privacy`,
 `/data-deletion` and `/terms`, to queue the URLs for an owner deployment.
 He selected the General Manager as the interim privacy contact. LAN-11 already
 records the club as its own controller; LAN-86 owns the live-data policy gate.
+Brian supplied `american.football@sport.ox.ac.uk` as the real public contact
+email in the same session; all three documents use it.
 
 ## Interface contract
 
@@ -27,8 +29,6 @@ draft notice is removed in the reviewed diff.
 
 Required before publication:
 
-- Confirm and insert the General Manager's monitored club email. Do not invent
-  an address or use a personal account from a screenshot.
 - Confirm purpose-specific lawful bases against LAN-11/LAN-86 and add them to
   the privacy notice; membership alone is not an Article 6 basis label.
 - Approve retention periods or usable retention criteria, including audit
