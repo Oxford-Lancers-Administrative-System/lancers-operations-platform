@@ -153,10 +153,44 @@ async function blankCanvas() {
     `delete from public.rsvp_responses
       where invitation_id in (select id from public.invitations where event_id in ${inWindow})`,
   );
+  // The other child of an invitation. `question_responses_invitation_event` is
+  // a composite foreign key, so leaving these behind makes the invitation
+  // delete below fail rather than cascade — this helper cleared every other
+  // child and only ever missed this one because nothing in the window had
+  // asked a question yet.
+  await client.query(
+    `delete from public.question_responses
+      where invitation_id in (select id from public.invitations where event_id in ${inWindow})`,
+  );
   await client.query(
     `delete from public.delivery_results
       where notification_job_id in (select id from public.notification_jobs
                                      where event_id in ${inWindow})`,
+  );
+  // Every other child of a notification job, for the same reason: this helper
+  // cleared `delivery_results` and nothing else, which held while no event in
+  // the window had been chased. `nonresponse_flags` points at the escalation
+  // job rather than the event, so it has to go by job too.
+  await client.query(
+    `delete from public.delivery_callbacks
+      where delivery_attempt_id in (
+        select a.id from public.delivery_attempts a
+         where a.notification_job_id in (select id from public.notification_jobs
+                                          where event_id in ${inWindow}))`,
+  );
+  await client.query(
+    `delete from public.delivery_attempts
+      where notification_job_id in (select id from public.notification_jobs
+                                     where event_id in ${inWindow})`,
+  );
+  await client.query(
+    `delete from public.nonresponse_flags
+      where escalation_job_id in (select id from public.notification_jobs
+                                   where event_id in ${inWindow})`,
+  );
+  await client.query(
+    `delete from public.nonresponse_flags
+      where invitation_id in (select id from public.invitations where event_id in ${inWindow})`,
   );
   await client.query(`delete from public.notification_jobs where event_id in ${inWindow}`);
   await client.query(
@@ -167,6 +201,13 @@ async function blankCanvas() {
   await client.query(`delete from public.event_audience_members where event_id in ${inWindow}`);
   await client.query(`delete from public.schedule_changes where event_id in ${inWindow}`);
   await client.query(`delete from public.event_questions where event_id in ${inWindow}`);
+  await client.query(`delete from public.event_messaging_plans where event_id in ${inWindow}`);
+  await client.query(`delete from public.schedule_changes where event_id in ${inWindow}`);
+  await client.query(`delete from public.club_link_tokens where event_id in ${inWindow}`);
+  await client.query(
+    `update public.follow_up_actions set subject_event_id = null
+      where subject_event_id in ${inWindow}`,
+  );
   await client.query(
     "delete from public.events where scheduled_on between current_date - 35 and current_date - 29",
   );

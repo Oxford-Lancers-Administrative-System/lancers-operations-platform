@@ -71,9 +71,19 @@ curl -s https://app.oxfordlancers.com/api/health
       Expect `"status":"ok"`, `"databaseConfigured":true`, `"schemaCompatible":true`.
 
 - [ ] **Connection smoke test** (`scripts/production/README.md`).
-- [ ] **Accounts — six Auth users**: the LAN-138 bootstrap, dry run then real.
-      Five are the tester seats and one is the spare; the table below says what
-      each needs. Note every **Auth user UUID** from the Supabase dashboard.
+- [ ] **Accounts — five Auth users**, one per seat. Create them in the Supabase
+      dashboard (Authentication → Users → Add user), **ticking Auto Confirm
+      User** so they can sign in without a confirmation mail. Address them on
+      your own mailbox with plus-addressing — `you+tester1@…` through
+      `+tester5@` — because a deliverable address is what makes the operator
+      invitation workflows testable at all. Note each **UUID** for the
+      parameter file; the roles go there, not in Supabase.
+
+These five do not need the LAN-138 bootstrap. Given an Auth UUID that is not
+already linked, the loader creates the Person, the operator account and the role
+assignments itself. The bootstrap exists for the _founding_ three, for a
+production that has no administrators at all — if that has never run here, it is
+still the first step.
 
 ### The seats
 
@@ -81,18 +91,21 @@ Seats, not people: decide who sits in each one when you hand the lists out. What
 a seat needs is fixed, because a checklist that tells its reader to press
 something their account cannot press is a broken checklist.
 
-| Seat      | Needs                                                                               | Roles to give it  |
-| --------- | ----------------------------------------------------------------------------------- | ----------------- |
-| `tester1` | An operator holding the core four roles                                             | `general_manager` |
-| `tester2` | The same, including the President's office                                          | `president`       |
-| `tester3` | Administration — operators, roles, messaging                                        | `it_officer`      |
-| `tester4` | A coach, used on a phone at the pitch                                               | `head_coach`      |
-| `tester5` | A coach, and the player and recruit links handed out with the list                  | `offence_coach`   |
-| `spare`   | **Not a tester.** The operator record `tester3` deactivates, rehomes and reinstates | `kit_manager`     |
+| Seat      | Needs                                                              | Roles to give it  |
+| --------- | ------------------------------------------------------------------ | ----------------- |
+| `tester1` | An operator holding the core four roles                            | `general_manager` |
+| `tester2` | The same, including the President's office                         | `president`       |
+| `tester3` | Administration — operators, roles, messaging                       | `it_officer`      |
+| `tester4` | A coach, used on a phone at the pitch                              | `head_coach`      |
+| `tester5` | A coach, and the player and recruit links handed out with the list | `offence_coach`   |
 
-The spare exists so the administration workflows never act on an account
-somebody is testing with. Without it, `tester3` deactivating an operator locks a
-live tester out of their own list.
+Every seat walks every workflow; the lists differ only in the rows they point
+at. The administration workflows — deactivate, rehome, reinstate — are the
+exception, and there is no throwaway sixth account for them to act on. Each
+seat is dealt a _different_ seat's record instead (seat 1 works on seat 3's,
+seat 2 on seat 4's, and so on), and those lines say so and tell the tester to
+reinstate before moving on. The workflow is reversible; if somebody forgets,
+the tester whose account it was cannot finish their own list.
 
 - [ ] **WhatsApp stays off.** `WHATSAPP_PHONE_NUMBER_ID` must not be set on the
       service until § 11 is done. Check:
@@ -144,12 +157,6 @@ your clone.
     "familyName": "LAST",
     "authUserId": "PASTE-AUTH-UUID",
     "roles": ["offence_coach"]
-  },
-  "spare": {
-    "givenName": "FIRST",
-    "familyName": "LAST",
-    "authUserId": "PASTE-AUTH-UUID",
-    "roles": ["kit_manager"]
   },
   "liveLinksFor": ["tester5"],
   "tokenSecret": "PASTE-A-LONG-RANDOM-STRING",
@@ -242,7 +249,6 @@ Parameters supplied:
   tester3: auth user, telephone number, roles: it_officer
   tester4: auth user, roles: head_coach
   tester5: auth user, roles: offence_coach
-  spare: auth user, roles: kit_manager
   live links for: tester5
   strays to remove on rollback: N
   token secret: present
@@ -439,7 +445,7 @@ node scripts/production/showcase.mjs verify --after-rollback --confirm-target fg
 else behind.)
 
 **What is never removed:** identities the loader adopted rather than created
-(the five seats and the spare), reference rows that were already there,
+(the five seats), reference rows that were already there,
 and history the **application** wrote — a tester's approval, a correction, a
 generated report — together with whatever that history names. History that
 can be deleted to tidy up is not history. The loader's own audit rows are not
