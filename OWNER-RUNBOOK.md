@@ -609,10 +609,20 @@ ones.**
 The residue was not run, or not run completely. The rows it names are exactly
 the ones that make the dataset lie. Run it, then repeat step three.
 
-### What this does not correct
+### The one row to look at afterwards
 
-`recruitment_prospect_status_events` is append-only and undeletable on hosted,
-so one recruit — `r07`, who now comes through the form rather than a referral —
-keeps an operator named on their first status event where the reload would
-write the sign-up form. Nothing reads that column for a decision, and no
-checklist mentions it. Everything else is replaced.
+`r07` is the only recruit whose door itself changes — they now come through the
+form rather than a referral — so their first status event is the only row whose
+actor could differ between what is installed and what a fresh load writes.
+
+Which way it lands depends on the residue. `recruitment_prospect_status_events`
+is append-only and undeletable by the connected role, so a plain reload cannot
+rewrite it. But rollback defers a parent into the residue file whenever a child
+it may not delete still points at it, and that row's parent is the recruit — so
+step two may well remove both, leaving step three to write the row correctly.
+Independent review traced that and could not settle it without a database.
+
+Either way it is one synthetic recruit's audit-trail actor: nothing reads it for
+a decision and no checklist mentions it. **Look at it once after step three** and
+tell me which way it went, so this paragraph can say one thing rather than two.
+Everything else is replaced.

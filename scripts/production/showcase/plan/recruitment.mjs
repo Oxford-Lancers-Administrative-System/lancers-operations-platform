@@ -643,8 +643,9 @@ export function buildRecruitment(ctx, reference, people) {
     }
 
     // Interest links: spent where the questionnaire was answered, revoked at the
-    // flip. Six of them, so five testers each open a spent interest link of
-    // their own, and one retired unused.
+    // flip. Seven — the six who answered, and one retired unused. The recruit
+    // who was flipped to joined has theirs revoked at the flip, which leaves
+    // five live and answered, so five testers each open one of their own.
     if (INTEREST_LINK_KEYS.includes(key)) {
       const minted = mintToken("person_access_tokens", "interest", key);
       const spent = key !== RETIRED_INTEREST_LINK;
