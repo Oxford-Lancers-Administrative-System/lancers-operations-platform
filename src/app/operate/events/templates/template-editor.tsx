@@ -1,17 +1,17 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { Section } from "@/components/section";
+import { Field, SelectField } from "@/components/field";
+import { ActionBar } from "@/components/action-bar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
-import MenuItem from "@mui/material/MenuItem";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import type { AudienceGroup, AudienceGroupKey } from "@/lib/services/audience-selection";
 import type { RawEventQuestion } from "@/lib/services/event-questions-input";
@@ -27,16 +27,13 @@ import {
   draftsHolding,
   draftsTaking,
   draftTakes,
-  TEMPLATE_AUDIENCE_DETAIL,
   TEMPLATE_AUDIENCE_HEADLINE,
   TEMPLATE_CONFIRM_BACK,
   TEMPLATE_CONFIRM_TITLE,
   TEMPLATE_DISCARD_ACTION,
-  TEMPLATE_DURATION_HELP,
   TEMPLATE_DURATION_LABEL,
   TEMPLATE_DURATION_OPTIONS,
   TEMPLATE_EVENT_HEADLINE,
-  TEMPLATE_QUESTIONS_DETAIL,
   TEMPLATE_QUESTIONS_HEADLINE,
   TEMPLATE_SAVE_ACTION,
   TEMPLATE_UNTOUCHED_HEADLINE,
@@ -190,15 +187,15 @@ export default function TemplateEditor({
   return (
     <Stack spacing={3} sx={{ maxWidth: 760 }} data-testid="template-editor">
       {state.error ? (
-        <Alert severity="error" data-testid="template-error">
+        <Notice severity="error" testId="template-error">
           {state.error}
-        </Alert>
+        </Notice>
       ) : null}
 
       {state.phase === "saved" && state.plan !== null ? (
-        <Alert severity="success" data-testid="template-saved">
+        <Notice severity="success" testId="template-saved">
           {templateSaved(state.plan.taking.length)}
-        </Alert>
+        </Notice>
       ) : null}
 
       <Box component="form" action={previewAction} data-testid="template-form">
@@ -206,16 +203,8 @@ export default function TemplateEditor({
 
         <Stack spacing={3}>
           {/* D47 — the default audience, as groups and never as people. */}
-          <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
+          <Section title={TEMPLATE_AUDIENCE_HEADLINE}>
             <Stack spacing={2}>
-              <Box>
-                <Typography variant="overline" color="text.secondary" component="p">
-                  {TEMPLATE_AUDIENCE_HEADLINE}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {TEMPLATE_AUDIENCE_DETAIL}
-                </Typography>
-              </Box>
               <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
                 {groups.map((group) => {
                   const on = selected.includes(group.key);
@@ -240,17 +229,12 @@ export default function TemplateEditor({
                 <input key={group} type="hidden" name="audienceGroup" value={group} />
               ))}
             </Stack>
-          </Paper>
+          </Section>
 
-          <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
+          <Section title={TEMPLATE_EVENT_HEADLINE}>
             <Stack spacing={3}>
-              <Typography variant="overline" color="text.secondary" component="p">
-                {TEMPLATE_EVENT_HEADLINE}
-              </Typography>
-
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <TextField
-                  select
+                <SelectField
                   label="Where"
                   name="defaultDeliveryMode"
                   data-field="defaultDeliveryMode"
@@ -260,14 +244,14 @@ export default function TemplateEditor({
                   helperText={issueFor(state, "defaultDeliveryMode")}
                   disabled={busy}
                   slotProps={{ inputLabel: { shrink: true } }}
-                  fullWidth
-                >
-                  <MenuItem value="unset">Not set</MenuItem>
-                  <MenuItem value="in_person">In person</MenuItem>
-                  <MenuItem value="online">Online</MenuItem>
-                </TextField>
+                  options={[
+                    { value: "unset", label: "Not set" },
+                    { value: "in_person", label: "In person" },
+                    { value: "online", label: "Online" },
+                  ]}
+                />
 
-                <TextField
+                <Field
                   label="Venue"
                   name="defaultVenue"
                   data-field="defaultVenue"
@@ -277,7 +261,6 @@ export default function TemplateEditor({
                   helperText={issueFor(state, "defaultVenue")}
                   disabled={busy}
                   slotProps={{ inputLabel: { shrink: true } }}
-                  fullWidth
                 />
               </Stack>
 
@@ -293,33 +276,29 @@ export default function TemplateEditor({
                 confirmation dialog already use — see `offGridDuration` above
                 for the one existing-template case a fixed grid has to answer.
               */}
-              <TextField
-                select
+              <SelectField
                 label={TEMPLATE_DURATION_LABEL}
                 name="defaultDurationMinutes"
                 data-field="defaultDurationMinutes"
                 value={duration}
                 onChange={(event) => setDuration(event.target.value)}
                 error={Boolean(issueFor(state, "defaultDurationMinutes"))}
-                helperText={issueFor(state, "defaultDurationMinutes") ?? TEMPLATE_DURATION_HELP}
+                helperText={issueFor(state, "defaultDurationMinutes")}
                 disabled={busy}
                 slotProps={{ inputLabel: { shrink: true } }}
-                fullWidth
-              >
-                <MenuItem value="">Not set</MenuItem>
-                {offGridDuration !== null ? (
-                  <MenuItem value={String(offGridDuration)}>
-                    {describeDuration(offGridDuration)}
-                  </MenuItem>
-                ) : null}
-                {TEMPLATE_DURATION_OPTIONS.map((minutes) => (
-                  <MenuItem key={minutes} value={String(minutes)}>
-                    {describeDuration(minutes)}
-                  </MenuItem>
-                ))}
-              </TextField>
+                options={[
+                  { value: "", label: "Not set" },
+                  ...(offGridDuration !== null
+                    ? [{ value: String(offGridDuration), label: describeDuration(offGridDuration) }]
+                    : []),
+                  ...TEMPLATE_DURATION_OPTIONS.map((minutes) => ({
+                    value: String(minutes),
+                    label: describeDuration(minutes),
+                  })),
+                ]}
+              />
 
-              <TextField
+              <Field
                 label="Required equipment"
                 name="defaultRequiredEquipment"
                 data-field="defaultRequiredEquipment"
@@ -329,10 +308,9 @@ export default function TemplateEditor({
                 helperText={issueFor(state, "defaultRequiredEquipment")}
                 disabled={busy}
                 slotProps={{ inputLabel: { shrink: true } }}
-                fullWidth
               />
 
-              <TextField
+              <Field
                 label="Description"
                 name="defaultDescription"
                 data-field="defaultDescription"
@@ -344,11 +322,9 @@ export default function TemplateEditor({
                 multiline
                 minRows={3}
                 slotProps={{ inputLabel: { shrink: true } }}
-                fullWidth
               />
 
-              <TextField
-                select
+              <SelectField
                 label="Attendance"
                 name="defaultAttendance"
                 data-field="defaultAttendance"
@@ -356,14 +332,14 @@ export default function TemplateEditor({
                 onChange={(event) => setAttendance(event.target.value)}
                 disabled={busy}
                 slotProps={{ inputLabel: { shrink: true } }}
-                fullWidth
-              >
-                <MenuItem value="unset">Not set</MenuItem>
-                <MenuItem value="mandatory">Mandatory</MenuItem>
-                <MenuItem value="optional">Optional</MenuItem>
-              </TextField>
+                options={[
+                  { value: "unset", label: "Not set" },
+                  { value: "mandatory", label: "Mandatory" },
+                  { value: "optional", label: "Optional" },
+                ]}
+              />
             </Stack>
-          </Paper>
+          </Section>
 
           {/*
             D42. The questions every event of this type arrives with. The same
@@ -377,28 +353,32 @@ export default function TemplateEditor({
             issues={state.questionIssues}
             disabled={busy}
             headline={TEMPLATE_QUESTIONS_HEADLINE}
-            detail={TEMPLATE_QUESTIONS_DETAIL}
+            detail=""
           />
 
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={busy}
-              data-testid="preview-template"
-              sx={{ minHeight: 44 }}
-            >
-              {previewing ? "Checking…" : TEMPLATE_SAVE_ACTION}
-            </Button>
-            <Button
-              variant="text"
-              href="/operate/events/templates"
-              disabled={busy}
-              sx={{ minHeight: 44 }}
-            >
-              {TEMPLATE_DISCARD_ACTION}
-            </Button>
-          </Stack>
+          <ActionBar
+            primary={
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={busy}
+                data-testid="preview-template"
+                sx={{ minHeight: 44 }}
+              >
+                {previewing ? "Checking…" : TEMPLATE_SAVE_ACTION}
+              </Button>
+            }
+            cancel={
+              <Button
+                variant="text"
+                href="/operate/events/templates"
+                disabled={busy}
+                sx={{ minHeight: 44 }}
+              >
+                {TEMPLATE_DISCARD_ACTION}
+              </Button>
+            }
+          />
         </Stack>
       </Box>
 
@@ -495,10 +475,7 @@ function ChangePlan({
       ) : null}
 
       {plan.taking.length > 0 ? (
-        <Paper variant="outlined" sx={{ p: 2 }} data-testid="plan-taking">
-          <Typography variant="overline" color="text.secondary" component="p">
-            {draftsTaking(plan.taking.length)}
-          </Typography>
+        <Section title={draftsTaking(plan.taking.length)} testId="plan-taking">
           {plan.taking.map((draft) => (
             <Box key={draft.id} sx={{ mb: 1 }}>
               <Typography variant="body2">
@@ -512,22 +489,15 @@ function ChangePlan({
               ))}
             </Box>
           ))}
-        </Paper>
+        </Section>
       ) : (
-        <Alert severity="info" data-testid="plan-touches-nothing">
+        <Notice severity="info" testId="plan-touches-nothing">
           {changeTouchesNothing(eventTypeLabel)}
-        </Alert>
+        </Notice>
       )}
 
       {plan.holding.length > 0 ? (
-        <Paper
-          variant="outlined"
-          sx={{ p: 2, borderColor: "warning.main" }}
-          data-testid="plan-holding"
-        >
-          <Typography variant="overline" color="text.secondary" component="p">
-            {draftsHolding(plan.holding.length)}
-          </Typography>
+        <Section title={draftsHolding(plan.holding.length)} testId="plan-holding">
           {plan.holding.map((draft) => (
             <Box key={draft.id} sx={{ mb: 1 }}>
               <Typography variant="body2">
@@ -541,14 +511,11 @@ function ChangePlan({
               ))}
             </Box>
           ))}
-        </Paper>
+        </Section>
       ) : null}
 
       {approved || past ? (
-        <Paper variant="outlined" sx={{ p: 2 }} data-testid="plan-untouched">
-          <Typography variant="overline" color="text.secondary" component="p">
-            {TEMPLATE_UNTOUCHED_HEADLINE}
-          </Typography>
+        <Section title={TEMPLATE_UNTOUCHED_HEADLINE} testId="plan-untouched">
           {approved ? (
             <Typography variant="body2" color="text.secondary">
               {approved}
@@ -559,7 +526,7 @@ function ChangePlan({
               {past}
             </Typography>
           ) : null}
-        </Paper>
+        </Section>
       ) : null}
     </Stack>
   );

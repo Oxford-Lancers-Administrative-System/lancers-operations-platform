@@ -64,6 +64,9 @@ export const STATUS_VOCABULARY: Readonly<
     failed: filled("error"),
     no_channel: filled("error"),
     escalated: outlined("error"),
+    delivery_problem: filled("warning"),
+    escalation_held: filled("error"),
+    chasing: filled("neutral"),
     queued: filled("neutral"),
     cancelled: filled("neutral"),
   }),
@@ -102,6 +105,7 @@ export const STATUS_VOCABULARY: Readonly<
   // and the report both show. Added here so they read one way on both.
   onboardingItem: Object.freeze({
     complete: filled("success"),
+    claimed: outlined("info"),
     pending: outlined("warning"),
     outstanding: outlined("warning"),
     waived: outlined("neutral"),

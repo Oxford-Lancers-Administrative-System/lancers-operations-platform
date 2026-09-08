@@ -1,10 +1,11 @@
-import Alert from "@mui/material/Alert";
+import { PageHeader } from "@/components/page-header";
+import { Section } from "@/components/section";
+import { Fact, FactGrid } from "@/components/fact";
+import { StatusChip } from "@/components/status-chip";
+import { Notice } from "@/components/notice";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import { todayInClubZone } from "@/lib/club-time";
 import { isServiceError } from "@/lib/db";
 import {
@@ -65,9 +66,9 @@ export default async function PublicEventPage({ params }: PageProps<"/calendar/[
     return (
       <PublicShell seasonLabel={null}>
         <Stack spacing={2}>
-          <Alert severity="info" data-testid="public-event-missing">
+          <Notice severity="info" testId="public-event-missing">
             {error.message}
-          </Alert>
+          </Notice>
           <Box>
             <Button variant="outlined" href={PUBLIC_CALENDAR_PATH}>
               Back to the calendar
@@ -82,69 +83,56 @@ export default async function PublicEventPage({ params }: PageProps<"/calendar/[
   const year = await readEventYear([event], { today });
 
   return (
-    <PublicShell
-      seasonLabel={null}
-      action={
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-          <Button variant="outlined" size="small" href={PUBLIC_CALENDAR_PATH}>
-            Back to the calendar
-          </Button>
-          <SubscribeToCalendarButton />
-        </Stack>
-      }
-    >
-      <Stack spacing={3} sx={{ maxWidth: 880 }}>
-        <Stack spacing={1}>
-          <Stack direction="row" spacing={1.5} sx={{ alignItems: "baseline", flexWrap: "wrap" }}>
-            <Typography
-              variant="h5"
-              component="h1"
-              sx={{
-                fontWeight: 800,
-                textDecoration: event.isCancelled ? "line-through" : "none",
-              }}
-              data-testid="public-event-name"
-            >
-              {event.name}
-            </Typography>
-            {event.isCancelled ? (
-              <Chip
-                color="warning"
+    <PublicShell seasonLabel={null} action={<SubscribeToCalendarButton />}>
+      <Stack spacing={3}>
+        <PageHeader
+          title={event.name}
+          struckThrough={event.isCancelled}
+          testId="public-event-name"
+          back={{ href: PUBLIC_CALENDAR_PATH, label: "Back to the calendar" }}
+          subtitle={`${formatDetailWhen(event)} · ${CLUB_TIME_ZONE}`}
+          status={
+            event.isCancelled ? (
+              <StatusChip
+                domain="event"
+                status="cancelled"
                 label={labelFor(STATUS_LABELS, "cancelled")}
-                data-testid="public-event-cancelled"
+                testId="public-event-cancelled"
               />
-            ) : null}
-          </Stack>
-          <Typography variant="body2" color="text.secondary">
-            {`${formatDetailWhen(event)} · ${CLUB_TIME_ZONE}`}
-          </Typography>
-        </Stack>
-
-        <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-              gap: { xs: 2, md: 3 },
-            }}
-          >
-            <Fact label="Type" value={labelFor(TYPE_LABELS, event.eventType)} />
-            <Fact label="Where" value={whereItIs(event)} />
+            ) : undefined
+          }
+        />
+        <Section title="Details">
+          <FactGrid>
+            <Fact
+              testId="public-event-fact"
+              label="Type"
+              value={labelFor(TYPE_LABELS, event.eventType)}
+            />
+            <Fact testId="public-event-fact" label="Where" value={whereItIs(event)} />
             <Fact
               label="Term and week"
-              value={year === null ? "—" : year.coordinateLabel(event.scheduledOn)}
+              value={year === null ? null : year.coordinateLabel(event.scheduledOn)}
             />
-            <Fact label="Attendance" value={describeAttendance(event.isMandatory)} />
+            <Fact
+              testId="public-event-fact"
+              label="Attendance"
+              value={describeAttendance(event.isMandatory)}
+            />
             {event.requiredEquipment ? (
-              <Fact label={EQUIPMENT_LABEL} value={event.requiredEquipment} />
+              <Fact
+                testId="public-event-fact"
+                label={EQUIPMENT_LABEL}
+                value={event.requiredEquipment}
+              />
             ) : null}
             {event.description ? (
               <Box sx={{ gridColumn: { sm: "1 / -1" } }}>
-                <Fact label="Description" value={event.description} />
+                <Fact testId="public-event-fact" label="Description" value={event.description} />
               </Box>
             ) : null}
-          </Box>
-        </Paper>
+          </FactGrid>
+        </Section>
       </Stack>
     </PublicShell>
   );
@@ -162,17 +150,4 @@ function whereItIs(event: PublicEventDetail): string {
     return event.venue ?? labelFor(DELIVERY_MODE_LABELS, "online");
   }
   return event.venue ?? labelFor(DELIVERY_MODE_LABELS, "in_person");
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <Box data-testid="public-event-fact">
-      <Typography variant="overline" component="p" color="text.secondary">
-        {label}
-      </Typography>
-      <Typography variant="body1" sx={{ fontWeight: 600 }}>
-        {value}
-      </Typography>
-    </Box>
-  );
 }

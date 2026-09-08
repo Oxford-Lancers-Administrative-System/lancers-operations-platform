@@ -172,7 +172,7 @@ describe("the person record, for an authorized operator", () => {
   // given name, family name and date of birth have no `source` column of
   // their own — `readPersonRecord()` derives who supplied them from
   // `audit_events` instead. This is the acceptance test for that derivation.
-  it("shows who supplied a field derived from history, and says so plainly where history has none", async () => {
+  it("shows known field provenance and omits the caption where history has none", async () => {
     signedInAs(["secretary"]);
     vi.mocked(readPersonRecord).mockResolvedValue(
       baseRecord({
@@ -192,10 +192,14 @@ describe("the person record, for an authorized operator", () => {
     expect(screen.getByText("Merton")).toBeVisible();
     expect(screen.getByText("Norbert Mereworth")).toBeVisible();
     // Matriculation year has a value but no audit row naming who set it —
-    // this is the "not recorded" caption `Q-13` chose over inventing one,
-    // not the absent-value caption (2023 itself is plainly visible).
+    // LAN-233 only displays provenance when it is known; the value stays visible.
     expect(screen.getByText("2023")).toBeVisible();
-    expect(screen.getAllByText("not recorded").length).toBeGreaterThan(0);
+    expect(
+      screen
+        .getByText("2023")
+        .closest('[data-testid="record-row"]')
+        ?.querySelector('[data-testid="fact-provenance"]'),
+    ).toBeNull();
   });
 
   it("opens a recruit with their status, and no funnel control", async () => {

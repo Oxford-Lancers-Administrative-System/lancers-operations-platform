@@ -1,27 +1,22 @@
 "use client";
 
 import { useActionState } from "react";
-import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Paper from "@mui/material/Paper";
-import Radio from "@mui/material/Radio";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field } from "@/components/field";
+import { ActionBar } from "@/components/action-bar";
+import { PageHeader } from "@/components/page-header";
+import { Notice } from "@/components/notice";
+import { Section } from "@/components/section";
+import { RowCard } from "@/components/row-card";
+import { ValueChoice } from "@/components/value-choice";
+import { NotRecorded } from "@/components/fact";
 import Typography from "@mui/material/Typography";
 
 import type { PersonMergePreview } from "@/lib/services/person-merge";
 import { submitMerge } from "./actions";
 import { INITIAL_MERGE_STATE } from "./merge-state";
-
-const MIN_TOUCH_TARGET = 44;
-
-const NOT_RECORDED = (
-  <Typography component="span" color="text.disabled" sx={{ fontStyle: "italic" }}>
-    not recorded
-  </Typography>
-);
 
 /** `public.messaging_consent_state`, for the operator-choosable comparison row B-003 adds. */
 const CONSENT_STATE_LABELS: Readonly<Record<string, string>> = Object.freeze({
@@ -55,49 +50,21 @@ export default function MergeComparison({
       <input type="hidden" name="loserPersonId" value={loser.personId} />
 
       <Stack spacing={3}>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={2}
-          sx={{ justifyContent: "space-between", alignItems: "flex-start" }}
-        >
-          <Box>
-            <Typography variant="body2" color="text.secondary">
-              <Button
-                href={`/operate/people/${survivorRouteId}`}
-                sx={{ p: 0, minHeight: 0, textTransform: "none" }}
-              >
-                ← {survivor.displayName}
-              </Button>
-            </Typography>
-            <Typography variant="h5" component="h1" sx={{ fontWeight: 700, mt: 0.5 }}>
-              Merge two records
-            </Typography>
-          </Box>
-          <Stack direction="row" spacing={2}>
-            <Button
-              href={`/operate/people/${survivorRouteId}`}
-              sx={{ minHeight: MIN_TOUCH_TARGET, textTransform: "none" }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="contained"
-              disabled={pending || Boolean(refusal)}
-              sx={{ minHeight: MIN_TOUCH_TARGET }}
-            >
-              Merge
-            </Button>
-          </Stack>
-        </Stack>
+        <PageHeader
+          title="Merge two records"
+          back={{
+            href: `/operate/people/${survivorRouteId}`,
+            label: `Back to ${survivor.displayName}`,
+          }}
+        />
 
-        {state.formError ? <Alert severity="warning">{state.formError}</Alert> : null}
+        {state.formError ? <Notice severity="warning">{state.formError}</Notice> : null}
 
         {refusal ? (
           <Stack spacing={2}>
-            <Alert severity="warning" data-testid="merge-refusal">
+            <Notice severity="warning" testId="merge-refusal">
               {refusal.message}
-            </Alert>
+            </Notice>
             <Stack direction="row" spacing={2} sx={{ flexWrap: "wrap", gap: 1 }}>
               {refusal.rule === "person_merge_active_operator_seat" ? (
                 <Button variant="contained" href="/operate/admin/operators">
@@ -121,10 +88,7 @@ export default function MergeComparison({
           </Stack>
         ) : (
           <>
-            <Paper variant="outlined" sx={{ p: 3 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
-                Which record survives
-              </Typography>
+            <Section title="Which record survives">
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                 <SurvivorCard label={survivor.displayName} isSurvivor />
                 <SurvivorCard
@@ -132,12 +96,9 @@ export default function MergeComparison({
                   swapHref={`/operate/people/${loser.personId}/merge?with=${survivor.personId}`}
                 />
               </Stack>
-            </Paper>
+            </Section>
 
-            <Paper variant="outlined" sx={{ p: 3 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
-                What each record says
-              </Typography>
+            <Section title="What each record says">
               <Stack spacing={2}>
                 {preview.fields.map((field) => (
                   <CompareRow
@@ -190,29 +151,25 @@ export default function MergeComparison({
               </Stack>
               {preview.aliases.survivorAliases.length > 0 ||
               preview.aliases.loserAliases.length > 0 ? (
-                <Alert severity="info" sx={{ mt: 2 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
                   Aliases from both records are kept on the survivor as dedupe evidence.
-                </Alert>
+                </Typography>
               ) : null}
-            </Paper>
+            </Section>
 
             {preview.prospectCombinations.length > 0 ? (
-              <Paper variant="outlined" sx={{ p: 3 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
-                  Two prospect records for {preview.prospectCombinations[0].seasonLabel}
-                </Typography>
-                <Alert severity="info">
+              <Section
+                title={`Two prospect records for ${preview.prospectCombinations[0].seasonLabel}`}
+              >
+                <Typography variant="body2" color="text.secondary">
                   Combined onto the survivor: earliest first contact, furthest-along status. One
                   prospect record per person per season.
-                </Alert>
-              </Paper>
+                </Typography>
+              </Section>
             ) : null}
 
             {preview.willMove.length > 0 ? (
-              <Paper variant="outlined" sx={{ p: 3 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
-                  What will move onto {survivor.displayName}
-                </Typography>
+              <Section title={`What will move onto ${survivor.displayName}`}>
                 <Stack spacing={1}>
                   {preview.willMove.map((line) => (
                     <Typography key={line.label} variant="body2">
@@ -221,17 +178,14 @@ export default function MergeComparison({
                     </Typography>
                   ))}
                 </Stack>
-              </Paper>
+              </Section>
             ) : null}
 
             {/* Q-16, LAN-185 correction round 2: an archived overlap
                 membership stays on {loser.displayName} — never re-pointed —
                 said plainly here before the merge, per Brian's own words. */}
             {preview.staysWithLoser.length > 0 ? (
-              <Paper variant="outlined" sx={{ p: 3 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
-                  What stays on {loser.displayName}
-                </Typography>
+              <Section title={`What stays on ${loser.displayName}`}>
                 <Stack spacing={1}>
                   {preview.staysWithLoser.map((line) => (
                     <Typography
@@ -244,27 +198,31 @@ export default function MergeComparison({
                     </Typography>
                   ))}
                 </Stack>
-              </Paper>
+              </Section>
             ) : null}
 
-            <Paper variant="outlined" sx={{ p: 3 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
-                Why
-              </Typography>
-              <TextField
+            <Section title="Why">
+              <Field
                 name="reason"
                 label="Reason"
                 required
-                fullWidth
                 error={Boolean(state.reasonError)}
                 helperText={
                   state.reasonError ??
                   "There is no undo. The losing row is kept, dated, and points at the survivor."
                 }
               />
-            </Paper>
+            </Section>
           </>
         )}
+        <ActionBar
+          primary={
+            <Button type="submit" variant="contained" disabled={pending || Boolean(refusal)}>
+              Merge
+            </Button>
+          }
+          cancel={<Button href={`/operate/people/${survivorRouteId}`}>Cancel</Button>}
+        />
       </Stack>
     </Box>
   );
@@ -280,26 +238,14 @@ function SurvivorCard({
   swapHref?: string;
 }) {
   return (
-    <Paper
-      variant="outlined"
-      sx={{
-        p: 2,
-        flex: 1,
-        borderColor: isSurvivor ? "primary.main" : undefined,
-        borderWidth: isSurvivor ? 2 : 1,
-      }}
-    >
-      <Typography sx={{ fontWeight: 700 }}>{label}</Typography>
-      {isSurvivor ? (
-        <Typography variant="overline" color="primary">
-          Survivor
-        </Typography>
-      ) : (
-        <Button href={swapHref} sx={{ p: 0, minHeight: 0, textTransform: "none" }}>
-          Make this the survivor
-        </Button>
-      )}
-    </Paper>
+    <Box sx={{ flex: 1, minWidth: 0 }}>
+      <RowCard
+        title={label}
+        emphasized={isSurvivor}
+        sublines={isSurvivor ? ["Survivor"] : []}
+        actions={!isSurvivor ? <Button href={swapHref}>Make this the survivor</Button> : undefined}
+      />
+    </Box>
   );
 }
 
@@ -332,61 +278,25 @@ function CompareRow({
         <Typography variant="body2" color="text.secondary">
           {label}
         </Typography>
-        {differs ? <Chip size="small" color="warning" variant="outlined" label="differs" /> : null}
+        {differs ? (
+          <Typography variant="caption" color="text.secondary">
+            differs
+          </Typography>
+        ) : null}
       </Stack>
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ width: "100%" }}>
-        <ValueBox
+        <ValueChoice
           name={readOnly ? undefined : name}
           value="survivor"
-          text={survivorValue ?? NOT_RECORDED}
+          text={survivorValue ?? <NotRecorded />}
           defaultSelected
         />
-        <ValueBox
+        <ValueChoice
           name={readOnly ? undefined : name}
           value="loser"
-          text={loserValue ?? NOT_RECORDED}
+          text={loserValue ?? <NotRecorded />}
         />
       </Stack>
     </Stack>
-  );
-}
-
-function ValueBox({
-  name,
-  value,
-  text,
-  defaultSelected,
-}: {
-  name?: string;
-  value: "survivor" | "loser";
-  text: React.ReactNode;
-  defaultSelected?: boolean;
-}) {
-  return (
-    <Paper
-      variant="outlined"
-      component="label"
-      sx={{
-        p: 1.5,
-        flex: 1,
-        display: "flex",
-        alignItems: "center",
-        gap: 1,
-        cursor: name ? "pointer" : "default",
-      }}
-    >
-      {name ? (
-        <Radio
-          name={name}
-          value={value}
-          defaultChecked={defaultSelected}
-          size="small"
-          sx={{ p: 0 }}
-        />
-      ) : null}
-      <Typography variant="body2" sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
-        {text}
-      </Typography>
-    </Paper>
   );
 }

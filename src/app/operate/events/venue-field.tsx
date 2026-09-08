@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Autocomplete from "@mui/material/Autocomplete";
 import ListItemText from "@mui/material/ListItemText";
-import TextField from "@mui/material/TextField";
+import { Field } from "@/components/field";
 
 import { MIN_QUERY_LENGTH, type VenueSuggestion } from "@/lib/venue-search/suggestion";
 
@@ -248,13 +248,12 @@ export default function VenueField({
         </li>
       )}
       renderInput={(params) => (
-        <TextField
+        <Field
           {...params}
           label="Venue"
           name={name}
           error={Boolean(errorMessage)}
           helperText={<span data-testid="venue-search-status">{help}</span>}
-          fullWidth
           slotProps={{ ...params.slotProps, formHelperText: { "aria-live": "polite" } }}
         />
       )}

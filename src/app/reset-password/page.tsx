@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import AuthShell from "../auth-shell";
@@ -44,7 +44,7 @@ export default async function ResetPasswordPage({ searchParams }: PageProps<"/re
     return (
       <AuthShell heading="This reset link cannot be used">
         <Stack spacing={3}>
-          <Alert severity="warning">{INVALID_RECOVERY_LINK_MESSAGE}</Alert>
+          <Notice severity="warning">{INVALID_RECOVERY_LINK_MESSAGE}</Notice>
           <Button href={FORGOT_PASSWORD_PATH} variant="contained">
             Request a new link
           </Button>

@@ -3,8 +3,10 @@
 import { useMemo, useState, useTransition } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Paper from "@mui/material/Paper";
+import { Metric } from "@/components/metric";
+import { PageHeader } from "@/components/page-header";
+import { Surface } from "@/components/surface";
+import { Notice } from "@/components/notice";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { buildQrMatrix, qrMatrixToSvg } from "@/lib/qr/qr-matrix";
@@ -39,6 +41,8 @@ export default function QrCodeView({
   );
 
   function mint() {
+    setCopied(false);
+    setError(null);
     startTransition(async () => {
       const result = await mintRecruitmentSignupCodeAction();
       setError(result.error);
@@ -46,6 +50,8 @@ export default function QrCodeView({
   }
 
   async function copyLink() {
+    setError(null);
+    setCopied(false);
     if (!joinUrl) return;
     try {
       await navigator.clipboard.writeText(joinUrl);
@@ -58,14 +64,13 @@ export default function QrCodeView({
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 560 }} data-testid="recruitment-qr-page">
-      <Typography variant="h5" component="h1" gutterBottom>
-        Sign-up code
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        {seasonLabel}
-      </Typography>
+      <PageHeader
+        title="Sign-up code"
+        subtitle={seasonLabel}
+        back={{ href: "/operate/recruitment", label: "Back to recruitment" }}
+      />
 
-      <Paper variant="outlined" sx={{ p: 3, textAlign: "center" }}>
+      <Surface>
         {svgDataUri ? (
           <>
             <Box
@@ -98,12 +103,12 @@ export default function QrCodeView({
                 {copied ? "COPIED" : "COPY LINK"}
               </Button>
             </Stack>
-            <Stack direction="row" spacing={1} sx={{ justifyContent: "center", mt: 2 }}>
-              <Chip
-                label={`${signInCount} sign-in${signInCount === 1 ? "" : "s"} this season`}
-                size="small"
+            <Box>
+              <Metric
+                value={signInCount}
+                label={`sign-in${signInCount === 1 ? "" : "s"} this season`}
               />
-            </Stack>
+            </Box>
           </>
         ) : (
           <Typography variant="body2" color="text.secondary" data-testid="recruitment-qr-none">
@@ -120,21 +125,13 @@ export default function QrCodeView({
         >
           {joinUrl ? "MINT NEW CODE" : "MINT CODE"}
         </Button>
-        {error ? (
-          <Typography variant="caption" color="error" component="p" sx={{ mt: 1 }}>
-            {error}
-          </Typography>
-        ) : null}
+        {error ? <Notice severity="error">{error}</Notice> : null}
         {mintedAt ? (
           <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1 }}>
             Minted {formatWhen(new Date(mintedAt))}
           </Typography>
         ) : null}
-      </Paper>
-
-      <Button variant="text" href="/operate/recruitment" sx={{ mt: 2, minHeight: 44 }}>
-        Back to recruitment
-      </Button>
+      </Surface>
     </Box>
   );
 }

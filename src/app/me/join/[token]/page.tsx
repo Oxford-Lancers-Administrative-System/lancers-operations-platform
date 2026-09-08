@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Box from "@mui/material/Box";
+import { PublicShell } from "@/components/public-shell";
 
 import { withTransaction } from "@/lib/db";
 import { resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
@@ -65,28 +65,26 @@ export default async function JoinWithTokenPage({ params }: PageProps) {
     .toUpperCase();
 
   return (
-    <Box sx={{ minHeight: "100dvh", bgcolor: "grey.100", py: { xs: 3, sm: 6 }, px: 2 }}>
-      <Box sx={{ maxWidth: 640, mx: "auto" }}>
-        <SignupForm
-          mode="prefilled"
-          initial={{
-            givenName: prefill.givenName,
-            familyName: prefill.familyName ?? "",
-            mobile: prefill.mobile ?? "",
-            email: prefill.email ?? "",
-            knownAs: "",
-            college: prefill.college ?? "",
-            matriculationYear:
-              prefill.matriculationYear !== null ? String(prefill.matriculationYear) : "",
-            expectedGraduationYear:
-              prefill.expectedGraduationYear !== null ? String(prefill.expectedGraduationYear) : "",
-            degreeField: prefill.degreeField ?? "",
-          }}
-          personLabel={personLabel || null}
-          groupLink={groupLink}
-          submit={submitTokenSignup.bind(null, token)}
-        />
-      </Box>
-    </Box>
+    <PublicShell layout="stack">
+      <SignupForm
+        mode="prefilled"
+        initial={{
+          givenName: prefill.givenName,
+          familyName: prefill.familyName ?? "",
+          mobile: prefill.mobile ?? "",
+          email: prefill.email ?? "",
+          knownAs: "",
+          college: prefill.college ?? "",
+          matriculationYear:
+            prefill.matriculationYear !== null ? String(prefill.matriculationYear) : "",
+          expectedGraduationYear:
+            prefill.expectedGraduationYear !== null ? String(prefill.expectedGraduationYear) : "",
+          degreeField: prefill.degreeField ?? "",
+        }}
+        personLabel={personLabel || null}
+        groupLink={groupLink}
+        submit={submitTokenSignup.bind(null, token)}
+      />
+    </PublicShell>
   );
 }

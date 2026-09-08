@@ -5,7 +5,10 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field } from "@/components/field";
+import { Notice } from "@/components/notice";
+import { NotRecorded } from "@/components/fact";
+import { useOutcomeSlot } from "@/components/outcome-slot";
 import Typography from "@mui/material/Typography";
 import type { RecruitmentProspectNote } from "@/lib/services/recruitment-prospect";
 import { addRecruitmentNoteAction } from "./actions";
@@ -18,11 +21,13 @@ export default function NotesCard({
   prospectId: string;
   notes: readonly RecruitmentProspectNote[];
 }) {
+  const slot = useOutcomeSlot("notes");
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function submit() {
+    slot.claim();
     startTransition(async () => {
       const result = await addRecruitmentNoteAction({ prospectId, note: draft });
       setError(result.error);
@@ -34,9 +39,7 @@ export default function NotesCard({
     <Box>
       <Stack spacing={1.5} sx={{ mb: 2 }}>
         {notes.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
-            Not recorded
-          </Typography>
+          <NotRecorded />
         ) : (
           notes.map((note, index) => (
             <Box key={note.id}>
@@ -49,8 +52,8 @@ export default function NotesCard({
           ))
         )}
       </Stack>
-      <TextField
-        fullWidth
+      <Field
+        label="Add a note"
         multiline
         minRows={2}
         placeholder="Add a note"
@@ -58,11 +61,7 @@ export default function NotesCard({
         onChange={(event) => setDraft(event.target.value)}
         data-testid="recruitment-note-draft"
       />
-      {error ? (
-        <Typography variant="caption" color="error" component="p" sx={{ mt: 0.5 }}>
-          {error}
-        </Typography>
-      ) : null}
+      {slot.showing && error ? <Notice severity="error">{error}</Notice> : null}
       <Button
         variant="outlined"
         size="small"

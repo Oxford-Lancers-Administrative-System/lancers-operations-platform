@@ -1,15 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import Alert from "@mui/material/Alert";
-import AlertTitle from "@mui/material/AlertTitle";
+import { Notice } from "@/components/notice";
+import { PageHeader } from "@/components/page-header";
+import { ActionBar } from "@/components/action-bar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Checkbox from "@mui/material/Checkbox";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Paper from "@mui/material/Paper";
+import { Surface } from "@/components/surface";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field, CheckField } from "@/components/field";
+import { Section } from "@/components/section";
 import Typography from "@mui/material/Typography";
 import {
   validateAcademicYear,
@@ -204,31 +204,26 @@ export default function SignupForm({
   if (step === "already") {
     const digits = values.mobile.replace(/\D/g, "");
     return (
-      <Paper variant="outlined" sx={{ p: { xs: 2.5, sm: 4 } }}>
+      <Surface>
         <Stack spacing={3}>
           <Box>
-            <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-              Have you signed up with us before?
-            </Typography>
+            <PageHeader title="Have you signed up with us before?" />
             <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 1 }}>
               We may already have you. If that is you, we will not add you twice — you will go
               straight to the group.
             </Typography>
           </Box>
 
-          <Paper variant="outlined" sx={{ p: 2 }}>
-            <Typography variant="overline" sx={{ fontWeight: 700, color: "text.secondary" }}>
-              We found
-            </Typography>
+          <Section title="We found">
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
               {`${values.givenName.trim() || "Somebody"}, mobile ending ${digits.slice(-3) || "—"}`}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Only what you have already typed is shown back to you.
             </Typography>
-          </Paper>
+          </Section>
 
-          {error ? <Alert severity="error">{error}</Alert> : null}
+          {error ? <Notice severity="error">{error}</Notice> : null}
 
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
             <Button
@@ -249,18 +244,18 @@ export default function SignupForm({
             </Button>
           </Stack>
         </Stack>
-      </Paper>
+      </Surface>
     );
   }
 
   if (step === "saved") {
     return (
-      <Paper variant="outlined" sx={{ p: { xs: 2.5, sm: 4 } }}>
+      <Surface>
         <Stack spacing={3}>
           <Box>
-            <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-              {`You're in${values.givenName.trim() ? `, ${values.givenName.trim()}` : ""}`}
-            </Typography>
+            <PageHeader
+              title={`You're in${values.givenName.trim() ? `, ${values.givenName.trim()}` : ""}`}
+            />
             <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 1 }}>
               Last thing — join the WhatsApp group. That is where the club says when and where the
               next session is.
@@ -272,21 +267,22 @@ export default function SignupForm({
               Join the WhatsApp group
             </Button>
           ) : (
-            <Alert severity="info">The group link is not live yet. Ask anybody at the club.</Alert>
+            <Notice severity="info">
+              The group link is not live yet. Ask anybody at the club.
+            </Notice>
           )}
 
-          <Alert severity="success">
-            <AlertTitle sx={{ fontWeight: 700 }}>Consent recorded.</AlertTitle>
+          <Notice severity="success" title="Consent recorded.">
             You can stop it at any time from the link at the foot of any message we send. We will
             ask you again next season.
-          </Alert>
+          </Notice>
         </Stack>
-      </Paper>
+      </Surface>
     );
   }
 
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2.5, sm: 4 } }}>
+    <Surface>
       <Stack spacing={3}>
         {mode === "prefilled" && personLabel ? (
           <Typography
@@ -297,9 +293,7 @@ export default function SignupForm({
         ) : null}
 
         <Box>
-          <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-            Join the Oxford Lancers
-          </Typography>
+          <PageHeader title="Join the Oxford Lancers" />
           <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 1 }}>
             {mode === "anonymous"
               ? "Leave your name and a way to reach you. We will send you a WhatsApp message about the next session."
@@ -310,91 +304,79 @@ export default function SignupForm({
           </Typography>
         </Box>
 
-        {error ? <Alert severity="error">{error}</Alert> : null}
+        {error ? <Notice severity="error">{error}</Notice> : null}
 
-        <TextField label="First name" required fullWidth {...field("givenName")} />
-        <TextField label="Last name" required fullWidth {...field("familyName")} />
-        <TextField
+        <Field label="First name" required {...field("givenName")} />
+        <Field label="Last name" required {...field("familyName")} />
+        <Field
           label="Mobile number"
           required
-          fullWidth
+
           error={Boolean(mobileError)}
           helperText={mobileError ?? "How the club will message you about sessions."}
           {...field("mobile")}
         />
-        <TextField
+        <Field
           label="Email address"
-          fullWidth
+
           error={Boolean(emailError)}
           helperText={emailError ?? undefined}
           {...field("email")}
         />
-        <TextField
+        <Field
           label="Known as"
-          fullWidth
+
           helperText="Only if it differs from your first name. It becomes an alias, so the club can find you by it."
           {...field("knownAs")}
         />
-        <TextField label="College" fullWidth {...field("college")} />
-        <TextField
+        <Field label="College" {...field("college")} />
+        <Field
           label="Matriculation year"
-          fullWidth
+
           error={Boolean(matriculationError)}
           helperText={matriculationError ?? "The year you started at Oxford."}
           {...field("matriculationYear")}
         />
-        <TextField
+        <Field
           label="Expected graduation"
-          fullWidth
+
           error={Boolean(graduationError)}
           helperText={graduationError ?? undefined}
           {...field("expectedGraduationYear")}
         />
-        <TextField label="Degree" fullWidth {...field("degreeField")} />
+        <Field label="Degree" {...field("degreeField")} />
 
-        <Paper variant="outlined" sx={{ p: 2, borderColor: consent ? "primary.main" : "divider" }}>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={consent}
-                onChange={(event) => {
-                  setError(null);
-                  setConsent(event.target.checked);
-                }}
-              />
-            }
-            label={
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  The Oxford Lancers may message me on WhatsApp about this season.
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Session invitations and the odd polite reminder. Never more than one reminder,
-                  never a chase, and you can stop it at any time from a link in any message. We will
-                  ask you again next season.
-                </Typography>
-              </Box>
-            }
-          />
-        </Paper>
+        <CheckField
+          name="consent"
+          checked={consent}
+          onChange={(next) => {
+            setError(null);
+            setConsent(next);
+          }}
+          label={
+            <Box>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                The Oxford Lancers may message me on WhatsApp about this season.
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Session invitations and the odd polite reminder. Never more than one reminder, never
+                a chase, and you can stop it at any time from a link in any message. We will ask you
+                again next season.
+              </Typography>
+            </Box>
+          }
+        />
 
-        <Box>
-          <Button
-            variant="contained"
-            disabled={!ready || busy}
-            onClick={handlePrimarySave}
-            sx={{ minHeight: 48 }}
-          >
-            {mode === "anonymous" ? "Sign me up" : "Save my details"}
-          </Button>
-          {!ready ? (
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-              {disabledReason}
-            </Typography>
-          ) : null}
-        </Box>
+        <ActionBar
+          primary={
+            <Button variant="contained" disabled={!ready || busy} onClick={handlePrimarySave}>
+              {mode === "anonymous" ? "Sign me up" : "Save my details"}
+            </Button>
+          }
+          note={!ready ? disabledReason : undefined}
+        />
       </Stack>
-    </Paper>
+    </Surface>
   );
 }
 

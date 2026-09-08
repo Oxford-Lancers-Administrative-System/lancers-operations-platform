@@ -1,12 +1,13 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { PublicShell } from "@/components/public-shell";
+import { PageHeader } from "@/components/page-header";
+import { Fact, FactGrid } from "@/components/fact";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field } from "@/components/field";
 import Typography from "@mui/material/Typography";
 
 import { withTransaction } from "@/lib/db";
@@ -36,7 +37,6 @@ import { ANSWER_FORM_ID, ERROR_PARAM } from "./params";
 import {
   ALREADY_RECORDED_HEADING,
   ALREADY_RECORDED_NOTE,
-  BANNER,
   BUSY_ERROR,
   BUSY_MESSAGE,
   CANCELLED_HEADING,
@@ -224,41 +224,9 @@ export default async function AnswerLinkPage({ params, searchParams }: PageProps
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <Box sx={{ minHeight: "100dvh", bgcolor: "grey.100", py: { xs: 3, sm: 6 }, px: 2 }}>
-      <Box sx={{ maxWidth: 720, mx: "auto" }}>
-        <Typography
-          component="p"
-          sx={{
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            color: "text.secondary",
-            mb: 2,
-          }}
-        >
-          {BANNER}
-        </Typography>
-        <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2 }}>
-          {children}
-        </Paper>
-      </Box>
-    </Box>
-  );
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <Box>
-      <Typography
-        component="dt"
-        sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary", mb: 0.5 }}
-      >
-        {label}
-      </Typography>
-      <Typography component="dd" sx={{ m: 0, fontSize: 15, color: "text.primary" }}>
-        {value}
-      </Typography>
-    </Box>
+    <PublicShell>
+      <Stack spacing={2}>{children}</Stack>
+    </PublicShell>
   );
 }
 
@@ -297,15 +265,10 @@ function Confirm({
 
   return (
     <Shell>
-      <Chip
-        label={eventTypeLabel(base.eventType)}
-        size="small"
-        color="primary"
-        sx={{ mb: 1.5, fontWeight: 700, letterSpacing: "0.04em" }}
-      />
-      <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-        {answer === "yes" ? YES_HEADING : NO_HEADING}
+      <Typography variant="overline" color="text.secondary">
+        {eventTypeLabel(base.eventType)}
       </Typography>
+      <PageHeader title={answer === "yes" ? YES_HEADING : NO_HEADING} />
       <Typography sx={{ fontSize: { xs: 17, sm: 19 }, fontWeight: 600, mt: 1 }}>
         {base.eventName}
         {when ? ` · ${when}` : ""}
@@ -317,35 +280,18 @@ function Confirm({
         </Typography>
       ) : null}
 
-      {busy ? (
-        <Alert severity="warning" sx={{ mt: 2 }}>
-          {BUSY_MESSAGE}
-        </Alert>
-      ) : null}
+      {busy ? <Notice severity="warning">{BUSY_MESSAGE}</Notice> : null}
 
-      <Box
-        component="dl"
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-          gap: 2.5,
-          mt: 3,
-          mb: 1,
-        }}
-      >
+      <FactGrid>
         {base.playerName ? <Fact label="Player" value={base.playerName} /> : null}
         {base.venue ? <Fact label="Venue" value={base.venue} /> : null}
         {deadline ? <Fact label="Response deadline" value={deadline} /> : null}
         <Fact label="Your answer" value={answer === "yes" ? YES_HEADING : "You're not attending"} />
-      </Box>
+      </FactGrid>
       {attending ? (
         <Typography sx={{ fontSize: 13, color: "text.secondary", mb: 1 }}>{attending}</Typography>
       ) : null}
-      {otherOutstanding ? (
-        <Alert severity="info" sx={{ mt: 1, mb: 1 }}>
-          {otherOutstanding}
-        </Alert>
-      ) : null}
+      {otherOutstanding ? <Notice severity="info">{otherOutstanding}</Notice> : null}
 
       <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 2, mb: 2 }}>
         {PRIVACY_NOTE}
@@ -399,11 +345,11 @@ function Confirm({
         {answer === "no" ? (
           <Stack spacing={1.5} sx={{ mb: 3 }}>
             <Typography sx={{ fontSize: 13, color: "text.secondary" }}>{REASON_PROMPT}</Typography>
-            <TextField
+            <Field
               name="reason"
               label={REASON_LABEL}
               placeholder={REASON_PLACEHOLDER}
-              fullWidth
+
               slotProps={{ htmlInput: { maxLength: 200 } }}
             />
           </Stack>
@@ -436,7 +382,7 @@ function Confirm({
               name="intent"
               value="change-to-yes"
               variant="contained"
-              color="success"
+              color="primary"
               fullWidth
               sx={{ minHeight: 48 }}
             >
@@ -447,7 +393,7 @@ function Confirm({
           <Button
             type="submit"
             variant="contained"
-            color="success"
+            color="primary"
             fullWidth
             sx={{ minHeight: 48 }}
           >
@@ -521,25 +467,16 @@ function RecruitConfirm({
 
   return (
     <Shell>
-      <Chip
-        label={eventTypeLabel(base.eventType)}
-        size="small"
-        color="primary"
-        sx={{ mb: 1.5, fontWeight: 700, letterSpacing: "0.04em" }}
-      />
-      <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-        {answer === "yes" ? RECRUIT_YES_HEADING : RECRUIT_NO_HEADING}
+      <Typography variant="overline" color="text.secondary">
+        {eventTypeLabel(base.eventType)}
       </Typography>
+      <PageHeader title={answer === "yes" ? RECRUIT_YES_HEADING : RECRUIT_NO_HEADING} />
       <Typography sx={{ fontSize: { xs: 17, sm: 19 }, fontWeight: 600, mt: 1 }}>
         {base.eventName}
         {when ? ` · ${when}` : ""}
       </Typography>
 
-      {busy ? (
-        <Alert severity="warning" sx={{ mt: 2 }}>
-          {BUSY_MESSAGE}
-        </Alert>
-      ) : null}
+      {busy ? <Notice severity="warning">{BUSY_MESSAGE}</Notice> : null}
 
       {base.venue ? (
         <Box component="dl" sx={{ mt: 3, mb: 1 }}>
@@ -553,7 +490,7 @@ function RecruitConfirm({
 
       <Box id={ANSWER_FORM_ID} component="form" action={submitAnswer}>
         <input type="hidden" name="token" value={token} />
-        <Button type="submit" variant="contained" color="success" fullWidth sx={{ minHeight: 48 }}>
+        <Button type="submit" variant="contained" color="primary" fullWidth sx={{ minHeight: 48 }}>
           {RECRUIT_CONFIRM_LABEL}
         </Button>
       </Box>
@@ -566,9 +503,7 @@ function RecruitConfirm({
 function AlreadyRecorded() {
   return (
     <Shell>
-      <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-        {ALREADY_RECORDED_HEADING}
-      </Typography>
+      <PageHeader title={ALREADY_RECORDED_HEADING} />
       <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 1.5 }}>
         {ALREADY_RECORDED_NOTE}
       </Typography>
@@ -586,9 +521,7 @@ function AlreadyRecorded() {
 function RecruitAlreadyRecorded({ answer, base }: { answer: PlayerAnswer; base: SignedRsvpPage }) {
   return (
     <Shell>
-      <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-        Your response is saved
-      </Typography>
+      <PageHeader title="Your response is saved" />
       <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 1 }}>
         {`${answer === "yes" ? RECRUIT_YES_HEADING : RECRUIT_NO_HEADING} · ${base.eventName}`}
       </Typography>
@@ -599,9 +532,7 @@ function RecruitAlreadyRecorded({ answer, base }: { answer: PlayerAnswer; base: 
 function Cancelled({ eventName }: { eventName: string }) {
   return (
     <Shell>
-      <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-        {CANCELLED_HEADING}
-      </Typography>
+      <PageHeader title={CANCELLED_HEADING} />
       <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 1 }}>
         {cancelledSentence(eventName)}
       </Typography>

@@ -93,7 +93,7 @@ export function StepTrail({
               // On a phone the label and its state share one line, so five
               // steps are five short rows rather than five tall boxes.
               alignItems: { xs: "center", sm: "flex-start" },
-              justifyContent: { xs: "space-between", sm: "flex-start" },
+              justifyContent: "space-between",
             }}
           >
             <Typography

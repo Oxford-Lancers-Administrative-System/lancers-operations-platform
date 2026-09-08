@@ -1,12 +1,16 @@
+import { PageHeader } from "@/components/page-header";
+import { Section } from "@/components/section";
+import { RecordRow as Fact } from "@/components/record-field";
+import { NotRecorded } from "@/components/fact";
+import { StatusChip } from "@/components/status-chip";
+import { SelectField } from "@/components/field";
+import { Notice } from "@/components/notice";
+import { EmptyState } from "@/components/empty-state";
+import { formatDay } from "@/app/operate/roster/presentation";
 import { notFound, redirect } from "next/navigation";
-import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import MenuItem from "@mui/material/MenuItem";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import { redactPersonRecord } from "@/lib/auth/person-authority";
@@ -21,11 +25,10 @@ import {
 import { readPersonRecord, type PersonRecord } from "@/lib/services/person-record";
 import { readCurrentSeason } from "@/lib/services/seasons";
 import { gateShellPage } from "../../gate";
-import { labelFor, statusColour, STATUS_LABELS } from "../presentation";
+import { labelFor, STATUS_LABELS } from "../presentation";
 import {
   labelFor as membershipLabelFor,
   MEMBERSHIP_STATUS_LABELS,
-  membershipStatusColour,
 } from "../../roster/presentation";
 
 /**
@@ -75,92 +78,14 @@ function first(value: string | string[] | undefined): string {
   return value ?? "";
 }
 
-function NotRecorded() {
-  return (
-    <Typography component="span" color="text.disabled" sx={{ fontStyle: "italic" }}>
-      not recorded
-    </Typography>
-  );
-}
-
+/** Provenance is shown only when the record supplies an actor. */
 function By({ who }: { who: string | null }) {
-  if (!who) return null;
-  return (
-    <Typography
-      component="span"
-      variant="caption"
-      sx={{ border: 1, borderColor: "divider", borderRadius: 0.5, px: 0.5, ml: 1 }}
-    >
+  return who ? (
+    <Typography component="span" variant="caption" color="text.secondary">
+      {" "}
       {who}
     </Typography>
-  );
-}
-
-/**
- * "Who supplied it" for a field with no stored `source` of its own —
- * `person-record.ts` derives `who` from `audit_events` (`Q-13`). Unlike
- * `By`, whose silence on a contact or alias means "this substrate carries no
- * source at all", `null` here means "no audit row exists yet" — a different
- * fact, and one `Q-13` chose to say plainly rather than leave blank.
- */
-function DerivedBy({ who }: { who: string | null }) {
-  if (who) return <By who={who} />;
-  return (
-    <Typography
-      component="span"
-      variant="caption"
-      color="text.disabled"
-      sx={{ fontStyle: "italic", ml: 1 }}
-    >
-      not recorded
-    </Typography>
-  );
-}
-
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <Stack
-      direction={{ xs: "column", sm: "row" }}
-      spacing={{ xs: 0.25, sm: 2 }}
-      sx={{
-        py: 1.125,
-        borderBottom: 1,
-        borderColor: "divider",
-        "&:last-child": { borderBottom: 0 },
-      }}
-    >
-      <Typography variant="body2" color="text.secondary" sx={{ width: { sm: 190 }, flexShrink: 0 }}>
-        {label}
-      </Typography>
-      <Box sx={{ minWidth: 0, overflowWrap: "anywhere" }}>{children}</Box>
-    </Stack>
-  );
-}
-
-function Section({
-  title,
-  action,
-  children,
-}: {
-  title: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <Paper variant="outlined" sx={{ p: 3 }}>
-      <Stack
-        direction="row"
-        spacing={1}
-        sx={{ justifyContent: "space-between", alignItems: "baseline", mb: 0.75 }}
-      >
-        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-          {title}
-        </Typography>
-        {action}
-      </Stack>
-      {children}
-    </Paper>
-  );
+  ) : null;
 }
 
 /** The preferred current contact of one kind (and scope), for a labelled row. */
@@ -251,53 +176,31 @@ export default async function PersonRecordPage({
 
   return (
     <Stack spacing={3}>
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        sx={{ justifyContent: "space-between", alignItems: { sm: "flex-start" } }}
-      >
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="body2" color="text.secondary">
-            <Button href="/operate/people" sx={{ p: 0, minHeight: 0, textTransform: "none" }}>
-              ← People
+      <PageHeader
+        title={record.displayName}
+        subtitle={clubRoleSummary}
+        back={{ href: "/operate/people", label: "Back to people" }}
+        status={
+          record.status !== null ? (
+            <StatusChip
+              domain={record.status === "recruit" ? "personType" : "membership"}
+              status={record.status}
+              label={labelFor(STATUS_LABELS, record.status)}
+            />
+          ) : undefined
+        }
+        actions={
+          <>
+            <Button variant="outlined" href={`/operate/people/${personId}/edit`}>
+              Correct this record
             </Button>
-          </Typography>
-          <Typography variant="h5" component="h1" sx={{ fontWeight: 700, mt: 0.5 }}>
-            {record.displayName}
-          </Typography>
-          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1, mt: 1 }}>
-            {record.status !== null ? (
-              <Chip
-                size="small"
-                label={labelFor(STATUS_LABELS, record.status)}
-                color={statusColour(record.status)}
-              />
-            ) : null}
-            {clubRoleSummary ? (
-              <Chip size="small" variant="outlined" label={clubRoleSummary} />
-            ) : null}
-          </Stack>
-        </Box>
-        <Stack direction="row" spacing={2} sx={{ flexWrap: "wrap" }}>
-          {/* LAN-185 builds correction and merge; this routes to them and builds neither. */}
-          <Button
-            variant="outlined"
-            href={`/operate/people/${personId}/edit`}
-            sx={{ minHeight: 44 }}
-          >
-            Correct this record
-          </Button>
-          <Button
-            href={`/operate/people/${personId}/merge`}
-            sx={{ minHeight: 44, textTransform: "none" }}
-          >
-            Merge…
-          </Button>
-        </Stack>
-      </Stack>
+            <Button href={`/operate/people/${personId}/merge`}>Merge…</Button>
+          </>
+        }
+      />
 
       {predecessors.map((predecessor) => (
-        <Alert key={predecessor.personId} severity="info" data-testid="merge-notice">
+        <Notice key={predecessor.personId} severity="info" testId="merge-notice">
           &ldquo;{predecessor.displayName}&rdquo; was merged into this record on{" "}
           {predecessor.mergedAt.toLocaleDateString("en-GB", {
             day: "numeric",
@@ -305,36 +208,22 @@ export default async function PersonRecordPage({
             year: "numeric",
           })}
           {predecessor.mergedByDisplayName ? ` by ${predecessor.mergedByDisplayName}` : ""}.
-        </Alert>
+        </Notice>
       ))}
 
       {record.missingRequiredFields.length > 0 ? (
-        <Alert severity="warning" data-testid="record-missing-banner">
+        <Notice severity="warning" testId="record-missing-banner">
           {record.missingRequiredFields.length} required{" "}
           {record.missingRequiredFields.length === 1 ? "fact is" : "facts are"} missing.
-        </Alert>
+        </Notice>
       ) : null}
 
-      <Section title="Who they are">
-        <Fact label="First name">
-          {visible.givenName ? (
-            <>
-              {record.givenName}
-              <DerivedBy who={record.givenNameSource} />
-            </>
-          ) : (
-            <NotRecorded />
-          )}
+      <Section variant="banded" band="person" title="Who they are">
+        <Fact label="First name" note={record.givenNameSource ?? undefined}>
+          {visible.givenName ? <>{record.givenName}</> : <NotRecorded />}
         </Fact>
-        <Fact label="Last name">
-          {record.familyName !== null ? (
-            <>
-              {record.familyName}
-              <DerivedBy who={record.familyNameSource} />
-            </>
-          ) : (
-            <NotRecorded />
-          )}
+        <Fact label="Last name" note={record.familyNameSource ?? undefined}>
+          {record.familyName !== null ? <>{record.familyName}</> : <NotRecorded />}
         </Fact>
         <Fact label="Aliases">
           {record.aliases.length === 0 ? (
@@ -347,7 +236,10 @@ export default async function PersonRecordPage({
                     {alias.alias}
                   </Typography>
                   {alias.isDisplayName ? (
-                    <Chip size="small" variant="outlined" label="display name" sx={{ ml: 1 }} />
+                    <Typography component="span" variant="caption" color="text.secondary">
+                      {" "}
+                      · display name
+                    </Typography>
                   ) : null}
                   <By who={alias.source} />
                 </Box>
@@ -358,99 +250,47 @@ export default async function PersonRecordPage({
       </Section>
 
       {visible.contacts !== undefined ? (
-        <Section title="How to reach them">
-          <Fact label="Mobile phone">
-            {mobile ? (
-              <>
-                {mobile.rawValue}
-                <By who={mobile.source} />
-              </>
-            ) : (
-              <NotRecorded />
-            )}
+        <Section variant="banded" band="person" title="How to reach them">
+          <Fact label="Mobile phone" note={mobile?.source ?? undefined}>
+            {mobile ? <>{mobile.rawValue}</> : <NotRecorded />}
           </Fact>
           <Fact label={`On WhatsApp${currentSeason ? ` · ${currentSeason.label}` : ""}`}>
             <NotRecorded />
           </Fact>
-          <Fact label="Personal email">
-            {personalEmail ? (
-              <>
-                {personalEmail.rawValue}
-                <By who={personalEmail.source} />
-              </>
-            ) : (
-              <NotRecorded />
-            )}
+          <Fact label="Personal email" note={personalEmail?.source ?? undefined}>
+            {personalEmail ? <>{personalEmail.rawValue}</> : <NotRecorded />}
           </Fact>
-          <Fact label="College email">
-            {collegeEmail ? (
-              <>
-                {collegeEmail.rawValue}
-                <By who={collegeEmail.source} />
-              </>
-            ) : (
-              <NotRecorded />
-            )}
+          <Fact label="College email" note={collegeEmail?.source ?? undefined}>
+            {collegeEmail ? <>{collegeEmail.rawValue}</> : <NotRecorded />}
           </Fact>
         </Section>
       ) : null}
 
       {visible.college !== undefined ? (
-        <Section title="Academic">
-          <Fact label="College">
-            {record.college !== null ? (
-              <>
-                {record.college}
-                <DerivedBy who={record.collegeSource} />
-              </>
-            ) : (
-              <NotRecorded />
-            )}
+        <Section variant="banded" band="person" title="Academic">
+          <Fact label="College" note={record.collegeSource ?? undefined}>
+            {record.college !== null ? <>{record.college}</> : <NotRecorded />}
           </Fact>
-          <Fact label="Matriculation year">
-            {record.matriculationYear !== null ? (
-              <>
-                {record.matriculationYear}
-                <DerivedBy who={record.matriculationYearSource} />
-              </>
-            ) : (
-              <NotRecorded />
-            )}
+          <Fact label="Matriculation year" note={record.matriculationYearSource ?? undefined}>
+            {record.matriculationYear !== null ? <>{record.matriculationYear}</> : <NotRecorded />}
           </Fact>
-          <Fact label="Expected graduation">
+          <Fact label="Expected graduation" note={record.expectedGraduationYearSource ?? undefined}>
             {record.expectedGraduationYear !== null ? (
-              <>
-                {record.expectedGraduationYear}
-                <DerivedBy who={record.expectedGraduationYearSource} />
-              </>
+              <>{record.expectedGraduationYear}</>
             ) : (
               <NotRecorded />
             )}
           </Fact>
-          <Fact label="Degree field">
-            {record.degreeField !== null ? (
-              <>
-                {record.degreeField}
-                <DerivedBy who={record.degreeFieldSource} />
-              </>
-            ) : (
-              <NotRecorded />
-            )}
+          <Fact label="Degree field" note={record.degreeFieldSource ?? undefined}>
+            {record.degreeField !== null ? <>{record.degreeField}</> : <NotRecorded />}
           </Fact>
         </Section>
       ) : null}
 
       {visible.dateOfBirth !== undefined ? (
-        <Section title="Restricted">
-          <Fact label="Date of birth">
-            {record.dateOfBirth !== null ? (
-              <>
-                {record.dateOfBirth}
-                <DerivedBy who={record.dateOfBirthSource} />
-              </>
-            ) : (
-              <NotRecorded />
-            )}
+        <Section variant="banded" band="person" title="Restricted">
+          <Fact label="Date of birth" note={record.dateOfBirthSource ?? undefined}>
+            {record.dateOfBirth !== null ? <>{formatDay(record.dateOfBirth)}</> : <NotRecorded />}
           </Fact>
           <Fact label="Under 18">
             {record.isUnder18 === null ? <NotRecorded /> : record.isUnder18 ? "Yes" : "No"}
@@ -481,22 +321,25 @@ export default async function PersonRecordPage({
       ) : null}
 
       {visible.status !== undefined ? (
-        <Section title="Where they stand">
+        <Section variant="banded" band="person" title="Where they stand">
           <Fact label="Status">
             {record.status !== null ? (
-              <Chip
-                size="small"
+              <StatusChip
+                domain={record.status === "recruit" ? "personType" : "membership"}
+                status={record.status}
                 label={labelFor(STATUS_LABELS, record.status)}
-                color={statusColour(record.status)}
               />
             ) : (
-              <Typography color="text.secondary">—</Typography>
+              <NotRecorded />
             )}
           </Fact>
           <Fact label="Alumni standing">
             {alumniLabel}
             {record.standingIsOverridden ? (
-              <Chip size="small" variant="outlined" label="Override" sx={{ ml: 1 }} />
+              <Typography component="span" variant="caption" color="text.secondary">
+                {" "}
+                · Override
+              </Typography>
             ) : null}
           </Fact>
           <Fact label="Roles">
@@ -508,7 +351,10 @@ export default async function PersonRecordPage({
                   <Box key={`${role.roleName}-${role.cycleLabel}-${index}`}>
                     {role.roleName} · {role.cycleLabel}
                     {role.hasEnded ? (
-                      <Chip size="small" variant="outlined" label="ended" sx={{ ml: 1 }} />
+                      <Typography component="span" variant="caption" color="text.secondary">
+                        {" "}
+                        · ended
+                      </Typography>
                     ) : null}
                   </Box>
                 ))
@@ -530,7 +376,7 @@ export default async function PersonRecordPage({
         </Section>
       ) : null}
 
-      <Section title="Their seasons">
+      <Section variant="banded" band="season" title="Their seasons">
         {seasons.length === 0 ? (
           <Typography color="text.secondary">None</Typography>
         ) : (
@@ -555,10 +401,10 @@ export default async function PersonRecordPage({
                 >
                   {season.seasonLabel}
                 </Button>
-                <Chip
-                  size="small"
+                <StatusChip
+                  domain="membership"
+                  status={season.status}
                   label={membershipLabelFor(MEMBERSHIP_STATUS_LABELS, season.status)}
-                  color={membershipStatusColour(season.status)}
                 />
               </Stack>
             ))}
@@ -567,6 +413,8 @@ export default async function PersonRecordPage({
       </Section>
 
       <Section
+        collapsible
+        defaultOpen={historyExpanded}
         title={`What changed${historyExpanded ? ` · ${filteredHistory.length} of ${history.length}` : ""}`}
         action={
           historyExpanded ? (
@@ -597,37 +445,24 @@ export default async function PersonRecordPage({
             >
               <input type="hidden" name="history" value="expanded" />
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <TextField
-                  select
+                <SelectField
                   name="field"
                   label="Field"
-                  size="small"
                   defaultValue={historyField}
-                  sx={{ minWidth: 180 }}
-                  slotProps={{ select: { native: false } }}
-                >
-                  <MenuItem value="">All</MenuItem>
-                  {fields.map((field) => (
-                    <MenuItem key={field} value={field}>
-                      {field}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  select
+                  options={[
+                    { value: "", label: "All" },
+                    ...fields.map((field) => ({ value: field, label: field })),
+                  ]}
+                />
+                <SelectField
                   name="actor"
                   label="Changed by"
-                  size="small"
                   defaultValue={historyActor}
-                  sx={{ minWidth: 200 }}
-                >
-                  <MenuItem value="">All</MenuItem>
-                  {actors.map((actor) => (
-                    <MenuItem key={actor} value={actor}>
-                      {actor}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                  options={[
+                    { value: "", label: "All" },
+                    ...actors.map((actor) => ({ value: actor, label: actor })),
+                  ]}
+                />
                 <Button
                   type="submit"
                   variant="outlined"
@@ -638,7 +473,13 @@ export default async function PersonRecordPage({
               </Stack>
             </Box>
             {filteredHistory.length === 0 ? (
-              <Typography color="text.secondary">No changes match these filters.</Typography>
+              <EmptyState
+                title="No changes match these filters."
+                action={{
+                  href: `/operate/people/${personId}?history=expanded`,
+                  label: "Clear filters",
+                }}
+              />
             ) : (
               <Stack>
                 {filteredHistory.map((entry) => (
@@ -684,7 +525,7 @@ function HistoryRow({ entry }: { entry: PersonHistoryEntry }) {
           >
             {entry.fromValue ?? "not recorded"}
           </Typography>{" "}
-          → <Typography component="span">{entry.toValue}</Typography>
+          → <Typography component="span">{entry.toValue ?? <NotRecorded />}</Typography>
         </Typography>
       ) : null}
       <Typography variant="caption" color="text.secondary" component="div">

@@ -2,10 +2,18 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
+import Link from "@mui/material/Link";
+import { PublicShell } from "@/components/public-shell";
+import { PageHeader } from "@/components/page-header";
+import { Section } from "@/components/section";
+import { Surface } from "@/components/surface";
+import { Fact, FactGrid } from "@/components/fact";
+import { StepTrail } from "@/components/step-trail";
+import { ActionBar } from "@/components/action-bar";
+import { formatDay } from "@/app/operate/roster/presentation";
 import Typography from "@mui/material/Typography";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
 
 import { withTransaction } from "@/lib/db";
 import {
@@ -24,7 +32,7 @@ import {
 import type { OnboardingAgreementType } from "@/lib/services/onboarding-agreements";
 
 import { agreeDocument, submitTrustStep } from "./actions";
-import { CheckboxField } from "./checkbox-field";
+import { CheckField } from "@/components/field";
 import { DetailsForm } from "./details-form";
 import type { DetailsFormValues } from "./validation";
 import {
@@ -32,7 +40,6 @@ import {
   ALREADY_COMPLETE_CHANGE_NOTE,
   ALREADY_COMPLETE_HEADING,
   ALREADY_COMPLETE_REST_NOTE,
-  BANNER,
   BUCS_CLAIM_LABEL,
   BUCS_CLAIM_SUBNOTE,
   BUCS_CONTINUE_ANYWAY_NOTE,
@@ -168,26 +175,9 @@ export default async function PlayerDetailsPage({ params, searchParams }: PagePr
   }
 
   return (
-    <Box sx={{ minHeight: "100dvh", bgcolor: "grey.100", py: { xs: 3, sm: 6 }, px: 2 }}>
-      <Box sx={{ maxWidth: 720, mx: "auto" }}>
-        <Typography
-          component="p"
-          sx={{
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            color: "text.secondary",
-            mb: 2,
-          }}
-        >
-          {BANNER}
-        </Typography>
-
-        {busy ? (
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            {BUSY_MESSAGE}
-          </Alert>
-        ) : null}
+    <PublicShell layout="stack">
+      <Stack spacing={3}>
+        {busy ? <Notice severity="warning">{BUSY_MESSAGE}</Notice> : null}
 
         {page === "already-complete" ? (
           <AlreadyCompletePage />
@@ -207,8 +197,8 @@ export default async function PlayerDetailsPage({ params, searchParams }: PagePr
         ) : (
           <HudlStepPage view={view} token={token} />
         )}
-      </Box>
-    </Box>
+      </Stack>
+    </PublicShell>
   );
 }
 
@@ -223,7 +213,7 @@ function ChecklistStrip({
   view: QuestionnaireView;
   currentStep: QuestionnaireStep;
 }) {
-  const rows: Array<[string, string]> = [];
+  const steps = [];
   for (const step of STEP_ORDER) {
     const isCurrent = step === currentStep;
     let value: string;
@@ -238,34 +228,20 @@ function ChecklistStrip({
     } else {
       value = view.itemStatus.hudl_access === "claimed" ? "Claimed" : "Outstanding";
     }
-    rows.push([stepLabel(step), value]);
+    const status =
+      step === "details"
+        ? view.detailsComplete
+          ? "complete"
+          : "pending"
+        : (view.itemStatus[
+            step === "code_of_conduct" || step === "photo_release" || step === "bucs_play"
+              ? step
+              : "hudl_access"
+          ] ?? "pending");
+    steps.push({ label: stepLabel(step), status, statusLabel: value });
   }
 
-  return (
-    <Box
-      component="dl"
-      sx={{
-        display: "grid",
-        gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(5, 1fr)" },
-        gap: 1,
-        m: 0,
-      }}
-    >
-      {rows.map(([label, value]) => (
-        <Box key={label}>
-          <Typography
-            component="dt"
-            sx={{ fontSize: 11, fontWeight: 700, color: "text.secondary" }}
-          >
-            {label}
-          </Typography>
-          <Typography component="dd" sx={{ m: 0, fontSize: 13 }}>
-            {value}
-          </Typography>
-        </Box>
-      ))}
-    </Box>
-  );
+  return <StepTrail steps={steps} currentIndex={STEP_ORDER.indexOf(currentStep)} />;
 }
 
 /**
@@ -276,37 +252,32 @@ function ChecklistStrip({
  * (`success.main`/`warning.main`), matching the mockups' green/amber without
  * a new colour convention.
  */
-function FactGrid({ rows }: { rows: Array<[string, string, boolean?]> }) {
+function QuestionnaireStatus({ rows }: { rows: Array<[string, string, boolean?]> }) {
   return (
-    <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 3 }, borderRadius: 2, mb: 3 }}>
-      <Box component="dl" sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, m: 0 }}>
+    <Surface>
+      <FactGrid>
         {rows.map(([label, value, positive]) => (
-          <Box key={label}>
-            <Typography
-              component="dt"
-              sx={{ fontSize: 11, fontWeight: 700, color: "text.secondary" }}
-            >
-              {label}
-            </Typography>
-            <Typography
-              component="dd"
-              sx={{
-                m: 0,
-                fontSize: 13,
-                color:
+          <Fact
+            key={label}
+            label={label}
+            value={
+              <Typography
+                variant="body2"
+                color={
                   positive === undefined
                     ? "text.primary"
                     : positive
                       ? "success.main"
-                      : "warning.main",
-              }}
-            >
-              {value}
-            </Typography>
-          </Box>
+                      : "warning.main"
+                }
+              >
+                {value}
+              </Typography>
+            }
+          />
         ))}
-      </Box>
-    </Paper>
+      </FactGrid>
+    </Surface>
   );
 }
 
@@ -327,18 +298,13 @@ function Shell({
 }) {
   return (
     <>
-      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 3 }, borderRadius: 2, mb: 3 }}>
+      <Section title="Where you are">
         <ChecklistStrip view={view} currentStep={currentStep} />
-      </Paper>
-      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
-        <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-          {heading}
-        </Typography>
-        <Typography sx={{ fontSize: 14, color: "text.secondary", mt: 1 }}>{lead}</Typography>
-        <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 1.5 }}>
-          {privacyNote}
-        </Typography>
-      </Paper>
+      </Section>
+      <PageHeader title={heading} subtitle={lead} />
+      <Typography variant="caption" color="text.secondary">
+        {privacyNote}
+      </Typography>
       {children}
     </>
   );
@@ -408,47 +374,45 @@ function DetailsStepPage({ view, token }: { view: QuestionnaireView; token: stri
       heading={DETAILS_HEADING}
       lead={isReturning ? DETAILS_LEAD_RETURNING : DETAILS_LEAD_STEP}
     >
-      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
-        <DetailsForm
-          token={token}
-          needsConsentStep={view.needsConsentStep}
-          isReturning={isReturning}
-          initialValues={initialValues}
-          meta={{
-            given_name: {
-              source: sourceOf(view, "given_name"),
-              disputed: view.openDisputedFields.has("given_name"),
-            },
-            family_name: {
-              source: sourceOf(view, "family_name"),
-              disputed: view.openDisputedFields.has("family_name"),
-            },
-            college: {
-              source: sourceOf(view, "college"),
-              disputed: view.openDisputedFields.has("college"),
-            },
-            matriculation_year: {
-              source: sourceOf(view, "matriculation_year"),
-              disputed: view.openDisputedFields.has("matriculation_year"),
-            },
-            expected_graduation_year: {
-              source: sourceOf(view, "expected_graduation_year"),
-              disputed: view.openDisputedFields.has("expected_graduation_year"),
-            },
-            degree_field: {
-              source: sourceOf(view, "degree_field"),
-              disputed: view.openDisputedFields.has("degree_field"),
-            },
-            date_of_birth: {
-              source: sourceOf(view, "date_of_birth"),
-              disputed: view.openDisputedFields.has("date_of_birth"),
-            },
-          }}
-        />
-        <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 2 }}>
-          {DETAILS_SECONDARY}
-        </Typography>
-      </Paper>
+      <DetailsForm
+        token={token}
+        needsConsentStep={view.needsConsentStep}
+        isReturning={isReturning}
+        initialValues={initialValues}
+        meta={{
+          given_name: {
+            source: sourceOf(view, "given_name"),
+            disputed: view.openDisputedFields.has("given_name"),
+          },
+          family_name: {
+            source: sourceOf(view, "family_name"),
+            disputed: view.openDisputedFields.has("family_name"),
+          },
+          college: {
+            source: sourceOf(view, "college"),
+            disputed: view.openDisputedFields.has("college"),
+          },
+          matriculation_year: {
+            source: sourceOf(view, "matriculation_year"),
+            disputed: view.openDisputedFields.has("matriculation_year"),
+          },
+          expected_graduation_year: {
+            source: sourceOf(view, "expected_graduation_year"),
+            disputed: view.openDisputedFields.has("expected_graduation_year"),
+          },
+          degree_field: {
+            source: sourceOf(view, "degree_field"),
+            disputed: view.openDisputedFields.has("degree_field"),
+          },
+          date_of_birth: {
+            source: sourceOf(view, "date_of_birth"),
+            disputed: view.openDisputedFields.has("date_of_birth"),
+          },
+        }}
+      />
+      <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 2 }}>
+        {DETAILS_SECONDARY}
+      </Typography>
     </Shell>
   );
 }
@@ -482,21 +446,15 @@ function DocumentStepPage({
       lead={lead}
       privacyNote={DOCUMENT_PRIVACY_NOTE}
     >
-      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
-        {agreeError ? (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {MUST_AGREE_ERROR}
-          </Alert>
-        ) : null}
+      <Surface>
+        {agreeError ? <Notice severity="error">{MUST_AGREE_ERROR}</Notice> : null}
         {agreement ? (
-          <Alert severity="success" sx={{ mb: 2 }}>
+          <Notice severity="success">
             Already agreed — version {agreement.agreementVersionId.slice(0, 8)}, on{" "}
-            {agreement.agreedAt.toISOString().slice(0, 10)}.
-          </Alert>
+            {formatDay(agreement.agreedAt.toISOString().slice(0, 10))}.
+          </Notice>
         ) : null}
-        <Typography sx={{ fontSize: 12, fontWeight: 700, color: "warning.main", mb: 1 }}>
-          {PLACEHOLDER_LABEL}
-        </Typography>
+        <Notice severity="warning">{PLACEHOLDER_LABEL}</Notice>
         <Box
           sx={{
             border: "1px solid rgba(0,0,0,0.23)",
@@ -516,14 +474,16 @@ function DocumentStepPage({
         <Box component="form" action={agreeDocument} sx={{ mt: 2 }}>
           <input type="hidden" name="token" value={token} />
           <input type="hidden" name="agreementType" value={agreementType} />
-          <CheckboxField name="agree" label={agreeLabel} />
-          <Box sx={{ mt: 2 }}>
-            <Button type="submit" variant="contained" sx={{ minHeight: 48 }}>
-              {AGREE_AND_CONTINUE}
-            </Button>
-          </Box>
+          <CheckField name="agree" label={agreeLabel} />
+          <ActionBar
+            primary={
+              <Button type="submit" variant="contained">
+                {AGREE_AND_CONTINUE}
+              </Button>
+            }
+          />
         </Box>
-      </Paper>
+      </Surface>
     </Shell>
   );
 }
@@ -566,7 +526,7 @@ function BucsStepPage({ view, token }: { view: QuestionnaireView; token: string 
       <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mt: 3 }}>
         {BUCS_HAVE_YOU_DONE_IT}
       </Typography>
-      <CheckboxField name="claim" label={BUCS_CLAIM_LABEL} />
+      <CheckField name="claim" label={BUCS_CLAIM_LABEL} />
       <Typography sx={{ fontSize: 12, color: "text.secondary", mt: 0.5 }}>
         {BUCS_CLAIM_SUBNOTE}
       </Typography>
@@ -596,9 +556,7 @@ function HudlStepPage({ view, token }: { view: QuestionnaireView; token: string 
       lead={HUDL_LEAD}
       code="hudl_access"
     >
-      <Alert severity="info" sx={{ mb: 2 }}>
-        {HUDL_TWO_PARTS_NOTE}
-      </Alert>
+      <Notice severity="info">{HUDL_TWO_PARTS_NOTE}</Notice>
       <ol style={{ margin: 0, paddingLeft: 22 }}>
         {HUDL_STEPS.map((line) => (
           <li key={line} style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 8 }}>
@@ -612,8 +570,8 @@ function HudlStepPage({ view, token }: { view: QuestionnaireView; token: string 
       <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mt: 3 }}>
         {HUDL_ARE_YOU_IN}
       </Typography>
-      <CheckboxField name="claim" label={HUDL_CLAIM_LABEL} />
-      <CheckboxField name="no_invitation" label={HUDL_NO_INVITATION_LABEL} />
+      <CheckField name="claim" label={HUDL_CLAIM_LABEL} />
+      <CheckField name="no_invitation" label={HUDL_NO_INVITATION_LABEL} />
       <Box sx={{ mt: 2 }}>
         <Button type="submit" variant="contained" sx={{ minHeight: 48 }}>
           {FINISH}
@@ -645,26 +603,21 @@ function BucsHudlShell({
 }) {
   return (
     <>
-      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 3 }, borderRadius: 2, mb: 3 }}>
+      <Section title="Where you are">
         <ChecklistStrip view={view} currentStep={step} />
-      </Paper>
-      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
-        <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-          {heading}
-        </Typography>
-        <Typography sx={{ fontSize: 14, color: "text.secondary", mt: 1, mb: 2 }}>{lead}</Typography>
-        <Typography sx={{ fontSize: 13, color: "text.secondary", mb: 2 }}>
-          {PRIVACY_NOTE}
-        </Typography>
-      </Paper>
-      {statusRows ? <FactGrid rows={statusRows} /> : null}
-      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
+      </Section>
+      <PageHeader title={heading} subtitle={lead} />
+      <Typography variant="caption" color="text.secondary">
+        {PRIVACY_NOTE}
+      </Typography>
+      {statusRows ? <QuestionnaireStatus rows={statusRows} /> : null}
+      <Surface>
         <Box component="form" action={submitTrustStep}>
           <input type="hidden" name="token" value={token} />
           <input type="hidden" name="code" value={code ?? "bucs_play"} />
           {children}
         </Box>
-      </Paper>
+      </Surface>
     </>
   );
 }
@@ -689,16 +642,11 @@ function DonePage({ view, token }: { view: QuestionnaireView; token: string }) {
 
   return (
     <>
-      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
-        <Chip
-          label={DONE_STATUS_LABEL(view.seasonLabel)}
-          size="small"
-          color="primary"
-          sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", mb: 2 }}
-        />
-        <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-          {DONE_HEADING}
+      <Surface>
+        <Typography variant="overline" color="text.secondary">
+          {DONE_STATUS_LABEL(view.seasonLabel)}
         </Typography>
+        <PageHeader title={DONE_HEADING} />
         <Typography sx={{ fontSize: 14, color: "text.secondary", mt: 1 }}>
           {view.person.displayName}
           {view.lastAnsweredAt ? ` · ${formatLongDate(view.lastAnsweredAt)}` : null}
@@ -706,8 +654,8 @@ function DonePage({ view, token }: { view: QuestionnaireView; token: string }) {
         <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 1.5 }}>
           {PRIVACY_NOTE}
         </Typography>
-      </Paper>
-      <FactGrid
+      </Surface>
+      <QuestionnaireStatus
         rows={[
           [CONSENT_HEADING, consentGiven ? "Given" : "Outstanding", consentGiven],
           [
@@ -730,10 +678,7 @@ function DonePage({ view, token }: { view: QuestionnaireView; token: string }) {
         ]}
       />
       {view.outstandingSections.length > 0 ? (
-        <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
-          <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: 1 }}>
-            {OUTSTANDING_HEADING}
-          </Typography>
+        <Section title={OUTSTANDING_HEADING}>
           {view.outstandingSections.map((group) => (
             <Box key={group.section} sx={{ mb: 2 }}>
               <Typography
@@ -751,12 +696,9 @@ function DonePage({ view, token }: { view: QuestionnaireView; token: string }) {
               <ul style={{ margin: 0, paddingLeft: 20 }}>
                 {group.items.map((item) => (
                   <li key={item.label} style={{ fontSize: 14, marginBottom: 4 }}>
-                    <a
-                      href={`/me/${encodeURIComponent(token)}/details?step=${item.step}`}
-                      style={{ color: "#1565c0", textDecoration: "underline" }}
-                    >
+                    <Link href={`/me/${encodeURIComponent(token)}/details?step=${item.step}`}>
                       {item.label}
-                    </a>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -765,27 +707,21 @@ function DonePage({ view, token }: { view: QuestionnaireView; token: string }) {
           <Typography sx={{ fontSize: 13, color: "text.secondary" }}>
             {OUTSTANDING_SAME_LINK_NOTE}
           </Typography>
-        </Paper>
+        </Section>
       ) : null}
-      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
-        <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: 1 }}>
-          {WHAT_CLUB_HAS_HEADING}
-        </Typography>
+      <Section title={WHAT_CLUB_HAS_HEADING}>
         <Typography sx={{ fontSize: 14, color: "text.secondary" }}>{WHAT_CLUB_HAS_BODY}</Typography>
-      </Paper>
-      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
-        <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: 1 }}>
-          {IF_SOMETHING_WRONG_HEADING}
-        </Typography>
+      </Section>
+      <Section title={IF_SOMETHING_WRONG_HEADING}>
         <Typography sx={{ fontSize: 14, color: "text.secondary" }}>
           {IF_SOMETHING_WRONG_BODY}
         </Typography>
-      </Paper>
-      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 2 }}>
+      </Section>
+      <Surface>
         <Button component="span" variant="contained" fullWidth sx={{ minHeight: 48 }}>
           {CLOSE}
         </Button>
-      </Paper>
+      </Surface>
       <Typography sx={{ fontSize: 13, color: "text.secondary", textAlign: "center" }}>
         {R3G_REASSURANCE}
       </Typography>
@@ -800,18 +736,16 @@ function DonePage({ view, token }: { view: QuestionnaireView; token: string }) {
 function AlreadyCompletePage() {
   return (
     <>
-      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
-        <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-          {ALREADY_COMPLETE_HEADING}
-        </Typography>
+      <Surface>
+        <PageHeader title={ALREADY_COMPLETE_HEADING} />
         <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 1.5 }}>
           {PRIVACY_NOTE}
         </Typography>
-      </Paper>
-      <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
+      </Surface>
+      <Surface>
         <Typography sx={{ fontSize: 14, mb: 2 }}>{ALREADY_COMPLETE_REST_NOTE}</Typography>
         <Typography sx={{ fontSize: 14 }}>{ALREADY_COMPLETE_CHANGE_NOTE}</Typography>
-      </Paper>
+      </Surface>
     </>
   );
 }

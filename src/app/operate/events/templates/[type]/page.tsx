@@ -1,8 +1,6 @@
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
+import { PageHeader } from "@/components/page-header";
+import { Refusal } from "@/components/refusal";
 import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import { templateGroupsForEventType } from "@/lib/services/audience-selection";
 import { joinQuestionChoices } from "@/lib/services/event-questions";
@@ -10,7 +8,7 @@ import { readEventTemplate, type EventTemplate } from "@/lib/services/event-temp
 import type { RawEventQuestion } from "@/lib/services/event-questions-input";
 import type { RawEventTemplate } from "@/lib/services/event-template-input";
 import { gateShellPage } from "../../../gate";
-import { labelFor, templateEditorDetail, TYPE_LABELS } from "../presentation";
+import { labelFor, TYPE_LABELS } from "../presentation";
 import TemplateEditor from "../template-editor";
 
 /**
@@ -36,19 +34,12 @@ export default async function EventTemplatePage({
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
-      <Stack spacing={2} sx={{ maxWidth: 720 }}>
-        <Typography variant="h6" component="h1">
-          Event templates
-        </Typography>
-        <Alert severity="warning" data-testid="template-unavailable">
-          {error.message}
-        </Alert>
-        <Box>
-          <Button variant="outlined" href="/operate/events/templates">
-            Back to templates
-          </Button>
-        </Box>
-      </Stack>
+      <Refusal
+        title="Event templates"
+        message={error.message}
+        testId="template-unavailable"
+        action={{ href: "/operate/events/templates", label: "Back to templates" }}
+      />
     );
   }
 
@@ -80,14 +71,11 @@ export default async function EventTemplatePage({
 
   return (
     <Stack spacing={3}>
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {typeLabel}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {templateEditorDetail(typeLabel)}
-        </Typography>
-      </Box>
+      <PageHeader
+        title={typeLabel}
+        eyebrow="Event template"
+        back={{ href: "/operate/events/templates", label: "Back to templates" }}
+      />
 
       <TemplateEditor
         eventType={template.eventType}
@@ -96,12 +84,6 @@ export default async function EventTemplatePage({
         initialQuestions={initialQuestions}
         groups={templateGroupsForEventType(template.eventType)}
       />
-
-      <Box>
-        <Button variant="text" href="/operate/events/templates">
-          Back to templates
-        </Button>
-      </Box>
     </Stack>
   );
 }

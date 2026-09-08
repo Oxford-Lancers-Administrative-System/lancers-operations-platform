@@ -131,20 +131,22 @@ describe("the FAQ", () => {
   it("makes every question an expandable control", () => {
     render(<GuideFaq />);
 
-    const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(ADMINISTRATION_GUIDE.length);
-    for (const button of buttons) {
-      expect(button).toHaveAttribute("aria-expanded");
+    for (const entry of ADMINISTRATION_GUIDE) {
+      const disclosure = screen.getByTestId(`section-${entry.id}`);
+      expect(disclosure.tagName).toBe("DETAILS");
+      expect(disclosure.querySelector("summary")).toHaveTextContent(entry.question);
     }
   });
 
   it("opens the first question and leaves the rest collapsed", () => {
     render(<GuideFaq />);
 
-    const buttons = screen.getAllByRole("button");
-    expect(buttons[0]).toHaveAttribute("aria-expanded", "true");
-    for (const button of buttons.slice(1)) {
-      expect(button).toHaveAttribute("aria-expanded", "false");
+    const disclosures = ADMINISTRATION_GUIDE.map((entry) =>
+      screen.getByTestId(`section-${entry.id}`),
+    );
+    expect(disclosures[0]).toHaveAttribute("open");
+    for (const disclosure of disclosures.slice(1)) {
+      expect(disclosure).not.toHaveAttribute("open");
     }
   });
 
@@ -156,12 +158,13 @@ describe("the FAQ", () => {
     expect(container.textContent).toContain("Forgot password?");
   });
 
-  it("gives each answer region an id its question points at", () => {
+  it("keeps every answer inside its own named native disclosure", () => {
     render(<GuideFaq />);
 
-    for (const [index, entry] of ADMINISTRATION_GUIDE.entries()) {
-      const button = screen.getAllByRole("button")[index];
-      expect(button).toHaveAttribute("aria-controls", `${entry.id}-answer`);
+    for (const entry of ADMINISTRATION_GUIDE) {
+      const disclosure = screen.getByTestId(`section-${entry.id}`);
+      expect(disclosure.querySelector(`#${entry.id}-answer`)).not.toBeNull();
+      expect(disclosure.querySelector("summary")).toHaveTextContent(entry.question);
     }
   });
 });

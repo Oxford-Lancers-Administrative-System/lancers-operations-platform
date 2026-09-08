@@ -59,7 +59,6 @@ import {
   type BoardSort,
 } from "./board-data";
 import StatusCell from "./status-cell";
-import { STATUS_COLOUR_FOR_PILL } from "./status-colour";
 
 function buildUrl(base: string, params: URLSearchParams): string {
   const query = params.toString();
@@ -796,7 +795,8 @@ function RecruitCard({ row }: { row: RecruitmentBoardRow }) {
           </Typography>
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
             <StatusPill
-              color={STATUS_COLOUR_FOR_PILL[row.status]}
+              domain="recruitment"
+              status={row.status}
               label={PROSPECT_STATUS_LABELS[row.status]}
             />
           </Stack>

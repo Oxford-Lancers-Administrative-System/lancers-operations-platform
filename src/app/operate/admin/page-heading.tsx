@@ -1,8 +1,7 @@
 import type { ReactNode } from "react";
 import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
+import { PageHeader } from "@/components/page-header";
 
 /**
  * The heading every Administration page opens with — LAN-133.
@@ -31,6 +30,7 @@ export default function AdminPageHeading({
   subtitle,
   help = false,
   actions,
+  back,
 }: {
   title: string;
   /** The operating year, a count, or what the page is. Never a sentence of help. */
@@ -39,31 +39,16 @@ export default function AdminPageHeading({
   help?: boolean;
   /** Top-right, primary first. */
   actions?: ReactNode;
+  back?: { href: string; label: string };
 }) {
   return (
-    <Stack
-      direction={{ xs: "column", sm: "row" }}
-      spacing={2}
-      sx={{ alignItems: { sm: "flex-start" }, justifyContent: "space-between" }}
-      component="header"
-    >
-      <Box sx={{ minWidth: 0 }}>
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", flexWrap: "wrap" }}>
-          <Typography variant="h6" component="h1">
-            {title}
-          </Typography>
-          {help ? <HowAdministrationWorksLink /> : null}
-        </Stack>
-        <Typography variant="body2" color="text.secondary" data-testid="admin-page-subtitle">
-          {subtitle}
-        </Typography>
-      </Box>
-      {actions ? (
-        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-          {actions}
-        </Stack>
-      ) : null}
-    </Stack>
+    <PageHeader
+      title={title}
+      subtitle={<span data-testid="admin-page-subtitle">{subtitle}</span>}
+      status={help ? <HowAdministrationWorksLink /> : undefined}
+      actions={actions}
+      back={back}
+    />
   );
 }
 

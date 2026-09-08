@@ -1,12 +1,13 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { PublicShell } from "@/components/public-shell";
+import { PageHeader } from "@/components/page-header";
+import { Fact, FactGrid } from "@/components/fact";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field } from "@/components/field";
 import Typography from "@mui/material/Typography";
 
 import { withTransaction } from "@/lib/db";
@@ -35,7 +36,6 @@ import {
   ANSWER_NOT_ATTENDING,
   ATTENDING,
   BACK,
-  BANNER,
   CANCELLED_HEADING,
   CANCELLED_NOTE,
   CHANGE_RESPONSE,
@@ -180,45 +180,9 @@ const MIN_TOUCH_TARGET = 48;
 /** One column, centred, readable at 375px and not absurdly wide on a desktop. */
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <Box sx={{ minHeight: "100dvh", bgcolor: "grey.100", py: { xs: 3, sm: 6 }, px: 2 }}>
-      <Box sx={{ maxWidth: 720, mx: "auto" }}>
-        <Typography
-          component="p"
-          sx={{
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            color: "text.secondary",
-            mb: 2,
-          }}
-        >
-          {BANNER}
-        </Typography>
-        <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2 }}>
-          {children}
-        </Paper>
-      </Box>
-    </Box>
-  );
-}
-
-/** A label above a value — the invitation's fact list. */
-function Fact({ label, value, note }: { label: string; value: string; note?: string }) {
-  return (
-    <Box>
-      <Typography
-        component="dt"
-        sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary", mb: 0.5 }}
-      >
-        {label}
-      </Typography>
-      <Typography component="dd" sx={{ m: 0, fontSize: 15, color: "text.primary" }}>
-        {value}
-      </Typography>
-      {note ? (
-        <Typography sx={{ fontSize: 12, color: "text.secondary", mt: 0.25 }}>{note}</Typography>
-      ) : null}
-    </Box>
+    <PublicShell>
+      <Stack spacing={2}>{children}</Stack>
+    </PublicShell>
   );
 }
 
@@ -252,15 +216,10 @@ function Invitation({
         before they read anything else, and the event's own name does not always
         say: "vs Ivybridge Ravens" does, "Michaelmas week 3" does not.
       */}
-      <Chip
-        label={eventTypeLabel(page.eventType)}
-        size="small"
-        color="primary"
-        sx={{ mb: 1.5, fontWeight: 700, letterSpacing: "0.04em" }}
-      />
-      <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-        {page.eventName}
+      <Typography variant="overline" color="text.secondary">
+        {eventTypeLabel(page.eventType)}
       </Typography>
+      <PageHeader title={page.eventName} />
       {/*
         When the event is, given the weight it actually carries.
 
@@ -295,27 +254,18 @@ function Invitation({
         false and left them nothing to do about it.
       */}
       {error === CLOSED_ERROR ? (
-        <Alert severity="warning" sx={{ mt: 2 }}>
+        <Notice severity="warning">
           Your response could not be saved. Responses close when the event starts.
-        </Alert>
+        </Notice>
       ) : null}
       {error === BUSY_ERROR ? (
-        <Alert severity="warning" sx={{ mt: 2 }}>
+        <Notice severity="warning">
           Your response could not be saved just now because the club received a lot of requests at
           once. Please try again in a minute — your event has not started.
-        </Alert>
+        </Notice>
       ) : null}
 
-      <Box
-        component="dl"
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-          gap: 2.5,
-          mt: 3,
-          mb: 3,
-        }}
-      >
+      <FactGrid>
         <Fact label={PLAYER_LABEL} value={page.playerName} note={INVITATION_LABEL} />
         {page.venue ? <Fact label={VENUE_LABEL} value={page.venue} /> : null}
         {deadline ? <Fact label={DEADLINE_LABEL} value={deadline} note={DEADLINE_NOTE} /> : null}
@@ -324,7 +274,7 @@ function Invitation({
           value={currentAnswerLabel(page)}
           note={CURRENT_ANSWER_NOTE}
         />
-      </Box>
+      </FactGrid>
 
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
         {/* Attending is one tap: a form with nothing in it but the token. */}
@@ -366,16 +316,12 @@ function DecliningStep({
 
   return (
     <Shell>
-      <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-        {DECLINE_HEADING}
-      </Typography>
+      <PageHeader title={DECLINE_HEADING} />
       <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 0.5 }}>
         {eventSummary(page.eventName, page.scheduledOn, page.startsAt)}
       </Typography>
 
-      <Alert severity={missingReason ? "error" : "info"} sx={{ mt: 2 }}>
-        {DECLINE_PROMPT}
-      </Alert>
+      <Notice severity={missingReason ? "error" : "info"}>{DECLINE_PROMPT}</Notice>
 
       <Box component="form" action={submitNotAttending} sx={{ mt: 3 }}>
         <input type="hidden" name="token" value={token} />
@@ -388,12 +334,12 @@ function DecliningStep({
             checks the same string again in `recordSignedLinkResponse`, and the
             database's own constraint checks it a third time.
           */}
-          <TextField
+          <Field
             name="reason"
             label={REASON_LABEL}
             placeholder={REASON_PLACEHOLDER}
             required
-            fullWidth
+
             error={missingReason}
             helperText={missingReason ? DECLINE_PROMPT : undefined}
             slotProps={{ htmlInput: { maxLength: 200 } }}
@@ -432,9 +378,7 @@ function ResponseSaved({ page, token }: { page: SignedRsvpPage; token: string })
 
   return (
     <Shell>
-      <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-        {SAVED_HEADING}
-      </Typography>
+      <PageHeader title={SAVED_HEADING} />
       <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 0.5 }}>
         {`${answer} · ${summary}`}
       </Typography>
@@ -482,9 +426,7 @@ function ResponseSaved({ page, token }: { page: SignedRsvpPage; token: string })
 function CancelledEvent({ page }: { page: SignedRsvpPage }) {
   return (
     <Shell>
-      <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-        {CANCELLED_HEADING}
-      </Typography>
+      <PageHeader title={CANCELLED_HEADING} />
       <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 1 }}>
         {cancelledSentence(page.eventName, formatEventDateShort(page.scheduledOn))}
       </Typography>

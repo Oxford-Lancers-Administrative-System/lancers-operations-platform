@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
+import { PublicShell } from "@/components/public-shell";
 
 import { withTransaction } from "@/lib/db";
 import { resolveRecruitmentGroupLink } from "@/lib/services/recruitment-config";
@@ -40,28 +39,14 @@ export default async function JoinPage({ params }: PageProps) {
   const groupLink = resolveRecruitmentGroupLink();
 
   return (
-    <Box sx={{ minHeight: "100dvh", bgcolor: "grey.100", py: { xs: 3, sm: 6 }, px: 2 }}>
-      <Box sx={{ maxWidth: 640, mx: "auto" }}>
-        <Typography
-          component="p"
-          sx={{
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            color: "text.secondary",
-            mb: 2,
-          }}
-        >
-          OXFORD LANCERS
-        </Typography>
-        <SignupForm
-          mode="anonymous"
-          initial={EMPTY_ALIAS}
-          groupLink={groupLink}
-          checkDuplicate={checkForExistingQrRecruit.bind(null, code)}
-          submit={submitQrSignup.bind(null, code)}
-        />
-      </Box>
-    </Box>
+    <PublicShell layout="stack">
+      <SignupForm
+        mode="anonymous"
+        initial={EMPTY_ALIAS}
+        groupLink={groupLink}
+        checkDuplicate={checkForExistingQrRecruit.bind(null, code)}
+        submit={submitQrSignup.bind(null, code)}
+      />
+    </PublicShell>
   );
 }

@@ -11,7 +11,12 @@ import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import { EMPTY_ADMIN_ACTION_STATE, type AdminActionState } from "./action-state";
-import AdminOutcome, { ArrivalNotice, OutcomeSlotProvider, useOutcomeSlot } from "./outcome";
+import {
+  Outcome as AdminOutcome,
+  ArrivalNotice,
+  OutcomeSlotProvider,
+  useOutcomeSlot,
+} from "@/components/outcome-slot";
 
 function state(overrides: Partial<AdminActionState>): AdminActionState {
   return { ...EMPTY_ADMIN_ACTION_STATE, ...overrides };
@@ -24,7 +29,7 @@ describe("a refusal is shown, and shown as a rule", () => {
   it("renders the guard's own sentence", () => {
     render(<AdminOutcome state={state({ refusal: REFUSAL })} />);
 
-    expect(screen.getByTestId("admin-refusal")).toHaveTextContent(REFUSAL);
+    expect(screen.getByTestId("outcome-refusal")).toHaveTextContent(REFUSAL);
   });
 
   /**
@@ -35,8 +40,8 @@ describe("a refusal is shown, and shown as a rule", () => {
   it("is not rendered as an error the operator could retry", () => {
     render(<AdminOutcome state={state({ refusal: REFUSAL })} />);
 
-    expect(screen.queryByTestId("admin-error")).toBeNull();
-    expect(screen.getByTestId("admin-refusal")).toHaveTextContent("Not permitted");
+    expect(screen.queryByTestId("outcome-error")).toBeNull();
+    expect(screen.getByTestId("outcome-refusal")).toHaveTextContent("Not permitted");
   });
 
   it("outranks anything else the action came back with", () => {
@@ -44,20 +49,20 @@ describe("a refusal is shown, and shown as a rule", () => {
       <AdminOutcome state={state({ refusal: REFUSAL, notice: "Sent", error: "Bad address" })} />,
     );
 
-    expect(screen.getByTestId("admin-refusal")).toBeInTheDocument();
-    expect(screen.queryByTestId("admin-notice")).toBeNull();
-    expect(screen.queryByTestId("admin-error")).toBeNull();
+    expect(screen.getByTestId("outcome-refusal")).toBeInTheDocument();
+    expect(screen.queryByTestId("outcome-notice")).toBeNull();
+    expect(screen.queryByTestId("outcome-error")).toBeNull();
   });
 
   it("still tells an ordinary failure apart from a success", () => {
     const { unmount } = render(
       <AdminOutcome state={state({ error: "That address is not valid." })} />,
     );
-    expect(screen.getByTestId("admin-error")).toBeInTheDocument();
+    expect(screen.getByTestId("outcome-error")).toBeInTheDocument();
     unmount();
 
     render(<AdminOutcome state={state({ notice: "The invitation has been sent again." })} />);
-    expect(screen.getByTestId("admin-notice")).toBeInTheDocument();
+    expect(screen.getByTestId("outcome-notice")).toBeInTheDocument();
   });
 });
 
@@ -135,10 +140,9 @@ describe("a screen shows the result of at most one action", () => {
     function Screen() {
       return (
         <OutcomeSlotProvider>
-          <ArrivalNotice
-            severity="warning"
-            message="The account and the role are recorded, but the invitation could not be delivered."
-          />
+          <ArrivalNotice severity="warning">
+            The account and the role are recorded, but the invitation could not be delivered.
+          </ArrivalNotice>
           <Panel name="correct" notice="The invitation has been sent again, to a@example.test" />
         </OutcomeSlotProvider>
       );
@@ -163,6 +167,6 @@ describe("a screen shows the result of at most one action", () => {
     }
     render(<Alone />);
 
-    expect(screen.getByTestId("admin-notice")).toHaveTextContent("Done");
+    expect(screen.getByTestId("outcome-notice")).toHaveTextContent("Done");
   });
 });

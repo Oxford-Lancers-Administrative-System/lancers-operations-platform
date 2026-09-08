@@ -570,9 +570,9 @@ describe("the club-link page", () => {
     const { container } = await renderClubLink("a-token");
 
     expect(container.textContent).toContain("Practice — hilary week 5");
-    expect(screen.getByTestId("headline-invited").textContent).toBe("3");
-    expect(screen.getByTestId("headline-said-yes").textContent).toBe("2");
-    expect(screen.getByTestId("headline-showed").textContent).toBe("1 / 3");
+    expect(screen.getByTestId("headline-invited").querySelector("p")?.textContent).toBe("3");
+    expect(screen.getByTestId("headline-said-yes").querySelector("p")?.textContent).toBe("2");
+    expect(screen.getByTestId("headline-showed").querySelector("p")?.textContent).toBe("1 / 3");
     expect(renderedNames(container)).toHaveLength(3);
   });
 
@@ -978,17 +978,7 @@ describe("the phone presentation", () => {
   // W157-F6 — copy that describes a capability the phone does not have
   // -------------------------------------------------------------------------
 
-  it("hides the sort note below md, where there are no columns to sort", () => {
-    // Measured in the browser at 375×812, both tiers printed "Sortable on every
-    // column" above a list with no columns and no sort control.
-    //
-    // **jsdom does not evaluate media queries**, so `getComputedStyle` here
-    // reports the desktop value whatever the breakpoint says — asserting on it
-    // would prove nothing. What can be proved without a browser is that the
-    // sentence is inside its own element and that the rule MUI emitted for that
-    // element hides it at the base breakpoint and restores it at `md`. The
-    // rendered result at 375px belongs to the browser preflight, which measures
-    // the viewport from the browser context rather than believing a claim.
+  it("omits standing sort help while retaining every sortable column", () => {
     for (const participation of [OPERATOR, CLUB]) {
       const { container, unmount } = render(
         <ParticipationTable
@@ -997,25 +987,11 @@ describe("the phone presentation", () => {
           filters={filters()}
         />,
       );
-      const note = container.querySelector('[data-testid="sortable-note"]')!;
-      expect(note, "the sort note is not in its own element").not.toBeNull();
-      expect(note.textContent).toContain(SORTABLE_NOTE);
-
-      const emitted = Array.from(document.querySelectorAll("style"))
-        .map((element) => element.textContent ?? "")
-        .join("\n");
-      // MUI compiles `{ xs: "none", md: "inline" }` into two media rules for
-      // the element's generated class. Both halves are required: the first
-      // hides it on the phone, and the second is what proves the sentence is
-      // still there for the table it describes rather than simply deleted.
-      const hidden = [...note.classList].some((name) =>
-        emitted.includes(`@media (min-width:0px){.${name}{display:none;}}`),
+      expect(container.querySelector('[data-testid="sortable-note"]')).toBeNull();
+      expect(container.textContent).not.toContain(SORTABLE_NOTE);
+      expect(container.querySelectorAll("a[data-sort]").length).toBe(
+        6 + participation.questions.length + (participation.tier === "operator" ? 1 : 0),
       );
-      const shown = [...note.classList].some((name) =>
-        emitted.includes(`@media (min-width:900px){.${name}{display:inline;}}`),
-      );
-      expect(hidden, `nothing hides the sort note on the phone: ${emitted}`).toBe(true);
-      expect(shown, `nothing brings the sort note back for the table: ${emitted}`).toBe(true);
       unmount();
     }
   });
@@ -1047,27 +1023,16 @@ describe("the phone presentation", () => {
     }
   });
 
-  it("never renders the note's wrapper empty at the phone width — R157C-A5", () => {
-    // The other half. Below `md` the sort note is hidden by a media rule, so at
-    // club tier the wrapper used to hold a hidden span and a `null` — an empty
-    // `<p>` still taking its slot in a spaced `Stack`. jsdom evaluates no media
-    // queries, so this is asserted structurally: whatever survives hiding the
-    // note has to be text a reader can see.
+  it("keeps the discrepancy legend visible without an empty help wrapper — R157C-A5", () => {
     for (const participation of [OPERATOR, CLUB]) {
-      const { container, unmount } = render(
+      const { unmount } = render(
         <ParticipationTable
           basePath="/operate/events/event-1"
           participation={participation}
           filters={filters()}
         />,
       );
-      const note = container.querySelector('[data-testid="sortable-note"]')!;
-      const wrapper = note.parentElement!;
-      const withoutTheNote = (wrapper.textContent ?? "").replace(note.textContent ?? "", "").trim();
-      expect(
-        withoutTheNote,
-        `${participation.tier} renders an empty wrapper on the phone`,
-      ).not.toBe("");
+      expect(screen.getByText(DISCREPANCY_LEGEND)).toBeVisible();
       unmount();
     }
   });

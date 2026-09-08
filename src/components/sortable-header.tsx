@@ -20,19 +20,22 @@ export function SortableHeader({
   active,
   direction,
   align,
+  testId,
 }: {
   column: string;
-  label: string;
+  label: ReactNode;
   href: string;
   active: boolean;
   direction: "asc" | "desc";
   align?: "left" | "right" | "center";
+  testId?: string;
 }) {
   return (
     <TableCell sortDirection={active ? direction : false} align={align}>
       <Link
         href={href}
         data-sort={column}
+        data-testid={testId}
         style={{ color: "inherit", textDecoration: "none" }}
         scroll={false}
       >

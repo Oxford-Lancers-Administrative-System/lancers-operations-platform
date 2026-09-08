@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
+import { StatusChip } from "@/components/status-chip";
+import { Section } from "@/components/section";
 import Divider from "@mui/material/Divider";
 import Link from "@mui/material/Link";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import ListItemText from "@mui/material/ListItemText";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { todayInClubZone } from "@/lib/club-time";
@@ -25,7 +25,6 @@ import AdminPageHeading from "../../page-heading";
 import AdministrationHistory from "../../history";
 import { permittedRoleActions } from "../../permissions";
 import {
-  accountStateColour,
   describePeriod,
   limitsLine,
   NO_CYCLE,
@@ -116,17 +115,13 @@ export default async function RoleRecordPage({
 
   return (
     <Stack spacing={3}>
-      <AdminPageHeading title={role.label} subtitle={`${group.label} · ${cycleLabel}`} />
+      <AdminPageHeading
+        title={role.label}
+        subtitle={`${group.label} · ${cycleLabel}`}
+        back={{ href: "/operate/admin/roles", label: "Back to roles" }}
+      />
 
-      <Link href="/operate/admin/roles" variant="body2">
-        Back to Roles
-      </Link>
-
-      <Paper variant="outlined" sx={{ p: 2 }} data-testid="current-holder">
-        <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700, mb: 1.5 }}>
-          Current holder
-        </Typography>
-
+      <Section title="Current holder" testId="current-holder">
         {role.holders.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
             {role.scheduled.length > 0
@@ -160,14 +155,15 @@ export default async function RoleRecordPage({
                     )}
                   </Typography>
                   {holder.operatorState ? (
-                    <Chip
-                      size="small"
+                    <StatusChip
+                      domain="operator"
+                      status={holder.operatorState}
                       label={operatorAccountState(holder.operatorState).label}
-                      color={accountStateColour(holder.operatorState)}
-                      variant={holder.operatorState === "active" ? "filled" : "outlined"}
                     />
                   ) : (
-                    <Chip size="small" label="No operator account" variant="outlined" />
+                    <Typography variant="body2" color="text.secondary">
+                      No operator account
+                    </Typography>
                   )}
                 </Stack>
                 <Typography variant="body2" color="text.secondary">
@@ -226,18 +222,15 @@ export default async function RoleRecordPage({
             </Stack>
           </Box>
         ) : null}
-      </Paper>
+      </Section>
 
-      <Box component="section">
-        <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700, mb: 1 }}>
-          Permissions
-        </Typography>
+      <Section title="Permissions">
         {permissions.empty ? (
           <Typography variant="body2" color="text.secondary" data-testid="permissions">
             {permissions.items[0]}
           </Typography>
         ) : (
-          <Paper variant="outlined" data-testid="permissions">
+          <Box data-testid="permissions">
             <List dense disablePadding>
               {permissions.items.map((item) => (
                 <ListItem key={item}>
@@ -245,7 +238,7 @@ export default async function RoleRecordPage({
                 </ListItem>
               ))}
             </List>
-          </Paper>
+          </Box>
         )}
         {/*
           The negative half — LAN-141 finding 10, and the reviewed prototype's
@@ -260,17 +253,9 @@ export default async function RoleRecordPage({
             {limits}
           </Typography>
         ) : null}
+      </Section>
 
-        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-          These come from the same definition the application enforces, so they cannot say one thing
-          here and allow another. They are not editable in the application.
-        </Typography>
-      </Box>
-
-      <Box component="section">
-        <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700, mb: 1.5 }}>
-          Role actions
-        </Typography>
+      <Section title="Role actions">
         <RoleActions
           roleId={role.id}
           roleCode={role.code}
@@ -291,7 +276,7 @@ export default async function RoleRecordPage({
           }))}
           permitted={permitted}
         />
-      </Box>
+      </Section>
 
       <Box component="section">
         <Stack

@@ -3,9 +3,10 @@
 import { useActionState, useState, type ReactNode } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Paper from "@mui/material/Paper";
+import { Section } from "@/components/section";
+import { ActionBar } from "@/components/action-bar";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field } from "@/components/field";
 import Typography from "@mui/material/Typography";
 import type { OperatorAccountState } from "@/lib/services/operator-account-state";
 import {
@@ -16,7 +17,7 @@ import {
   startEmailRehomeAction,
 } from "../../actions";
 import { EMPTY_ADMIN_ACTION_STATE, type AdminActionState } from "../../action-state";
-import AdminOutcome, { useOutcomeSlot } from "../../outcome";
+import { Outcome as AdminOutcome, useOutcomeSlot } from "@/components/outcome-slot";
 import type { PermittedAccountActions } from "../../permissions";
 
 /**
@@ -124,13 +125,12 @@ export default function OperatorActions({
           testId="correct-panel"
         >
           <input type="hidden" name="operatorAccountId" value={operatorAccountId} />
-          <TextField
+          <Field
             name="email"
             type="email"
             label="Corrected email"
             defaultValue={loginEmail ?? ""}
             required
-            fullWidth
           />
         </ActionPanel>
       ) : null}
@@ -144,15 +144,15 @@ export default function OperatorActions({
           testId="recover-panel"
         >
           <input type="hidden" name="operatorAccountId" value={operatorAccountId} />
-          <TextField
+          <Field
             name="email"
             type="email"
             label="Replacement email"
             required
-            fullWidth
+
             helperText="An address nobody else signs in with."
           />
-          <TextField name="reason" label="Reason" required fullWidth multiline minRows={2} />
+          <Field name="reason" label="Reason" required multiline minRows={2} />
         </ActionPanel>
       ) : null}
 
@@ -166,7 +166,7 @@ export default function OperatorActions({
           testId="deactivate-panel"
         >
           <input type="hidden" name="operatorAccountId" value={operatorAccountId} />
-          <TextField name="reason" label="Reason" required fullWidth multiline minRows={2} />
+          <Field name="reason" label="Reason" required multiline minRows={2} />
         </ActionPanel>
       ) : null}
 
@@ -179,13 +179,12 @@ export default function OperatorActions({
           testId="restore-panel"
         >
           <input type="hidden" name="operatorAccountId" value={operatorAccountId} />
-          <TextField
+          <Field
             name="reason"
             label="Reason (optional)"
-            fullWidth
+
             multiline
             minRows={2}
-            helperText="Coming back needs no excuse; record one if it helps the next reader."
           />
         </ActionPanel>
       ) : null}
@@ -236,30 +235,28 @@ function ActionPanel({
   const slot = useOutcomeSlot(testId);
 
   return (
-    <Paper variant="outlined" sx={{ p: 2 }} data-testid={testId}>
-      <Typography variant="subtitle2" component="h3" sx={{ fontWeight: 700 }}>
-        {title}
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        {explanation}
-      </Typography>
-      <Box component="form" action={formAction} onSubmit={slot.claim}>
-        <Stack spacing={2}>
-          {children}
-          <Box>
-            <Button
-              type="submit"
-              variant="contained"
-              color={submitColor}
-              disabled={pending}
-              sx={{ minHeight: 44 }}
-            >
-              {submitLabel}
-            </Button>
-          </Box>
-        </Stack>
-      </Box>
-      <AdminOutcome state={state} showing={slot.showing} />
-    </Paper>
+    <Box data-testid={testId}>
+      <Section title={title} description={explanation}>
+        <Box component="form" action={formAction} onSubmit={slot.claim}>
+          <Stack spacing={2}>
+            {children}
+            <ActionBar
+              primary={
+                <Button
+                  type="submit"
+                  variant="contained"
+                  color={submitColor}
+                  disabled={pending}
+                  sx={{ minHeight: 44 }}
+                >
+                  {submitLabel}
+                </Button>
+              }
+            />
+          </Stack>
+        </Box>
+        <AdminOutcome state={state} showing={slot.showing} />
+      </Section>
+    </Box>
   );
 }

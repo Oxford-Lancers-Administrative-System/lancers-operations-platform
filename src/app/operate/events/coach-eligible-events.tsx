@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback } from "react";
+import { PageHeader } from "@/components/page-header";
+import { Section } from "@/components/section";
+import { Field } from "@/components/field";
+import { EmptyState } from "@/components/empty-state";
+import { RowCard, RowCardList } from "@/components/row-card";
 import { useRouter } from "next/navigation";
-import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import CardActionArea from "@mui/material/CardActionArea";
-import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useFilterSearch } from "../filter-search";
 
@@ -94,32 +94,23 @@ export function CoachEligibleEvents({
 
   return (
     <Stack spacing={3} sx={{ maxWidth: 900 }} data-testid="coach-eligible-events">
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {COACH_EVENTS_HEADING}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {COACH_EVENTS_DETAIL}
-        </Typography>
-      </Box>
+      <PageHeader title={COACH_EVENTS_HEADING} subtitle={COACH_EVENTS_DETAIL} />
 
-      <TextField
+      <Field
         label="Search event"
         value={typed}
         onChange={(event) => setTyped(event.target.value)}
-        size="small"
-        fullWidth
         sx={{ maxWidth: 420 }}
         slotProps={{ htmlInput: { "aria-label": "Search event" } }}
       />
 
       {total === 0 ? (
-        <Alert
-          severity="info"
-          data-testid={filtered ? "coach-events-filter-empty" : "coach-events-empty"}
-        >
-          {filtered ? COACH_EVENTS_FILTER_EMPTY : COACH_EVENTS_EMPTY}
-        </Alert>
+        <EmptyState
+          title={filtered ? COACH_EVENTS_FILTER_EMPTY : COACH_EVENTS_EMPTY}
+          searched={filtered ? search : undefined}
+          action={filtered ? { href: "/operate/events", label: "Clear search" } : undefined}
+          testId={filtered ? "coach-events-filter-empty" : "coach-events-empty"}
+        />
       ) : (
         sections.map((section) =>
           // An empty section is not drawn. A club practises three times a week
@@ -128,84 +119,42 @@ export function CoachEligibleEvents({
           // reader to skip the place the one thing they came for will appear.
           section.events.length === 0 ? null : (
             <Box key={section.key} data-testid={`coach-events-section-${section.key}`}>
-              <Typography
-                variant="subtitle2"
-                component="h2"
-                sx={{
-                  textTransform: "uppercase",
-                  letterSpacing: 0.6,
-                  color: "text.secondary",
-                  fontWeight: 700,
-                  mb: 1,
-                }}
-              >
-                {section.label}
-              </Typography>
-              <Stack spacing={1.5} component="ul" sx={{ listStyle: "none", p: 0, m: 0 }}>
-                {section.events.map((event) => (
-                  <Card
-                    key={event.id}
-                    variant="outlined"
-                    component="li"
-                    data-testid="coach-event-row"
-                    data-section={section.key}
-                    data-today={event.isToday}
-                    data-open={event.isOpen}
-                    // The highlight is a property of the **session**, not of the
-                    // section it sits in: Upcoming holds the whole rest of the
-                    // season, and what a coach is looking for in it is tonight.
-                    sx={
-                      event.isToday
-                        ? { borderColor: "primary.main", borderWidth: 2, bgcolor: "primary.50" }
-                        : undefined
-                    }
-                  >
-                    <CardActionArea
-                      href={`/operate/events/${event.id}/attendance`}
-                      sx={{ p: 2, minHeight: 44 }}
+              <Section title={section.label}>
+                <RowCardList component="ul" at="all">
+                  {section.events.map((event) => (
+                    <Box
+                      component="li"
+                      key={event.id}
+                      data-testid="coach-event-row"
+                      data-section={section.key}
+                      data-today={event.isToday}
+                      data-open={event.isOpen}
                     >
-                      <Stack
-                        direction="row"
-                        spacing={1}
-                        sx={{ alignItems: "baseline", flexWrap: "wrap" }}
-                      >
-                        <Typography variant="body1" sx={{ fontWeight: event.isToday ? 700 : 600 }}>
-                          {event.name}
-                        </Typography>
-                        {event.isToday ? (
-                          <Chip size="small" color="primary" label={TODAY_CHIP} />
-                        ) : null}
-                      </Stack>
-                      <Stack
-                        direction="row"
-                        spacing={1}
-                        sx={{ alignItems: "baseline", flexWrap: "wrap" }}
-                      >
-                        <Typography variant="body2" color="text.secondary">
-                          {event.venue ? `${event.when} · ${event.venue}` : event.when}
-                        </Typography>
-                        {/*
-                          Said on the card rather than discovered by pressing it.
-                          A session whose register has not opened yet gives
-                          UX-90, and a coach who taps three of them looking for
-                          one they can fill in has learned nothing except that
-                          the list is unreliable.
-                        */}
-                        {event.isOpen ? null : (
-                          <Typography
-                            variant="body2"
-                            color="text.secondary"
-                            sx={{ fontStyle: "italic" }}
-                            data-testid="coach-event-not-open"
-                          >
-                            {NOT_OPEN_YET}
-                          </Typography>
-                        )}
-                      </Stack>
-                    </CardActionArea>
-                  </Card>
-                ))}
-              </Stack>
+                      <RowCard
+                        title={event.name}
+                        href={`/operate/events/${event.id}/attendance`}
+                        emphasized={event.isToday}
+                        trailing={event.isToday ? TODAY_CHIP : undefined}
+                        sublines={[
+                          event.venue ? `${event.when} · ${event.venue}` : event.when,
+                          ...(event.isOpen
+                            ? []
+                            : [
+                                <Typography
+                                  component="span"
+                                  key="not-open"
+                                  variant="body2"
+                                  data-testid="coach-event-not-open"
+                                >
+                                  {NOT_OPEN_YET}
+                                </Typography>,
+                              ]),
+                        ]}
+                      />
+                    </Box>
+                  ))}
+                </RowCardList>
+              </Section>
             </Box>
           ),
         )

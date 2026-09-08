@@ -5,7 +5,7 @@ import Checkbox from "@mui/material/Checkbox";
 import ListItemText from "@mui/material/ListItemText";
 import ListSubheader from "@mui/material/ListSubheader";
 import MenuItem from "@mui/material/MenuItem";
-import TextField from "@mui/material/TextField";
+import { Field } from "./field";
 
 /**
  * The outlined `TextField select` multi-choice `interest-questionnaire.tsx`
@@ -50,7 +50,7 @@ export function MultiSelectField({
     options.filter((option) => selected.has(option)),
   );
   return (
-    <TextField
+    <Field
       select
       name={name}
       label={label}
@@ -59,7 +59,6 @@ export function MultiSelectField({
         const next = event.target.value;
         setValue(typeof next === "string" ? next.split(",") : next);
       }}
-      fullWidth
       slotProps={{
         select: {
           multiple: true,
@@ -73,7 +72,7 @@ export function MultiSelectField({
           <ListItemText primary={option} />
         </MenuItem>
       ))}
-    </TextField>
+    </Field>
   );
 }
 
@@ -94,7 +93,7 @@ export function GroupedMultiSelectField({
     allOptions.filter((option) => selected.has(option)),
   );
   return (
-    <TextField
+    <Field
       select
       name={name}
       label={label}
@@ -103,7 +102,6 @@ export function GroupedMultiSelectField({
         const next = event.target.value;
         setValue(typeof next === "string" ? next.split(",") : next);
       }}
-      fullWidth
       slotProps={{
         select: {
           multiple: true,
@@ -123,6 +121,6 @@ export function GroupedMultiSelectField({
           </MenuItem>
         )),
       ])}
-    </TextField>
+    </Field>
   );
 }

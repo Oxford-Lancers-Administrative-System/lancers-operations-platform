@@ -1,3 +1,4 @@
+import { BAND_COLOURS } from "@/components/section";
 import { roleCodesPermit } from "@/lib/auth/capabilities";
 import { allowedItemStates } from "@/lib/services/onboarding-item-shapes";
 import type { PositionOptions, RosterBoardRow } from "@/lib/services/roster-board";
@@ -60,23 +61,17 @@ export const BANDS: readonly BandDef[] = Object.freeze([
   Object.freeze({
     key: "person" as const,
     label: "Person",
-    header: "#455a64",
-    tint: "rgba(69, 90, 100, 0.045)",
-    solid: "#f4f5f6",
+    ...BAND_COLOURS.person,
   }),
   Object.freeze({
     key: "onboarding" as const,
     label: "Onboarding",
-    header: "#b26a00",
-    tint: "rgba(178, 106, 0, 0.055)",
-    solid: "#fbf6ef",
+    ...BAND_COLOURS.onboarding,
   }),
   Object.freeze({
     key: "season" as const,
     label: "Season",
-    header: "#0b3d91",
-    tint: "rgba(11, 61, 145, 0.04)",
-    solid: "#f4f6fa",
+    ...BAND_COLOURS.season,
   }),
 ]);
 

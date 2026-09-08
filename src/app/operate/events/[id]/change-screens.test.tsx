@@ -20,6 +20,7 @@
  * The writes themselves are proved against the real database in
  * `src/lib/services/event-amendment.test.ts`.
  */
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
@@ -300,14 +301,10 @@ describe("the amendment editor", () => {
   it("states what is already sent and that none of it is discarded", async () => {
     render(await AmendEventPage(amendProps()));
 
-    const panel = screen.getByTestId("already-sent");
-    expect(flatten(within(panel).getByTestId("kept-invited").textContent)).toBe(
-      "37 invited — kept",
-    );
-    expect(flatten(within(panel).getByTestId("kept-said-yes").textContent)).toBe(
-      "25 said yes — kept",
-    );
-    expect(flatten(within(panel).getByTestId("kept-said-no").textContent)).toBe("4 said no — kept");
+    const panel = screen.getByTestId("section-already-sent");
+    expect(within(panel).getByTestId("kept-invited").querySelector("p")?.textContent).toBe("37");
+    expect(within(panel).getByTestId("kept-said-yes").querySelector("p")?.textContent).toBe("25");
+    expect(within(panel).getByTestId("kept-said-no").querySelector("p")?.textContent).toBe("4");
   });
 
   it("shrinks the type label, so the chosen type is readable", async () => {
@@ -330,9 +327,7 @@ describe("the amendment editor", () => {
     // to restate that in a sentence and then explain the design twice more;
     // Brian cut it to the consequence on 2026-08-23.
     expect(flatten(screen.getByTestId("amend-subtitle").textContent)).toContain("Approved");
-    expect(flatten(screen.getByTestId("stays-approved-note").textContent)).toBe(
-      "Nothing is saved or sent until you save.",
-    );
+    expect(screen.queryByTestId("stays-approved-note")).toBeNull();
   });
 
   it("shows what was typed, not what was loaded, when Save changes… is pressed", async () => {
@@ -341,7 +336,7 @@ describe("the amendment editor", () => {
     fireEvent.change(screen.getByLabelText("Venue"), { target: { value: "University Parks" } });
     fireEvent.click(screen.getByTestId("continue-to-review"));
 
-    const review = await screen.findByTestId("amend-review-step");
+    const review = await screen.findByTestId("section-amend-review-step");
     expect(flatten(within(review).getByTestId("change-venue").textContent)).toBe(
       "Venue: Iffley Road Astro → University Parks",
     );
@@ -353,7 +348,7 @@ describe("the amendment editor", () => {
     fireEvent.click(screen.getByTestId("continue-to-review"));
 
     expect(screen.getByTestId("nothing-changed")).toBeTruthy();
-    expect(screen.queryByTestId("amend-review-step")).toBeNull();
+    expect(screen.queryByTestId("section-amend-review-step")).toBeNull();
   });
 
   it("keeps the typed values in the submission while the review is showing", async () => {
@@ -361,7 +356,7 @@ describe("the amendment editor", () => {
 
     fireEvent.change(screen.getByLabelText("Venue"), { target: { value: "University Parks" } });
     fireEvent.click(screen.getByTestId("continue-to-review"));
-    await screen.findByTestId("amend-review-step");
+    await screen.findByTestId("section-amend-review-step");
 
     const form = screen.getByTestId("amend-form") as HTMLFormElement;
     expect(submissionOf(form).venue).toBe("University Parks");
@@ -406,9 +401,16 @@ describe("the amendment editor", () => {
 describe("where the one tick starts", () => {
   async function reviewAfterChanging(field: string, value: string) {
     render(await AmendEventPage(amendProps()));
-    fireEvent.change(screen.getByLabelText(field), { target: { value } });
+    if (field === "Date") {
+      const group = screen.getByRole("group", { name: "Date" });
+      within(group).getByRole("spinbutton", { name: "Day" }).focus();
+      const [year, month, day] = value.split("-");
+      await userEvent.setup().keyboard(`${day}${month}${year}`);
+    } else {
+      fireEvent.change(screen.getByLabelText(field), { target: { value } });
+    }
     fireEvent.click(screen.getByTestId("continue-to-review"));
-    return screen.findByTestId("amend-review-step");
+    return screen.findByTestId("section-amend-review-step");
   }
 
   it("is on for a venue change, and the button says who it notifies", async () => {
@@ -463,7 +465,7 @@ describe("where the one tick starts", () => {
       "One message to all 37 invited people.",
     );
 
-    const panel = flatten(screen.getByTestId("amend-review-step").textContent);
+    const panel = flatten(screen.getByTestId("section-amend-review-step").textContent);
     expect(panel).not.toContain("who said no");
     expect(panel).not.toContain("Their yes stands");
     expect(panel).not.toContain("not answered");
@@ -476,7 +478,7 @@ describe("where the one tick starts", () => {
     // "There is no reason field. If people need an explanation, put it in the
     // description…" — Brian, on reading it: "Fuck that. Don't say that." A
     // control does not instruct the operator on how to use a different field.
-    const panel = flatten(screen.getByTestId("amend-review-step").textContent);
+    const panel = flatten(screen.getByTestId("section-amend-review-step").textContent);
     expect(panel).not.toContain("Explaining the change");
     expect(panel).not.toContain("There is no reason field");
     expect(panel).not.toContain("put it in the description");
@@ -500,7 +502,7 @@ describe("where the one tick starts", () => {
     // Rather than a heading over "Nothing is waiting to go out for this event",
     // which is a fact about nothing.
     expect(screen.queryByTestId("queued-messages")).toBeNull();
-    expect(flatten(screen.getByTestId("amend-review-step").textContent)).not.toContain(
+    expect(flatten(screen.getByTestId("section-amend-review-step").textContent)).not.toContain(
       "Messages already queued",
     );
   });
@@ -529,7 +531,7 @@ describe("turning notification off", () => {
     render(await AmendEventPage(amendProps()));
     fireEvent.change(screen.getByLabelText("Venue"), { target: { value: "University Parks" } });
     fireEvent.click(screen.getByTestId("continue-to-review"));
-    return screen.findByTestId("amend-review-step");
+    return screen.findByTestId("section-amend-review-step");
   }
 
   it("opens the confirmation, naming the headcount and what they were told", async () => {
@@ -537,8 +539,8 @@ describe("turning notification off", () => {
 
     fireEvent.click(within(screen.getByTestId("notify-tick")).getByRole("switch"));
 
-    const confirmation = await screen.findByTestId("amend-silence-step");
-    expect(flatten(within(confirmation).getByTestId("silence-headline").textContent)).toBe(
+    const confirmation = await screen.findByTestId("section-amend-silence-step");
+    expect(flatten(within(confirmation).getByRole("heading", { level: 2 }).textContent)).toBe(
       "Change the venue without telling anyone?",
     );
     expect(flatten(within(confirmation).getByTestId("silence-consequence").textContent)).toContain(
@@ -552,7 +554,7 @@ describe("turning notification off", () => {
   it("does not mark the confirmation passed merely by opening it", async () => {
     await reviewAfterVenueChange();
     fireEvent.click(within(screen.getByTestId("notify-tick")).getByRole("switch"));
-    await screen.findByTestId("amend-silence-step");
+    await screen.findByTestId("section-amend-silence-step");
 
     expect(screen.getByTestId("silence-confirmed")).toHaveValue("false");
   });
@@ -560,7 +562,7 @@ describe("turning notification off", () => {
   it("marks it passed only after the operator chooses to save silently", async () => {
     await reviewAfterVenueChange();
     fireEvent.click(within(screen.getByTestId("notify-tick")).getByRole("switch"));
-    await screen.findByTestId("amend-silence-step");
+    await screen.findByTestId("section-amend-silence-step");
 
     fireEvent.click(screen.getByTestId("silence-accept"));
 
@@ -574,7 +576,7 @@ describe("turning notification off", () => {
   it("takes the operator back to notifying, unconfirmed, if they change their mind", async () => {
     await reviewAfterVenueChange();
     fireEvent.click(within(screen.getByTestId("notify-tick")).getByRole("switch"));
-    await screen.findByTestId("amend-silence-step");
+    await screen.findByTestId("section-amend-silence-step");
 
     fireEvent.click(screen.getByTestId("silence-notify-instead"));
 
@@ -582,7 +584,7 @@ describe("turning notification off", () => {
       expect(within(screen.getByTestId("notify-tick")).getByRole("switch")).toBeChecked(),
     );
     expect(screen.getByTestId("silence-confirmed")).toHaveValue("false");
-    expect(screen.queryByTestId("amend-silence-step")).toBeNull();
+    expect(screen.queryByTestId("section-amend-silence-step")).toBeNull();
   });
 
   it("asks nothing when only the description moved", async () => {
@@ -591,7 +593,7 @@ describe("turning notification off", () => {
       target: { value: "Light session." },
     });
     fireEvent.click(screen.getByTestId("continue-to-review"));
-    await screen.findByTestId("amend-review-step");
+    await screen.findByTestId("section-amend-review-step");
 
     // It starts off; turning it on and off again asks nothing either way.
     fireEvent.click(within(screen.getByTestId("notify-tick")).getByRole("switch"));
@@ -603,7 +605,7 @@ describe("turning notification off", () => {
     await waitFor(() =>
       expect(within(screen.getByTestId("notify-tick")).getByRole("switch")).not.toBeChecked(),
     );
-    expect(screen.queryByTestId("amend-silence-step")).toBeNull();
+    expect(screen.queryByTestId("section-amend-silence-step")).toBeNull();
   });
 });
 
@@ -628,7 +630,7 @@ describe("re-notify", () => {
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.queryByTestId("renotify-panel")).toBeNull();
+    expect(screen.queryByTestId("section-renotify-panel")).toBeNull();
   });
 
   it("does not appear when nothing has been changed", async () => {
@@ -636,7 +638,7 @@ describe("re-notify", () => {
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.queryByTestId("renotify-panel")).toBeNull();
+    expect(screen.queryByTestId("section-renotify-panel")).toBeNull();
   });
 
   it("says it changes neither the event nor the answers", async () => {
@@ -699,7 +701,7 @@ describe("the change history", () => {
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.queryByTestId("change-history")).toBeNull();
+    expect(screen.queryByTestId("section-change-history")).toBeNull();
   });
 });
 
@@ -714,9 +716,12 @@ describe("the cancellation screen", () => {
     expect(flatten(screen.getByTestId("expecting").textContent)).toBe(
       "25 people are expecting to be there.",
     );
-    expect(flatten(screen.getByTestId("cancel-headline").textContent)).toBe(
-      "Cancel this practice?",
-    );
+    expect(
+      flatten(
+        within(screen.getByTestId("section-cancel-headline")).getByRole("heading", { level: 2 })
+          .textContent,
+      ),
+    ).toBe("Cancel this practice?");
   });
 
   it("says the reason is for the record and reaches nobody", async () => {
@@ -778,7 +783,7 @@ describe("the cancellation screen", () => {
 
     fireEvent.click(within(screen.getByTestId("cancel-notify-tick")).getByRole("switch"));
 
-    const confirmation = await screen.findByTestId("cancel-silence-step");
+    const confirmation = await screen.findByTestId("section-cancel-silence-step");
     expect(
       flatten(within(confirmation).getByTestId("cancel-silence-consequence").textContent),
     ).toBe(
@@ -800,7 +805,7 @@ describe("the cancellation screen", () => {
   it("marks the confirmation passed only when the operator accepts it", async () => {
     render(await CancelEventPage(cancelProps()));
     fireEvent.click(within(screen.getByTestId("cancel-notify-tick")).getByRole("switch"));
-    await screen.findByTestId("cancel-silence-step");
+    await screen.findByTestId("section-cancel-silence-step");
 
     fireEvent.click(screen.getByTestId("cancel-silence-accept"));
 
@@ -827,7 +832,7 @@ describe("the cancellation screen", () => {
         within(screen.getByTestId("cancel-notify-tick")).getByRole("switch"),
       ).not.toBeChecked(),
     );
-    expect(screen.queryByTestId("cancel-silence-step")).toBeNull();
+    expect(screen.queryByTestId("section-cancel-silence-step")).toBeNull();
   });
 
   it("is not opened at all by an operator without the approval capability", async () => {

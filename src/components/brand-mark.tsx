@@ -5,11 +5,8 @@ import Typography from "@mui/material/Typography";
 /**
  * The crest and the club's name, together — LAN-225, brief §4.4.
  *
- * `public/brand/crest.svg` is the canonical crest path. Until Brian's Figma
- * export lands there it holds a labelled placeholder (see `public/brand/README.md`),
- * so the shell can be judged with a mark in the right place at the right size
- * rather than with an empty slot. The wordmark is set in Geist rather than
- * loaded as an asset for the same reason: nothing in the Figma names a face.
+ * `public/brand/crest.svg` is the white mark from Brian's supplied Group 315.svg
+ * (see `public/brand/README.md`). The wordmark remains set in Geist.
  *
  * `tone` says which ground it sits on. On Oxford Blue the name is white; on
  * paper it is Oxford Blue. Nothing here is ever Gold text (2.73 on white).
@@ -20,12 +17,15 @@ export const CLUB_NAME = "Oxford Lancers";
 export function BrandMark({
   tone = "onDark",
   size = 32,
+  crestSize = size,
   caption,
   testId,
 }: {
   tone?: "onDark" | "onLight";
   /** The crest's height in pixels. The wordmark scales with it. */
   size?: 24 | 32 | 40 | 56;
+  /** Display a detailed crest larger without enlarging the wordmark. */
+  crestSize?: number;
   /** The line under the name: the section ("Operations"), or what the page is. */
   caption?: string;
   testId?: string;
@@ -43,10 +43,10 @@ export function BrandMark({
     >
       <Box
         component="img"
-        src={CREST_PATH}
+        src={tone === "onDark" ? CREST_PATH : "/brand/crest-blue.svg"}
         alt=""
         aria-hidden="true"
-        sx={{ width: size, height: size, flexShrink: 0, display: "block" }}
+        sx={{ width: crestSize, height: crestSize, flexShrink: 0, display: "block" }}
       />
       <Box sx={{ minWidth: 0 }}>
         <Typography

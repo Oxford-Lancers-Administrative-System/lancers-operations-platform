@@ -2,12 +2,11 @@
 
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
+import { Section } from "@/components/section";
 import IconButton from "@mui/material/IconButton";
-import MenuItem from "@mui/material/MenuItem";
-import Paper from "@mui/material/Paper";
+import { FieldGroup } from "@/components/section";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field, SelectField } from "@/components/field";
 import Typography from "@mui/material/Typography";
 import {
   QUESTION_ANSWER_TYPE_LABELS,
@@ -119,7 +118,7 @@ export default function QuestionEditor({
   }
 
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="question-editor">
+    <Section title={headline} description={detail} testId="question-editor">
       {/*
         Always posted, even with no questions at all, and it is the difference
         between "this event asks nothing" and "this submission was not about the
@@ -129,15 +128,6 @@ export default function QuestionEditor({
       */}
       <input type="hidden" name="questionsPresent" value="1" />
       <Stack spacing={2}>
-        <Box>
-          <Typography variant="h6" component="h2">
-            {headline}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {detail}
-          </Typography>
-        </Box>
-
         {/*
           C4. There was filler here — "Nothing extra is asked. Add a
           question if this event needs one." — and Brian's reaction was
@@ -150,130 +140,116 @@ export default function QuestionEditor({
             const issue = issues.find((entry) => entry.index === index)?.message;
             const answerType = question.answerType ?? "boolean";
             return (
-              <Paper
-                component="li"
-                variant="outlined"
-                key={index}
-                sx={{ p: 2 }}
-                data-testid="question-card"
-                data-index={index}
-              >
-                <Stack spacing={2}>
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    sx={{ alignItems: "center", flexWrap: "wrap", gap: 1 }}
-                  >
-                    <Typography variant="overline" color="text.secondary">
-                      {`Question ${index + 1}`}
-                    </Typography>
-                    {question.fromTemplate === "true" ? (
-                      <Chip
+              <Box component="li" key={index} data-testid="question-card" data-index={index}>
+                <FieldGroup title={`Question ${index + 1}`}>
+                  <Stack spacing={2}>
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      sx={{ alignItems: "center", flexWrap: "wrap", gap: 1 }}
+                    >
+                      {question.fromTemplate === "true" ? (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          data-testid="from-template-chip"
+                        >
+                          {fromTemplateChip(eventTypeLabel)}
+                        </Typography>
+                      ) : null}
+                      <Box sx={{ flexGrow: 1 }} />
+                      <IconButton
                         size="small"
-                        variant="outlined"
-                        label={fromTemplateChip(eventTypeLabel)}
-                        data-testid="from-template-chip"
-                      />
-                    ) : null}
-                    <Box sx={{ flexGrow: 1 }} />
-                    <IconButton
-                      size="small"
-                      aria-label={`Move question ${index + 1} earlier`}
-                      disabled={disabled || index === 0}
-                      onClick={() => move(index, -1)}
-                      data-testid="move-question-up"
-                    >
-                      ↑
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      aria-label={`Move question ${index + 1} later`}
-                      disabled={disabled || index === questions.length - 1}
-                      onClick={() => move(index, 1)}
-                      data-testid="move-question-down"
-                    >
-                      ↓
-                    </IconButton>
-                    <Button
-                      size="small"
-                      color="error"
-                      disabled={disabled}
-                      onClick={() => remove(index)}
-                      data-testid="remove-question"
-                      sx={{ minHeight: 40 }}
-                    >
-                      Remove
-                    </Button>
-                  </Stack>
+                        aria-label={`Move question ${index + 1} earlier`}
+                        disabled={disabled || index === 0}
+                        onClick={() => move(index, -1)}
+                        data-testid="move-question-up"
+                      >
+                        ↑
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        aria-label={`Move question ${index + 1} later`}
+                        disabled={disabled || index === questions.length - 1}
+                        onClick={() => move(index, 1)}
+                        data-testid="move-question-down"
+                      >
+                        ↓
+                      </IconButton>
+                      <Button
+                        size="small"
+                        color="error"
+                        disabled={disabled}
+                        onClick={() => remove(index)}
+                        data-testid="remove-question"
+                        sx={{ minHeight: 44 }}
+                      >
+                        Remove
+                      </Button>
+                    </Stack>
 
-                  <TextField
-                    label="Question"
-                    value={question.prompt ?? ""}
-                    onChange={(event) => update(index, { prompt: event.target.value })}
-                    error={Boolean(issue)}
-                    helperText={issue}
-                    disabled={disabled}
-                    fullWidth
-                    slotProps={{ inputLabel: { shrink: true } }}
-                  />
+                    <Field
+                      label="Question"
+                      value={question.prompt ?? ""}
+                      onChange={(event) => update(index, { prompt: event.target.value })}
+                      error={Boolean(issue)}
+                      helperText={issue}
+                      disabled={disabled}
 
-                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                    <TextField
-                      select
-                      label="Answer"
-                      value={answerType}
-                      onChange={(event) => update(index, { answerType: event.target.value })}
-                      disabled={disabled}
-                      fullWidth
-                      slotProps={{ inputLabel: { shrink: true } }}
-                    >
-                      {QUESTION_ANSWER_TYPES.map((type) => (
-                        <MenuItem key={type} value={type}>
-                          {labelFor(QUESTION_ANSWER_TYPE_LABELS, type)}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                    <TextField
-                      select
-                      label="Answering it"
-                      value={question.required === "required" ? "required" : "optional"}
-                      onChange={(event) => update(index, { required: event.target.value })}
-                      disabled={disabled}
-                      fullWidth
-                      slotProps={{ inputLabel: { shrink: true } }}
-                    >
-                      <MenuItem value="optional">Optional</MenuItem>
-                      <MenuItem value="required">Required</MenuItem>
-                    </TextField>
-                  </Stack>
-
-                  {answerType === "choice" ? (
-                    <TextField
-                      label="Options"
-                      value={question.choices ?? ""}
-                      onChange={(event) => update(index, { choices: event.target.value })}
-                      disabled={disabled}
-                      helperText="Separated by commas — S, M, L, XL"
-                      fullWidth
                       slotProps={{ inputLabel: { shrink: true } }}
                     />
-                  ) : null}
-                </Stack>
 
-                <input type="hidden" name="questionPrompt" value={question.prompt ?? ""} />
-                <input type="hidden" name="questionAnswerType" value={answerType} />
-                <input
-                  type="hidden"
-                  name="questionRequired"
-                  value={question.required === "required" ? "required" : "optional"}
-                />
-                <input type="hidden" name="questionChoices" value={question.choices ?? ""} />
-                <input
-                  type="hidden"
-                  name="questionFromTemplate"
-                  value={question.fromTemplate === "true" ? "true" : "false"}
-                />
-              </Paper>
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                      <SelectField
+                        label="Answer"
+                        value={answerType}
+                        onChange={(event) => update(index, { answerType: event.target.value })}
+                        disabled={disabled}
+                        options={QUESTION_ANSWER_TYPES.map((type) => ({
+                          value: type,
+                          label: labelFor(QUESTION_ANSWER_TYPE_LABELS, type),
+                        }))}
+                      />
+                      <SelectField
+                        label="Answering it"
+                        value={question.required === "required" ? "required" : "optional"}
+                        onChange={(event) => update(index, { required: event.target.value })}
+                        disabled={disabled}
+                        options={[
+                          { value: "optional", label: "Optional" },
+                          { value: "required", label: "Required" },
+                        ]}
+                      />
+                    </Stack>
+
+                    {answerType === "choice" ? (
+                      <Field
+                        label="Options"
+                        value={question.choices ?? ""}
+                        onChange={(event) => update(index, { choices: event.target.value })}
+                        disabled={disabled}
+                        helperText="Separated by commas — S, M, L, XL"
+
+                        slotProps={{ inputLabel: { shrink: true } }}
+                      />
+                    ) : null}
+                  </Stack>
+
+                  <input type="hidden" name="questionPrompt" value={question.prompt ?? ""} />
+                  <input type="hidden" name="questionAnswerType" value={answerType} />
+                  <input
+                    type="hidden"
+                    name="questionRequired"
+                    value={question.required === "required" ? "required" : "optional"}
+                  />
+                  <input type="hidden" name="questionChoices" value={question.choices ?? ""} />
+                  <input
+                    type="hidden"
+                    name="questionFromTemplate"
+                    value={question.fromTemplate === "true" ? "true" : "false"}
+                  />
+                </FieldGroup>
+              </Box>
             );
           })}
         </Stack>
@@ -290,6 +266,6 @@ export default function QuestionEditor({
           </Button>
         </Box>
       </Stack>
-    </Paper>
+    </Section>
   );
 }

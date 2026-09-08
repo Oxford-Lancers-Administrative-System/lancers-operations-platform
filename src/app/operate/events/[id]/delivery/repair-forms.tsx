@@ -1,11 +1,13 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { ActionBar } from "@/components/action-bar";
+import { useOutcomeSlot } from "@/components/outcome-slot";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field } from "@/components/field";
 import { EMPTY_TRANSITION_STATE } from "../../form-state";
 import { retryDeliveryAction, revokeAndReissueAction } from "./actions";
 import { RETRY_DELIVERY, REVOKE_AND_REISSUE } from "./presentation";
@@ -38,8 +40,9 @@ export function RetryDeliveryForm({
 }) {
   const [state, formAction, pending] = useActionState(retryDeliveryAction, EMPTY_TRANSITION_STATE);
 
+  const slot = useOutcomeSlot("retry");
   return (
-    <Box component="form" action={formAction} data-testid="retry-form">
+    <Box component="form" action={formAction} onSubmit={slot.claim} data-testid="retry-form">
       <input type="hidden" name="eventId" value={eventId} />
       <input type="hidden" name="jobId" value={jobId} />
       <Stack spacing={1}>
@@ -61,10 +64,10 @@ export function RetryDeliveryForm({
             {disabledReason}
           </Box>
         ) : null}
-        {state.error ? (
-          <Alert severity="warning" data-testid="retry-error">
+        {state.error && slot.showing ? (
+          <Notice variant="refusal" testId="retry-error">
             {state.error}
-          </Alert>
+          </Notice>
         ) : null}
       </Stack>
     </Box>
@@ -93,12 +96,16 @@ export function RevokeAndReissueForm({
     EMPTY_TRANSITION_STATE,
   );
   const [open, setOpen] = useState(false);
+  const slot = useOutcomeSlot("reissue");
 
   if (!open) {
     return (
       <Button
         variant="outlined"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          slot.claim();
+          setOpen(true);
+        }}
         disabled={disabled}
         fullWidth
         sx={{ minHeight: 44 }}
@@ -109,32 +116,35 @@ export function RevokeAndReissueForm({
   }
 
   return (
-    <Box component="form" action={formAction} data-testid="reissue-form">
+    <Box component="form" action={formAction} onSubmit={slot.claim} data-testid="reissue-form">
       <input type="hidden" name="eventId" value={eventId} />
       <input type="hidden" name="invitationId" value={invitationId} />
       <Stack spacing={2}>
-        <TextField
+        <Field
           label="Why is this link being withdrawn?"
           name="reason"
           multiline
           minRows={2}
-          fullWidth
           autoFocus
           helperText="The previous link stops working immediately. A new one is sent in its place."
         />
-        {state.error ? (
-          <Alert severity="warning" data-testid="reissue-error">
+        {state.error && slot.showing ? (
+          <Notice variant="refusal" testId="reissue-error">
             {state.error}
-          </Alert>
+          </Notice>
         ) : null}
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-          <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
-            {pending ? "Reissuing…" : REVOKE_AND_REISSUE}
-          </Button>
-          <Button variant="text" onClick={() => setOpen(false)} disabled={pending}>
-            Cancel
-          </Button>
-        </Stack>
+        <ActionBar
+          primary={
+            <Button type="submit" variant="contained" disabled={pending}>
+              {pending ? "Reissuing…" : REVOKE_AND_REISSUE}
+            </Button>
+          }
+          cancel={
+            <Button variant="text" onClick={() => setOpen(false)} disabled={pending}>
+              Cancel
+            </Button>
+          }
+        />
       </Stack>
     </Box>
   );

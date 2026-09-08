@@ -1,11 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import { Field } from "@/components/field";
+import { ActionBar } from "@/components/action-bar";
 import { requestPasswordReset, type ForgotPasswordState } from "./actions";
 
 const initialState: ForgotPasswordState = { status: "idle" };
@@ -33,7 +34,7 @@ export default function ForgotPasswordForm({ signInHref }: { signInHref: string 
   if (state.status === "confirmed") {
     return (
       <Stack spacing={3}>
-        <Alert severity="success">{state.message}</Alert>
+        <Notice severity="success">{state.message}</Notice>
         <Button href={signInHref} variant="contained">
           Back to sign in
         </Button>
@@ -44,24 +45,27 @@ export default function ForgotPasswordForm({ signInHref }: { signInHref: string 
   return (
     <Box component="form" action={formAction}>
       <Stack spacing={2}>
-        <TextField
+        <Field
           label="Email address"
           name="email"
           type="email"
           autoComplete="username"
           required
-          fullWidth
           error={state.status === "invalid"}
           helperText={state.status === "invalid" ? state.error : " "}
         />
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-          <Button type="submit" variant="contained" disabled={pending}>
-            {pending ? "Resetting…" : "Reset password"}
-          </Button>
-          <Button href={signInHref} variant="outlined">
-            Cancel
-          </Button>
-        </Stack>
+        <ActionBar
+          primary={
+            <Button type="submit" variant="contained" disabled={pending}>
+              {pending ? "Resetting…" : "Reset password"}
+            </Button>
+          }
+          cancel={
+            <Button href={signInHref} variant="outlined">
+              Cancel
+            </Button>
+          }
+        />
       </Stack>
     </Box>
   );

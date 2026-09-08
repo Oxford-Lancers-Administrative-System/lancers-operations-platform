@@ -1,19 +1,9 @@
 import { redirect } from "next/navigation";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
-import { describeHeldCoachingSeats, isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
 import { resolveOperatorAccess } from "@/lib/auth/operator";
-import { signOut } from "../login/actions";
 import OperatorAccountState from "./account-state";
-import { administrationDestinationsFor, destinationsFor } from "./destinations";
-import ShellNav from "./shell-nav";
 
-/** The sidebar's second line, and the caption under the signed-in name. */
-export const OPERATOR_SECTION = "Operations";
-export const OPERATOR_CAPTION = "Authorized operator";
-export const COACH_SECTION = "Attendance";
+import OperatorShell from "./operator-shell";
+export { OPERATOR_SECTION, OPERATOR_CAPTION, COACH_SECTION } from "./operator-shell";
 
 /**
  * The `/operate` shell — UX-02, and the frame the account states are shown in.
@@ -54,75 +44,5 @@ export default async function OperateLayout({ children }: LayoutProps<"/operate"
     return <OperatorAccountState state={access.state} />;
   }
 
-  // LAN-110. A coaching assignment gets the coach shell — one destination, and
-  // the sidebar captioned with the seat they hold rather than with the general
-  // "Authorized operator", because they are not one and the shell should not
-  // imply that they are. Resolved here, on the server, from the verified
-  // session; `ShellNav` is handed the answer and never the roles.
-  const isCoachShell = isNarrowAttendanceRecorder(access.operator.roleCodes);
-  const roleCaption = isCoachShell
-    ? describeHeldCoachingSeats(access.operator.roleCodes)
-    : OPERATOR_CAPTION;
-
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: { xs: "column", md: "row" },
-        minHeight: "100dvh",
-        alignItems: "stretch",
-      }}
-    >
-      <ShellNav
-        operatorName={access.operator.displayName}
-        destinations={destinationsFor(access.operator.roleCodes)}
-        // LAN-133. Resolved here, on the server, from the verified session —
-        // the same rule the coach shell follows: `ShellNav` is handed the
-        // answer and never the role codes it would have to be trusted with to
-        // work it out. Empty for every operator who does not administer.
-        administration={administrationDestinationsFor(access.operator.roleCodes)}
-        sectionLabel={isCoachShell ? COACH_SECTION : OPERATOR_SECTION}
-        roleCaption={roleCaption}
-      />
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          minWidth: 0,
-          px: { xs: 2, md: 4 },
-          pb: { xs: 3, md: 4 },
-          // LAN-195. The fixed bar moved from the bottom of the phone screen
-          // to the top (the hamburger), so the clearance moves with it: 56px
-          // of bar plus the ordinary 3-unit (24px) top spacing used everywhere
-          // else, i.e. 10 spacing units rather than 3.
-          pt: { xs: 10, md: 4 },
-        }}
-      >
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={2}
-          sx={{
-            alignItems: { sm: "center" },
-            justifyContent: "space-between",
-            mb: 3,
-          }}
-        >
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h5" component="p" sx={{ fontWeight: 800 }}>
-              Lancers Operations
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Signed in as {access.operator.displayName}
-            </Typography>
-          </Box>
-          <Box component="form" action={signOut}>
-            <Button type="submit" variant="outlined">
-              Sign out
-            </Button>
-          </Box>
-        </Stack>
-        {children}
-      </Box>
-    </Box>
-  );
+  return <OperatorShell operator={access.operator}>{children}</OperatorShell>;
 }

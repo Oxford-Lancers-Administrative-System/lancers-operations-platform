@@ -1,7 +1,7 @@
-import Alert from "@mui/material/Alert";
+import { Notice } from "@/components/notice";
+import { Section } from "@/components/section";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { EventChangeEntry } from "@/lib/services/event-amendment";
@@ -55,7 +55,7 @@ export function ApprovedEventActions({ eventId }: { eventId: string }) {
       </Button>
       <Button
         variant="outlined"
-        color="warning"
+        color="error"
         href={`/operate/events/${eventId}/cancel`}
         fullWidth
         sx={{ minHeight: 44 }}
@@ -81,12 +81,8 @@ export function ApprovedEventActions({ eventId }: { eventId: string }) {
  */
 export function ChangeHistoryPanel({ entries }: { entries: readonly EventChangeEntry[] }) {
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="change-history">
+    <Section title={HISTORY_HEADING} testId="change-history" collapsible>
       <Stack spacing={2}>
-        <Typography variant="h6" component="h2">
-          {HISTORY_HEADING}
-        </Typography>
-
         {entries.length === 0 ? (
           <Typography variant="body2" color="text.secondary" data-testid="history-empty">
             {HISTORY_EMPTY}
@@ -134,7 +130,7 @@ export function ChangeHistoryPanel({ entries }: { entries: readonly EventChangeE
           </Stack>
         )}
       </Stack>
-    </Paper>
+    </Section>
   );
 }
 
@@ -159,12 +155,12 @@ export function CancelledPanel({
   entry: EventChangeEntry | null;
 }) {
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="cancelled-panel">
+    <Section title="Cancellation" testId="cancelled-panel">
       <Stack spacing={2}>
         {entry ? (
-          <Alert severity="info" data-testid="cancelled-summary">
+          <Notice severity="info" testId="cancelled-summary">
             {cancelledSummary(entry)}
-          </Alert>
+          </Notice>
         ) : null}
 
         {reason ? (
@@ -190,6 +186,6 @@ export function CancelledPanel({
           </Typography>
         </Box>
       </Stack>
-    </Paper>
+    </Section>
   );
 }

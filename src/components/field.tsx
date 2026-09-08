@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import Checkbox from "@mui/material/Checkbox";
 import FormControl from "@mui/material/FormControl";
 import FormControlLabel from "@mui/material/FormControlLabel";
@@ -157,17 +157,35 @@ export function CheckField({
   helperText,
   defaultChecked,
   field,
+  checked,
+  onChange,
+  disabled,
+  inputLabel,
 }: {
   name: string;
   label: ReactNode;
   helperText?: ReactNode;
   defaultChecked?: boolean;
   field?: string;
+  checked?: boolean;
+  onChange?: (checked: boolean) => void;
+  disabled?: boolean;
+  inputLabel?: string;
 }) {
   return (
     <FormControl data-field={field ?? name}>
       <FormControlLabel
-        control={<Checkbox name={name} value="1" defaultChecked={defaultChecked} />}
+        control={
+          <Checkbox
+            name={name}
+            value="1"
+            defaultChecked={defaultChecked}
+            checked={checked}
+            onChange={(_, next) => onChange?.(next)}
+            disabled={disabled}
+            slotProps={{ input: inputLabel ? { "aria-label": inputLabel } : undefined }}
+          />
+        }
         label={label}
       />
       {helperText ? <FormHelperText>{helperText}</FormHelperText> : null}
@@ -186,6 +204,13 @@ export function DateField({
   helperText = DATE_FORMAT_HINT,
   error,
   field,
+  dateValue,
+  onDateChange,
+  inputRef,
+  required,
+  minDate,
+  maxDate,
+  disabled,
 }: {
   label: string;
   name: string;
@@ -195,16 +220,31 @@ export function DateField({
   helperText?: ReactNode;
   error?: boolean;
   field?: string;
+  /** Keep a partially typed picker date intact when the owning form controls it. */
+  dateValue?: Date | null;
+  onDateChange?: (date: Date | null) => void;
+  inputRef?: Ref<HTMLInputElement>;
+  required?: boolean;
+  minDate?: Date;
+  maxDate?: Date;
+  disabled?: boolean;
 }) {
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={enGB}>
       <div data-field={field ?? name}>
         <DatePicker
           label={label}
-          value={dateFromDay(value)}
-          onChange={(next) => onChange?.(dayFromDate(next))}
+          minDate={minDate}
+          maxDate={maxDate}
+          disabled={disabled}
+          inputRef={inputRef}
+          value={dateValue === undefined ? dateFromDay(value) : dateValue}
+          onChange={(next) => {
+            onDateChange?.(next);
+            onChange?.(dayFromDate(next));
+          }}
           format="dd/MM/yyyy"
-          slotProps={{ textField: { fullWidth: true, error, helperText } }}
+          slotProps={{ textField: { fullWidth: true, error, helperText, required } }}
         />
         <input type="hidden" name={name} value={value} />
       </div>
@@ -220,6 +260,9 @@ export function TimeField({
   helperText = TIME_FORMAT_HINT,
   error,
   field,
+  dateValue,
+  onDateChange,
+  disabled,
 }: {
   label: string;
   name: string;
@@ -229,14 +272,21 @@ export function TimeField({
   helperText?: ReactNode;
   error?: boolean;
   field?: string;
+  dateValue?: Date | null;
+  onDateChange?: (date: Date | null) => void;
+  disabled?: boolean;
 }) {
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={enGB}>
       <div data-field={field ?? name}>
         <TimePicker
           label={label}
-          value={dateFromTime(value)}
-          onChange={(next) => onChange?.(timeFromDate(next))}
+          value={dateValue === undefined ? dateFromTime(value) : dateValue}
+          disabled={disabled}
+          onChange={(next) => {
+            onDateChange?.(next);
+            onChange?.(timeFromDate(next));
+          }}
           ampm
           format="hh:mm a"
           minutesStep={5}

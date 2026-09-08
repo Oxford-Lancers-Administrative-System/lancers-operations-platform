@@ -5,10 +5,9 @@ this file; shared rules belong here once.
 
 ## Product boundary
 
-This is the Oxford Lancers operations platform. Release one covers the eight
-approved workflows and the first running vertical slice described in
-`docs/operating-the-slice.md`. Before changing that slice, read that walkthrough
-or `tests/slice-walkthrough.test.ts`.
+This is the Oxford Lancers operations platform. Release one covers the eight approved workflows and
+the first running vertical slice described in `docs/operating-the-slice.md`. Before changing that
+slice, read that walkthrough or `tests/slice-walkthrough.test.ts`.
 
 The frozen conceptual model v1.2 is implemented by PostgreSQL migrations.
 Before touching `supabase/migrations/`, read
@@ -89,25 +88,21 @@ in `DATABASE_TEST_SUITES`; the test guard explains omissions.
 - Owner-run production procedures: `scripts/production/`.
 - Human-run hosted pilot SQL: `scripts/pilot/<issue>/`.
 
-Never hand-edit `src/lib/supabase/database.types.ts`. Commit regenerated types
-with their migration. A schema change also updates
-`docs/architecture/data-model.md`.
+Never hand-edit `src/lib/supabase/database.types.ts`. Commit regenerated types with their migration.
+A schema change also updates `docs/architecture/data-model.md`.
 
 ## Change workflow
 
-Every change traces to an issue. Never commit to `main`; branch from current
-`main` with `feat/`, `fix/`, `docs/`, or `chore/`. Preserve unrelated
-work in a dirty tree.
+Every change traces to an issue. Never commit to `main`; branch from current `main` with `feat/`,
+`fix/`, `docs/`, or `chore/`. Preserve unrelated work in a dirty tree.
 
-For user-facing work, read the complete Linear issue and comments,
-`docs/ux/slice-ux.md`, its `docs/ux/tickets/` contract, and all desktop and
-375px wireframes. Stop for conflicting authority or an unrecorded product or
-security decision. PRs include UX conformance and applicable screenshots.
+For user-facing work, read the complete Linear issue and comments, `docs/ux/slice-ux.md`, its
+`docs/ux/tickets/` contract, and all desktop and 375px wireframes. Stop for conflicting authority or
+an unrecorded product or security decision. PRs include UX conformance and applicable screenshots.
 
-Commits use an imperative subject under about 72 characters and a body explaining
-why. Open draft PRs only. State the change, verification, external configuration,
-and limitations. Fill every line in the Production handoff block, including
-explicit `No` and `None`.
+Commits use an imperative subject under about 72 characters and a body explaining why. Open draft
+PRs only. State the change, verification, external configuration, and limitations. Fill every line
+in the Production handoff block, including explicit `No` and `None`.
 
 Run `npm run verify` before opening a PR. When migrations change, also run:
 
@@ -130,31 +125,27 @@ opened it (Brian, 2026-09-01; ADR 0038).
 > approval is recorded against that same head. Otherwise the draft stays and
 > Brian merges. No agent merges, ever.
 
-Only `/start-issue` and `/run-mission` may lift a draft; `implementation-worker`,
-`/finish-issue`, `/finish-mission`, `/mission-intake`, `code-reviewer` and
-`scout` never do. Nothing is expected to happen to a pull request afterwards, so
-there is deliberately no re-draft-on-push machinery.
+Only `/start-issue` and `/run-mission` may lift a draft; `implementation-worker`, `/finish-issue`,
+`/finish-mission`, `/mission-intake`, `code-reviewer` and `scout` never do. Nothing is expected to
+happen to a pull request afterwards, so there is deliberately no re-draft-on-push machinery.
 
-`.github/workflows/merge.yml` is the only merge workflow, and it neither merges
-nor un-drafts. It enables GitHub's own auto-merge on a non-draft pull request
-whose diff touches no `prohibited` path in `.github/merge-rules.json`; GitHub
-merges it when the required checks are green. A prohibited path gets one comment
-and stays Brian's. The scan is recomputed from the real diff against `main`, and
-nothing written in a pull request changes it. Merging never deploys.
+`.github/workflows/merge.yml` is the only merge workflow, and it neither merges nor un-drafts. It
+enables GitHub's own auto-merge on a non-draft pull request whose diff touches no `prohibited` path
+in `.github/merge-rules.json`; GitHub merges it when the required checks are green. A prohibited
+path gets one comment and stays Brian's. The scan is recomputed from the real diff against `main`,
+and nothing written in a pull request changes it. Merging never deploys.
 
-Pilot artifacts are required only when `docs/pilot-data-runbook.md` says local
-proof is insufficient and hosted synthetic rows are absent. Tell Brian as soon
-as any owner action is discovered and repeat it in the PR and final handoff.
-Agents never run pilot SQL against hosted, create hosted Auth users, grant hosted
-access, decide retention, or write production data.
+Pilot artifacts are required only when `docs/pilot-data-runbook.md` says local proof is insufficient
+and hosted synthetic rows are absent. Tell Brian as soon as any owner action is discovered and
+repeat it in the PR and final handoff. Agents never run pilot SQL against hosted, create hosted Auth
+users, grant hosted access, decide retention, or write production data.
 
 ## Security and production
 
-Local Supabase only. Developer commands, tests, migrations, type generation, and
-agents never target production. The sole deployed-runtime exception is the
-fixed Cloud Run branch in `src/lib/db/runtime-target.ts`; never add it to
-`src/lib/db/url.ts` or `scripts/lib/local-db.mjs`, and never make it
-configurable.
+Local Supabase only. Developer commands, tests, migrations, type generation, and agents never target
+production. The sole deployed-runtime exception is the fixed Cloud Run branch in
+`src/lib/db/runtime-target.ts`; never add it to `src/lib/db/url.ts` or `scripts/lib/local-db.mjs`,
+and never make it configurable.
 
 Never expose a secret in code, prompts, logs, fixtures, commits, Notion, or a
 client bundle. `NEXT_PUBLIC_` is public. Real secrets live in GCP Secret
@@ -166,10 +157,9 @@ from `anon`, `authenticated`, and `service_role`, then grant only the narrow
 server need. Views use `security_invoker = true`. The service layer is the
 primary authorization boundary; RLS is the backstop.
 
-Shared migrations are forward-only. No agent applies a hosted migration.
-Deployment is a deliberate owner action through `gh workflow run deploy.yml`;
-merging `main` deploys nothing. Follow `docs/deployment.md` for smoke tests
-and rollback.
+Shared migrations are forward-only. No agent applies a hosted migration. Deployment is a deliberate
+owner action through `gh workflow run deploy.yml`; merging `main` deploys nothing. Follow
+`docs/deployment.md` for smoke tests and rollback.
 
 Stop and ask Brian before changing the approved domain model, security/privacy
 posture, infrastructure cost, ownership/access boundary, release scope, a
@@ -195,11 +185,10 @@ Use the minimum and cheapest reliable executor:
    workflow walking; and
 4. Sonnet- or Opus-class for the Mission Lead, selected by Brian.
 
-Implementation and correction are capped at Sonnet; the Lead may choose Haiku
-only for low-risk work with a complete contract and mechanical acceptance.
-Review is always Sonnet and capped there. No agent self-escalates above its cap.
-A mission runs at most three agents concurrently, including at most two
-implementation workers.
+Implementation and correction are capped at Sonnet; the Lead may choose Haiku only for low-risk work
+with a complete contract and mechanical acceptance. Review is always Sonnet and capped there. No
+agent self-escalates above its cap. A mission runs at most three agents concurrently, including at
+most two implementation workers.
 
 The approved plan groups packages into ordered one- or two-package execution
 epochs. The Lead finishes the current group, checkpoints, and stops before the
@@ -248,3 +237,13 @@ RLS and narrow grants; behavior docs are current; no secret, real member data,
 or unauthorized domain concept was added; CI is green; and the PR's Production
 handoff is complete. Done does not mean merged: the draft lifts only when the
 merge rule above says it may.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

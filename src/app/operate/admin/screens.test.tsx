@@ -812,7 +812,9 @@ describe("the Roles page", () => {
 
     expect(container.querySelectorAll("form")).toHaveLength(0);
     expect(container.querySelectorAll("input")).toHaveLength(0);
-    expect(container.textContent).toContain("neither the roles nor what they can do are editable");
+    expect(container.textContent).not.toContain(
+      "neither the roles nor what they can do are editable",
+    );
   });
 
   it("carries the guide link and no Invite operator action", async () => {
@@ -992,8 +994,8 @@ describe("one role's record", () => {
     render(await RoleRecordPage(pageProps({ roleId: "role-1" })));
 
     expect(screen.getByTestId("scheduled-holder")).toHaveTextContent("Alwyn Cholmondley");
-    expect(screen.getByTestId("current-holder")).toHaveTextContent("Not assigned");
-    expect(screen.getByTestId("current-holder")).not.toHaveTextContent(/nobody is due to/i);
+    expect(screen.getByTestId("section-current-holder")).toHaveTextContent("Not assigned");
+    expect(screen.getByTestId("section-current-holder")).not.toHaveTextContent(/nobody is due to/i);
   });
 
   it("does not claim nothing is recorded when an assignment exists", async () => {
@@ -1247,7 +1249,7 @@ describe("one role's record", () => {
 
       render(await RoleRecordPage(pageProps({ roleId: "role-treasurer" })));
 
-      const panel = screen.getByTestId("current-holder");
+      const panel = screen.getByTestId("section-current-holder");
       expect(panel).toHaveTextContent(/no committee year is recorded as running/i);
       expect(panel).not.toHaveTextContent(/season/i);
     });
@@ -1262,7 +1264,7 @@ describe("one role's record", () => {
 
       render(await RoleRecordPage(pageProps({ roleId: "role-head-coach" })));
 
-      const panel = screen.getByTestId("current-holder");
+      const panel = screen.getByTestId("section-current-holder");
       expect(panel).toHaveTextContent(/there is no season under way/i);
       expect(panel).not.toHaveTextContent(/committee year/i);
     });
@@ -1347,8 +1349,11 @@ describe("one role's record", () => {
     if (!(field instanceof HTMLInputElement)) throw new Error("the end panel has no date field");
 
     const tomorrow = addClubDays(today, 1) as string;
-    expect(field.min).toBe(tomorrow);
-    expect(field.required).toBe(true);
+    expect(field.type).toBe("hidden");
+    fireEvent.click(
+      within(screen.getByTestId("end-panel")).getByRole("button", { name: /Choose date/ }),
+    );
+    expect(screen.getByRole("gridcell", { name: String(Number(today.slice(-2))) })).toBeDisabled();
     expect(field.value).toBe(tomorrow);
     expect(screen.getByTestId("end-panel")).toHaveTextContent(formatClubDay(tomorrow));
     expect(screen.getByTestId("end-panel")).not.toHaveTextContent("Leave blank to end it today");
@@ -1361,7 +1366,8 @@ describe("one role's record", () => {
     const field = screen.getByTestId("end-panel").querySelector('input[name="effectiveTo"]');
     if (!(field instanceof HTMLInputElement)) throw new Error("the end panel has no date field");
 
-    expect(field.required).toBe(false);
+    expect(field.type).toBe("hidden");
+    expect(field.value).toBe("");
     expect(screen.getByTestId("end-panel")).toHaveTextContent("Leave blank to end it today");
   });
 
@@ -1391,12 +1397,12 @@ describe("one role's record", () => {
     const panel = screen.getByTestId("assign-panel");
     const [searchForm, submitForm] = panel.querySelectorAll("form");
     fireEvent.submit(searchForm);
-    expect(await screen.findByTestId("admin-error")).toHaveTextContent("not an address");
+    expect(await screen.findByTestId("outcome-error")).toHaveTextContent("not an address");
 
     fireEvent.submit(submitForm);
 
-    expect(await screen.findByTestId("admin-notice")).toHaveTextContent("has been assigned");
-    expect(screen.queryByTestId("admin-error")).toBeNull();
+    expect(await screen.findByTestId("outcome-notice")).toHaveTextContent("has been assigned");
+    expect(screen.queryByTestId("outcome-error")).toBeNull();
   });
 
   /**
@@ -1551,6 +1557,7 @@ describe("the invitation flow", () => {
     const { container } = render(await InviteOperatorPage());
 
     expect(container.textContent).not.toContain("Operating year");
-    expect(container.textContent).toContain("the club’s current one");
+    expect(container.querySelector('[name="operatingYearId"]')).toBeNull();
+    expect(container.querySelector('[name="operatingYear"]')).toBeNull();
   });
 });

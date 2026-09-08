@@ -419,12 +419,24 @@ describe("the report", () => {
     // Brian, 15 August: "Don't include the number. The numbers don't really
     // help." True of the two sections that carry a date instead — the count is
     // still on the element for tests and for nobody else.
-    expect(screen.getByTestId("section-last-week")).toHaveAttribute("data-count", "2");
-    expect(screen.getByTestId("section-grid")).toHaveAttribute("data-count", "3");
-    expect(screen.getByTestId("section-availability")).toHaveAttribute("data-count", "2");
-    expect(screen.getByTestId("section-next-week")).toHaveAttribute("data-count", "2");
-    expect(screen.getByTestId("section-walk-ups")).toHaveAttribute("data-count", "1");
-    expect(screen.getByTestId("section-onboarding")).toHaveAttribute("data-count", "2");
+    expect(screen.getByTestId("section-last-week").parentElement).toHaveAttribute(
+      "data-count",
+      "2",
+    );
+    expect(screen.getByTestId("section-grid").parentElement).toHaveAttribute("data-count", "3");
+    expect(screen.getByTestId("section-availability").parentElement).toHaveAttribute(
+      "data-count",
+      "2",
+    );
+    expect(screen.getByTestId("section-next-week").parentElement).toHaveAttribute(
+      "data-count",
+      "2",
+    );
+    expect(screen.getByTestId("section-walk-ups").parentElement).toHaveAttribute("data-count", "1");
+    expect(screen.getByTestId("section-onboarding").parentElement).toHaveAttribute(
+      "data-count",
+      "2",
+    );
   });
 });
 
@@ -617,18 +629,21 @@ describe("next week", () => {
     render(await ReportPage(props()));
 
     const approved = screen.getByTestId("upcoming-event-next-practice");
-    expect(approved).toHaveAttribute("data-status", "approved");
+    expect(approved.querySelector('[data-domain="event"]')).toHaveAttribute(
+      "data-status",
+      "approved",
+    );
     expect(approved.textContent).toContain("9 of 24 answered");
 
     const draft = screen.getByTestId("upcoming-event-next-draft");
-    expect(draft).toHaveAttribute("data-status", "draft");
+    expect(draft.querySelector('[data-domain="event"]')).toHaveAttribute("data-status", "draft");
     expect(draft.textContent).toContain("No invitations sent");
   });
 
   it("links each one to itself, because this screen does not edit", async () => {
     render(await ReportPage(props()));
 
-    expect(screen.getByRole("link", { name: "Practice — week 4" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Practice — week 4/ })).toHaveAttribute(
       "href",
       "/operate/events/event-next-practice",
     );
@@ -791,7 +806,7 @@ describe("what the reviews removed", () => {
     // One control, labelled once. `textContent` finds the words twice because
     // MUI's outlined field repeats its label in the notch legend, which is its
     // own markup rather than a second instruction — so this counts controls.
-    expect(screen.getAllByLabelText(/Reporting date/)).toHaveLength(1);
+    expect(screen.getByRole("group", { name: /Reporting date/ })).toBeVisible();
     expect(container.querySelectorAll("label")).toHaveLength(1);
     expect(text).toContain("Show report");
   });
@@ -810,7 +825,7 @@ describe("the screen reads stored content", () => {
     expect(readReportForDate).toHaveBeenCalledTimes(1);
     expect(container.textContent).toContain("Leo Hartwell");
     expect(container.textContent).toContain("Practice — week 3");
-    expect(screen.getByTestId("stored-note").textContent).toMatch(/kept exactly as it was/);
+    expect(screen.getByTestId("stored-note").textContent).toMatch(/Opened /);
   });
 
   it("distinguishes a quiet week from a week nobody recorded", async () => {

@@ -81,9 +81,6 @@ const AVAILABILITY_COLOUR: Readonly<Record<string, string>> = Object.freeze({
   red: "#c62828",
 });
 
-const STATUS_COLOUR: Readonly<Record<string, "default" | "info" | "success" | "warning">> =
-  Object.freeze({ active: "success", onboarding: "info", inactive: "warning" });
-
 /** `MISSING_DATA_ROUTE` links into the queue LAN-184 owns — LAN-186's own words: "if this package lands first, the link arrives with it." */
 const MISSING_DATA_ROUTE = "/operate/people/missing";
 
@@ -1013,7 +1010,8 @@ function CellValue({ row, column }: { row: RosterBoardRow; column: ColumnDef }) 
     // season fact uses.
     return (
       <StatusPill
-        color={STATUS_COLOUR[row.status] ?? "default"}
+        domain="membership"
+        status={row.status}
         label={labelFor(MEMBERSHIP_STATUS_LABELS, row.status)}
       />
     );
@@ -1115,7 +1113,8 @@ function PlayerCard({ row }: { row: RosterBoardRow }) {
           </Typography>
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
             <StatusPill
-              color={STATUS_COLOUR[row.status] ?? "default"}
+              domain="membership"
+              status={row.status}
               label={labelFor(MEMBERSHIP_STATUS_LABELS, row.status)}
             />
             {row.missingCount > 0 ? (
