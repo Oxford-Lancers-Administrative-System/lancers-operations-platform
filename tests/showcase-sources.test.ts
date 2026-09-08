@@ -22,9 +22,7 @@ import {
   isTentative,
   normaliseDriftedTime,
   parseWeekLabel,
-  readRoster,
   readTermCard,
-  splitName,
 } from "../scripts/production/showcase/sources.mjs";
 
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -52,27 +50,6 @@ function open(buffer: Buffer) {
 /** An inline-string cell body, which keeps these fixtures readable. */
 const text = (value: string) =>
   `t="inlineStr"><is><t>${value.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</t></is></c>`;
-
-describe("splitName", () => {
-  it("takes the last token as the family name", () => {
-    expect(splitName("Alex Smith")).toEqual({ givenName: "Alex", familyName: "Smith" });
-    expect(splitName("Mary Jane Watson")).toEqual({
-      givenName: "Mary Jane",
-      familyName: "Watson",
-    });
-  });
-
-  it("leaves a single-token name without a family name", () => {
-    // Eleven of the club's forty-two entries are one word. The schema permits
-    // it and the synthetic seed already models it; inventing a family name
-    // would be worse than having none.
-    expect(splitName("Zephyr")).toEqual({ givenName: "Zephyr", familyName: null });
-  });
-
-  it("collapses the whitespace a spreadsheet leaves behind", () => {
-    expect(splitName("  Alex   Smith  ")).toEqual({ givenName: "Alex", familyName: "Smith" });
-  });
-});
 
 describe("parseWeekLabel", () => {
   it("reads an ordinary label", () => {
@@ -249,95 +226,6 @@ describe("isTentative", () => {
   });
 });
 
-describe("readRoster", () => {
-  const sheet = (rows: [string, string][][]) => open(workbook({ "Players Databank": rows.flat() }));
-
-  it("reads names, kit and positions, and records where each came from", () => {
-    const book = sheet([
-      [
-        ["A1", text("Name")],
-        ["E1", text("Kitted")],
-      ],
-      [
-        ["A3", text("Alex Smith")],
-        ["E3", text("Yes")],
-        ["I3", text("WR")],
-        ["J3", text("CB")],
-      ],
-    ]);
-
-    const [player] = readRoster(book);
-    expect(player).toMatchObject({
-      givenName: "Alex",
-      familyName: "Smith",
-      kitIssued: true,
-      offencePosition: "WR",
-      defencePosition: "CB",
-    });
-    expect(player.source).toMatchObject({ nameCell: "A3", offenceCell: "I3" });
-  });
-
-  it("distinguishes 'not kitted' from 'not recorded'", () => {
-    // Three of the club's forty-two have a blank here, and blank is not "No".
-    const book = sheet([
-      [["A1", text("Name")]],
-      [
-        ["A3", text("No Kit")],
-        ["E3", text("No")],
-      ],
-      [["A4", text("Unknown Kit")]],
-    ]);
-
-    const players = readRoster(book);
-    expect(players[0].kitIssued).toBe(false);
-    expect(players[1].kitIssued).toBeNull();
-  });
-
-  it("treats the literal 'None' position as no position", () => {
-    const book = sheet([
-      [["A1", text("Name")]],
-      [
-        ["A3", text("Alex Smith")],
-        ["I3", text("None")],
-      ],
-    ]);
-    expect(readRoster(book)[0].offencePosition).toBeNull();
-  });
-
-  it("refuses when column A is not the name column", () => {
-    // The one check that stops a moved column importing phone numbers as names.
-    const book = sheet([[["A1", text("Phone Number")]], [["A3", text("07700900123")]]]);
-    expect(() => readRoster(book)).toThrow(/not "Name"/);
-  });
-
-  it("refuses a duplicated name rather than silently merging two people", () => {
-    // The identifier is derived from the name, so two rows would become one row
-    // and nobody would know. Refusing is the only safe answer.
-    const book = sheet([
-      [["A1", text("Name")]],
-      [["A3", text("Alex Smith")]],
-      [["A9", text("alex  smith")]],
-    ]);
-    expect(() => readRoster(book)).toThrow(/twice, at A3 and A9/);
-  });
-
-  it("gives every player a distinct deterministic identifier", () => {
-    const book = sheet([
-      [["A1", text("Name")]],
-      [["A3", text("Alex Smith")]],
-      [["A4", text("Sam Jones")]],
-      [["A5", text("Zephyr")]],
-    ]);
-    const players = readRoster(book);
-    expect(new Set(players.map((p: { personId: string }) => p.personId)).size).toBe(3);
-    expect(readRoster(book)[0].personId).toBe(players[0].personId);
-  });
-
-  it("says which sheets it did find when the expected one is absent", () => {
-    expect(() => readRoster(open(workbook({ Wrong: [["A1", text("x")]] })))).toThrow(/Wrong/);
-  });
-});
-
 describe("readTermCard", () => {
   const card = (rows: [string, string][]) => open(workbook({ MT26: rows }));
 
@@ -435,5 +323,20 @@ describe("readTermCard", () => {
 
     expect(second[0].eventId).toBe(first[0].eventId);
     expect(second[0].venue).not.toBe(first[0].venue);
+  });
+});
+
+describe("syntheticTermCard", () => {
+  it("produces a Michaelmas in the same shape a workbook would, every entry a draft-to-be", async () => {
+    const { syntheticTermCard } = await import("../scripts/production/showcase/sources.mjs");
+    const entries = syntheticTermCard({ year: 2026 });
+    expect(entries.length).toBeGreaterThan(30);
+    expect(entries[0].scheduledOn).toBe("2026-09-27");
+    expect(new Set(entries.map((entry) => entry.eventId)).size).toBe(entries.length);
+    expect(entries.every((entry) => entry.source.sheet === "synthetic term card")).toBe(true);
+    expect(entries.some((entry) => entry.tentative)).toBe(true);
+    expect(new Set(entries.map((entry) => entry.eventType))).toEqual(
+      new Set(["practice", "strength_and_conditioning", "recruitment", "chalk", "game", "social"]),
+    );
   });
 });

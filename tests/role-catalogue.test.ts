@@ -27,7 +27,7 @@
  * any non-loopback host.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { openLocalClient, expectRejected, type Client } from "./helpers/domain-fixture";
 
@@ -305,15 +305,19 @@ describe.runIf(configured)("the approved role catalogue", () => {
     });
 
     it("is not redefined by the owner-run showcase loader", () => {
-      const showcase = readFileSync(
+      // LAN-221 split the plan into modules; every one of them is scanned.
+      const planDir = join(root, "scripts", "production", "showcase", "plan");
+      const sources = [
         join(root, "scripts", "production", "showcase", "plan.mjs"),
-        "utf8",
-      );
+        ...readdirSync(planDir).map((file) => join(planDir, file)),
+      ].map((file) => readFileSync(file, "utf8"));
 
-      expect(showcase).not.toContain("ROLE_SPEC");
-      // It may still *write* assignments; what it may not do is create a seat.
-      expect(showcase).not.toContain('add(\n        "public.roles"');
-      expect(showcase).not.toContain('"public.roles",\n      {');
+      for (const showcase of sources) {
+        expect(showcase).not.toContain("ROLE_SPEC");
+        // It may still *write* assignments; what it may not do is create a seat.
+        expect(showcase).not.toMatch(/add\(\s*"public\.roles"/);
+        expect(showcase).not.toMatch(/adopt\([^)]*"public\.roles"/);
+      }
     });
 
     it("survives a seed run with the catalogue untouched", async () => {
