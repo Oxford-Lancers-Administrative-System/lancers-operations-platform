@@ -327,11 +327,20 @@ describe("verification", () => {
     );
     const personId = withoutGrant.rows[0]?.person_id;
     expect(personId, "a recruit who did not grant through the form").toBeTruthy();
+    // Held, and attributed as `notification_jobs_hold_is_attributed` requires,
+    // so the injection proves the new check rather than tripping § 4's
+    // "nothing the sweep would dispatch" as well.
     await client.query(
       `insert into public.notification_jobs
-         (idempotency_key, job_type, status, person_id, channel, scheduled_for, held_at, held_reason)
-       values ($1, 'other', 'pending', $2, 'whatsapp', now() - interval '1 hour', now(), 'test')`,
-      [`recruit-cycle:interest_ask:${personId}:${current.context.seasonId}`, personId],
+         (idempotency_key, job_type, status, person_id, channel, scheduled_for,
+          held_at, held_reason, held_by_person_id)
+       values ($1, 'other', 'pending', $2, 'whatsapp', now() - interval '1 hour',
+               now(), 'Injected by the tester-week loader test.', $3)`,
+      [
+        `recruit-cycle:interest_ask:${personId}:${current.context.seasonId}`,
+        personId,
+        current.context.actorPersonId,
+      ],
     );
     const output = runExpectingFailure("verify");
     expect(output).toMatch(
