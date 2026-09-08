@@ -271,6 +271,9 @@ describe("verification", () => {
       /recruits whose capture source contradicts their consent provenance \(0 expected\): 0/,
     );
     expect(output).toMatch(
+      /recruits captured on the sign-up form who never granted \(0 expected\): 0/,
+    );
+    expect(output).toMatch(
       /recruitment questionnaire asks sent without a sign-up-form grant \(0 expected\): 0/,
     );
     expect(output).toMatch(

@@ -154,14 +154,23 @@ function fillFunnel(existing, perStage = 5) {
   for (const stage of stages) {
     for (let i = held.get(stage) ?? 0; i < perStage; i += 1) {
       n += 1;
+      const door = doors[n % doors.length];
       rows.push([
         `r${String(n).padStart(2, "0")}`,
         given[(n * 7) % given.length],
         family[(n * 5) % family.length],
         stage,
         -46 + (n % 30),
-        n % 6 === 0 ? "asked" : "granted",
-        doors[n % doors.length],
+        // Only an operator capture can be left merely `asked`. The sign-up
+        // form cannot be saved without the consent tick
+        // (`SIGNUP_REQUIRES_CONSENT_RULE`, `recruitment-signup.ts`), so a
+        // recruit who came through it is always `granted`. This used to be
+        // `n % 6 === 0`, which is exactly the QR door — four recruits whose
+        // record said they signed the form and whose consent said they had
+        // only been asked, refused on the record with "Consent has not been
+        // granted for this season".
+        door !== "qr" && n % 5 === 0 ? "asked" : "granted",
+        door,
       ]);
     }
   }

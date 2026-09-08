@@ -707,6 +707,28 @@ async function verify(
     ),
     0,
   );
+  // And the state, not just the provenance: the sign-up form cannot be saved
+  // without the consent tick (`SIGNUP_REQUIRES_CONSENT_RULE`), so a recruit
+  // captured through it has granted. `asked` there refuses both sends with
+  // "Consent has not been granted for this season" on a record that says they
+  // filled the form in themselves. (`refused` and `withdrawn` are not this:
+  // both are reachable afterwards, and both are named on the record.)
+  const formCaptures = Object.entries(CONSENT_SOURCE_FOR_CAPTURE_SOURCE)
+    .filter(([, consentSource]) => consentSource === "qr_self_entry")
+    .map(([capture]) => capture);
+  check(
+    "recruits captured on the sign-up form who never granted (0 expected)",
+    await count(
+      `select count(*)::int as count
+         from public.recruitment_prospects p
+         join public.season_messaging_consents c
+           on c.person_id = p.person_id and c.season_id = p.season_id
+        where p.id = any($1) and p.source = any($2)
+          and c.state in ('asked', 'never_asked')`,
+      [ids("public.recruitment_prospects"), formCaptures],
+    ),
+    0,
+  );
   // The three kinds of evidence that the interest track ran: the ask itself,
   // the link it carries, and the answers that come back. Each one asserts a
   // send the application refuses without a `qr_self_entry` grant, so each one

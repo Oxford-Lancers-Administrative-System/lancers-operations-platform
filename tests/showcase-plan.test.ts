@@ -204,7 +204,11 @@ describe("a recruit's record never contradicts itself about how they were captur
   // (`Q-read-back-authorises-how-much`, Brian 2026-09-02), and nothing on the
   // record shows which door a grant came through. Every one of these was a
   // refusal, or a claimed send, that the screen gave a tester no way to explain.
+  // Built once. `buildPlan` is expensive enough that four of them in one file
+  // pushes its 5s-timeout neighbours over.
+  let built: ReturnType<typeof recruitment> | null = null;
   const recruitment = () => {
+    if (built) return built;
     const plan = build();
     const rows = (table: string) =>
       (plan.rows as Row[]).filter((row) => row.table === table).map((row) => row.columns);
@@ -212,7 +216,7 @@ describe("a recruit's record never contradicts itself about how they were captur
       rows("public.season_messaging_consents").map((c) => [c.person_id as string, c]),
     );
     const prospects = rows("public.recruitment_prospects");
-    return {
+    built = {
       plan,
       rows,
       prospects,
@@ -224,6 +228,7 @@ describe("a recruit's record never contradicts itself about how they were captur
         return person ? `${person.given_name} ${person.family_name ?? ""}`.trim() : "(unknown)";
       },
     };
+    return built;
   };
 
   it("gives every recruit the consent provenance their capture source implies", () => {
@@ -235,6 +240,19 @@ describe("a recruit's record never contradicts itself about how they were captur
       expect(consent.source, `${name(prospect.person_id)} — captured as "${prospect.source}"`).toBe(
         CONSENT_SOURCE_FOR_CAPTURE_SOURCE[prospect.source as string],
       );
+    }
+  });
+
+  it("leaves nobody captured on the sign-up form short of a grant", () => {
+    // The form cannot be saved without the consent tick, so `asked` there is a
+    // refusal the record gives no way to explain. `refused` and `withdrawn`
+    // are different: both are reachable afterwards, and both are named on the
+    // record in a banner.
+    const { prospects, consentByPerson, name } = recruitment();
+    for (const prospect of prospects) {
+      if (prospect.source !== "QR sign-up at the Freshers' Fair") continue;
+      const state = consentByPerson.get(prospect.person_id as string)?.state;
+      expect(["asked", "never_asked"], name(prospect.person_id)).not.toContain(state);
     }
   });
 

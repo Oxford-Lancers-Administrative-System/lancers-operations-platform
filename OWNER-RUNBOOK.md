@@ -332,17 +332,18 @@ The lines that matter most, and on hosted they cover the **whole database**:
 - `report reconciles: …` — the filed report against a fresh computation
 - one `state …` line per data state the map names, each `PASS`
 
-Five more added by LAN-238, which say the dataset does not contradict itself
+Six more added by LAN-238, which say the dataset does not contradict itself
 about how each recruit was captured — the class of defect that makes a tester
 file a correct refusal as an application bug:
 
 - `recruits whose capture source contradicts their consent provenance (0 expected): 0`
+- `recruits captured on the sign-up form who never granted (0 expected): 0`
 - `recruitment questionnaire asks sent without a sign-up-form grant (0 expected): 0`
 - `recruit questionnaire links held without a sign-up-form grant (0 expected): 0`
 - `recruitment questionnaire answers given without a sign-up-form grant (0 expected): 0`
 - `welcome messages declared after the recruit had already used the form (0 expected): 0`
 
-If any of those five fails on a database loaded from commit `4c9fbb6` or
+If any of those six fails on a database loaded from commit `4c9fbb6` or
 earlier, that is LAN-238 itself and § 15 is the fix.
 
 Those are what say tester week's queue cannot start sending the day
@@ -597,7 +598,7 @@ node scripts/production/showcase.mjs verify --after-rollback --confirm-target fg
 node scripts/production/showcase.mjs load --confirm-target fggbgeraiadetyiyjlvb --params ~/lancers-tester-week-params.json && node scripts/production/showcase.mjs report --confirm-target fggbgeraiadetyiyjlvb --params ~/lancers-tester-week-params.json && node scripts/production/showcase.mjs verify --confirm-target fggbgeraiadetyiyjlvb --params ~/lancers-tester-week-params.json && node scripts/production/showcase.mjs checklists --confirm-target fggbgeraiadetyiyjlvb --params ~/lancers-tester-week-params.json --base-url https://app.oxfordlancers.com --out ~/tester-week-checklists
 ```
 
-**Expect** `Everything reconciles.` including the five sign-up-form lines in
+**Expect** `Everything reconciles.` including the six sign-up-form lines in
 § 7, and a fresh checklist per tester. The links change: the identifiers are
 derived from the recruits' keys and the interest links moved to the recruits who
 could actually have been sent them. **Hand out the new checklists, not the old
