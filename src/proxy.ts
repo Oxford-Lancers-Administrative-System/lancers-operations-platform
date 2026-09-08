@@ -158,6 +158,11 @@ function matchesPrefix(pathname: string, prefixes: readonly string[]): boolean {
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  // LAN-236. Public policy documents need neither a session nor database access.
+  // Match only these documents; protected routes keep the existing checks.
+  if (["/privacy", "/data-deletion", "/terms"].includes(path)) {
+    return NextResponse.next({ request });
+  }
   // F-A3. `path.startsWith(PLAYER_HOME_PREFIX + "/")` rather than
   // `matchesPrefix(path, [PLAYER_HOME_PREFIX])`: the latter's `pathname ===
   // prefix` arm would swallow the exact bare `/me` too, and that path is now
