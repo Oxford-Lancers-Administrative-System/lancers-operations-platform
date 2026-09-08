@@ -261,34 +261,60 @@ describe("five testers in one environment", () => {
   });
 
   it("sends no two seats to the same row without saying so", () => {
-    // Up to five people are in the environment at once. Two seats pointed at
-    // one membership means whoever activates it first takes the state away from
-    // the other, and the second tester reports a defect that is really a
-    // collision. A placeholder a seat has to share is declared on that seat's
-    // own list; anything else must be its own row.
+    // Five people are in the environment at once. Two seats pointed at one row
+    // means whoever changes it first takes the state away from the other, and
+    // the second tester reports a defect that is really a collision.
+    //
+    // Two things this checks that the earlier version did not, both of which
+    // let a real defect through while it passed green:
+    //
+    //  1. Every workflow, not `workflow.tester`. That field is the
+    //     documentation owner for coverage; `renderChecklists` ships every
+    //     workflow to every seat, so filtering by it inspected about a fifth of
+    //     each seat's real list.
+    //  2. Keyed by the resolved row alone, not by `key=value`. Two *different*
+    //     placeholders can land on one row — an open dispute and a superseded
+    //     contact point can be facts about the same person — and keying by the
+    //     placeholder made that pair invisible.
     const views = seatViews(plan);
+    const used = new Set<string>();
+    for (const workflow of workflows) {
+      if (workflow.notAWorkflow) continue;
+      for (const template of workflow.routes) {
+        for (const [, key] of template.matchAll(/\{([^}]+)\}/g)) used.add(key);
+      }
+    }
     const seen = new Map<string, string[]>();
     for (const [seat, { view, shared }] of views) {
-      // Only the placeholders this seat is actually sent to: `view` carries
-      // every example in the plan, most of which this seat never opens.
-      const used = new Set<string>();
-      for (const workflow of WORKFLOWS) {
-        if (workflow.tester !== seat) continue;
-        for (const template of workflow.routes) {
-          for (const [, key] of template.matchAll(/\{([^}]+)\}/g)) used.add(key);
-        }
-      }
       for (const key of used) {
         if (shared.has(key) || !view.has(key)) continue;
-        const at = `${key}=${String(view.get(key))}`;
-        if (!seen.has(at)) seen.set(at, []);
-        seen.get(at)!.push(seat);
+        const row = String(view.get(key));
+        if (!seen.has(row)) seen.set(row, []);
+        if (!seen.get(row)!.includes(seat)) seen.get(row)!.push(seat);
       }
     }
     const contended = [...seen]
       .filter(([, seats]) => seats.length > 1)
-      .map(([at, seats]) => `${at} → ${seats.join(", ")}`);
+      .map(([row, seats]) => `${row} → ${seats.join(", ")}`);
     expect(contended).toEqual([]);
+  });
+
+  it("tells both sides of a shared row, not only the seat that arrived second", () => {
+    // A seat told nothing believes the row is its own. That is the half of the
+    // problem that produces the confident false report.
+    const views = seatViews(plan);
+    const missing: string[] = [];
+    for (const [seat, { view, shared }] of views) {
+      for (const key of shared.keys()) {
+        const row = view.get(key);
+        for (const [other, view2] of views) {
+          if (other === seat) continue;
+          if (view2.view.get(key) !== row) continue;
+          if (!view2.shared.has(key)) missing.push(`${other} is not told it shares ${key}`);
+        }
+      }
+    }
+    expect([...new Set(missing)]).toEqual([]);
   });
 
   it("names nobody, on any list", () => {
