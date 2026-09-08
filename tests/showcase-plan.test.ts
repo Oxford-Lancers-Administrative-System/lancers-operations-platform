@@ -16,7 +16,7 @@ import { token, tokenHash } from "../scripts/production/showcase/ids.mjs";
 import { NO_USABLE_NUMBER_REASON } from "../scripts/production/showcase/plan/calendar.mjs";
 import { testExisting, testParams } from "./helpers/showcase-fixture.mjs";
 import { buildAcademicYear } from "@/lib/services/oxford-year";
-import { allowedItemStates, isDerivedItem } from "@/lib/services/onboarding-item-shapes";
+import { allowedItemStates } from "@/lib/services/onboarding-item-shapes";
 
 type Row = { table: string; columns: Record<string, unknown> };
 
@@ -332,6 +332,12 @@ describe("the Oxford year the environment is loaded with", () => {
 
 describe("every onboarding item the plan writes is a state that item can hold", () => {
   it("matches the application's own closed list, per item", () => {
+    // Derived items are NOT skipped. They have no editable control, but the
+    // record view still labels them, and `allowedItemStates` answers for them
+    // too — the plain pending/complete fallback. Skipping them is what let a
+    // derived item sit at `invited` and keep the record page throwing after the
+    // first correction fixed every non-derived item.
+    //
     // `itemStateLabel` throws on a state outside an item's list, so a plan that
     // waives something unwaivable does not render a slightly wrong page — it
     // takes out the roster board and every player record with a 500. This test
@@ -347,7 +353,7 @@ describe("every onboarding item the plan writes is a state that item can hold", 
     for (const row of plan.rows as Row[]) {
       if (row.table !== "public.onboarding_items") continue;
       const code = types.get(String(row.columns.item_type_id));
-      if (!code || isDerivedItem(code)) continue;
+      if (!code) continue;
       const status = String(row.columns.status);
       if ((allowedItemStates(code) as readonly string[]).includes(status)) continue;
       const at = `${code}=${status}`;
@@ -372,7 +378,7 @@ describe("every onboarding item the plan writes is a state that item can hold", 
     for (const row of plan.rows as Row[]) {
       if (row.table !== "public.onboarding_item_history") continue;
       const code = itemCode.get(String(row.columns.onboarding_item_id));
-      if (!code || isDerivedItem(code)) continue;
+      if (!code) continue;
       for (const field of ["from_status", "to_status"]) {
         const status = row.columns[field];
         if (status === null || status === undefined) continue;

@@ -45,7 +45,11 @@ const SETTLED_STATE = Object.freeze({
 });
 
 const STORY_ITEMS = Object.freeze({
-  fresh: { season_welcome_consent: "invited" },
+  // `season_welcome_consent` is a derived item: its list is the plain
+  // pending/complete binary, with no `invited`. "Welcome sent, nothing back
+  // yet" is `pending` — the welcome itself is the notification job and the
+  // activity-log ask, not a third state on the item.
+  fresh: { season_welcome_consent: "pending" },
   midway: {
     contact_academic_details: "complete",
     code_of_conduct: "complete",
@@ -76,7 +80,7 @@ const STORY_ITEMS = Object.freeze({
     season_welcome_consent: "complete",
   },
   refused: {},
-  recruit: { season_welcome_consent: "invited" },
+  recruit: { season_welcome_consent: "pending" },
 });
 
 export function buildOnboarding(ctx, reference, people, recruitment) {
