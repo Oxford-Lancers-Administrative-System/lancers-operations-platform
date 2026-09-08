@@ -2,9 +2,14 @@
  * One checklist per tester — LAN-221, Part 3.
  *
  * Generated from the map (Part 1) with the plan's identifiers (Part 2) filled
- * in: for each tester, every workflow that is theirs, as a list of "open this
- * link — you should see this — tick it, or report it". The report form link
- * sits at the top. Not booklets, not prose.
+ * in. Every list covers **every** workflow, as a list of "open this link — you
+ * should see this — tick it, or report it". The report form link sits at the
+ * top. Not booklets, not prose.
+ *
+ * Brian, this session: "I want three testers testing all the workflows … They're
+ * not running separate parts of it." So the lists differ only in the rows they
+ * point at. Five readings of each workflow is the point; the only thing that
+ * must not be shared is the row each tester changes.
  *
  * Links are computed from the plan before anything is loaded, which is the
  * whole point of deterministic identifiers: the checklist Brian hands out on
@@ -45,18 +50,17 @@ function poolFor(key, plan) {
  * each seat that asks for a key is dealt a different row from the pool.
  */
 function seatsByPlaceholder() {
-  const seats = new Map();
   const order = Object.keys(TESTERS);
+  const seats = new Map();
   for (const workflow of WORKFLOWS) {
-    if (!workflow.tester) continue;
+    if (workflow.notAWorkflow) continue;
     for (const template of workflow.routes) {
       for (const [, key] of template.matchAll(/\{([^}]+)\}/g)) {
-        if (!seats.has(key)) seats.set(key, new Set());
-        seats.get(key).add(workflow.tester);
+        if (!seats.has(key)) seats.set(key, order);
       }
     }
   }
-  return new Map([...seats].map(([key, used]) => [key, order.filter((seat) => used.has(seat))]));
+  return seats;
 }
 
 /** The four checklists, keyed by tester, as Markdown. */
@@ -123,7 +127,7 @@ export function renderChecklists({ plan, baseUrl, formUrl, logins = {} }) {
     let n = 0;
     for (const mission of MISSIONS) {
       const mine = WORKFLOWS.filter(
-        (workflow) => workflow.tester === testerKey && workflow.mission === mission.id,
+        (workflow) => !workflow.notAWorkflow && workflow.mission === mission.id,
       );
       if (mine.length === 0) continue;
       lines.push(`## ${mission.title}`);
