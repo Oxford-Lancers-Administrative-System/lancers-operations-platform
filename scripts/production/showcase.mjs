@@ -723,7 +723,7 @@ async function verify(
          from public.recruitment_prospects p
          join public.season_messaging_consents c
            on c.person_id = p.person_id and c.season_id = p.season_id
-        where p.id = any($1) and p.source = any($2)
+        where p.id = any($1) and p.source = any($2::text[])
           and c.state in ('asked', 'never_asked')`,
       [ids("public.recruitment_prospects"), formCaptures],
     ),
