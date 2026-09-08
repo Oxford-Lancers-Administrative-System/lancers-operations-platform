@@ -235,6 +235,53 @@ export function buildAudit(ctx, reference, people, recruitment, calendar) {
     }
   }
 
+  // The two arrival doors (LAN-215). Neither stamps a column on the membership
+  // it creates — both go through `enterReturningPlayer`, which writes one
+  // `returner_membership_confirmed` row — so the confirmation is what says a
+  // membership came through the intake form, and the batch row on top of it is
+  // what says an import brought a squad in.
+  const returners = people.players.filter((player) => player.index % 4 !== 2).slice(0, 24);
+  for (const player of returners.slice(0, 3)) {
+    audit(
+      `returner_membership_confirmed:${player.key}`,
+      {
+        action: "returner_membership_confirmed",
+        entity_table: "season_memberships",
+        entity_id: player.membershipId,
+        to_state: "onboarding",
+        reason: "Returning player entered by an operator.",
+        occurred_at: at(-55, "10:30"),
+        context: {
+          person_id: player.personId,
+          season_id: seasonId,
+          entry: "returning",
+          dedupe_decision: "existing_person",
+          transitions_recorded_in: "season_membership_status_events",
+        },
+      },
+      ["membership.added-by-hand"],
+    );
+  }
+  audit(
+    "roster.imported:michaelmas",
+    {
+      action: "roster.imported",
+      entity_table: "seasons",
+      entity_id: seasonId,
+      occurred_at: at(-56, "16:20"),
+      context: {
+        fileName: "last-season-squad.csv",
+        rows: returners.length,
+        created: 0,
+        carriedForward: returners.length,
+        unchanged: 0,
+        refused: 0,
+        welcomesQueued: returners.length,
+      },
+    },
+    ["membership.imported"],
+  );
+
   // Escalations raised.
   for (const job of calendar.jobs.filter((entry) => entry.job_type === "escalation")) {
     audit(`delivery.escalation_raised:${job.event_id}`, {

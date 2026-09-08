@@ -508,9 +508,9 @@
         <h1>Every workflow, its routes, who tests it, and the data it needs</h1>
         <div class="summary">
           <div><b>54</b> workflows across six missions</div>
-          <div><b>7</b> arriving with Mission 7's remaining packages</div>
-          <div><b>166</b> data states the loader produces and verifies</div>
-          <div><b>10</b> states that arrive later</div>
+          <div><b>0</b> arriving with Mission 7's remaining packages</div>
+          <div><b>173</b> data states the loader produces and verifies</div>
+          <div><b>3</b> states that arrive later</div>
           <div><b>21</b> for Tester 1</div>
           <div><b>14</b> for Tester 2</div>
           <div><b>8</b> for Tester 3</div>
@@ -4311,8 +4311,7 @@
         <section class="doc" id="M-ONBOARDING-AND-INFORMATION-COMPLETION:W1">
           <header>
             <h2>W1 — Bring last season's squad in</h2>
-            <span class="chip warn">arrives with LAN-215</span
-            ><span class="chip tester">Tester 1</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p>
             <strong>Outcome.</strong> The named people are on this season's roster with status
@@ -4435,8 +4434,8 @@
               >person.past-member</span
             >
             <span
-              class="state later"
-              title="A squad brought in by CSV import — arrives with LAN-215"
+              class="state"
+              title="A season's squad brought in by CSV import, with its counts — floor 1"
               >membership.imported</span
             >
           </p>
@@ -4502,8 +4501,7 @@
         <section class="doc" id="M-ONBOARDING-AND-INFORMATION-COMPLETION:W2">
           <header>
             <h2>W2 — Add one player by hand</h2>
-            <span class="chip warn">arrives with LAN-215</span
-            ><span class="chip tester">Tester 1</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p>
             <strong>Outcome.</strong> The person is on the roster at <code>onboarding</code>, their
@@ -4588,8 +4586,8 @@
           <h3>Data states it needs</h3>
           <p>
             <span
-              class="state later"
-              title="A player added by hand into onboarding — arrives with LAN-215"
+              class="state"
+              title="A membership an operator entered through the intake form — floor 2"
               >membership.added-by-hand</span
             >
           </p>
@@ -4770,8 +4768,7 @@
         <section class="doc" id="M-ONBOARDING-AND-INFORMATION-COMPLETION:W4">
           <header>
             <h2>W4 — Say yes and fill in your details</h2>
-            <span class="chip warn">arrives with LAN-216</span
-            ><span class="chip tester">Tester 5</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 5</span>
           </header>
           <p>
             <strong>Outcome.</strong> A page that says what was saved and what is still outstanding,
@@ -4940,13 +4937,11 @@
               >token.durable.live</span
             >
             <span
-              class="state later"
-              title="A player's live welcome link, opened — arrives with LAN-216"
+              class="state"
+              title="A live player link whose holder still has onboarding outstanding — floor 1"
               >token.onboarding.live</span
             >
-            <span
-              class="state later"
-              title="A player's questionnaire, submitted — arrives with LAN-216"
+            <span class="state" title="A player's own answer, recorded through their link — floor 2"
               >onboarding.ask.submitted</span
             >
           </p>
@@ -5072,8 +5067,7 @@
         <section class="doc" id="M-ONBOARDING-AND-INFORMATION-COMPLETION:W5">
           <header>
             <h2>W5 — Fix something the club has wrong</h2>
-            <span class="chip warn">arrives with LAN-216</span
-            ><span class="chip tester">Tester 5</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 5</span>
           </header>
           <p>
             <strong>Outcome.</strong> the record is what the player says it is — except where an
@@ -5434,8 +5428,7 @@
         <section class="doc" id="M-ONBOARDING-AND-INFORMATION-COMPLETION:W8">
           <header>
             <h2>W8 — Work the queue and nudge</h2>
-            <span class="chip warn">arrives with LAN-218</span
-            ><span class="chip tester">Tester 1</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p>
             <strong>Outcome.</strong> messages go out, each person gets their own link, and the
@@ -5512,7 +5505,7 @@
             <span class="state" title="A player midway through onboarding — floor 3"
               >onboarding.membership.outstanding</span
             >
-            <span class="state later" title="A nudge sent from the queue — arrives with LAN-218"
+            <span class="state" title="A nudge an operator sent from the queue — floor 2"
               >onboarding.nudge.sent</span
             >
           </p>
@@ -5566,8 +5559,7 @@
         <section class="doc" id="M-ONBOARDING-AND-INFORMATION-COMPLETION:W9">
           <header>
             <h2>W9 — Pick up a chase that ran out</h2>
-            <span class="chip warn">arrives with LAN-218</span
-            ><span class="chip tester">Tester 2</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 2</span>
           </header>
           <p>
             <strong>Outcome.</strong> a person who stopped answering is picked up by a human, and
@@ -5637,12 +5629,12 @@
           </div>
           <h3>Data states it needs</h3>
           <p>
-            <span class="state later" title="A chase that ran out — arrives with LAN-218"
+            <span
+              class="state"
+              title="An automated chase delivered up to its configured ceiling — floor 2"
               >onboarding.chase.exhausted</span
             >
-            <span
-              class="state later"
-              title="The exhausted chase handed to the office — arrives with LAN-218"
+            <span class="state" title="The exhausted chase handed to the office, once — floor 2"
               >onboarding.escalation.sent</span
             >
           </p>
@@ -5794,8 +5786,7 @@
         <section class="doc" id="M-ONBOARDING-AND-INFORMATION-COMPLETION:W11">
           <header>
             <h2>W11 — Set onboarding's chase</h2>
-            <span class="chip warn">arrives with LAN-218</span
-            ><span class="chip tester">Tester 3</span>
+            <span class="chip ok">on main</span><span class="chip tester">Tester 3</span>
           </header>
           <p>
             <strong>Outcome.</strong> the chase runs to the club's policy rather than to a constant

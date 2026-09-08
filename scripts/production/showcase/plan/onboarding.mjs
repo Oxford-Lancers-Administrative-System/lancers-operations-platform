@@ -82,6 +82,7 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
         index: 99,
         createdAt: at(-37, "10:00"),
       })),
+    ...(people.seatPlayer ? [{ ...people.seatPlayer, createdAt: at(-30, "09:00") }] : []),
   ];
 
   const history = (
@@ -128,7 +129,11 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
       },
       "illustrative",
       { source: `onboarding activity for ${key}` },
-      [`onboarding.log.${kind}`],
+      [
+        `onboarding.log.${kind}`,
+        // The player's own submission, as against an operator recording it.
+        ...(kind === "answer" && channel === "signed link" ? ["onboarding.ask.submitted"] : []),
+      ],
     );
 
   for (const membership of memberships) {
@@ -202,10 +207,24 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
           byPlayer ? personId : actorPersonId,
           when,
         );
-        if (byPlayer) log(membershipId, code, "answer", "web", { personId }, when, key);
+        // `signed link` is the channel `player-questionnaire.ts` writes for
+        // every step a player saves through `/me/<token>/details`, and the
+        // channel it reads back to decide whether the player claimed a thing
+        // themselves. An operator recording the same fact writes `web`, so the
+        // two have to stay distinguishable — half of these are each.
+        if (byPlayer)
+          log(
+            membershipId,
+            code,
+            "answer",
+            index % 2 === 0 ? "signed link" : "web",
+            { personId },
+            when,
+            key,
+          );
       } else if (itemStatus === "claimed") {
         history(itemId, membershipId, "invited", "claimed", "player", personId, when);
-        log(membershipId, code, "answer", "web", { personId }, when, key);
+        log(membershipId, code, "answer", "signed link", { personId }, when, key);
       } else if (itemStatus === "waived") {
         history(itemId, membershipId, "invited", "waived", "operator", actorPersonId, when, null);
       } else if (itemStatus === "not_applicable") {
@@ -337,6 +356,168 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // The automated chase, its ceiling, the escalation and an operator's nudge
+  // ---------------------------------------------------------------------------
+  //
+  // `onboarding-chase.ts` keeps the whole state machine as idempotency-key
+  // shapes rather than columns, and derives everything else from delivery
+  // results: `onboarding-chase:<membership>:<n>` is the nth automated follow-up,
+  // `onboarding-chase-exhausted:<membership>` is the marker that says the office
+  // has already been told, and `onboarding-nudge:<membership>:<nonce>` is an
+  // operator pressing Nudge, which is unlimited and outside the cap.
+  //
+  // Written as concluded rows, never offered to a provider — the same way
+  // `scripts/seed-onboarding-chase.mjs` writes these states locally. Two
+  // memberships get the full story so W8 and W9 have a row each rather than
+  // contending over one, and both are reachable: `chase-presentation.ts` shows
+  // "No phone number on file" instead of "Chase exhausted" the moment a person
+  // has no number, and refuses the nudge, so an unreachable one would prove
+  // the wrong thing.
+  const chaseSettings = ctx.existing.chaseSettings ?? { chase_count: 4, chase_interval_days: 3 };
+  const chased = memberships
+    .filter((membership) => membership.status === "onboarding" && membership.story !== "refused")
+    .slice(0, 2);
+
+  const concludedJob = (key, personId, when, states, exampleKey = null) => {
+    const jobId = add(
+      "public.notification_jobs",
+      {
+        id: id("notification_jobs", key),
+        idempotency_key: key,
+        job_type: "other",
+        status: "completed",
+        invitation_id: null,
+        event_id: null,
+        person_id: personId,
+        channel: "whatsapp",
+        scheduled_for: when,
+        claimed_at: when,
+        claimed_by: "system: automated delivery",
+        attempt_count: 1,
+        last_error: null,
+        template_variables: JSON.stringify({}),
+        cancelled_reason: null,
+        created_at: when,
+        updated_at: when,
+        held_at: null,
+        held_reason: null,
+        held_by_person_id: null,
+        next_attempt_at: null,
+        ladder_rung: null,
+        automatic_attempts: 1,
+      },
+      "illustrative",
+      { source: `onboarding ${key.split(":")[0]}` },
+      ["job.completed", ...states],
+      exampleKey,
+    );
+    return jobId;
+  };
+
+  const deliveredAttempt = (jobId, when) => {
+    const messageId = `wamid.${id("provider-message", jobId, "1").replace(/-/g, "")}`;
+    add(
+      "public.delivery_attempts",
+      {
+        id: id("delivery_attempts", jobId, "1"),
+        notification_job_id: jobId,
+        attempt_number: 1,
+        channel: "whatsapp",
+        provider: "whatsapp-business",
+        provider_message_id: messageId,
+        requested_at: when,
+        accepted_at: when,
+        concluded_at: when,
+        failure_reason: null,
+      },
+      "illustrative",
+      { source: "onboarding chase" },
+      ["delivery.attempt.accepted"],
+    );
+    add(
+      "public.delivery_results",
+      {
+        id: id("delivery_results", jobId, "1"),
+        notification_job_id: jobId,
+        attempt_number: 1,
+        outcome: "delivered",
+        channel: "whatsapp",
+        provider: "whatsapp-business",
+        provider_message_id: messageId,
+        actor_person_id: null,
+        detail: null,
+        occurred_at: when,
+      },
+      "illustrative",
+      { source: "onboarding chase" },
+      ["delivery.delivered"],
+    );
+  };
+
+  for (const [position, membership] of chased.entries()) {
+    const { membershipId, personId, key } = membership;
+    const firstChaseAt = addHours(membership.createdAt, 24 * 7);
+
+    // `chase_count` delivered follow-ups: the ceiling `deliveredCount` reads,
+    // which is what makes the queue say "Chase exhausted" rather than showing
+    // another one due.
+    for (let attempt = 1; attempt <= chaseSettings.chase_count; attempt += 1) {
+      const when = addHours(firstChaseAt, 24 * chaseSettings.chase_interval_days * (attempt - 1));
+      const jobId = concludedJob(
+        `onboarding-chase:${membershipId}:${attempt}`,
+        personId,
+        when,
+        attempt === chaseSettings.chase_count ? ["onboarding.chase.exhausted"] : [],
+        attempt === chaseSettings.chase_count && position === 0
+          ? "onboarding.membership.exhausted"
+          : null,
+      );
+      deliveredAttempt(jobId, when);
+      log(membershipId, "chase", "ask", "whatsapp", { label: "the club" }, when, key);
+    }
+
+    // The marker, so this membership reads as *already* escalated once, in the
+    // past — not as a pending exhaustion the next real sweep tick would
+    // discover and escalate again, folding whatever else has since exhausted
+    // into the same batch.
+    const escalatedAt = addHours(
+      firstChaseAt,
+      24 * chaseSettings.chase_interval_days * (chaseSettings.chase_count - 1) + 1,
+    );
+    concludedJob(
+      `onboarding-chase-exhausted:${membershipId}`,
+      personId,
+      escalatedAt,
+      ["onboarding.escalation.sent"],
+      position === 0 ? "onboarding.escalation.first" : null,
+    );
+    // W9's own record. The escalation message has no screen of its own; what
+    // happened is still worth a line on the person who triggered it.
+    log(
+      membershipId,
+      "chase",
+      "ask",
+      "system",
+      { label: "Exhausted — stopped, and escalated" },
+      escalatedAt,
+      key,
+    );
+
+    // An operator pressing Nudge afterwards: a different key, outside the cap,
+    // and the reason the queue keeps an active Nudge button on an exhausted
+    // row that is still reachable.
+    const nudgeAt = addHours(escalatedAt, 26);
+    concludedJob(
+      `onboarding-nudge:${membershipId}:${id("nudge", membershipId).slice(0, 8)}`,
+      personId,
+      nudgeAt,
+      ["onboarding.nudge.sent"],
+      position === 0 ? "onboarding.membership.nudged" : null,
+    );
+    log(membershipId, "chase", "ask", "operator nudge", { personId: actorPersonId }, nudgeAt, key);
+  }
+
   // Disputed facts: one open, one resolved each way.
   const disputed = people.players[33];
   const keptClub = people.players[4];
@@ -426,7 +607,10 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
       },
       "illustrative",
       { source: "the player-side link handed out with seat 5's list" },
-      ["token.durable.live"],
+      // `token.onboarding.live` as well: this seat holds a membership at
+      // `onboarding` with a checklist still open (`people.mjs`), so the link
+      // lands on the five-step form rather than the already-complete page.
+      ["token.durable.live", "token.onboarding.live"],
       "token.durable.live.player",
     );
     ctx.example("link.me.player", minted.plaintext);

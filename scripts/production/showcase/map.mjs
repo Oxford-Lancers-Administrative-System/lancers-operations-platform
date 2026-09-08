@@ -1144,14 +1144,75 @@ const STATE_ROWS = [
     "t.status in ('resolved','cancelled') and t.resolution_note is not null",
     2,
   ],
-  // Not producible until Mission 7's remaining packages merge.
-  ["membership.imported", "A squad brought in by CSV import", "LAN-215"],
-  ["membership.added-by-hand", "A player added by hand into onboarding", "LAN-215"],
-  ["token.onboarding.live", "A player's live welcome link, opened", "LAN-216"],
-  ["onboarding.ask.submitted", "A player's questionnaire, submitted", "LAN-216"],
-  ["onboarding.nudge.sent", "A nudge sent from the queue", "LAN-218"],
-  ["onboarding.chase.exhausted", "A chase that ran out", "LAN-218"],
-  ["onboarding.escalation.sent", "The exhausted chase handed to the office", "LAN-218"],
+  // Mission 7's own doors and chase. These were placeholders until LAN-215,
+  // LAN-216, LAN-217 and LAN-218 merged; the loader produces all seven now.
+  //
+  // Neither arrival door stamps a column on the membership it creates — both
+  // call `enterReturningPlayer`, so both write the same
+  // `returner_membership_confirmed` row (`roster.ts`). What separates them is
+  // the batch record the import writes on top of it, which is why one state
+  // reads that and the other reads the confirmation.
+  [
+    "membership.imported",
+    "A season's squad brought in by CSV import, with its counts",
+    "public.audit_events",
+    "t.action = 'roster.imported'",
+    1,
+  ],
+  [
+    "membership.added-by-hand",
+    "A membership an operator entered through the intake form",
+    "public.audit_events",
+    "t.action = 'returner_membership_confirmed'",
+    2,
+  ],
+  // `token.durable.live` above is the credential itself; this is the credential
+  // pointed at somebody whose questionnaire still has something to ask, which
+  // is what makes `/me/<token>/details` open onto the form rather than the
+  // already-complete page (`readCompiledOutstandingAskIn` returns null without
+  // a membership, and the page 404s).
+  [
+    "token.onboarding.live",
+    "A live player link whose holder still has onboarding outstanding",
+    "public.person_access_tokens",
+    "not t.single_use and t.revoked_at is null and exists (select 1 from public.season_memberships m join public.onboarding_items i on i.season_membership_id = m.id where m.person_id = t.person_id and m.season_id = t.season_id and i.status in ('pending','invited','claimed'))",
+    1,
+  ],
+  // `channel` is what separates the player's own submission from an operator
+  // recording the same fact: `player-questionnaire.ts` writes every step it
+  // saves as `signed link`, and reads that channel back as the player's claim.
+  [
+    "onboarding.ask.submitted",
+    "A player's own answer, recorded through their link",
+    "public.onboarding_activity_log",
+    "t.kind = 'answer' and t.channel = 'signed link'",
+    2,
+  ],
+  // The chase is a state machine written as idempotency keys rather than
+  // columns (`onboarding-chase.ts`). These three read the keys it reads.
+  [
+    "onboarding.nudge.sent",
+    "A nudge an operator sent from the queue",
+    "public.notification_jobs",
+    "t.idempotency_key like 'onboarding-nudge:%' and t.status = 'completed'",
+    2,
+  ],
+  [
+    "onboarding.chase.exhausted",
+    "An automated chase delivered up to its configured ceiling",
+    "public.notification_jobs",
+    "t.idempotency_key like 'onboarding-chase:%' and (substring(t.idempotency_key from ':(\\d+)$'))::int >= (select chase_count from public.onboarding_chase_settings where id) and exists (select 1 from public.delivery_results r where r.notification_job_id = t.id and r.outcome = 'delivered')",
+    2,
+  ],
+  [
+    "onboarding.escalation.sent",
+    "The exhausted chase handed to the office, once",
+    "public.notification_jobs",
+    "t.idempotency_key like 'onboarding-chase-exhausted:%' and t.status = 'completed'",
+    2,
+  ],
+  // Not producible by any loader: an operator invitation and a deactivation are
+  // Brian's bootstrap and a live action on the deployed service.
   [
     "operator.invitation.pending",
     "An operator invited and not yet signed in",
@@ -1789,7 +1850,6 @@ export const WORKFLOWS = Object.freeze([
     ["/operate/roster/import"],
     ["person.past-member", "membership.imported"],
     "The import names the season, refuses a bad file whole, proposes New / Carried forward / Unchanged / Refused per row, and queues one welcome each.",
-    { arrivesWith: "LAN-215" },
   ),
   wf(
     M7,
@@ -1800,7 +1860,6 @@ export const WORKFLOWS = Object.freeze([
     ["/operate/roster/new"],
     ["membership.added-by-hand"],
     "First name, last name and mobile required; the duplicate check runs; the record shows the generated checklist and the welcome queued.",
-    { arrivesWith: "LAN-215" },
   ),
   wf(
     M7,
@@ -1821,7 +1880,6 @@ export const WORKFLOWS = Object.freeze([
     ["/me/{link.me.player}"],
     ["token.durable.live", "token.onboarding.live", "onboarding.ask.submitted"],
     "Your own link opens the five-step questionnaire with values pre-filled; consent is the first field; BUCS and Hudl record claimed.",
-    { arrivesWith: "LAN-216" },
   ),
   wf(
     M7,
@@ -1832,7 +1890,6 @@ export const WORKFLOWS = Object.freeze([
     ["/me/{link.me.player}"],
     ["dispute.open"],
     "Returning through the same link shows everything held; changing an operator-recorded value raises a dispute rather than overwriting.",
-    { arrivesWith: "LAN-216" },
   ),
   wf(
     M7,
@@ -1878,7 +1935,6 @@ export const WORKFLOWS = Object.freeze([
     ["/operate/people/missing"],
     ["onboarding.membership.outstanding", "onboarding.nudge.sent"],
     "Sorted by how much is outstanding, with last contact and next automated contact per person; select several and nudge.",
-    { arrivesWith: "LAN-218" },
   ),
   wf(
     M7,
@@ -1889,7 +1945,6 @@ export const WORKFLOWS = Object.freeze([
     ["/operate/people/missing"],
     ["onboarding.chase.exhausted", "onboarding.escalation.sent"],
     "A message with a count and a link; the exhausted people listed with what each is missing; the human's own contact recorded on the log.",
-    { arrivesWith: "LAN-218" },
   ),
   wf(
     M7,
@@ -1910,7 +1965,6 @@ export const WORKFLOWS = Object.freeze([
     ["/operate/admin/messaging"],
     [],
     "The Onboarding section: how many times, how often, and the first delay; the escalation office read from the roles.",
-    { arrivesWith: "LAN-218" },
   ),
 ]);
 

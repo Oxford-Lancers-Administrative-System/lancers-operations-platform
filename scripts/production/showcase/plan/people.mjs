@@ -948,5 +948,76 @@ export function buildPeople(ctx, reference) {
     });
   }
 
-  return { players, dupA, dupB, playerStaff };
+  // ---------------------------------------------------------------------------
+  // The seat that walks the player's own pages needs to be a player
+  // ---------------------------------------------------------------------------
+  //
+  // `/me/<token>/details` resolves the token to a person and then compiles that
+  // person's outstanding ask; `readCompiledOutstandingAskIn` returns null when
+  // they hold no membership this season, and the page 404s. The seat named in
+  // `liveLinksFor` holds the one live player link, so without a membership of
+  // its own that link opens onto nothing and W4 and W5 cannot be walked at all.
+  //
+  // At `onboarding` with a checklist still open, which is what makes the link
+  // land on the five-step form rather than the already-complete page. A coach
+  // who also plays is an ordinary thing at this club; what matters here is that
+  // the person holding the link has something left to answer.
+  const linkSeat = reference.operators.find((operator) => operator.key === "tester5");
+  let seatPlayer = null;
+  if (linkSeat) {
+    const membershipId = id("season_memberships", labels.currentSeason, "seat:tester5");
+    add(
+      "public.season_memberships",
+      {
+        id: membershipId,
+        person_id: linkSeat.personId,
+        season_id: seasonId,
+        status: "onboarding",
+        entry: "new",
+        carried_forward_from_id: null,
+        confirmed_on: day(-30),
+        activated_on: null,
+        departed_on: null,
+        expected_return_on: null,
+        departure_reason: null,
+        inactivity_label: null,
+        created_at: at(-30, "09:00"),
+        updated_at: at(-30, "09:00"),
+      },
+      "illustrative",
+      { source: "the player membership behind the seat's own link" },
+      ["membership.onboarding", "membership.entry.new"],
+    );
+    add(
+      "public.season_membership_status_events",
+      {
+        id: id(
+          "season_membership_status_events",
+          labels.currentSeason,
+          "seat:tester5",
+          "onboarding",
+        ),
+        season_membership_id: membershipId,
+        from_status: null,
+        to_status: "onboarding",
+        occurred_at: at(-30, "09:00"),
+        actor_person_id: actorPersonId,
+        actor_label: null,
+        reason: null,
+      },
+      "illustrative",
+      { source: "the player membership behind the seat's own link" },
+      ["membership.status-event"],
+    );
+    seatPlayer = {
+      key: "seat:tester5",
+      membershipId,
+      personId: linkSeat.personId,
+      status: "onboarding",
+      story: "midway",
+      index: 41,
+    };
+  }
+
+  return { players, dupA, dupB, playerStaff, seatPlayer };
 }
