@@ -82,22 +82,28 @@ function seatsByPlaceholder() {
 export function seatViews(plan) {
   const seats = seatsByPlaceholder();
   const views = new Map();
-  for (const testerKey of Object.keys(TESTERS)) {
+  const order = Object.keys(TESTERS);
+  // Which seat already holds a given row, across every placeholder. Keyed by
+  // the resolved value rather than the placeholder, because two *different*
+  // keys landing on one row is the same hazard as one key dealt twice — a
+  // disputed fact and a superseded contact point can be facts about the same
+  // person, and two testers each told to change something about them is
+  // exactly the collision this exists to prevent.
+  const heldBy = new Map();
+
+  for (const testerKey of order) {
     const view = new Map(plan.examples ?? []);
     const shared = new Map();
+
     for (const [key, using] of seats) {
       if (!using.includes(testerKey)) continue;
+
       // The administration workflows deactivate, rehome and reinstate an
       // operator record. Brian creates five accounts and no throwaway sixth, so
-      // each seat is dealt a *different* seat's record — seat 1 works on seat
-      // 5's, seat 2 on seat 4's — rather than five people contending over one.
-      // The workflow is reversible, so the checklist tells them to reinstate
-      // before moving on.
+      // each seat is dealt a *different* seat's record — a shift of two rather
+      // than a reversal, because reversing an odd-length list leaves the middle
+      // seat pointed at its own account, the one record it must not deactivate.
       if (key === "operator.other-seat") {
-        // A shift of two rather than a reversal: reversing an odd-length list
-        // leaves the middle seat pointed at its own account, which is the one
-        // record it must not deactivate.
-        const order = Object.keys(TESTERS);
         const mine = order[(order.indexOf(testerKey) + 2) % order.length];
         const account = plan.examples?.get(`operator.${mine}`);
         if (account !== undefined && mine !== testerKey) {
@@ -105,20 +111,45 @@ export function seatViews(plan) {
           continue;
         }
       }
+
       const pool = poolFor(key, plan);
       if (pool.length === 0) continue;
-      const index = using.indexOf(testerKey);
-      if (index < pool.length) {
-        view.set(key, pool[index]);
-      } else {
-        view.set(key, pool[0]);
+
+      // The first row nobody else already holds. Falling back to this seat's
+      // own index keeps the deal deterministic when every candidate is taken.
+      const free = pool.find((value) => (heldBy.get(value) ?? testerKey) === testerKey);
+      const value = free ?? pool[using.indexOf(testerKey) % pool.length];
+      view.set(key, value);
+      if (!heldBy.has(value)) heldBy.set(value, testerKey);
+      shared.set(key, heldBy.get(value));
+    }
+
+    views.set(testerKey, { view, shared });
+  }
+
+  // Second pass, once every seat has been dealt: a row is shared when more than
+  // one seat ended up on it, and *both* sides are told. Telling only the seat
+  // that arrived second would leave the first believing the row is theirs
+  // alone, which is the half of the problem that produces the false report.
+  const usedBy = new Map();
+  for (const [testerKey, { view, shared }] of views) {
+    for (const key of shared.keys()) {
+      const value = view.get(key);
+      if (value === undefined) continue;
+      if (!usedBy.has(value)) usedBy.set(value, new Set());
+      usedBy.get(value).add(testerKey);
+    }
+  }
+  for (const [testerKey, { view, shared }] of views) {
+    for (const key of [...shared.keys()]) {
+      const others = [...(usedBy.get(view.get(key)) ?? [])].filter((seat) => seat !== testerKey);
+      if (others.length === 0) shared.delete(key);
+      else
         shared.set(
           key,
-          using.filter((seat) => seat !== testerKey).map((seat) => TESTERS[seat].name),
+          order.filter((seat) => others.includes(seat)).map((seat) => TESTERS[seat].name),
         );
-      }
     }
-    views.set(testerKey, { view, shared });
   }
   return views;
 }

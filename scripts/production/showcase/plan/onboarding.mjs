@@ -21,6 +21,29 @@ import { id } from "../ids.mjs";
 import { ONBOARDING_TYPES, OPERATOR_KEYS } from "./reference.mjs";
 import { addHours } from "./context.mjs";
 
+/**
+ * Where each item lands once a player is activated.
+ *
+ * `src/lib/services/onboarding-item-shapes.ts` owns the closed list per item
+ * and `itemStateLabel` throws on anything outside it, so this table exists to
+ * stay inside those lists rather than assume a shared `complete`.
+ * `tests/showcase-plan.test.ts` imports `allowedItemStates` and fails if this
+ * or `STORY_ITEMS` ever drifts from the application's own rules.
+ */
+/**
+ * The items whose own list contains `invited`. Everything else goes straight
+ * from `pending` to its settled state, because an `invited` history row on an
+ * item that cannot be invited is the same defect as an `invited` item: the
+ * history panel labels every transition through `itemStateLabel`, which throws.
+ */
+const INVITABLE = new Set(["comms_groups", "hudl_access", "bucs_play"]);
+
+const SETTLED_STATE = Object.freeze({
+  // Its list is pending → invited → claimed. There is no `complete`.
+  hudl_access: "claimed",
+  comms_groups: "complete",
+});
+
 const STORY_ITEMS = Object.freeze({
   fresh: { season_welcome_consent: "invited" },
   midway: {
@@ -45,7 +68,7 @@ const STORY_ITEMS = Object.freeze({
     kit_sorted: "complete",
     bucs_play: "claimed",
     hudl_access: "claimed",
-    photo: "waived",
+    photo: "complete",
     comms_groups: "complete",
     contact_academic_details: "complete",
     code_of_conduct: "complete",
@@ -152,9 +175,17 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
       const type = onboardingTypeIds.get(code);
       let itemStatus;
       if (activated) {
-        itemStatus = "complete";
-        if (code === "hudl_access" && index % 7 === 0) itemStatus = "waived";
-        if (code === "subs_paid" && index % 11 === 3) itemStatus = "not_applicable";
+        // The settled state for an activated player, per item. Not a blanket
+        // `complete`: `hudl_access` has no `complete` at all — its list ends at
+        // `claimed` — and `itemStateLabel` throws on a state an item cannot
+        // occupy, which took out the roster board and every player record.
+        //
+        // The variations below stay inside each item's own list.
+        // `waived` is legal on Subscription paid and nowhere else, and
+        // `not_applicable` is legal nowhere, so the two overrides that used
+        // those moved to the one item that can hold `waived`.
+        itemStatus = SETTLED_STATE[code] ?? "complete";
+        if (code === "subs_paid" && index % 7 === 0) itemStatus = "waived";
         if (code === "photo" && index % 9 === 5) itemStatus = "pending";
         if (code === "bucs_play" && index % 10 === 7) itemStatus = "claimed";
       } else {
@@ -188,13 +219,17 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
       // History: created pending; invited when the welcome went; then wherever
       // it ended up, by whoever moved it.
       history(itemId, membershipId, null, "pending", "system", null, createdAt);
+      const invitable = INVITABLE.has(code);
       if (
         story !== "refused" &&
         (activated || story !== "fresh" || code === "season_welcome_consent")
       ) {
-        if (itemStatus !== "pending")
+        if (itemStatus !== "pending" && invitable)
           history(itemId, membershipId, "pending", "invited", "system", null, welcomeAt);
       }
+      // What the settled transition came *from*: `invited` only where that is a
+      // state this item can occupy, otherwise straight from `pending`.
+      const from = invitable ? "invited" : "pending";
       const when = addHours(welcomeAt, 24 * (2 + (index % 9)));
       if (itemStatus === "complete") {
         const byPlayer = [
@@ -206,7 +241,7 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
         history(
           itemId,
           membershipId,
-          "invited",
+          from,
           "complete",
           byPlayer ? "player" : "operator",
           byPlayer ? personId : actorPersonId,
@@ -228,16 +263,14 @@ export function buildOnboarding(ctx, reference, people, recruitment) {
             key,
           );
       } else if (itemStatus === "claimed") {
-        history(itemId, membershipId, "invited", "claimed", "player", personId, when);
+        history(itemId, membershipId, from, "claimed", "player", personId, when);
         log(membershipId, code, "answer", "signed link", { personId }, when, key);
       } else if (itemStatus === "waived") {
-        history(itemId, membershipId, "invited", "waived", "operator", actorPersonId, when, null);
-      } else if (itemStatus === "not_applicable") {
         history(
           itemId,
           membershipId,
-          "invited",
-          "not_applicable",
+          from,
+          "waived",
           "operator",
           actorPersonId,
           when,

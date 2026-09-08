@@ -461,8 +461,11 @@ export function buildRecruitment(ctx, reference, people) {
       );
     }
 
-    // Questionnaire B answers, for the engaged and beyond.
-    if (["r04", "r05", "r07", "r09"].includes(key)) {
+    // Questionnaire B answers, for the engaged and beyond. `r15` and `r16` are
+    // here because their interest links are dealt to testers as "already
+    // answered": a link whose recruit has answered nothing opens on the live,
+    // blank form instead, which is the opposite of what the checklist promises.
+    if (["r04", "r05", "r07", "r09", "r15", "r16"].includes(key)) {
       const answers = [
         ["B1", { answer_boolean: key !== "r05" }],
         ["B2", { answer_boolean: true }],
@@ -606,11 +609,18 @@ export function buildRecruitment(ctx, reference, people) {
         },
         "illustrative",
         { source: `recruit ${key} — interest link` },
-        [spent ? "token.interest.spent" : "token.interest.revoked"],
-        key === "r04" ? "token.interest.spent" : null,
+        [
+          spent && key !== "r09" && key !== "r12"
+            ? "token.interest.answered"
+            : "token.interest.revoked",
+        ],
+        key === "r04" ? "token.interest.answered" : null,
       );
-      // One per seat: five testers each open a spent interest link of their own.
-      ctx.example("link.interest.spent", minted.plaintext);
+      // Only a live link belonging to a recruit who has answered: a revoked one
+      // resolves to the uniform not-found page, so offering it here handed two
+      // of five testers a dead link for a workflow that promises a page.
+      if (spent && key !== "r09" && key !== "r12")
+        ctx.example("link.interest.answered", minted.plaintext);
     }
 
     recruits.push({

@@ -16,6 +16,7 @@ import { token, tokenHash } from "../scripts/production/showcase/ids.mjs";
 import { NO_USABLE_NUMBER_REASON } from "../scripts/production/showcase/plan/calendar.mjs";
 import { testExisting, testParams } from "./helpers/showcase-fixture.mjs";
 import { buildAcademicYear } from "@/lib/services/oxford-year";
+import { allowedItemStates, isDerivedItem } from "@/lib/services/onboarding-item-shapes";
 
 type Row = { table: string; columns: Record<string, unknown> };
 
@@ -326,5 +327,59 @@ describe("the Oxford year the environment is loaded with", () => {
       "michaelmas",
       "Christmas Vacation",
     ]);
+  });
+});
+
+describe("every onboarding item the plan writes is a state that item can hold", () => {
+  it("matches the application's own closed list, per item", () => {
+    // `itemStateLabel` throws on a state outside an item's list, so a plan that
+    // waives something unwaivable does not render a slightly wrong page — it
+    // takes out the roster board and every player record with a 500. This test
+    // imports the application's own rule rather than restating it, so the plan
+    // cannot drift from it again.
+    const plan = build();
+    const types = new Map(
+      (plan.rows as Row[])
+        .filter((row) => row.table === "public.onboarding_item_types")
+        .map((row) => [String(row.columns.id), String(row.columns.code)]),
+    );
+    const illegal = new Map<string, number>();
+    for (const row of plan.rows as Row[]) {
+      if (row.table !== "public.onboarding_items") continue;
+      const code = types.get(String(row.columns.item_type_id));
+      if (!code || isDerivedItem(code)) continue;
+      const status = String(row.columns.status);
+      if ((allowedItemStates(code) as readonly string[]).includes(status)) continue;
+      const at = `${code}=${status}`;
+      illegal.set(at, (illegal.get(at) ?? 0) + 1);
+    }
+    expect([...illegal]).toEqual([]);
+  });
+
+  it("writes no item history into a state its item cannot hold either", () => {
+    const plan = build();
+    const types = new Map(
+      (plan.rows as Row[])
+        .filter((row) => row.table === "public.onboarding_item_types")
+        .map((row) => [String(row.columns.id), String(row.columns.code)]),
+    );
+    const itemCode = new Map(
+      (plan.rows as Row[])
+        .filter((row) => row.table === "public.onboarding_items")
+        .map((row) => [String(row.columns.id), types.get(String(row.columns.item_type_id))]),
+    );
+    const illegal: string[] = [];
+    for (const row of plan.rows as Row[]) {
+      if (row.table !== "public.onboarding_item_history") continue;
+      const code = itemCode.get(String(row.columns.onboarding_item_id));
+      if (!code || isDerivedItem(code)) continue;
+      for (const field of ["from_status", "to_status"]) {
+        const status = row.columns[field];
+        if (status === null || status === undefined) continue;
+        if ((allowedItemStates(code) as readonly string[]).includes(String(status))) continue;
+        illegal.push(`${code}.${field}=${String(status)}`);
+      }
+    }
+    expect([...new Set(illegal)]).toEqual([]);
   });
 });

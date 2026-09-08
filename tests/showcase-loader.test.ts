@@ -286,14 +286,7 @@ describe("verification", () => {
 describe("checklists", () => {
   it("writes one per tester, every link a row this load created, together covering every workflow", async () => {
     const out = path.join(directory, "checklists");
-    const output = run("checklists", [
-      "--out",
-      out,
-      "--base-url",
-      "https://app.example",
-      "--form-url",
-      "https://forms.example/qa",
-    ]);
+    const output = run("checklists", ["--out", out, "--base-url", "https://app.example"]);
     expect(output).toMatch(/hand each file to its tester only/);
     const files = readdirSync(out).sort();
     expect(files).toEqual(
@@ -311,7 +304,8 @@ describe("checklists", () => {
     const unresolved = new Set<string>();
     for (const file of files) {
       const text = readFileSync(path.join(out, file), "utf8");
-      expect(text).toContain("https://forms.example/qa");
+      // Findings are written in the tester's own document; there is no form.
+      expect(text).toContain("Write what you find in this document");
       for (const line of text.split("\n")) {
         const link = /Open https:\/\/app\.example(\/\S+)/.exec(line);
         const skipped = /no example row for `([^`]+)`/.exec(line);

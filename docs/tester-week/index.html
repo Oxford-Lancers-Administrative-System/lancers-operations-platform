@@ -509,8 +509,8 @@
         <div class="summary">
           <div><b>54</b> workflows across six missions</div>
           <div><b>0</b> arriving with Mission 7's remaining packages</div>
-          <div><b>173</b> data states the loader produces and verifies</div>
-          <div><b>3</b> states that arrive later</div>
+          <div><b>172</b> data states the loader produces and verifies</div>
+          <div><b>4</b> states that arrive later</div>
           <div><b>21</b> for Tester 1</div>
           <div><b>14</b> for Tester 2</div>
           <div><b>8</b> for Tester 3</div>
@@ -3264,8 +3264,10 @@
             <span class="state" title="A recorded recruit status transition — floor 14"
               >prospect.status-event</span
             >
-            <span class="state" title="A recruit's questionnaire link, used — floor 2"
-              >token.interest.spent</span
+            <span
+              class="state"
+              title="A recruit's questionnaire link, live, with answers already given — floor 2"
+              >token.interest.answered</span
             >
           </p>
           <h3>Screens</h3>
@@ -3376,13 +3378,14 @@
           </p>
           <h3>Routes</h3>
           <ul class="routes">
-            <li><code>/a/{link.interest.spent}</code></li>
+            <li><code>/a/{link.interest.answered}</code></li>
           </ul>
           <p class="placement"><em>/a/[token]</em></p>
           <h3>What the tester should see</h3>
           <p>
-            A spent link shows the already-answered page; nothing further can be submitted through
-            it.
+            The link opens on the already-completed page listing what they answered, and offers to
+            change any of it — answering again supersedes the earlier answer rather than being
+            refused.
           </p>
           <h3>Actions on the page</h3>
           <ol>
@@ -3399,8 +3402,10 @@
           </p>
           <h3>Data states it needs</h3>
           <p>
-            <span class="state" title="A recruit's questionnaire link, used — floor 2"
-              >token.interest.spent</span
+            <span
+              class="state"
+              title="A recruit's questionnaire link, live, with answers already given — floor 2"
+              >token.interest.answered</span
             >
             <span class="state" title="A recruitment questionnaire answer — floor 12"
               >questionnaire.answered</span
@@ -5236,10 +5241,12 @@
             <span class="state" title="A checklist item complete — floor 100"
               >onboarding.item.complete</span
             >
-            <span class="state" title="A checklist item waived, reason-free — floor 2"
+            <span class="state" title="The subscription waived, reason-free — floor 2"
               >onboarding.item.waived</span
             >
-            <span class="state" title="A checklist item not applicable — floor 2"
+            <span
+              class="state later"
+              title="A checklist item not applicable — arrives with no item's state list contains it"
               >onboarding.item.not_applicable</span
             >
             <span class="state" title="An item's history to claimed, by the player — floor 3"

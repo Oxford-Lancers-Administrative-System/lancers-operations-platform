@@ -448,10 +448,17 @@ const STATE_ROWS = [
     3,
   ],
   [
-    "token.interest.spent",
-    "A recruit's questionnaire link, used",
+    "token.interest.answered",
+    // Not `single_use_at`. `recruitment-interest-tokens.ts` says in its own
+    // words that its resolver never writes that column, so it carries none of
+    // the "consumed, and now dead" meaning it has for an RSVP token: the
+    // resolver checks `revoked_at is null` and nothing else, and a recruit
+    // answering twice supersedes the earlier answer, which is kept. A link
+    // that opens on the already-completed page is therefore a *live* link
+    // belonging to a recruit who has answered — which is what this now says.
+    "A recruit's questionnaire link, live, with answers already given",
     "public.person_access_tokens",
-    "t.purpose = 'recruit_interest_request' and t.single_use_at is not null",
+    "t.purpose = 'recruit_interest_request' and t.revoked_at is null and exists (select 1 from public.recruitment_questionnaire_responses r join public.recruitment_prospects rp on rp.id = r.prospect_id where rp.person_id = t.person_id)",
     2,
   ],
   [
@@ -972,17 +979,23 @@ const STATE_ROWS = [
   ],
   [
     "onboarding.item.waived",
-    "A checklist item waived, reason-free",
+    // Subscription paid is the only item whose list contains `waived`
+    // (`onboarding-item-shapes.ts`), so the predicate says so rather than
+    // letting the plan waive something the record page would then refuse to
+    // render.
+    "The subscription waived, reason-free",
     "public.onboarding_items",
-    "t.status = 'waived' and t.waived_by_person_id is not null",
+    "t.status = 'waived' and t.waived_by_person_id is not null and exists (select 1 from public.onboarding_item_types y where y.id = t.item_type_id and y.code = 'subs_paid')",
     2,
   ],
+  // `not_applicable` is in the database enum but in no item's own list — see
+  // `onboarding-item-shapes.ts`: "there is no escape hatch". An item carrying
+  // it makes `itemStateLabel` throw, so nothing may produce it and this state
+  // is not the loader's to fill.
   [
     "onboarding.item.not_applicable",
     "A checklist item not applicable",
-    "public.onboarding_items",
-    "t.status = 'not_applicable'",
-    2,
+    "no item's state list contains it",
   ],
   [
     "onboarding.history.complete",
@@ -1707,7 +1720,7 @@ export const WORKFLOWS = Object.freeze([
     "Core-four operator",
     "tester1",
     ["/operate/recruitment/{prospect.engaged}", "/operate/recruitment/{prospect.committed}"],
-    ["prospect.note", "questionnaire.answered", "prospect.status-event", "token.interest.spent"],
+    ["prospect.note", "questionnaire.answered", "prospect.status-event", "token.interest.answered"],
     "Both questionnaires and the answers; every recruitment event with RSVP and attendance; a dated note; the send dialog with last-sent dates; the status history.",
   ),
   wf(
@@ -1727,9 +1740,9 @@ export const WORKFLOWS = Object.freeze([
     "Fill in your details",
     "The recruit",
     "tester5",
-    ["/a/{link.interest.spent}"],
-    ["token.interest.spent", "questionnaire.answered"],
-    "A spent link shows the already-answered page; nothing further can be submitted through it.",
+    ["/a/{link.interest.answered}"],
+    ["token.interest.answered", "questionnaire.answered"],
+    "The link opens on the already-completed page listing what they answered, and offers to change any of it — answering again supersedes the earlier answer rather than being refused.",
   ),
   wf(
     M6,

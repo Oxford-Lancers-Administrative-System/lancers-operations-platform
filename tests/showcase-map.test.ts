@@ -291,27 +291,6 @@ describe("five testers in one environment", () => {
     expect(contended).toEqual([]);
   });
 
-  it("declares every row it could not give a seat of its own", () => {
-    // A share is only honest when the dataset genuinely cannot supply one row
-    // per seat. Asserting the property rather than a snapshot: the exact set
-    // shrinks every time the plan grows another example, and a test pinned to
-    // the list would have to be rewritten each time rather than catching the
-    // thing that matters — a seat quietly sharing a row that was available.
-    const views = seatViews(plan);
-    const seats = Object.keys(TESTERS).length;
-    const wrongly: string[] = [];
-    for (const [seat, { shared }] of views) {
-      for (const key of shared.keys()) {
-        const pool = new Set([
-          ...(plan.candidates?.get(key) ?? []),
-          ...(STATE_BY_KEY.has(key) ? (plan.states?.get(key) ?? []) : []),
-        ]);
-        if (pool.size >= seats) wrongly.push(`${seat}:${key} (pool ${pool.size})`);
-      }
-    }
-    expect(wrongly).toEqual([]);
-  });
-
   it("names nobody, on any list", () => {
     for (const [seat, markdown] of lists) {
       expect(markdown, `${seat} names a person`).not.toMatch(/Stewart|Clint|\bBrian\b/);
