@@ -863,6 +863,7 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
 
   it("nothing at all is sent to a recruit whose status is declined, even mid-cycle", async () => {
     const personId = await completeWelcomeRecruit();
+    await addMobile(personId);
     await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
     await withTransaction((tx) =>
       tx.query(
@@ -877,10 +878,22 @@ describe("LAN-206 — the operator-add door's welcome, and Questionnaire B's lin
       ),
     );
 
-    const { sent, transport } = acceptingTransport();
+    const { transport } = acceptingTransport();
     await runMessagingSweep({ source: CONFIGURED, transport });
 
-    expect(sent).toHaveLength(0);
+    // The sweep also claims unrelated seeded jobs. Assert this recruit's
+    // own attempts, so a due seeded message cannot contaminate the proof.
+    const attempts = await observer.query(
+      `select da.accepted_at, nj.last_error from public.notification_jobs nj
+         left join public.delivery_attempts da on da.notification_job_id = nj.id
+        where nj.person_id = $1`,
+      [personId],
+    );
+    expect(attempts.rows.length).toBeGreaterThan(0);
+    expect(attempts.rows.every((row) => row.accepted_at === null)).toBe(true);
+    expect(
+      attempts.rows.every((row) => row.last_error?.includes("no longer an open prospect")),
+    ).toBe(true);
   });
 
   it("Questionnaire B's ask reaches the real local sink and its own link resolves to the recruit's own prospect", async () => {
@@ -1047,7 +1060,7 @@ describe("F-206-01 — resend on an outstanding request", () => {
     );
   });
 
-  it("makes an outstanding job's scheduled_for due immediately, so resend actually resends", async () => {
+  it("makes the outstanding ask due immediately while preserving the reminder delay", async () => {
     const personId = await completeWelcomeRecruit();
     const prospectId = await prospectIdFor(personId);
     await withTransaction((tx) =>
@@ -1067,14 +1080,15 @@ describe("F-206-01 — resend on an outstanding request", () => {
     );
 
     const rows = await withTransaction((tx) =>
-      tx.query<{ scheduled_for: Date }>(
-        "select scheduled_for from public.notification_jobs where person_id = $1::uuid",
+      tx.query<{ idempotency_key: string; scheduled_for: Date }>(
+        "select idempotency_key, scheduled_for from public.notification_jobs where person_id = $1::uuid",
         [personId],
       ),
     );
-    for (const row of rows.rows) {
-      expect(row.scheduled_for.getTime()).toBeLessThanOrEqual(Date.now() + 1000);
-    }
+    const ask = rows.rows.find((row) => row.idempotency_key.includes(":interest_ask:"))!;
+    const reminder = rows.rows.find((row) => row.idempotency_key.includes(":interest_reminder:"))!;
+    expect(ask.scheduled_for.getTime()).toBeLessThanOrEqual(Date.now() + 1000);
+    expect(reminder.scheduled_for.getTime()).toBeGreaterThan(Date.now());
   });
 
   it("never reports 'outstanding' once the recruit has genuinely answered — the real completion, re-read, not assumed", async () => {

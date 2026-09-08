@@ -23,12 +23,14 @@ import {
   withdrawSeasonMessagingConsentIn,
 } from "./messaging-consent";
 import { runMessagingSweep } from "./messaging-scheduler";
+import { declareRecruitmentCycleJobsIn } from "./recruitment-cycle";
 import {
   addRecruitmentProspectNoteIn,
   flipRecruitmentProspectToJoinedIn,
   RECRUIT_LINK_SUPERSEDED_BY_FLIP_REASON,
   readRecruitmentProspectIn,
   sendRecruitmentQuestionnaireIn,
+  sendRecruitmentQuestionnaire,
   updateRecruitmentProspectStatusIn,
 } from "./recruitment-prospect";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
@@ -650,6 +652,130 @@ describe("flipRecruitmentProspectToJoinedIn — W14", () => {
 });
 
 describe("sendRecruitmentQuestionnaireIn and the sweep — the 2026-09-01 amendment", () => {
+  it.each(["personal", "recruitment"] as const)(
+    "LAN-237: %s sends and resends immediately for an old recruit, without sending the reminder",
+    async (track) => {
+      const { personId, prospectId } = await newProspect();
+      if (track === "recruitment") await grantConsent(personId);
+      const phone = uniquePhone();
+      await observer.query(
+        `insert into public.contact_points
+          (person_id, kind, scope, raw_value, is_preferred, source, valid_from)
+         values ($1, 'phone', null, $2, true, 'other', current_date)`,
+        [personId, phone],
+      );
+      await observer.query(
+        "update public.recruitment_prospects set created_at = now() - interval '40 days' where id = $1",
+        [prospectId],
+      );
+      // An automatic declaration remains anchored to capture. Both jobs
+      // are already overdue when an operator chooses to send this track.
+      await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
+      const oldJobs = await observer.query(
+        "select scheduled_for < now() as overdue from public.notification_jobs where person_id = $1",
+        [personId],
+      );
+      expect(oldJobs.rows.every((row) => row.overdue)).toBe(true);
+      const { sent, transport } = acceptingTransport();
+      const ask = track === "personal" ? "welcome" : "interest_ask";
+      const reminder = track === "personal" ? "details_reminder" : "interest_reminder";
+      const offsets = await observer.query(
+        "select step::text, offset_hours from public.recruitment_cycle_steps where step::text = any($1::text[])",
+        [[ask, reminder]],
+      );
+      const hours = new Map(offsets.rows.map((row) => [row.step, Number(row.offset_hours)]));
+      const interval = (hours.get(reminder)! - hours.get(ask)!) * 3_600_000;
+      for (let press = 1; press <= 2; press++) {
+        const result = await sendRecruitmentQuestionnaire(actorPersonId, prospectId, track, {
+          source: CONFIGURED,
+          transport,
+        });
+        // No scheduler tick: the operator action itself reached the provider.
+        expect(result.delivery).toBe("accepted");
+        expect(sent).toHaveLength(press);
+        const jobs = await observer.query(
+          "select idempotency_key, scheduled_for, attempt_count from public.notification_jobs where person_id = $1",
+          [personId],
+        );
+        expect(jobs.rows).toHaveLength(2);
+        const asked = jobs.rows.find((row) => row.idempotency_key.split(":")[1] === ask)!;
+        const reminded = jobs.rows.find((row) => row.idempotency_key.split(":")[1] === reminder)!;
+        expect(asked.attempt_count).toBe(press);
+        expect(reminded.attempt_count).toBe(0);
+        expect(
+          reminded.scheduled_for.getTime() - asked.scheduled_for.getTime(),
+        ).toBeGreaterThanOrEqual(interval);
+        const record = await withTransaction((tx) => readRecruitmentProspectIn(tx, prospectId));
+        expect(record?.[track].lastSentAt).not.toBeNull();
+      }
+    },
+  );
+
+  it("LAN-237: a first manual interest ask ignores the capture offset and sends immediately", async () => {
+    const { personId, prospectId } = await newProspect();
+    await grantConsent(personId);
+    const result = await withTransaction((tx) =>
+      sendRecruitmentQuestionnaireIn(tx, actorPersonId, prospectId, "recruitment"),
+    );
+    const jobs = await observer.query(
+      "select idempotency_key, scheduled_for <= clock_timestamp() as due from public.notification_jobs where person_id = $1",
+      [personId],
+    );
+    expect(result.jobId).toBeDefined();
+    expect(
+      jobs.rows.filter((row) => row.due).map((row) => row.idempotency_key.split(":")[1]),
+    ).toEqual(["interest_ask"]);
+  });
+
+  it.each(["in_flight", "attempt_limit"] as const)(
+    "LAN-237: a manual resend preserves the %s delivery guard",
+    async (guard) => {
+      const { personId, prospectId } = await newProspect();
+      await withTransaction((tx) => declareRecruitmentCycleJobsIn(tx, personId, seasonId));
+      const key = `recruit-cycle:welcome:${personId}:${seasonId}`;
+      await observer.query(
+        `update public.notification_jobs
+            set status = $2::public.notification_job_status, attempt_count = $3,
+                claimed_at = now(), claimed_by = 'LAN-237-test'
+          where idempotency_key = $1`,
+        [key, guard === "in_flight" ? "processing" : "failed", guard === "in_flight" ? 1 : 5],
+      );
+      const before = await observer.query(
+        "select status, attempt_count, claimed_at, claimed_by from public.notification_jobs where idempotency_key = $1",
+        [key],
+      );
+      const { sent, transport } = acceptingTransport();
+      await expect(
+        sendRecruitmentQuestionnaire(actorPersonId, prospectId, "personal", {
+          source: CONFIGURED,
+          transport,
+        }),
+      ).rejects.toThrow("cannot be resent");
+      expect(sent).toHaveLength(0);
+      const after = await observer.query(
+        "select status, attempt_count, claimed_at, claimed_by from public.notification_jobs where idempotency_key = $1",
+        [key],
+      );
+      expect(after.rows).toEqual(before.rows);
+    },
+  );
+
+  it("LAN-237: asking for the consent-blocked interest track cannot schedule a personal message", async () => {
+    const { personId, prospectId } = await newProspect();
+    const { sent, transport } = acceptingTransport();
+    const result = await sendRecruitmentQuestionnaire(actorPersonId, prospectId, "recruitment", {
+      source: CONFIGURED,
+      transport,
+    });
+    expect(result).toEqual({ created: [], reason: "not_consented" });
+    expect(sent).toHaveLength(0);
+    const jobs = await observer.query(
+      "select id from public.notification_jobs where person_id = $1",
+      [personId],
+    );
+    expect(jobs.rows).toHaveLength(0);
+  });
+
   // LAN-204, item 9 — the consent deadlock, fixed: the personal track is the
   // one exception, so a never-asked recruit's own SEND button now works.
   it("creates the welcome track for a recruit with no consent at all — the personal send is how they get asked", async () => {

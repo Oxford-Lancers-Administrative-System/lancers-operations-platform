@@ -29,6 +29,7 @@ import { Section } from "@/components/section";
 import { formatDay, formatWhen } from "../../roster/presentation";
 import NotesCard from "./notes-card";
 import SendQuestionnaireButton from "./send-questionnaire-button";
+import QueuedSendTime from "./queued-send-time";
 import StatusCell from "../status-cell";
 
 /** Same words as `../../roster/[membershipId]/attendance-section.tsx`'s own `EVENT_STATUS_LABEL`. */
@@ -118,7 +119,10 @@ export default function RecruitmentRecordView({
 
   return (
     <OutcomeSlotProvider>
-      <Box sx={{ p: { xs: 2, md: 3 } }} data-testid="recruitment-record">
+      <Box
+        sx={{ p: { xs: 2, md: 3 }, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 3 }}
+        data-testid="recruitment-record"
+      >
         {bannerDetail ? (
           <Notice
             severity="warning"
@@ -197,7 +201,7 @@ export default function RecruitmentRecordView({
           item pair sized to share a row. Brian, 2026-09-02: "The bands are
           side by side when really they should be layered on top of each
           other." */}
-        <Stack spacing={2} sx={{ mb: 2 }} data-testid="recruitment-record-top-bands">
+        <Stack spacing={3} data-testid="recruitment-record-top-bands">
           {/* ------------------------------------------------------------ Person -- */}
           <Section variant="banded" band="person" title="Person" testId="person">
             <RecordField label="College" value={person.college ?? null} readOnly />
@@ -214,7 +218,7 @@ export default function RecruitmentRecordView({
               readOnly
             />
             <RecordField label="Degree field" value={person.degreeField ?? null} readOnly />
-            <Box sx={{ pt: 1.5 }}>
+            <Box sx={{ py: 1.5 }}>
               <SendQuestionnaireButton
                 prospectId={record.prospectId}
                 track="personal"
@@ -227,14 +231,16 @@ export default function RecruitmentRecordView({
               <Typography
                 variant="caption"
                 color="text.secondary"
-                sx={{ display: "block", mt: 0.5 }}
+                sx={{ display: "block", mt: 1 }}
                 data-testid="personal-send-caption"
               >
-                {record.personal.lastSentAt
-                  ? `Sent — last sent ${formatWhen(new Date(record.personal.lastSentAt))}`
-                  : record.personal.queuedFor
-                    ? `Queued for ${formatWhen(new Date(record.personal.queuedFor))}`
-                    : "Not sent"}
+                {record.personal.lastSentAt ? (
+                  `Sent — last sent ${formatWhen(new Date(record.personal.lastSentAt))}`
+                ) : record.personal.queuedFor ? (
+                  <QueuedSendTime scheduledFor={record.personal.queuedFor} />
+                ) : (
+                  "Not sent"
+                )}
               </Typography>
             </Box>
           </Section>
@@ -277,7 +283,7 @@ export default function RecruitmentRecordView({
             <RecordField label="Gear owned" value={record.answers.gearOwned} readOnly />
             <RecordField label="How they heard" value={record.answers.howTheyHeard} readOnly />
             <RecordField label="Anything else" value={record.answers.anythingElse} readOnly />
-            <Box sx={{ pt: 1.5 }}>
+            <Box sx={{ py: 1.5 }}>
               <SendQuestionnaireButton
                 prospectId={record.prospectId}
                 track="recruitment"
@@ -290,20 +296,22 @@ export default function RecruitmentRecordView({
               <Typography
                 variant="caption"
                 color="text.secondary"
-                sx={{ display: "block", mt: 0.5 }}
+                sx={{ display: "block", mt: 1 }}
                 data-testid="recruitment-send-caption"
               >
-                {record.recruitment.lastSentAt
-                  ? `Sent — last sent ${formatWhen(new Date(record.recruitment.lastSentAt))}`
-                  : record.recruitment.queuedFor
-                    ? `Queued for ${formatWhen(new Date(record.recruitment.queuedFor))}`
-                    : "Not sent"}
+                {record.recruitment.lastSentAt ? (
+                  `Sent — last sent ${formatWhen(new Date(record.recruitment.lastSentAt))}`
+                ) : record.recruitment.queuedFor ? (
+                  <QueuedSendTime scheduledFor={record.recruitment.queuedFor} />
+                ) : (
+                  "Not sent"
+                )}
               </Typography>
             </Box>
           </Section>
         </Stack>
 
-        <Grid container spacing={2}>
+        <Grid container spacing={3}>
           {/* ------------------------------------------------- Recruitment events -- */}
           <Grid size={{ xs: 12, md: 6 }}>
             <Section variant="banded" band="attendance" title="Recruitment events" testId="events">
