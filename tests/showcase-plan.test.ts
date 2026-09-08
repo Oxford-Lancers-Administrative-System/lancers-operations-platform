@@ -14,6 +14,7 @@ import { buildPlan } from "../scripts/production/showcase/plan.mjs";
 import { syntheticTermCard } from "../scripts/production/showcase/sources.mjs";
 import { token, tokenHash } from "../scripts/production/showcase/ids.mjs";
 import { NO_USABLE_NUMBER_REASON } from "../scripts/production/showcase/plan/calendar.mjs";
+import { CONSENT_SOURCE_FOR_CAPTURE_SOURCE } from "../scripts/production/showcase/plan/recruitment.mjs";
 import { testExisting, testParams } from "./helpers/showcase-fixture.mjs";
 import { buildAcademicYear } from "@/lib/services/oxford-year";
 import { allowedItemStates } from "@/lib/services/onboarding-item-shapes";
@@ -194,6 +195,103 @@ describe("nothing deliverable to a real person", () => {
     );
     expect(noneLive).toEqual([]);
     expect(nobody.examples.has("link.rsvp.player")).toBe(false);
+  });
+});
+
+describe("a recruit's record never contradicts itself about how they were captured", () => {
+  // LAN-238. `declareRecruitmentCycleJobsIn` gates the recruitment
+  // questionnaire on the recruit's own grant *through the sign-up form*
+  // (`Q-read-back-authorises-how-much`, Brian 2026-09-02), and nothing on the
+  // record shows which door a grant came through. Every one of these was a
+  // refusal, or a claimed send, that the screen gave a tester no way to explain.
+  const recruitment = () => {
+    const plan = build();
+    const rows = (table: string) =>
+      (plan.rows as Row[]).filter((row) => row.table === table).map((row) => row.columns);
+    const consentByPerson = new Map(
+      rows("public.season_messaging_consents").map((c) => [c.person_id as string, c]),
+    );
+    const prospects = rows("public.recruitment_prospects");
+    return {
+      plan,
+      rows,
+      prospects,
+      consentByPerson,
+      viaForm: (personId: unknown) =>
+        consentByPerson.get(personId as string)?.source === "qr_self_entry",
+      name: (personId: unknown) => {
+        const person = rows("public.people").find((p) => p.id === personId);
+        return person ? `${person.given_name} ${person.family_name ?? ""}`.trim() : "(unknown)";
+      },
+    };
+  };
+
+  it("gives every recruit the consent provenance their capture source implies", () => {
+    const { prospects, consentByPerson, name } = recruitment();
+    expect(prospects.length).toBeGreaterThan(20);
+    for (const prospect of prospects) {
+      const consent = consentByPerson.get(prospect.person_id as string);
+      if (!consent?.source) continue;
+      expect(consent.source, `${name(prospect.person_id)} — captured as "${prospect.source}"`).toBe(
+        CONSENT_SOURCE_FOR_CAPTURE_SOURCE[prospect.source as string],
+      );
+    }
+  });
+
+  it("claims no recruitment questionnaire — ask, link or answer — without a sign-up-form grant", () => {
+    const { rows, prospects, viaForm, name } = recruitment();
+    const asks = rows("public.notification_jobs").filter((job) =>
+      String(job.idempotency_key).startsWith("recruit-cycle:interest"),
+    );
+    expect(asks.length).toBeGreaterThan(0);
+    for (const ask of asks) expect(viaForm(ask.person_id), name(ask.person_id)).toBe(true);
+
+    const links = rows("public.person_access_tokens").filter(
+      (token) => token.purpose === "recruit_interest_request",
+    );
+    expect(links.length).toBeGreaterThan(0);
+    for (const link of links) expect(viaForm(link.person_id), name(link.person_id)).toBe(true);
+
+    const prospectById = new Map(prospects.map((p) => [p.id as string, p]));
+    const answered = new Set(
+      rows("public.recruitment_questionnaire_responses").map((r) => r.prospect_id as string),
+    );
+    expect(answered.size).toBeGreaterThan(0);
+    for (const prospectId of answered) {
+      const personId = prospectById.get(prospectId)?.person_id;
+      expect(viaForm(personId), name(personId)).toBe(true);
+    }
+  });
+
+  it("sends the welcome only to the recruits who had not been through the form", () => {
+    // The welcome carries the link to that form, so `welcomeStepComplete`
+    // skips the track for anyone who has already used it.
+    const { rows, consentByPerson, name } = recruitment();
+    const welcomes = rows("public.notification_jobs").filter((job) =>
+      /^recruit-cycle:(welcome|details_reminder):/.test(String(job.idempotency_key)),
+    );
+    expect(welcomes.length).toBeGreaterThan(0);
+    for (const welcome of welcomes) {
+      const consent = consentByPerson.get(welcome.person_id as string);
+      expect(consent?.source, name(welcome.person_id)).not.toBe("qr_self_entry");
+      expect(["refused", "withdrawn"]).not.toContain(consent?.state);
+    }
+  });
+
+  it("shows the fields only the sign-up form collects on the recruits who filled it in", () => {
+    const { rows, prospects, name } = recruitment();
+    const people = new Map(rows("public.people").map((person) => [person.id as string, person]));
+    for (const prospect of prospects) {
+      const person = people.get(prospect.person_id as string);
+      if (!person) continue;
+      // Truthiness, not `!== null`: a person row built without these keys at
+      // all (the near-duplicates) carries `undefined`, not null.
+      const fromTheForm = Boolean(
+        person.college || person.matriculation_year || person.degree_field,
+      );
+      if (!fromTheForm) continue;
+      expect(prospect.source, name(prospect.person_id)).toBe("QR sign-up at the Freshers' Fair");
+    }
   });
 });
 

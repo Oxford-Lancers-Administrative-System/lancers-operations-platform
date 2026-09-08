@@ -265,6 +265,80 @@ describe("verification", () => {
     );
   });
 
+  it("proves no recruit's record contradicts itself about how they were captured", () => {
+    const output = run("verify");
+    expect(output).toMatch(
+      /recruits whose capture source contradicts their consent provenance \(0 expected\): 0/,
+    );
+    expect(output).toMatch(
+      /recruitment questionnaire asks sent without a sign-up-form grant \(0 expected\): 0/,
+    );
+    expect(output).toMatch(
+      /recruit questionnaire links held without a sign-up-form grant \(0 expected\): 0/,
+    );
+    expect(output).toMatch(
+      /recruitment questionnaire answers given without a sign-up-form grant \(0 expected\): 0/,
+    );
+    expect(output).toMatch(
+      /welcome messages declared after the recruit had already used the form \(0 expected\): 0/,
+    );
+  });
+
+  // LAN-238's own defect, injected: the record says the recruit signed up on
+  // the QR form, the consent row says an operator typed it, and the record's
+  // SEND button refuses with no way to tell why. `verify` used to report
+  // "Everything reconciles" over sixteen of these.
+  it("fails closed when a recruit's capture source is made to contradict their consent", async () => {
+    const current = await plan();
+    const contradicted = await client.query<{ id: string; source: string }>(
+      `select p.id, p.source from public.recruitment_prospects p
+         join public.season_messaging_consents c
+           on c.person_id = p.person_id and c.season_id = p.season_id
+        where p.id = any($1) and c.source = 'operator_recorded' limit 1`,
+      [idsOf(current, "public.recruitment_prospects")],
+    );
+    const prospect = contradicted.rows[0];
+    expect(prospect, "a recruit whose consent an operator recorded").toBeTruthy();
+    await client.query("update public.recruitment_prospects set source = $2 where id = $1", [
+      prospect.id,
+      "QR sign-up at the Freshers' Fair",
+    ]);
+    const output = runExpectingFailure("verify");
+    expect(output).toMatch(
+      /FAIL  recruits whose capture source contradicts their consent provenance \(0 expected\): 1/,
+    );
+    await client.query("update public.recruitment_prospects set source = $2 where id = $1", [
+      prospect.id,
+      prospect.source,
+    ]);
+  });
+
+  it("fails closed when a questionnaire ask is invented for a recruit who never used the form", async () => {
+    const current = await plan();
+    const withoutGrant = await client.query<{ person_id: string }>(
+      `select p.person_id from public.recruitment_prospects p
+         join public.season_messaging_consents c
+           on c.person_id = p.person_id and c.season_id = p.season_id
+        where p.id = any($1) and c.source is distinct from 'qr_self_entry' limit 1`,
+      [idsOf(current, "public.recruitment_prospects")],
+    );
+    const personId = withoutGrant.rows[0]?.person_id;
+    expect(personId, "a recruit who did not grant through the form").toBeTruthy();
+    await client.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, person_id, channel, scheduled_for, held_at, held_reason)
+       values ($1, 'other', 'pending', $2, 'whatsapp', now() - interval '1 hour', now(), 'test')`,
+      [`recruit-cycle:interest_ask:${personId}:${current.context.seasonId}`, personId],
+    );
+    const output = runExpectingFailure("verify");
+    expect(output).toMatch(
+      /FAIL  recruitment questionnaire asks sent without a sign-up-form grant \(0 expected\): 1/,
+    );
+    await client.query("delete from public.notification_jobs where idempotency_key = $1", [
+      `recruit-cycle:interest_ask:${personId}:${current.context.seasonId}`,
+    ]);
+  });
+
   it("fails closed when a live link for somebody who is not a named tester is injected", async () => {
     const current = await plan();
     const player = (current.context.players as { personId: string }[])[0];
