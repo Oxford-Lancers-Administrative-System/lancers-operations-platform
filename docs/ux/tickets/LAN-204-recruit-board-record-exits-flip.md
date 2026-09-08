@@ -200,7 +200,7 @@ flip, per Task 09 D7.
 makes an operator send/resend attempt the selected ask immediately and preserves
 the reminder interval. Automatic capture-time declarations keep their anchor.
 The note below records the original shared machinery; LAN-237 is authoritative
-for manual send timing and outcomes.
+for operator-triggered delivery timing and outcomes.
 
 `sendRecruitmentQuestionnaireIn` (`src/lib/services/recruitment-prospect.ts`)
 is the record's SEND/RESEND action. It calls `declareRecruitmentCycleJobsIn`
