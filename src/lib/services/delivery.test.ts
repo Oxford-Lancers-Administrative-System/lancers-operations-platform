@@ -275,18 +275,12 @@ async function fixture(
             [seasonId, `${MARKER} practice`, personId],
           )
         : await observer.query<{ id: string }>(
-            // Two days out, computed rather than written down. This used to be
-            // a literal '2026-09-06', authored five days before that date and
-            // therefore a time bomb: from 2026-09-07 the event was in the past,
-            // and `F-C1` — which sets a start time and retries — got
-            // `rsvp_token_requires_a_live_event` instead of a delivery, because
-            // a link cannot be issued for an event that has already started.
-            `with target as (select (now() + interval '48 hours') at time zone 'Europe/London' as local)
-             insert into public.events
+            `insert into public.events
                (season_id, name, event_type, status, scheduled_on, starts_at,
                 audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
-             select $1, $2, 'practice', 'approved', (select local::date from target), $4::time,
-                    now(), $3, now(), $3
+             values ($1, $2, 'practice', 'approved',
+                     ((now() + interval '48 hours') at time zone 'Europe/London')::date, $4::time,
+                     now(), $3, now(), $3)
              returning id`,
             [seasonId, `${MARKER} practice`, personId, options.startsAt],
           );

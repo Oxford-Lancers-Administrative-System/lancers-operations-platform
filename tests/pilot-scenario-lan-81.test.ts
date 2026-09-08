@@ -128,6 +128,7 @@ async function blankCanvas() {
     "delete from public.weekly_reports where report_on between current_date - 35 and current_date - 28",
   );
   await client.query(`delete from public.attendance_records where event_id in ${events}`);
+  await client.query(`delete from public.question_responses where event_id in ${events}`);
   await client.query(
     `delete from public.rsvp_responses
       where invitation_id in (select id from public.invitations where event_id in ${events})`,
@@ -149,6 +150,9 @@ async function blankCanvas() {
     `delete from public.audit_events where entity_table = 'events' and entity_id in ${inWindow}`,
   );
   await client.query(`delete from public.attendance_records where event_id in ${inWindow}`);
+  // Seeded events can have question answers. Both the invitation and the
+  // question are their parents, so clear answers before either parent.
+  await client.query(`delete from public.question_responses where event_id in ${inWindow}`);
   await client.query(
     `delete from public.rsvp_responses
       where invitation_id in (select id from public.invitations where event_id in ${inWindow})`,
