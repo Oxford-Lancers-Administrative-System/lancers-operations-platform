@@ -312,9 +312,9 @@ describe("five testers in one environment", () => {
 
   it("gives every seat its own file and some work", () => {
     expect([...lists.keys()]).toEqual(Object.keys(TESTERS));
-    for (const [seat, markdown] of lists) {
+    for (const [seat, markdown] of lists as Map<string, string>) {
       expect(
-        markdown.split("\n").filter((line) => line.startsWith("- [ ] Open http")).length,
+        markdown.split("\n").filter((line: string) => line.startsWith("- [ ] Open http")).length,
         `${seat} has no links`,
       ).toBeGreaterThan(0);
     }
