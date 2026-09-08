@@ -20,16 +20,7 @@ import { ADMINISTRATION_SECTION, type Destination } from "@/app/operate/destinat
 import { BrandMark } from "@/components/brand-mark";
 import { CLUB, LAYOUT } from "@/theme-tokens";
 
-/**
- * The proposed operator shell — LAN-225 screen 0, and this folder's own copy.
- *
- * `src/app/operate/shell-nav.tsx` is the real one and is untouched on this
- * branch: the branch has to be mergeable without changing anybody's
- * navigation, so the proposal lives here and the implementation mission moves
- * it across deliberately. Keep the two in step by replacing that file with
- * this one, not by editing both.
- *
- Sidebar secondary text: Sky Blue on Oxford Blue, 10.67 (theme.ts contrast block). */
+/** Sidebar secondary text: Sky Blue on Oxford Blue, 10.67 (theme.ts contrast block). */
 const SIDEBAR_MUTED = CLUB.skyBlue;
 /** The rule between sidebar groups and above the account block. */
 const SIDEBAR_RULE = "rgba(255, 255, 255, 0.18)";
