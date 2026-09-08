@@ -256,3 +256,12 @@ great. The home/sign-in and sidebar crest now render at 48px, with the compact
 phone header at 32px. Wordmark typography stays at its existing size. The supplied
 SVG is unchanged. Browser measurements confirmed the displayed dimensions and
 no page overflow at 1440px and 375px. Final logo approval remains pending.
+
+### Approved white logo
+
+Brian supplied `Group 315.svg` and selected the top white mark, replacing the
+detailed circular sticker. Its original eight vector paths are preserved with
+a viewBox cropped to the mark. BrandMark uses white on navy and the same geometry
+in Oxford Blue on light backgrounds. Header sizes and wordmark typography stay
+as reviewed. Brian explicitly approved this rendered version on 8 September
+2026 and requested pushing, merging and closing LAN-231–235.

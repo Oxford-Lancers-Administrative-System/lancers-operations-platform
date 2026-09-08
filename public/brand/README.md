@@ -1,14 +1,14 @@
 # Brand assets
 
-Brian supplied `OULAFC Award Sticker_G_circle_B_logo.svg` on 8 September 2026
-for the application's top-left logo during the combined LAN-231–235 review.
-Its artwork replaces the earlier agent-drawn placeholder at the canonical path.
+Brian supplied `Group 315.svg` on 8 September 2026 and requested its top white
+logo for the application header, replacing the detailed circular sticker.
 
-| File           | Status                                         | Used by                                        |
-| -------------- | ---------------------------------------------- | ---------------------------------------------- |
-| `crest.svg`    | Owner-supplied circular club logo              | `src/components/brand-mark.tsx` (`CREST_PATH`) |
-| `wordmark.svg` | Not yet supplied; the name is set in Geist     | —                                              |
-| `lockup.svg`   | Not yet supplied (horizontal crest + wordmark) | —                                              |
+- `crest.svg`: the eight white paths from the top mark, with their original
+  geometry preserved and the viewBox cropped to `0 0 1080 904`.
+- `crest-blue.svg`: the same geometry in the supplied Oxford Blue (`#002147`)
+  for BrandMark on light backgrounds.
 
-The shared `BrandMark` displays this SVG in the operator shell, public masthead
-and sign-in screen. The original artwork and square viewBox are preserved.
+The shared BrandMark uses the white mark on navy in the operator shell, public
+masthead and sign-in screen. The name remains set in Geist. The main header
+image box is 48px; the compact phone header is 32px. The SVG preserves its
+aspect ratio inside that box.

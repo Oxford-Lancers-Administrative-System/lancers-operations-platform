@@ -5,7 +5,7 @@ import Typography from "@mui/material/Typography";
 /**
  * The crest and the club's name, together — LAN-225, brief §4.4.
  *
- * `public/brand/crest.svg` is Brian's supplied circular club logo
+ * `public/brand/crest.svg` is the white mark from Brian's supplied Group 315.svg
  * (see `public/brand/README.md`). The wordmark remains set in Geist.
  *
  * `tone` says which ground it sits on. On Oxford Blue the name is white; on
@@ -43,7 +43,7 @@ export function BrandMark({
     >
       <Box
         component="img"
-        src={CREST_PATH}
+        src={tone === "onDark" ? CREST_PATH : "/brand/crest-blue.svg"}
         alt=""
         aria-hidden="true"
         sx={{ width: crestSize, height: crestSize, flexShrink: 0, display: "block" }}
