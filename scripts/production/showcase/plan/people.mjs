@@ -896,7 +896,10 @@ export function buildPeople(ctx, reference) {
       is_preferred: true,
       valid_from: day(-9),
       valid_until: null,
-      source: "walk-on attendance",
+      // Entered at the stand, not at a walk-on — LAN-238. The recruitment
+      // module shows every duplicate-door recruit as "Sign-up sheet at the
+      // stand", and this is the contact row behind that sentence.
+      source: "sign-up sheet at the stand",
     },
     "illustrative",
     { source: "near-duplicate of player p03" },
@@ -998,7 +1001,8 @@ export function buildPeople(ctx, reference) {
         is_preferred: true,
         valid_from: day(-9 - n),
         valid_until: null,
-        source: "walk-on attendance",
+        // As above: entered at the stand, which is what the recruit record says.
+        source: "sign-up sheet at the stand",
       },
       "illustrative",
       { source: `near-duplicate of player ${twin.key}` },

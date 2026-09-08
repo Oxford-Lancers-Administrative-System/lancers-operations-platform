@@ -13,6 +13,68 @@ import { id } from "../ids.mjs";
 import { dramaPhone, exampleEmail } from "./context.mjs";
 
 /**
+ * One door, one story — LAN-238.
+ *
+ * The door a recruit came through is the only thing that decides how they were
+ * captured, and everything the record shows about that capture is derived from
+ * it here: the capture source the screen prints, the fields only the sign-up
+ * form collects, the provenance on the contact point, who the first status
+ * event names, and — the one that has teeth — the `season_messaging_consents`
+ * source the application gates the recruitment questionnaire on.
+ *
+ * These used to be drawn independently, and a generated recruit could display
+ * "QR sign-up at the Freshers' Fair" while carrying `operator_recorded`
+ * consent. `Q-read-back-authorises-how-much` (Brian, 2026-09-02) makes that
+ * combination a refusal with no visible cause: the interest track waits for
+ * the recruit's own grant *through the form*, so the record said QR and the
+ * button said no. Sixteen of thirty-five recruits contradicted themselves that
+ * way. Deriving both from one door is what makes it unrepresentable.
+ */
+export const SOURCE_FOR_DOOR = Object.freeze({
+  qr: "QR sign-up at the Freshers' Fair",
+  "walk-up": "Walk-on at Rookie Taster Session",
+  "walk-up-invited": "Rookie Taster Session",
+  hand: "Referred by a current player",
+  duplicate: "Sign-up sheet at the stand",
+});
+
+/**
+ * The consent provenance each door produces, exactly as the application writes
+ * it: `recruitment-signup.ts` writes `qr_self_entry` off the form,
+ * `attendance.ts` writes `walk_up_read_back` at a touchline read-back, and
+ * `recruitment-add.ts` writes `operator_recorded` for a recruit typed in by
+ * hand. A recruit reached through a near-duplicate record was typed in too.
+ */
+const CONSENT_SOURCE_FOR_DOOR = Object.freeze({
+  qr: "qr_self_entry",
+  "walk-up": "walk_up_read_back",
+  "walk-up-invited": "walk_up_read_back",
+  hand: "operator_recorded",
+  duplicate: "operator_recorded",
+});
+
+/** The consent states that carry a provenance at all; the rest record none. */
+const SOURCED_CONSENT = ["granted", "refused", "withdrawn"];
+
+/**
+ * Capture source → the consent provenance it implies, for `showcase verify`.
+ *
+ * The same two tables read the other way round, so the check that no recruit's
+ * record contradicts itself is derived from the rule that builds them rather
+ * than written out a second time and left to drift. Only the loader's own five
+ * capture strings appear here: a prospect the application created carries its
+ * own vocabulary (`Operator add · …`), which this says nothing about.
+ */
+export const CONSENT_SOURCE_FOR_CAPTURE_SOURCE = Object.freeze(
+  Object.fromEntries(
+    Object.entries(SOURCE_FOR_DOOR).map(([door, source]) => [
+      source,
+      CONSENT_SOURCE_FOR_DOOR[door],
+    ]),
+  ),
+);
+
+/**
  * Enough of every funnel stage that five testers each get one of their own.
  *
  * The fourteen hand-written recruits below carry the shapes that matter — the
@@ -78,30 +140,37 @@ function fillFunnel(existing, perStage = 5) {
     "Oakhurst",
     "Prideaux",
   ];
-  const sources = [
-    "QR sign-up at the Freshers' Fair",
-    "Sign-up sheet at the stand",
-    "Referred by a current player",
-    "Rookie Taster Session",
-  ];
   // Every fifth generated recruit arrives through the duplicate door, so five
   // testers each resolve a possible duplicate of their own rather than four of
   // them finding it already resolved.
+  //
+  // The door is the only capture fact drawn here. What the record *shows* about
+  // that capture is derived from it in `buildRecruitment` — see
+  // `SOURCE_FOR_DOOR`. There used to be a second, independent array of source
+  // strings picked by a different modulus, which is what LAN-238 was.
   const doors = ["qr", "hand", "walk-up-invited", "qr", "duplicate", "qr"];
   const rows = [];
   let n = existing.length;
   for (const stage of stages) {
     for (let i = held.get(stage) ?? 0; i < perStage; i += 1) {
       n += 1;
+      const door = doors[n % doors.length];
       rows.push([
         `r${String(n).padStart(2, "0")}`,
         given[(n * 7) % given.length],
         family[(n * 5) % family.length],
         stage,
-        sources[n % sources.length],
         -46 + (n % 30),
-        n % 6 === 0 ? "asked" : "granted",
-        doors[n % doors.length],
+        // Only an operator capture can be left merely `asked`. The sign-up
+        // form cannot be saved without the consent tick
+        // (`SIGNUP_REQUIRES_CONSENT_RULE`, `recruitment-signup.ts`), so a
+        // recruit who came through it is always `granted`. This used to be
+        // `n % 6 === 0`, which is exactly the QR door — four recruits whose
+        // record said they signed the form and whose consent said they had
+        // only been asked, refused on the record with "Consent has not been
+        // granted for this season".
+        door !== "qr" && n % 5 === 0 ? "asked" : "granted",
+        door,
       ]);
     }
   }
@@ -109,105 +178,91 @@ function fillFunnel(existing, perStage = 5) {
 }
 
 const RECRUITS_AUTHORED = [
-  // key, given, family, status, source, firstContactOffset, consent, door
-  [
-    "r01",
-    "Persephone",
-    "Wilding",
-    "identified",
-    "QR sign-up at the Freshers' Fair",
-    -48,
-    "granted",
-    "qr",
-  ],
-  [
-    "r02",
-    "Tobias",
-    "Wrenfield",
-    "identified",
-    "Walk-on at Rookie Taster Session",
-    -49,
-    "granted",
-    "walk-up",
-  ],
-  ["r03", "Cas", null, "identified", "Sign-up sheet at the stand", -9, "asked", "duplicate"],
-  ["r04", "Cassius", "Thorne", "engaged", "QR sign-up at the Freshers' Fair", -47, "granted", "qr"],
-  ["r05", "Marigold", "Fenwick", "engaged", "Referred by a current player", -40, "granted", "hand"],
-  [
-    "r06",
-    "Odile",
-    "Marchmont",
-    "engaged",
-    "Rookie Taster Session",
-    -49,
-    "granted",
-    "walk-up-invited",
-  ],
-  [
-    "r07",
-    "Barnaby",
-    "Quince-Ashby",
-    "committed",
-    "Referred by a current player",
-    -38,
-    "granted",
-    "hand",
-  ],
-  [
-    "r08",
-    "Cordelia",
-    "Winterbourne",
-    "committed",
-    "QR sign-up at the Freshers' Fair",
-    -45,
-    "granted",
-    "qr",
-  ],
-  ["r09", "Reginald", "Pemberton-Hale", "joined", "Rookie Taster Session", -49, "granted", "qr"],
-  [
-    "r10",
-    "Lucasta",
-    "Meredith",
-    "declined",
-    "QR sign-up at the Freshers' Fair",
-    -46,
-    "refused",
-    "qr",
-  ],
-  [
-    "r11",
-    "Hieronymus",
-    "Blackwood",
-    "declined",
-    "Referred by a current player",
-    -30,
-    "granted",
-    "hand",
-  ],
-  [
-    "r12",
-    "Araminta",
-    "Sedgwick",
-    "disengaged",
-    "QR sign-up at the Freshers' Fair",
-    -44,
-    "granted",
-    "qr",
-  ],
-  [
-    "r13",
-    "Peregrine",
-    "Holloway",
-    "disengaged",
-    "Sign-up sheet at the stand",
-    -42,
-    "never_asked",
-    "hand",
-  ],
-  ["r14", "Cassius", "Thorn", "void", "QR sign-up at the Freshers' Fair", -47, "granted", "qr"],
+  // key, given, family, status, firstContactOffset, consent, door.
+  //
+  // No capture source: it is `SOURCE_FOR_DOOR[door]`, so a hand-written recruit
+  // cannot contradict itself either. `r09` used to read "Rookie Taster Session"
+  // while carrying a `qr_self_entry` grant, and `r13` "Sign-up sheet at the
+  // stand" on the by-hand door — the same drift the generator had, in rows the
+  // ticket believed were coherent.
+  //
+  // `r07` came through the form (it used to be the by-hand door): it is the
+  // first `committed` row, so it is the example W2 and W12 open, and their
+  // checklists promise "both questionnaires and the answers". Only a recruit
+  // whose own grant came through the form can be sent the second one.
+  ["r01", "Persephone", "Wilding", "identified", -48, "granted", "qr"],
+  ["r02", "Tobias", "Wrenfield", "identified", -49, "granted", "walk-up"],
+  ["r03", "Cas", null, "identified", -9, "asked", "duplicate"],
+  ["r04", "Cassius", "Thorne", "engaged", -47, "granted", "qr"],
+  ["r05", "Marigold", "Fenwick", "engaged", -40, "granted", "hand"],
+  ["r06", "Odile", "Marchmont", "engaged", -49, "granted", "walk-up-invited"],
+  ["r07", "Barnaby", "Quince-Ashby", "committed", -38, "granted", "qr"],
+  ["r08", "Cordelia", "Winterbourne", "committed", -45, "granted", "qr"],
+  ["r09", "Reginald", "Pemberton-Hale", "joined", -49, "granted", "qr"],
+  ["r10", "Lucasta", "Meredith", "declined", -46, "refused", "qr"],
+  ["r11", "Hieronymus", "Blackwood", "declined", -30, "granted", "hand"],
+  ["r12", "Araminta", "Sedgwick", "disengaged", -44, "granted", "qr"],
+  ["r13", "Peregrine", "Holloway", "disengaged", -42, "never_asked", "hand"],
+  ["r14", "Cassius", "Thorn", "void", -47, "granted", "qr"],
 ];
 
 const RECRUITS = Object.freeze([...RECRUITS_AUTHORED, ...fillFunnel(RECRUITS_AUTHORED)]);
+
+/**
+ * Where the interest ask has plausibly already gone out.
+ *
+ * Narrower than the cycle's own eligibility (`identified`, `engaged`,
+ * `committed`) because a recruit who answered has moved along since, and
+ * wider at the far end for the same reason: the ask reached them while they
+ * were still being chased, and the flip or the fade came afterwards.
+ */
+const ASKED_STATUSES = Object.freeze(["engaged", "committed", "joined", "disengaged"]);
+
+/**
+ * Could the recruitment questionnaire have reached this recruit at all?
+ *
+ * `declareRecruitmentCycleJobsIn` gates the interest track on
+ * `hasGrantedViaSignupFormIn`, so an `interest_ask`, the link it carries, and
+ * the answers that come back are all evidence of a `qr_self_entry` grant.
+ * Hanging any of them on a walk-up or operator-recorded grant describes a send
+ * the application would have refused — which is what the record then says,
+ * next to a button refusing to send it.
+ */
+function askedThroughTheSignupForm([, , , status, , consent, door]) {
+  return (
+    CONSENT_SOURCE_FOR_DOOR[door] === "qr_self_entry" &&
+    consent === "granted" &&
+    ASKED_STATUSES.includes(status)
+  );
+}
+
+/**
+ * The link retired unused: disengaged, revoked, never opened. It holds no
+ * answers on purpose — answers would contradict a `use_count` of nought.
+ */
+const RETIRED_INTEREST_LINK = "r12";
+
+/**
+ * The six recruits who answered Questionnaire B, and so hold a spent link.
+ *
+ * Derived rather than listed. The list used to name `r05`, `r07`, `r15` and
+ * `r16` — two by-hand recruits, and one reached through a near-duplicate — none
+ * of whom could have been asked. `r16` is the recruit the ticket was raised
+ * against: the checklists dealt a tester her "already answered" link while her
+ * record refused to send her the questionnaire it came from.
+ */
+const ANSWERED_KEYS = Object.freeze(
+  RECRUITS.filter(askedThroughTheSignupForm)
+    .map(([key]) => key)
+    .filter((key) => key !== RETIRED_INTEREST_LINK)
+    .slice(0, 6),
+);
+
+/** Everyone who holds an interest link: the six who answered, and the retired one. */
+const INTEREST_LINK_KEYS = Object.freeze([...ANSWERED_KEYS, RETIRED_INTEREST_LINK]);
+
+/** Each cycle step's own offset from first contact, so a step's place in the list cannot move it. */
+const STEP_OFFSET_DAYS = Object.freeze({ welcome: 0, details_reminder: 4, interest_ask: 3 });
 
 export function buildRecruitment(ctx, reference, people) {
   const { add, labels, day, at, mintToken } = ctx;
@@ -222,8 +277,12 @@ export function buildRecruitment(ctx, reference, people) {
 
   const recruits = [];
 
-  for (const [key, givenName, familyName, status, source, firstOffset, consent, door] of RECRUITS) {
+  for (const [key, givenName, familyName, status, firstOffset, consent, door] of RECRUITS) {
     const index = recruits.length;
+    const source = SOURCE_FOR_DOOR[door];
+    const consentSource = SOURCED_CONSENT.includes(consent) ? CONSENT_SOURCE_FOR_DOOR[door] : null;
+    // The one fact the recruitment questionnaire turns on, named once.
+    const reachedTheFormThemselves = consentSource === "qr_self_entry";
     // The duplicate uses the near-duplicate person from the squad module.
     const personId =
       door === "duplicate"
@@ -418,18 +477,9 @@ export function buildRecruitment(ctx, reference, people) {
         person_id: personId,
         season_id: seasonId,
         state: consent,
-        source: ["granted", "refused", "withdrawn"].includes(consent)
-          ? door === "qr"
-            ? "qr_self_entry"
-            : door.startsWith("walk-up")
-              ? "walk_up_read_back"
-              : "operator_recorded"
-          : null,
+        source: consentSource,
         changed_at: at(firstOffset, "12:05"),
-        recorded_by_person_id:
-          ["granted", "refused", "withdrawn"].includes(consent) && door !== "qr"
-            ? actorPersonId
-            : null,
+        recorded_by_person_id: consentSource && !reachedTheFormThemselves ? actorPersonId : null,
       },
       "illustrative",
       { source: `recruit ${key}` },
@@ -461,17 +511,19 @@ export function buildRecruitment(ctx, reference, people) {
       );
     }
 
-    // Questionnaire B answers, for the engaged and beyond. `r15` and `r16` are
-    // here because their interest links are dealt to testers as "already
-    // answered": a link whose recruit has answered nothing opens on the live,
-    // blank form instead, which is the opposite of what the checklist promises.
-    if (["r04", "r05", "r07", "r09", "r15", "r16"].includes(key)) {
+    // Questionnaire B answers. Six of them, because their interest links are
+    // dealt to testers as "already answered": a link whose recruit has answered
+    // nothing opens on the live, blank form instead, which is the opposite of
+    // what the checklist promises. Every one is a recruit the ask could have
+    // reached — see `ANSWERED_KEYS`.
+    const answeredIndex = ANSWERED_KEYS.indexOf(key);
+    if (answeredIndex !== -1) {
       const answers = [
-        ["B1", { answer_boolean: key !== "r05" }],
+        ["B1", { answer_boolean: answeredIndex !== 1 }],
         ["B2", { answer_boolean: true }],
-        ["B3", { answer_text: key === "r09" ? "MLB, SLB" : "WR, RB" }],
-        ["B4", { answer_text: key === "r07" ? "Cleats" : "None" }],
-        ["B5", { answer_choice: key === "r04" ? "freshers_fair" : "friend" }],
+        ["B3", { answer_text: status === "joined" ? "MLB, SLB" : "WR, RB" }],
+        ["B4", { answer_text: answeredIndex === 2 ? "Cleats" : "None" }],
+        ["B5", { answer_choice: answeredIndex === 0 ? "freshers_fair" : "friend" }],
         ["B6", { answer_text: "Keen to learn; never played contact." }],
       ];
       for (const [code, value] of answers) {
@@ -495,20 +547,31 @@ export function buildRecruitment(ctx, reference, people) {
       }
     }
 
-    // The recruitment cycle's messages, as delivered.
-    const steps =
-      consent === "granted" && door !== "duplicate"
-        ? [
-            "welcome",
-            ...(index % 2 === 0 ? ["details_reminder"] : []),
-            ...(["engaged", "committed", "joined", "disengaged"].includes(status)
-              ? ["interest_ask"]
-              : []),
-          ]
-        : [];
-    for (const [stepIndex, step] of steps.entries()) {
+    // The recruitment cycle's messages, as delivered — each track reaching
+    // exactly the recruits `declareRecruitmentCycleJobsIn` would have declared
+    // it for, so no record claims a send the application would have refused.
+    //
+    // The welcome track carries the link to the sign-up form, which is why it
+    // goes to the recruits who have *not* been through it and is skipped for
+    // the ones who have (`welcomeStepComplete`). It used to go to every granted
+    // recruit, including twenty-four who had signed the form themselves five
+    // minutes earlier. The interest track is the mirror image: it waits for
+    // that form. Neither reaches a recruit captured as a possible duplicate,
+    // whose record is somebody else's to begin with.
+    const welcomeTrack =
+      door !== "duplicate" &&
+      !reachedTheFormThemselves &&
+      consent !== "refused" &&
+      consent !== "withdrawn";
+    const interestTrack =
+      door !== "duplicate" && reachedTheFormThemselves && ASKED_STATUSES.includes(status);
+    const steps = [
+      ...(welcomeTrack ? ["welcome", ...(index % 2 === 0 ? ["details_reminder"] : [])] : []),
+      ...(interestTrack ? ["interest_ask"] : []),
+    ];
+    for (const step of steps) {
       const key_ = `recruit-cycle:${step}:${personId}:${seasonId}`;
-      const when = at(firstOffset + [0, 4, 3][stepIndex] ?? 0, "12:10");
+      const when = at(firstOffset + STEP_OFFSET_DAYS[step], "12:10");
       const jobId = add(
         "public.notification_jobs",
         {
@@ -579,11 +642,14 @@ export function buildRecruitment(ctx, reference, people) {
       );
     }
 
-    // Interest links: spent where the questionnaire was answered, revoked at the flip.
-    // Two more, so five testers each open a spent interest link of their own.
-    if (["r04", "r07", "r09", "r12", "r15", "r16"].includes(key)) {
+    // Interest links: spent where the questionnaire was answered, revoked at the
+    // flip. Seven — the six who answered, and one retired unused. The recruit
+    // who was flipped to joined has theirs revoked at the flip, which leaves
+    // five live and answered, so five testers each open one of their own.
+    if (INTEREST_LINK_KEYS.includes(key)) {
       const minted = mintToken("person_access_tokens", "interest", key);
-      const spent = key !== "r12";
+      const spent = key !== RETIRED_INTEREST_LINK;
+      const revokedAtTheFlip = status === "joined";
       add(
         "public.person_access_tokens",
         {
@@ -595,32 +661,29 @@ export function buildRecruitment(ctx, reference, people) {
           single_use_at: spent ? at(firstOffset + 6, "20:00") : null,
           issued_at: at(firstOffset + 3, "12:10"),
           issued_by_person_id: null,
-          revoked_at:
-            key === "r09" ? at(firstOffset + 12, "10:00") : key === "r12" ? at(-2, "09:00") : null,
-          revoked_reason:
-            key === "r09"
-              ? "Superseded by the onboarding welcome at the flip."
-              : key === "r12"
-                ? "Recruit disengaged; link retired."
-                : null,
+          revoked_at: revokedAtTheFlip
+            ? at(firstOffset + 12, "10:00")
+            : spent
+              ? null
+              : at(-2, "09:00"),
+          revoked_reason: revokedAtTheFlip
+            ? "Superseded by the onboarding welcome at the flip."
+            : spent
+              ? null
+              : "Recruit disengaged; link retired.",
           last_used_at: spent ? at(firstOffset + 6, "20:00") : null,
           use_count: spent ? 1 : 0,
           purpose: "recruit_interest_request",
         },
         "illustrative",
         { source: `recruit ${key} — interest link` },
-        [
-          spent && key !== "r09" && key !== "r12"
-            ? "token.interest.answered"
-            : "token.interest.revoked",
-        ],
-        key === "r04" ? "token.interest.answered" : null,
+        [spent && !revokedAtTheFlip ? "token.interest.answered" : "token.interest.revoked"],
+        spent && !revokedAtTheFlip ? "token.interest.answered" : null,
       );
       // Only a live link belonging to a recruit who has answered: a revoked one
       // resolves to the uniform not-found page, so offering it here handed two
       // of five testers a dead link for a workflow that promises a page.
-      if (spent && key !== "r09" && key !== "r12")
-        ctx.example("link.interest.answered", minted.plaintext);
+      if (spent && !revokedAtTheFlip) ctx.example("link.interest.answered", minted.plaintext);
     }
 
     recruits.push({
