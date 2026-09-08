@@ -117,8 +117,13 @@ function readParameters(pathname) {
   } catch (error) {
     throw new Error(`Cannot read --params ${pathname}: ${error.message}`);
   }
-  if (!parsed.brian?.givenName) {
-    throw new Error("The parameter file must describe `brian`, who owns every audit trail here.");
+  if (!parsed.tester1?.givenName) {
+    throw new Error(
+      "The parameter file must describe `tester1`. Seat 1 is the actor every audit " +
+        "row, season and confirmed audience this loader writes is attributed to — it " +
+        "has to be somebody, and it is the first operator seat. See OWNER-RUNBOOK.md " +
+        "§ The private parameter file.",
+    );
   }
   if (typeof parsed.tokenSecret !== "string" || parsed.tokenSecret.length < 16) {
     throw new Error(
