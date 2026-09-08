@@ -204,19 +204,18 @@ describe("a recruit's record never contradicts itself about how they were captur
   // (`Q-read-back-authorises-how-much`, Brian 2026-09-02), and nothing on the
   // record shows which door a grant came through. Every one of these was a
   // refusal, or a claimed send, that the screen gave a tester no way to explain.
-  // Built once. `buildPlan` is expensive enough that four of them in one file
-  // pushes its 5s-timeout neighbours over.
-  let built: ReturnType<typeof recruitment> | null = null;
+  // The plan is built once. `buildPlan` is expensive enough that five more of
+  // them in one file pushes its 5s-timeout neighbours over.
+  let cached: ReturnType<typeof build> | null = null;
   const recruitment = () => {
-    if (built) return built;
-    const plan = build();
+    const plan = (cached ??= build());
     const rows = (table: string) =>
       (plan.rows as Row[]).filter((row) => row.table === table).map((row) => row.columns);
     const consentByPerson = new Map(
       rows("public.season_messaging_consents").map((c) => [c.person_id as string, c]),
     );
     const prospects = rows("public.recruitment_prospects");
-    built = {
+    return {
       plan,
       rows,
       prospects,
@@ -228,7 +227,6 @@ describe("a recruit's record never contradicts itself about how they were captur
         return person ? `${person.given_name} ${person.family_name ?? ""}`.trim() : "(unknown)";
       },
     };
-    return built;
   };
 
   it("gives every recruit the consent provenance their capture source implies", () => {
