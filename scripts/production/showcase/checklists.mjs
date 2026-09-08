@@ -3,8 +3,10 @@
  *
  * Generated from the map (Part 1) with the plan's identifiers (Part 2) filled
  * in. Every list covers **every** workflow, as a list of "open this link — you
- * should see this — tick it, or report it". The report form link sits at the
- * top. Not booklets, not prose.
+ * should see this — tick it, or write what you saw". Findings are written in
+ * the document itself, under the item they belong to — Brian, this session:
+ * each tester gets their own Drive file and the notes go in there, so there is
+ * no form and no second place to look. Not booklets, not prose.
  *
  * Brian, this session: "I want three testers testing all the workflows … They're
  * not running separate parts of it." So the lists differ only in the rows they
@@ -121,7 +123,7 @@ export function seatViews(plan) {
   return views;
 }
 
-export function renderChecklists({ plan, baseUrl, formUrl, logins = {} }) {
+export function renderChecklists({ plan, baseUrl, logins = {} }) {
   const out = new Map();
   const views = seatViews(plan);
 
@@ -135,11 +137,11 @@ export function renderChecklists({ plan, baseUrl, formUrl, logins = {} }) {
     );
     lines.push("");
     lines.push(
-      `**Report anything that is wrong, missing, confusing or slow here:** ${formUrl ?? "(form link to follow)"}`,
+      "**Write what you find in this document**, under the item it belongs to: what you expected, what you actually saw, and whether it stopped you. This file is yours — nobody else is editing it, and the links in it are yours alone.",
     );
     lines.push("");
     lines.push(
-      "Work down the list. Open the link, check what you see against the line, tick it, or report it. Everything is safe to press except sending WhatsApp, which is switched off.",
+      "Work down the list. Open the link, check what you see against the line, and tick it. If it is wrong, missing, confusing or slow, write that underneath instead of ticking. Everything is safe to press except sending WhatsApp, which is switched off.",
     );
     lines.push("");
     let n = 0;
@@ -179,7 +181,7 @@ export function renderChecklists({ plan, baseUrl, formUrl, logins = {} }) {
             : "";
           const note =
             contended.length > 0
-              ? ` — **shared with ${[...new Set(contended)].join(" and ")}.** If it is not in the state below, say so on the form but expect they got there first.`
+              ? ` — **shared with ${[...new Set(contended)].join(" and ")}.** If it is not in the state below, write that down, but expect they got there first.`
               : "";
           lines.push(`${BOX} Open ${baseUrl}${route}${reinstate}${note}`);
         }

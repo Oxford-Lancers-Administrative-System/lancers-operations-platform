@@ -820,20 +820,14 @@ function manifest(plan, sources, pathname) {
 function checklists(plan, params, argv) {
   const directory = option(argv, "out", "showcase-checklists");
   const baseUrl = option(argv, "base-url", DEFAULT_BASE_URL).replace(/\/$/, "");
-  const formUrl = option(argv, "form-url", params.formUrl ?? null);
   mkdirSync(directory, { recursive: true });
-  const rendered = renderChecklists({ plan, baseUrl, formUrl, logins: params.logins ?? {} });
+  const rendered = renderChecklists({ plan, baseUrl, logins: params.logins ?? {} });
+  const walked = WORKFLOWS.filter((workflow) => !workflow.notAWorkflow).length;
   for (const [tester, markdown] of rendered) {
     const target = path.join(directory, TESTERS[tester].file);
     writeFileSync(target, markdown);
-    console.log(
-      `  wrote ${target} (${WORKFLOWS.filter((w) => w.tester === tester).length} workflows)`,
-    );
+    console.log(`  wrote ${target} (${walked} workflows)`);
   }
-  if (!formUrl)
-    console.log(
-      "\nNo --form-url given: the checklists say the form link is to follow. Re-run with --form-url once the Notion form is live.",
-    );
   console.log(
     `\nLinks point at ${baseUrl}. They contain live credentials for the named testers — hand each file to its tester only, and never commit them.`,
   );

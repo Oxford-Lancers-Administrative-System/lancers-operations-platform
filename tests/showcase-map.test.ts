@@ -258,7 +258,6 @@ describe("five testers in one environment", () => {
   const lists = renderChecklists({
     plan,
     baseUrl: "https://app.example",
-    formUrl: "https://form.example",
   });
 
   it("sends no two seats to the same row without saying so", () => {
