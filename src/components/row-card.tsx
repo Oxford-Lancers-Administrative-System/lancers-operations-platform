@@ -113,6 +113,7 @@ export function RowCard({
               p: 2,
               pt: { xs: 1.5, sm: 2 },
               flexShrink: 0,
+              justifyContent: "flex-end",
               alignSelf: { xs: "stretch", sm: "center" },
               width: { xs: "auto", sm: actionWidth },
             }}

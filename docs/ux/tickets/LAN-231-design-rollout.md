@@ -223,3 +223,28 @@ Verification checkpoint after the final adoption pass:
 - The one intentional product change is LAN-231 B8: the root renders the shared
   sign-in screen. All other changes are presentation, shared-kit support or
   the documented copy dispositions.
+
+## Owner corrections — 8 September 2026
+
+- FB-001: RowCard aligns its inline action group to the right padding at both
+  widths. Existing submitted values and actions are unchanged.
+- FB-002: Collapsible Section headers have a chevron that changes direction
+  with the native open state, plus a visible keyboard focus ring. Native
+  Enter/Space operation and the initially closed long tails are preserved.
+- FB-003: StepTrail distributes vertical space between title and status so
+  the desktop chips share one bottom edge; phone steps retain their compact row.
+- FB-004: This correction review uses real application routes exclusively.
+- FB-005: Brian supplied `OULAFC Award Sticker_G_circle_B_logo.svg` to replace
+  the placeholder top-left logo. `public/brand/crest.svg` is an exact copy,
+  shared by the home/sign-in masthead and operator shell.
+
+Browser measurements passed for real home, player home and questionnaire at
+1440px and 375px: no horizontal overflow, action alignment, keyboard disclosure
+operation, status alignment and successful loading of the supplied SVG. These
+are development checks, not owner approval.
+
+Verification also exposed Next.js appending its generated instruction block,
+which took AGENTS.md past the existing 250-line cap. Prose is reflowed without
+changing its words or commands; the generated block remains in place. The
+line-cap test and a separately rerun mission rehearsal both passed. Full
+verification and Brian's recheck are recorded on the PR at the resulting head.

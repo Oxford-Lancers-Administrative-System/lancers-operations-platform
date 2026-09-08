@@ -129,12 +129,12 @@ export function Section({
       sx={{
         justifyContent: "space-between",
         alignItems: "flex-start",
-        mb: children ? 2 : 0,
-        flexWrap: "wrap",
+        mb: children && !collapsible ? 2 : 0,
+        flexWrap: collapsible ? "nowrap" : "wrap",
         gap: 1,
       }}
     >
-      <Box sx={{ minWidth: 0 }}>
+      <Box sx={{ minWidth: 0, flex: collapsible ? 1 : undefined }}>
         <Typography
           variant="h3"
           component={headingLevel === 2 ? "h2" : "h3"}
@@ -149,6 +149,24 @@ export function Section({
         ) : null}
       </Box>
       {action ?? null}
+      {collapsible ? (
+        <Box
+          component="span"
+          aria-hidden="true"
+          data-disclosure-indicator
+          sx={{
+            width: 12,
+            height: 12,
+            mt: 0.25,
+            mr: 0.5,
+            flexShrink: 0,
+            borderRight: "2px solid",
+            borderBottom: "2px solid",
+            borderColor: "primary.main",
+            transform: "rotate(45deg)",
+          }}
+        />
+      ) : null}
     </Stack>
   );
 
@@ -162,6 +180,16 @@ export function Section({
           p: { xs: 2, md: 3 },
           "& > summary": { cursor: "pointer", listStyle: "none" },
           "& > summary::-webkit-details-marker": { display: "none" },
+          "& > summary:focus-visible": {
+            outline: "2px solid",
+            outlineColor: "primary.light",
+            outlineOffset: 4,
+            borderRadius: 1,
+          },
+          "&[open] > summary": { mb: 2 },
+          "&[open] > summary [data-disclosure-indicator]": {
+            transform: "translateY(6px) rotate(225deg)",
+          },
         }}
         data-testid={testId ? `section-${testId}` : undefined}
       >
