@@ -9,6 +9,7 @@ import {
 } from "@/lib/db";
 import { recordAudit } from "./audit";
 import { actorRequirement } from "./actor";
+import { deleteOnboardingAgreementIn, type OnboardingAgreementType } from "./onboarding-agreements";
 import { writeOnboardingItemHistoryIn } from "./onboarding-item-history";
 import {
   allowedItemStates,
@@ -822,6 +823,18 @@ export async function setMembershipStatus(params: {
 // ---------------------------------------------------------------------------
 
 /**
+ * The two checklist items backed by a versioned agreement — LAN-240. Keyed by
+ * `onboarding_item_types.code`, exactly as `onboarding-item-shapes.ts` keys
+ * every other per-item fact, so the two codes are named once here rather than
+ * spelled out at the one place that needs them. Every other item's code maps
+ * to nothing: it has no agreement row and nothing to remove.
+ */
+const AGREEMENT_ITEM_TYPES: Readonly<Record<string, OnboardingAgreementType>> = Object.freeze({
+  code_of_conduct: "code_of_conduct",
+  photo_release: "photo_release",
+});
+
+/**
  * Sets one onboarding item to one of its own states — D-002 (correction
  * round 6, `WP-operator-record`, LAN-217): an operator names the item's own
  * target state directly, the same list `allowedItemStates` names as both
@@ -871,10 +884,14 @@ export async function resolveOnboardingItem(params: {
       label: string;
       code: string;
       waived_reason: string | null;
+      person_id: string;
+      season_id: string;
     }>(
-      `select i.status::text as status, t.label, t.code, i.waived_reason
+      `select i.status::text as status, t.label, t.code, i.waived_reason,
+              m.person_id, m.season_id
          from public.onboarding_items i
          join public.onboarding_item_types t on t.id = i.item_type_id
+         join public.season_memberships m on m.id = i.season_membership_id
         where i.id = $1::uuid and i.season_membership_id = $2::uuid
         for update of i`,
       [itemId, membershipId],
@@ -1005,6 +1022,50 @@ export async function resolveOnboardingItem(params: {
         item_label: item.label,
       },
     });
+
+    // LAN-240 (walker M7, finding M7-01): reopening one of the two agreement
+    // items has to reach the player, and until now it never did. Setting
+    // Photo release or Code of Conduct back to "No" is the shipped reopen
+    // mechanism — there is no separate verb, by D-002 above — but it moved
+    // only `onboarding_items.status`. The `onboarding_agreements` row stayed,
+    // so the player's own link went on reading "Already agreed" under a
+    // navigator that said "Outstanding", and a bare load of the link resumed
+    // at "There is nothing left to fill in". Removing the row in the same
+    // transaction as the state change is what makes the reopen real: the
+    // player's next load lands on the step, the step reads outstanding, and
+    // `recordOnboardingAgreementIn` accepts their fresh agreement instead of
+    // refusing it as a duplicate. See `deleteOnboardingAgreementIn` for why a
+    // delete rather than a `superseded_at` column, and what keeps the record.
+    if (
+      AGREEMENT_ITEM_TYPES[item.code] !== undefined &&
+      item.status === "complete" &&
+      toStatus !== "complete"
+    ) {
+      const removed = await deleteOnboardingAgreementIn(tx, {
+        personId: item.person_id,
+        seasonId: item.season_id,
+        agreementType: AGREEMENT_ITEM_TYPES[item.code],
+      });
+      await recordAudit(tx, {
+        actorPersonId,
+        action: "onboarding_agreement_reopened",
+        entityTable: "onboarding_agreements",
+        entityId: itemId,
+        fromState: "agreed",
+        toState: "outstanding",
+        reason,
+        context: {
+          issue: "LAN-240",
+          season_membership_id: membershipId,
+          person_id: item.person_id,
+          season_id: item.season_id,
+          agreement_type: AGREEMENT_ITEM_TYPES[item.code],
+          // Zero is legitimate: the item can be set back to "No" for a player
+          // who never agreed through the link at all. Recorded, not hidden.
+          removed_count: removed,
+        },
+      });
+    }
 
     // D-002 (Q-14): "correcting the invoice back to Not invoiced must do the
     // right thing to the payment cell." A payment already recorded against

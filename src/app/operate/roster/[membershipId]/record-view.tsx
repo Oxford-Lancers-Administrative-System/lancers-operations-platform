@@ -27,6 +27,9 @@ import {
   SUBS_PAID_ITEM_CODE,
 } from "@/lib/services/onboarding-item-shapes";
 import type { PersonRecord } from "@/lib/services/person-record";
+// The queue's own wording for the chase, imported rather than reproduced —
+// LAN-266 requirement 2 asks for "the same words the queue already uses".
+import { formatChaseNext } from "@/app/operate/people/missing/chase-presentation";
 import type {
   OnboardingActivitySection,
   OnboardingItemDisplay,
@@ -60,6 +63,9 @@ import { NOT_RECORDED, NotRecorded } from "@/components/fact";
 import { RecordField, RecordRow as Row } from "@/components/record-field";
 import { Section } from "@/components/section";
 import AttendanceSection from "./attendance-section";
+import SendOnboardingQuestionnaireButton, {
+  sendStatusLines,
+} from "./send-onboarding-questionnaire-button";
 import {
   ENTRY_LABELS,
   formatDay,
@@ -106,6 +112,13 @@ import {
  * past season is editable from here, and there is nothing to explain about
  * why, because there is no control inviting the question.
  */
+/**
+ * A departed or archived membership takes no writes on this record at all
+ * (`closed`, below), and the send is a write like any other — LAN-266.
+ */
+const CLOSED_MEMBERSHIP_REASON =
+  "This membership is closed, so nothing further is sent to this player.";
+
 export default function PlayerRecordView({
   record,
   person,
@@ -405,6 +418,45 @@ export default function PlayerRecordView({
             {`${record.outstandingRequired.length === 1 ? "One required item is" : `${record.outstandingRequired.length} required items are`} still outstanding: ${record.outstandingRequired.map((item) => item.label).join(", ")}.`}
           </Notice>
         ) : null}
+
+        {/* LAN-266. Brian, 2026-09-09, with the recruit record as the model:
+            the same control, in the same position and style — under the card
+            that holds the items and the outstanding banner — with the same
+            status line beneath it. Until now the only way to chase one player
+            was to leave this record for the missing-data queue, and the record
+            never said whether the link had ever been sent. */}
+        <Box sx={{ py: 1.5 }} data-testid="onboarding-send">
+          <SendOnboardingQuestionnaireButton
+            membershipId={record.membershipId}
+            displayName={person.displayName ?? "This player"}
+            everSent={record.send.lastAsk !== null}
+            canSend={record.send.withheldReason === null && !closed}
+            withheldReason={closed ? CLOSED_MEMBERSHIP_REASON : record.send.withheldReason}
+            blocked={!record.send.onboarding || closed}
+          />
+          {sendStatusLines({
+            lastAsk: record.send.lastAsk
+              ? {
+                  requestedAt: record.send.lastAsk.requestedAt.toISOString(),
+                  delivery: record.send.lastAsk.delivery,
+                }
+              : null,
+            chaseLine: formatChaseNext(record.send.next, record.send.hasReachableNumber),
+            chaseIsScheduled: record.send.next.kind === "scheduled",
+            deliveredCount: record.send.deliveredCount,
+            chaseCount: record.send.chaseCount,
+          }).map((line, index) => (
+            <Typography
+              key={line}
+              variant="caption"
+              color="text.secondary"
+              sx={{ display: "block", mt: index === 0 ? 1 : 0.25 }}
+              data-testid={`onboarding-send-caption-${index}`}
+            >
+              {line}
+            </Typography>
+          ))}
+        </Box>
       </Section>
 
       {/* --------------------------------------------------------- Activity -- */}

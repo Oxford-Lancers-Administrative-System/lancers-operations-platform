@@ -10,6 +10,10 @@ import {
   type OnboardingItemStatus,
 } from "@/lib/services/membership";
 import {
+  sendOnboardingNudges,
+  type OnboardingNudgeResult,
+} from "@/lib/services/messaging-scheduler";
+import {
   commitAvailability,
   commitBlues,
   commitCoachGroup,
@@ -214,6 +218,51 @@ export async function recordCommitAvailabilityAction(params: {
  * author is still required, and `resolveOnboardingItem()` supplies it from
  * the verified operator this gate resolves.
  */
+/**
+ * The record's own **Send onboarding questionnaire** — LAN-266.
+ *
+ * Brian, 2026-09-09, with the recruit record as the model: "onboarding gets
+ * the same thing, on the player's record, working the way the recruitment one
+ * works." An operator looking at one player had to leave the record, find
+ * their row in the missing-data queue, and nudge from there, and the record
+ * itself never said whether the link had ever been sent.
+ *
+ * This calls `sendOnboardingNudges` with exactly one membership — the same
+ * function `/operate/people/missing`'s own Nudge calls, unchanged. That is
+ * requirement 6, and it is a call rather than a new send path precisely
+ * because of it: one job type, one idempotency-key prefix, one activity-log
+ * entry, so a nudge from either place appears identically in this record's
+ * Activity section and in the queue's Last contact and Next columns. It also
+ * dispatches within the action, so the dialog reports **Sent** only on
+ * provider acceptance and a named refusal otherwise (LAN-237's own rule,
+ * which `sendOnboardingNudges` already satisfied before this button existed —
+ * see LAN-237's blast-radius audit).
+ *
+ * `person_record_authority`, the same four-role gate every other write on
+ * this record uses and the same one the queue's own nudge action uses.
+ *
+ * Both routes are revalidated: the queue's Last contact and Next columns are
+ * now stale the moment this succeeds, exactly as they are after a nudge made
+ * from the queue itself.
+ */
+export async function recordSendOnboardingQuestionnaireAction(params: {
+  membershipId: string;
+}): Promise<BoardActionState & { outcome: OnboardingNudgeResult["outcome"] | null }> {
+  const operator = await requireCapability("person_record_authority");
+  let results: readonly OnboardingNudgeResult[];
+  try {
+    results = await sendOnboardingNudges(operator.personId, [params.membershipId]);
+  } catch (error) {
+    return { ...stateFor(error), outcome: null };
+  }
+
+  revalidatePath("/operate/people/missing");
+  refresh(params.membershipId);
+
+  const outcome = results[0]?.outcome ?? null;
+  return { error: null, outcome };
+}
+
 export async function recordResolveOnboardingItemAction(params: {
   membershipId: string;
   itemId: string;

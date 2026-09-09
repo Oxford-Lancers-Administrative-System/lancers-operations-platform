@@ -34,6 +34,7 @@ import {
 import {
   ONBOARDING_CHASE_ESCALATION_KEY_PREFIX,
   ONBOARDING_CHASE_KEY_PREFIX,
+  ONBOARDING_NUDGE_KEY_PREFIX,
   describeOnboardingChaseNext,
   listOnboardingChaseCandidatesIn,
   readOnboardingChaseProgressIn,
@@ -616,6 +617,77 @@ describe("REQ-operator-nudge — each selected person gets their own compiled as
     expect(sent).toHaveLength(2);
   });
 
+  /**
+   * LAN-266 requirement 4, and its acceptance criterion: "the next automatic
+   * chase is scheduled the configured interval after the manual send." The
+   * manual ask is the same job the record's own **Send onboarding
+   * questionnaire** button writes, so this is that button's arithmetic too.
+   */
+  it("counts a delivered manual ask toward the cap and re-spaces the next automatic one — LAN-266", async () => {
+    const { personId, membershipId } = await createArrival();
+    await grantConsent(personId);
+    await setChase({ firstChaseAfterHours: 48, chaseCount: 4, chaseIntervalDays: 3 });
+
+    const before = await withTransaction((tx) => readOnboardingChaseProgressIn(tx, [membershipId]));
+    expect(before.get(membershipId)?.deliveredCount ?? 0).toBe(0);
+
+    const { transport } = acceptingTransport();
+    const [nudge] = await sendOnboardingNudges(actorPersonId, [membershipId], {
+      source: CONFIGURED,
+      transport,
+    });
+    expect(nudge.outcome).toBe("accepted");
+
+    // Acceptance is not delivery — the cap is spent only on delivery
+    // (`T11-cap-delivered`), and that rule is unchanged by this.
+    const nudgeJob = await observer.query<{ id: string; provider_message_id: string }>(
+      `select j.id, a.provider_message_id
+         from public.notification_jobs j
+         join public.delivery_attempts a on a.notification_job_id = j.id
+        where j.idempotency_key like $1`,
+      [`${ONBOARDING_NUDGE_KEY_PREFIX}${membershipId}:%`],
+    );
+    expect(
+      (await withTransaction((tx) => readOnboardingChaseProgressIn(tx, [membershipId]))).get(
+        membershipId,
+      )?.deliveredCount ?? 0,
+    ).toBe(0);
+
+    await applyProviderCallback(
+      WHATSAPP_CLOUD_PROVIDER,
+      {
+        providerEventId: `${MARKER}-nudge-counts-${nudgeJob.rows[0].id}`,
+        providerMessageId: nudgeJob.rows[0].provider_message_id,
+        providerStatus: "delivered",
+        outcome: "delivered",
+        detail: null,
+      },
+      { signatureVerified: true },
+    );
+
+    const after = await withTransaction((tx) => readOnboardingChaseProgressIn(tx, [membershipId]));
+    const progress = after.get(membershipId);
+    expect(progress?.deliveredCount).toBe(1);
+    expect(progress?.lastDeliveredAt).toBeInstanceOf(Date);
+    // No automated attempt has ever been declared, so the ordinal machinery
+    // is untouched by the manual one.
+    expect(progress?.automatedOrdinal).toBe(0);
+    expect(progress?.automatedAttemptOutstanding).toBe(false);
+
+    const candidates = await withTransaction((tx) => listOnboardingChaseCandidatesIn(tx));
+    const mine = candidates.find((c) => c.membershipId === membershipId);
+    if (!mine) throw new Error("unreachable — the membership is still onboarding");
+    const settings = await withTransaction((tx) => readOnboardingChaseSettingsIn(tx));
+    const next = describeOnboardingChaseNext(mine, settings);
+
+    // Three days after the manual send — the configured interval — and not
+    // 48 hours after joining, which is what an uncounted nudge would leave.
+    expect(next.kind).toBe("scheduled");
+    if (next.kind !== "scheduled") throw new Error("unreachable — asserted above");
+    const sentAt = progress?.lastDeliveredAt as Date;
+    expect(next.at.getTime()).toBe(sentAt.getTime() + 3 * 24 * 3_600_000);
+  });
+
   it("refuses a nudge to a person flagged under 18, by no path at all", async () => {
     const { personId, membershipId } = await createArrival();
     await grantConsent(personId);
@@ -858,6 +930,57 @@ describe("listOnboardingChaseCandidatesIn", () => {
       kind: "unmessageable",
       reason: "no_channel",
     });
+  });
+
+  /**
+   * LAN-249, walker M7's finding M7-05. Montague Everleigh's seeded
+   * `contact.phone.malformed` is "07700 90039" — one digit short, so it is a
+   * *recorded* mobile the compiled ask does not miss, and the queue offered a
+   * live checkbox and Nudge for a person nothing can be sent to. The rule is
+   * now the dispatcher's own `selectMobileNumber`, so a number that cannot be
+   * converted is not a reachable number on any surface.
+   */
+  it("reports no reachable number for a recorded but unusable phone, LAN-249", async () => {
+    const { personId, membershipId } = await createArrival();
+    await grantConsent(personId);
+
+    await observer.query(
+      `update public.contact_points set raw_value = '07700 90039', normalised_value = null
+        where person_id = $1 and kind = 'phone'`,
+      [personId],
+    );
+
+    const candidates = await withTransaction((tx) => listOnboardingChaseCandidatesIn(tx));
+    const mine = candidates.find((c) => c.membershipId === membershipId);
+    expect(mine).toBeTruthy();
+    if (!mine) throw new Error("unreachable — asserted above");
+    // The compiled ask still sees a mobile: this is exactly why reading it
+    // there was not enough.
+    expect(mine.hasOutstanding).toBe(true);
+    expect(mine.hasReachableNumber).toBe(false);
+
+    await setChase({ firstChaseAfterHours: 48, chaseCount: 4, chaseIntervalDays: 3 });
+    const settings = await withTransaction((tx) => readOnboardingChaseSettingsIn(tx));
+    expect(describeOnboardingChaseNext(mine, settings)).toEqual({
+      kind: "unmessageable",
+      reason: "no_channel",
+    });
+  });
+
+  it("still reports a reachable number when only raw_value carries it, LAN-249", async () => {
+    // Roster intake leaves `normalised_value` null on purpose (`roster.ts`),
+    // so "a non-empty normalised_value" would have withheld the nudge from
+    // most of the roster. `selectMobileNumber` reads the raw value too.
+    const { personId, membershipId } = await createArrival();
+    await grantConsent(personId);
+    await observer.query(
+      `update public.contact_points set normalised_value = null
+        where person_id = $1 and kind = 'phone'`,
+      [personId],
+    );
+
+    const candidates = await withTransaction((tx) => listOnboardingChaseCandidatesIn(tx));
+    expect(candidates.find((c) => c.membershipId === membershipId)?.hasReachableNumber).toBe(true);
   });
 
   it("never lists a membership once it leaves onboarding", async () => {

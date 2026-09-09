@@ -92,6 +92,18 @@ Mobile and personal email supersede (`supersedeContactPoint`, unchanged),
 which already keeps the prior value rather than overwriting it — no dispute
 needed there.
 
+**Date of birth is shape-checked here like the two academic years** (LAN-245).
+A future date used to pass this form untouched, reach
+`people_date_of_birth_in_the_past`, and take the whole page down to the
+generic error boundary with a 500 — the player left on a crash screen with no
+guidance about which of fourteen fields was wrong. It now gets an inline field
+message ("A date of birth has to be in the past."), the value alone stays
+unwritten, and everything else in the same submission still commits, exactly
+as an implausible matriculation year already behaved. The rule is
+`validateDateOfBirth` in `person-validation.ts`, the same one the operator's
+own edit form asks (`LAN-185-person-write.md`), so the two surfaces cannot
+refuse the same value two different ways.
+
 ### Steps 2 and 3 — the two documents (`W4-03`, `W4-04`)
 
 Each is its own page: the document, scrolled, and an agreement reachable
@@ -110,6 +122,20 @@ double-clicked form is not a failure.
 Document and instruction text is a labelled placeholder in the real
 versioned `onboarding_agreement_versions` slot the migration already seeded
 — **LAN-213** owes the real wording. Nothing here invents club policy.
+
+**The item, not the agreement row, is what these two steps obey** (LAN-240).
+The sequence used to read either signal — "the item is complete **or** an
+agreement row exists" — and the step's own "Already agreed" panel read the row
+alone. So when an operator reopened Photo release from the record (setting it
+back to `No`, the shipped mechanism), the row survived, the sequence skipped
+the step, and a direct load of it printed "Already agreed" beneath a navigator
+reading "Outstanding". The reopen now removes that row
+(`LAN-217-operator-record.md`), and the item's status is what both the
+navigator and the panel read whenever the item exists. The row remains the
+fallback for the one case it was introduced for — a membership with no
+configured `code_of_conduct`/`photo_release` item at all, where there is
+nothing for a completion to mark and a player who did agree would otherwise
+resume to the same step forever.
 
 ### Steps 4 and 5 — BUCS Play and Hudl (`W4-05`, `W4-06`)
 
