@@ -152,6 +152,50 @@ export async function readOnboardingAgreementsIn(
   return result.rows.map((row) => toAgreement(row as unknown as AgreementRow));
 }
 
+/**
+ * Removes one season's agreement row so the document can be agreed again —
+ * LAN-240 (walker M7, finding M7-01), the blocker that broke the M7 journey
+ * at its last step.
+ *
+ * There is no reopen verb (D-002): an operator reopens the photo release or
+ * the Code of Conduct by setting that item's own state back to "No" on the
+ * record. That flipped `onboarding_items.status` and nothing else, so the
+ * `onboarding_agreements` row — unique per (person, season, type), and by
+ * this module's own design never updated — survived. The player's link then
+ * said two contradictory things at once: the navigator read "PHOTO RELEASE —
+ * Outstanding" above a panel reading "Already agreed", and a bare load of the
+ * link resumed at "There is nothing left to fill in". The player could never
+ * see or act on the reopened item, and `recordOnboardingAgreementIn` would
+ * have refused a second agreement anyway.
+ *
+ * Deleted rather than superseded, on the Lead's recorded migration review
+ * (2026-09-09): this package is schema-free, and nothing is lost by the
+ * delete. `onboarding_item_history` already holds the transition that agreed
+ * the item and the one that reopened it, with the actor and the moment of
+ * each, and `audit_events` holds the operator's own reopen. What the row
+ * uniquely carried — *which version* was agreed — is carried alongside it in
+ * the item history's own audit trail, and a reopened document is one the club
+ * has decided is no longer agreed, so the version that was agreed is history
+ * rather than standing record.
+ *
+ * Returns the number of rows removed: zero is a legitimate, expected outcome
+ * (an item set back to "No" that the player had never agreed through the
+ * link at all), and is recorded as one by the caller rather than treated as
+ * a failure.
+ */
+export async function deleteOnboardingAgreementIn(
+  tx: Tx,
+  params: { personId: string; seasonId: string; agreementType: OnboardingAgreementType },
+): Promise<number> {
+  const result = await tx.query(
+    `delete from public.onboarding_agreements
+      where person_id = $1::uuid and season_id = $2::uuid
+        and agreement_type = $3::public.onboarding_agreement_type`,
+    [params.personId, params.seasonId, params.agreementType],
+  );
+  return result.rowCount ?? 0;
+}
+
 /** Convenience wrapper for a caller with no open transaction. */
 export async function readOnboardingAgreements(
   personId: string,

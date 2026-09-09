@@ -20,7 +20,8 @@ import type { Client } from "pg";
 import { EMAIL_SHAPE, PHONE_SHAPE } from "@/app/operate/roster/new/validation";
 import { closePool, withTransaction } from "@/lib/db";
 import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
-import { generateOnboardingItems } from "./membership";
+import { generateOnboardingItems, resolveOnboardingItem } from "./membership";
+import { readOnboardingAgreements } from "./onboarding-agreements";
 import { hasGrantedSeasonMessagingConsentIn } from "./messaging-consent";
 import { resolveOpenSeason } from "./roster";
 import { updatePersonField } from "./person-write";
@@ -418,6 +419,38 @@ describe("saveDetailsStep", () => {
     expect(view?.person.matriculationYear).toBeNull(); // the malformed one alone stayed unwritten
   });
 
+  /**
+   * LAN-245, walker M7's finding M7-03: 31/12/2030 in the segmented picker
+   * reached `people_date_of_birth_in_the_past` and the refusal escaped the
+   * server action as a 500 and the generic error boundary. It has to behave
+   * exactly as the malformed matriculation year above already does — an
+   * inline field message, everything else in the same submission kept.
+   */
+  it("refuses a future date of birth inline, keeping the rest of the same submission — LAN-245", async () => {
+    const { personId, membershipId } = await givenPlayer();
+
+    const result = await saveDetailsStep(
+      baseDetailsInput(personId, openSeasonId, membershipId, {
+        fields: {
+          given_name: "Jordan",
+          family_name: "Ashworth",
+          college: "Brasenose",
+          matriculation_year: "2024",
+          expected_graduation_year: "2027",
+          degree_field: "Engineering Science",
+          date_of_birth: "2030-12-31",
+        },
+      }),
+    );
+
+    expect(result.errors.date_of_birth).toBe("A date of birth has to be in the past.");
+
+    const view = await readQuestionnaireView(personId, openSeasonId);
+    expect(view?.person.dateOfBirth).toBeNull(); // the future one alone stayed unwritten
+    expect(view?.person.college).toBe("Brasenose");
+    expect(view?.person.matriculationYear).toBe(2024);
+  });
+
   it("self-corrects a field the player themselves supplied earlier, with no dispute", async () => {
     const { personId, membershipId } = await givenPlayer();
     await saveDetailsStep(baseDetailsInput(personId, openSeasonId, membershipId));
@@ -780,6 +813,111 @@ describe("readQuestionnaireView — the finishing sequence", () => {
     expect(view?.nothingOutstanding).toBe(true);
     expect(view?.nextStep).toBe("done");
     expect(view?.outstandingSections).toEqual([]);
+  });
+
+  /**
+   * LAN-240, walker M7's blocker (finding M7-01), end to end: the operator
+   * reopens, and the player's own link has to see it. Before the fix, step 4
+   * of the reproduction read "There is nothing left to fill in" and step 5
+   * showed "Already agreed" beneath a navigator saying "Outstanding".
+   */
+  it("resumes at a reopened agreement, and reports it outstanding, not already agreed", async () => {
+    const { personId, membershipId } = await givenPlayer();
+    await saveDetailsStep(baseDetailsInput(personId, openSeasonId, membershipId));
+    await agreeOnboardingDocument({
+      personId,
+      seasonId: openSeasonId,
+      membershipId,
+      agreementType: "code_of_conduct",
+    });
+    await agreeOnboardingDocument({
+      personId,
+      seasonId: openSeasonId,
+      membershipId,
+      agreementType: "photo_release",
+    });
+    await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "bucs_play" });
+    await claimTrustItem({ personId, seasonId: openSeasonId, membershipId, code: "hudl_access" });
+    expect((await readQuestionnaireView(personId, openSeasonId))?.nothingOutstanding).toBe(true);
+
+    // The shipped reopen mechanism (D-002): the operator names the item's own
+    // state, back to "No". There is no separate reopen verb.
+    const itemId = await observer.query<{ id: string }>(
+      `select i.id from public.onboarding_items i
+         join public.onboarding_item_types t on t.id = i.item_type_id
+        where i.season_membership_id = $1::uuid and t.code = 'photo_release'`,
+      [membershipId],
+    );
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: itemId.rows[0].id,
+      status: "pending",
+    });
+
+    const agreements = await readOnboardingAgreements(personId, openSeasonId);
+    expect(agreements.map((a) => a.agreementType)).toEqual(["code_of_conduct"]);
+
+    const view = await readQuestionnaireView(personId, openSeasonId);
+    // Step 4 of the reproduction: a bare load resumes at the reopened step.
+    expect(view?.nothingOutstanding).toBe(false);
+    expect(view?.nextStep).toBe("photo_release");
+    expect(view?.outstandingSections.map((s) => s.section)).toEqual(["Photo release"]);
+    // Step 5: the step itself reads outstanding, and the panel that used to
+    // print "Already agreed" is driven by this same answer.
+    expect(view?.documentAgreed).toEqual({ code_of_conduct: true, photo_release: false });
+
+    // And the player can genuinely act on it — the write that
+    // `onboarding_agreements_one_per_person_season_type` used to refuse.
+    await agreeOnboardingDocument({
+      personId,
+      seasonId: openSeasonId,
+      membershipId,
+      agreementType: "photo_release",
+    });
+    const after = await readQuestionnaireView(personId, openSeasonId);
+    expect(after?.nothingOutstanding).toBe(true);
+    expect(after?.documentAgreed.photo_release).toBe(true);
+  });
+
+  it("keeps the agreement's own record when an item is set to a state that is still complete", async () => {
+    const { personId, membershipId } = await givenPlayer();
+    await agreeOnboardingDocument({
+      personId,
+      seasonId: openSeasonId,
+      membershipId,
+      agreementType: "code_of_conduct",
+    });
+
+    // Not a reopen: `complete` → `complete` is refused as a no-op, so the
+    // only transitions this item has are to and from `pending`. Reopening and
+    // re-completing by hand must leave the player able to agree, and must not
+    // remove a row the second time round.
+    const itemId = await observer.query<{ id: string }>(
+      `select i.id from public.onboarding_items i
+         join public.onboarding_item_types t on t.id = i.item_type_id
+        where i.season_membership_id = $1::uuid and t.code = 'code_of_conduct'`,
+      [membershipId],
+    );
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: itemId.rows[0].id,
+      status: "pending",
+    });
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: itemId.rows[0].id,
+      status: "complete",
+    });
+
+    // The operator marked it done themselves. The agreement row stays gone —
+    // nobody re-agreed — but the item is what the player's link obeys, so the
+    // step is settled and the player is not asked again.
+    expect(await readOnboardingAgreements(personId, openSeasonId)).toEqual([]);
+    const view = await readQuestionnaireView(personId, openSeasonId);
+    expect(view?.documentAgreed.code_of_conduct).toBe(true);
   });
 
   it("never lists an operator-only item (subs, kit, comms) as the player's own outstanding", async () => {

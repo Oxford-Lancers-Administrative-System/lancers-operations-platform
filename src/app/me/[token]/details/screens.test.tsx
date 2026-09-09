@@ -121,6 +121,7 @@ function view(overrides: Partial<QuestionnaireView> = {}): QuestionnaireView {
       date_of_birth: null,
     },
     agreements: { code_of_conduct: null, photo_release: null },
+    documentAgreed: { code_of_conduct: false, photo_release: false },
     itemStatus: {
       code_of_conduct: "pending",
       photo_release: "pending",

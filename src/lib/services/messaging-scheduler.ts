@@ -1928,14 +1928,22 @@ export async function dispatchOnboardingWelcomeJob(
  * and dispatch still has to stop the send.
  *
  * Idempotent by construction: `onboardingChaseIdempotencyKey` encodes the
- * membership and the ordinal, so a membership whose current ordinal already
- * exists — whether it delivered, is still retrying, or failed terminally —
- * is a no-op here. That is also what makes `T11-terminal-failure` hold with
- * no extra code: a terminally failed ordinal never advances `deliveredCount`,
- * so this function keeps recomputing the identical, already-existing key and
- * never tries the next one automatically. "No automated email goes in its
- * place" is therefore a property of the arithmetic, not a branch that has to
- * remember to check for it.
+ * membership and the ordinal, and the ordinal advances only past an attempt
+ * that actually delivered (`automatedOrdinal`/`automatedAttemptOutstanding`,
+ * LAN-266). A membership whose latest attempt has not delivered — still
+ * pending, still retrying, or failed terminally — is skipped, so at most one
+ * automated attempt is ever live. That is also what keeps
+ * `T11-terminal-failure` holding: a terminally failed ordinal is outstanding
+ * by definition, so no automated attempt goes in its place, and the explicit
+ * `currentAttemptTerminallyFailed` guard below says so in its own words
+ * rather than leaving the reader to derive it.
+ *
+ * Before LAN-266 both facts were read off `deliveredCount + 1` instead. That
+ * was exact only while `deliveredCount` counted automated attempts alone; a
+ * manual ask now counts too (Brian's own decision — the record's send "counts
+ * toward the configured chase count, and re-spaces the next automatic chase
+ * from this send"), so the ordinal is read from the keys that exist and the
+ * one-in-flight rule is checked rather than inferred.
  */
 async function declareDueOnboardingChasesIn(): Promise<{ declared: number }> {
   return withTransaction(async (tx) => {
@@ -1961,8 +1969,15 @@ async function declareDueOnboardingChasesIn(): Promise<{ declared: number }> {
           ? settings.firstChaseAfterHours
           : settings.chaseIntervalDays * 24;
       if (base.getTime() + hours * 3_600_000 > now) continue;
+      // LAN-266: one automated attempt in flight at a time. This used to fall
+      // out of the arithmetic — the key was `deliveredCount + 1`, so an
+      // undelivered attempt kept recomputing its own already-existing key and
+      // the insert was a no-op. Now that a manual ask counts toward
+      // `deliveredCount` too, that key would move while the attempt it names
+      // is still live, so the property is stated instead of inferred.
+      if (candidate.automatedAttemptOutstanding) continue;
 
-      const ordinal = candidate.deliveredCount + 1;
+      const ordinal = candidate.automatedOrdinal + 1;
       const idempotencyKey = onboardingChaseIdempotencyKey(candidate.membershipId, ordinal);
       const inserted = await tx.query<{ id: string }>(
         `insert into public.notification_jobs
