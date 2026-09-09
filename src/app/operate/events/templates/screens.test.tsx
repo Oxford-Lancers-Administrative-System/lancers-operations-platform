@@ -314,6 +314,16 @@ describe("W8-02 — one template", () => {
     expect(text).not.toContain("reminder");
   });
 
+  // LAN-264. A template whose default equipment is three lines must produce an
+  // event with the same three lines, which starts with being able to type them.
+  it("offers Required equipment as a multi-line field, like Description", async () => {
+    const { container } = render(await EventTemplatePage(typeProps()));
+
+    const equipment = container.querySelector('[name="defaultRequiredEquipment"]');
+    expect(equipment?.tagName).toBe("TEXTAREA");
+    expect(container.querySelector('[name="defaultDescription"]')?.tagName).toBe("TEXTAREA");
+  });
+
   it("asks for a default length as a fixed field, not a start time", async () => {
     const { container } = render(await EventTemplatePage(typeProps()));
 

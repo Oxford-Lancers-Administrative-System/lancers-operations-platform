@@ -1449,6 +1449,9 @@ describe("the public tier reads a narrower event", () => {
       "id",
       "isCancelled",
       "isMandatory",
+      // LAN-284. The public tier gained exactly one key, and this exact-key-set
+      // assertion is what proves nothing else came with it.
+      "joiningUrl",
       "name",
       "requiredEquipment",
       "scheduledOn",
@@ -1457,9 +1460,10 @@ describe("the public tier reads a narrower event", () => {
     ]);
   });
 
-  it("says an online event is online, and never how to join it", async () => {
-    // `REQ-no-joining-url`. The operator's read carries the URL; the public one
-    // has no field for it and never selected the column.
+  it("says an online event is online, and how to join it — LAN-284", async () => {
+    // The inverse of the assertion it replaces. `REQ-no-joining-url` was
+    // reversed on 2026-09-09: both tiers now read the same link, because the
+    // protection lives on the meeting rather than on the schedule.
     const operatorList = await listCurrentSeasonEvents();
     const online = operatorList.events.find((event) => event.deliveryMode === "online");
     expect(online, "the seeded season has no online event").toBeDefined();
@@ -1469,7 +1473,17 @@ describe("the public tier reads a narrower event", () => {
 
     const publicDetail = await readPublicEvent(online!.id);
     expect(publicDetail.deliveryMode).toBe("online");
-    expect(JSON.stringify(publicDetail)).not.toContain(operatorDetail.joiningUrl!);
+    expect(publicDetail.joiningUrl).toBe(operatorDetail.joiningUrl);
+  });
+
+  it("carries no joining link for an in-person event", async () => {
+    // The schema's own constraint, read back at the public tier: only an online
+    // event may hold one, so publishing the column widens nothing else.
+    const operatorList = await listCurrentSeasonEvents();
+    const inPerson = operatorList.events.find((event) => event.deliveryMode === "in_person");
+    expect(inPerson, "the seeded season has no in-person event").toBeDefined();
+
+    expect((await readPublicEvent(inPerson!.id)).joiningUrl).toBeNull();
   });
 
   it("refuses an event from a season the club is not operating", async () => {

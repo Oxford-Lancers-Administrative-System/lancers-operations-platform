@@ -310,9 +310,28 @@ export function cancelConfirmLabel(typeLabel: string): string {
   return `Cancel the ${typeLabel.toLowerCase()}`;
 }
 
-/** W6-01 leads with the number of people expecting to be there, not with the name. */
-export function expectingToBeThere(saidYes: number): string {
-  return `${saidYes} ${people(saidYes)} ${saidYes === 1 ? "is" : "are"} expecting to be there.`;
+/**
+ * W6-01 leads with the number of people expecting to be there, not with the name.
+ *
+ * ## Why the invited count is in the same sentence — LAN-242
+ *
+ * "Expecting to be there" means **said yes**, and that is settled: the
+ * attendance board splits on the standing RSVP for exactly this phrase, and
+ * Brian's own words there are that a no and a nonresponse are the same
+ * expectation — "those are not the people I'm expecting to be there"
+ * (14 August 2026). This function does not reopen that.
+ *
+ * What it fixes is the sentence a freshly approved event produced: nobody has
+ * answered yet, so the headline read **0 people are expecting to be there** in
+ * `h5` over an event with sixty-one invitations out, and a walker reported it
+ * as the same "0 people" defect the audience heading had (LAN-239, M2). The
+ * count was true and the screen was still misleading, because the number that
+ * makes a cancellation consequential — how many people were told this is on —
+ * was one size down in secondary text. Both numbers now lead together, so the
+ * zero is a state rather than a claim that cancelling reaches nobody.
+ */
+export function expectingToBeThere(saidYes: number, invited: number): string {
+  return `${saidYes} of ${invited} invited ${saidYes === 1 ? "is" : "are"} expecting to be there.`;
 }
 
 export function everyoneWillBeTold(recipients: number): string {
@@ -324,10 +343,14 @@ export function nobodyWillBeTold(recipients: number): string {
 }
 
 /** W6-03's silencing confirmation, counted in people. */
-export function cancelSilenceConsequence(saidYes: number, venue: string | null): string {
+export function cancelSilenceConsequence(
+  saidYes: number,
+  invited: number,
+  venue: string | null,
+): string {
   const where = venue ? ` at ${venue}` : "";
   return (
-    `${saidYes} ${people(saidYes)} ${saidYes === 1 ? "is" : "are"} expecting to be there${where}. ` +
+    `${saidYes} of ${invited} invited ${saidYes === 1 ? "is" : "are"} expecting to be there${where}. ` +
     "If you cancel without telling them, nobody will be told it is off."
   );
 }

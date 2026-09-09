@@ -1055,6 +1055,17 @@ describe("UX-31 — creating an event", () => {
     expect(screen.queryByTestId("audience-comes-later")).toBeNull();
     expect(screen.getByTestId("save-and-choose-audience")).toBeVisible();
   });
+
+  // LAN-264 — Brian, 2026-09-09: required equipment is free-form text that
+  // functions exactly like Description. It was a one-line `Field`, so Enter
+  // submitted the form and a kit list could not be entered at all.
+  it("offers Required equipment as a multi-line field, like Description", async () => {
+    render(await NewEventPage(newProps()));
+
+    expect(screen.getByLabelText("Required equipment").tagName).toBe("TEXTAREA");
+    expect(screen.getByLabelText("Description").tagName).toBe("TEXTAREA");
+    expect(screen.getByText("What to bring. Leave empty if nothing.")).toBeVisible();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1307,8 +1318,13 @@ describe("UX-32 — a draft event", () => {
     expect(flatten(screen.getByTestId("joining-url-fact").textContent)).toContain(
       "https://teams.example.invalid/l/meetup-join/chalk",
     );
+    // LAN-284. The note reversed with the rule: the link is published now, and
+    // the operator is told so where they can still do something about it.
     expect(flatten(screen.getByTestId("joining-url-fact").textContent)).toContain(
-      "Never shown on the public calendar",
+      "Published on the public calendar and in the subscription feed",
+    );
+    expect(flatten(screen.getByTestId("joining-url-fact").textContent)).toContain(
+      "Make sure the meeting itself requires a passcode",
     );
   });
 
@@ -2233,6 +2249,65 @@ describe("the participation table on the event page", () => {
     expect(screen.queryByTestId("event-audience")).toBeNull();
     expect(screen.getByTestId("participation-table").getAttribute("data-tier")).toBe("operator");
     expect(screen.getAllByText("Delivered").length).toBeGreaterThan(0);
+  });
+
+  // -------------------------------------------------------------------------
+  // The Distribution note — LAN-243
+  // -------------------------------------------------------------------------
+
+  it("says what was actually delivered, rather than claiming nothing was", async () => {
+    // The defect: `nothing delivered yet` was interpolated unconditionally for
+    // every event with an invitation, so this note contradicted the green
+    // Delivered chips in the table directly beneath it, forever.
+    vi.mocked(readEvent).mockResolvedValue(approvedWithInvitations());
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+    vi.mocked(readOperatorParticipation).mockResolvedValue({
+      ...PARTICIPATION,
+      people: [
+        PARTICIPATION.people[0],
+        { ...PARTICIPATION.people[0], key: "player:2", delivery: "queued" },
+        { ...PARTICIPATION.people[0], key: "player:3", delivery: "failed" },
+      ],
+    });
+
+    render(await EventDetailPage(detailProps()));
+
+    const note = flatten(screen.getByTestId("distribution-fact").textContent);
+    expect(note).toContain("1 delivered");
+    expect(note).toContain("1 queued");
+    expect(note).toContain("1 failed");
+    expect(note).not.toContain("nothing delivered yet");
+  });
+
+  it("names only the states that are present, never a row of zeroes", async () => {
+    vi.mocked(readEvent).mockResolvedValue(approvedWithInvitations());
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+    vi.mocked(readOperatorParticipation).mockResolvedValue(PARTICIPATION);
+
+    render(await EventDetailPage(detailProps()));
+
+    const note = flatten(screen.getByTestId("distribution-fact").textContent);
+    expect(note).toContain("1 delivered");
+    for (const absent of ["queued", "attempted", "retryable", "failed", "held", "cancelled"]) {
+      expect(note, `the note lists a zero for ${absent}`).not.toContain(absent);
+    }
+  });
+
+  it("still says nothing delivered yet before any job has run", async () => {
+    // `docs/operating-the-slice.md` expects those three words in exactly one
+    // state, and this is it: invitations exist, no job has reported anything.
+    vi.mocked(readEvent).mockResolvedValue(approvedWithInvitations());
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+    vi.mocked(readOperatorParticipation).mockResolvedValue({
+      ...PARTICIPATION,
+      people: [{ ...PARTICIPATION.people[0], delivery: null }],
+    });
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(flatten(screen.getByTestId("distribution-fact").textContent)).toContain(
+      "nothing delivered yet",
+    );
   });
 
   it("keeps the audience list for a draft, which has no table to show", async () => {

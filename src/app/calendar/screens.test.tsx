@@ -6,8 +6,8 @@
  * when there is nothing to show, and where every row leads.
  *
  * The two things a mock cannot prove — that reading creates no record, and that
- * no payload carries a joining URL, a person, an answer or an attendance record
- * — are proved against the real database in
+ * no payload carries a person, an answer or an attendance record — are proved
+ * against the real database in
  * `tests/public-calendar-side-effects.test.ts`. This file deliberately does not
  * restate them, because a mocked service cannot write and cannot leak.
  */
@@ -127,6 +127,7 @@ function detail(overrides: Partial<PublicEventDetail> = {}): PublicEventDetail {
     ...entry({ id: EVENT_ID, name: "Chalk — michaelmas week 4" }),
     description: null,
     requiredEquipment: null,
+    joiningUrl: null,
     ...overrides,
   };
 }
@@ -615,17 +616,48 @@ describe("the public event page", () => {
     }
   });
 
-  it("never explains why the joining link is absent", async () => {
-    // Brian has rejected the application narrating its own rules. The page says
-    // the event is online and stops.
+  it("publishes an online event's joining link, as a link — LAN-284", async () => {
     vi.mocked(readPublicEvent).mockResolvedValue(
-      detail({ deliveryMode: "online", venue: "Teams" }),
+      detail({
+        deliveryMode: "online",
+        venue: "Teams",
+        joiningUrl: "https://teams.microsoft.com/l/meetup-join/abc",
+      }),
+    );
+
+    render(await PublicEventPage(eventProps()));
+
+    const fact = screen.getByTestId("public-event-joining-url");
+    const anchor = within(fact).getByRole("link");
+    expect(anchor.getAttribute("href")).toBe("https://teams.microsoft.com/l/meetup-join/abc");
+  });
+
+  it("carries no joining link for an event that has none", async () => {
+    vi.mocked(readPublicEvent).mockResolvedValue(
+      detail({ deliveryMode: "online", venue: "Teams", joiningUrl: null }),
+    );
+
+    render(await PublicEventPage(eventProps()));
+
+    expect(screen.queryByTestId("public-event-joining-url")).toBeNull();
+  });
+
+  it("never explains the joining link's own rules", async () => {
+    // Brian has rejected the application narrating its own rules. The public
+    // page shows the link and stops: the warning about publishing one belongs
+    // on the editor, where the operator can act on it.
+    vi.mocked(readPublicEvent).mockResolvedValue(
+      detail({
+        deliveryMode: "online",
+        venue: "Teams",
+        joiningUrl: "https://teams.microsoft.com/l/meetup-join/abc",
+      }),
     );
 
     const { container } = render(await PublicEventPage(eventProps()));
     const text = flatten(container.textContent);
 
-    expect(text).not.toMatch(/joining details|sent to the people|not shown|is never public/i);
+    expect(text).not.toMatch(/joining details|sent to the people|not shown|passcode/i);
   });
 
   it("marks a cancelled event as cancelled", async () => {

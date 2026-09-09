@@ -44,6 +44,7 @@ function anEvent(overrides: Partial<FeedEvent> = {}): FeedEvent {
     isCancelled: false,
     description: null,
     requiredEquipment: null,
+    joiningUrl: null,
     updatedAt: "2026-10-01T12:00:00.000Z",
     ...overrides,
   };
@@ -212,13 +213,17 @@ describe("buildCalendarFeed", () => {
     expect(document).not.toContain("BEGIN:VEVENT");
   });
 
-  it("carries no field for a person, an RSVP, attendance or a joining URL — structural, not withheld", () => {
+  it("carries no field for a person, an RSVP or attendance — structural, not withheld", () => {
+    // `joiningUrl` used to be on this list and is not any more (LAN-284): the
+    // link is published, so it is proved present below rather than absent here.
+    // Every other name on it is still structural — `FeedEvent` has no field to
+    // read one of them from.
     const document = buildCalendarFeed({
       seasonLabel: "2026-27",
       events: [anEvent()],
       now: GENERATED_AT,
     });
-    for (const forbidden of ["RSVP", "invit", "attend", "joiningUrl", "joining_url"]) {
+    for (const forbidden of ["RSVP", "invit", "attend"]) {
       expect(document.toLowerCase()).not.toContain(forbidden.toLowerCase());
     }
   });
@@ -374,7 +379,7 @@ describe("buildCalendarFeed", () => {
     expect(unfolded).toContain("Trainers and a water bottle");
   });
 
-  it("still carries no person and no joining URL once DESCRIPTION is populated with free text", () => {
+  it("still carries no person once DESCRIPTION is populated with free text", () => {
     // The egress boundary is unchanged by Q-29: only description and required
     // equipment moved. A description that happens to mention something
     // URL-shaped ships as written — this module never parses or redacts it.
@@ -388,12 +393,113 @@ describe("buildCalendarFeed", () => {
       ],
       now: GENERATED_AT,
     });
-    for (const term of ["RSVP", "invit", "attend", "joiningUrl", "joining_url"]) {
+    for (const term of ["RSVP", "invit", "attend"]) {
       expect(document.toLowerCase()).not.toContain(term.toLowerCase());
     }
     // The operator's own text, including its URL-shaped substring, ships
     // verbatim — this module does not parse or strip it.
     expect(document).toContain("https://example.com/not-a-real-joining-link");
+  });
+
+  // -------------------------------------------------------------------------
+  // The joining URL — LAN-284
+  // -------------------------------------------------------------------------
+
+  describe("an online event's joining URL", () => {
+    const JOIN =
+      "https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc123%40thread.v2/0?context=%7b%22Tid%22%3a%22t%22%2c%22Oid%22%3a%22o%22%7d";
+
+    it("is emitted as the URL property, unescaped, so a client renders a link", () => {
+      const document = buildCalendarFeed({
+        seasonLabel: "2026-27",
+        events: [anEvent({ deliveryMode: "online", venue: "Teams", joiningUrl: JOIN })],
+        now: GENERATED_AT,
+      });
+
+      expect(validateICalendar(document)).toEqual([]);
+      // Verbatim: `URL` is URI-typed (RFC 5545 §3.3.13), so the commas and
+      // semicolons a real Teams link carries must survive unescaped. A link
+      // that came back with `\,` in it is a link that does not resolve.
+      expect(unfoldDocument(document)).toContain(`URL:${JOIN}`);
+    });
+
+    it("is never folded into DESCRIPTION", () => {
+      const document = buildCalendarFeed({
+        seasonLabel: "2026-27",
+        events: [
+          anEvent({
+            deliveryMode: "online",
+            joiningUrl: JOIN,
+            description: "Chalk session.",
+            requiredEquipment: null,
+          }),
+        ],
+        now: GENERATED_AT,
+      });
+      const unfolded = unfoldDocument(document);
+      const description = unfolded
+        .split("\r\n")
+        .find((line) => line.startsWith("DESCRIPTION:")) as string;
+      expect(description).toBe("DESCRIPTION:Chalk session.");
+    });
+
+    it("carries no URL property for an in-person event", () => {
+      const document = buildCalendarFeed({
+        seasonLabel: "2026-27",
+        events: [anEvent()],
+        now: GENERATED_AT,
+      });
+      expect(unfoldDocument(document)).not.toContain("URL:");
+    });
+
+    it("still escapes every other URL-shaped value, so only this property is raw", () => {
+      // The whole risk of an unescaped property is that the *rest* of the
+      // document stops being escaped with it. A venue and a description that
+      // both look like links are TEXT and must still come out escaped.
+      const document = buildCalendarFeed({
+        seasonLabel: "2026-27",
+        events: [
+          anEvent({
+            deliveryMode: "online",
+            venue: "https://maps.example.com/?a=1,2;3",
+            description: "Book at https://book.example.com/?x=1,2;3",
+            joiningUrl: JOIN,
+          }),
+        ],
+        now: GENERATED_AT,
+      });
+      const unfolded = unfoldDocument(document);
+
+      expect(unfolded).toContain("LOCATION:https://maps.example.com/?a=1\\,2\\;3");
+      expect(unfolded).toContain("DESCRIPTION:Book at https://book.example.com/?x=1\\,2\\;3");
+      expect(unfolded).toContain(`URL:${JOIN}`);
+      expect(validateICalendar(document)).toEqual([]);
+    });
+
+    it("omits a value that could break the document's line structure or is not a web link", () => {
+      // `safeUri` is the guard that makes emitting one property raw safe. A
+      // newline is the injection an escape would otherwise have prevented; a
+      // `javascript:` value is not a joining link and no subscriber's calendar
+      // should be handed one. Both are omitted, never sanitised into
+      // DESCRIPTION by another route.
+      for (const hostile of [
+        "https://example.com/join\r\nSUMMARY:Injected",
+        "https://example.com/join\nDESCRIPTION:Injected",
+        "javascript:alert(1)",
+        "data:text/html,<script>",
+        "not a url at all",
+        "   ",
+      ]) {
+        const document = buildCalendarFeed({
+          seasonLabel: "2026-27",
+          events: [anEvent({ deliveryMode: "online", joiningUrl: hostile })],
+          now: GENERATED_AT,
+        });
+        expect(document, hostile).not.toContain("URL:");
+        expect(document, hostile).not.toContain("Injected");
+        expect(validateICalendar(document), hostile).toEqual([]);
+      }
+    });
   });
 
   it("escapes DESCRIPTION text containing a backslash, a semicolon, a comma and a newline", () => {

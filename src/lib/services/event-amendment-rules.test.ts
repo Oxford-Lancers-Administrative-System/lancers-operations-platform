@@ -11,6 +11,7 @@ import {
   isMaterial,
   isTerminal,
   MATERIAL_FIELDS,
+  mergeAmendment,
   silenceNeedsConfirmation,
   type AmendableEvent,
 } from "./event-amendment-rules";
@@ -225,5 +226,85 @@ describe("isTerminal — D60", () => {
     expect(isTerminal("cancelled")).toBe(true);
     expect(isTerminal("approved")).toBe(false);
     expect(isTerminal("draft")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// mergeAmendment — LAN-244
+// ---------------------------------------------------------------------------
+
+describe("mergeAmendment — a form cannot revert a field it never touched", () => {
+  /**
+   * The reproduction, in three snapshots.
+   *
+   * Tab A and tab B both loaded `BASE`. Tab A saved a new venue, so the record
+   * now holds it. Tab B, never refreshed, posts its whole snapshot: its own new
+   * description, and `BASE`'s stale venue alongside it.
+   */
+  const CURRENT = moved({ venue: "M2W Tab A Venue" });
+  const TAB_B_SUBMITTED = moved({ description: "Tab B's note." });
+
+  it("keeps what another tab wrote to a field this form did not change", () => {
+    const applied = mergeAmendment(CURRENT, BASE, TAB_B_SUBMITTED);
+
+    expect(applied.venue).toBe("M2W Tab A Venue");
+    expect(applied.description).toBe("Tab B's note.");
+  });
+
+  it("records only the change that was actually made", () => {
+    // The worse half of the defect: the change history stated as fact
+    // "Venue: M2W Tab A Venue -> Iffley Road Astro", a reversion no operator
+    // made, attributed to whoever saved second.
+    const applied = mergeAmendment(CURRENT, BASE, TAB_B_SUBMITTED);
+    const changes = diffAmendment(CURRENT, applied);
+
+    expect(changes.map((change) => change.field)).toEqual(["description"]);
+  });
+
+  it("applies a field this form did change, even where another tab changed it too", () => {
+    // Last write wins on a genuine collision, which is honest -- and it is
+    // recorded as the change it actually was, from the value that was there.
+    const applied = mergeAmendment(
+      CURRENT,
+      BASE,
+      moved({ venue: "Tab B's venue", description: "Tab B's note." }),
+    );
+
+    expect(applied.venue).toBe("Tab B's venue");
+    expect(diffAmendment(CURRENT, applied).map((change) => change.field)).toEqual([
+      "venue",
+      "description",
+    ]);
+  });
+
+  it("carries a field this form cleared, rather than reading the clear as untouched", () => {
+    const applied = mergeAmendment(CURRENT, BASE, moved({ requiredEquipment: null }));
+
+    expect(applied.requiredEquipment).toBeNull();
+  });
+
+  it("treats a trailing space as untouched, exactly as diffAmendment does", () => {
+    const applied = mergeAmendment(CURRENT, BASE, moved({ description: "Full contact.  " }));
+
+    expect(diffAmendment(CURRENT, applied)).toEqual([]);
+  });
+
+  it("changes nothing at all when the form was submitted as it was loaded", () => {
+    expect(mergeAmendment(CURRENT, BASE, { ...BASE })).toEqual(CURRENT);
+  });
+
+  it("carries every kind of field, including the two that are not nullable strings", () => {
+    const applied = mergeAmendment(
+      CURRENT,
+      BASE,
+      moved({ isMandatory: false, deliveryMode: "online", eventType: "chalk", name: "Renamed" }),
+    );
+
+    expect(applied.isMandatory).toBe(false);
+    expect(applied.deliveryMode).toBe("online");
+    expect(applied.eventType).toBe("chalk");
+    expect(applied.name).toBe("Renamed");
+    // ...and still keeps the field it did not touch.
+    expect(applied.venue).toBe("M2W Tab A Venue");
   });
 });

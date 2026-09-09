@@ -5,6 +5,7 @@ import { StatusChip } from "@/components/status-chip";
 import { Notice } from "@/components/notice";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
 import { todayInClubZone } from "@/lib/club-time";
 import { isServiceError } from "@/lib/db";
@@ -14,6 +15,7 @@ import {
   describeAttendance,
   EQUIPMENT_LABEL,
   formatDetailWhen,
+  JOINING_LINK_LABEL,
   labelFor,
   STATUS_LABELS,
   TYPE_LABELS,
@@ -37,17 +39,25 @@ import { readEventYear } from "../year";
  *
  * `REQ-public-calendar` makes that structural rather than a rendering choice: "a
  * public event page renders without touching participation data at all, not
- * merely hides it after loading". `readPublicEvent` reads eleven columns off
+ * merely hides it after loading". `readPublicEvent` reads twelve columns off
  * `events` and joins nothing — no audience, no invitations, no RSVP, no
- * attendance, no delivery, and no `joining_url`.
+ * attendance and no delivery.
  *
- * ## The joining URL of an online event is never here
+ * ## The joining URL of an online event **is** here — LAN-284
  *
- * `REQ-no-joining-url`. Chalk is on Teams (D20), and a publicly readable joining
- * link is an open door into a club meeting for anyone who finds this page. The
- * page says the event is online and where it is *called*; it does not say how to
- * join it, and it does not explain why — the absence needs no label (Brian,
- * 21 August 2026).
+ * That reverses this file's own long-standing rule, so it is recorded rather
+ * than left as a diff. The page used to say the event was online and where it
+ * was *called*, and deliberately not how to join it (`REQ-no-joining-url`,
+ * Brian, 21 August 2026). Brian reversed it on 2026-09-09.
+ *
+ * The calendar stays public — no password gate on `/calendar`, no token on the
+ * feed, no change to the three access tiers. The protection moved to the
+ * meeting instead, which is the only place it can actually hold: a Teams
+ * meeting requires its passcode, shared with the squad privately, on top of the
+ * Oxford-domain approval, so the link alone admits nobody. The consequence is
+ * accepted knowingly: nothing in this application can verify that a given
+ * meeting has a passcode set, so an operator who pastes an open meeting
+ * publishes it to the world. The editor warns them; the control is theirs.
  *
  * ## Scoped to the open season
  *
@@ -119,16 +129,41 @@ export default async function PublicEventPage({ params }: PageProps<"/calendar/[
               label="Attendance"
               value={describeAttendance(event.isMandatory)}
             />
+            {/* LAN-284. Online events only, by the schema's own constraint. */}
+            {event.joiningUrl ? (
+              <Fact
+                testId="public-event-joining-url"
+                label={JOINING_LINK_LABEL}
+                value={
+                  <Link
+                    href={event.joiningUrl}
+                    variant="body2"
+                    rel="noopener noreferrer"
+                    target="_blank"
+                    sx={{ overflowWrap: "anywhere" }}
+                  >
+                    {event.joiningUrl}
+                  </Link>
+                }
+              />
+            ) : null}
+            {/* LAN-264. Free text the operator typed; a kit list stays a list. */}
             {event.requiredEquipment ? (
               <Fact
                 testId="public-event-fact"
                 label={EQUIPMENT_LABEL}
                 value={event.requiredEquipment}
+                multiline
               />
             ) : null}
             {event.description ? (
               <Box sx={{ gridColumn: { sm: "1 / -1" } }}>
-                <Fact testId="public-event-fact" label="Description" value={event.description} />
+                <Fact
+                  testId="public-event-fact"
+                  label="Description"
+                  value={event.description}
+                  multiline
+                />
               </Box>
             ) : null}
           </FactGrid>

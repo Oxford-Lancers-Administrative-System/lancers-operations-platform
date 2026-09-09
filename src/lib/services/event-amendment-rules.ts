@@ -207,6 +207,69 @@ export function hasMaterialChange(changes: readonly AmendmentChange[]): boolean 
   return changes.some((change) => change.material);
 }
 
+/**
+ * The amendment a submitted form actually asks for, against the record as it
+ * stands now — LAN-244.
+ *
+ * ## The defect
+ *
+ * The amend form posts a whole snapshot of the event, every field, whether or
+ * not the operator touched it. Two tabs open on one event is then destructive
+ * by construction: tab A saves a new venue; tab B, loaded before that and never
+ * refreshed, saves a description and carries the *old* venue along with it, so
+ * the venue silently reverts. Worse than the data loss is the record it wrote —
+ * the change history stated as fact "Venue: M2W Tab A Venue → Blues Gym, Iffley
+ * Road", an amendment no operator made, attributed to whoever saved second
+ * (LAN-239, walker M2).
+ *
+ * ## The rule
+ *
+ * A form that never touched a field cannot change it. `baseline` is the event
+ * as that form loaded it, so `baseline` versus `submitted` is exactly "what did
+ * this operator type", and every other field keeps whatever `current` holds —
+ * including a value some other tab wrote in the meantime. Two operators editing
+ * two different fields both get their change; two editing the *same* field is
+ * still last-write-wins, which is honest and is recorded as the change it
+ * actually was.
+ *
+ * Compared through `diffAmendment`, so "touched" here means exactly what
+ * "changed" means everywhere else: normalised, so a trailing space is not an
+ * edit, and a `null`-versus-empty-string difference is not one either.
+ */
+export function mergeAmendment(
+  current: AmendableEvent,
+  baseline: AmendableEvent,
+  submitted: AmendableEvent,
+): AmendableEvent {
+  const touched = new Set(diffAmendment(baseline, submitted).map((change) => change.field));
+  const merged = { ...current };
+
+  for (const field of AMENDABLE_FIELDS) {
+    if (!touched.has(field)) continue;
+    // Each arm assigns one field to itself, which is the only way to keep the
+    // union of value types sound without casting the whole record to `any`.
+    switch (field) {
+      case "isMandatory":
+        merged.isMandatory = submitted.isMandatory;
+        break;
+      case "deliveryMode":
+        merged.deliveryMode = submitted.deliveryMode;
+        break;
+      case "name":
+        merged.name = submitted.name;
+        break;
+      case "eventType":
+        merged.eventType = submitted.eventType;
+        break;
+      default:
+        merged[field] = submitted[field];
+        break;
+    }
+  }
+
+  return merged;
+}
+
 // ---------------------------------------------------------------------------
 // The one notify decision
 // ---------------------------------------------------------------------------

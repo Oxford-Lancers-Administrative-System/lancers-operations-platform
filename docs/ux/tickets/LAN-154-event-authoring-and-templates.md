@@ -88,10 +88,20 @@ Everything else in both tickets stands, including the empty-audience refusal
 - **The type's template fills the form in**, field by field, and changing the
   type replaces **only the fields nobody has touched** (D41). Picking the wrong
   type first does not cost an operator the description they just wrote.
-- **Description and required equipment are separate fields** (D17, D18).
+- **Description and required equipment are separate fields** (D17, D18), and
+  both are **multi-line free text** (LAN-264, Brian 2026-09-09). Required
+  equipment was a one-line input, which meant Enter submitted the form and a kit
+  list could not be written at all; it now behaves exactly like Description, on
+  the event editor, the amend form and the template editor, and the line breaks
+  an operator types survive on every screen that shows it. D17's reason for a
+  separate field stands: it must not be buried in the description paragraph. It
+  is still one free-text field and not a structured list of items.
 - **In person or online is a property**, and the venue field takes an address or
   a destination accordingly (D20, D21). A joining link exists only for an online
-  event and is never public.
+  event, and it **is** public — LAN-284 reversed the never-public rule (Brian,
+  2026-09-09). The editor warns the operator whenever the delivery mode is
+  online: the link is published on the public calendar and in the subscription
+  feed, so the meeting itself must require a passcode.
 - **Times are five-minute increments, in Europe/London, with the zone stated**
   (D78, D86). Entering a start fills the end from the type's default length; an
   end the operator sets is left alone. The control is a deliberately-drawn
@@ -136,6 +146,15 @@ and `summariseAudienceGroups` from the approval review rather than a second
 implementation of the same rule. A person added individually still reads
 truthfully: no group is named unless it was wholly chosen.
 
+**Somebody who has since gone inactive is still one of the people** (LAN-242).
+The count is of the audience as it was saved, not of the audience re-resolved
+against today's catalogue: a membership that lapsed after the draft was written
+leaves a row in `event_audience_members` and a name on the screen, and the
+heading counts them. It used to refuse the whole selection instead and print
+"0 people" over the full list, on every event with any history at all. They are
+counted, never named as a group and never called "chosen by hand"; the approval
+review's **No longer active** metric is where that fact is stated.
+
 **Delete lives on the draft's own event page** (Brian, 2026-08-21), low emphasis
 and destructive — not on the create form, where there is nothing yet to delete.
 The confirmation names the event, says it cannot be brought back, and says
@@ -176,6 +195,8 @@ not and why**, and what will not move at all. The button says what it will do.
 | No unit or kit groups; the unit control filters                                   | D44                                |
 | Inactive people are never invited                                                 | D45                                |
 | Description and required equipment are separate fields                            | D17, D18                           |
+| **Required equipment is multi-line free text, exactly like Description**          | LAN-264, Brian 2026-09-09          |
+| **An online event's joining link is published on the public calendar**            | LAN-284, Brian 2026-09-09          |
 | Online or in person is a property; venue follows it                               | D20, D21                           |
 | `Response requested` is removed                                                   | D23                                |
 | Five-minute increments; end follows start; Europe/London stated                   | D78, D86                           |

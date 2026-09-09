@@ -66,12 +66,30 @@ import { EQUIPMENT_LABEL } from "./event-vocabulary";
  * ## What the feed still leaves out, and why that is structural
  *
  * Q-29 widened `DESCRIPTION`, not this boundary. `FeedEvent` has no field for
- * a person, an RSVP, attendance, or an online event's joining URL — the same
- * absence `PublicEventListEntry` has, for the same reason (`./events.ts`).
- * There is nothing here to withhold because there is nothing here to read one
- * of them from. `description` is free-form operator text and ships exactly as
- * written, including anything in it that merely resembles a URL — this module
- * does not parse or redact it, only escape it like any other text value.
+ * a person, an RSVP or attendance — the same absence `PublicEventListEntry`
+ * has, for the same reason (`./events.ts`). There is nothing here to withhold
+ * because there is nothing here to read one of them from. `description` is
+ * free-form operator text and ships exactly as written, including anything in
+ * it that merely resembles a URL — this module does not parse or redact it,
+ * only escape it like any other text value.
+ *
+ * ## `URL` carries an online event's joining link — LAN-284
+ *
+ * The joining URL used to be on that list. Brian reversed it on 2026-09-09:
+ * the calendar stays public and the protection lives on the meeting, so the
+ * link is published here as it is on the public event page. It goes in the
+ * `URL` property rather than appended to `DESCRIPTION`, because `URL` is what
+ * Google, Apple and Outlook render as a tappable link on the entry — a link
+ * buried in description text is a string the subscriber has to copy out.
+ *
+ * That property is the **one** place in this document that is not TEXT.
+ * RFC 5545 §3.3.13 types `URL` as URI, and a URI value is not escaped: running
+ * `escapeText` over it would turn every `,` and `;` in a real Teams link into
+ * `\,` and `\;` and hand the subscriber a link that does not resolve. So it is
+ * emitted raw — and, because it is emitted raw, {@link safeUri} is what stands
+ * between operator-entered text and the document's own line structure. Every
+ * other value in this file, `DESCRIPTION` included, is still escaped exactly as
+ * it was; `calendar-feed.test.ts` asserts both halves of that.
  *
  * ## Times, and the defect this module exists not to repeat
  *
@@ -107,6 +125,12 @@ export interface FeedEvent {
   description: string | null;
   /** D17. Free-form operator text. Combined with `description` into `DESCRIPTION`. Q-29. */
   requiredEquipment: string | null;
+  /**
+   * The online event's joining link — LAN-284. Emitted as `URL`, never inside
+   * `DESCRIPTION`. `null` for an in-person event, and for an online one nobody
+   * has pasted a link into yet.
+   */
+  joiningUrl: string | null;
   /** ISO 8601 instant — `events.updated_at`. `SEQUENCE` is derived from this. */
   updatedAt: string;
 }
@@ -170,6 +194,44 @@ export function escapeText(value: string): string {
     .replace(/;/g, "\\;")
     .replace(/,/g, "\\,")
     .replace(/\r\n|\r|\n/g, "\\n");
+}
+
+/**
+ * The `URL` property's value, or `null` to omit the property — LAN-284.
+ *
+ * `URL` is RFC 5545's one URI-typed property in this document, so its value is
+ * **not** run through {@link escapeText}: a URI is emitted as written, and
+ * escaping a real meeting link's commas and semicolons would break it. That
+ * makes this the one place where operator-entered text reaches the document
+ * unescaped, so this function is the guard rather than a tidy-up:
+ *
+ *   * **No control characters, and no line break of any kind.** This is the
+ *     load-bearing check. A newline in a raw value would end the content line
+ *     early and let whatever followed be parsed as its own iCalendar property —
+ *     the injection that escaping prevents everywhere else in the file.
+ *   * **`http` or `https` only, parsed rather than pattern-matched.** A
+ *     `javascript:` or `data:` value is not a joining link, and no subscriber's
+ *     calendar should be handed one. Anything that is not an absolute URL at
+ *     all is simply omitted; the operator's own event page still shows what
+ *     they typed, so nothing is lost and nothing invalid is published.
+ *
+ * A refusal here omits the property. It never falls back to `DESCRIPTION`,
+ * which would smuggle the same value into the document by another route.
+ */
+export function safeUri(value: string | null): string | null {
+  if (value === null) return null;
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  if (/[\u0000-\u001f\u007f]/.test(trimmed)) return null;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+  return trimmed;
 }
 
 const MAX_LINE_OCTETS = 75;
@@ -354,6 +416,7 @@ function buildVEventLines(event: FeedEvent, now: Date): string[] {
   const timing = eventTiming(event);
   const location = locationFor(event);
   const description = descriptionFor(event);
+  const joiningUrl = safeUri(event.joiningUrl);
   const dateParam = timing.allDay ? ";VALUE=DATE" : "";
 
   const lines = [
@@ -366,6 +429,9 @@ function buildVEventLines(event: FeedEvent, now: Date): string[] {
   lines.push(`SUMMARY:${escapeText(event.name)}`);
   if (location !== null) lines.push(`LOCATION:${escapeText(location)}`);
   if (description !== null) lines.push(`DESCRIPTION:${escapeText(description)}`);
+  // LAN-284. A URI value, so deliberately not escaped — see `safeUri`, which is
+  // the guard that makes emitting it raw safe.
+  if (joiningUrl !== null) lines.push(`URL:${joiningUrl}`);
   lines.push(`STATUS:${event.isCancelled ? "CANCELLED" : "CONFIRMED"}`);
   lines.push(`SEQUENCE:${deriveSequence(event.updatedAt)}`);
   lines.push("END:VEVENT");

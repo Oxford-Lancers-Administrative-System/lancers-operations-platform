@@ -107,7 +107,7 @@ export default function CancelForm({
         <Section title={cancelHeadline(typeLabel)} testId="cancel-headline">
           <Stack spacing={3}>
             <Typography variant="h5" component="p" sx={{ fontWeight: 700 }} data-testid="expecting">
-              {expectingToBeThere(saidYes)}
+              {expectingToBeThere(saidYes, invited)}
             </Typography>
 
             <Typography variant="body2" color="text.secondary" data-testid="who-is-told">
@@ -191,7 +191,7 @@ export default function CancelForm({
           <Section title={CANCEL_SILENCE_HEADLINE} testId="cancel-silence-step">
             <Stack spacing={2}>
               <Notice severity="warning" testId="cancel-silence-consequence">
-                {cancelSilenceConsequence(saidYes, venue)}
+                {cancelSilenceConsequence(saidYes, invited, venue)}
               </Notice>
               <ActionBar
                 primary={

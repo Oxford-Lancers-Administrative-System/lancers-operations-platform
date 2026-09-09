@@ -191,8 +191,9 @@ export interface EventDetail extends EventListEntry {
   /** D17. */
   requiredEquipment: string | null;
   /**
-   * REQ-no-joining-url. Present on the operator tier only. Nothing public, no
-   * subscription feed and no payload behind one may ever carry it.
+   * The online event's link. Published — LAN-284 reversed REQ-no-joining-url —
+   * so `PublicEventDetail` and the subscription feed carry it too. This is the
+   * operator's own copy, shown with the warning that it is public.
    */
   joiningUrl: string | null;
   origin: string;
@@ -638,6 +639,16 @@ export interface PublicEventDetail extends PublicEventListEntry {
   description: string | null;
   /** D17. */
   requiredEquipment: string | null;
+  /**
+   * The online event's link, published — LAN-284, reversing the never-public
+   * rule (Brian, 2026-09-09). `null` on an in-person event, which the schema
+   * guarantees: `events_joining_url_is_for_online_events`.
+   *
+   * On the **detail** and in the feed only. The public *list* has no column for
+   * it and does not want one — a list row says what and where, and a page of
+   * thirty join links is not a calendar.
+   */
+  joiningUrl: string | null;
 }
 
 export interface PublicEventList {
@@ -655,14 +666,26 @@ export interface PublicEventList {
  * only inspected a returned object would pass on a season whose events all
  * happen to be in person, and this one cannot.
  *
- * `joining_url` is absent, which is `REQ-no-joining-url`. Every participation
- * table in `PARTICIPATION_TABLES` is absent, which is `REQ-public-calendar`'s
- * "a public event page renders without touching participation data at all" —
- * not hidden after loading, never read.
+ * `joining_url` **is** among them, and that reverses what this comment used to
+ * say — LAN-284, Brian, 2026-09-09. The calendar stays public: there is no
+ * password gate on `/calendar`, no token on the feed, and no change to the
+ * three access tiers. The protection moved to where it can actually work,
+ * which is the meeting itself — a Teams meeting requires its passcode, shared
+ * privately, on top of the Oxford-domain approval — so publishing the link is
+ * safe because the link alone admits nobody. Stated once because it is the
+ * accepted cost: nothing in this application can verify that a given meeting
+ * has a passcode set, so an operator who publishes an open meeting publishes it
+ * to the world. The control is operator discipline, and the editor warns them.
+ *
+ * Every participation table in `PARTICIPATION_TABLES` is still absent, which is
+ * `REQ-public-calendar`'s "a public event page renders without touching
+ * participation data at all" — not hidden after loading, never read. The public
+ * tier gained exactly one column and no other boundary moved.
  */
 export const PUBLIC_EVENT_COLUMNS = `e.id, e.name, e.event_type::text as event_type,
             e.scheduled_on, e.starts_at::text as starts_at, e.ends_at::text as ends_at,
             e.delivery_mode::text as delivery_mode, e.venue, e.is_mandatory,
+            e.joining_url,
             (e.status = 'cancelled') as is_cancelled`;
 
 interface PublicEventRow {
@@ -675,6 +698,7 @@ interface PublicEventRow {
   delivery_mode: EventDeliveryMode;
   venue: string | null;
   is_mandatory: boolean;
+  joining_url: string | null;
   is_cancelled: boolean;
 }
 
@@ -813,6 +837,7 @@ export async function readPublicEvent(eventId: string): Promise<PublicEventDetai
       ...toPublicEntry(row),
       description: row.description,
       requiredEquipment: row.required_equipment,
+      joiningUrl: row.joining_url,
     };
   });
 }
@@ -834,6 +859,13 @@ export interface FeedEventEntry extends PublicEventListEntry {
   description: string | null;
   /** D17. Same value `readPublicEvent` returns; Q-29 lets the feed carry it too. */
   requiredEquipment: string | null;
+  /**
+   * The online event's link — LAN-284. Same value `readPublicEvent` returns,
+   * and the feed carries it for the same reason it carries the other two: the
+   * subscriber should not have to tap through to the page for a detail the page
+   * publishes. `calendar-feed.ts` puts it in `URL`, never in `DESCRIPTION`.
+   */
+  joiningUrl: string | null;
   /** ISO 8601 instant. */
   updatedAt: string;
 }
@@ -860,8 +892,9 @@ function toIsoInstant(value: Date | string): string {
  * `description` and `required_equipment` are the same two columns
  * `readPublicEvent` already selects for the public event page — Q-29 is the
  * decision that the feed may carry them too, matching what `readPublicEvent`
- * has always returned. `joining_url` is not among them and never will be
- * (`REQ-no-joining-url`); neither is anything from `PARTICIPATION_TABLES`.
+ * has always returned. `joining_url` joined them under LAN-284 (Brian,
+ * 2026-09-09), reversing "never will be"; nothing from `PARTICIPATION_TABLES`
+ * ever does.
  *
  * `readCurrentSeasonIn` throws when no season is open — the same refusal
  * `listPublicSeasonEvents` propagates today. The route handler decides what a
@@ -895,6 +928,7 @@ export async function listPublicSeasonEventsForFeed(): Promise<{
         ...toPublicEntry(row),
         description: row.description,
         requiredEquipment: row.required_equipment,
+        joiningUrl: row.joining_url,
         updatedAt: toIsoInstant(row.updated_at),
       })),
     };

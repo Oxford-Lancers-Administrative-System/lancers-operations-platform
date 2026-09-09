@@ -79,6 +79,25 @@ does not change the address bar. Putting the step in the URL would mean a server
 round trip, which would mean the typed-but-unsaved values had to be stored
 somewhere between two renders. The screens themselves are the mockup's.
 
+### A second tab cannot revert what the first one saved — LAN-244
+
+The form posts the version it was opened on alongside the fields, and the save
+applies **only the fields that differ from it**. Everything else keeps whatever
+the row holds now, including a value another tab wrote in the meantime.
+
+This is not a refinement of REQ-amend-in-place; it is what makes the change
+history true. Before it, two tabs open on one event were destructive by
+construction — tab B, never refreshed, carried tab A's superseded venue in its
+snapshot, so the venue silently reverted and the history recorded "Venue: M2W Tab
+A Venue → Blues Gym, Iffley Road" as an amendment somebody had made. With two
+operators it would have attributed that reversion to the second one.
+
+Two operators editing two different fields now both get their change. Two editing
+the same field is still last-write-wins, which is honest, and it is recorded as
+the change it actually was — from the value that was there, not from the value
+the stale tab remembered. A save whose every field is already stored is refused
+as "Nothing has changed yet."
+
 ### What the operator is told before they type
 
 `W5-02`'s panel, verbatim: how many were invited, how many said yes, how many
@@ -182,8 +201,15 @@ One operator, one action, **no approval gate**. Any of the four roles, alone,
 because a waterlogged pitch does not wait for a quorum.
 
 The screen leads with the number of people expecting to be there rather than
-with the event's name. It asks why, for the record, and says that recipients
-never see it. It says plainly that it cannot be undone.
+with the event's name — "25 of 37 invited are expecting to be there". "Expecting
+to be there" means **said yes**, which is settled: the attendance board splits on
+the standing RSVP for this exact phrase, and a no and a nonresponse are the same
+expectation (Brian, 14 August 2026). The invited count joined it under LAN-242
+because on a freshly approved event nobody has answered yet, so the headline read
+a bare "0 people are expecting to be there" over sixty-one live invitations — the
+count was true and the sentence still read as though cancelling reached nobody.
+It asks why, for the record, and says that recipients never see it. It says
+plainly that it cannot be undone.
 
 Notifying defaults **on** for a future event and **off** for a past one — the
 silent path exists for tidying up a session weeks gone that was never held.

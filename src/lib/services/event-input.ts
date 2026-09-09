@@ -203,7 +203,7 @@ export interface RawEventDraft {
   description?: string | null;
   /** D17: its own field, separate from the description. */
   requiredEquipment?: string | null;
-  /** The online event's link (REQ-no-joining-url). Never public. */
+  /** The online event's link. Published on the public calendar (LAN-284). */
   joiningUrl?: string | null;
   /** `"mandatory"` or `"optional"`. Absent is unanswered, never a default. */
   attendance?: string | null;

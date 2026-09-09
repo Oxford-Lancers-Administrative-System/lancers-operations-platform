@@ -325,7 +325,74 @@ describe("the audience named by its groups before its people", () => {
     expect(summariseAudienceGroups(CLUB, [], "practice")).toEqual({
       groups: [],
       others: 0,
+      noLongerSelectable: 0,
       total: 0,
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // A member the catalogue no longer offers — LAN-242
+  // -------------------------------------------------------------------------
+
+  describe("when somebody in the saved audience has since gone inactive", () => {
+    /** A key shaped exactly like a real one, for somebody the catalogue has dropped. */
+    const GONE = "player:99999999-9999-4999-8999-999999999999";
+
+    it("still counts them, rather than collapsing the whole summary to zero", () => {
+      // The defect, exactly. `resolveSelection` refuses an unknown key outright,
+      // and this function used to reach for it — so one lapsed membership made
+      // `total` read 0 above a list of every remaining name, on the event page,
+      // the approval review and the cancel screen alike (LAN-239, M2/M4/M6).
+      const chosen = [...groupSelectionKeys(CLUB, PLAYERS), GONE];
+      const summary = summariseAudienceGroups(CLUB, chosen, "practice");
+
+      const stillListed = summariseAudienceGroups(
+        CLUB,
+        groupSelectionKeys(CLUB, PLAYERS),
+        "practice",
+      );
+
+      expect(summary.total).toBe(stillListed.total + 1);
+      expect(summary.noLongerSelectable).toBe(1);
+    });
+
+    it("does not call them chosen by hand", () => {
+      // `others` means "no named group accounts for them", which is how the
+      // line says "N chosen by hand". Somebody whose membership lapsed was not
+      // chosen by hand, and saying so would be a small, confident lie.
+      const summary = summariseAudienceGroups(
+        CLUB,
+        [...groupSelectionKeys(CLUB, PLAYERS), GONE],
+        "practice",
+      );
+
+      expect(summary.others).toBe(0);
+    });
+
+    it("still names the groups that are wholly present today", () => {
+      const summary = summariseAudienceGroups(
+        CLUB,
+        [...groupSelectionKeys(CLUB, PLAYERS), GONE],
+        "practice",
+      );
+
+      expect(summary.groups).toContain("All active players");
+    });
+
+    it("still refuses to name a group the audience only partly holds", () => {
+      // The one rule this line must never break, restated against the tolerant
+      // path: a person the catalogue has dropped cannot complete a group.
+      const players = groupSelectionKeys(CLUB, PLAYERS);
+      const summary = summariseAudienceGroups(CLUB, [...players.slice(1), GONE], "practice");
+
+      expect(summary.groups).not.toContain("All active players");
+    });
+
+    it("counts one absent person once, however many times their key is listed", () => {
+      const summary = summariseAudienceGroups(CLUB, [GONE, GONE], "practice");
+
+      expect(summary.total).toBe(1);
+      expect(summary.noLongerSelectable).toBe(1);
     });
   });
 
