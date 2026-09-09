@@ -81,6 +81,33 @@ Status as originally shipped, superseded twice since — as-built now reads:
   still offers one, because the queue **warns**, it never refuses beyond
   that one absolute rule (no channel, or under 18).
 
+Superseded again by LAN-249 and LAN-266 (Brian, 2026-09-09) — as-built now
+also reads:
+
+- **A recorded but unusable number is not a reachable number.** The check was
+  `!ask.missingRequiredFields.includes("mobile")`, which is true of an absent
+  number and false of a malformed one: Montague Everleigh's seeded
+  `contact.phone.malformed` ("07700 90039", one digit short) is a recorded
+  mobile, so the queue offered him a live checkbox and Nudge and created a
+  job that could only fail (walker M7, finding M7-05). The rule is now the
+  dispatcher's own — `selectMobileNumber`, the function that turns a person's
+  contact points into a number for the provider — so the queue, the record's
+  own send button and the actual send cannot disagree. Deliberately not "a
+  non-empty `normalised_value`": roster intake leaves that column null on
+  purpose, so that test would have withheld the nudge from most of the roster.
+- **A manual ask counts as a chase.** The record's own **Send onboarding
+  questionnaire** (`LAN-217-operator-record.md`) and the queue's Nudge write
+  the identical job, and a delivered one now counts toward the configured
+  chase count and re-spaces the next automatic chase from it, exactly as the
+  recruitment ask re-spaces its reminder. It is one count because it is one
+  thing being counted: the number of times this player has been asked.
+  Nothing about refusal changes — the queue still warns and never refuses
+  beyond the two absolute rules (no channel, or under 18), and an exhausted
+  person who does have a number still keeps the nudge. What changes is that
+  four delivered asks are four delivered asks however they were sent, so the
+  automated cadence stops asking a fifth time and `W9`'s escalation tells the
+  office a human is needed.
+
 The queue defaults to **onboarding players only** (`onlyOnboardingPlayers` on
 `listMissingDataQueue`), with Mission 5's full, unrestricted scope one click
 away via **See everybody with missing data** — locked at the packet's own
@@ -128,12 +155,15 @@ dropped, per the locked recommendation.
 Every fact this package shows is derived from `notification_jobs` and its own
 idempotency-key shape (`onboarding-chase:`, `onboarding-nudge:`,
 `onboarding-chase-exhausted:`, `onboarding-chase-escalation:`), on
-`emitOnboardingOpenedWelcomeIn`'s own idiom. "Exhausted" is a delivered-attempt
+`emitOnboardingOpenedWelcomeIn`'s own idiom. "Exhausted" is a delivered-ask
 count reaching the configured cap, never a stored flag; "terminal delivery
 failure" is a chase attempt whose own retry ceiling is reached with no
 delivered outcome; "next automated contact" is computed from the configured
-cadence and the last delivered attempt (or joining, for the first). Nothing
-here adds a column, a table, or a new domain concept.
+cadence and the last delivered ask (or joining, for the first). Both ask
+prefixes count, per LAN-266 above; the automated attempt's own ordinal is
+read from the `onboarding-chase:` keys that exist, and one automated attempt
+is live at a time. Nothing here adds a column, a table, or a new domain
+concept.
 
 ## Explicitly not in this ticket
 

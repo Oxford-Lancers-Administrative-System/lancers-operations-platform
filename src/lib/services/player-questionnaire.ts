@@ -31,7 +31,7 @@ import {
   type EmergencyContactFieldUpdate,
   type PersonFieldUpdate,
 } from "./person-write";
-import { validateAcademicYear } from "./person-validation";
+import { validateAcademicYear, validateDateOfBirth } from "./person-validation";
 import { readSeasonLabelIn } from "./seasons";
 import { EMAIL_SHAPE, PHONE_SHAPE } from "@/app/operate/roster/new/validation";
 import { looksLikeEmail, looksLikePhone } from "@/lib/validation/contact";
@@ -219,6 +219,15 @@ export interface QuestionnaireView {
   fieldSuppliedBy: Record<DisputedPersonField, "you" | "club" | null>;
   agreements: Record<OnboardingAgreementType, OnboardingAgreement | null>;
   /**
+   * Whether each document is *settled* — LAN-240. Deliberately not "is there
+   * an agreement row", which is what the step panel used to ask on its own
+   * and is exactly how it came to print "Already agreed" beneath a navigator
+   * reading "Outstanding". This is the same answer `outstandingSections` and
+   * `nextStep` are computed from, published so every part of the player's
+   * link reads one fact rather than each deriving its own.
+   */
+  documentAgreed: Record<OnboardingAgreementType, boolean>;
+  /**
    * `null` means no `onboarding_items` row of this code exists for this
    * membership at all — F2 (LAN-230): "a season with no configured item
    * types yields no items… a real configuration state, not a failure"
@@ -313,20 +322,38 @@ export async function readQuestionnaireViewIn(
     readLastAnsweredAtIn(tx, ask.membershipId),
   ]);
 
-  // The `|| agreements… !== null` half is F2's own necessary companion, found
-  // walking the fix live: `agreeDocument` advances by *resuming* to the next
-  // outstanding step (`nextStepUrl`), never by a literal one (unlike BUCS/Hudl,
-  // which always advance regardless — `literalNextStepUrl`, "nothing gates").
-  // With no configured `code_of_conduct`/`photo_release` item,
-  // `completePlayerOrDerivedItemIn` has nothing to mark complete, so
-  // `itemStatus` alone would leave a player who *did* agree stuck resuming to
-  // the same step forever — a deadlock this fix would otherwise introduce.
-  // `agreements` (`onboarding_agreements`, read above) is the item-independent
-  // record of that same fact, already on hand.
+  // LAN-240 (walker M7, finding M7-01). The item is the authority whenever
+  // there *is* one, and the agreement row is the fallback only when there is
+  // not.
+  //
+  // This used to be a plain `||`, and that is what let the operator's reopen
+  // never reach the player: setting Photo release back to "No" moved
+  // `onboarding_items.status` to `pending`, but the agreement row's mere
+  // existence went on answering "done" here, so the sequence skipped the step
+  // and the step itself rendered "Already agreed" under a navigator reading
+  // "Outstanding". `resolveOnboardingItem` now removes that row in the same
+  // transaction as the reopen, so the two facts can no longer disagree — but
+  // the precedence still has to be stated, because it is the precedence, not
+  // the delete alone, that makes the item what the player's link obeys.
+  //
+  // The fallback itself is unchanged and still load-bearing — F2's own
+  // necessary companion, found walking that fix live: `agreeDocument` advances
+  // by *resuming* to the next outstanding step (`nextStepUrl`), never by a
+  // literal one (unlike BUCS/Hudl, which always advance regardless —
+  // `literalNextStepUrl`, "nothing gates"). With no configured
+  // `code_of_conduct`/`photo_release` item, `completePlayerOrDerivedItemIn`
+  // has nothing to mark complete, so a player who *did* agree would be stuck
+  // resuming to the same step forever. `agreements` (`onboarding_agreements`,
+  // read above) is the item-independent record of that same fact, already on
+  // hand, and answers only for the membership that genuinely has no item.
   const codeOfConductDone =
-    itemStatus.code_of_conduct === "complete" || agreements.code_of_conduct !== null;
+    itemStatus.code_of_conduct !== null
+      ? itemStatus.code_of_conduct === "complete"
+      : agreements.code_of_conduct !== null;
   const photoReleaseDone =
-    itemStatus.photo_release === "complete" || agreements.photo_release !== null;
+    itemStatus.photo_release !== null
+      ? itemStatus.photo_release === "complete"
+      : agreements.photo_release !== null;
   // B1 (LAN-230 correction round 1): `trustClaimed`'s `|| ` half is the exact
   // same necessary companion as `agreements` above, for the two trust items —
   // see `readTrustClaimedIn`'s own module note.
@@ -409,6 +436,7 @@ export async function readQuestionnaireViewIn(
     openDisputedFields,
     fieldSuppliedBy,
     agreements,
+    documentAgreed: { code_of_conduct: codeOfConductDone, photo_release: photoReleaseDone },
     itemStatus,
     nothingOutstanding,
     outstandingSections: sections,
@@ -892,6 +920,17 @@ export async function saveDetailsStep(input: DetailsStepInput): Promise<DetailsS
       "Expected graduation",
     );
     if (!validation.valid) errors.expected_graduation_year = validation.message;
+  }
+  // LAN-245 (walker M7, finding M7-03): a future date of birth used to reach
+  // `updatePersonField` through the disputable-field loop below, where
+  // `people_date_of_birth_in_the_past` refused it — and the refusal escaped
+  // the server action as a 500 and the generic error boundary. It is a third
+  // shape check on exactly the same footing as the two academic years above:
+  // the value is left unwritten (the loop skips a field carrying an error)
+  // and the player is told, against the field, what is wrong with it.
+  if (input.fields.date_of_birth) {
+    const validation = validateDateOfBirth(input.fields.date_of_birth);
+    if (!validation.valid) errors.date_of_birth = validation.message;
   }
 
   if (input.grantConsent) {

@@ -57,9 +57,16 @@ are defined in [`../slice-ux.md`](../slice-ux.md) and
   graduation, degree field, date of birth, and all five emergency-contact
   fields), appearing live only once that field's value actually differs from
   what is stored, and disappearing again if the operator puts the original
-  value back (`B1`). Phone and email validated per field, naming the rule,
-  before any write; every correct international form of a number saves, only
-  a bare national number defaults to UK. Mobile is one inline field like every
+  value back (`B1`). Phone, email and date of birth validated per field,
+  naming the rule, before any write; every correct international form of a
+  number saves, only a bare national number defaults to UK. Date of birth
+  joined that list for LAN-258: a future date used to reach
+  `people_date_of_birth_in_the_past` and come back as "The database refused
+  this change because it breaks one of the club's recorded rules" — true, and
+  naming neither the field nor the rule. It is `validateDateOfBirth` in
+  `person-validation.ts`, the same rule the player's own questionnaire asks
+  (`LAN-216-player-questionnaire.md`), enforced again in `updatePersonField`
+  so no third caller can reach the constraint raw. Mobile is one inline field like every
   other — its normalised preview and WhatsApp-seam warning render live,
   before the save, with no second screen (`B3`; the two-step confirm page W2
   originally shipped with is gone). Refused: an email already held by another

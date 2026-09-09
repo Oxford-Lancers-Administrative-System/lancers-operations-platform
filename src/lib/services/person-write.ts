@@ -11,7 +11,11 @@ import {
   PERSON_NOT_FOUND_MESSAGE,
   readPersonRecordIn,
 } from "./person-record";
-import { validateEmailAddress, validatePhoneNumber } from "./person-validation";
+import {
+  validateDateOfBirth,
+  validateEmailAddress,
+  validatePhoneNumber,
+} from "./person-validation";
 import { personDisplayNameSql } from "./sql-text";
 
 /**
@@ -461,6 +465,16 @@ function normalisedFieldValue(update: PersonFieldUpdate): string | number | null
  * `people_given_name_not_blank` says so, and this refuses it before the
  * statement is sent so the operator gets the club's sentence rather than an
  * integrity error.
+ *
+ * `date_of_birth` is refused here on the same footing, and for the same
+ * reason, as of LAN-245/LAN-258: `people_date_of_birth_in_the_past` was the
+ * only thing standing between a future date and the `people` row, and a check
+ * constraint reaching a caller raw is what produced a 500 on the player's own
+ * questionnaire and an unnamed "the database refused this change" on the
+ * operator's edit form. Both forms now ask `validateDateOfBirth` before they
+ * offer the save; this is the service layer's own backstop, so a third caller
+ * — a script, a future surface — gets the club's sentence naming the field
+ * rather than an integrity error, exactly as `given_name` already does.
  */
 export async function updatePersonField(
   params: {
@@ -479,6 +493,15 @@ export async function updatePersonField(
     throw new ConstraintViolated("Every person needs a first name.", {
       rule: "people_given_name_not_blank",
     });
+  }
+
+  // Clearing a date of birth is a legitimate correction and is not validated;
+  // only a value actually being recorded is.
+  if (field === "date_of_birth" && typeof value === "string" && value !== "") {
+    const validation = validateDateOfBirth(value);
+    if (!validation.valid) {
+      throw new ConstraintViolated(validation.message, { rule: validation.rule });
+    }
   }
 
   return withTransaction(async (tx) => {

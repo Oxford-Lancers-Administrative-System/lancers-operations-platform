@@ -432,7 +432,13 @@ function DocumentStepPage({
   agreementType: OnboardingAgreementType;
   agreeError: boolean;
 }) {
-  const agreement = view.agreements[agreementType];
+  // LAN-240: settled, not "is there a row". The panel used to read the
+  // agreement row directly while the navigator above it read the item, so a
+  // reopened document announced "Already agreed" and "Outstanding" on the
+  // same screen. Both now read the one answer the view publishes, and the row
+  // is consulted only for the version and date to print once it *is* settled.
+  const agreed = view.documentAgreed[agreementType];
+  const agreement = agreed ? view.agreements[agreementType] : null;
   const isCodeOfConduct = agreementType === "code_of_conduct";
   const heading = isCodeOfConduct ? CODE_OF_CONDUCT_HEADING : PHOTO_RELEASE_HEADING;
   const lead = isCodeOfConduct ? CODE_OF_CONDUCT_LEAD : PHOTO_RELEASE_LEAD;

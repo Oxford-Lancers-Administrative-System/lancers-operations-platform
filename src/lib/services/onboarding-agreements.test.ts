@@ -13,6 +13,7 @@ import type { Client } from "pg";
 import { closePool, isServiceError, withTransaction } from "@/lib/db";
 import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
 import {
+  deleteOnboardingAgreementIn,
   readCurrentOnboardingAgreementVersionIn,
   readOnboardingAgreementsIn,
   recordOnboardingAgreementIn,
@@ -123,5 +124,56 @@ describe("recordOnboardingAgreementIn", () => {
       "code_of_conduct",
       "photo_release",
     ]);
+  });
+});
+
+describe("deleteOnboardingAgreementIn — LAN-240's reopen", () => {
+  it("removes the season's row so the same document can be agreed again", async () => {
+    const personId = await insertPerson("reopen");
+    await withTransaction((tx) =>
+      recordOnboardingAgreementIn(tx, { personId, seasonId, agreementType: "photo_release" }),
+    );
+
+    const removed = await withTransaction((tx) =>
+      deleteOnboardingAgreementIn(tx, { personId, seasonId, agreementType: "photo_release" }),
+    );
+    expect(removed).toBe(1);
+    expect(
+      await withTransaction((tx) => readOnboardingAgreementsIn(tx, personId, seasonId)),
+    ).toEqual([]);
+
+    // The point of the delete: the player can now genuinely re-agree, where
+    // before `onboarding_agreements_one_per_person_season_type` refused them.
+    const again = await withTransaction((tx) =>
+      recordOnboardingAgreementIn(tx, { personId, seasonId, agreementType: "photo_release" }),
+    );
+    expect(again.agreementType).toBe("photo_release");
+  });
+
+  it("leaves the other document alone", async () => {
+    const personId = await insertPerson("onlyone");
+    await withTransaction((tx) =>
+      recordOnboardingAgreementIn(tx, { personId, seasonId, agreementType: "code_of_conduct" }),
+    );
+    await withTransaction((tx) =>
+      recordOnboardingAgreementIn(tx, { personId, seasonId, agreementType: "photo_release" }),
+    );
+
+    await withTransaction((tx) =>
+      deleteOnboardingAgreementIn(tx, { personId, seasonId, agreementType: "photo_release" }),
+    );
+
+    const agreements = await withTransaction((tx) =>
+      readOnboardingAgreementsIn(tx, personId, seasonId),
+    );
+    expect(agreements.map((a) => a.agreementType)).toEqual(["code_of_conduct"]);
+  });
+
+  it("reports zero, rather than failing, when there was nothing on file", async () => {
+    const personId = await insertPerson("nothing");
+    const removed = await withTransaction((tx) =>
+      deleteOnboardingAgreementIn(tx, { personId, seasonId, agreementType: "code_of_conduct" }),
+    );
+    expect(removed).toBe(0);
   });
 });

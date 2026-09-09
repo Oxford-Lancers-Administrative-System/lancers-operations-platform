@@ -85,6 +85,73 @@ Status History section for its demonstration, since only one history-shaped
 section existed on the page before this package; the two are semantically
 distinct and both now exist).
 
+### Reopening an agreement item reaches the player (LAN-240)
+
+Setting **Photo release** or **Code of Conduct** back to `No` is the shipped
+reopen mechanism — there is no separate reopen verb, by D-002. Until LAN-240
+it moved only `onboarding_items.status`, leaving the season's
+`onboarding_agreements` row in place, so the player's own link went on
+reading "Already agreed" beneath a navigator that said "Outstanding", and a
+bare load of the link resumed at "There is nothing left to fill in". The
+player could never see or act on the reopened item.
+
+That row is now removed in the same transaction as the state change, and the
+player-facing steps read the item's status rather than the row's existence.
+Nothing is lost: `onboarding_item_history` holds both transitions with their
+actor and moment, and an `onboarding_agreement_reopened` audit row records
+the removal (including a count of zero, for an item set back to `No` for a
+player who never agreed through the link at all). No schema change.
+
+### Send onboarding questionnaire — the record's own manual ask (LAN-266)
+
+Added on Brian's decision of 2026-09-09, with the recruit record as the
+stated model: "onboarding gets the same thing, on the player's record,
+working the way the recruitment one works." Until then the record carried no
+send or nudge control at all, so an operator looking at one player had to
+leave it for the missing-data queue, and the record itself never said
+whether the player's link had ever been sent.
+
+A **SEND ONBOARDING QUESTIONNAIRE** button sits at the foot of the Onboarding
+section, below the items and the outstanding banner, in the same position and
+style as `/operate/recruitment/[prospectId]`'s own two send buttons: the same
+component with the same props, content-width and left-aligned inside the card,
+with the status lines beneath it. It reads **RESEND …** once an ask has been
+queued. The same treatment at both 1440 and 375.
+
+Brian corrected this on 2026-09-09 after seeing it: the button first shipped
+full width, which made it the only send control in the product that stretched
+its card. There is one style for this control, the recruit record's, and not a
+second one for onboarding.
+
+Beneath it, two caption lines:
+
+1. `Not sent`, or `Sent <date, time> · <delivered | queued | failed>`.
+2. The chase, in the queue's own words: `Chase 2 of 4 sent · next 12 Sept`
+   when one is scheduled, and otherwise whichever of `Chase exhausted`,
+   `No phone number on file`, `Unmessageable · under 18`,
+   `Delivery failed · <reason>` or `No automated chase` the queue's Next
+   column would show. Those five phrases are `formatChaseNext`'s, imported
+   from the queue rather than reproduced, so the record and the queue can
+   never describe the same player two different ways.
+
+Pressing it opens the LAN-237 confirm dialog and follows its rules: the
+dialog reports **Sent** only on provider acceptance and a named refusal
+otherwise, never a silent failure. The button is not natively disabled for a
+gate the dialog can explain — `W2-04`'s reasoning, unchanged: a disabled HTML
+button fires no `onClick`, so a control that cannot be pressed cannot explain
+itself. The two absolute refusals (no reachable number, under 18) are named
+on the status line before the button is ever pressed and again in the dialog,
+which withholds the confirm. A membership that is no longer onboarding is the
+one natively disabled case — there is nothing left to chase and the status
+line already says so.
+
+The send is `sendOnboardingNudges` with one membership: the identical
+function the queue's own Nudge calls. One job type, one idempotency-key
+prefix, one activity-log entry, so a nudge from either place appears
+identically in this record's Activity section and in the queue's Last contact
+and Next columns. It counts toward the configured chase count and re-spaces
+the next automatic chase from it — see `LAN-218-chase-and-queue.md`.
+
 ## W7 — retired before this package's own draft PR left review
 
 W7 as approved built a disputed-fact raise-and-resolve surface on
