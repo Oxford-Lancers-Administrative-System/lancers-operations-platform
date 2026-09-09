@@ -189,6 +189,20 @@ own pitches, which no geocoder indexes, are typed rather than searched.
 
 ### Seeing the messaging ladder advance
 
+For LAN-222's messaging test box, start the acquired stack with:
+
+```bash
+npm run db:start -- --test-box
+```
+
+This starts PostgreSQL, Auth, PostgREST, the API gateway and local mail, while
+excluding Studio, analytics, Realtime, Storage and the other optional services.
+It reduces resource use when other local stacks are running. Lease validation,
+health checks, migration verification and synthetic review-account setup still
+run. Use the same option when starting this test box again. This profile does
+not prove Storage, Realtime, Edge Functions or Studio behavior; use the normal
+full stack for work that needs those services. It changes no hosted settings.
+
 The chase ladder is driven by one request — `POST /api/scheduler/messaging` —
 and nothing in the application makes it. Cloud Scheduler makes it in the deployed
 environment; locally, this does:

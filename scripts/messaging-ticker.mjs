@@ -35,6 +35,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { parse } from "dotenv";
 
 const INTERVAL_MS = Number.parseInt(process.env.MESSAGING_TICK_MS ?? "15000", 10);
 
@@ -42,13 +43,7 @@ const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 
 function readEnvFile(file) {
   if (!fs.existsSync(file)) return {};
-  return Object.fromEntries(
-    fs
-      .readFileSync(file, "utf8")
-      .split("\n")
-      .filter((line) => line.includes("=") && !line.trimStart().startsWith("#"))
-      .map((line) => [line.slice(0, line.indexOf("=")).trim(), line.slice(line.indexOf("=") + 1)]),
-  );
+  return parse(fs.readFileSync(file));
 }
 
 const repoPath = process.cwd();
@@ -100,6 +95,8 @@ async function tick() {
     const response = await fetch(target, {
       method: "POST",
       headers: { authorization: `Bearer ${token}` },
+      redirect: "error",
+      signal: AbortSignal.timeout(120_000),
     });
 
     if (!response.ok) {

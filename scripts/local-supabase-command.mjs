@@ -16,6 +16,13 @@ import { connectLocal } from "./lib/local-db.mjs";
 
 const repoPath = process.cwd();
 const operation = process.argv[2];
+// LAN-222's messaging apparatus needs PostgreSQL, Auth, PostgREST, Kong and
+// local mail. Avoid starting the optional dashboards, analytics and unrelated
+// services alongside two other full stacks. This narrows services only: lease
+// validation, local targeting, migrations and health checks still run below.
+const testBox = process.argv.slice(3).includes("--test-box");
+const optionalTestBoxServices =
+  "realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor";
 
 function run(command, args, env = process.env, echo = true) {
   const result = spawnSync(command, args, {
@@ -129,6 +136,12 @@ async function assertStackAtTrackedMigrations(lease) {
 }
 
 try {
+  if (process.argv.slice(3).some((argument) => argument !== "--test-box")) {
+    throw new Error("Unknown local database option.");
+  }
+  if (testBox && operation !== "start") {
+    throw new Error("--test-box is supported only by db:start.");
+  }
   const session = readSession(repoPath);
   const lease = await updateLease({ repoPath, token: session.token });
   const cli = path.join(repoPath, "node_modules", ".bin", "supabase");
@@ -189,7 +202,12 @@ try {
   if (operation === "start") {
     const reviewAccount = ensureLocalReviewAccount(repoPath);
     const fingerprint = await applyRenderedConfig();
-    run(cli, cliArgs("start"), cliEnv, false);
+    run(
+      cli,
+      cliArgs("start", testBox ? ["--exclude", optionalTestBoxServices] : []),
+      cliEnv,
+      false,
+    );
     await markConfigApplied({ repoPath, token: session.token, fingerprint });
     // LAN-212: a fresh volume applies every tracked migration on `start`, the
     // same way `reset` does, and can skip one just as silently.
