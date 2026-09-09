@@ -35,7 +35,36 @@ export const POSITIONS = Object.freeze([
   ["S", "Safety", "defence"],
   ["LB", "Linebacker", "defence"],
   ["CB", "Cornerback", "defence"],
+  // The four special-teams slots — LAN-261. They were missing from this list
+  // while `position_side` has carried `special_teams` since the first
+  // migration, so the roster board's Special teams column, the membership
+  // record's Special teams field and the audience builder's "Special teams"
+  // unit had nothing to show on any of the 65 rows. The codes are not this
+  // module's invention: `scripts/seed-local.mjs` transcribes them from the
+  // club's own dropdown databank, and `SPECIAL_TEAMS_SLOT_BY_CODE` in
+  // `src/lib/services/roster-board.ts` maps exactly these four onto the
+  // `position_slot` values `kickoff`, `kick_return`, `punt` and `field_goal`.
+  // Renaming one here would make the board's own editor unable to write it
+  // back.
+  ["KO", "Kickoff", "special_teams"],
+  ["KR", "Kick Return", "special_teams"],
+  ["PUNT", "Punt", "special_teams"],
+  ["FG", "Field Goal", "special_teams"],
 ]);
+
+/**
+ * `code → position_slot`, for the four special-teams codes above.
+ *
+ * The same table the application keeps in `roster-board.ts`; the check
+ * constraint `position_assignments_slot_matches_side` refuses any other
+ * pairing.
+ */
+export const SPECIAL_TEAMS_SLOT_BY_CODE = Object.freeze({
+  KO: "kickoff",
+  KR: "kick_return",
+  PUNT: "punt",
+  FG: "field_goal",
+});
 
 /**
  * The approved item-and-ask inventory — eleven items, transcribed from

@@ -23,21 +23,34 @@ Nothing new is drawn. `OnboardingRow` (in `record-view.tsx`) keeps its own
 `Select`, its own `Required`/`Never blocks activation` chips, and its own
 underlined-`body2` status text; three things change inside that same shape.
 
-**`Reopen` joins the row's own `Select`** (`OPERATOR_ITEM_RESOLUTIONS` in
-`membership.ts` already accepted it; only the UI's own three-item list was
-narrower). Offered unconditionally, exactly as the approved `W6-02` screen
-shows the menu — the service itself refuses a `reopen` on an item that is
-not already resolved (`onboarding_item_reopen_requires_a_resolved_item`),
-surfaced through the row's own error slot rather than a disabled option.
+**The row's own `Select` offers that item's own states, and nothing else.**
+Each of the operator-ticked items carries one closed list —
+`ITEM_STATE_LISTS` in `onboarding-item-shapes.ts` — and the set a cell may
+_display_ and the set its control may _choose from_ are the same array, so
+no second list can drift from the first. **There is no `Reopen` verb and no
+`Not applicable`**: a state is changed by picking a different entry from the
+same list, and moving back to `Not invoiced` or `No` is that same ordinary
+pick rather than a separate verb.
+
+This is D-002, correction round 6 (Brian, on sight). Round 3 (`Q-14`) fixed
+the words but kept two concepts — a status the cell displayed and a
+"resolution" the control offered, which was the old four operator verbs
+(`complete`/`waived`/`not_applicable`/`reopen`) with new words painted on.
+That split is why BUCS Play offered "Confirmed · Waived · Not applicable ·
+Reopen" instead of its own four states, and why Subscription invoiced
+offered four options for a yes/no fact. The brief that told round 3 "Waived
+and Not applicable stay available on every item as the operator's escape
+hatch, and reopen from any terminal state is unchanged" was never Brian's
+decision — the Mission Lead invented it. There is no escape hatch.
 
 **The waive reason is gone, not merely optional.** `W6-02`'s approved screen
 shows the menu with no reason field anywhere in it. `REQ-reason-free-waive`
 only ever made the reason _optional_ on the service side (the substrate,
 LAN-214, already unwound `onboarding_items_waiver_is_justified`); this
 package reads the mockup's silence on the field as the instruction to remove
-it, so Waived now commits the moment it is chosen, exactly like Complete and
-Not applicable. The author is still the verified four-role operator this
-page's own gate resolves.
+it, so Waived commits the moment it is chosen, exactly like every other entry
+on Subscription paid's own list — the one item that has it. The author is
+still the verified four-role operator this page's own gate resolves.
 
 **`claimed` renders in the row's existing idiom** — the same underlined
 `body2`, the state name changed, no chip and no colour of its own — matching
@@ -48,7 +61,7 @@ page's own gate resolves.
 (`onboarding_item_history`, LAN-214) rather than the current row's four
 columns alone. It states who and when for every state (not only
 `completed_on`), a compact trail of earlier transitions when there are any
-("Reopened by Caspian Hallowfield, 4 Sept · waived 4 Sept"), and — the
+("Not paid by Caspian Hallowfield, 4 Sept · waived 4 Sept"), and — the
 literal text of `R2-V` — attributes a **confirmed** trust-class item to the
 player who actually claimed it, found by walking back through the item's own
 history for the `claimed` transition, rather than to whichever operator
@@ -152,20 +165,34 @@ row does. Brian's second walkthrough (`Q-14`, correction round 3) found the
 column offering and displaying statuses its own item could never actually
 occupy ("Invited" on Sub invoiced, Sub paid and Squad photo) and named the
 word each item should show instead — settled in this correction round
-(round 5): `itemStatusLabel`/`itemResolutionLabel` in
-`onboarding-item-shapes.ts` are the one place both the board and the record
-page read a status's word from, per item — "Invoiced"/"Not invoiced" for
-Subscription invoiced (never the generic "Complete" the board showed
-before), "Paid"/"Not paid" for Subscription paid, "Yes"/"No" for Kit
-Distributed and Squad photo, "Not assigned"/"Assigned and invited"/"In the
-group" for Comms group, "Not invited"/"Invited"/"Claimed"/"Confirmed" for
-BUCS Play and Hudl access, and "Not signed"/"Signed" for Code of Conduct and
-Photo release (record page only — the two are player-signed, not
-operator-ticked, so they are not board columns). `Waived`/`Not applicable`
-stay the shared escape-hatch words on every item but Kit Distributed, which
-alone has none; `Reopen` reads as the generic word everywhere except Kit
-Distributed's own two-state control, which reads it as "No" rather than a
-third word for what its own "No" already says.
+(round 5): one place in `onboarding-item-shapes.ts`, per item, is where both
+the board and the record page read a status's word from. Round 6 (D-002) then
+collapsed the round-5 pair of lookups into the single `itemStateLabel` — there
+is no separate resolution vocabulary left to have its own — and closed each
+item's list. These are the lists in full:
+
+| Item                  | Its own states, and nothing else                   |
+| --------------------- | -------------------------------------------------- |
+| Subscription invoiced | Not invoiced · Invoiced                            |
+| Subscription paid     | Not paid · Paid · Waived                           |
+| Kit Distributed       | No · Yes                                           |
+| Squad photo           | No · Yes                                           |
+| Comms groups          | Not assigned · Assigned and invited · In the group |
+| Hudl access           | Not invited · Invited · Claimed                    |
+| BUCS Play             | Not invited · Invited · Claimed · Confirmed        |
+| Code of Conduct       | No · Yes (record page only)                        |
+| Photo release         | No · Yes (record page only)                        |
+
+Code of Conduct and Photo release are player-signed rather than
+operator-ticked, so they are not board columns; their words are "No"/"Yes"
+like every other binary here, not the "Not signed"/"Signed" round 5 used.
+Hudl access has **three** states, not four — its list ends at Claimed, and
+the fourth, Confirmed, belongs to BUCS Play alone. That is the one place the
+two trust-class items genuinely differ, and it is Brian's own table that
+draws the line, not a shared abstraction. `Waived` appears exactly once, on
+Subscription paid, where he named it; `Not applicable` appears nowhere, and
+`itemStateLabel` throws on a state an item cannot occupy rather than
+rendering it.
 
 **Column order (Brian, 2026-09-05).** BPS sits immediately before
 Availability, and Availability is the last column on the board.
@@ -201,7 +228,7 @@ screen be added.
 
 ## What is deliberately not here
 
-- **No new component, anywhere.** Reopen is one option on a shipped
+- **No new component, anywhere.** The row's states are options on a shipped
   `Select`; the Activity section reuses the shipped `StatusHistory` markup.
   W7 once extended the shipped `Fact`/`By` with a disputed-fact row and a
   resolve control; both are gone (see W7 above) — a player's answer now

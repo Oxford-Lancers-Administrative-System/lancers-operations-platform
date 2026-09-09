@@ -30,6 +30,7 @@ import { computeReportContent } from "@/lib/services/weekly-report";
 import { openLocalClient, type Client } from "./helpers/domain-fixture";
 import { testParams } from "./helpers/showcase-fixture.mjs";
 import { APPEND_ONLY_TABLES, NO_DELETE_TABLES } from "../scripts/production/showcase/db.mjs";
+import { seatViews } from "../scripts/production/showcase/checklists.mjs";
 import { STATES, TESTERS, WORKFLOWS, routePattern } from "../scripts/production/showcase/map.mjs";
 import { reportIds } from "../scripts/production/showcase/report.mjs";
 
@@ -410,10 +411,72 @@ describe("checklists", () => {
         if (text.includes(`. ${workflow.name}`)) covered.add(workflow.id);
       }
     }
+    // `operator.other-seat` is the only key this fixture cannot resolve, and
+    // only because `testParams()` gives no seat an `authUserId` at all — there
+    // is no operator account anywhere for a seat to be dealt. A real load
+    // resolves it from as few as two accounts; `seatViews` is asserted
+    // directly for that below, since creating Auth users here would prove
+    // nothing this suite is about (LAN-254, item 5).
     expect([...unresolved]).toEqual(["operator.other-seat"]);
     for (const workflow of workflows.filter((w) => !w.notAWorkflow)) {
       expect(covered.has(workflow.id), `${workflow.id} is on nobody's checklist`).toBe(true);
     }
+  });
+
+  it("hands out no seeded club link, because a seeded one is always dead", async () => {
+    // LAN-241. A club link's plaintext is signed with the deployment's own
+    // `CLUB_LINK_SECRET`, which the parameter file does not hold, so every
+    // link this loader minted was refused at `/e/[token]` on every
+    // deployment — hosted included — and the checklists handed them out. The
+    // loader writes no `club_link_tokens` row now and no checklist offers an
+    // `/e/` URL; the tester presses Share link and creates one instead.
+    const out = path.join(directory, "checklists");
+    for (const file of readdirSync(out)) {
+      const text = readFileSync(path.join(out, file), "utf8");
+      expect(text, `${file} still hands out a seeded club link`).not.toMatch(/\/e\//);
+      expect(text).toContain("press Share link");
+    }
+    const current = await plan();
+    expect(
+      (current.rows as Row[]).filter((row) => row.table === "public.club_link_tokens"),
+    ).toEqual([]);
+    expect(states.map((state) => state.key)).not.toContain("club-link.live");
+    expect(states.map((state) => state.key)).not.toContain("club-link.revoked");
+  });
+
+  it("deals every seat another seat's operator record, from as few as two accounts", () => {
+    // LAN-254, item 5. The deal used to be a fixed shift of two and stop: a
+    // load where the seat two along carried no `authUserId` left
+    // `operator.other-seat` unresolved, and four rows on that tester's list
+    // read "no example row … skip and report" instead of pointing anywhere —
+    // taking Deactivate, Restore, Assign or end a role, the audit evidence and
+    // the whole activated-operator email rehome out of the sweep.
+    const order = Object.keys(TESTERS);
+    const emptyPlan = { candidates: new Map(), states: new Map() };
+
+    // Two accounts, at the two ends of the order — a local rehearsal.
+    const twoAccounts = new Map([
+      [`operator.${order[0]}`, "account-one"],
+      [`operator.${order[4]}`, "account-five"],
+    ]);
+    const sparse = seatViews({ ...emptyPlan, examples: twoAccounts });
+    for (const seat of order) {
+      const dealt = sparse.get(seat).view.get("operator.other-seat");
+      expect(dealt, `${seat} was dealt no operator record`).toBeDefined();
+      expect(dealt, `${seat} was dealt its own record`).not.toBe(
+        twoAccounts.get(`operator.${seat}`),
+      );
+    }
+
+    // All five accounts — a real tester week. The shift of two is unchanged,
+    // so nobody is pointed at their own record and no two seats collide.
+    const full = seatViews({
+      ...emptyPlan,
+      examples: new Map(order.map((seat, index) => [`operator.${seat}`, `account-${index}`])),
+    });
+    const dealtBy = order.map((seat) => full.get(seat).view.get("operator.other-seat"));
+    expect(dealtBy).toEqual(order.map((_, index) => `account-${(index + 2) % order.length}`));
+    expect(new Set(dealtBy).size).toBe(order.length);
   });
 
   it("gives every seat its own live links and no other seat's", async () => {

@@ -120,11 +120,15 @@ describe("nothing deliverable to a real person", () => {
 
   it("stores every token as a SHA-256 digest and derives it from the secret", () => {
     const plan = build();
-    for (const table of [
-      "public.rsvp_access_tokens",
-      "public.person_access_tokens",
-      "public.club_link_tokens",
-    ]) {
+    // `public.club_link_tokens` is deliberately absent — LAN-241. A club
+    // link's plaintext is signed with the deployment's `CLUB_LINK_SECRET`,
+    // which the parameter file does not hold and must not, so a link this
+    // loader minted could never be re-derived and was refused at every door it
+    // was presented at. The loader writes none, and the assertion below —
+    // "every token this plan writes is a digest derived from the secret" — is
+    // vacuously true for a table it no longer writes to. The `plan` assertion
+    // that it writes none at all lives in `showcase-loader.test.ts`.
+    for (const table of ["public.rsvp_access_tokens", "public.person_access_tokens"]) {
       const rows = plan.rows.filter((row: Row) => row.table === table) as Row[];
       expect(rows.length).toBeGreaterThan(0);
       for (const row of rows) expect(String(row.columns.token_hash)).toMatch(/^[0-9a-f]{64}$/);
