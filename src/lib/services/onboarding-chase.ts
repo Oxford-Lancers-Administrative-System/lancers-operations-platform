@@ -911,8 +911,17 @@ export interface OnboardingSendStatus {
   /** Asks delivered so far, and the cap they are counted against — "Chase 2 of 4 sent". */
   readonly deliveredCount: number;
   readonly chaseCount: number;
-  /** The most recent queued ask and what became of it, or `null` when none was ever queued. */
-  readonly lastAsk: { readonly requestedAt: Date; readonly delivery: OnboardingAskDelivery } | null;
+  /**
+   * The most recent queued ask and what became of it, or `null` when none was
+   * ever queued. `reason` carries the stored, provider-neutral sentence for a
+   * `failed` one — requirement 3's "a named refusal… not 'could not be
+   * completed'" — and is `null` for every other state.
+   */
+  readonly lastAsk: {
+    readonly requestedAt: Date;
+    readonly delivery: OnboardingAskDelivery;
+    readonly reason: string | null;
+  } | null;
   /**
    * The named reason this send is withheld, or `null` when it may be pressed.
    * Requirement 5: the button "respects the same gates the queue's Nudge
@@ -939,18 +948,35 @@ const NOT_ONBOARDING = "This membership is not onboarding, so there is nothing t
  * records that an ask *happened* and this has to say what became of it. The
  * outcome is the latest attempt's own `delivery_results` row, on the identical
  * reasoning {@link readOnboardingChaseProgressIn} states for never reading
- * `notification_jobs.status` as a delivery truth — with one difference: a job
- * with no attempt at all has not failed, it is queued, and says so.
+ * `notification_jobs.status` as a delivery truth — with two differences.
+ *
+ * A job with no attempt at all has not failed: it is queued, and says so. And
+ * a job the dispatcher refused *before* it ever attempted — delivery not
+ * configured on this deployment being the case an operator actually meets —
+ * writes no `delivery_results` row at all, only `status = 'failed'` and its
+ * reason in `last_error`. Reading the result row alone therefore reported that
+ * refusal as "queued", which is the silent failure LAN-266 requirement 3
+ * forbids. Both are read, and the reason comes back with the outcome: the same
+ * stored, provider-neutral sentence `delivery.ts`'s own delivery page shows an
+ * operator, on the same footing LAN-218's own C-5 correction put the queue's
+ * `Delivery failed · <reason>` column.
  */
 async function readLatestOnboardingAskIn(
   tx: Tx,
   membershipId: string,
 ): Promise<OnboardingSendStatus["lastAsk"]> {
-  const result = await tx.query<{ created_at: Date; outcome: string | null }>(
-    `select j.created_at, latest.outcome
+  const result = await tx.query<{
+    created_at: Date;
+    status: string;
+    last_error: string | null;
+    outcome: string | null;
+    detail: string | null;
+  }>(
+    `select j.created_at, j.status::text as status, j.last_error,
+            latest.outcome, latest.detail
        from public.notification_jobs j
        left join lateral (
-         select r.outcome::text as outcome
+         select r.outcome::text as outcome, r.detail
            from public.delivery_results r
           where r.notification_job_id = j.id
           order by r.attempt_number desc
@@ -966,11 +992,18 @@ async function readLatestOnboardingAskIn(
   );
   const row = result.rows[0];
   if (!row) return null;
-  return {
-    requestedAt: row.created_at,
-    delivery:
-      row.outcome === "delivered" ? "delivered" : row.outcome === null ? "queued" : "failed",
-  };
+
+  if (row.outcome === "delivered") {
+    return { requestedAt: row.created_at, delivery: "delivered", reason: null };
+  }
+  if (row.outcome !== null || row.status === "failed") {
+    return {
+      requestedAt: row.created_at,
+      delivery: "failed",
+      reason: row.detail ?? row.last_error ?? null,
+    };
+  }
+  return { requestedAt: row.created_at, delivery: "queued", reason: null };
 }
 
 /**

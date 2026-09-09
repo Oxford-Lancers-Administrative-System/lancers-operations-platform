@@ -439,6 +439,7 @@ export default function PlayerRecordView({
               ? {
                   requestedAt: record.send.lastAsk.requestedAt.toISOString(),
                   delivery: record.send.lastAsk.delivery,
+                  reason: record.send.lastAsk.reason,
                 }
               : null,
             chaseLine: formatChaseNext(record.send.next, record.send.hasReachableNumber),

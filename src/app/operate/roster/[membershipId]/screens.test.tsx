@@ -52,7 +52,7 @@ vi.mock("./record-actions", () => ({
   recordResolveOnboardingItemAction: vi.fn().mockResolvedValue({ error: null }),
   recordSendOnboardingQuestionnaireAction: vi
     .fn()
-    .mockResolvedValue({ error: null, outcome: "accepted" }),
+    .mockResolvedValue({ error: null, outcome: "accepted", reason: null }),
 }));
 
 import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator";
@@ -1176,7 +1176,11 @@ describe("Send onboarding questionnaire — the record's own manual ask", () => 
         isUnder18: false,
         deliveredCount: 2,
         chaseCount: 4,
-        lastAsk: { requestedAt: new Date("2026-09-09T13:02:00Z"), delivery: "delivered" },
+        lastAsk: {
+          requestedAt: new Date("2026-09-09T13:02:00Z"),
+          delivery: "delivered",
+          reason: null,
+        },
         withheldReason: null,
       },
     });
@@ -1204,7 +1208,11 @@ describe("Send onboarding questionnaire — the record's own manual ask", () => 
         isUnder18: false,
         deliveredCount: 4,
         chaseCount: 4,
-        lastAsk: { requestedAt: new Date("2026-09-09T13:02:00Z"), delivery: "delivered" },
+        lastAsk: {
+          requestedAt: new Date("2026-09-09T13:02:00Z"),
+          delivery: "delivered",
+          reason: null,
+        },
         withheldReason: null,
       },
     });
@@ -1258,6 +1266,52 @@ describe("Send onboarding questionnaire — the record's own manual ask", () => 
     });
     expect(await screen.findByTestId("onboarding-send-questionnaire-outcome")).toHaveTextContent(
       "Sent.",
+    );
+  });
+
+  /**
+   * LAN-266 requirement 3: "Refusals name the reason on the record, not 'could
+   * not be completed'." The M7 re-walk found this the hard way — with delivery
+   * unconfigured, the job's own `last_error` named the five missing settings
+   * and that it needs the club's administrator, and none of it reached either
+   * the dialog or the status line.
+   */
+  it("names a failed delivery's own reason, on the record and in the dialog", async () => {
+    const { fireEvent, act } = await import("@testing-library/react");
+    const reason =
+      "Automated delivery is not configured on this deployment, so nothing was sent. " +
+      "This needs the club's administrator, not an operator.";
+    vi.mocked(recordSendOnboardingQuestionnaireAction).mockResolvedValueOnce({
+      error: null,
+      outcome: "refused",
+      reason,
+    });
+    givenRecord({
+      send: {
+        onboarding: true,
+        lastContact: null,
+        next: { kind: "scheduled", at: new Date("2026-09-12T09:00:00Z") },
+        hasReachableNumber: true,
+        isUnder18: false,
+        deliveredCount: 0,
+        chaseCount: 4,
+        lastAsk: { requestedAt: new Date("2026-09-09T13:02:00Z"), delivery: "failed", reason },
+        withheldReason: null,
+      },
+    });
+    render(await PlayerRecordPage(pageProps()));
+
+    // On the record, without pressing anything.
+    expect(screen.getByTestId("onboarding-send-caption-0")).toHaveTextContent(
+      "failed — Automated delivery is not configured",
+    );
+
+    // And again at the moment of action, rather than a generic sentence.
+    fireEvent.click(screen.getByTestId("onboarding-send-questionnaire"));
+    const confirm = await screen.findByTestId("onboarding-send-questionnaire-confirm");
+    await act(async () => fireEvent.click(confirm));
+    expect(await screen.findByTestId("onboarding-send-questionnaire-outcome")).toHaveTextContent(
+      "Automated delivery is not configured",
     );
   });
 

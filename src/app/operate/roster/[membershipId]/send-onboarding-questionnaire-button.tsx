@@ -22,15 +22,18 @@ const RESEND_LABEL = "RESEND ONBOARDING QUESTIONNAIRE";
  * no reachable number, delivery not configured), and never a silent failure.
  * Refusals name the reason on the record, not 'could not be completed'."
  *
- * `refused` is the one that cannot be named more precisely here: the reason
- * is the dispatcher's own, recorded against the job, and the record's status
- * line reads it back on the next render through the queue's own
- * `Delivery failed · <reason>` wording. So this sentence says where to look
- * rather than inventing a reason it does not have.
+ * These are the fallbacks. A refused or skipped send carries the dispatcher's
+ * own stored sentence back with it (`reason`, read off the job the send just
+ * wrote), and that is what the dialog shows whenever there is one — the same
+ * provider-neutral text `delivery.ts`'s own delivery page and the queue's
+ * `Delivery failed · …` column already show. The walk found why this matters:
+ * with delivery unconfigured, the reason on the job named the five missing
+ * settings and the fact that it needs the club's administrator, and none of
+ * that reached the operator who pressed the button.
  */
 const OUTCOME_MESSAGE: Readonly<Record<string, string>> = Object.freeze({
   accepted: "Sent.",
-  refused: "Not sent — the status line below names what the delivery attempt reported.",
+  refused: "Not sent — the delivery attempt was refused.",
   skipped: "Not sent — this player may not be messaged, or delivery is not configured.",
   membership_not_found: "Not sent — this membership is no longer on file.",
 });
@@ -73,6 +76,7 @@ export default function SendOnboardingQuestionnaireButton({
   const [result, setResult] = useState<{
     error: string | null;
     outcome: string | null;
+    reason: string | null;
   } | null>(null);
 
   function confirm() {
@@ -126,7 +130,9 @@ export default function SendOnboardingQuestionnaireButton({
                 severity={result.outcome === "accepted" ? "success" : "warning"}
                 testId="onboarding-send-questionnaire-outcome"
               >
-                {OUTCOME_MESSAGE[result.outcome] ?? OUTCOME_MESSAGE.refused}
+                {result.outcome === "accepted"
+                  ? OUTCOME_MESSAGE.accepted
+                  : (result.reason ?? OUTCOME_MESSAGE[result.outcome] ?? OUTCOME_MESSAGE.refused)}
               </Notice>
             ) : null}
           </Stack>
@@ -161,7 +167,7 @@ export default function SendOnboardingQuestionnaireButton({
  * is exactly the thing that drifts.
  */
 export function sendStatusLines(status: {
-  lastAsk: { requestedAt: string; delivery: string } | null;
+  lastAsk: { requestedAt: string; delivery: string; reason: string | null } | null;
   /** `formatChaseNext`'s own output for this player, whatever it says. */
   chaseLine: string;
   /** `true` only when that output is a date — the one case a count reads naturally in front of it. */
@@ -170,11 +176,21 @@ export function sendStatusLines(status: {
   chaseCount: number;
 }): readonly string[] {
   const lines: string[] = [];
-  lines.push(
-    status.lastAsk === null
-      ? "Not sent"
-      : `Sent ${formatWhen(new Date(status.lastAsk.requestedAt))} · ${status.lastAsk.delivery}`,
-  );
+  if (status.lastAsk === null) {
+    lines.push("Not sent");
+  } else {
+    const when = formatWhen(new Date(status.lastAsk.requestedAt));
+    // A failure names itself here, on the record, rather than sending the
+    // operator to the delivery page to find out why — requirement 3's "the
+    // delivery state: queued, delivered, failed **with the reason the delivery
+    // page shows**". The reason is the stored, provider-neutral sentence, not
+    // one written here.
+    lines.push(
+      status.lastAsk.delivery === "failed" && status.lastAsk.reason
+        ? `Sent ${when} · failed — ${status.lastAsk.reason}`
+        : `Sent ${when} · ${status.lastAsk.delivery}`,
+    );
+  }
   // "Chase 2 of 4 sent · next 12 Sept" — the count and the queue's own Next
   // wording, joined only when there is a date to join it to. Every other
   // state ("Chase exhausted", "No phone number on file", "Delivery failed · …")

@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { requireCapability } from "@/lib/auth/guards";
-import { isServiceError } from "@/lib/db";
+import { isServiceError, withTransaction } from "@/lib/db";
+import { readOnboardingSendStatusIn } from "@/lib/services/onboarding-chase";
 import {
   resolveOnboardingItem,
   setMembershipStatus,
@@ -244,23 +245,45 @@ export async function recordCommitAvailabilityAction(params: {
  * Both routes are revalidated: the queue's Last contact and Next columns are
  * now stale the moment this succeeds, exactly as they are after a nudge made
  * from the queue itself.
+ *
+ * The refusal's own sentence is read back rather than invented. `sendOnboardingNudges`
+ * returns an outcome word and no reason — the reason lives on the job it just
+ * wrote, which is where the dispatcher put it — so a refused send re-reads the
+ * membership's own send status and hands the dialog the stored, provider-neutral
+ * sentence. Requirement 3 is explicit that a refusal names the reason on the
+ * record rather than reading "could not be completed", and the walk found this
+ * the hard way: with delivery unconfigured the dialog said nothing useful while
+ * `notification_jobs.last_error` held the exact sentence an operator needed.
  */
 export async function recordSendOnboardingQuestionnaireAction(params: {
   membershipId: string;
-}): Promise<BoardActionState & { outcome: OnboardingNudgeResult["outcome"] | null }> {
+}): Promise<
+  BoardActionState & {
+    outcome: OnboardingNudgeResult["outcome"] | null;
+    /** The stored reason a refused send failed, when there is one. */
+    reason: string | null;
+  }
+> {
   const operator = await requireCapability("person_record_authority");
   let results: readonly OnboardingNudgeResult[];
   try {
     results = await sendOnboardingNudges(operator.personId, [params.membershipId]);
   } catch (error) {
-    return { ...stateFor(error), outcome: null };
+    return { ...stateFor(error), outcome: null, reason: null };
   }
 
   revalidatePath("/operate/people/missing");
   refresh(params.membershipId);
 
   const outcome = results[0]?.outcome ?? null;
-  return { error: null, outcome };
+  let reason: string | null = null;
+  if (outcome !== "accepted") {
+    const status = await withTransaction((tx) =>
+      readOnboardingSendStatusIn(tx, params.membershipId),
+    );
+    reason = status.lastAsk?.delivery === "failed" ? status.lastAsk.reason : null;
+  }
+  return { error: null, outcome, reason };
 }
 
 export async function recordResolveOnboardingItemAction(params: {
