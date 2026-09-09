@@ -43,6 +43,15 @@ const OUTCOME_MESSAGE: Readonly<Record<string, string>> = Object.freeze({
  * record's own SEND buttons (`../../recruitment/[prospectId]/send-questionnaire-button.tsx`)
  * because Brian named that control as the thing onboarding should have.
  *
+ * Visual correction (Brian, 2026-09-09, on `feb9d6d`): "same component and
+ * props" is meant literally. This first shipped `fullWidth`, which made it the
+ * only send button in the product that stretched its card; the recruit
+ * record's two are content-width and left-aligned, with their status line
+ * beneath. The props here are now exactly the recruit button's —
+ * `variant="contained"`, `size="small"`, `sx={{ minHeight: 44 }}` — inside the
+ * same `Box sx={{ py: 1.5 }}` wrapper, so there is one style for this control
+ * and not a second one for onboarding.
+ *
  * `W2-04`'s reasoning is carried across intact: the button is never natively
  * `disabled` for a gate the operator could act on, because a disabled HTML
  * button fires no `onClick` and so cannot open the dialog that would explain
@@ -92,7 +101,6 @@ export default function SendOnboardingQuestionnaireButton({
       <Button
         variant="contained"
         size="small"
-        fullWidth
         disabled={blocked}
         title={blocked && withheldReason ? withheldReason : undefined}
         onClick={() => {

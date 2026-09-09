@@ -1150,11 +1150,16 @@ describe("the shipped activation control, folded into Status", () => {
 
 /**
  * LAN-266. Brian, 2026-09-09, with the recruit record as the model: the same
- * full-width control, in the same position and style, under the card holding
- * the items and the outstanding banner, with the same status line beneath it.
+ * control, in the same position and style, under the card holding the items
+ * and the outstanding banner, with the same status line beneath it.
+ *
+ * Visual correction (Brian, 2026-09-09, on `feb9d6d`): the control is the
+ * recruit button's own props exactly — contained, small, no `fullWidth` — so it
+ * is content-width and left-aligned inside the card rather than stretched
+ * across it. The assertion below is what stops a third style reappearing.
  */
 describe("Send onboarding questionnaire — the record's own manual ask", () => {
-  it("sits inside the Onboarding card, full width, and reads Not sent before anything is queued", async () => {
+  it("sits inside the Onboarding card, content width, and reads Not sent before anything is queued", async () => {
     givenRecord();
     render(await PlayerRecordPage(pageProps()));
 
@@ -1162,7 +1167,9 @@ describe("Send onboarding questionnaire — the record's own manual ask", () => 
     const button = onboarding.getByTestId("onboarding-send-questionnaire");
     expect(button).toHaveTextContent("SEND ONBOARDING QUESTIONNAIRE");
     expect(button).not.toBeDisabled();
-    expect(button.className).toMatch(/fullWidth/);
+    // Brian's 2026-09-09 visual correction: identical to the recruit record's
+    // send buttons, which are never full width.
+    expect(button.className).not.toMatch(/fullWidth/);
     expect(onboarding.getByTestId("onboarding-send-caption-0")).toHaveTextContent("Not sent");
   });
 

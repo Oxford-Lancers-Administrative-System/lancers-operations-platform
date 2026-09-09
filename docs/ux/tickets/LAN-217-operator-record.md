@@ -98,11 +98,17 @@ send or nudge control at all, so an operator looking at one player had to
 leave it for the missing-data queue, and the record itself never said
 whether the player's link had ever been sent.
 
-A full-width **SEND ONBOARDING QUESTIONNAIRE** button sits at the foot of the
-Onboarding section, below the items and the outstanding banner, in the same
-position and style as `/operate/recruitment/[prospectId]`'s own two send
-buttons. It reads **RESEND …** once an ask has been queued. Full width at
-both 1440 and 375.
+A **SEND ONBOARDING QUESTIONNAIRE** button sits at the foot of the Onboarding
+section, below the items and the outstanding banner, in the same position and
+style as `/operate/recruitment/[prospectId]`'s own two send buttons: the same
+component with the same props, content-width and left-aligned inside the card,
+with the status lines beneath it. It reads **RESEND …** once an ask has been
+queued. The same treatment at both 1440 and 375.
+
+Brian corrected this on 2026-09-09 after seeing it: the button first shipped
+full width, which made it the only send control in the product that stretched
+its card. There is one style for this control, the recruit record's, and not a
+second one for onboarding.
 
 Beneath it, two caption lines:
 
