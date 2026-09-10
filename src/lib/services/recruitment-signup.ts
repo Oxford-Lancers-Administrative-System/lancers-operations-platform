@@ -7,6 +7,7 @@ import { grantSeasonMessagingConsentIn } from "./messaging-consent";
 import { findPersonMatchingGivenNameAndPhoneIn } from "./person-duplicate";
 import {
   validateAcademicYear,
+  validateCollegeEmail,
   validateEmailAddress,
   validatePhoneNumber,
 } from "./person-validation";
@@ -79,7 +80,12 @@ export interface SignupSubmission {
   readonly familyName: string;
   /** Required, Brian 2026-09-01 (finding 1) — validated and normalised to E.164 by `validateSignupSubmission`. */
   readonly mobile?: string | null;
-  /** Optional; validated for shape when supplied (finding 3), never silently discarded. */
+  /**
+   * Required, Brian 2026-09-09 (LAN-268) — the club's own proof that this is a
+   * student. Accepted only as `ox.ac.uk` or a subdomain of it.
+   */
+  readonly collegeEmail?: string | null;
+  /** The personal address. Optional; validated for shape when supplied (finding 3), never silently discarded. */
   readonly email?: string | null;
   readonly knownAs?: string | null;
   readonly college?: string | null;
@@ -106,6 +112,9 @@ export const SIGNUP_REQUIRES_MOBILE_RULE = "recruitment_signup_requires_a_mobile
 export const SIGNUP_INVALID_MOBILE_RULE = "recruitment_signup_invalid_mobile_number";
 /** Finding 3 — optional, but validated when supplied rather than silently discarded. */
 export const SIGNUP_INVALID_EMAIL_RULE = "recruitment_signup_invalid_email_address";
+/** LAN-268. The college email joins the required set on both doors. */
+export const SIGNUP_REQUIRES_COLLEGE_EMAIL_RULE = "recruitment_signup_requires_a_college_email";
+export const SIGNUP_INVALID_COLLEGE_EMAIL_RULE = "recruitment_signup_invalid_college_email";
 export const SIGNUP_INVALID_MATRICULATION_YEAR_RULE =
   "recruitment_signup_invalid_matriculation_year";
 export const SIGNUP_INVALID_EXPECTED_GRADUATION_YEAR_RULE =
@@ -122,8 +131,11 @@ function trimmedOrNull(value: string | null | undefined): string | null {
  * note). Throws before anything is written — never a raw database
  * constraint — naming exactly which required thing is missing or which
  * supplied field is malformed. First name, last name, mobile and consent are
- * required; email, matriculation year and expected graduation are optional
- * but validated when supplied, never silently discarded (finding 3).
+ * required, and so is the college email (LAN-268, Brian 2026-09-09): "the
+ * required set on both the onboarding questionnaire and the recruitment forms
+ * is four things: first name, last name, phone number, college email." The
+ * personal email, matriculation year and expected graduation stay optional but
+ * validated when supplied, never silently discarded (finding 3).
  *
  * Returns the mobile's own E.164 digits alongside the two trimmed names —
  * `mobileE164` is what every caller now writes as this contact point's
@@ -157,6 +169,24 @@ function validateSignupSubmission(submission: SignupSubmission): {
   const mobileValidation = validatePhoneNumber(mobileRaw);
   if (!mobileValidation.valid || !mobileValidation.e164) {
     throw new ConstraintViolated(mobileValidation.message, { rule: SIGNUP_INVALID_MOBILE_RULE });
+  }
+
+  // LAN-268. Required, and only an Oxford address will do — the refusal
+  // carries `validateCollegeEmail`'s own single sentence rather than a second
+  // wording invented here, so the door and the operator's edit form say the
+  // same thing about the same value.
+  const collegeEmailRaw = trimmedOrNull(submission.collegeEmail);
+  if (!collegeEmailRaw) {
+    throw new ConstraintViolated(
+      "A college email is required — it is how the club knows you are at the university.",
+      { rule: SIGNUP_REQUIRES_COLLEGE_EMAIL_RULE },
+    );
+  }
+  const collegeEmailValidation = validateCollegeEmail(collegeEmailRaw);
+  if (!collegeEmailValidation.valid) {
+    throw new ConstraintViolated(collegeEmailValidation.message, {
+      rule: SIGNUP_INVALID_COLLEGE_EMAIL_RULE,
+    });
   }
 
   const emailRaw = trimmedOrNull(submission.email);
@@ -314,7 +344,7 @@ async function fillContactIfNoneIn(
   tx: Tx,
   personId: string,
   kind: "phone" | "email",
-  scope: "personal" | null,
+  scope: "college" | "personal" | null,
   rawValue: string | null | undefined,
   normalisedValue: string | null = null,
 ): Promise<void> {
@@ -401,6 +431,12 @@ async function applyQuestionnaireAAnswersIn(
   // (src/lib/delivery/phone.ts) never has to guess at send time.
   await fillContactIfNoneIn(tx, personId, "phone", null, submission.mobile, mobileE164);
   await fillContactIfNoneIn(tx, personId, "email", "personal", submission.email);
+  // LAN-268. Filled, never superseded: an unauthenticated public form has no
+  // actor and no reason to attach to a correction, which is the same rule
+  // every other value on this door already follows. A recruit whose college
+  // email is already on file and wrong is a missing-data queue row, not a
+  // silent overwrite from an anonymous door.
+  await fillContactIfNoneIn(tx, personId, "email", "college", submission.collegeEmail);
 }
 
 // ---------------------------------------------------------------------------
@@ -584,6 +620,8 @@ export interface SignupPrefill {
   readonly givenName: string;
   readonly familyName: string | null;
   readonly mobile: string | null;
+  /** LAN-268. The address already on file, so the prefilled door shows it rather than asking again. */
+  readonly collegeEmail: string | null;
   readonly email: string | null;
   readonly college: string | null;
   readonly matriculationYear: number | null;
@@ -612,17 +650,38 @@ export async function readSignupPrefillIn(tx: Tx, personId: string): Promise<Sig
   );
   const row = person.rows[0];
 
-  const contacts = await tx.query<{ kind: "phone" | "email"; raw_value: string }>(
-    `select kind::text as kind, raw_value from public.contact_points
+  const contacts = await tx.query<{
+    kind: "phone" | "email";
+    scope: "college" | "personal" | null;
+    raw_value: string;
+  }>(
+    `select kind::text as kind, scope::text as scope, raw_value from public.contact_points
       where person_id = $1::uuid and valid_until is null and is_preferred`,
     [personId],
   );
   const mobile = contacts.rows.find((c) => c.kind === "phone")?.raw_value ?? null;
-  const email = contacts.rows.find((c) => c.kind === "email")?.raw_value ?? null;
+  // LAN-268 makes the two email scopes mean different things on this form, so
+  // the prefill has to tell them apart. `scope` was not selected before,
+  // because there was one email box; picking the first email of any scope for
+  // the personal box would now put a college address into the optional field
+  // and leave the required one blank.
+  // Personal first, then an email nobody has classified — `scope` is null on
+  // every email recorded before LAN-182 (the data model's own contact-details
+  // note), and before this door had two boxes such a row was what filled the
+  // one it had. A `college`-scoped row is never offered here: it belongs in
+  // the college box, and putting it in the optional one would leave the
+  // required field blank while showing the value the recruit already gave.
+  const email =
+    contacts.rows.find((c) => c.kind === "email" && c.scope === "personal")?.raw_value ??
+    contacts.rows.find((c) => c.kind === "email" && c.scope === null)?.raw_value ??
+    null;
+  const collegeEmail =
+    contacts.rows.find((c) => c.kind === "email" && c.scope === "college")?.raw_value ?? null;
 
   return {
     givenName: row?.given_name ?? "",
     familyName: row?.family_name ?? null,
+    collegeEmail,
     mobile,
     email,
     college: row?.college ?? null,

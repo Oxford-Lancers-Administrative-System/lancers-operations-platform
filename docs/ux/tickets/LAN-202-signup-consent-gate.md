@@ -46,8 +46,9 @@ recruit it has no number for, and the reason the mobile was ever optional —
 that a recruit might not want to give one — was outweighed by a board full of
 rows nobody can contact.
 
-The build enforces the first three today; LAN-268 adds the college email, and
-until it lands a blank college email still saves. Everything else (Known as,
+All four are enforced by the build as of LAN-275: the college email joined the
+required set with LAN-268, is validated to the Oxford rule below, and a blank
+or non-Oxford one now blocks the save on both doors. Everything else (Known as,
 college, matriculation year, expected graduation, degree) is filled from
 Questionnaire A, visibly optional, and a blank one never blocks the save
 (`REQ-missing-never-blocks`). The Save/Sign-up button is disabled until the
@@ -57,6 +58,46 @@ missing — standards rule 4.
 LAN-246 was filed against the paragraph this one replaces, reporting the
 build's own phone requirement as a defect. It is canceled: the build was
 right and this contract was stale.
+
+## The college email, and the one rule it is held to
+
+Brian, 2026-09-09 (LAN-268): a college email is valid only when its domain is
+`ox.ac.uk` or any subdomain of it — `@ox.ac.uk`, `@balliol.ox.ac.uk`,
+`@sbs.ox.ac.uk`, `@dept.college.ox.ac.uk`. The domain is matched
+case-insensitively, and nothing else is accepted: not `gmail.com`, not another
+university, and not the look-alikes that matter — `oxford.ac.uk` is a different
+domain, `notox.ac.uk` merely ends in the same letters, and `ox.ac.uk.evil.com`
+is somebody else's domain wearing the name.
+
+The refusal names the rule, in one sentence, everywhere:
+**"Enter your Oxford address; it ends in ox.ac.uk"**.
+
+One validator (`validateCollegeEmail` in `src/lib/services/person-validation.ts`)
+answers this for all four surfaces that ask it — the sign-up door, add-by-hand,
+the player questionnaire's step 1 and the operator's edit form. The operator's
+form refuses the same way, before any write, with no override.
+
+Required-ness and validity are separate questions. A person on the recruit or
+player tier is _required_ to have one, and one they do not have surfaces in the
+missing-data queue — as does one already on file that fails the rule. A coach,
+a committee member or an alumnus is not asked for one (their college address
+expires around graduation, and neither door that collects one is a door they
+walk through), but a value they _do_ supply is still held to the same rule.
+
+## The phone control
+
+Brian, 2026-09-01 (LAN-211): every phone input in the application is two
+controls on one line — a country-code dropdown, then the national number, with
+the United Kingdom as the default. "One free-text field that the user is
+expected to format correctly is not good enough."
+
+One shared component (`src/components/phone-field.tsx`) is used on every
+surface that captures a number. It posts one string, in international form,
+under the field's own name, so what is stored is still E.164 from the one
+existing normaliser and every server action reads exactly what it always did.
+A number already on file splits back into the two controls without being
+repaired; a value that cannot be split shows whole rather than being
+reinterpreted. A refusal names which of the two halves is wrong.
 
 ## The QR door's duplicate question
 

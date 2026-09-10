@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Notice } from "@/components/notice";
 import { Field, CheckField, DateField } from "@/components/field";
+import { PhoneField } from "@/components/phone-field";
 import { Section } from "@/components/section";
 import { ActionBar } from "@/components/action-bar";
 import Box from "@mui/material/Box";
@@ -21,7 +22,10 @@ import {
   CONSENT_HEADING,
   CONSENT_LABEL,
   DISPUTED_NOTICE,
+  FIELD_BAFA_NUMBER,
   FIELD_COLLEGE,
+  FIELD_COLLEGE_EMAIL,
+  FIELD_COLLEGE_EMAIL_HINT,
   FIELD_DATE_OF_BIRTH,
   FIELD_DEGREE_FIELD,
   FIELD_EC_EMAIL,
@@ -35,10 +39,13 @@ import {
   FIELD_MATRICULATION_YEAR,
   FIELD_MOBILE,
   FIELD_PERSONAL_EMAIL,
+  FIELD_STUDENT_NUMBER,
   REQUIRED_NOTE,
   SAVE_AND_CONTINUE,
   SAVE_CHANGES,
   SECTION_EMERGENCY_CONTACT,
+  SECTION_GAME_DAY,
+  SECTION_GAME_DAY_NOTE,
   SECTION_KEPT_PRIVATE,
   SECTION_WHERE_YOU_STUDY,
   SECTION_WHO_YOU_ARE,
@@ -121,10 +128,27 @@ export function DetailsForm({
   const field = (
     name: keyof DetailsFormValues,
     label: string,
-    extra: { type?: string; fieldMeta?: FieldMeta } = {},
+    extra: {
+      type?: string;
+      fieldMeta?: FieldMeta;
+      /** LAN-211: the shared two-part control instead of one free-text box. */
+      phone?: boolean;
+      /** LAN-267's two identifiers carry no asterisk — a player may not have one yet. */
+      optional?: boolean;
+      hint?: string;
+    } = {},
   ) => (
     <Box>
-      {extra.type === "date" ? (
+      {extra.phone ? (
+        <PhoneField
+          name={name}
+          label={label}
+          defaultValue={values[name]}
+          required={!extra.optional}
+          error={Boolean(errors[name])}
+          helperText={errors[name] || extra.hint}
+        />
+      ) : extra.type === "date" ? (
         <DateField
           name={name}
           label={label}
@@ -142,9 +166,9 @@ export function DetailsForm({
           name={name}
           label={label}
           defaultValue={values[name]}
-          required
+          required={!extra.optional}
           error={Boolean(errors[name])}
-          helperText={errors[name]}
+          helperText={errors[name] || extra.hint}
           inputRef={firstInvalid === name ? focusTarget : undefined}
           type={extra.type ?? "text"}
         />
@@ -172,7 +196,17 @@ export function DetailsForm({
           <Stack spacing={2}>
             {field("given_name", FIELD_GIVEN_NAME, { fieldMeta: meta.given_name })}
             {field("family_name", FIELD_FAMILY_NAME, { fieldMeta: meta.family_name })}
-            {field("mobile", FIELD_MOBILE)}
+            {field("mobile", FIELD_MOBILE, { phone: true })}
+            {/*
+              LAN-268: the college email sits with the name and the phone, not
+              with the academic facts. It is the club's proof that the person
+              filling this in is at the university, and it is required here for
+              the same reason it is required at the sign-up door.
+            */}
+            {field("college_email", FIELD_COLLEGE_EMAIL, {
+              type: "email",
+              hint: FIELD_COLLEGE_EMAIL_HINT,
+            })}
             {field("personal_email", FIELD_PERSONAL_EMAIL, { type: "email" })}
           </Stack>
         </Section>
@@ -186,6 +220,16 @@ export function DetailsForm({
               fieldMeta: meta.expected_graduation_year,
             })}
             {field("degree_field", FIELD_DEGREE_FIELD, { fieldMeta: meta.degree_field })}
+          </Stack>
+        </Section>
+        {/* LAN-267. Neither is required; the roster form prints a blank row
+            and names the gap in its warning line instead of this page
+            refusing to move on. */}
+        <Section title={SECTION_GAME_DAY}>
+          <Stack spacing={2}>
+            <FormHelperText sx={{ fontSize: 13, mt: 0 }}>{SECTION_GAME_DAY_NOTE}</FormHelperText>
+            {field("student_number", FIELD_STUDENT_NUMBER, { optional: true })}
+            {field("bafa_registration_number", FIELD_BAFA_NUMBER, { optional: true })}
           </Stack>
         </Section>
         <Section title={SECTION_KEPT_PRIVATE}>
@@ -206,7 +250,7 @@ export function DetailsForm({
               label={FIELD_EC_RELATIONSHIP}
               defaultValue={values.ec_relationship}
             />
-            {field("ec_phone", FIELD_EC_PHONE)}
+            {field("ec_phone", FIELD_EC_PHONE, { phone: true })}
             {field("ec_email", FIELD_EC_EMAIL, { type: "email" })}
           </Stack>
         </Section>

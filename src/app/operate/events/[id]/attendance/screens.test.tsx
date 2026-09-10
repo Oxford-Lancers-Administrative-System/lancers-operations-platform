@@ -888,7 +888,11 @@ describe("UX-73 — add walk-up attendance", () => {
     expect(container.textContent).toContain("Add a walk-up");
     expect(screen.getByLabelText(/^First name/)).toBeTruthy();
     expect(screen.getByLabelText(/^Last name/)).toBeTruthy();
-    expect(screen.getByLabelText(/^Phone/)).toBeTruthy();
+    // Still one field, in two controls: LAN-211 splits the country code out
+    // of the number, so `/^Phone/` matches both halves now and the role is
+    // what tells the number box from the country dropdown.
+    expect(screen.getByRole("textbox", { name: /^Phone/ })).toBeTruthy();
+    expect(screen.getByLabelText("Country code for phone")).toBeTruthy();
     expect(screen.getByLabelText(/^Email/)).toBeTruthy();
 
     // The three the first version had, all gone.

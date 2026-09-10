@@ -5,7 +5,11 @@ import { actorRequirement } from "./actor";
 import { recordAudit } from "./audit";
 import { findPersonDuplicates, type PersonDuplicateCandidate } from "./person-duplicate";
 import { readPersonRecordIn, type PersonRecord } from "./person-record";
-import { validateEmailAddress, validatePhoneNumber } from "./person-validation";
+import {
+  validateCollegeEmail,
+  validateEmailAddress,
+  validatePhoneNumber,
+} from "./person-validation";
 
 /**
  * W3 — add or link a person who holds no membership. LAN-185,
@@ -25,6 +29,17 @@ export interface CreatePersonInput {
   /** Raw, as typed. Validated here, and again — the same posture `person-write.ts` states. */
   mobile?: string | null;
   personalEmail?: string | null;
+  /**
+   * LAN-268. **Optional here, deliberately.** This function creates people for
+   * two different doors: `/operate/recruitment/new`, where the college email
+   * is required (a recruit is a student, and the address is the proof), and
+   * `/operate/people/new`, where it is not (that door mints coaches and
+   * committee members, whom `person-required.ts`'s everyone-else tier never
+   * asks for one). Required-ness is therefore each door's own check, exactly
+   * as it already is for the mobile; what this module owns is that a value
+   * which *is* supplied has to be a real Oxford address, whoever supplied it.
+   */
+  collegeEmail?: string | null;
 }
 
 export type CreatePersonDecision =
@@ -58,6 +73,7 @@ function validateMinimum(input: CreatePersonInput): {
   familyName: string;
   mobile: string | null;
   personalEmail: string | null;
+  collegeEmail: string | null;
 } {
   const givenName = trimmedOrNull(input.givenName);
   if (!givenName) {
@@ -89,8 +105,17 @@ function validateMinimum(input: CreatePersonInput): {
     if (!validation.valid)
       throw new ConstraintViolated(validation.message, { rule: validation.rule });
   }
+  // LAN-268. Asked of the one validator, which checks shape first and only
+  // then the domain, so "that is not an address" and "that is not an Oxford
+  // address" stay two different sentences.
+  const collegeEmail = trimmedOrNull(input.collegeEmail);
+  if (collegeEmail) {
+    const validation = validateCollegeEmail(collegeEmail);
+    if (!validation.valid)
+      throw new ConstraintViolated(validation.message, { rule: validation.rule });
+  }
 
-  return { givenName, familyName, mobile, personalEmail };
+  return { givenName, familyName, mobile, personalEmail, collegeEmail };
 }
 
 /** The same query `findPersonDuplicates` answers, drawn from this input. */
@@ -131,7 +156,7 @@ async function insertContactIn(
   tx: Tx,
   personId: string,
   kind: "email" | "phone",
-  scope: "personal" | null,
+  scope: "college" | "personal" | null,
   rawValue: string,
 ): Promise<void> {
   await tx.query(
@@ -209,6 +234,8 @@ export async function createPerson(params: {
     if (values.mobile) await insertContactIn(tx, personId, "phone", null, values.mobile);
     if (values.personalEmail)
       await insertContactIn(tx, personId, "email", "personal", values.personalEmail);
+    if (values.collegeEmail)
+      await insertContactIn(tx, personId, "email", "college", values.collegeEmail);
 
     await recordAudit(tx, {
       actorPersonId,

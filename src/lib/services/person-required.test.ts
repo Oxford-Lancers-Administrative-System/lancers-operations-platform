@@ -16,6 +16,7 @@ const NOTHING_RECORDED: PersonFactPresence = {
   givenName: false,
   familyName: false,
   mobile: false,
+  collegeEmail: false,
   personalEmail: false,
   college: false,
   matriculationYear: false,
@@ -29,6 +30,7 @@ const EVERYTHING_RECORDED: PersonFactPresence = {
   givenName: true,
   familyName: true,
   mobile: true,
+  collegeEmail: true,
   personalEmail: true,
   college: true,
   matriculationYear: true,
@@ -39,8 +41,15 @@ const EVERYTHING_RECORDED: PersonFactPresence = {
 };
 
 describe("requiredFieldsFor — the set differs by rung", () => {
-  it("a recruit needs only first name, last name and mobile", () => {
-    expect(requiredFieldsFor("recruit")).toEqual(["given_name", "family_name", "mobile"]);
+  it("a recruit needs first name, last name, mobile and a college email", () => {
+    // LAN-268 supersedes LAN-246's three-field minimum: the college email is
+    // the club's proof that a recruit is actually at the university.
+    expect(requiredFieldsFor("recruit")).toEqual([
+      "given_name",
+      "family_name",
+      "mobile",
+      "college_email",
+    ]);
   });
 
   it.each(["onboarding", "active", "inactive"] as const)(
@@ -51,6 +60,7 @@ describe("requiredFieldsFor — the set differs by rung", () => {
         "family_name",
         "mobile",
         "personal_email",
+        "college_email",
         "college",
         "matriculation_year",
         "expected_graduation_year",
@@ -73,6 +83,25 @@ describe("requiredFieldsFor — the set differs by rung", () => {
     },
   );
 
+  it.each(["departed", "archived", null] as AssembledStatus[])(
+    "never asks status %s for a college email",
+    (status) => {
+      // LAN-268, and the one place the tiers stopped nesting. This rung is
+      // where a coach, a committee member and an alumnus land: none of them
+      // walks through a door that collects a college address, and an
+      // alumnus's expires around graduation, so chasing them for one would be
+      // a queue row nobody could ever clear.
+      expect(requiredFieldsFor(status)).not.toContain("college_email");
+    },
+  );
+
+  it("asks a recruit and a player for a college email", () => {
+    expect(requiredFieldsFor("recruit")).toContain("college_email");
+    for (const status of ["onboarding", "active", "inactive"] as const) {
+      expect(requiredFieldsFor(status)).toContain("college_email");
+    }
+  });
+
   it("last name is required at every rung", () => {
     const statuses: AssembledStatus[] = [
       "recruit",
@@ -91,7 +120,12 @@ describe("requiredFieldsFor — the set differs by rung", () => {
 
 describe("missingRequiredFields", () => {
   it("flags a missing last name for a recruit with only a first name and mobile", () => {
-    const presence: PersonFactPresence = { ...NOTHING_RECORDED, givenName: true, mobile: true };
+    const presence: PersonFactPresence = {
+      ...NOTHING_RECORDED,
+      givenName: true,
+      mobile: true,
+      collegeEmail: true,
+    };
     expect(missingRequiredFields("recruit", presence)).toEqual(["family_name"]);
   });
 
@@ -102,11 +136,11 @@ describe("missingRequiredFields", () => {
   });
 
   it("never flags a field this rung does not require, however incomplete the record is", () => {
-    // A recruit with nothing at all is missing only the recruit tier's three
+    // A recruit with nothing at all is missing only the recruit tier's four
     // fields — never date of birth or emergency contact, which this rung does
     // not ask for.
     const missing = missingRequiredFields("recruit", NOTHING_RECORDED);
-    expect(missing).toEqual(["given_name", "family_name", "mobile"]);
+    expect(missing).toEqual(["given_name", "family_name", "mobile", "college_email"]);
     expect(missing).not.toContain("date_of_birth");
     expect(missing).not.toContain("emergency_contact");
   });

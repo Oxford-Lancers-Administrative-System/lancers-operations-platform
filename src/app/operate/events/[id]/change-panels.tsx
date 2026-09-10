@@ -15,6 +15,7 @@ import {
   describeHistoryEntry,
   describeTold,
   EDIT_EVENT_LABEL,
+  ROSTER_FORM_LABEL,
   formatRecordedMoment,
   HISTORY_COLUMN_TOLD,
   HISTORY_COLUMN_WHAT,
@@ -41,7 +42,19 @@ import {
  * wrong. Both guard themselves server-side; rendering them only for an operator
  * who may press them is the courtesy, not the boundary.
  */
-export function ApprovedEventActions({ eventId }: { eventId: string }) {
+export function ApprovedEventActions({
+  eventId,
+  isGame = false,
+}: {
+  eventId: string;
+  /**
+   * LAN-267. The roster form is a game-day artefact and nothing else: a
+   * practice has no officials to hand it to, so the action does not appear
+   * on one. The route refuses a non-game outright as well — this only stops
+   * an operator finding it by guessing.
+   */
+  isGame?: boolean;
+}) {
   return (
     <Stack spacing={1} data-testid="approved-event-actions">
       <Button
@@ -53,6 +66,17 @@ export function ApprovedEventActions({ eventId }: { eventId: string }) {
       >
         {EDIT_EVENT_LABEL}
       </Button>
+      {isGame ? (
+        <Button
+          variant="outlined"
+          href={`/operate/events/${eventId}/roster-form`}
+          fullWidth
+          sx={{ minHeight: 44 }}
+          data-testid="roster-form"
+        >
+          {ROSTER_FORM_LABEL}
+        </Button>
+      ) : null}
       <Button
         variant="outlined"
         color="error"

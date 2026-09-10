@@ -11,11 +11,13 @@
  * and the one authorised explanatory paragraph is on the page.
  */
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("./actions", () => ({ submitAddRecruit: vi.fn() }));
 
+import { submitAddRecruit } from "./actions";
+import { INITIAL_ADD_RECRUIT_STATE } from "./create-state";
 import AddRecruitForm from "./add-recruit-form";
 
 describe("V-1, correction round 2 — inline phone and email validation", () => {
@@ -49,6 +51,57 @@ describe("V-1, correction round 2 — inline phone and email validation", () => 
 
     expect(screen.getByText(/does not look like an email address/i)).not.toBeNull();
     expect(screen.getByTestId("add-recruit-check")).toBeDisabled();
+  });
+
+  /**
+   * LAN-275 correction round 1, F1. The college email was validated inline but
+   * left out of the aggregate that disables the two submit controls, so a
+   * non-Oxford address turned the field red and still let the operator press
+   * Check for duplicates / Create — V-1 says both.
+   *
+   * `Create` only exists once the duplicate check has answered, so the check is
+   * driven first (the action is mocked, and answers with an empty candidate
+   * list) to bring that button onto the page before the bad value goes in.
+   *
+   * The fields are filled with `fireEvent.change` rather than `user.type`: this
+   * test has to put a value into four fields before it can even start, and
+   * typing them a character at a time re-renders the whole form on every
+   * keystroke — enough to run past the 5s test timeout on a loaded CI runner,
+   * which is exactly how it first failed. What is under test is what the form
+   * does with a value, not how the value arrives.
+   */
+  it("disables both Check for duplicates and Create for a non-Oxford college email", async () => {
+    vi.mocked(submitAddRecruit).mockResolvedValue({
+      ...INITIAL_ADD_RECRUIT_STATE,
+      candidates: [],
+    });
+    render(<AddRecruitForm seasonLabel="2026-27" />);
+
+    // The browser's own constraint validation refuses to submit a form with an
+    // empty required field, so all four required fields get a valid value
+    // first; the malformed one goes in afterwards.
+    const named = (name: string) =>
+      document.querySelector(`input[name="${name}"]`) as HTMLInputElement;
+    const inside = (testId: string) =>
+      screen.getByTestId(testId).querySelector("input") as HTMLInputElement;
+    const collegeEmail = inside("college-email-field");
+
+    fireEvent.change(named("givenName"), { target: { value: "Ada" } });
+    fireEvent.change(named("familyName"), { target: { value: "Nkemelu" } });
+    fireEvent.change(inside("mobile-field"), { target: { value: "07700 900461" } });
+    fireEvent.change(collegeEmail, { target: { value: "ada.nkemelu@balliol.ox.ac.uk" } });
+
+    fireEvent.click(screen.getByTestId("add-recruit-check"));
+    const create = await screen.findByTestId("add-recruit-create");
+    expect(create).not.toBeDisabled();
+
+    fireEvent.change(collegeEmail, { target: { value: "someone@gmail.com" } });
+
+    expect(screen.getByTestId("add-recruit-format-invalid").textContent).toContain(
+      "Correct the field marked in red",
+    );
+    expect(screen.getByTestId("add-recruit-check")).toBeDisabled();
+    expect(screen.getByTestId("add-recruit-create")).toBeDisabled();
   });
 
   it("clears the error and re-enables Check once the number is corrected", async () => {

@@ -12,14 +12,46 @@
  *
  * | Tier          | Required                                                                                                  |
  * | ------------- | ---------------------------------------------------------------------------------------------------------- |
- * | `recruit`     | First name · last name · mobile                                                                             |
- * | `everyoneElse`| Recruit's set, plus personal email                                                                          |
- * | `player`      | Everyone-else's set, plus college, matriculation year, expected graduation, degree field, DOB, emergency contact |
+ * | `recruit`     | First name · last name · mobile · college email                                                             |
+ * | `everyoneElse`| First name · last name · mobile · personal email                                                            |
+ * | `player`      | Everyone-else's set, plus college email, college, matriculation year, expected graduation, degree field, DOB, emergency contact |
  *
  * **Last name is required at every tier**, amended 2026-08-27 — the field
  * inventory's own words: "roughly a quarter of the club flags for a missing
  * last name the day the queue opens, and the queue is where they get chased."
  * That is the intent, not a defect in this module.
+ *
+ * ## College email, and the one place the tiers stopped nesting (LAN-268)
+ *
+ * Brian, 2026-09-09: "The required set on both the onboarding questionnaire
+ * and the recruitment forms is four things: first name, last name, phone
+ * number, college email." It is the club's own proof that somebody is
+ * actually at the university — "I had a weird online guy trying to join one
+ * year and he wasn't a student" — so it joins the recruit tier, superseding
+ * LAN-246's three-field sign-up minimum, and it is required of a player for
+ * the whole of their season.
+ *
+ * It is **not** required of the everyone-else tier, and that is a decision
+ * rather than an omission. Until now every tier nested inside the next, so
+ * `everyoneElse` was written as "recruit's set plus personal email". A
+ * recruit's set now contains a fact that the everyone-else rung must not
+ * inherit, so the three lists are spelled out from a shared base instead.
+ *
+ * Two reasons, both in sources this module already answers to. The
+ * everyone-else rung is where a coach, a committee member and an **alumnus**
+ * land, and `docs/architecture/data-model.md`'s own contact-details note says
+ * a college address "expires around graduation" — chasing an alumnus for one
+ * would be chasing them for an address the university has taken away. And
+ * neither door that collects a college email is a door those people ever walk
+ * through: a coach is invited and given a role assignment, and never sees the
+ * player questionnaire (LAN-267 makes exactly that point about the BAFA
+ * number), so a required fact nothing can collect is a queue row nobody can
+ * clear.
+ *
+ * Required-ness is not the same question as validity. `validateCollegeEmail`
+ * in `person-validation.ts` refuses a non-Oxford address from *anybody*,
+ * including a coach, because a value stored as a college address has to be
+ * one. This table only decides who is chased for having none.
  *
  * ## Which assembled status maps to which tier
  *
@@ -56,6 +88,7 @@ export type RequiredField =
   | "given_name"
   | "family_name"
   | "mobile"
+  | "college_email"
   | "personal_email"
   | "college"
   | "matriculation_year"
@@ -69,6 +102,7 @@ export const REQUIRED_FIELD_LABELS: Readonly<Record<RequiredField, string>> = Ob
   given_name: "First name",
   family_name: "Last name",
   mobile: "Mobile phone",
+  college_email: "College email",
   personal_email: "Personal email",
   college: "College",
   matriculation_year: "Matriculation year",
@@ -78,19 +112,27 @@ export const REQUIRED_FIELD_LABELS: Readonly<Record<RequiredField, string>> = Ob
   emergency_contact: "Emergency contact",
 });
 
-const RECRUIT_TIER: readonly RequiredField[] = Object.freeze([
-  "given_name",
-  "family_name",
-  "mobile",
-]);
+/**
+ * What every rung asks for, whoever they are. The tiers stopped nesting when
+ * the college email joined the recruit set (LAN-268 — see the module note), so
+ * this is the shared base each of the three is built from rather than the
+ * lowest tier standing in for one.
+ */
+const EVERY_TIER: readonly RequiredField[] = Object.freeze(["given_name", "family_name", "mobile"]);
 
+const RECRUIT_TIER: readonly RequiredField[] = Object.freeze([...EVERY_TIER, "college_email"]);
+
+// Deliberately not the recruit tier plus one: a coach, a committee member or
+// an alumnus is never asked for a college address, and an alumnus no longer
+// has one. LAN-268, and the module note above.
 const EVERYONE_ELSE_TIER: readonly RequiredField[] = Object.freeze([
-  ...RECRUIT_TIER,
+  ...EVERY_TIER,
   "personal_email",
 ]);
 
 const PLAYER_TIER: readonly RequiredField[] = Object.freeze([
   ...EVERYONE_ELSE_TIER,
+  "college_email",
   "college",
   "matriculation_year",
   "expected_graduation_year",
@@ -115,6 +157,13 @@ export interface PersonFactPresence {
   givenName: boolean;
   familyName: boolean;
   mobile: boolean;
+  /**
+   * True only for a college address that satisfies the Oxford rule
+   * (`isOxfordCollegeEmail`). LAN-268: "A person whose stored college email
+   * fails the rule, or who has none, shows in the missing-data queue" — the
+   * two are the same outcome, so they are the same boolean.
+   */
+  collegeEmail: boolean;
   personalEmail: boolean;
   college: boolean;
   matriculationYear: boolean;
@@ -129,6 +178,7 @@ const PRESENCE_KEY_FOR_FIELD: Readonly<Record<RequiredField, keyof PersonFactPre
     given_name: "givenName",
     family_name: "familyName",
     mobile: "mobile",
+    college_email: "collegeEmail",
     personal_email: "personalEmail",
     college: "college",
     matriculation_year: "matriculationYear",

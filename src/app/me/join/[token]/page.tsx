@@ -72,6 +72,7 @@ export default async function JoinWithTokenPage({ params }: PageProps) {
           givenName: prefill.givenName,
           familyName: prefill.familyName ?? "",
           mobile: prefill.mobile ?? "",
+          collegeEmail: prefill.collegeEmail ?? "",
           email: prefill.email ?? "",
           knownAs: "",
           college: prefill.college ?? "",

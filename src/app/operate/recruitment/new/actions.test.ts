@@ -76,9 +76,21 @@ function fourRoleOperator(): OperatorAccess {
   };
 }
 
+/**
+ * A submission from this door.
+ *
+ * LAN-268 makes the college email a required field here, so every fixture
+ * carries a valid Oxford address unless the test overrides it — the same
+ * posture the mobile already had since Brian made it required. A test about
+ * the college email itself passes its own value (or an empty string).
+ */
 function form(fields: Record<string, string>): FormData {
   const data = new FormData();
-  for (const [name, value] of Object.entries(fields)) data.append(name, value);
+  const withDefaults = {
+    collegeEmail: "lan206.recruit@balliol.ox.ac.uk",
+    ...fields,
+  };
+  for (const [name, value] of Object.entries(withDefaults)) data.append(name, value);
   return data;
 }
 

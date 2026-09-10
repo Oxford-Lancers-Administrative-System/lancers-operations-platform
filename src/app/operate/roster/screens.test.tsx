@@ -205,8 +205,19 @@ describe("UX-10 — Add player", () => {
     for (const label of labels) expect(screen.getByLabelText(label)).toBeInTheDocument();
 
     // Order is part of the decision, not an accident of the markup.
+    //
+    // Four fields, still — but Phone is now the shared two-part control
+    // (LAN-211), so it renders as a country-code select plus a number box,
+    // and the value the form posts travels on that control's own hidden
+    // input rather than on the visible one. The three plain text boxes are
+    // therefore what carries a `name` here, and the phone's `name` is
+    // asserted on the hidden input below, where it actually lives.
     const rendered = screen.getAllByRole("textbox").map((input) => input.getAttribute("name"));
-    expect(rendered).toEqual(["givenName", "familyName", "email", "phone"]);
+    expect(rendered).toEqual(["givenName", "familyName", "email", null]);
+
+    const phone = document.querySelector('input[type="hidden"][name="phone"]');
+    expect(phone).not.toBeNull();
+    expect(screen.getByLabelText("Country code for phone")).toBeInTheDocument();
   });
 
   it("does not ask for a nickname", () => {

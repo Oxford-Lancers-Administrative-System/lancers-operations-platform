@@ -805,6 +805,7 @@ kept above the database on purpose, and why.
 | **Contact details**                  | Raw intake is stored unvalidated by design; normalisation is separate and reversible. Superseded contacts are retained so alumni stay contactable. `scope` separates a college address, which expires around graduation, from the personal one that outlives it; it is null on a phone, and on any email recorded before LAN-182 whose kind nobody has stated.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | **Date of birth**                    | `people.date_of_birth` is four-role only and never appears on a list, board or queue (REQ-restricted-fields). The derived `person_standing.is_under_18` is what those surfaces may read: a flag, never the date. Mission 8 owns what the club then does about it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | **Emergency contact**                | `person_emergency_contacts` — first name, last name, relationship, phone, email, one row per person. Third-party personal data about somebody who never agreed to be here, so the lockdown is structural: never a `people` row, never a contact point, in no view, and reachable from no audience, messaging or export query. `tests/schema-restricted-fields.test.ts` asserts that against the source.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Student and BAFA numbers**         | `people.student_number` and `people.bafa_registration_number` (LAN-275). Personal identifiers, held under the same handling as the other durable person facts: shown on the person record to an authorised operator, on no list, board or queue, and named in the privacy notice. Read by one module — `roster-form.ts` — because printing them on the officials' form is the reason the club records them at all. The form is generated on demand and never stored, so no second copy exists.                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | **An online event's joining URL**    | `events.joining_url` is **public** (LAN-284, Brian 2026-09-09), reversing the never-public rule the column's own comment still carries. It is selected by `PUBLIC_EVENT_COLUMNS`, rendered on `/calendar/[id]`, and emitted as the `URL` property in `/calendar/feed.ics`. The calendar itself stays open — no password gate, no feed token, no change to the three access tiers — because the protection belongs on the meeting, which requires its own passcode on top of Oxford-domain approval, so the link alone admits nobody. Accepted knowingly: nothing here can verify that a given meeting has a passcode set, so an operator who publishes an open meeting publishes it to the world; the event editor warns them whenever the delivery mode is online. The `comment on column` in `20260822120000_events_target_state.sql` still states the old rule and is corrected by LAN-276's own migration; this row is the current one. |
 | **Notification payloads**            | `template_variables` holds substitution values, not message bodies.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | **Legacy staging**                   | `staging` is not exposed to the Data API and holds synthetic fixtures only. No real roster data enters it before the pre-pilot gate in the [migration runbook](../migration-runbook.md).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
@@ -998,6 +999,37 @@ actor/author columns blindly re-point, and two subjects with per-tuple
 uniqueness (`onboarding_agreements.person_id`,
 `person_fact_disputes.person_id`) are excluded on the same known-limitation
 posture `season_messaging_consents.person_id` already carries.
+
+**2026-09-15 — two person facts for the officials' roster form** (LAN-275,
+`20260915090000_person_facts.sql`). `people` gains two nullable text columns,
+`student_number` and `bafa_registration_number`, each blank-checked in the same
+shape the LAN-182 person facts already carry.
+
+They are columns on `people` rather than `contact_points` rows deliberately.
+`contact_points` answers "where do we write to this person" — it has a `kind`,
+a `scope` and `valid_from`/`valid_until` because a way of reaching somebody is
+superseded rather than corrected, and `selectMobileNumber`, every audience query
+and the whole delivery path walk it. A university's identifier for a person and
+a governing body's registration number are neither addresses nor superseded, so
+putting them there would put a non-address into the table every send path reads.
+
+Nullable for the reason `family_name` is: every person already on file has
+neither, and a `not null` would refuse the club's own roster. A missing value
+prints as a blank row on the roster form and is named in the warning line above
+it (LAN-267).
+
+Both are `academic` in `PERSON_RECORD_FIELD_CATEGORY`
+(`src/lib/auth/person-authority.ts`) — the same category as college and
+matriculation year, and deliberately not `standing`, which is the widest thing
+on the record. They are read by exactly one module,
+`src/lib/services/roster-form.ts`, which is that form's own reader and is on no
+list, board or queue. The privacy notice names both.
+
+The same package added no schema for LAN-268's required college email: it is
+already `contact_points` with `scope = 'college'`, so required-ness is a row in
+`person-required.ts`'s tier table and the Oxford-domain rule is a validator. No
+`onboarding_item_types` row was added either — the missing-data queue reads the
+required-set tiers, not the item catalogue.
 
 ## Known deviations from the frozen model
 

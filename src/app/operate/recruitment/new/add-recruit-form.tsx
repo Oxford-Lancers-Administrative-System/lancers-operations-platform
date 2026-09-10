@@ -12,11 +12,13 @@ import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import { Field, DateField } from "@/components/field";
+import { PhoneField } from "@/components/phone-field";
 import Typography from "@mui/material/Typography";
 
 import { MEMBERSHIP_STATUS_LABELS } from "@/app/operate/roster/presentation";
 import {
   validateAcademicYear,
+  validateCollegeEmail,
   validateEmailAddress,
   validatePhoneNumber,
 } from "@/lib/services/person-validation";
@@ -73,6 +75,7 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
   // server's message; a filled-but-malformed one shows this one.
   const [dateOfBirth, setDateOfBirth] = useState(values.dateOfBirth);
   const [mobile, setMobile] = useState(values.mobile);
+  const [collegeEmail, setCollegeEmail] = useState(values.collegeEmail);
   const [personalEmail, setPersonalEmail] = useState(values.personalEmail);
   const [matriculationYear, setMatriculationYear] = useState(values.matriculationYear);
   const [expectedGraduationYear, setExpectedGraduationYear] = useState(
@@ -88,6 +91,13 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
   const emailValidation = personalEmail.trim() === "" ? null : validateEmailAddress(personalEmail);
   const emailFormatError =
     emailValidation && !emailValidation.valid ? emailValidation.message : null;
+
+  // LAN-268. The same `validateCollegeEmail` the server repeats — one rule,
+  // checked twice, never a looser browser copy.
+  const collegeEmailValidation =
+    collegeEmail.trim() === "" ? null : validateCollegeEmail(collegeEmail);
+  const collegeEmailFormatError =
+    collegeEmailValidation && !collegeEmailValidation.valid ? collegeEmailValidation.message : null;
 
   const matricValidation =
     matriculationYear.trim() === ""
@@ -118,6 +128,13 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
 
   const formatInvalid = Boolean(
     mobileFormatError ||
+    // LAN-275 correction round 1, F1. The college email is validated inline
+    // like every other field on this form, so it has to gate the two submit
+    // controls like every other field too — V-1 is "a malformed value shows
+    // its own message inline **and disables Check for duplicates / Create**",
+    // and leaving this one term out let a non-Oxford address round-trip to a
+    // server that was only ever going to refuse it.
+    collegeEmailFormatError ||
     emailFormatError ||
     matricFormatError ||
     gradFormatError ||
@@ -264,16 +281,32 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
               error={Boolean(errors.familyName)}
               helperText={errors.familyName}
             />
-            <Field
+            <PhoneField
               name="mobile"
               label="Mobile phone"
               required
-              value={mobile}
-              onChange={(event) => setMobile(event.target.value)}
+              defaultValue={values.mobile}
+              onValueChange={setMobile}
               error={Boolean(errors.mobile) || Boolean(mobileFormatError)}
               helperText={errors.mobile ?? mobileFormatError ?? undefined}
-
-              data-testid="mobile-field"
+              testId="mobile-field"
+            />
+            {/* LAN-268: required at this door too — the operator adding
+                somebody by hand records the same fact about the same person
+                the recruit's own door records. */}
+            <Field
+              name="collegeEmail"
+              label="College email"
+              required
+              value={collegeEmail}
+              onChange={(event) => setCollegeEmail(event.target.value)}
+              error={Boolean(errors.collegeEmail) || Boolean(collegeEmailFormatError)}
+              helperText={
+                errors.collegeEmail ??
+                collegeEmailFormatError ??
+                "Their university address — it ends in ox.ac.uk."
+              }
+              data-testid="college-email-field"
             />
             <Field
               name="personalEmail"
@@ -354,11 +387,11 @@ export default function AddRecruitForm({ seasonLabel }: { seasonLabel: string })
                   label="Relationship"
                   defaultValue={values.emergencyRelationship}
                 />
-                <Field
+                <PhoneField
                   name="emergencyPhone"
                   label="Phone"
-                  value={emergencyPhone}
-                  onChange={(event) => setEmergencyPhone(event.target.value)}
+                  defaultValue={values.emergencyPhone}
+                  onValueChange={setEmergencyPhone}
                   error={Boolean(emergencyPhoneFormatError)}
                   helperText={emergencyPhoneFormatError ?? undefined}
                 />

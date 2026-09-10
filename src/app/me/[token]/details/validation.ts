@@ -40,6 +40,7 @@
 
 import {
   FIELD_COLLEGE,
+  FIELD_COLLEGE_EMAIL,
   FIELD_DATE_OF_BIRTH,
   FIELD_DEGREE_FIELD,
   FIELD_EC_EMAIL,
@@ -58,11 +59,17 @@ export interface DetailsFormValues {
   given_name: string;
   family_name: string;
   mobile: string;
+  /** LAN-268. Required, and validated to the Oxford rule by the service. */
+  college_email: string;
   personal_email: string;
   college: string;
   matriculation_year: string;
   expected_graduation_year: string;
   degree_field: string;
+  /** LAN-267. Never required — a blank one prints blank on the roster form. */
+  student_number: string;
+  /** LAN-267. Never required, and an operator can supply it later. */
+  bafa_registration_number: string;
   date_of_birth: string;
   ec_given_name: string;
   ec_family_name: string;
@@ -83,11 +90,14 @@ export const EMPTY_DETAILS_VALUES: DetailsFormValues = {
   given_name: "",
   family_name: "",
   mobile: "",
+  college_email: "",
   personal_email: "",
   college: "",
   matriculation_year: "",
   expected_graduation_year: "",
   degree_field: "",
+  student_number: "",
+  bafa_registration_number: "",
   date_of_birth: "",
   ec_given_name: "",
   ec_family_name: "",
@@ -96,14 +106,24 @@ export const EMPTY_DETAILS_VALUES: DetailsFormValues = {
   ec_email: "",
 };
 
-/** Every field this correction validates. `ec_relationship` is never required. */
-export type ValidatedDetailsField = Exclude<keyof DetailsFormValues, "ec_relationship">;
+/**
+ * Every field this form requires. `ec_relationship` has never been required
+ * and still is not; `student_number` and `bafa_registration_number` join it
+ * as the two LAN-267 added that a player may genuinely not have yet — the
+ * roster form prints a blank row and warns about them rather than this form
+ * refusing to move on.
+ */
+export type ValidatedDetailsField = Exclude<
+  keyof DetailsFormValues,
+  "ec_relationship" | "student_number" | "bafa_registration_number"
+>;
 
 /** The screen's own top-to-bottom order. */
 export const DETAILS_FIELD_ORDER: readonly ValidatedDetailsField[] = [
   "given_name",
   "family_name",
   "mobile",
+  "college_email",
   "personal_email",
   "college",
   "matriculation_year",
@@ -120,6 +140,7 @@ const REQUIRED_LABEL: Readonly<Record<ValidatedDetailsField, string>> = Object.f
   given_name: FIELD_GIVEN_NAME,
   family_name: FIELD_FAMILY_NAME,
   mobile: FIELD_MOBILE,
+  college_email: FIELD_COLLEGE_EMAIL,
   personal_email: FIELD_PERSONAL_EMAIL,
   college: FIELD_COLLEGE,
   matriculation_year: FIELD_MATRICULATION_YEAR,
@@ -132,7 +153,7 @@ const REQUIRED_LABEL: Readonly<Record<ValidatedDetailsField, string>> = Object.f
   ec_email: FIELD_EC_EMAIL,
 });
 
-/** Reads the fourteen fields out of a submitted form, without altering them. */
+/** Reads every field out of a submitted form, without altering them. */
 export function readDetailsValues(form: FormData): DetailsFormValues {
   const read = (name: keyof DetailsFormValues): string => {
     const value = form.get(name);
@@ -143,11 +164,14 @@ export function readDetailsValues(form: FormData): DetailsFormValues {
     given_name: read("given_name"),
     family_name: read("family_name"),
     mobile: read("mobile"),
+    college_email: read("college_email"),
     personal_email: read("personal_email"),
     college: read("college"),
     matriculation_year: read("matriculation_year"),
     expected_graduation_year: read("expected_graduation_year"),
     degree_field: read("degree_field"),
+    student_number: read("student_number"),
+    bafa_registration_number: read("bafa_registration_number"),
     date_of_birth: read("date_of_birth"),
     ec_given_name: read("ec_given_name"),
     ec_family_name: read("ec_family_name"),
@@ -184,6 +208,7 @@ export function validateRequiredDetails(values: DetailsFormValues): DetailsField
  */
 const SERVICE_ERROR_FIELD: Readonly<Record<string, keyof DetailsFormValues>> = Object.freeze({
   personalEmail: "personal_email",
+  collegeEmail: "college_email",
 });
 
 export function mapServiceErrors(serviceErrors: Record<string, string>): DetailsFieldErrors {

@@ -172,23 +172,41 @@ register and the running application.
 
 ## 6. Interface vocabulary
 
-| Concept            | Required language                                                                            |
-| ------------------ | -------------------------------------------------------------------------------------------- |
-| Positive RSVP      | **Attending**                                                                                |
-| Negative RSVP      | **Not attending**                                                                            |
-| No received RSVP   | **No response** or **Outstanding**, by context                                               |
-| Attendance         | **Present**, **Absent**, **Late**, **Excused**                                               |
-| Occurred           | Derived, never asserted — shown as **Occurred** beside the stored status                     |
-| Delivery result    | **Queued**, **Attempted**, **Delivered**, **Failed**, **Retryable**, **Held**, **Cancelled** |
-| Membership entry   | **Returning**                                                                                |
-| Temporary attendee | **Walk-up**                                                                                  |
-| Weekly artifact    | **Monday exception and action report**                                                       |
+| Concept            | Required language                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------ |
+| Positive RSVP      | **Attending**                                                                                          |
+| Negative RSVP      | **Not attending**                                                                                      |
+| No received RSVP   | **No response** or **Outstanding**, by context                                                         |
+| Attendance         | **Present**, **Absent**, **Late**, **Excused**                                                         |
+| Occurred           | Derived, never asserted — shown as **Occurred** beside the stored status                               |
+| Delivery result    | **Queued**, **Attempted**, **Delivered**, **Failed**, **Retryable**, **Held**, **Cancelled**           |
+| Membership entry   | **Returning**                                                                                          |
+| Temporary attendee | **Walk-up**                                                                                            |
+| Weekly artifact    | **Monday exception and action report**                                                                 |
+| College address    | **College email** — an `ox.ac.uk` address; refused as "Enter your Oxford address; it ends in ox.ac.uk" |
+| University id      | **Student number**                                                                                     |
+| Governing-body id  | **BAFA registration number**                                                                           |
+| Officials' form    | **Roster form**                                                                                        |
 
 Delivered never means responded. Attending is intent; Present is observed attendance. A walk-up is not automatically a roster member.
 
 **Held** is LAN-156's and is not a sixth provider status: the other five say what the provider did with a message, and a held message has never been offered to the provider. It is the club stopping its own message after the event was amended. It was previously rendered as **Queued**, which told the operator the opposite of the truth.
 
 **Cancelled** is LAN-156's correction round 1, and is not a seventh provider status for the identical reason: `cancelEvent`'s own stand-down has never been offered to a provider either. It was previously rendered as **Failed**, with a **Retry** that then refused — R156-B2.
+
+**College email** is a club rule as well as a word, recorded on LAN-268 (Brian,
+2026-09-09): only `ox.ac.uk` or a subdomain of it is accepted, case-insensitively,
+on the recruitment sign-up door, add-by-hand, the player questionnaire's step 1
+and the operator's edit form. One validator, one message, no override. It is the
+club's own proof that a recruit or a player is actually at the university —
+"I had a weird online guy trying to join one year and he wasn't a student."
+The full rule and its rejects are in
+[`tickets/LAN-202-signup-consent-gate.md`](tickets/LAN-202-signup-consent-gate.md).
+
+**Every phone input is one two-part control** — a country-code dropdown then the
+national number, on one line, United Kingdom by default (LAN-211, Brian
+2026-09-01). It is a standard, not a per-surface choice: any screen that takes a
+number takes it this way.
 
 The table above fixes the club's words. How those words are arranged when a value is missing, stale, refused or already on the page is [`standards.md`](standards.md) — in particular rule 2 (current state is the headline, scheduled information is context), rule 3 (`27 Aug 2026`, never a raw ISO date) and rule 7 (one answer per fact, across every surface that shows it).
 
