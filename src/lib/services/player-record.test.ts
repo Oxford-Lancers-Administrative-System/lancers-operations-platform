@@ -247,8 +247,8 @@ describe("readPlayerRecord — Attendance band, Q15-attendance", () => {
   async function inviteMembership(eventId: string, status: string): Promise<string> {
     const audience = await observer.query<{ id: string }>(
       `insert into public.event_audience_members
-         (event_id, season_id, capacity, season_membership_id, added_by_person_id)
-       values ($1::uuid, $2::uuid, 'player', $3::uuid, $4::uuid) returning id`,
+         (event_id, season_id, capacity, season_membership_id, invitee_person_id, added_by_person_id)
+       values ($1::uuid, $2::uuid, 'player', $3::uuid, (select m.person_id from public.season_memberships m where m.id = $3::uuid), $4::uuid) returning id`,
       [eventId, seasonId, membershipId, actorPersonId],
     );
     audienceMemberIds.push(audience.rows[0].id);

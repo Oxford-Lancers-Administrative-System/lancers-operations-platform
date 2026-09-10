@@ -858,6 +858,7 @@ export type Database = {
           capacity: Database["public"]["Enums"]["invitation_capacity"]
           event_id: string
           id: string
+          invitee_person_id: string
           participant_id: string | null
           person_id: string | null
           season_id: string
@@ -869,6 +870,7 @@ export type Database = {
           capacity: Database["public"]["Enums"]["invitation_capacity"]
           event_id: string
           id?: string
+          invitee_person_id: string
           participant_id?: string | null
           person_id?: string | null
           season_id: string
@@ -880,6 +882,7 @@ export type Database = {
           capacity?: Database["public"]["Enums"]["invitation_capacity"]
           event_id?: string
           id?: string
+          invitee_person_id?: string
           participant_id?: string | null
           person_id?: string | null
           season_id?: string
@@ -927,6 +930,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "rsvp_attendance_mismatches"
             referencedColumns: ["event_id", "season_id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_invitee_holds_the_membership"
+            columns: ["season_membership_id", "invitee_person_id"]
+            isOneToOne: false
+            referencedRelation: "constitutional_membership"
+            referencedColumns: ["season_membership_id", "person_id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_invitee_holds_the_membership"
+            columns: ["season_membership_id", "invitee_person_id"]
+            isOneToOne: false
+            referencedRelation: "season_memberships"
+            referencedColumns: ["id", "person_id"]
           },
           {
             foreignKeyName: "event_audience_members_membership_same_season"

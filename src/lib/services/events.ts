@@ -1316,7 +1316,12 @@ async function applyTemplateAudienceIn(
 ): Promise<number> {
   if (inherited.audienceGroups.length === 0) return 0;
 
-  const catalogue = await listAudienceCatalogueIn(tx, seasonId, input.scheduledOn);
+  const catalogue = await listAudienceCatalogueIn(
+    tx,
+    seasonId,
+    input.scheduledOn,
+    inherited.eventType,
+  );
   const resolution = resolveSelection(
     catalogue.candidates,
     templateAudienceKeys(catalogue.candidates, inherited.audienceGroups),
@@ -1327,20 +1332,26 @@ async function applyTemplateAudienceIn(
   if (!resolution.ok) return 0;
 
   await tx.query(
+    // `invitee_person_id` is the human, denormalised so that one row per person
+    // per event is a unique index (invariant P9, LAN-294). See the same insert
+    // in `saveEventAudience`.
     `insert into public.event_audience_members
-       (event_id, season_id, capacity, season_membership_id, person_id, added_at,
-        added_by_person_id)
+       (event_id, season_id, capacity, season_membership_id, person_id,
+        invitee_person_id, added_at, added_by_person_id)
      select $1, $2, member.capacity::public.invitation_capacity,
             case when member.capacity = 'player' then member.anchor_id::uuid end,
             case when member.capacity <> 'player' then member.anchor_id::uuid end,
+            member.person_id::uuid,
             now(), $5
-       from unnest($3::text[], $4::text[]) as member(capacity, anchor_id)`,
+       from unnest($3::text[], $4::text[], $6::text[])
+              as member(capacity, anchor_id, person_id)`,
     [
       eventId,
       seasonId,
       resolution.members.map((member) => member.capacity),
       resolution.members.map((member) => member.anchorId),
       actorPersonId,
+      resolution.members.map((member) => member.personId),
     ],
   );
 

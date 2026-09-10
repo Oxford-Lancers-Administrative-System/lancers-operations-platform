@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useCallback, useMemo, useState } from "react";
 import { Notice } from "@/components/notice";
 import { Section } from "@/components/section";
 import { ActionBar } from "@/components/action-bar";
@@ -12,6 +12,7 @@ import Stack from "@mui/material/Stack";
 import { Field, SelectField, CheckField } from "@/components/field";
 import Typography from "@mui/material/Typography";
 import {
+  audiencePeople,
   groupsForEventType,
   groupIsSelected,
   groupSize,
@@ -20,14 +21,14 @@ import {
   type AudienceCandidate,
   type AudienceCapacity,
   type AudienceGroupKey,
+  type AudiencePerson,
 } from "@/lib/services/audience-selection";
 import { saveEventAudienceAction } from "../actions";
 import { EMPTY_TRANSITION_STATE } from "../form-state";
 import {
   AUDIENCE_BUILDER_HEADLINE,
-  CAPACITY_LABELS,
+  describeAudienceRow,
   describeBuilderDefault,
-  labelFor,
 } from "../presentation";
 
 /**
@@ -70,6 +71,23 @@ import {
  * The count on each button is **people**, not rows. Brian's instruction: the
  * club knows what "everyone active" means, and the screen should not explain its
  * own arithmetic. See `groupSize`.
+ *
+ * ## One row per person — LAN-294
+ *
+ * The catalogue is one row per *capacity*, and this screen used to render it
+ * one-to-one, so Bertram (player, President) and Caspian (player, three
+ * committee seats) each appeared twice. Brian, 2026-09-10, opening the picker on
+ * a practice event: a person appears once, however many roles they hold.
+ *
+ * So the list is `audiencePeople(candidates)` — the same collapse
+ * `resolveSelection` applies to the write, computed by the same rule, so the
+ * screen cannot come to a different answer than the transaction. A tick carries
+ * **all** of that human's keys in and out together, which is what leaves the
+ * group buttons behaving exactly as they did when there were two rows: press
+ * *All active committee* and Bertram's committee key goes in; press it again and
+ * that key alone comes back out, and he stays in as a player.
+ *
+ * The count under the list was already people rather than rows, and still is.
  */
 
 export interface AudienceBuilderProps {
@@ -117,6 +135,22 @@ export function AudienceBuilder({
   const resolution = useMemo(() => resolveSelection(candidates, keys), [candidates, keys]);
   const people = resolution.ok ? resolution.members.length : 0;
 
+  /** The catalogue as humans — one row each, however many capacities they hold. */
+  const roster = useMemo(() => audiencePeople(candidates), [candidates]);
+
+  /**
+   * Ticked when any of a person's keys is in the selection.
+   *
+   * One definition, used by the checkbox and by the chosen-first sort: a
+   * reloaded draft holds one key per person rather than one per capacity, so
+   * "are they in" has to be asked of the whole set and the two must not be able
+   * to answer differently.
+   */
+  const isChosen = useCallback(
+    (person: AudiencePerson) => person.keys.some((key) => selected.has(key)),
+    [selected],
+  );
+
   /**
    * Chosen people first, then everybody else, each alphabetically.
    *
@@ -128,27 +162,42 @@ export function AudienceBuilder({
    */
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    return candidates
-      .filter((candidate) => {
-        if (capacity !== "all" && candidate.capacity !== capacity) return false;
-        if (unit !== "all" && candidate.unit !== unit) return false;
+    return roster
+      .filter((person) => {
+        // A capacity filter asks "is this person a coach", not "is this row a
+        // coaching row" — the row is the human now, and hiding a coach who also
+        // plays would be a stranger answer than the duplicate rows it replaced.
+        if (capacity !== "all" && !person.capacities.includes(capacity)) return false;
+        if (unit !== "all" && person.unit !== unit) return false;
         if (needle === "") return true;
         return (
-          candidate.displayName.toLowerCase().includes(needle) ||
-          candidate.standing.toLowerCase().includes(needle) ||
-          (candidate.contact ?? "").toLowerCase().includes(needle)
+          person.displayName.toLowerCase().includes(needle) ||
+          person.standings.some((standing) => standing.toLowerCase().includes(needle)) ||
+          (person.contact ?? "").toLowerCase().includes(needle)
         );
       })
       .sort((a, b) => {
-        const chosen = Number(selected.has(b.key)) - Number(selected.has(a.key));
-        return chosen !== 0 ? chosen : a.displayName.localeCompare(b.displayName);
+        const order = Number(isChosen(b)) - Number(isChosen(a));
+        return order !== 0 ? order : a.displayName.localeCompare(b.displayName);
       });
-  }, [candidates, search, capacity, unit, selected]);
+  }, [roster, search, capacity, unit, isChosen]);
 
-  function toggle(key: string) {
+  /**
+   * In or out as a whole person.
+   *
+   * Every key the human holds moves together, so a hand-ticked player who also
+   * coaches is in the coaching group's lit state as well — and unticking them
+   * takes them out of both, rather than leaving a capacity behind that nothing
+   * on screen would then account for.
+   */
+  function toggle(person: AudiencePerson) {
     setSelected((current) => {
       const next = new Set(current);
-      if (!next.delete(key)) next.add(key);
+      if (person.keys.some((key) => next.has(key))) {
+        for (const key of person.keys) next.delete(key);
+      } else {
+        for (const key of person.keys) next.add(key);
+      }
       return next;
     });
   }
@@ -258,31 +307,24 @@ export function AudienceBuilder({
             data-testid="candidate-list"
             spacing={0}
           >
-            {visible.map((candidate) => (
+            {visible.map((person) => (
               <Box
                 component="li"
-                key={candidate.key}
+                key={person.personId}
                 sx={{ borderBottom: 1, borderColor: "divider", py: 0.5 }}
               >
                 <CheckField
-                  name={`candidate-${candidate.key}`}
-                  checked={selected.has(candidate.key)}
-                  onChange={() => toggle(candidate.key)}
-                  inputLabel={`Include ${candidate.displayName} as ${labelFor(CAPACITY_LABELS, candidate.capacity)}`}
+                  name={`candidate-${person.personId}`}
+                  checked={isChosen(person)}
+                  onChange={() => toggle(person)}
+                  inputLabel={`Include ${person.displayName} — ${describeAudienceRow(person)}`}
                   label={
                     <Box sx={{ py: 1, minWidth: 0 }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {candidate.displayName}
+                        {person.displayName}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {[
-                          labelFor(CAPACITY_LABELS, candidate.capacity),
-                          candidate.standing,
-                          candidate.unit,
-                          candidate.contact,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
+                        {describeAudienceRow(person)}
                       </Typography>
                     </Box>
                   }

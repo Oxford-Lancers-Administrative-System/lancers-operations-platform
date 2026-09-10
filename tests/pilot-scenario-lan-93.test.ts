@@ -799,8 +799,8 @@ const GUARD_CASES: readonly GuardCase[] = [
     cascadeTable: "public.event_audience_members",
     arrange: async (c, d) =>
       void (await c.query(
-        `insert into public.event_audience_members (event_id, season_id, capacity, person_id)
-         values ($1, $2, 'guest', $3)`,
+        `insert into public.event_audience_members (event_id, season_id, capacity, person_id, invitee_person_id)
+         values ($1, $2, 'guest', $3, $3)`,
         [ID.event, ID.season, d.personId],
       )),
   },

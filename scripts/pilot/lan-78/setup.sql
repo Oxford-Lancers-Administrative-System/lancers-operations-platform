@@ -260,13 +260,18 @@ select
        on conflict (id) do nothing;
 
 insert into public.event_audience_members
-  (id, event_id, season_id, capacity, season_membership_id, added_at, added_by_person_id)
+  (id, event_id, season_id, capacity, season_membership_id, invitee_person_id,
+   added_at, added_by_person_id)
 select
   member.id::uuid,
   '00780078-0078-4078-8078-000000000050',
   (select id from public.seasons where status in ('open', 'active')),
   'player',
   member.membership_id::uuid,
+  -- Invariant P9 (LAN-294): the human, denormalised so one row per person per
+  -- event is a unique index. Read back from the membership rather than retyped.
+  (select m.person_id from public.season_memberships m
+    where m.id = member.membership_id::uuid),
   now(),
   '00780078-0078-4078-8078-000000000001'
 from (values

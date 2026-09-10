@@ -769,19 +769,25 @@ export async function computeReportContent(
 
     const cells = cellsByPerson.get(row.display_name) ?? [];
 
-    // One cell per person per event, and the disagreement wins.
+    // One cell per name per event, and the disagreement wins.
     //
-    // A person can hold **two invitations to one event** — invariant P8 anchors
-    // a player to their membership and a coach or committee member to their
-    // person, and the same human is often both. The seeded week has 32 of them:
-    // player + committee, player + coach. Pushing a cell each produced two
-    // cells in one column, of which the table rendered the first and the
-    // problem count counted both — so a real discrepancy could be hidden behind
-    // a benign second invitation, and the ordering was skewed by double
-    // counting.
+    // This was written for one human holding **two invitations to one event**:
+    // invariant P8 anchors a player to their membership and a coach or committee
+    // member to their person, the same human is often both, and the seeded week
+    // carried 32 of them. Pushing a cell each produced two cells in one column,
+    // of which the table rendered the first and the problem count counted both —
+    // so a real discrepancy could be hidden behind a benign second invitation.
     //
-    // Merging keeps the row honest: if either invitation disagrees, the person
-    // is on the list and it is the disagreement they see.
+    // LAN-294 ended that at the source: invariant P9 puts one row per human in
+    // an event's audience, and an invitation is resolved from an audience
+    // member, so nobody holds two any more. The merge stays because the key here
+    // is the **display name**, which the data model is explicit is not a join
+    // key — two different people the club calls the same thing still land in one
+    // row, and hiding one of their discrepancies behind the other's benign cell
+    // would be just as wrong.
+    //
+    // Merging keeps the row honest: if either invitation disagrees, the name is
+    // on the list and it is the disagreement it shows.
     const existing = cells.find((entry) => entry.eventId === cell.eventId);
     if (!existing) {
       cells.push(cell);

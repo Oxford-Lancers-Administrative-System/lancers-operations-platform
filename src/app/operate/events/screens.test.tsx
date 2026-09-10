@@ -1903,7 +1903,7 @@ describe("UX-40 — building the audience", () => {
       "true",
     );
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Include Avery Fielding as Player" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /^Include Avery Fielding( —|$)/ }));
 
     expect(screen.getByRole("button", { name: "All active players (3)" })).toHaveAttribute(
       "aria-pressed",
@@ -1950,7 +1950,7 @@ describe("UX-40 — building the audience", () => {
     fireEvent.click(screen.getByRole("button", { name: "All active committee (1)" }));
 
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
-    expect(screen.getByRole("checkbox", { name: "Include Morgan Pike as Player" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /^Include Morgan Pike( —|$)/ })).toBeChecked();
   });
 
   it("never shrinks the audience when an already-lit group is pressed", async () => {
@@ -1973,7 +1973,9 @@ describe("UX-40 — building the audience", () => {
 
     expect(screen.getByTestId("review-selection").textContent).toBe(before);
     for (const name of ["Avery Fielding", "Samira Quinn", "Morgan Pike"]) {
-      expect(screen.getByRole("checkbox", { name: `Include ${name} as Player` })).toBeChecked();
+      expect(
+        screen.getByRole("checkbox", { name: new RegExp(`^Include ${name}( —|$)`) }),
+      ).toBeChecked();
     }
   });
 
@@ -2007,6 +2009,79 @@ describe("UX-40 — building the audience", () => {
     );
   });
 
+  /**
+   * LAN-294 — Brian, 2026-09-10, on the G7 review environment, creating a
+   * practice event and opening this picker: Bertram appeared twice, once as
+   * "Committee · President" and once as "Player · Active · Both", and Caspian
+   * Hallowfield the same. The list was one row per membership, not per person.
+   */
+  it("lists a person holding two capacities as one row", async () => {
+    await openBuilder();
+
+    // Five candidate rows, four humans — and four checkboxes.
+    expect(AUDIENCE).toHaveLength(5);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(4);
+    expect(screen.getAllByRole("checkbox", { name: /^Include Morgan Pike( —|$)/ })).toHaveLength(1);
+  });
+
+  it("says both of that person's roles on the one second line, in labels only", async () => {
+    await openBuilder();
+
+    const row = screen.getByRole("checkbox", { name: /^Include Morgan Pike( —|$)/ }).closest("li");
+
+    // Brian: "it can be one thing; it can be subdivided, doesn't really
+    // matter" — so the shape is each capacity with its standing, the playing
+    // unit against the player capacity, and one contact at the close. No
+    // sentence, no explanation (slice-ux §6).
+    expect(flatten(row?.textContent ?? null)).toContain(
+      "Player · Active · Defence · Committee · Secretary · +44 7700 900101",
+    );
+
+    // The same roles reach assistive technology: the checkbox's accessible
+    // name carries the second line, not only the person's name (review of
+    // #163, CBH-1).
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Include Morgan Pike — Player · Active · Defence · Committee · Secretary · +44 7700 900101",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("ticks and unticks that person as a whole, not a role at a time", async () => {
+    await openBuilder();
+
+    const morgan = () => screen.getByRole("checkbox", { name: /^Include Morgan Pike( —|$)/ });
+
+    fireEvent.click(morgan());
+    expect(morgan()).toBeChecked();
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 1 selected");
+    // Both of their keys went in, so the group they complete is lit as well.
+    expect(screen.getByRole("button", { name: "All active committee (1)" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    fireEvent.click(morgan());
+    expect(morgan()).not.toBeChecked();
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 0 selected");
+  });
+
+  /**
+   * LAN-295 — "Recruits should only ever be selectable and only ever be
+   * available for a recruitment event. Every other event, they're non-factors."
+   * (Brian, 2026-09-10.) The gate is `listAudienceCatalogueIn`, which no longer
+   * returns them at all off a Recruitment event; this is the screen half — with
+   * none in the catalogue there is no row and no filter option to reach one by.
+   */
+  it("offers no recruit row and no Recruits filter on a practice event", async () => {
+    await openBuilder();
+
+    expect(AUDIENCE.some((entry) => entry.capacity === "recruit")).toBe(false);
+    expect(flatten(screen.getByTestId("candidate-list").textContent)).not.toContain("Recruit");
+    expect(screen.queryByRole("option", { name: /Recruits/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Recruits/ })).toBeNull();
+  });
+
   it("sorts the chosen people to the top", async () => {
     await openBuilder();
 
@@ -2014,13 +2089,13 @@ describe("UX-40 — building the audience", () => {
       screen
         .getAllByRole("checkbox")
         .map((box) => box.getAttribute("aria-label") ?? "")
-        .map((label) => label.replace(/^Include /, "").replace(/ as .*$/, ""));
+        .map((label) => label.replace(/^Include /, "").replace(/ — .*$/, ""));
 
     expect(names()[0]).toBe("Avery Fielding");
 
     // Ticking somebody further down moves them to the front, which is both the
     // review order Brian asked for and the feedback that the tick registered.
-    fireEvent.click(screen.getByRole("checkbox", { name: "Include Samira Quinn as Player" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /^Include Samira Quinn( —|$)/ }));
     expect(names()[0]).toBe("Samira Quinn");
   });
 

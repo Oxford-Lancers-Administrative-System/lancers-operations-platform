@@ -93,9 +93,17 @@ export async function confirmAudienceMember(
 ): Promise<string> {
   const row = await one<{ id: string }>(
     client,
+    // `invitee_person_id` is the human, read back from the membership for a
+    // player rather than passed, so a caller cannot make it disagree — invariant
+    // P9, LAN-294.
     `insert into public.event_audience_members
-       (event_id, season_id, capacity, season_membership_id, person_id)
-     values ($1, $2, $3, $4, $5) returning id`,
+       (event_id, season_id, capacity, season_membership_id, person_id,
+        invitee_person_id)
+     values ($1, $2, $3, $4, $5,
+             coalesce($5::uuid,
+                      (select m.person_id from public.season_memberships m
+                        where m.id = $4::uuid)))
+     returning id`,
     [
       event.eventId,
       event.seasonId,
@@ -256,9 +264,10 @@ export async function createBaseline(client: Client): Promise<Baseline> {
   const audienceMember = await one<{ id: string }>(
     client,
     `insert into public.event_audience_members
-       (event_id, season_id, capacity, season_membership_id, added_by_person_id)
-     values ($1, $2, 'player', $3, $4) returning id`,
-    [approvedEvent.id, season.id, membership.id, person.id],
+       (event_id, season_id, capacity, season_membership_id, invitee_person_id,
+        added_by_person_id)
+     values ($1, $2, 'player', $3, $5, $4) returning id`,
+    [approvedEvent.id, season.id, membership.id, person.id, person.id],
   );
 
   const invitation = await one<{ id: string }>(

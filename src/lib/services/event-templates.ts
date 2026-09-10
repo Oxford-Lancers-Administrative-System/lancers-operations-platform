@@ -888,6 +888,7 @@ async function planOrApply(
         tx,
         draft.season_id,
         asDate(draft.scheduled_on),
+        eventType,
       );
       const held = await readAudiencePeopleIn(tx, draft.id);
       const wasGiven = peopleFor(catalogue.candidates, before.audienceGroups);
@@ -933,6 +934,7 @@ async function planOrApply(
         tx,
         draft.season_id,
         asDate(draft.scheduled_on),
+        eventType,
       );
       await replaceDraftAudienceIn(
         tx,
@@ -1169,18 +1171,25 @@ async function replaceDraftAudienceIn(
   if (members.length === 0) return;
 
   await tx.query(
+    // `invitee_person_id` is the human, denormalised so that one row per person
+    // per event is a unique index (invariant P9, LAN-294). Same shape as the
+    // insert in `saveEventAudience`, for the same reason.
     `insert into public.event_audience_members
-       (event_id, season_id, capacity, season_membership_id, person_id, added_at)
+       (event_id, season_id, capacity, season_membership_id, person_id,
+        invitee_person_id, added_at)
      select $1, $2, member.capacity::public.invitation_capacity,
             case when member.capacity = 'player' then member.anchor_id::uuid end,
             case when member.capacity <> 'player' then member.anchor_id::uuid end,
+            member.person_id::uuid,
             now()
-       from unnest($3::text[], $4::text[]) as member(capacity, anchor_id)`,
+       from unnest($3::text[], $4::text[], $5::text[])
+              as member(capacity, anchor_id, person_id)`,
     [
       draft.id,
       draft.season_id,
       members.map((member) => member.capacity),
       members.map((member) => member.anchorId),
+      members.map((member) => member.personId),
     ],
   );
 }

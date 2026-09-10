@@ -431,7 +431,12 @@ async function resolveUnreachableIn(
 export async function readApprovalPreview(eventId: string): Promise<ApprovalPreview> {
   return withTransaction(async (tx) => {
     const event = await readEventIn(tx, eventId);
-    const catalogue = await listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn);
+    const catalogue = await listAudienceCatalogueIn(
+      tx,
+      event.seasonId,
+      event.scheduledOn,
+      event.eventType,
+    );
     const audience = await readAudienceIn(tx, eventId, catalogue);
     // D23 removed "Response requested": everyone sent an event is expected to
     // answer, so the only thing that can stop a plan being computed is the
@@ -460,7 +465,12 @@ export async function readApprovalPreview(eventId: string): Promise<ApprovalPrev
 export async function readEventAudience(eventId: string): Promise<AudienceMember[]> {
   return withTransaction(async (tx) => {
     const event = await readEventIn(tx, eventId);
-    const catalogue = await listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn);
+    const catalogue = await listAudienceCatalogueIn(
+      tx,
+      event.seasonId,
+      event.scheduledOn,
+      event.eventType,
+    );
     return readAudienceIn(tx, eventId, catalogue);
   });
 }
@@ -483,7 +493,12 @@ export async function readEventAudienceGroupSummary(
 ): Promise<AudienceGroupSummary> {
   return withTransaction(async (tx) => {
     const event = await readEventIn(tx, eventId);
-    const catalogue = await listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn);
+    const catalogue = await listAudienceCatalogueIn(
+      tx,
+      event.seasonId,
+      event.scheduledOn,
+      event.eventType,
+    );
     const audience = await readAudienceIn(tx, eventId, catalogue);
     return summariseAudienceGroups(
       catalogue.candidates,
@@ -528,7 +543,12 @@ export async function saveEventAudience(
       );
     }
 
-    const catalogue = await listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn);
+    const catalogue = await listAudienceCatalogueIn(
+      tx,
+      event.seasonId,
+      event.scheduledOn,
+      event.eventType,
+    );
     const resolution = resolveSelection(catalogue.candidates, keys);
 
     // "Empty" is a legal proposal; "unknown" never is. Refusing an unresolvable
@@ -543,20 +563,29 @@ export async function saveEventAudience(
 
     if (members.length > 0) {
       await tx.query(
+        // `invitee_person_id` is the human, denormalised so that "one row per
+        // person per event" is a unique index rather than a rule somebody has
+        // to remember (invariant P9, LAN-294). It is carried from the resolved
+        // member rather than looked up, and the composite foreign key to
+        // `season_memberships (id, person_id)` is what stops it disagreeing
+        // with the membership a player row anchors to.
         `insert into public.event_audience_members
            (event_id, season_id, capacity, season_membership_id, person_id,
-            added_at, added_by_person_id)
+            invitee_person_id, added_at, added_by_person_id)
          select $1, $2, member.capacity::public.invitation_capacity,
                 case when member.capacity = 'player' then member.anchor_id::uuid end,
                 case when member.capacity <> 'player' then member.anchor_id::uuid end,
+                member.person_id::uuid,
                 now(), $5
-           from unnest($3::text[], $4::text[]) as member(capacity, anchor_id)`,
+           from unnest($3::text[], $4::text[], $6::text[])
+                  as member(capacity, anchor_id, person_id)`,
         [
           eventId,
           event.seasonId,
           members.map((member) => member.capacity),
           members.map((member) => member.anchorId),
           actorPersonId,
+          members.map((member) => member.personId),
         ],
       );
     }
@@ -592,7 +621,12 @@ export async function approveEvent(
     // from a list a concurrent `saveEventAudience` is free to replace.
     const before = await lockEventIn(tx, eventId);
     await assertOperatingSeason(tx, before);
-    const catalogue = await listAudienceCatalogueIn(tx, before.seasonId, before.scheduledOn);
+    const catalogue = await listAudienceCatalogueIn(
+      tx,
+      before.seasonId,
+      before.scheduledOn,
+      before.eventType,
+    );
     const members = await readAudienceIn(tx, eventId, catalogue);
 
     // D16, and checked before the audience because it is the more fundamental

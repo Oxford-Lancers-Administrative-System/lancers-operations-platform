@@ -1,3 +1,4 @@
+import type { AudiencePerson } from "@/lib/services/audience-selection";
 import type { DeliveryState } from "@/lib/services/delivery";
 import type { TermCoordinate, TermWindow } from "@/lib/services/event-input";
 import { joinWithAnd, labelFor, shortMonthOf, TERM_LABELS } from "@/lib/services/event-vocabulary";
@@ -191,6 +192,36 @@ export const CAPACITY_LABELS: Readonly<Record<string, string>> = Object.freeze({
   guest: "Guest",
   recruit: "Recruit",
 });
+
+/**
+ * The second line of a picker row — everything the club knows about that person,
+ * in labels and values and nothing else. LAN-294.
+ *
+ * One row is one human now, so the line has to carry every capacity they hold.
+ * Brian, 2026-09-10, on how much that matters: "it can be one thing; it can be
+ * subdivided, doesn't really matter." So the shape is the simplest one that
+ * stays readable — each capacity followed by its standing, in the order a write
+ * would pick between them, with the playing unit sitting where it belongs
+ * (against the player capacity, not stranded at the end) and one contact at the
+ * close:
+ *
+ *     Player · Active · Both · Committee · President · bertram@…
+ *
+ * No sentence, no explanation, no arithmetic — `docs/ux/slice-ux.md` §6.
+ */
+export function describeAudienceRow(person: AudiencePerson): string {
+  const parts: string[] = [];
+
+  person.capacities.forEach((capacity, index) => {
+    parts.push(labelFor(CAPACITY_LABELS, capacity));
+    const standing = person.standings[index];
+    if (standing) parts.push(standing);
+    if (capacity === "player" && person.unit) parts.push(person.unit);
+  });
+
+  if (person.contact) parts.push(person.contact);
+  return parts.join(" · ");
+}
 
 /** UX-40's heading, and the sentence under it. */
 export const AUDIENCE_BUILDER_HEADLINE = "Build event audience";

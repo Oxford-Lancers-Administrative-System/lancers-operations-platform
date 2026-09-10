@@ -136,8 +136,8 @@ async function fixture(startsInHours: number, eventNameSuffix = "") {
 
     const audience = await observer.query<{ id: string }>(
       `insert into public.event_audience_members
-       (event_id, season_id, capacity, season_membership_id, added_by_person_id)
-     values ($1, $2, 'player', $3, $4) returning id`,
+       (event_id, season_id, capacity, season_membership_id, invitee_person_id, added_by_person_id)
+     values ($1, $2, 'player', $3, (select m.person_id from public.season_memberships m where m.id = $3), $4) returning id`,
       [eventId, seasonId, membership.rows[0].id, personId],
     );
 
@@ -189,8 +189,8 @@ async function secondInvitationFor(
     [seasonId, `${MARKER} practice${suffix}`, startsInHours, personId],
   );
   const audience = await observer.query<{ id: string }>(
-    `insert into public.event_audience_members (event_id, season_id, capacity, season_membership_id, added_by_person_id)
-     values ($1, $2, 'player', $3, $4) returning id`,
+    `insert into public.event_audience_members (event_id, season_id, capacity, season_membership_id, invitee_person_id, added_by_person_id)
+     values ($1, $2, 'player', $3, (select m.person_id from public.season_memberships m where m.id = $3), $4) returning id`,
     [event.rows[0].id, seasonId, membership.rows[0].id, personId],
   );
   const invitation = await observer.query<{ id: string }>(
@@ -225,8 +225,8 @@ async function additionalInvitee(eventId: string): Promise<string> {
     [person.rows[0].id, seasonId],
   );
   const audience = await observer.query<{ id: string }>(
-    `insert into public.event_audience_members (event_id, season_id, capacity, season_membership_id, added_by_person_id)
-     values ($1, $2, 'player', $3, $4) returning id`,
+    `insert into public.event_audience_members (event_id, season_id, capacity, season_membership_id, invitee_person_id, added_by_person_id)
+     values ($1, $2, 'player', $3, (select m.person_id from public.season_memberships m where m.id = $3), $4) returning id`,
     [eventId, seasonId, membership.rows[0].id, person.rows[0].id],
   );
   const invitation = await observer.query<{ id: string }>(
@@ -306,8 +306,8 @@ describe("the answer-specific landing content", () => {
       [personId],
     );
     const audience = await observer.query<{ id: string }>(
-      `insert into public.event_audience_members (event_id, season_id, capacity, season_membership_id, added_by_person_id)
-       values ($1, $2, 'player', $3, $4) returning id`,
+      `insert into public.event_audience_members (event_id, season_id, capacity, season_membership_id, invitee_person_id, added_by_person_id)
+       values ($1, $2, 'player', $3, (select m.person_id from public.season_memberships m where m.id = $3), $4) returning id`,
       [otherEvent.rows[0].id, seasonId, membership.rows[0].id, personId],
     );
     await observer.query(

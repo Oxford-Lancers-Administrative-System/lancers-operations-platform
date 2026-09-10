@@ -410,9 +410,12 @@ describe("participation (P1–P8)", () => {
     await expectRejected(
       client,
       `insert into public.event_audience_members
-         (event_id, season_id, capacity, season_membership_id, person_id)
-       values ($1, $2, 'player', $3, $4)`,
-      [base.approvedEventId, base.seasonId, base.otherMembershipId, base.personId],
+         (event_id, season_id, capacity, season_membership_id, person_id, invitee_person_id)
+       values ($1, $2, 'player', $3, $4, $4)`,
+      // The person named is the one who actually holds the membership, and the
+      // human copy agrees with it, so this row breaks exactly one rule: invariant
+      // P8's, which is the one under test.
+      [base.approvedEventId, base.seasonId, base.otherMembershipId, base.otherPersonId],
       "event_audience_members_anchor_matches_capacity",
     );
   });
@@ -440,7 +443,10 @@ describe("participation (P1–P8)", () => {
       client,
       `insert into public.season_memberships (person_id, season_id, status, entry)
        values ($1, $2, 'onboarding', 'new') returning id`,
-      [base.personId, base.otherSeasonId],
+      // Somebody with no row in this event's audience yet, so the only rule this
+      // insert can break is the season one (invariant P9's unique index is
+      // checked before the foreign key, and would otherwise answer first).
+      [base.otherPersonId, base.otherSeasonId],
     );
 
     // The audience is now the first gate: a member of another season's roster
@@ -448,8 +454,9 @@ describe("participation (P1–P8)", () => {
     await expectRejected(
       client,
       `insert into public.event_audience_members
-         (event_id, season_id, capacity, season_membership_id)
-       values ($1, $2, 'player', $3)`,
+         (event_id, season_id, capacity, season_membership_id, invitee_person_id)
+       values ($1, $2, 'player', $3,
+               (select m.person_id from public.season_memberships m where m.id = $3))`,
       [base.approvedEventId, base.seasonId, foreign.id],
       "event_audience_members_membership_same_season",
     );

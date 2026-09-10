@@ -311,13 +311,18 @@ on conflict (id) do nothing;
 -- never invited" a reportable exception rather than an absence nobody can
 -- query. Person 4 is in the practice's audience below and has no invitation.
 insert into public.event_audience_members
-  (id, event_id, season_id, capacity, season_membership_id, added_by_person_id)
+  (id, event_id, season_id, capacity, season_membership_id, invitee_person_id,
+   added_by_person_id)
 select
   member.id::uuid,
   member.event_id::uuid,
   (select id from public.seasons where status in ('open', 'active')),
   'player',
   member.membership_id::uuid,
+  -- Invariant P9 (LAN-294): the human, denormalised so one row per person per
+  -- event is a unique index. Read back from the membership rather than retyped.
+  (select m.person_id from public.season_memberships m
+    where m.id = member.membership_id::uuid),
   '00810081-0081-4081-8081-000000000001'
 from (values
   -- The practice: four confirmed, three invited.

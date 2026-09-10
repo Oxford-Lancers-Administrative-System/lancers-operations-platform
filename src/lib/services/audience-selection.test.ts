@@ -25,10 +25,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   AUDIENCE_GROUPS,
+  audiencePeople,
   groupIsSelected,
   groupSelectionKeys,
   groupSize,
   groupsForEventType,
+  RECRUITMENT_EVENT_TYPE,
   resolveSelection,
   selectionKey,
   summariseAudienceGroups,
@@ -443,5 +445,142 @@ describe("BPS is a player narrowed by an extra flag, not a capacity of its own",
   it('is named on the AUDIENCE_GROUPS list Brian approved, labelled exactly "All Active BPS"', () => {
     const bps = AUDIENCE_GROUPS.find((g) => g.key === "bps");
     expect(bps?.label).toBe("All Active BPS");
+  });
+});
+
+/**
+ * LAN-294 — one row per person, wherever the audience is shown or used.
+ *
+ * Brian, 2026-09-10, opening the picker on a practice event: Bertram (player +
+ * President) and Caspian Hallowfield (player + three committee seats) were each
+ * listed twice, once per capacity. A person who is a player, a coach *and* a
+ * committee member would have been three rows and, on any writer that did not
+ * go through `resolveSelection`, three invitations.
+ */
+describe("the catalogue as people — audiencePeople", () => {
+  /** Em plays, coaches and sits on the committee: the three-group case. */
+  const EM = "person-em";
+  const TRIPLE: AudienceCandidate[] = [
+    { ...candidate("player", "membership-em", EM, "Em Vaudrey"), unit: "Both", contact: "07700 1" },
+    { ...candidate("coach", EM, EM, "Em Vaudrey"), standing: "Head Coach" },
+    { ...candidate("committee", EM, EM, "Em Vaudrey"), standing: "Treasurer" },
+    candidate("player", "membership-bo", "person-bo", "Bo Rivers"),
+  ];
+
+  it("gives one row per human, however many capacities they hold", () => {
+    expect(TRIPLE).toHaveLength(4);
+    expect(audiencePeople(TRIPLE).map((person) => person.displayName)).toEqual([
+      "Bo Rivers",
+      "Em Vaudrey",
+    ]);
+  });
+
+  it("carries every capacity on the one row, in precedence order", () => {
+    const em = audiencePeople(TRIPLE).find((person) => person.personId === EM);
+
+    expect(em?.capacities).toEqual(["player", "coach", "committee"]);
+    expect(em?.standings).toEqual(["Active", "Head Coach", "Treasurer"]);
+    // The capacity a write would resolve them to, and the same one
+    // `resolveSelection` picks — the two must not be able to disagree.
+    expect(em?.capacity).toBe("player");
+    const resolution = resolveSelection(TRIPLE, em?.keys ?? []);
+    expect(resolution.ok && resolution.members).toHaveLength(1);
+    expect(resolution.ok && resolution.members[0].capacity).toBe("player");
+  });
+
+  it("keeps every key the human holds, so a tick moves all of them together", () => {
+    const em = audiencePeople(TRIPLE).find((person) => person.personId === EM);
+
+    expect(em?.keys).toEqual([
+      selectionKey("player", "membership-em"),
+      selectionKey("coach", EM),
+      selectionKey("committee", EM),
+    ]);
+  });
+
+  it("keeps the details the row shows — unit and contact — from whichever row has them", () => {
+    const em = audiencePeople(TRIPLE).find((person) => person.personId === EM);
+
+    expect(em?.unit).toBe("Both");
+    expect(em?.contact).toBe("07700 1");
+  });
+
+  it("collapses the seeded pair Brian found to one row each", () => {
+    // Bertram: player + President. Caspian: player + three committee seats,
+    // which the catalogue read has already joined into one committee row.
+    const seeded: AudienceCandidate[] = [
+      candidate("player", "membership-bertram", "person-bertram", "Bertram"),
+      {
+        ...candidate("committee", "person-bertram", "person-bertram", "Bertram"),
+        standing: "President",
+      },
+      candidate("player", "membership-caspian", "person-caspian", "Caspian Hallowfield"),
+      {
+        ...candidate("committee", "person-caspian", "person-caspian", "Caspian Hallowfield"),
+        standing: "Media Secretary, Secretary, IT Officer",
+      },
+    ];
+
+    const people = audiencePeople(seeded);
+    expect(people).toHaveLength(2);
+    expect(people.map((person) => person.displayName)).toEqual(["Bertram", "Caspian Hallowfield"]);
+    expect(people[1].standings).toEqual(["Active", "Media Secretary, Secretary, IT Officer"]);
+  });
+
+  it("joins a second row within one capacity rather than making a second person", () => {
+    // Defensive: the catalogue read already joins several seats held in one
+    // capacity. If it ever stopped, the person must still be one row.
+    const twoSeats: AudienceCandidate[] = [
+      {
+        ...candidate("committee", "person-di", "person-di", "Di Ashgrove"),
+        standing: "Social Sec",
+      },
+      {
+        ...candidate("committee", "person-di", "person-di", "Di Ashgrove"),
+        key: "committee:person-di-2",
+        standing: "Kit Sec",
+      },
+    ];
+
+    const people = audiencePeople(twoSeats);
+    expect(people).toHaveLength(1);
+    expect(people[0].standings).toEqual(["Social Sec, Kit Sec"]);
+  });
+
+  it("leaves the club fixture's six rows as its four humans", () => {
+    expect(audiencePeople(CLUB).map((person) => person.displayName)).toEqual([
+      "Ada Kettle",
+      "Bo Rivers",
+      "Cy Marchbank",
+      "Di Ashgrove",
+    ]);
+  });
+});
+
+/**
+ * LAN-295 — recruits belong to a recruitment event and nowhere else.
+ *
+ * The group-vocabulary half of D46. The other half — keeping recruits out of the
+ * catalogue entirely, so they are not individually tickable and cannot be
+ * invited — is `listAudienceCatalogueIn`, proved against the database in
+ * `event-approval.test.ts`.
+ */
+describe("the recruits group is Recruitment's alone", () => {
+  it("names the behavioural class rather than a template name", () => {
+    // After LAN-265 an operator names templates freely and everything they
+    // create is `practice` class, so a rule keyed on a name would be one rename
+    // away from inviting six prospects to a Wednesday practice.
+    expect(RECRUITMENT_EVENT_TYPE).toBe("recruitment");
+    const recruits = AUDIENCE_GROUPS.find((group) => group.key === "recruits");
+    expect(recruits?.eventTypes).toEqual([RECRUITMENT_EVENT_TYPE]);
+  });
+
+  it("is withheld on every other class and offered on that one", () => {
+    for (const type of ["practice", "game", "chalk", "social", "meeting"]) {
+      expect(groupsForEventType(type).map((group) => group.key)).not.toContain("recruits");
+    }
+    expect(groupsForEventType(RECRUITMENT_EVENT_TYPE).map((group) => group.key)).toContain(
+      "recruits",
+    );
   });
 });

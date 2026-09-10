@@ -172,6 +172,11 @@ afterEach(async () => {
     [NAME_MARKER],
   );
   await observer.query("delete from public.people where family_name = $1", [NAME_MARKER]);
+
+  // The namesakes `namesakeInvitation` mints, whose whole point is that their
+  // *display* name is somebody else's — so they are found by their own
+  // `given_name`, which carries this suite's marker. Their alias cascades.
+  await observer.query("delete from public.people where given_name like $1", [scope]);
 });
 
 afterAll(async () => {
@@ -204,7 +209,7 @@ async function approvedEvent(size = 3, overrides: Partial<EventDraftInput> = {})
   const event = await createEventDraft(actorPersonId, draft(overrides));
 
   const catalogue = await withTransaction((tx) =>
-    listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn),
+    listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn, event.eventType),
   );
   const keys = catalogue.candidates
     .filter((candidate) => candidate.capacity === "player" && seededPeople.has(candidate.personId))
@@ -281,27 +286,77 @@ async function answer(invitationId: string, response: "yes" | "no", reason: stri
   ]);
 }
 
-/** A second invitation to one event for one person, anchored to the person. */
-async function secondInvitationFor(eventId: string, invitationId: string) {
-  const person = await observer.query<{ person_id: string }>(
-    `select m.person_id from public.invitations i
+/** The display name an invitation's invitee is shown under. */
+async function displayNameFor(invitationId: string): Promise<string> {
+  const named = await observer.query<{ display_name: string }>(
+    `select coalesce(nullif(btrim((select da.alias from public.person_aliases da
+                 where da.person_id = p.id and da.is_display_name limit 1)), ''), p.given_name)
+            || case when p.family_name is null then '' else ' ' || p.family_name end
+              as display_name
+       from public.invitations i
        join public.season_memberships m on m.id = i.season_membership_id
+       join public.people p on p.id = m.person_id
       where i.id = $1`,
     [invitationId],
   );
+  return named.rows[0].display_name;
+}
+
+/**
+ * A **second person of the same name**, invited to the same event and never
+ * answering — the grid's one-cell-per-person merge, exercised where it is still
+ * reachable.
+ *
+ * Until LAN-294 this gave the *same* human a second invitation, anchored to
+ * their person rather than their membership, because invariant P8's two anchors
+ * let one person hold both and the seeded week had 32 such pairs. Invariant P9
+ * ended that: `event_audience_members_one_per_human_per_event` refuses the
+ * second audience row outright, so the state cannot be built any more.
+ *
+ * The merge is keyed on the **display name**, though, which is exactly what the
+ * data model says is not a join key — so the collision it has to survive is now
+ * two different people the club calls the same thing. Same branch, same three
+ * properties, a case that can actually occur.
+ *
+ * Returns the id of the person created, so the suite can take them away again.
+ */
+async function namesakeInvitation(
+  eventId: string,
+  invitationId: string,
+  id?: string,
+): Promise<string> {
+  const displayName = await displayNameFor(invitationId);
+
+  // A distinct person carrying the suite's marker in their own name, wearing
+  // the target's display name as their display alias — so the grid sees one
+  // name and the database sees two people.
+  const person = await observer.query<{ id: string }>(
+    `insert into public.people (given_name, family_name)
+     values ($1, null) returning id`,
+    [`${NAME_MARKER} Namesake`],
+  );
+  await observer.query(
+    `insert into public.person_aliases (person_id, alias, is_display_name)
+     values ($1, $2, true)`,
+    [person.rows[0].id, displayName],
+  );
+
   const audience = await observer.query<{ id: string }>(
     `insert into public.event_audience_members
-       (event_id, season_id, capacity, person_id, added_by_person_id)
-     values ($1, $2, 'coach', $3, $4) returning id`,
-    [eventId, seasonId, person.rows[0].person_id, actorPersonId],
+       (event_id, season_id, capacity, person_id, invitee_person_id, added_by_person_id)
+     values ($1, $2, 'coach', $3, $3, $4) returning id`,
+    [eventId, seasonId, person.rows[0].id, actorPersonId],
   );
   await observer.query(
     `insert into public.invitations
-       (event_id, event_status, season_id, capacity, person_id,
+       (id, event_id, event_status, season_id, capacity, person_id,
         audience_member_id, status, issued_at)
-     values ($1, 'approved', $2, 'coach', $3, $4, 'issued', now())`,
-    [eventId, seasonId, person.rows[0].person_id, audience.rows[0].id],
+     values (coalesce($5::uuid, gen_random_uuid()), $1, 'approved', $2, 'coach', $3, $4,
+             'issued', now())`,
+    [eventId, seasonId, person.rows[0].id, audience.rows[0].id, id ?? null],
   );
+
+  return person.rows[0].id;
 }
 
 async function refusalFrom(run: () => Promise<unknown>): Promise<ServiceError> {
@@ -438,8 +493,8 @@ describe("last week, event by event", () => {
     );
     await observer.query(
       `insert into public.event_audience_members
-         (event_id, season_id, capacity, season_membership_id, added_by_person_id)
-       values ($1, $2, 'player', $3, $4)`,
+         (event_id, season_id, capacity, season_membership_id, invitee_person_id, added_by_person_id)
+       values ($1, $2, 'player', $3, (select m.person_id from public.season_memberships m where m.id = $3), $4)`,
       [event.id, seasonId, membership.rows[0].id, actorPersonId],
     );
 
@@ -567,75 +622,47 @@ describe("the attendance grid", () => {
   });
 
   /**
-   * A person can hold two invitations to one event, and the grid must still
-   * give them one cell — with the disagreement in it, whichever invitation the
-   * database hands over first.
+   * Two invitations can land in one column under one name, and the grid must
+   * still give that name one cell — with the disagreement in it, whichever
+   * invitation the database hands over first.
    *
-   * Invariant P8 anchors a player to their membership and a coach or committee
-   * member to their person, and the same human is routinely both; the seeded
-   * week has 32 such pairs. Before the merge, each invitation pushed its own
-   * cell: the table rendered the first and the problem count counted both.
+   * **What changed under this test, LAN-294.** It used to build the collision
+   * from one human holding two invitations: invariant P8 anchors a player to
+   * their membership and a coach or committee member to their person, the same
+   * human is routinely both, and the seeded week carried 32 such pairs. That is
+   * the defect Brian found on 2026-09-10 and invariant P9 now forbids outright —
+   * `event_audience_members_one_per_human_per_event` refuses the second audience
+   * row, so the pair cannot be built at all.
    *
-   * This runs the same scenario twice, with the ids arranged so that the
-   * benign invitation sorts first in one and the disagreeing one first in the
-   * other. Independent review caught the earlier version passing only because
+   * The merge stays, and so does this test, because the merge is keyed on the
+   * **display name** and a display name is exactly what the data model says is
+   * not a join key. Two different people the club calls the same thing still
+   * collide in one row, and a report that hid a real discrepancy behind a benign
+   * cell would be just as wrong for them. Same branch, same three properties, a
+   * case that can still occur.
+   *
+   * This runs the same scenario twice, with the ids arranged so that the benign
+   * invitation sorts first in one and the disagreeing one first in the other.
+   * Independent review caught the earlier version passing only because
    * PostgreSQL happened to return the disagreeing row first — deleting the
    * promote branch entirely left all 3,154 tests green.
    */
-  describe("one cell per person per event, when they hold two invitations to it", () => {
+  describe("one cell per name per event, when two invitations land under it", () => {
     /**
-     * Gives one member of `event` a second invitation, anchored to their person
-     * rather than their membership, with an id chosen so the caller controls
-     * which of the two the ordered query returns first.
+     * `namesakeId` decides the order: the player invitation's id is a random
+     * uuid from the application, so an all-zeroes id always sorts before it and
+     * an all-fs id always after.
      */
-    async function secondInvitation(eventId: string, invitationId: string, id: string) {
-      const person = await observer.query<{ person_id: string }>(
-        `select m.person_id from public.invitations i
-           join public.season_memberships m on m.id = i.season_membership_id
-          where i.id = $1`,
-        [invitationId],
-      );
-      const audience = await observer.query<{ id: string }>(
-        `insert into public.event_audience_members
-           (event_id, season_id, capacity, person_id, added_by_person_id)
-         values ($1, $2, 'coach', $3, $4) returning id`,
-        [eventId, seasonId, person.rows[0].person_id, actorPersonId],
-      );
-      await observer.query(
-        `insert into public.invitations
-           (id, event_id, event_status, season_id, capacity, person_id,
-            audience_member_id, status, issued_at)
-         values ($1, $2, 'approved', $3, 'coach', $4, $5, 'issued', now())`,
-        [id, eventId, seasonId, person.rows[0].person_id, audience.rows[0].id],
-      );
-    }
-
-    /**
-     * `coachId` decides the order: the player invitation's id is a random uuid
-     * from the application, so an all-zeroes id always sorts before it and an
-     * all-fs id always after.
-     */
-    async function runWith(coachId: string) {
+    async function runWith(namesakeId: string) {
       const event = await occurredEvent(2);
       const invitations = await invitationsFor(event.id);
-      await secondInvitation(event.id, invitations[0].id, coachId);
+      await namesakeInvitation(event.id, invitations[0].id, namesakeId);
 
       // The other invitee never answers either, so their cell is on the grid
-      // too — everything below is scoped to the person under test.
-      const named = await observer.query<{ display_name: string }>(
-        `select coalesce(nullif(btrim((select da.alias from public.person_aliases da
-                     where da.person_id = p.id and da.is_display_name limit 1)), ''), p.given_name)
-                || case when p.family_name is null then '' else ' ' || p.family_name end
-                  as display_name
-           from public.invitations i
-           join public.season_memberships m on m.id = i.season_membership_id
-           join public.people p on p.id = m.person_id
-          where i.id = $1`,
-        [invitations[0].id],
-      );
-      const person = named.rows[0].display_name;
+      // too — everything below is scoped to the name under test.
+      const person = await displayNameFor(invitations[0].id);
 
-      // The membership invitation is answered and honoured. The coach one is
+      // The membership invitation is answered and honoured. The namesake's is
       // never answered, so it disagrees — and must be what shows.
       await answer(invitations[0].id, "yes", null);
       await attend(event.id, invitations[0].season_membership_id, "present");
@@ -648,7 +675,7 @@ describe("the attendance grid", () => {
 
     it("keeps the disagreement when the disagreeing invitation arrives first", async () => {
       // An all-zeroes id always sorts before the application's random uuid, so
-      // the never-answered coach invitation is the one the merge sees first.
+      // the never-answered namesake invitation is the one the merge sees first.
       const { cells } = await runWith("00000000-0000-4000-8000-000000000081");
 
       expect(cells).toHaveLength(1);
@@ -704,7 +731,7 @@ describe("the attendance grid", () => {
   it("computes the same content twice from unchanged data", async () => {
     const event = await occurredEvent(2);
     const invitations = await invitationsFor(event.id);
-    await secondInvitationFor(event.id, invitations[0].id);
+    await namesakeInvitation(event.id, invitations[0].id);
     await answer(invitations[0].id, "no", "Coursework deadline.");
 
     const first = await compute();
