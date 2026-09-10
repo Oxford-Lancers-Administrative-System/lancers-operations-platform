@@ -1,5 +1,6 @@
 import "server-only";
 
+import { todayInClubZone } from "@/lib/club-time";
 import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
 import { grantSeasonMessagingConsentIn } from "./messaging-consent";
@@ -460,12 +461,18 @@ async function ensureProspectIn(
   seasonId: string,
   source: string,
 ): Promise<EnsuredProspect> {
+  // The recruit filling this in *is* the contact, so first contact is today —
+  // LAN-247, the same fact the walk-up door records from the event's date and
+  // the hand-add door records from the club's clock. Only on the row this call
+  // creates: a recruit who signs up twice in one season keeps the day the club
+  // first heard from them, which is what `on conflict do nothing` already says
+  // about every other column here.
   const inserted = await tx.query<{ id: string }>(
-    `insert into public.recruitment_prospects (person_id, season_id, source)
-     values ($1::uuid, $2::uuid, $3)
+    `insert into public.recruitment_prospects (person_id, season_id, source, first_contact_on)
+     values ($1::uuid, $2::uuid, $3, $4::date)
      on conflict (person_id, season_id) do nothing
      returning id`,
-    [personId, seasonId, source],
+    [personId, seasonId, source, todayInClubZone()],
   );
   if (inserted.rows[0]) return { id: inserted.rows[0].id, created: true };
 

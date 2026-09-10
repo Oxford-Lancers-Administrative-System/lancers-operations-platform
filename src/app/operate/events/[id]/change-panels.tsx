@@ -136,7 +136,11 @@ export function ChangeHistoryPanel({ entries }: { entries: readonly EventChangeE
                 </Typography>
                 <Typography
                   variant="body2"
-                  sx={{ fontWeight: 600 }}
+                  // LAN-264. Description and required equipment are multi-line
+                  // free text, so a change to one of them carries the operator's
+                  // own line breaks into this column rather than running the
+                  // lines together into one paragraph.
+                  sx={{ fontWeight: 600, whiteSpace: "pre-line" }}
                   aria-label={HISTORY_COLUMN_WHAT}
                 >
                   {describeHistoryEntry(entry)}

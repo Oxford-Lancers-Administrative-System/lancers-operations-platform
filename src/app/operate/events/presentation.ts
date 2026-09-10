@@ -1,3 +1,4 @@
+import type { DeliveryState } from "@/lib/services/delivery";
 import type { TermCoordinate, TermWindow } from "@/lib/services/event-input";
 import { joinWithAnd, labelFor, shortMonthOf, TERM_LABELS } from "@/lib/services/event-vocabulary";
 
@@ -38,6 +39,7 @@ export {
   formatShortDate,
   formatTimes,
   joinWithAnd,
+  JOINING_LINK_LABEL,
   labelFor,
   SHORT_MONTHS,
   shortMonthOf,
@@ -98,16 +100,23 @@ export const CLUB_TIME_ZONE_NOTE =
   "five-minute steps.";
 
 /**
- * `REQ-no-joining-url`, said to the operator entering one.
+ * What an operator pasting a joining link is told — LAN-284, Brian 2026-09-09.
  *
- * The rule is real and enforced in the service layer — the public projection has
- * no column for a joining URL and no field to put one in
- * (`listPublicSeasonEvents`) — and this is the sentence that stops somebody
- * assuming the link will reach people because they typed it in.
+ * This replaces `JOINING_URL_IS_NEVER_PUBLIC`, and the reversal is the whole
+ * point of the sentence. The link used to be operator-only, and the old text
+ * said so. It is now published on the public event page and carried in the
+ * subscription feed, and the only thing standing between an unprotected meeting
+ * and the open internet is the operator's own care over what they paste —
+ * nothing in this application can check whether a meeting has a passcode set.
+ *
+ * So this is a warning rather than a note, and it is one line rather than a
+ * gate: the operator is told what will happen and what to make sure of, and
+ * then trusted, because a gate here could only ever be a checkbox asserting
+ * something the application cannot verify.
  */
-export const JOINING_URL_IS_NEVER_PUBLIC =
-  "Never shown on the public calendar or in a subscription feed. How an invited person " +
-  "receives it is not yet built.";
+export const JOINING_URL_IS_PUBLIC_WARNING =
+  "Published on the public calendar and in the subscription feed. Make sure the meeting " +
+  "itself requires a passcode.";
 
 /**
  * The derived coordinate in the club's words — "Michaelmas 2026-27, Week 1", or
@@ -275,10 +284,108 @@ export const AUDIENCE_FROZEN_AT_APPROVAL = "Confirmed at approval.";
 
 /**
  * The half of the Distribution fact that stops "invitations created" being read
- * as "invitations sent". Until LAN-78 dispatches the queued jobs, nothing has
- * reached anybody, and the screen has to say so rather than implying contact.
+ * as "invitations sent". Until a job has run, nothing has reached anybody, and
+ * the screen has to say so rather than implying contact.
+ *
+ * This is now **one state among several** rather than the only thing the fact
+ * can say — see {@link describeDistribution}.
  */
 export const NOTHING_DELIVERED_YET = "nothing delivered yet";
+
+/**
+ * What the Distribution fact says about delivery, from the real job states.
+ *
+ * ## The defect this replaces — LAN-243
+ *
+ * `NOTHING_DELIVERED_YET` used to be interpolated unconditionally whenever the
+ * event had any invitation at all. Every approved event therefore claimed
+ * nothing had been delivered **forever**, directly above a participation table
+ * where most rows carried a green **Delivered** chip — two answers to "did it
+ * reach them?" on one screen, which is exactly what `docs/ux/standards.md`
+ * rule 7 forbids. `docs/operating-the-slice.md` expects those three words in
+ * one state only: after approval, before any job has run.
+ *
+ * ## The counts come from the table on the same page
+ *
+ * Not from a second query. The event page already holds the operator
+ * participation rows in order to draw that table, and each row carries the
+ * delivery state `DELIVERY_STATE_EXPRESSION` produced — so this line and the
+ * chips beneath it are one reading of one set of rows and cannot disagree.
+ *
+ * ## What it says, and what it will not say
+ *
+ * Values and states, in the delivery vocabulary `slice-ux.md` § 6 fixed, and
+ * only the states that are actually present: an event with everything
+ * delivered reads "61 delivered" and does not go on to list four zeroes.
+ * **Attempted** is deliberately folded into neither delivered nor failed —
+ * "Delivered never means read", and a message we have asked about and not yet
+ * heard back on is its own state. **Held** and **Cancelled** are the club's own
+ * doing rather than the provider's, and they are named for that reason.
+ */
+export interface DistributionCounts {
+  queued: number;
+  attempted: number;
+  delivered: number;
+  failed: number;
+  retryable: number;
+  held: number;
+  cancelled: number;
+}
+
+export function describeDelivery(counts: DistributionCounts): string {
+  const parts: string[] = [];
+  if (counts.delivered > 0) parts.push(`${counts.delivered} delivered`);
+  if (counts.attempted > 0) parts.push(`${counts.attempted} attempted`);
+  if (counts.queued > 0) parts.push(`${counts.queued} queued`);
+  if (counts.retryable > 0) parts.push(`${counts.retryable} retryable`);
+  if (counts.failed > 0) parts.push(`${counts.failed} failed`);
+  if (counts.held > 0) parts.push(`${counts.held} held`);
+  if (counts.cancelled > 0) parts.push(`${counts.cancelled} cancelled`);
+  // Nothing queued and nothing attempted is the one state the old literal was
+  // written for, and it stays exactly as it was.
+  return parts.length === 0 ? NOTHING_DELIVERED_YET : parts.join(" · ");
+}
+
+/** The whole note under **Invitations created**: how many, how many answered, and where they are. */
+export function describeDistribution(
+  invitationCount: number,
+  responseCount: number,
+  counts: DistributionCounts,
+): string {
+  return `${invitationCount} invitations · ${responseCount} responses · ${describeDelivery(counts)}`;
+}
+
+const NO_DELIVERY_COUNTS: DistributionCounts = Object.freeze({
+  queued: 0,
+  attempted: 0,
+  delivered: 0,
+  failed: 0,
+  retryable: 0,
+  held: 0,
+  cancelled: 0,
+});
+
+/**
+ * The delivery states of the rows the participation table is about to draw.
+ *
+ * `null` — a person with no notification job at all — is counted as nothing,
+ * because there is no state to report for them and the invitation count above
+ * already says how many people there are. A `null` participation (a draft, or
+ * an event whose invitations do not exist yet) yields every zero, which
+ * {@link describeDelivery} reads as "nothing delivered yet".
+ */
+export function countDeliveryStates(
+  participation: { people: readonly { delivery: DeliveryState | null }[] } | null,
+): DistributionCounts {
+  if (participation === null) return { ...NO_DELIVERY_COUNTS };
+
+  const counts: DistributionCounts = { ...NO_DELIVERY_COUNTS };
+  for (const person of participation.people) {
+    if (person.delivery === null) continue;
+    counts[person.delivery] += 1;
+  }
+  return counts;
+}
 
 // ---------------------------------------------------------------------------
 // Questions — amendment W4-A1

@@ -1,6 +1,11 @@
 /**
- * The public calendar reads, and only reads — LAN-153, `REQ-public-calendar`
- * and `REQ-no-joining-url`.
+ * The public calendar reads, and only reads — LAN-153, `REQ-public-calendar`.
+ *
+ * `REQ-no-joining-url` was the other half of this file's title until 2026-09-09,
+ * when Brian reversed it (LAN-284): an online event's joining URL is published
+ * here, and the assertion that used to prove its absence now proves its
+ * presence. Everything else this file guards is unchanged — no person, no
+ * answer, no attendance record, and no row written by a read.
  *
  * ## Why this is a database suite and not a screen test
  *
@@ -12,11 +17,12 @@
  *     rows in those five tables either side of a real render against a real
  *     database, which is what this file does. A mocked service cannot write, so
  *     a mocked test would pass whatever the page did.
- *   * **"No anonymous response carries an online event's joining URL, a person,
- *     an answer or an attendance record — in the page or in any payload behind
- *     it."** The strings that must be absent are the ones the seeded database
- *     actually holds, and a fixture would only prove that the fixture's own
- *     invented URL is absent.
+ *   * **"No anonymous response carries a person, an answer or an attendance
+ *     record — in the page or in any payload behind it."** The strings that
+ *     must be absent are the ones the seeded database actually holds, and a
+ *     fixture would only prove that the fixture's own invented values are
+ *     absent. The same argument is why the joining URL's *presence* is asserted
+ *     here too: the value proved is the one the database holds.
  *
  * ## No session, and none faked
  *
@@ -345,26 +351,27 @@ describe("a request carrying no cookie, session or token", () => {
 });
 
 describe("what an anonymous response carries", () => {
-  it("never carries an online event's joining URL, in the page or the payload", async () => {
-    // `REQ-no-joining-url`. Asserted on the payload as well as the markup,
-    // because a value can reach the browser inside serialised props without
-    // ever being rendered.
+  it("carries an online event's joining URL on the event page — LAN-284", async () => {
+    // The inverse of the assertion that stood here until 2026-09-09, and the
+    // reversal is Brian's: the calendar stays public, and the protection lives
+    // on the meeting rather than on the schedule. Kept as a live assertion
+    // rather than deleted, because "the link is published" is now exactly as
+    // much a property of this tier as "it is withheld" was, and a silent
+    // regression in either direction is a defect.
     const online = await anOnlineEvent();
 
-    const markup = allMarkup(await renderEverySurfaceSafely(online.id));
-    expect(markup).not.toContain(online.joiningUrl);
-
-    const list = await listPublicSeasonEvents();
     const detail = await readPublicEvent(online.id);
-    const payload = JSON.stringify({ list, detail });
+    expect(detail.joiningUrl).toBe(online.joiningUrl);
 
-    expect(payload).not.toContain(online.joiningUrl);
-    expect(payload.toLowerCase()).not.toContain("joiningurl");
-    expect(payload.toLowerCase()).not.toContain("joining_url");
+    const surfaces = await renderEverySurfaceSafely(online.id);
+    const eventPage = surfaces.find((surface) => surface.name === "public event page");
+    expect(eventPage).toBeDefined();
+    expect(eventPage?.markup).toContain(online.joiningUrl);
 
     // The event is still there, and still says it is online — the tier narrows
     // what is said about an event, never which events are shown (D5).
     expect(detail.deliveryMode).toBe("online");
+    const list = await listPublicSeasonEvents();
     expect(list.events.some((event) => event.id === online.id)).toBe(true);
   }, 120_000);
 
@@ -496,7 +503,9 @@ describe("the public projection reads no participation table", () => {
     for (const table of PARTICIPATION_TABLES) {
       expect(PUBLIC_EVENT_COLUMNS, `public columns mention ${table}`).not.toContain(table);
     }
-    expect(PUBLIC_EVENT_COLUMNS).not.toContain("joining_url");
+    // LAN-284: `joining_url` is now among the public columns, and this used to
+    // assert the opposite. Nothing else about the projection moved.
+    expect(PUBLIC_EVENT_COLUMNS).toContain("joining_url");
   });
 
   it("names every table the operator's own counts read", () => {

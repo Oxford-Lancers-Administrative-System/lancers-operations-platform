@@ -65,10 +65,33 @@ export default async function PlayerRecordPage({
   }
 
   const justCreated = query.created === "1";
+  // LAN-257: what the intake actually did, carried from `confirmationHref`.
+  // `linked` says an existing person was used rather than a new one minted;
+  // `unsaved` names the kinds of contact the operator typed that were
+  // deliberately not written to that person's record. Both are read
+  // defensively — a hand-typed URL is not evidence of anything.
+  const linkedExisting = justCreated && query.linked === "1";
+  const unsavedContacts = justCreated ? readUnsavedContacts(query.unsaved) : [];
   const person = redactPersonRecord(
     result.data.person as unknown as Record<string, unknown>,
     operator.roleCodes,
   ) as unknown as Partial<PersonRecord>;
 
-  return <PlayerRecordView record={result.data} person={person} justCreated={justCreated} />;
+  return (
+    <PlayerRecordView
+      record={result.data}
+      person={person}
+      justCreated={justCreated}
+      linkedExisting={linkedExisting}
+      unsavedContacts={unsavedContacts}
+    />
+  );
+}
+
+/** `?unsaved=phone,email` — kinds only, and only the two this product writes. */
+function readUnsavedContacts(value: string | string[] | undefined): ("email" | "phone")[] {
+  const raw = Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
+  return raw
+    .split(",")
+    .filter((kind): kind is "email" | "phone" => kind === "email" || kind === "phone");
 }

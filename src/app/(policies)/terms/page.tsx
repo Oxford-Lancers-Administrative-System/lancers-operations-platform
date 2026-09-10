@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
+import { publicPageMetadata } from "@/lib/brand";
 import { PolicyHeading, PolicySection, PrivacyContact } from "../policy-content";
 
-export const metadata: Metadata = {
-  title: "Terms of use — Oxford Lancers",
-  description: "Using the Oxford Lancers operations platform, accounts and private links.",
-};
+export const metadata: Metadata = publicPageMetadata(
+  "Terms of use",
+  "Using the Oxford Lancers operations platform, accounts and private links.",
+);
 
 export default function TermsPage() {
   return (

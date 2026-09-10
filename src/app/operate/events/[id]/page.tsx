@@ -87,6 +87,8 @@ import {
   DELIVERY_MODE_LABELS,
   DERIVED_STATE_LABELS,
   describeAttendance,
+  countDeliveryStates,
+  describeDistribution,
   DISTRIBUTION_AUTOMATED,
   DISTRIBUTION_BEGINS_AFTER_APPROVAL,
   EMPTY_AUDIENCE_DETAIL,
@@ -95,11 +97,11 @@ import {
   formatDetailWhen,
   formatTermAndWeek,
   isPreApproval,
+  JOINING_LINK_LABEL,
   labelFor,
   NO_DISTRIBUTION_DETAIL,
   NO_DISTRIBUTION_HEADLINE,
-  JOINING_URL_IS_NEVER_PUBLIC,
-  NOTHING_DELIVERED_YET,
+  JOINING_URL_IS_PUBLIC_WARNING,
   PLAN_MISSING_HEADLINE,
   PLAN_MISSING_NOTE,
   STATUS_LABELS,
@@ -847,6 +849,10 @@ function EventDetailView({
     event.invitationCount > 0;
   const cancellation = history.find((entry) => entry.kind === "cancelled") ?? null;
   const proposed = event.status === "draft" && audience.length > 0;
+  // LAN-243. Counted from the very rows the participation table below is about
+  // to draw, so the Distribution note and the Delivered chips are one reading
+  // of one set of rows rather than two that can — and did — contradict.
+  const deliveryCounts = countDeliveryStates(participation);
   // D30, derived and never stored. Shown beside the stored status rather than
   // instead of it: "Approved" and "Occurred" answer different questions.
   const derived = derivedEventState(event, todayInClubZone());
@@ -946,24 +952,32 @@ function EventDetailView({
               value={formatTermAndWeek(event.termLabel, event.weekNumber)}
             />
             <Fact label="Attendance" value={describeAttendance(event.isMandatory)} />
+            {/* LAN-264. Both are free text the operator typed; a list stays a list. */}
             <Fact
               label="Required equipment"
               value={event.requiredEquipment ?? "Nothing listed"}
+              multiline
               testId="equipment-fact"
             />
             {event.description ? (
-              <Fact label="Description" value={event.description} testId="description-fact" />
+              <Fact
+                label="Description"
+                value={event.description}
+                multiline
+                testId="description-fact"
+              />
             ) : null}
             {/*
-            REQ-no-joining-url. Operator tier only, and this route is operator
-            tier. It is never rendered on a public surface, never in a feed, and
-            never in a payload behind one.
+            LAN-284 reversed REQ-no-joining-url: this link is now published on
+            the public event page and carried in the subscription feed. The note
+            is the warning, and it belongs here rather than on the public page —
+            the operator is the only person who can do anything about it.
           */}
             {event.joiningUrl ? (
               <Fact
-                label="Joining link"
+                label={JOINING_LINK_LABEL}
                 value={event.joiningUrl}
-                note={JOINING_URL_IS_NEVER_PUBLIC}
+                note={JOINING_URL_IS_PUBLIC_WARNING}
                 testId="joining-url-fact"
               />
             ) : null}
@@ -1008,7 +1022,7 @@ function EventDetailView({
               note={
                 event.invitationCount === 0
                   ? NO_DISTRIBUTION_DETAIL
-                  : `${event.invitationCount} invitations · ${event.responseCount} responses · ${NOTHING_DELIVERED_YET}`
+                  : describeDistribution(event.invitationCount, event.responseCount, deliveryCounts)
               }
               testId="distribution-fact"
             />

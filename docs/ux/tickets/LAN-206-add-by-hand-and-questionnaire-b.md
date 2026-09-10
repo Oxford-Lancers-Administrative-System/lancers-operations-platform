@@ -150,6 +150,16 @@ than a looser one, and the college email is validated to the Oxford rule (see
 server. The mobile and the emergency contact's phone are both the shared
 two-part control (LAN-211).
 
+The prospect row this door creates records **first contact as today**, on the
+club's clock — LAN-247. It did not, and the consequence was not confined to one
+field: the record read "First contact: not recorded" for the rest of the season,
+including after the flip to joined, and the board's default sort ("ladder order,
+then most recent first contact", `LAN-204`) had nothing to sort a hand-added
+recruit by. An operator typing a recruit in has just met them, which is what the
+field means; the walk-up door already recorded the same fact from the event's own
+date. Offering an existing prospect rather than erroring is unchanged, and that
+path still leaves the earlier date alone.
+
 ## The send machinery — `declareRecruitmentCycleJobsIn`, called once
 
 With opt-in evidence recorded, `finishRecruitmentAddIn` grants

@@ -487,14 +487,65 @@ export function toggleGroup(
  * group is invited when it is not, which is the one thing this line must never
  * do. They come back as `others`, and the named list underneath is where they
  * are actually read.
+ *
+ * ## A member who has since gone inactive is still one of the people (LAN-242)
+ *
+ * This summary is read against a *saved* audience, and a saved audience outlives
+ * the catalogue it was built from: a player whose membership lapsed after the
+ * draft was written is still a row in `event_audience_members` and still a name
+ * on the screen, but the builder would no longer offer them. `resolveSelection`
+ * refuses such a selection outright — correctly, because a *write* that silently
+ * shrank would invite a list nobody confirmed — and this function used to reach
+ * for it. One lapsed membership therefore collapsed the whole summary to
+ * `total: 0`, so **every** event with any history at all printed "0 people"
+ * above its own list of sixty-one names, on the event page, the approval review
+ * and the cancel screen alike (LAN-239, walkers M2/M4/M6).
+ *
+ * Reading is not writing. Here an unknown key is a person the club still
+ * invited, so it is counted rather than refused: it lands in
+ * `noLongerSelectable`, it is part of `total`, and it is deliberately not part
+ * of `others` — "chosen by hand" is a statement about how somebody was picked,
+ * and a lapsed membership is not that. It cannot complete a group either, which
+ * keeps the one rule this line must never break: a group is named only when
+ * every person it would invite today is in the audience.
  */
 export interface AudienceGroupSummary {
   /** The labels of the groups wholly present, widest first. Possibly empty. */
   groups: string[];
   /** How many of the chosen people no named group accounts for. */
   others: number;
+  /**
+   * How many of the chosen the builder would no longer offer — a lapsed
+   * membership or a dropped role since the audience was saved. Counted in
+   * `total`, never in `others`, and never named as a group.
+   */
+  noLongerSelectable: number;
   /** How many people are chosen altogether. */
   total: number;
+}
+
+/**
+ * The chosen selection, split into the people the catalogue still knows and the
+ * keys it no longer does. Tolerant where {@link resolveSelection} is strict —
+ * see the note above on why reading and writing differ here.
+ */
+function chosenIn(
+  candidates: readonly AudienceCandidate[],
+  selected: readonly string[],
+): { known: ReadonlySet<string>; noLongerSelectable: number } {
+  const byKey = new Map(candidates.map((candidate) => [candidate.key, candidate]));
+  const known = new Set<string>();
+  // By key, not by count: the same key twice is one person, exactly as
+  // `resolveSelection` collapses duplicates for a selection it can resolve.
+  const unknown = new Set<string>();
+
+  for (const key of selected) {
+    const candidate = byKey.get(key);
+    if (candidate) known.add(candidate.personId);
+    else unknown.add(key);
+  }
+
+  return { known, noLongerSelectable: unknown.size };
 }
 
 export function summariseAudienceGroups(
@@ -502,14 +553,14 @@ export function summariseAudienceGroups(
   selected: readonly string[],
   eventType: string,
 ): AudienceGroupSummary {
-  const chosen = peopleIn(candidates, selected);
+  const { known, noLongerSelectable } = chosenIn(candidates, selected);
   const covered = new Set<string>();
   const groups: string[] = [];
 
   for (const group of groupsForEventType(eventType)) {
     const wanted = peopleIn(candidates, groupSelectionKeys(candidates, group.key));
     if (wanted.size === 0) continue;
-    if (![...wanted].every((personId) => chosen.has(personId))) continue;
+    if (![...wanted].every((personId) => known.has(personId))) continue;
     if ([...wanted].every((personId) => covered.has(personId))) continue;
     groups.push(group.label);
     for (const personId of wanted) covered.add(personId);
@@ -517,7 +568,8 @@ export function summariseAudienceGroups(
 
   return {
     groups,
-    others: [...chosen].filter((personId) => !covered.has(personId)).length,
-    total: chosen.size,
+    others: [...known].filter((personId) => !covered.has(personId)).length,
+    noLongerSelectable,
+    total: known.size + noLongerSelectable,
   };
 }

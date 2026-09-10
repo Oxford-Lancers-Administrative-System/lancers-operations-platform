@@ -338,7 +338,7 @@ describe("mergePersons — the two refusals Q-5 names", () => {
         survivorPersonId: survivorId,
         loserPersonId: loserId,
         reason: "Same person, one archived membership",
-        fieldChoices: {},
+        fieldChoices: { given_name: "survivor" },
       }),
     ).resolves.toMatchObject({ survivorPersonId: survivorId, loserPersonId: loserId });
 
@@ -576,7 +576,7 @@ describe("mergePersons — the successful merge", () => {
       survivorPersonId: survivorId,
       loserPersonId: loserId,
       reason: "Duplicate prospect",
-      fieldChoices: {},
+      fieldChoices: { given_name: "survivor" },
     });
 
     const prospects = await observer.query<{
@@ -617,18 +617,49 @@ describe("mergePersons — the successful merge", () => {
       expect(preview.consentCombinations[0]).not.toHaveProperty("fromLoser");
     });
 
-    it("keeps the survivor's own state when the operator makes no explicit choice — even against a more restrictive loser", async () => {
+    // LAN-256 amends B-003's default rather than its principle. "They
+    // obviously get to choose" and "an unanswered row silently keeps the
+    // survivor's value" cannot both hold: the second is how a merge discarded
+    // the loser's whole record without the operator answering anything. Two
+    // disagreeing consent states are now a question, and an unanswered one
+    // refuses the merge instead of resolving itself.
+    it("refuses the merge outright when two disagreeing consent states are left unanswered", async () => {
       const survivorId = await insertPerson({ givenName: unique("Survivor") });
       const loserId = await insertPerson({ givenName: unique("Loser") });
       await insertConsent(survivorId, seasonId, "granted", "2024-09-05T00:00:00Z");
       await insertConsent(loserId, seasonId, "refused", "2024-09-01T00:00:00Z");
 
+      await expect(
+        mergePersons({
+          actorPersonId,
+          survivorPersonId: survivorId,
+          loserPersonId: loserId,
+          reason: "Duplicate consent, no explicit choice",
+          fieldChoices: { given_name: "survivor" },
+        }),
+      ).rejects.toMatchObject({ rule: "person_merge_requires_a_choice_per_difference" });
+
+      // Nothing was written: both consent rows are still where they were.
+      const consents = await observer.query<{ person_id: string; state: string }>(
+        `select person_id, state::text as state from public.season_messaging_consents
+          where season_id = $1::uuid and person_id = any($2::uuid[])`,
+        [seasonId, [survivorId, loserId]],
+      );
+      expect(consents.rows).toHaveLength(2);
+    });
+
+    it("needs no consent choice when both records already hold the same state", async () => {
+      const survivorId = await insertPerson({ givenName: unique("Survivor") });
+      const loserId = await insertPerson({ givenName: unique("Loser") });
+      await insertConsent(survivorId, seasonId, "granted", "2024-09-05T00:00:00Z");
+      await insertConsent(loserId, seasonId, "granted", "2024-09-01T00:00:00Z");
+
       await mergePersons({
         actorPersonId,
         survivorPersonId: survivorId,
         loserPersonId: loserId,
-        reason: "Duplicate consent, no explicit choice",
-        fieldChoices: {},
+        reason: "Duplicate consent, both sides agree",
+        fieldChoices: { given_name: "survivor" },
       });
 
       const consents = await observer.query<{ person_id: string; state: string }>(
@@ -636,9 +667,6 @@ describe("mergePersons — the successful merge", () => {
           where season_id = $1::uuid and person_id = any($2::uuid[])`,
         [seasonId, [survivorId, loserId]],
       );
-      // Nothing is imposed: the survivor's own value stands by default, the
-      // same default a plain field or contact row's radio already has —
-      // proof this is no longer the automatic restrictive-wins algorithm.
       expect(consents.rows).toHaveLength(1);
       expect(consents.rows[0]).toMatchObject({ person_id: survivorId, state: "granted" });
     });
@@ -654,7 +682,7 @@ describe("mergePersons — the successful merge", () => {
         survivorPersonId: survivorId,
         loserPersonId: loserId,
         reason: "Duplicate consent, operator picked the loser's value",
-        fieldChoices: {},
+        fieldChoices: { given_name: "survivor" },
         consentChoices: { [seasonId]: "loser" },
       });
 
@@ -679,7 +707,7 @@ describe("mergePersons — the successful merge", () => {
       survivorPersonId: survivorId,
       loserPersonId: loserId,
       reason: "Duplicate agreement",
-      fieldChoices: {},
+      fieldChoices: { given_name: "survivor" },
     });
 
     const agreements = await observer.query<{ person_id: string; agreed_at: Date }>(
@@ -716,7 +744,7 @@ describe("mergePersons — the successful merge", () => {
         survivorPersonId: survivorId,
         loserPersonId: loserId,
         reason: "Duplicate dispute",
-        fieldChoices: {},
+        fieldChoices: { given_name: "survivor" },
       });
 
       const disputes = await observer.query<{
@@ -752,7 +780,7 @@ describe("mergePersons — the successful merge", () => {
         survivorPersonId: survivorId,
         loserPersonId: loserId,
         reason: "Non-colliding dispute",
-        fieldChoices: {},
+        fieldChoices: { given_name: "survivor" },
       });
 
       const dispute = await observer.query<{ person_id: string; status: string }>(
@@ -780,7 +808,10 @@ describe("mergePersons — the successful merge", () => {
       survivorPersonId: survivorId,
       loserPersonId: loserId,
       reason: "Older record has the college",
-      fieldChoices: { college: "loser" },
+      // `given_name` is answered because the two fixtures disagree on it and
+      // LAN-256 makes every disagreement a question; `family_name` is not,
+      // because both sides say "Alderfield" and there is nothing to choose.
+      fieldChoices: { given_name: "survivor", college: "loser" },
     });
 
     const row = await observer.query<{ college: string | null; family_name: string | null }>(
@@ -791,5 +822,138 @@ describe("mergePersons — the successful merge", () => {
     // family_name was never chosen from the loser, and both sides agreed
     // anyway — the survivor's own value is untouched.
     expect(row.rows[0].family_name).toBe("Alderfield");
+  });
+});
+
+/**
+ * LAN-256, reproduced as the walker found it: `Yor` (a near-duplicate holding
+ * almost nothing) merged with `Yorick` (a complete record). Every differing
+ * row used to arrive with the survivor pre-selected, so a merge nobody touched
+ * kept seven blanks and threw away seven recorded facts, and the survivor then
+ * reported "8 required facts are missing".
+ */
+describe("LAN-256 — an untouched merge can never discard the loser's record", () => {
+  async function yorAndYorick(): Promise<{ survivorId: string; loserId: string }> {
+    const survivorId = await insertPerson({ givenName: "Yor" });
+    const loserId = await insertPerson({ givenName: "Yor", familyName: "Ashgrove" });
+    await observer.query(
+      `update public.people
+          set college = 'Hallamshire', matriculation_year = 2023,
+              expected_graduation_year = 2026, degree_field = 'History',
+              date_of_birth = '2004-03-11'
+        where id = $1::uuid`,
+      [loserId],
+    );
+    await insertContact(loserId, { kind: "phone", rawValue: "07700 900602" });
+    return { survivorId, loserId };
+  }
+
+  it("marks a blank-against-a-value row as a question, without calling it a difference", async () => {
+    const { survivorId, loserId } = await yorAndYorick();
+
+    const preview = await previewPersonMerge(survivorId, loserId);
+    const familyName = preview.fields.find((field) => field.field === "family_name")!;
+
+    // B-004 stands: absence is not a difference, so no warning chip.
+    expect(familyName.differs).toBe(false);
+    // LAN-256: it is still a question, because answering it wrong loses a
+    // recorded fact.
+    expect(familyName.needsChoice).toBe(true);
+
+    // Two rows that genuinely agree are neither.
+    const givenName = preview.fields.find((field) => field.field === "given_name")!;
+    expect(givenName.differs).toBe(false);
+    expect(givenName.needsChoice).toBe(false);
+
+    // A contact the survivor does not hold at all is a question too.
+    const mobile = preview.contacts.find((contact) => contact.kind === "mobile")!;
+    expect(mobile.differs).toBe(false);
+    expect(mobile.needsChoice).toBe(true);
+  });
+
+  it("refuses a merge that answers nothing, and writes nothing at all", async () => {
+    const { survivorId, loserId } = await yorAndYorick();
+
+    await expect(
+      mergePersons({
+        actorPersonId,
+        survivorPersonId: survivorId,
+        loserPersonId: loserId,
+        reason: "Same person, entered twice at sign-up",
+        fieldChoices: {},
+      }),
+    ).rejects.toMatchObject({ rule: "person_merge_requires_a_choice_per_difference" });
+
+    const rows = await observer.query<{ merged_into_person_id: string | null }>(
+      `select merged_into_person_id from public.people where id = $1::uuid`,
+      [loserId],
+    );
+    // Not merged, so nothing was discarded: the loser's record is untouched.
+    expect(rows.rows[0].merged_into_person_id).toBeNull();
+  });
+
+  it("names every field it is still waiting on, so the refusal is actionable", async () => {
+    const { survivorId, loserId } = await yorAndYorick();
+
+    await expect(
+      mergePersons({
+        actorPersonId,
+        survivorPersonId: survivorId,
+        loserPersonId: loserId,
+        reason: "Same person",
+        fieldChoices: { family_name: "loser", college: "loser" },
+      }),
+    ).rejects.toMatchObject({
+      rule: "person_merge_requires_a_choice_per_difference",
+      message: expect.stringContaining("Matriculation year"),
+    });
+  });
+
+  it("keeps every value the operator asked for once every difference is answered", async () => {
+    const { survivorId, loserId } = await yorAndYorick();
+
+    await mergePersons({
+      actorPersonId,
+      survivorPersonId: survivorId,
+      loserPersonId: loserId,
+      reason: "Same person, entered twice at sign-up",
+      fieldChoices: {
+        family_name: "loser",
+        college: "loser",
+        matriculation_year: "loser",
+        expected_graduation_year: "loser",
+        degree_field: "loser",
+        date_of_birth: "loser",
+        mobile: "loser",
+      },
+    });
+
+    const row = await observer.query<{
+      family_name: string | null;
+      college: string | null;
+      matriculation_year: number | null;
+      expected_graduation_year: number | null;
+      degree_field: string | null;
+      date_of_birth: Date | null;
+    }>(
+      `select family_name, college, matriculation_year, expected_graduation_year,
+              degree_field, date_of_birth
+         from public.people where id = $1::uuid`,
+      [survivorId],
+    );
+    expect(row.rows[0]).toMatchObject({
+      family_name: "Ashgrove",
+      college: "Hallamshire",
+      matriculation_year: 2023,
+      expected_graduation_year: 2026,
+      degree_field: "History",
+    });
+    expect(row.rows[0].date_of_birth).not.toBeNull();
+
+    const contacts = await observer.query<{ raw_value: string; is_preferred: boolean }>(
+      `select raw_value, is_preferred from public.contact_points where person_id = $1::uuid`,
+      [survivorId],
+    );
+    expect(contacts.rows).toEqual([{ raw_value: "07700 900602", is_preferred: true }]);
   });
 });

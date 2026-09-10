@@ -19,6 +19,8 @@
  * re-invents differently.
  */
 
+import { isSafeUri } from "./safe-uri";
+
 // ---------------------------------------------------------------------------
 // Vocabulary
 // ---------------------------------------------------------------------------
@@ -203,7 +205,7 @@ export interface RawEventDraft {
   description?: string | null;
   /** D17: its own field, separate from the description. */
   requiredEquipment?: string | null;
-  /** The online event's link (REQ-no-joining-url). Never public. */
+  /** The online event's link. Published on the public calendar (LAN-284). */
   joiningUrl?: string | null;
   /** `"mandatory"` or `"optional"`. Absent is unanswered, never a default. */
   attendance?: string | null;
@@ -348,6 +350,21 @@ export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
     });
   }
 
+  // LAN-284 made this field public, on the event page as an `href` and in the
+  // subscription feed as a raw `URL` property. Finding F1 of the LAN-272 review
+  // is what makes the check live *here* rather than only at those two readers:
+  // a `javascript:` value typed into this box became an anchor on an
+  // unauthenticated page that ran script in the application's own origin. The
+  // readers guard themselves as well, but a value that can never be published
+  // should not be stored, and refusing it at the form is the only place the
+  // operator finds out — a reader's guard is silent by design.
+  //
+  // Same rule as the feed's, one function: absolute, `http` or `https`, no
+  // control character or line break.
+  if (joiningUrl !== null && !isSafeUri(joiningUrl)) {
+    issues.push({ field: "joiningUrl", message: JOINING_URL_MESSAGE });
+  }
+
   if (issues.length > 0) return { ok: false, issues };
 
   return {
@@ -378,6 +395,15 @@ export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
  * migration ran. The rule is about *entry*, which is where it is applied.
  */
 export const FIVE_MINUTE_INCREMENT_MESSAGE = "Enter the time in five-minute steps.";
+
+/**
+ * What the operator is told when the joining link is not a web address.
+ *
+ * Names the rule rather than the refusal: "invalid URL" leaves them guessing
+ * which part, and the two things they actually have to get right are that it is
+ * a whole address and that it starts with a web scheme.
+ */
+export const JOINING_URL_MESSAGE = "Enter a full web address starting with https://";
 
 export function isFiveMinuteIncrement(time: string): boolean {
   const minutes = Number(time.slice(3, 5));
@@ -473,8 +499,23 @@ export function deriveTermCoordinate(
 // Shared string handling
 // ---------------------------------------------------------------------------
 
+/**
+ * Trimmed, with line endings normalised to `\n` — LAN-264.
+ *
+ * The normalisation is not tidiness. HTML says a `<textarea>` submits its value
+ * with every newline as CRLF, whatever was typed and whatever was rendered into
+ * it, so the moment description and required equipment became multi-line the
+ * stored `\n` came back as `\r\n` on the very next save. Nothing had changed and
+ * `diffAmendment` compares the normalised value, so every amendment to an event
+ * with a kit list recorded a second, invented change — "Required equipment:
+ * <three lines> → <the same three lines>" — and rewrote the column to CRLF.
+ *
+ * Normalising here fixes both halves at once, because this is the function the
+ * write path and the diff both go through: what is stored is always `\n`, and a
+ * value that merely round-tripped through a form is equal to itself.
+ */
 export function trimmed(value: string | null | undefined): string {
-  return typeof value === "string" ? value.trim() : "";
+  return typeof value === "string" ? value.replace(/\r\n|\r/g, "\n").trim() : "";
 }
 
 export function optional(value: string | null | undefined): string | null {

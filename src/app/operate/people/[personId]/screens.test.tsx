@@ -3,7 +3,7 @@
  * history section. LAN-184.
  */
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -305,5 +305,79 @@ describe("the person record, for an authorized operator", () => {
 
     expect(expanded.getByTestId("history-filters")).toBeVisible();
     expect(expanded.getByText("Status changed")).toBeVisible();
+  });
+});
+
+// LAN-257. "This is them" on `/operate/people/new` writes nothing onto the
+// chosen person — that is right, and it is now what `/operate/roster/new` does
+// too — but it used to land here in silence, on a record showing a different
+// number from the one the operator had typed a second earlier.
+describe("the landing after This is them", () => {
+  it("names the typed contact that was not recorded, and where to record it", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(baseRecord({ missingRequiredFields: [] }));
+    stubReads();
+
+    render(await PersonRecordPage(pageProps("p1", { linked: "1", unsaved: "phone,email" })));
+
+    const notice = screen.getByTestId("linked-contact-not-recorded");
+    expect(notice).toHaveTextContent("Not recorded: Mobile · Personal email.");
+    expect(within(notice).getByTestId("linked-contact-correct-link")).toHaveAttribute(
+      "href",
+      "/operate/people/p1/edit",
+    );
+  });
+
+  it("says nothing on an ordinary visit, or when nothing was discarded", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(baseRecord({ missingRequiredFields: [] }));
+    stubReads();
+
+    render(await PersonRecordPage(pageProps("p1")));
+    expect(screen.queryByTestId("linked-contact-not-recorded")).not.toBeInTheDocument();
+  });
+});
+
+// LAN-257 — `contact_points.scope` is null for an email nobody has classified
+// yet, which is exactly what `/operate/roster/new` writes for a person it
+// mints. Until this row existed the address the club held appeared on no
+// screen: an invisible write of the same shape LAN-257 is about.
+describe("an email nobody has classified yet", () => {
+  const unclassified = {
+    id: "c9",
+    kind: "email" as const,
+    scope: null,
+    rawValue: "bertram@example.invalid",
+    normalisedValue: null,
+    isPreferred: true,
+    source: "operator intake",
+    validFrom: new Date(),
+    validUntil: null,
+  };
+
+  it("is shown on the record, said to be unclassified rather than guessed at", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(
+      baseRecord({ contacts: [unclassified], missingRequiredFields: [] }),
+    );
+    stubReads();
+
+    render(await PersonRecordPage(pageProps("p1")));
+
+    expect(screen.getByText("bertram@example.invalid")).toBeVisible();
+    expect(screen.getByText("Email · not classified")).toBeVisible();
+    // Not promoted to either kind: the scope is genuinely unknown, and
+    // guessing it from the domain would be inventing data about a person.
+    const personal = screen.getByText("Personal email").closest('[data-testid="record-row"]');
+    expect(personal).toHaveTextContent("not recorded");
+  });
+
+  it("adds no row at all to a record that has none", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(readPersonRecord).mockResolvedValue(baseRecord({ missingRequiredFields: [] }));
+    stubReads();
+
+    render(await PersonRecordPage(pageProps("p1")));
+    expect(screen.queryByText("Email · not classified")).not.toBeInTheDocument();
   });
 });

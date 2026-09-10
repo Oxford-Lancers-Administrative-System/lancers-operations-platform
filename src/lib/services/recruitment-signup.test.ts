@@ -12,6 +12,7 @@ vi.mock("server-only", () => ({}));
 
 import type { Client } from "pg";
 
+import { todayInClubZone } from "@/lib/club-time";
 import { closePool, withTransaction } from "@/lib/db";
 import {
   probeExistingRecruitForQrSignup,
@@ -266,6 +267,24 @@ describe("signUpAnonymouslyIn — the QR door", () => {
       [result.prospectId],
     );
     expect(prospect.rows[0].status).toBe("identified");
+  });
+
+  it("LAN-247 — records today as the recruit's first contact", async () => {
+    const code = await mintCode();
+    const result = await withTransaction((tx) =>
+      signUpAnonymouslyIn(tx, {
+        seasonId,
+        code,
+        submission: baseSubmission({ mobile: "07700900456" }),
+      }),
+    );
+
+    const prospect = await observer.query<{ first_contact_on: string | null }>(
+      `select to_char(first_contact_on, 'YYYY-MM-DD') as first_contact_on
+         from public.recruitment_prospects where id = $1::uuid`,
+      [result.prospectId],
+    );
+    expect(prospect.rows[0].first_contact_on).toBe(todayInClubZone());
   });
 
   it("bumps the signup code's own sign-in counter", async () => {
