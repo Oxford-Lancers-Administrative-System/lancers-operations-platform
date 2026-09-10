@@ -273,7 +273,9 @@ describe("the write, and how it ends", () => {
   it("redirects to the new membership on success", async () => {
     vi.mocked(enterReturningPlayer).mockResolvedValue({
       membershipId: "33333333-3333-4333-8333-333333333333",
-    } as Awaited<ReturnType<typeof enterReturningPlayer>>);
+      personCreated: true,
+      contactsNotRecorded: [],
+    } as unknown as Awaited<ReturnType<typeof enterReturningPlayer>>);
 
     const thrown = await submitReturnerIntake(
       INITIAL_INTAKE_STATE,
@@ -283,6 +285,56 @@ describe("the write, and how it ends", () => {
     expect(thrown).toBeInstanceOf(RedirectSignal);
     expect((thrown as RedirectSignal).url).toBe(
       "/operate/roster/33333333-3333-4333-8333-333333333333?created=1",
+    );
+  });
+
+  // LAN-257. UX-13 said "Person and <season> membership were created together"
+  // whether or not a person had been created, and said nothing about a typed
+  // number the write had thrown away. Both facts now travel to the
+  // confirmation — by kind, never by value: a query string is bookmarked, kept
+  // in history and logged, and this one is about somebody's phone number.
+  it("tells the confirmation that an existing person was linked, and what was discarded", async () => {
+    vi.mocked(enterReturningPlayer).mockResolvedValue({
+      membershipId: "33333333-3333-4333-8333-333333333333",
+      personCreated: false,
+      contactsNotRecorded: [{ kind: "phone", rawValue: "07700 900504" }],
+    } as unknown as Awaited<ReturnType<typeof enterReturningPlayer>>);
+
+    const thrown = await submitReturnerIntake(
+      INITIAL_INTAKE_STATE,
+      form({
+        ...VALID_DETAILS,
+        intent: "use_existing",
+        personId: "66666666-6666-4666-8666-666666666666",
+      }),
+    ).catch((error: unknown) => error);
+
+    expect(thrown).toBeInstanceOf(RedirectSignal);
+    const url = (thrown as RedirectSignal).url;
+    expect(url).toBe(
+      "/operate/roster/33333333-3333-4333-8333-333333333333?created=1&linked=1&unsaved=phone",
+    );
+    expect(url).not.toContain("900504");
+  });
+
+  it("says nothing was discarded when the linked person already holds what was typed", async () => {
+    vi.mocked(enterReturningPlayer).mockResolvedValue({
+      membershipId: "33333333-3333-4333-8333-333333333333",
+      personCreated: false,
+      contactsNotRecorded: [],
+    } as unknown as Awaited<ReturnType<typeof enterReturningPlayer>>);
+
+    const thrown = await submitReturnerIntake(
+      INITIAL_INTAKE_STATE,
+      form({
+        ...VALID_DETAILS,
+        intent: "use_existing",
+        personId: "66666666-6666-4666-8666-666666666666",
+      }),
+    ).catch((error: unknown) => error);
+
+    expect((thrown as RedirectSignal).url).toBe(
+      "/operate/roster/33333333-3333-4333-8333-333333333333?created=1&linked=1",
     );
   });
 

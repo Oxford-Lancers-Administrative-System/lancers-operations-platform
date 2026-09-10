@@ -116,9 +116,36 @@ export const MERGE_CONTACT_KIND_LABELS: Readonly<Record<MergeContactKind, string
 
 export type MergeChoice = "survivor" | "loser";
 
-/** Every field an operator may choose per-side for. Undeclared means "keep the survivor's own value". */
+/**
+ * Every field an operator may choose per-side for.
+ *
+ * LAN-256: undeclared no longer means "keep the survivor's own value" on a row
+ * where the two records disagree. It used to, and the comparison screen
+ * pre-selected the survivor on every row to match, so a merge submitted
+ * without touching a single radio silently kept the survivor's *blank* last
+ * name, college, matriculation year, expected graduation, degree field, date
+ * of birth and emergency contact over the loser's complete ones. A row where
+ * both sides hold the same value still needs no declaration — there is
+ * nothing to choose between — and `mergePersons` refuses a merge that leaves
+ * any disagreeing row unanswered.
+ */
 export type MergeFieldChoices = Partial<Record<MergePersonField, MergeChoice>> &
   Partial<Record<MergeContactKind, MergeChoice>>;
+
+/**
+ * Whether a comparison row is a question the operator has to answer — LAN-256.
+ *
+ * Deliberately *not* `differs`. `differs` is B-004's warning chip and means
+ * "both sides hold a value and those values disagree"; absence is not a
+ * difference there, and that reading is Brian's. Whether the survivor keeps a
+ * blank where the loser holds a value is a different question, and it is the
+ * one an untouched merge used to answer by discarding the loser's record. A
+ * choice is required whenever the two sides do not hold the same value, in
+ * either direction.
+ */
+function needsChoiceBetween(survivorValue: string | null, loserValue: string | null): boolean {
+  return survivorValue !== loserValue;
+}
 
 // ---------------------------------------------------------------------------
 // Eligibility — the two refusals `Q-5` names, read-only
@@ -289,6 +316,8 @@ export interface MergeFieldComparison {
   survivorValue: string | null;
   loserValue: string | null;
   differs: boolean;
+  /** LAN-256 — the two sides do not hold the same value, so the operator must say which the survivor keeps. */
+  needsChoice: boolean;
 }
 
 export interface MergeContactComparison {
@@ -297,6 +326,8 @@ export interface MergeContactComparison {
   survivor: { id: string; rawValue: string } | null;
   loser: { id: string; rawValue: string } | null;
   differs: boolean;
+  /** LAN-256 — as on a plain field: not the same value on both sides, so it is a question. */
+  needsChoice: boolean;
 }
 
 export interface MergeAliasComparison {
@@ -499,6 +530,11 @@ export interface MergeConsentCombination {
   loserState: string;
 }
 
+/** LAN-256 — a colliding consent row is a question exactly when the two states disagree. */
+function consentNeedsChoice(combo: MergeConsentCombination): boolean {
+  return combo.survivorState !== combo.loserState;
+}
+
 /** Per-season operator choice for a colliding consent row — `consent_<seasonId>` on the merge form. */
 export type MergeConsentChoices = Partial<Record<string, MergeChoice>>;
 
@@ -539,9 +575,10 @@ async function repointConsents(
   choices: MergeConsentChoices,
 ): Promise<void> {
   for (const combo of combinations) {
-    // B-003: the operator's own choice, defaulting to the survivor's own
-    // value — the same default the comparison screen's radio already shows
-    // pre-selected for every other row.
+    // B-003: the operator's own choice. LAN-256: the fallback to the
+    // survivor only ever applies where the two states already agree —
+    // `assertEveryDifferenceAnswered` refuses the merge before this runs if a
+    // colliding season's two states disagree and nobody answered for it.
     if ((choices[combo.seasonId] ?? "survivor") === "loser") {
       await tx.query(
         `update public.season_messaging_consents a
@@ -809,6 +846,7 @@ export async function previewPersonMerge(
         // recorded, not disputed — the warning chip fires only when both
         // sides actually hold a value and those values disagree.
         differs: survivorValue !== null && loserValue !== null && survivorValue !== loserValue,
+        needsChoice: needsChoiceBetween(survivorValue, loserValue),
       };
     });
 
@@ -830,6 +868,7 @@ export async function previewPersonMerge(
         // than it is on a plain field: the chip fires only when both sides
         // actually hold a value and those values disagree.
         differs: survivor !== null && loser !== null && survivor.rawValue !== loser.rawValue,
+        needsChoice: needsChoiceBetween(survivor?.rawValue ?? null, loser?.rawValue ?? null),
       };
     });
 
@@ -1334,6 +1373,57 @@ export interface MergePersonsResult {
 }
 
 /**
+ * LAN-256's backstop, inside the merge's own transaction and under its own row
+ * locks.
+ *
+ * The comparison screen disables Merge until every disagreeing row has an
+ * answer, but a server action is a POST endpoint the browser can call
+ * directly, and the whole defect was that an unanswered row quietly resolved
+ * to the survivor. So the rule lives here, where the records are already read
+ * and locked, rather than only in the component that draws the radios. It
+ * names the fields it is missing, because "answer everything" is not something
+ * an operator can act on.
+ */
+function assertEveryDifferenceAnswered(
+  survivorRecord: PersonRecord,
+  loserRecord: PersonRecord,
+  choices: MergeFieldChoices,
+  consentCombinations: readonly MergeConsentCombination[],
+  consentChoices: MergeConsentChoices,
+): void {
+  const unanswered: string[] = [];
+
+  for (const field of Object.keys(MERGE_PERSON_FIELD_LABELS) as MergePersonField[]) {
+    const survivorValue = fieldValue(survivorRecord, field);
+    const loserValue = fieldValue(loserRecord, field);
+    if (needsChoiceBetween(survivorValue, loserValue) && choices[field] === undefined) {
+      unanswered.push(MERGE_PERSON_FIELD_LABELS[field]);
+    }
+  }
+
+  for (const kind of Object.keys(MERGE_CONTACT_KIND_LABELS) as MergeContactKind[]) {
+    const survivorValue = currentPreferred(survivorRecord, kind)?.rawValue ?? null;
+    const loserValue = currentPreferred(loserRecord, kind)?.rawValue ?? null;
+    if (needsChoiceBetween(survivorValue, loserValue) && choices[kind] === undefined) {
+      unanswered.push(MERGE_CONTACT_KIND_LABELS[kind]);
+    }
+  }
+
+  for (const combo of consentCombinations) {
+    if (consentNeedsChoice(combo) && consentChoices[combo.seasonId] === undefined) {
+      unanswered.push(`Messaging consent · ${combo.seasonLabel}`);
+    }
+  }
+
+  if (unanswered.length > 0) {
+    throw new ConstraintViolated(
+      `Choose which value the surviving record keeps for: ${unanswered.join(", ")}.`,
+      { rule: "person_merge_requires_a_choice_per_difference" },
+    );
+  }
+}
+
+/**
  * The merge. One transaction: every reference re-pointed, every chosen field
  * value written as an ordinary correction, the losing row marked and dated,
  * and one `person_merged` audit event naming what moved — invariant I6, and
@@ -1345,7 +1435,7 @@ export async function mergePersons(params: {
   loserPersonId: string;
   reason: string;
   fieldChoices: MergeFieldChoices;
-  /** B-003: per-season consent choice, keyed by season id. Undeclared means "keep the survivor's own value" — the same default the comparison screen's radio shows pre-selected. */
+  /** B-003: per-season consent choice, keyed by season id. LAN-256: required wherever the two states disagree; undeclared is legal only where they already agree. */
   consentChoices?: MergeConsentChoices;
 }): Promise<MergePersonsResult> {
   const { actorPersonId, survivorPersonId, loserPersonId, fieldChoices } = params;
@@ -1399,6 +1489,16 @@ export async function mergePersons(params: {
     );
     const combinations = await readProspectCombinations(tx, survivorPersonId, loserPersonId);
     const consentCombinations = await readConsentCombinations(tx, survivorPersonId, loserPersonId);
+
+    // LAN-256, before anything is written: an unanswered disagreement is not
+    // an implicit vote for the survivor.
+    assertEveryDifferenceAnswered(
+      survivorSide.record,
+      loserSide.record,
+      fieldChoices,
+      consentCombinations,
+      consentChoices,
+    );
 
     const reasonNote = `From merging "${(await readSideLabelIn(tx, loserPersonId)).displayName}" into this record.`;
 
