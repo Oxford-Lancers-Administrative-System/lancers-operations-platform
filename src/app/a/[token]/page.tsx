@@ -1,5 +1,7 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
+import { TOKEN_LINK_METADATA } from "@/lib/brand";
 import { Notice } from "@/components/notice";
 import { PublicShell } from "@/components/public-shell";
 import { PageHeader } from "@/components/page-header";
@@ -78,6 +80,16 @@ import {
  * Component's render may not set cookies in this framework, and routing that
  * concern through the proxy is what keeps this file a pure read.
  */
+/**
+ * The generic club card — LAN-269.
+ *
+ * This link is the one a player taps straight out of a WhatsApp message, and
+ * the questionnaire behind it is the most personal surface in the application.
+ * The card names nothing: not the player, not the event, not that a
+ * questionnaire exists. `TOKEN_LINK_METADATA` says why.
+ */
+export const metadata: Metadata = TOKEN_LINK_METADATA;
+
 export const dynamic = "force-dynamic";
 
 interface PageProps {

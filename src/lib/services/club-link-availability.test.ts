@@ -41,7 +41,12 @@ vi.mock("server-only", () => ({}));
 import type { Client } from "pg";
 
 import { closePool, getPool, withTransaction } from "@/lib/db";
-import { issueClubLinkIn, recordClubLinkUse, resolveClubLinkIn } from "./club-link";
+import {
+  issueClubLinkIn,
+  recordClubLinkUse,
+  recordClubLinkUseByToken,
+  resolveClubLinkIn,
+} from "./club-link";
 import { readClubLinkParticipation } from "./participation";
 import { STORED_MISMATCH_CLASSES } from "./discrepancy-vocabulary";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
@@ -207,27 +212,44 @@ describe("recording a club link's use", () => {
     expect(await useCountOf(linkId)).toBe(1);
   });
 
-  it("counts an ordinary, uncontended view exactly once", async () => {
+  it("is no longer done by reading the page either — LAN-269", async () => {
+    // W157-R1 moved the stamp out of the resolving transaction; LAN-269 moved
+    // it out of the `GET` altogether. Reading this page is what a WhatsApp or
+    // iMessage preview crawler does when the link is pasted into a chat, before
+    // any coach taps it, and once per participant's client. None of that is a
+    // coach opening the link, which is the only thing Q2 wants counted.
     const { linkId, token } = await aLink();
+
     expect((await readClubLinkParticipation(token, { env: SECRET })).state).toBe("live");
+    expect(await useCountOf(linkId)).toBe(0);
+  });
+
+  it("counts an ordinary, uncontended opening exactly once", async () => {
+    // What `/e/[token]`'s beacon calls once a real browser has run the page.
+    const { linkId, token } = await aLink();
+    expect(await recordClubLinkUseByToken(token)).toBe(true);
     expect(await useCountOf(linkId)).toBe(1);
   });
 
-  it("is a floor on simultaneous views, not a count of them", async () => {
+  it("counts nothing for a token nobody was issued", async () => {
+    const { linkId } = await aLink();
+    expect(await recordClubLinkUseByToken("z".repeat(43))).toBe(false);
+    expect(await recordClubLinkUseByToken("not a token")).toBe(false);
+    expect(await useCountOf(linkId)).toBe(0);
+  });
+
+  it("is a floor on simultaneous openings, not a count of them", async () => {
     // Stated as a test because Q2 — whether club links need expiry — will be
     // decided from this number, and whoever reads it should meet the
     // undercounting here rather than in the data. `skip locked` means two
-    // requests landing in the same instant record one view between them.
+    // requests landing in the same instant record one opening between them.
     const { linkId, token } = await aLink();
 
-    const pages = await Promise.all(
-      Array.from({ length: READERS }, () => readClubLinkParticipation(token, { env: SECRET })),
-    );
-    expect(pages.map((page) => page.state)).toEqual(Array(READERS).fill("live"));
+    await Promise.all(Array.from({ length: READERS }, () => recordClubLinkUseByToken(token)));
 
     const counted = await useCountOf(linkId);
     // At least one — "was this link opened at all", which is the question Q2
-    // actually asks, survives the loss. Never more than the views themselves.
+    // actually asks, survives the loss. Never more than the openings themselves.
     expect(counted).toBeGreaterThanOrEqual(1);
     expect(counted).toBeLessThanOrEqual(READERS);
   });

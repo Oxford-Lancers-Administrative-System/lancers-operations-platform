@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { Notice } from "@/components/notice";
+import { LinkOpenedBeacon } from "@/components/link-opened-beacon";
+import { TOKEN_LINK_METADATA } from "@/lib/brand";
 import { PublicShell } from "@/components/public-shell";
 import { PageHeader } from "@/components/page-header";
 import { Fact, FactGrid } from "@/components/fact";
@@ -20,7 +23,7 @@ import {
 import { readSignedRsvpPageIn, type SignedRsvpPage } from "@/lib/services/rsvp";
 import { resolveRsvpTokenIn } from "@/lib/services/rsvp-tokens";
 
-import { submitAttending, submitNotAttending } from "./actions";
+import { noteRsvpLinkOpened, submitAttending, submitNotAttending } from "./actions";
 import {
   BUSY_ERROR,
   CLOSED_ERROR,
@@ -105,6 +108,16 @@ import {
  */
 export const dynamic = "force-dynamic";
 
+/**
+ * The generic club card — LAN-269.
+ *
+ * Static, and it names no event and no player. A card built from the token
+ * would unfurl differently for a live link than for a dead one, which would put
+ * the uniform terminal response this whole file preserves into a chat bubble
+ * for everyone to read. `TOKEN_LINK_METADATA` states the rest.
+ */
+export const metadata: Metadata = TOKEN_LINK_METADATA;
+
 interface PageProps {
   params: Promise<{ token: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -165,14 +178,30 @@ export default async function RsvpPage({ params, searchParams }: PageProps) {
   }
 
   const error = firstValue(query[ERROR_PARAM]);
-  if (firstValue(query[SAVED_PARAM]) !== null && error === null) {
-    return <ResponseSaved page={resolved.page} token={token} />;
-  }
-  if (firstValue(query[STEP_PARAM]) === DECLINE_STEP) {
-    return <DecliningStep page={resolved.page} token={token} error={error} />;
-  }
+  const screen =
+    firstValue(query[SAVED_PARAM]) !== null && error === null ? (
+      <ResponseSaved page={resolved.page} token={token} />
+    ) : firstValue(query[STEP_PARAM]) === DECLINE_STEP ? (
+      <DecliningStep page={resolved.page} token={token} error={error} />
+    ) : (
+      <Invitation page={resolved.page} token={token} error={error} />
+    );
 
-  return <Invitation page={resolved.page} token={token} error={error} />;
+  return (
+    <>
+      {/*
+        Counts this as a real opening — LAN-269. The render stamps nothing, so a
+        WhatsApp or iMessage preview crawler fetching this URL leaves no trace;
+        the beacon runs only in a browser that executed the page.
+
+        Below the cancelled branch, and deliberately: `resolveRsvpTokenIn` used
+        to stamp only after it had ruled out a cancelled event, so a cancelled
+        link never counted as a use. That stays true.
+      */}
+      <LinkOpenedBeacon record={noteRsvpLinkOpened.bind(null, token)} />
+      {screen}
+    </>
+  );
 }
 
 /** A phone-first touch target. The player is outdoors on a small screen. */

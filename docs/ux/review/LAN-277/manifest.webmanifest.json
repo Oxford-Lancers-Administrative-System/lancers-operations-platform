@@ -1,0 +1,14 @@
+{
+  "name": "Oxford Lancers",
+  "short_name": "Lancers",
+  "description": "The Oxford Lancers club app: events, RSVPs and your details.",
+  "lang": "en-GB",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#002147",
+  "theme_color": "#002147",
+  "icons": [
+    { "src": "/brand/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/brand/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

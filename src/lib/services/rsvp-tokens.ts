@@ -250,11 +250,21 @@ export interface ResolvedInvitation {
 /**
  * Resolves a token to what the holder may see and do.
  *
- * Counts the access as a side effect for a token that resolves at all, which is
- * Brian's "repeat access is allowed and shows the current response; update
- * last-used time and use count". A token that does not resolve counts nothing —
- * incrementing on a miss would turn the table into a record of guessing, and
- * there is nothing to increment for a hash that matches no row.
+ * **A pure read — LAN-269.** This used to stamp `use_count` and `last_used_at`
+ * itself, so merely resolving a token wrote to the database. The routes that
+ * resolve are `GET`s, and the links carrying these tokens are pasted into
+ * WhatsApp and iMessage, where a preview crawler fetches the URL before any
+ * human sees the message. Every one of those fetches counted as an access.
+ *
+ * Brian's requirement is unchanged — "repeat access is allowed and shows the
+ * current response; update last-used time and use count" — but *access* means a
+ * person opening the link, not a bot reading its title. The stamp therefore
+ * moved out of resolution to `recordRsvpTokenUse`, which the route calls only
+ * once a real browser has run the page. `club-link.ts` already made exactly
+ * this split for a different reason (W157-R1); this is the same shape.
+ *
+ * A token that does not resolve still counts nothing — incrementing on a miss
+ * would turn the table into a record of guessing.
  */
 export async function resolveRsvpToken(token: string): Promise<TokenResolution> {
   return withTransaction(async (tx) => resolveRsvpTokenIn(tx, token));
@@ -332,12 +342,41 @@ export async function resolveRsvpTokenIn(tx: Tx, token: string): Promise<TokenRe
     return { state: "cancelled", invitation, writable: false };
   }
 
-  await tx.query(
-    `update public.rsvp_access_tokens
-        set use_count = use_count + 1, last_used_at = now()
-      where id = $1`,
-    [row.token_id],
-  );
-
   return { state: "valid", invitation, writable: true };
+}
+
+/**
+ * Counts one real opening of an RSVP link — LAN-269.
+ *
+ * Called from a server action the page fires once the browser has run it, never
+ * from the render. A link-preview crawler fetches the `GET` and stops there: it
+ * runs no JavaScript, so it never reaches this, and a card appearing in a chat
+ * no longer looks like the player opened their invitation.
+ *
+ * Takes the token rather than a row id so the caller needs no prior resolution:
+ * the digest is the key, and one statement settles it. A token matching nothing
+ * updates nothing, which is the same silence a miss has always produced.
+ *
+ * ## Failure is silence
+ *
+ * Returns whether the stamp landed and never throws. A player must not be shown
+ * an error because a telemetry counter did not move — the same rule
+ * `recordClubLinkUse` states at greater length, and for the same reason.
+ */
+export async function recordRsvpTokenUse(token: string): Promise<boolean> {
+  if (!TOKEN_PATTERN.test(token)) return false;
+
+  try {
+    return await withTransaction(async (tx) => {
+      const stamped = await tx.query(
+        `update public.rsvp_access_tokens
+            set use_count = use_count + 1, last_used_at = now()
+          where token_hash = $1`,
+        [hashToken(token)],
+      );
+      return (stamped.rowCount ?? 0) > 0;
+    });
+  } catch {
+    return false;
+  }
 }

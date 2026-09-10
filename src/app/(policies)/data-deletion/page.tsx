@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
+import { publicPageMetadata } from "@/lib/brand";
 import { PolicyHeading, PolicySection, PrivacyContact } from "../policy-content";
 
-export const metadata: Metadata = {
-  title: "Request data deletion — Oxford Lancers",
-  description:
-    "How to ask Oxford Lancers to delete personal information held in its operations platform.",
-};
+export const metadata: Metadata = publicPageMetadata(
+  "Request data deletion",
+  "How to ask Oxford Lancers to delete personal information held in its operations platform.",
+);
 
 export default function DataDeletionPage() {
   return (

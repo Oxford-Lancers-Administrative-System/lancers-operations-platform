@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { PublicShell } from "@/components/public-shell";
 import { PageHeader } from "@/components/page-header";
 import { StatusChip } from "@/components/status-chip";
+import { LinkOpenedBeacon } from "@/components/link-opened-beacon";
+import { TOKEN_LINK_METADATA } from "@/lib/brand";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
@@ -13,6 +16,8 @@ import {
 import { labelFor, STATUS_LABELS } from "@/lib/services/event-vocabulary";
 import { readParticipationFilters } from "@/lib/services/participation-view";
 import { readClubLinkParticipation } from "@/lib/services/participation";
+
+import { noteClubLinkOpened } from "./actions";
 
 import { EventFacts, formatEventWhen, HeadlineNumbers } from "../../participation/event-facts";
 import { ParticipationFilterBar } from "../../participation/participation-filters";
@@ -93,6 +98,14 @@ import {
  */
 export const dynamic = "force-dynamic";
 
+/**
+ * The generic club card, and not this event's — LAN-269.
+ *
+ * Static, so no token is resolved to build it and a crawler's fetch costs one
+ * cached `<head>`. `TOKEN_LINK_METADATA` says why the card names nothing.
+ */
+export const metadata: Metadata = TOKEN_LINK_METADATA;
+
 interface PageProps {
   params: Promise<{ token: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -143,6 +156,8 @@ export default async function ClubLinkPage({ params, searchParams }: PageProps) 
 
   return (
     <PublicShell width="wide">
+      {/* Counts this as a real opening. The render stamped nothing — LAN-269. */}
+      <LinkOpenedBeacon record={noteClubLinkOpened.bind(null, token)} />
       <Stack spacing={2}>
         <PageHeader
           title={participation.event.name}
