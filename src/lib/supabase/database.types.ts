@@ -1238,6 +1238,7 @@ export type Database = {
       }
       event_templates: {
         Row: {
+          colour_key: string
           default_delivery_mode:
             | Database["public"]["Enums"]["event_delivery_mode"]
             | null
@@ -1252,6 +1253,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          colour_key: string
           default_delivery_mode?:
             | Database["public"]["Enums"]["event_delivery_mode"]
             | null
@@ -1266,6 +1268,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          colour_key?: string
           default_delivery_mode?:
             | Database["public"]["Enums"]["event_delivery_mode"]
             | null

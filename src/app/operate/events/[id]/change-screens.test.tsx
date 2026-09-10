@@ -132,6 +132,7 @@ function detail(overrides: Partial<EventDetail> = {}): EventDetail {
     eventType: "practice",
     templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
     templateName: "Practice",
+    templateColour: "blue",
     status: "approved",
     scheduledOn: "2099-11-11",
     startsAt: "20:00",

@@ -2,21 +2,24 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import type { CalendarEvent } from "@/lib/services/calendar";
 import { labelFor } from "@/lib/services/event-vocabulary";
-import { formatCellDate, typeColour } from "./presentation";
+import { formatCellDate, templateColour } from "./presentation";
 
 /**
  * One event, inside a calendar cell. LAN-114.
  *
- * ## Colour is type; words are status
+ * ## Colour is the template; words are status
  *
  * Brian's reviews on 14 August 2026 settled both halves, and they fit together
- * because they answer different questions.
+ * because they answer different questions. LAN-276 correction round 1 moved
+ * which fact the colour half reads: a template's own colour rather than its
+ * behavioural class, so an operator-created template no longer shows
+ * Practice's blue by accident.
  *
- * **Type has the colour.** The club's term cards colour by what the event is,
- * and ours rendered everything grey — "every event is grey versus by type". So
- * the tile is tinted and edged by `event_type`, and nothing else on it is
- * distinguished by hue. The type is also printed in words, so a reader who
- * cannot separate two hues loses nothing.
+ * **The template has the colour.** The club's term cards colour by what the
+ * event is, and ours rendered everything grey — "every event is grey versus by
+ * type". So the tile is tinted and edged by the template's own colour, and
+ * nothing else on it is distinguished by hue. The template's name is also
+ * printed in words, so a reader who cannot separate two hues loses nothing.
  *
  * **Status has the words, when it has anything** — and *which* words is the
  * caller's decision since LAN-153, because a status is a tiered fact. The two
@@ -107,7 +110,7 @@ export default function CalendarEntry({
   const type = event.templateName;
   const when = event.scheduledOn ? formatCellDate(event.scheduledOn) : "No date yet";
   const time = event.startsAt ?? "";
-  const colour = typeColour(event.eventType);
+  const colour = templateColour(event.templateColour);
 
   // The accessible name states the status whether or not the tile shows it.
   const description = [event.name, when, time, announced, type, event.venue ?? ""]

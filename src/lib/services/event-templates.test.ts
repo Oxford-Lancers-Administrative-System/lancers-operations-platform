@@ -131,7 +131,7 @@ afterEach(async () => {
           set default_venue = $2, default_delivery_mode = $3::public.event_delivery_mode,
               default_duration_minutes = $4, default_description = $5,
               default_required_equipment = $6, default_is_mandatory = $7,
-              name = $8
+              name = $8, colour_key = $9
         where id = $1::uuid`,
       [
         row.id,
@@ -142,6 +142,7 @@ afterEach(async () => {
         row.default_required_equipment,
         row.default_is_mandatory,
         row.name,
+        row.colour_key,
       ],
     );
   }
@@ -217,6 +218,11 @@ function templateInput(overrides: Partial<EventTemplateInput> = {}): EventTempla
     // the Practice template, because most of these cases save that template and
     // a save that renamed it by accident would be a different test.
     name: TEMPLATE_NAME.practice,
+    // LAN-276 correction round 1's other required field. Practice's own
+    // seeded colour, for the same reason: most of these cases save Practice
+    // and a save that changed its colour by accident would be a different
+    // test.
+    colourKey: "blue",
     defaultVenue: null,
     defaultDeliveryMode: null,
     defaultDurationMinutes: null,
@@ -453,6 +459,71 @@ describe("the templates the schema ships with (D12, D40, as LAN-265 reopened the
     expect(template.defaultDeliveryMode).toBeNull();
     expect(template.defaultDurationMinutes).toBeNull();
     expect(template.defaultIsMandatory).toBeNull();
+  });
+});
+
+/**
+ * LAN-276 correction round 1. Brian, walking the review environment,
+ * 2026-09-10: "In the template, swatch color should be something that gets
+ * chosen, so it gets added as part of the template." The check constraint
+ * itself is proved against the real column in
+ * `tests/schema-events-target-state.test.ts`; what belongs here is that the
+ * service round-trips a chosen colour, and that a template an operator
+ * creates carries the colour it was given rather than one derived from its
+ * class.
+ */
+describe("colour is a template's own fact, not a guess from its class (Brian, 2026-09-10)", () => {
+  it("stores the colour a new template is created with, and lists and reads it back", async () => {
+    const created = await createEventTemplate(
+      actorPersonId,
+      templateInput({ name: `${NAME_MARKER} Film Review`, colourKey: "indigo" }),
+      [],
+    );
+    expect(created.colourKey).toBe("indigo");
+
+    const reread = await readEventTemplate(created.id);
+    expect(reread.colourKey).toBe("indigo");
+
+    const listed = await listEventTemplates();
+    expect(listed.find((template) => template.id === created.id)?.colourKey).toBe("indigo");
+  });
+
+  it("does not colour a new template by its class — two templates that both get `practice` may differ", async () => {
+    const first = await createEventTemplate(
+      actorPersonId,
+      templateInput({ name: `${NAME_MARKER} Kicking Clinic`, colourKey: "cyan" }),
+      [],
+    );
+    const second = await createEventTemplate(
+      actorPersonId,
+      templateInput({ name: `${NAME_MARKER} Full Pads Practice`, colourKey: "brown" }),
+      [],
+    );
+
+    expect(first.eventType).toBe("practice");
+    expect(second.eventType).toBe("practice");
+    expect(first.colourKey).not.toBe(second.colourKey);
+  });
+
+  it("changes a template's colour on save, independently of its name and fields", async () => {
+    try {
+      const plan = await saveEventTemplate(
+        actorPersonId,
+        TEMPLATE.practice,
+        templateInput({ colourKey: "pink" }),
+        [],
+      );
+      expect(plan.templateId).toBe(TEMPLATE.practice);
+
+      const reread = await readEventTemplate(TEMPLATE.practice);
+      expect(reread.colourKey).toBe("pink");
+      // The name was not touched by this save, and colour is not an inherited
+      // default — it does not appear among the fields a draft could take.
+      expect(reread.name).toBe(TEMPLATE_NAME.practice);
+      expect(plan.fieldChanges.some((change) => change.field === "colourKey")).toBe(false);
+    } finally {
+      await saveEventTemplate(actorPersonId, TEMPLATE.practice, templateInput(), []);
+    }
   });
 });
 

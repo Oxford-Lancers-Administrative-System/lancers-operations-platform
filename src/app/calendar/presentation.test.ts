@@ -12,19 +12,14 @@
 import { describe, expect, it } from "vitest";
 
 import type { TermWindow } from "@/lib/services/event-input";
+import { formatShortDate, shortMonthOf, SHORT_MONTHS } from "@/lib/services/event-vocabulary";
+import { TEMPLATE_COLOUR_PALETTE } from "@/lib/services/event-template-input";
 import {
-  formatShortDate,
-  shortMonthOf,
-  SHORT_MONTHS,
-  TYPE_LABELS,
-} from "@/lib/services/event-vocabulary";
-import {
-  EVENT_TYPE_COLOURS,
   formatCellDate,
   formatMonthLabel,
   formatTermName,
   formatWeekRange,
-  typeColour,
+  templateColour,
 } from "./presentation";
 
 const MICHAELMAS: TermWindow = {
@@ -85,43 +80,40 @@ describe("formatWeekRange", () => {
  * here. `src/lib/services/oxford-year.test.ts` asserts the same ordinals.
  */
 
-describe("colour by event type", () => {
-  it("gives every event type in the club's vocabulary its own colour", () => {
-    // Every value of `event_type` the interface names must resolve to a colour
-    // of its own; a type added later without one would silently render grey.
-    const types = Object.keys(TYPE_LABELS);
-    expect(types.length).toBeGreaterThan(0);
-
-    for (const type of types) {
-      expect(EVENT_TYPE_COLOURS[type], `no colour for ${type}`).toBeDefined();
-    }
+describe("colour by template — LAN-276 correction round 1", () => {
+  it("offers more than the seven seeded templates a colour of their own", () => {
+    // Eight to twelve, so an operator's templates have real choices beyond the
+    // seven the migration seeds — not one colour reused for everything new.
+    expect(TEMPLATE_COLOUR_PALETTE.length).toBeGreaterThanOrEqual(8);
+    expect(TEMPLATE_COLOUR_PALETTE.length).toBeLessThanOrEqual(12);
   });
 
   it("keeps the colours distinguishable from one another", () => {
-    const accents = Object.values(EVENT_TYPE_COLOURS).map((colour) => colour.accent);
+    const accents = TEMPLATE_COLOUR_PALETTE.map((colour) => colour.accent);
     expect(new Set(accents).size).toBe(accents.length);
 
-    const tints = Object.values(EVENT_TYPE_COLOURS).map((colour) => colour.tint);
+    const tints = TEMPLATE_COLOUR_PALETTE.map((colour) => colour.tint);
     expect(new Set(tints).size).toBe(tints.length);
+
+    const keys = TEMPLATE_COLOUR_PALETTE.map((colour) => colour.key);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it("falls back to a neutral colour rather than nothing", () => {
-    // No event type resolves to the fallback any more: LAN-151 narrowed the
-    // enum to seven and all seven are coloured. It exists so that a tile still
-    // renders if a future type reaches this function before somebody chooses
-    // its colour.
-    expect(typeColour("practice")).toBe(EVENT_TYPE_COLOURS.practice);
-    const fallback = typeColour("a_type_nobody_has_defined");
-    expect(fallback).toBeTruthy();
-    expect(Object.values(EVENT_TYPE_COLOURS)).not.toContain(fallback);
+  it("resolves a stored key to its own swatch, and falls back rather than throwing", () => {
+    expect(templateColour("blue")).toBe(TEMPLATE_COLOUR_PALETTE[0]);
+    // Not reachable through the editor or the check constraint, but a defence
+    // against a row this module's palette no longer names — re-tuning the
+    // palette must never make a calendar throw.
+    const fallback = templateColour("a_key_nobody_has_defined");
+    expect(fallback).toBe(TEMPLATE_COLOUR_PALETTE[0]);
   });
 
   it("keeps every tint light enough for dark text to sit on it", () => {
     // Relative luminance, sRGB. A tile prints `text.primary` on the tint, so a
     // tint that drifted dark would fail contrast without anybody noticing.
-    for (const [type, colour] of Object.entries(EVENT_TYPE_COLOURS)) {
-      expect(luminance(colour.tint), `${type} tint is too dark`).toBeGreaterThan(0.75);
-      expect(luminance(colour.accent), `${type} accent is too light`).toBeLessThan(0.4);
+    for (const colour of TEMPLATE_COLOUR_PALETTE) {
+      expect(luminance(colour.tint), `${colour.key} tint is too dark`).toBeGreaterThan(0.75);
+      expect(luminance(colour.accent), `${colour.key} accent is too light`).toBeLessThan(0.4);
     }
   });
 });

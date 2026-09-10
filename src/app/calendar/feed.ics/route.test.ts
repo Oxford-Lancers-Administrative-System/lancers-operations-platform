@@ -79,6 +79,7 @@ describe("GET /calendar/feed.ics", () => {
           eventType: "practice",
           templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
           templateName: "Practice",
+          templateColour: "blue",
           scheduledOn: "2026-10-21",
           startsAt: "18:00",
           endsAt: "19:00",

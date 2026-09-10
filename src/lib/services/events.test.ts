@@ -1469,6 +1469,7 @@ describe("the public tier reads a narrower event", () => {
       // LAN-265. The word a reader sees for this kind of event, and the id the
       // Type filter selects by. Neither says anything about a person, which is
       // what this exact-key-set assertion is really guarding.
+      "templateColour",
       "templateId",
       "templateName",
       "venue",
@@ -1562,6 +1563,7 @@ describe("the public tier reads a narrower event", () => {
       "scheduledOn",
       "startsAt",
       // LAN-265, as above: the kind of event, in the club's own word for it.
+      "templateColour",
       "templateId",
       "templateName",
       "venue",

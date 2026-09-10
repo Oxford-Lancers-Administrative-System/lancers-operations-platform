@@ -95,6 +95,17 @@ export function templateEditorDetail(eventTypeLabel: string): string {
 export const NEW_TEMPLATE_DETAIL =
   "What a new event of this kind starts as. Leave anything undecided.";
 
+/**
+ * LAN-276 correction round 1. Brian, 2026-09-10: "In the template, swatch
+ * color should be something that gets chosen, so it gets added as part of
+ * the template." The heading treats it as exactly that — a fact the template
+ * carries, alongside its name — rather than a setting about the calendar.
+ */
+export const TEMPLATE_COLOUR_HEADLINE = "Colour";
+
+export const TEMPLATE_COLOUR_HELP =
+  "Shown on the calendar and every event list, so two templates never have to look alike.";
+
 export const TEMPLATE_AUDIENCE_HEADLINE = "Who it invites";
 
 /**
@@ -211,9 +222,3 @@ export function confirmSaveAction(count: number): string {
 }
 
 export const TEMPLATE_CONFIRM_BACK = "Back";
-
-/** The outcome banner, after the save. */
-export function templateSaved(count: number): string {
-  if (count === 0) return "Template saved.";
-  return `Template saved, and ${count} ${count === 1 ? "draft was" : "drafts were"} updated.`;
-}

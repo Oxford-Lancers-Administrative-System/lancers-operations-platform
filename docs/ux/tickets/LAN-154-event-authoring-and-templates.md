@@ -188,11 +188,33 @@ to make: "Kicking Clinic", "Full Pads Practice", "Film Review". The list offers
 while no event has been created from the template, and the list says so where the
 control would otherwise be.
 
-Every other field is optional. A template carries a **name**, a default audience,
+Every other field is optional except **colour** (LAN-276 correction round 1,
+below). A template carries a **name**, a **colour**, a default audience,
 questions, where, a **default length** rather than a start time, equipment,
 description and mandatory — and no date and **no RSVP timing of any kind**, which
-is Mission 4's. The one field a template gained is the name; what it still does
-not supply is the _event's_ name, which D40 settled and LAN-265 does not touch.
+is Mission 4's. What it still does not supply is the _event's_ name, which D40
+settled and LAN-265 does not touch.
+
+**Colour is chosen, from a fixed palette — LAN-276 correction round 1.** Brian,
+walking the review environment, 2026-09-10: "In the template, swatch color
+should be something that gets chosen, so it gets added as part of the
+template." Before this, the calendar coloured a tile by the behavioural class,
+so an operator-created template showed Practice's blue by accident — every one
+of them takes `practice`. The editor now offers a **Colour** field: a row of
+named swatches, never a free hex value, with a suggested default on **New
+template**. The calendar legend, every calendar tile and every event list read
+a template's own colour; the seven seeded templates keep the colours the
+calendar always gave them.
+
+**Saving returns to the template list — LAN-276 correction round 1.** Brian,
+walking the review environment, 2026-09-10: "When I create a test template and
+I save, it should take me back to the other test templates, and I should see
+the list automatically. Right now, when I save, it just stays on the same
+screen." Offered the alternative of edits staying on the editor and confirmed
+the list either way: creating, renaming and saving an ordinary edit all land
+back on `/operate/events/templates`, with the change visible in the list. A
+refused save still stays on the editor, with the field errors, exactly as
+before.
 
 A rename is **retroactive**, said on the editor rather than left to be
 discovered: rename "Chalk" to "Film Review" and last term's chalk sessions read
@@ -212,41 +234,43 @@ not and why**, and what will not move at all. The button says what it will do.
 
 ## Decisions this contract records
 
-| Decision                                                                            | Source                             |
-| ----------------------------------------------------------------------------------- | ---------------------------------- |
-| Minimum to save a draft is name, type and date                                      | D15                                |
-| Approval is the completeness gate                                                   | D16                                |
-| **Required at approval: the date, and a non-empty audience — and nothing else**     | See below                          |
-| **Operators create, rename and delete templates; each carries its own cadence**     | LAN-265, Brian 2026-09-09          |
-| **A rename is retroactive across every event ever created from the template**       | LAN-265, Brian 2026-09-09          |
-| **A template is deletable only while no event was created from it**                 | LAN-265                            |
-| **The behavioural class is never shown and never chosen; a new one is a migration** | LAN-265                            |
-| A template supplies a default audience                                              | D47, reversing LAN-77              |
-| Four standing groups, plus recruits on Recruitment alone                            | D43, D46                           |
-| No unit or kit groups; the unit control filters                                     | D44                                |
-| Inactive people are never invited                                                   | D45                                |
-| Description and required equipment are separate fields                              | D17, D18                           |
-| **Required equipment is multi-line free text, exactly like Description**            | LAN-264, Brian 2026-09-09          |
-| **An online event's joining link is published on the public calendar**              | LAN-284, Brian 2026-09-09          |
-| Online or in person is a property; venue follows it                                 | D20, D21                           |
-| `Response requested` is removed                                                     | D23                                |
-| Five-minute increments; end follows start; Europe/London stated                     | D78, D86                           |
-| **The clock is 12-hour with AM/PM, deliberately drawn on every machine**            | Q-27, round 2                      |
-| **The event detail page names the audience by its groups too, before its people**   | Q-28, round 2                      |
-| Template values flow per field into unapproved drafts; approval freezes them        | D41, refined 2026-08-21            |
-| No approved event and no past event ever changes                                    | W8                                 |
-| An abandoned draft is deleted, permanently, after a confirmation naming it          | D29                                |
-| Only a draft may be deleted; an approved event is cancelled                         | D29, W6                            |
-| Delete lives on the draft's own page                                                | Brian, 2026-08-21                  |
-| The delete dialog does not pre-announce the approved-event rule                     | Brian, 2026-08-21                  |
-| The approval review does not explain what approving does                            | Brian, 2026-08-21                  |
-| Duplicate opens the create form prefilled and writes nothing                        | D39, Brian 2026-08-22              |
-| Three answer types; each question independently required                            | D66, D67                           |
-| Template questions arrive marked, and may be removed per event                      | D42                                |
-| Questions are authored in the create and edit form, never on their own screen       | W4-A1, Brian 2026-08-21            |
-| Bulk delete is retired and is not built                                             | Brian, 2026-08-21, superseding D35 |
-| **Attendance opens on the template's answer, and on Optional otherwise**            | See below, reversing LAN-76        |
-| **A template's audience is an inherited field, and moves like one**                 | See below                          |
+| Decision                                                                             | Source                                       |
+| ------------------------------------------------------------------------------------ | -------------------------------------------- |
+| Minimum to save a draft is name, type and date                                       | D15                                          |
+| Approval is the completeness gate                                                    | D16                                          |
+| **Required at approval: the date, and a non-empty audience — and nothing else**      | See below                                    |
+| **Operators create, rename and delete templates; each carries its own cadence**      | LAN-265, Brian 2026-09-09                    |
+| **A rename is retroactive across every event ever created from the template**        | LAN-265, Brian 2026-09-09                    |
+| **A template is deletable only while no event was created from it**                  | LAN-265                                      |
+| **The behavioural class is never shown and never chosen; a new one is a migration**  | LAN-265                                      |
+| **Colour is a fixed palette of swatches, chosen on the template, never a hex value** | LAN-276 correction round 1, Brian 2026-09-10 |
+| **Saving a template — create, rename or an ordinary edit — returns to the list**     | LAN-276 correction round 1, Brian 2026-09-10 |
+| A template supplies a default audience                                               | D47, reversing LAN-77                        |
+| Four standing groups, plus recruits on Recruitment alone                             | D43, D46                                     |
+| No unit or kit groups; the unit control filters                                      | D44                                          |
+| Inactive people are never invited                                                    | D45                                          |
+| Description and required equipment are separate fields                               | D17, D18                                     |
+| **Required equipment is multi-line free text, exactly like Description**             | LAN-264, Brian 2026-09-09                    |
+| **An online event's joining link is published on the public calendar**               | LAN-284, Brian 2026-09-09                    |
+| Online or in person is a property; venue follows it                                  | D20, D21                                     |
+| `Response requested` is removed                                                      | D23                                          |
+| Five-minute increments; end follows start; Europe/London stated                      | D78, D86                                     |
+| **The clock is 12-hour with AM/PM, deliberately drawn on every machine**             | Q-27, round 2                                |
+| **The event detail page names the audience by its groups too, before its people**    | Q-28, round 2                                |
+| Template values flow per field into unapproved drafts; approval freezes them         | D41, refined 2026-08-21                      |
+| No approved event and no past event ever changes                                     | W8                                           |
+| An abandoned draft is deleted, permanently, after a confirmation naming it           | D29                                          |
+| Only a draft may be deleted; an approved event is cancelled                          | D29, W6                                      |
+| Delete lives on the draft's own page                                                 | Brian, 2026-08-21                            |
+| The delete dialog does not pre-announce the approved-event rule                      | Brian, 2026-08-21                            |
+| The approval review does not explain what approving does                             | Brian, 2026-08-21                            |
+| Duplicate opens the create form prefilled and writes nothing                         | D39, Brian 2026-08-22                        |
+| Three answer types; each question independently required                             | D66, D67                                     |
+| Template questions arrive marked, and may be removed per event                       | D42                                          |
+| Questions are authored in the create and edit form, never on their own screen        | W4-A1, Brian 2026-08-21                      |
+| Bulk delete is retired and is not built                                              | Brian, 2026-08-21, superseding D35           |
+| **Attendance opens on the template's answer, and on Optional otherwise**             | See below, reversing LAN-76                  |
+| **A template's audience is an inherited field, and moves like one**                  | See below                                    |
 
 ### Three interpretations recorded plainly
 

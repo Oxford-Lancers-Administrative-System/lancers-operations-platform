@@ -15,7 +15,10 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { AudienceGroup, AudienceGroupKey } from "@/lib/services/audience-selection";
 import type { RawEventQuestion } from "@/lib/services/event-questions-input";
-import type { RawEventTemplate } from "@/lib/services/event-template-input";
+import {
+  TEMPLATE_COLOUR_PALETTE,
+  type RawEventTemplate,
+} from "@/lib/services/event-template-input";
 import type { TemplateChangePlan } from "@/lib/services/event-templates";
 import QuestionEditor from "../question-editor";
 import {
@@ -33,6 +36,8 @@ import {
   draftsTaking,
   draftTakes,
   TEMPLATE_AUDIENCE_HEADLINE,
+  TEMPLATE_COLOUR_HEADLINE,
+  TEMPLATE_COLOUR_HELP,
   TEMPLATE_CONFIRM_BACK,
   TEMPLATE_CONFIRM_TITLE,
   TEMPLATE_CREATE_ACTION,
@@ -48,7 +53,6 @@ import {
   TEMPLATE_SAVE_ACTION,
   TEMPLATE_UNTOUCHED_HEADLINE,
   templateDeleteQuestion,
-  templateSaved,
   untouchedApproved,
   untouchedPast,
 } from "./presentation";
@@ -172,6 +176,7 @@ export default function TemplateEditor({
   ]);
   const [questions, setQuestions] = useState<RawEventQuestion[]>(() => [...initialQuestions]);
   const [name, setName] = useState(text("name"));
+  const [colourKey, setColourKey] = useState(text("colourKey"));
   /** Whether the delete confirmation is open. Nothing is written until it is. */
   const [deleting, setDeleting] = useState(false);
   const [venue, setVenue] = useState(text("defaultVenue"));
@@ -218,6 +223,7 @@ export default function TemplateEditor({
     <>
       {templateId === null ? null : <input type="hidden" name="templateId" value={templateId} />}
       <input type="hidden" name="name" value={name} />
+      <input type="hidden" name="colourKey" value={colourKey} />
       <input type="hidden" name="defaultVenue" value={venue} />
       <input type="hidden" name="defaultDeliveryMode" value={deliveryMode} />
       <input type="hidden" name="defaultDurationMinutes" value={duration} />
@@ -256,12 +262,6 @@ export default function TemplateEditor({
         </Notice>
       ) : null}
 
-      {state.phase === "saved" && state.plan !== null ? (
-        <Notice severity="success" testId="template-saved">
-          {templateSaved(state.plan.taking.length)}
-        </Notice>
-      ) : null}
-
       <Box
         component="form"
         action={creatingNew ? createAction : previewAction}
@@ -289,6 +289,61 @@ export default function TemplateEditor({
               disabled={busy}
               slotProps={{ inputLabel: { shrink: true } }}
             />
+          </Section>
+
+          {/*
+            LAN-276 correction round 1. Brian, walking the review environment,
+            2026-09-10: "In the template, swatch color should be something
+            that gets chosen, so it gets added as part of the template." A
+            fixed palette of swatches, never a free hex value — the same
+            pattern the audience-group buttons below use, so a value is
+            posted only once it has genuinely been chosen.
+          */}
+          <Section title={TEMPLATE_COLOUR_HEADLINE}>
+            <Stack spacing={1.5}>
+              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+                {TEMPLATE_COLOUR_PALETTE.map((swatch) => {
+                  const on = colourKey === swatch.key;
+                  return (
+                    <Button
+                      key={swatch.key}
+                      type="button"
+                      variant={on ? "contained" : "outlined"}
+                      size="small"
+                      aria-pressed={on}
+                      disabled={busy}
+                      onClick={() => setColourKey(swatch.key)}
+                      data-testid="template-colour-swatch"
+                      data-colour={swatch.key}
+                      startIcon={
+                        <Box
+                          aria-hidden="true"
+                          sx={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: 0.5,
+                            bgcolor: swatch.tint,
+                            border: 2,
+                            borderColor: swatch.accent,
+                          }}
+                        />
+                      }
+                      sx={{ minHeight: 44 }}
+                    >
+                      {swatch.label}
+                    </Button>
+                  );
+                })}
+              </Stack>
+              <input type="hidden" name="colourKey" value={colourKey} />
+              <Typography
+                variant="body2"
+                color={issueFor(state, "colourKey") ? "error" : "text.secondary"}
+                data-testid="template-colour-help"
+              >
+                {issueFor(state, "colourKey") ?? TEMPLATE_COLOUR_HELP}
+              </Typography>
+            </Stack>
           </Section>
 
           {/* D47 — the default audience, as groups and never as people. */}

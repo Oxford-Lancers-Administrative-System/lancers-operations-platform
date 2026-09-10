@@ -2,7 +2,7 @@ import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { CalendarEvent } from "@/lib/services/calendar";
-import { typeColour } from "./presentation";
+import { templateColour } from "./presentation";
 
 /**
  * What the colours on the calendar mean. LAN-114.
@@ -14,17 +14,17 @@ import { typeColour } from "./presentation";
  * stop reading it. This one is built from the events being displayed, so it is
  * short, and everything in it is on the screen below it.
  *
- * ## One entry per template, coloured by class — LAN-265
+ * ## One entry per template, coloured by the template's own colour — LAN-276
  *
  * The entries are the club's own templates, by name, because that is what every
- * tile below now says. The **colour** is still `typeColour(eventType)`, keyed by
- * the behavioural class, and that has a visible consequence worth stating: two
- * templates that share a class — which every operator-created template does,
- * since they all get `practice` — appear as two named entries with the same
- * swatch. That is honest rather than ideal. A per-template palette is a real
- * design question (how many hues, chosen by whom, stable across a rename) and it
- * is not this package's to answer; the per-tile label remains the guarantee that
- * nothing depends on distinguishing two hues.
+ * tile below now says. The **colour** used to be `typeColour(eventType)`, keyed
+ * by the behavioural class — which meant two templates that share a class
+ * (every operator-created template, since they all get `practice`) showed as
+ * two named entries with the same swatch. Correction round 1 moved the colour
+ * onto the template itself, chosen on its editor, so that stops being true:
+ * an operator's template is free to look different from Practice, and from
+ * every other template, because somebody chose that rather than the class
+ * choosing it for them.
  *
  * ## Why a legend at all, when every tile names its type
  *
@@ -36,9 +36,19 @@ import { typeColour } from "./presentation";
  */
 export default function TypeLegend({ events }: { events: readonly CalendarEvent[] }) {
   // Ordered by name rather than by first appearance, so the legend does not
-  // reshuffle itself as an operator moves between months.
+  // reshuffle itself as an operator moves between months. Keyed by name: two
+  // events of the same template always carry the same class and colour, so
+  // the first occurrence speaks for all of them.
   const kinds = [
-    ...new Map(events.map((event) => [event.templateName, event.eventType] as const)),
+    ...new Map(
+      events.map(
+        (event) =>
+          [
+            event.templateName,
+            { eventType: event.eventType, colourKey: event.templateColour },
+          ] as const,
+      ),
+    ),
   ].sort(([a], [b]) => a.localeCompare(b, "en-GB"));
 
   if (kinds.length === 0) return null;
@@ -51,8 +61,8 @@ export default function TypeLegend({ events }: { events: readonly CalendarEvent[
       data-testid="type-legend"
       sx={{ flexWrap: "wrap", gap: 1.5, listStyle: "none", p: 0, m: 0 }}
     >
-      {kinds.map(([name, eventType]) => {
-        const colour = typeColour(eventType);
+      {kinds.map(([name, { eventType, colourKey }]) => {
+        const colour = templateColour(colourKey);
         return (
           <Stack
             key={name}

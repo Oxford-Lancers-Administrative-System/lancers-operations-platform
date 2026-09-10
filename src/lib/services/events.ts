@@ -160,6 +160,15 @@ export interface EventListEntry {
    */
   templateName: string;
   /**
+   * The template's own colour — LAN-276 correction round 1. A key into
+   * `TEMPLATE_COLOUR_PALETTE`, read from the template exactly as
+   * `templateName` is, and for the same reason: the calendar and every event
+   * list colour a tile by the template rather than by its class, so a rename
+   * or a colour change reaches every past and future event of it with no row
+   * in `events` rewritten.
+   */
+  templateColour: string;
+  /**
    * The behavioural class, `public.event_type`.
    *
    * Kept on the entry because a handful of rules genuinely need a closed
@@ -486,14 +495,23 @@ export const PARTICIPATION_TABLES: readonly string[] = Object.freeze([
  */
 const TEMPLATE_JOIN = "join public.event_templates tpl on tpl.id = e.template_id";
 
-/** The two template columns every projection selects, public tier included. */
-const TEMPLATE_COLUMNS = "e.template_id, tpl.name as template_name";
+/**
+ * The template columns every projection selects, public tier included.
+ *
+ * `colour_key` joined LAN-276 correction round 1: the calendar and every
+ * event list colour a tile by the template's own colour now, not by
+ * `event_type`, and it is exactly as public as `template_name` — a colour
+ * says nothing about anybody.
+ */
+const TEMPLATE_COLUMNS =
+  "e.template_id, tpl.name as template_name, tpl.colour_key as template_colour";
 
 interface EventRow {
   id: string;
   name: string;
   template_id: string;
   template_name: string;
+  template_colour: string;
   event_type: string;
   status: EventStatus;
   scheduled_on: Date | string | null;
@@ -543,6 +561,7 @@ function toListEntry(row: EventRow): EventListEntry {
     name: row.name,
     templateId: row.template_id,
     templateName: row.template_name,
+    templateColour: row.template_colour,
     eventType: row.event_type,
     status: row.status,
     scheduledOn: asDate(row.scheduled_on),
@@ -693,10 +712,13 @@ export interface PublicEventListEntry {
   templateId: string;
   /** The word a reader sees for this kind of event. See `EventListEntry`. */
   templateName: string;
+  /** The template's own colour. See `EventListEntry.templateColour`. */
+  templateColour: string;
   /**
-   * The behavioural class. Public because it always was — the calendar colours
-   * its tiles by it and the legend groups by it — and because it says nothing
-   * about anybody. The word beside the colour is `templateName`.
+   * The behavioural class. Public because it always was — a handful of rules
+   * still key off it — and because it says nothing about anybody. The
+   * calendar colours its tiles by `templateColour` now (LAN-276 correction
+   * round 1); the word beside the colour is `templateName`.
    */
   eventType: string;
   scheduledOn: string | null;
@@ -758,6 +780,10 @@ export interface PublicEventList {
  * `REQ-public-calendar`'s "a public event page renders without touching
  * participation data at all" — not hidden after loading, never read. The public
  * tier gained exactly one column and no other boundary moved.
+ *
+ * `TEMPLATE_COLUMNS` folded in `tpl.colour_key` for LAN-276 correction round 1,
+ * which reaches here too: a template's colour is exactly as public as its
+ * name, and the public calendar has always coloured its tiles.
  */
 export const PUBLIC_EVENT_COLUMNS = `e.id, e.name, ${TEMPLATE_COLUMNS},
             e.event_type::text as event_type,
@@ -771,6 +797,7 @@ interface PublicEventRow {
   name: string;
   template_id: string;
   template_name: string;
+  template_colour: string;
   event_type: string;
   scheduled_on: Date | string | null;
   starts_at: string | null;
@@ -788,6 +815,7 @@ function toPublicEntry(row: PublicEventRow): PublicEventListEntry {
     name: row.name,
     templateId: row.template_id,
     templateName: row.template_name,
+    templateColour: row.template_colour,
     eventType: row.event_type,
     scheduledOn: asDate(row.scheduled_on),
     startsAt: asTime(row.starts_at),

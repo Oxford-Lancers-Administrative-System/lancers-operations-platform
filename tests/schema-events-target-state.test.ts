@@ -110,6 +110,58 @@ describe("event-type templates — D40, D41, D42, D47", () => {
     );
   });
 
+  /**
+   * LAN-276 correction round 1. Brian, walking the review environment,
+   * 2026-09-10: "In the template, swatch color should be something that
+   * gets chosen, so it gets added as part of the template." The column
+   * stores a palette **key**, never a hex value, and the check constraint is
+   * the backstop under `validateEventTemplate`'s own refusal — the same
+   * two-layer shape every other template field gets.
+   */
+  describe("colour — LAN-276 correction round 1", () => {
+    it("gives each of the seven seeded templates the colour the calendar always painted it", async () => {
+      const rows = await client.query<{ event_type: string; colour_key: string }>(
+        "select event_type::text as event_type, colour_key from public.event_templates order by event_type::text",
+      );
+      expect(Object.fromEntries(rows.rows.map((row) => [row.event_type, row.colour_key]))).toEqual({
+        practice: "blue",
+        strength_and_conditioning: "teal",
+        chalk: "purple",
+        game: "red",
+        social: "orange",
+        recruitment: "green",
+        meeting: "slate",
+      });
+    });
+
+    it("accepts every key the palette offers", async () => {
+      await expectAccepted(
+        client,
+        `update public.event_templates set colour_key = 'indigo' where event_type = 'practice'`,
+      );
+    });
+
+    it("refuses a colour outside the fixed palette, including a hex value", async () => {
+      for (const outsideThePalette of ["chartreuse", "#1565c0"]) {
+        await expectRejected(
+          client,
+          "update public.event_templates set colour_key = $1 where event_type = 'practice'",
+          [outsideThePalette],
+          "event_templates_colour_key_known",
+        );
+      }
+    });
+
+    it("refuses a null colour — every template has one, undecided or not", async () => {
+      await expectRejected(
+        client,
+        `update public.event_templates set colour_key = null where event_type = 'practice'`,
+        [],
+        "colour_key",
+      );
+    });
+  });
+
   it("takes default questions, and refuses two with the same prompt on one template", async () => {
     // LAN-265 rekeyed the child tables from the class to the template, and made
     // the reference composite — `(template_id, event_type)` — so a row cannot

@@ -113,6 +113,7 @@ function event(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
     id: `event-${nextId}`,
     name: `Event ${nextId}`,
     templateName: "Practice",
+    templateColour: "blue",
     eventType: "practice",
     scheduledOn: null,
     startsAt: null,

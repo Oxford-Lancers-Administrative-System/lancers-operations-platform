@@ -5,6 +5,7 @@ import {
   TERM_LABELS,
 } from "@/lib/services/event-vocabulary";
 import type { TermWindow } from "@/lib/services/event-input";
+import { templateColourFor, type TemplateColourSwatch } from "@/lib/services/event-template-input";
 
 /**
  * How the calendars read on screen — both arrangements, and both tiers.
@@ -87,30 +88,39 @@ export function formatCellDate(day: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Colour, by event type
+// Colour, by template
 // ---------------------------------------------------------------------------
 
 /**
- * One colour per `event_type`, for the calendars.
+ * One colour per template, for the calendars — LAN-276 correction round 1.
  *
- * ## Why type, and not status
+ * ## Why the template, and not the behavioural class
+ *
+ * This used to be one colour per `event_type`, which was the club's own
+ * seven kinds of event and nothing else. LAN-265 let operators create their
+ * own templates, and every one of them takes `practice` as its class — so
+ * colouring by class showed every operator-created template Practice's blue,
+ * by accident. Brian, walking the review environment, 2026-09-10: "In the
+ * template, swatch color should be something that gets chosen, so it gets
+ * added as part of the template." Colour is now a fact the template itself
+ * carries, chosen from a fixed palette on the editor.
+ *
+ * ## Why colour at all
  *
  * The club's own term cards colour their cells by what the event *is*, and
  * Brian's review on 14 August 2026 asked for the same: "I really like the type
  * colour coding here… every event is grey versus by type." Scanning a term card
  * is looking for the shape of a week — two practices, a chalk, a game,
- * something social — and type is what carries that. Status answers a different
- * question and is carried in words on the tile.
- *
- * So colour means type, and only type. Nothing else on a calendar tile is
- * distinguished by hue, which is what keeps the palette readable.
+ * something social — and colour is what carries that at a glance. Status
+ * answers a different question and is carried in words on the tile.
  *
  * ## Colour is never the only carrier
  *
- * Every tile also prints its type in words, and a legend above the calendar
- * names each colour in view. That is the issue's accessibility rule applied to
- * type rather than only to status: a reader who cannot separate the teal from
- * the green loses nothing, because the word is on the tile.
+ * Every tile also prints its template's name in words, and a legend above the
+ * calendar names each colour in view. That is the issue's accessibility rule
+ * applied to the template rather than only to status: a reader who cannot
+ * separate the teal from the green loses nothing, because the word is on the
+ * tile.
  *
  * ## Not the spreadsheet's palette
  *
@@ -119,39 +129,17 @@ export function formatCellDate(day: string): string {
  * separation and for legible dark text on the tint, not sampled from the
  * source. `src/theme.ts` is still a neutral placeholder with no branded
  * palette, so there is nothing there to draw from either.
+ *
+ * The palette itself — the swatches, their hex values and the check
+ * constraint that limits a stored key to one of them — lives in
+ * `@/lib/services/event-template-input`, so the editor's picker and the
+ * calendar read the same one rather than two copies that could drift.
  */
-export interface TypeColour {
-  /** The saturated edge. Strong enough to read at 3px against the tint. */
-  readonly accent: string;
-  /** The tile's background. Light enough for the body text colour on top. */
-  readonly tint: string;
-}
+export type TypeColour = TemplateColourSwatch;
 
-/**
- * Seven colours for the seven types (D12, D83). `game` inherited the red the
- * two match types shared, because a game is what both of them were.
- */
-export const EVENT_TYPE_COLOURS: Readonly<Record<string, TypeColour>> = Object.freeze({
-  practice: Object.freeze({ accent: "#1565c0", tint: "#e8f1fb" }),
-  strength_and_conditioning: Object.freeze({ accent: "#00796b", tint: "#e2f1ef" }),
-  chalk: Object.freeze({ accent: "#4527a0", tint: "#ece7f7" }),
-  game: Object.freeze({ accent: "#c62828", tint: "#fbe9e9" }),
-  social: Object.freeze({ accent: "#ef6c00", tint: "#fdf0e2" }),
-  recruitment: Object.freeze({ accent: "#2e7d32", tint: "#e8f3e9" }),
-  meeting: Object.freeze({ accent: "#455a64", tint: "#eceff1" }),
-});
-
-/**
- * The neutral fallback. No event type resolves to it any more — the enum has
- * exactly seven values and all seven are above — so it exists only so that a
- * tile still renders if a future type reaches this function before somebody
- * chooses its colour.
- */
-const UNKNOWN_TYPE_COLOUR: TypeColour = Object.freeze({ accent: "#616161", tint: "#f2f2f2" });
-
-/** The colour for a type, falling back to the neutral one for an unknown value. */
-export function typeColour(eventType: string): TypeColour {
-  return EVENT_TYPE_COLOURS[eventType] ?? UNKNOWN_TYPE_COLOUR;
+/** The colour for a stored key, falling back to the palette's first entry. */
+export function templateColour(colourKey: string): TypeColour {
+  return templateColourFor(colourKey);
 }
 
 // ---------------------------------------------------------------------------

@@ -10,6 +10,7 @@ import {
   endTimeFromStart,
   MAX_TEMPLATE_DURATION_MINUTES,
   MIN_TEMPLATE_DURATION_MINUTES,
+  TEMPLATE_COLOUR_KEYS,
   validateEventTemplate,
   type RawEventTemplate,
 } from "./event-template-input";
@@ -19,6 +20,8 @@ function template(overrides: Partial<RawEventTemplate> = {}): RawEventTemplate {
     // LAN-265's one required field. Every case below is about a field that is
     // optional, so the name is supplied here and never the thing under test.
     name: "Practice",
+    // LAN-276 correction round 1's other required field, for the same reason.
+    colourKey: "blue",
     defaultVenue: "",
     defaultDeliveryMode: "unset",
     defaultDurationMinutes: "",
@@ -63,6 +66,43 @@ describe("every field but the name is optional (Brian, 2026-08-21)", () => {
   });
 });
 
+/**
+ * LAN-276 correction round 1. Brian, walking the review environment,
+ * 2026-09-10: "In the template, swatch color should be something that gets
+ * chosen, so it gets added as part of the template." Unlike every field
+ * above, colour is **not** optional — a template without a chosen colour is
+ * not the fact this correction asks for, so it is checked exactly as the
+ * name is.
+ */
+describe("colour is chosen from a fixed palette, and required (Brian, 2026-09-10)", () => {
+  it("round-trips a colour from the palette", () => {
+    for (const key of TEMPLATE_COLOUR_KEYS) {
+      expect(accepted(template({ colourKey: key })).colourKey).toBe(key);
+    }
+  });
+
+  it("refuses a template with no colour chosen, and one that is only whitespace", () => {
+    for (const colourKey of ["", "   ", null, undefined]) {
+      const outcome = validateEventTemplate(template({ colourKey }));
+      expect(outcome.ok).toBe(false);
+      if (outcome.ok) throw new Error("expected a refusal");
+      expect(outcome.issues.map((issue) => issue.field)).toContain("colourKey");
+    }
+  });
+
+  it("refuses a free hex value, and any key outside the palette", () => {
+    // The whole point of the correction: a colour is chosen from the fixed
+    // set, never typed as a hex value the check constraint would have to
+    // parse.
+    for (const outsideThePalette of ["#1565c0", "chartreuse", "Blue"]) {
+      const outcome = validateEventTemplate(template({ colourKey: outsideThePalette }));
+      expect(outcome.ok).toBe(false);
+      if (outcome.ok) throw new Error("expected a refusal");
+      expect(outcome.issues.map((issue) => issue.field)).toContain("colourKey");
+    }
+  });
+});
+
 describe("a default length, never a default start time (D78)", () => {
   it("accepts a duration in five-minute steps", () => {
     expect(accepted(template({ defaultDurationMinutes: "120" })).defaultDurationMinutes).toBe(120);
@@ -98,6 +138,7 @@ describe("a default length, never a default start time (D78)", () => {
 
     expect(Object.keys(value).sort()).toEqual([
       "audienceGroups",
+      "colourKey",
       "defaultDeliveryMode",
       "defaultDescription",
       "defaultDurationMinutes",

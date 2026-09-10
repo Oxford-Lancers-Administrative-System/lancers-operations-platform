@@ -280,3 +280,53 @@ comment on column public.events.delivery_mode is
 grant insert, delete on table public.event_templates to service_role;
 grant insert, delete on table public.messaging_schedules to service_role;
 grant insert, delete on table public.event_type_settings to service_role;
+
+-- ---------------------------------------------------------------------------
+-- 8. Colour is a template's own fact, not a guess from its class
+-- ---------------------------------------------------------------------------
+--
+-- LAN-276 correction round 1. Brian, walking the review environment,
+-- 2026-09-10: "In the template, swatch color should be something that gets
+-- chosen, so it gets added as part of the template." Before this, the
+-- calendar coloured a tile by `event_type` — the behavioural class an
+-- operator never sees or picks — so every template an operator created
+-- showed Practice's blue by accident, because `practice` is
+-- `DEFAULT_TEMPLATE_CLASS`. Colour becomes a fact the template itself
+-- carries, chosen on the editor from a fixed palette of swatches (never a
+-- free hex value), and every surface that used to colour a tile by class
+-- reads a template's own colour instead — the calendar legend, every
+-- calendar tile, and every event list.
+--
+-- The column stores the palette **key**, not a hex value, so the palette
+-- itself — which colours exist, and what hex each one means — can be
+-- re-tuned in `src/lib/services/event-template-input.ts` without a
+-- migration. The check constraint below is that module's own list of keys,
+-- restated here so the two cannot drift silently.
+alter table public.event_templates
+  add column colour_key text;
+
+-- The seven seeded rows keep exactly the colours the calendar always gave
+-- them — `EVENT_TYPE_COLOURS` in `src/app/calendar/presentation.ts`, before
+-- this correction keyed the same seven hex pairs by `event_type`.
+update public.event_templates
+   set colour_key = case event_type
+        when 'practice' then 'blue'
+        when 'strength_and_conditioning' then 'teal'
+        when 'chalk' then 'purple'
+        when 'game' then 'red'
+        when 'social' then 'orange'
+        when 'recruitment' then 'green'
+        when 'meeting' then 'slate'
+      end;
+
+alter table public.event_templates
+  alter column colour_key set not null,
+  add constraint event_templates_colour_key_known check (
+    colour_key in (
+      'blue', 'teal', 'purple', 'red', 'orange', 'green', 'slate',
+      'indigo', 'pink', 'brown', 'cyan', 'lime'
+    )
+  );
+
+comment on column public.event_templates.colour_key is
+  'LAN-276 correction, Brian 2026-09-10. A palette key, never a hex value, chosen on the template editor -- never derived from `event_type`. The calendar legend, every calendar tile and every event list colour by this, so two templates that share a class (every operator-created template, since they all get `practice`) are free to look different, and a template an operator creates no longer shares Practice''s swatch by accident. The seven seeded rows keep the colours the calendar always gave them. The palette itself -- which keys exist and what hex each means -- lives in `src/lib/services/event-template-input.ts`; `event_templates_colour_key_known` is that module''s own list, so the two cannot drift silently.';

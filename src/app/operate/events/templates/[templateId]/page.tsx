@@ -54,6 +54,7 @@ export default async function EventTemplatePage({
 
   const initial: RawEventTemplate = {
     name: template.name,
+    colourKey: template.colourKey,
     defaultVenue: template.defaultVenue ?? "",
     defaultDeliveryMode: template.defaultDeliveryMode ?? "unset",
     defaultDurationMinutes:

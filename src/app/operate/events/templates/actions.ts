@@ -53,6 +53,7 @@ function text(formData: FormData, field: string): string {
 function readTemplate(formData: FormData): RawEventTemplate {
   return {
     name: text(formData, "name"),
+    colourKey: text(formData, "colourKey"),
     defaultVenue: text(formData, "defaultVenue"),
     defaultDeliveryMode: text(formData, "defaultDeliveryMode"),
     defaultDurationMinutes: text(formData, "defaultDurationMinutes"),
@@ -170,9 +171,16 @@ export async function previewEventTemplateAction(
 /**
  * Saves the template and updates the drafts the rule reaches, in one transaction.
  *
- * It does not redirect. The operator stays on the template they were editing and
- * reads what actually moved — which is the answer to the question the
- * confirmation asked, and the only place they will ever see it.
+ * **Redirects to the template list on success** — LAN-276 correction round 1.
+ * Brian, walking the review environment, 2026-09-10: "When I create a test
+ * template and I save, it should take me back to the other test templates,
+ * and I should see the list automatically. Right now, when I save, it just
+ * stays on the same screen." Offered the alternative of edits staying on the
+ * editor, and confirmed the list either way: the editor is never a dead end,
+ * for a rename exactly as for a create. `redirect` throws, so it sits outside
+ * the `try` — caught, it would be reported as a failed save that had just
+ * succeeded. A refused save still returns the `"editing"` state below, with
+ * the field errors, exactly as before.
  */
 export async function saveEventTemplateAction(
   _previous: TemplateFormState,
@@ -185,32 +193,7 @@ export async function saveEventTemplateAction(
   if (!outcome.ok) return outcome.state;
 
   try {
-    const plan = await saveEventTemplate(
-      operator.personId,
-      templateId,
-      outcome.template,
-      outcome.questions,
-    );
-
-    revalidatePath("/operate/events/templates");
-    revalidatePath(`/operate/events/templates/${templateId}`);
-    // LAN-265. A rename reaches every surface that prints the word, and a new
-    // template appears on the Messaging schedule screen the moment it is saved.
-    revalidatePath("/operate/admin/messaging");
-    revalidatePath("/calendar");
-    // Every draft this may have moved is on both of these.
-    revalidatePath("/operate/events");
-    revalidatePath("/operate/events/calendar");
-
-    return {
-      phase: "saved",
-      issues: [],
-      questionIssues: [],
-      error: null,
-      values: outcome.raw,
-      questions: outcome.rawQuestions,
-      plan,
-    };
+    await saveEventTemplate(operator.personId, templateId, outcome.template, outcome.questions);
   } catch (error) {
     return {
       phase: "editing",
@@ -222,6 +205,18 @@ export async function saveEventTemplateAction(
       plan: null,
     };
   }
+
+  revalidatePath("/operate/events/templates");
+  revalidatePath(`/operate/events/templates/${templateId}`);
+  // LAN-265. A rename reaches every surface that prints the word, and a new
+  // template appears on the Messaging schedule screen the moment it is saved.
+  revalidatePath("/operate/admin/messaging");
+  revalidatePath("/calendar");
+  // Every draft this may have moved is on both of these.
+  revalidatePath("/operate/events");
+  revalidatePath("/operate/events/calendar");
+
+  redirect("/operate/events/templates");
 }
 
 /**
@@ -233,12 +228,13 @@ export async function saveEventTemplateAction(
  * drafts and no blast radius, so a confirmation would be a dialog asking
  * somebody to approve nothing happening to anybody.
  *
- * It **redirects**, where the save path deliberately does not. The save path
- * keeps the operator where they were so they can read what moved; there is
- * nothing to read here, and the useful next screen is the template they just
- * made — which is also where its name, its defaults and its Delete now live.
- * `redirect` throws, so it is outside the `try`: caught, it would be reported as
- * a failure to create the template that had just been created.
+ * **Redirects to the template list** — LAN-276 correction round 1. Brian,
+ * 2026-09-10: "When I create a test template and I save, it should take me
+ * back to the other test templates, and I should see the list automatically."
+ * This used to redirect to the template it had just made; the list is where
+ * the new template is now visible among the others, which is what he asked
+ * to see. `redirect` throws, so it is outside the `try`: caught, it would be
+ * reported as a failure to create the template that had just been created.
  */
 export async function createEventTemplateAction(
   _previous: TemplateFormState,
@@ -249,9 +245,8 @@ export async function createEventTemplateAction(
   const outcome = checked(formData);
   if (!outcome.ok) return outcome.state;
 
-  let created;
   try {
-    created = await createEventTemplate(operator.personId, outcome.template, outcome.questions);
+    await createEventTemplate(operator.personId, outcome.template, outcome.questions);
   } catch (error) {
     return {
       phase: "editing",
@@ -270,7 +265,7 @@ export async function createEventTemplateAction(
   revalidatePath("/operate/admin/messaging");
   revalidatePath("/operate/events/new");
 
-  redirect(`/operate/events/templates/${created.id}`);
+  redirect("/operate/events/templates");
 }
 
 /**

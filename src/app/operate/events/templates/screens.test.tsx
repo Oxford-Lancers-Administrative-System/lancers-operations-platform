@@ -51,7 +51,12 @@ import {
   type TemplateChangePlan,
 } from "@/lib/services/event-templates";
 import { groupsForEventType } from "@/lib/services/audience-selection";
-import { previewEventTemplateAction, saveEventTemplateAction } from "./actions";
+import { TEMPLATE_COLOUR_PALETTE } from "@/lib/services/event-template-input";
+import {
+  createEventTemplateAction,
+  previewEventTemplateAction,
+  saveEventTemplateAction,
+} from "./actions";
 import EventTemplatesPage from "./page";
 import EventTemplatePage from "./[templateId]/page";
 import { TEMPLATES_DELETE_RULE } from "./presentation";
@@ -98,6 +103,7 @@ function summary(overrides: Partial<EventTemplateSummary> = {}): EventTemplateSu
   return {
     id: PRACTICE.id,
     name: PRACTICE.name,
+    colourKey: "blue",
     eventType: "practice",
     audienceGroups: [],
     defaultVenue: null,
@@ -112,6 +118,7 @@ function template(overrides: Partial<EventTemplate> = {}): EventTemplate {
   return {
     id: PRACTICE.id,
     name: PRACTICE.name,
+    colourKey: "blue",
     eventType: "practice",
     defaultVenue: null,
     defaultDeliveryMode: null,
@@ -511,6 +518,102 @@ describe("W8-02 — one template", () => {
       ).toBe("60");
       expect(screen.queryByText("1 hour 15 minutes")).not.toBeInTheDocument();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Colour — LAN-276 correction round 1
+// ---------------------------------------------------------------------------
+
+/**
+ * Brian, walking the review environment, 2026-09-10: "In the template, swatch
+ * color should be something that gets chosen, so it gets added as part of the
+ * template." A fixed palette of swatches, never a free hex value.
+ */
+describe("colour is chosen from a fixed palette (Brian, 2026-09-10)", () => {
+  function editor(initial: { colourKey?: string } = {}) {
+    return render(
+      <TemplateEditor
+        templateId={PRACTICE.id}
+        eventTypeLabel="Practice"
+        eventCount={0}
+        initial={initial}
+        initialQuestions={[]}
+        groups={groupsForEventType("practice")}
+      />,
+    );
+  }
+
+  it("offers every colour the palette holds, as a swatch each", () => {
+    editor();
+
+    const swatches = screen.getAllByTestId("template-colour-swatch");
+    expect(swatches.map((node) => node.getAttribute("data-colour"))).toEqual(
+      TEMPLATE_COLOUR_PALETTE.map((colour) => colour.key),
+    );
+  });
+
+  it("shows the template's stored colour pressed, and posts it", () => {
+    const { container } = editor({ colourKey: "purple" });
+
+    const pressed = screen
+      .getAllByTestId("template-colour-swatch")
+      .filter((node) => node.getAttribute("aria-pressed") === "true");
+    expect(pressed.map((node) => node.getAttribute("data-colour"))).toEqual(["purple"]);
+
+    expect(container.querySelector<HTMLInputElement>('input[name="colourKey"]')?.value).toBe(
+      "purple",
+    );
+  });
+
+  it("chooses a colour on a click, and only that one reads as pressed", () => {
+    const { container } = editor({ colourKey: "blue" });
+
+    fireEvent.click(
+      screen
+        .getAllByTestId("template-colour-swatch")
+        .find((node) => node.getAttribute("data-colour") === "green")!,
+    );
+
+    expect(container.querySelector<HTMLInputElement>('input[name="colourKey"]')?.value).toBe(
+      "green",
+    );
+
+    const pressed = screen
+      .getAllByTestId("template-colour-swatch")
+      .filter((node) => node.getAttribute("aria-pressed") === "true");
+    expect(pressed.map((node) => node.getAttribute("data-colour"))).toEqual(["green"]);
+  });
+
+  it("shows a refused colour as the field's own error, in place of the help text", async () => {
+    vi.mocked(createEventTemplateAction).mockResolvedValue({
+      phase: "editing",
+      issues: [{ field: "colourKey", message: "Choose a colour for this template." }],
+      questionIssues: [],
+      error: null,
+      values: null,
+      questions: null,
+      plan: null,
+    });
+
+    render(
+      <TemplateEditor
+        templateId={null}
+        eventTypeLabel="New template"
+        eventCount={0}
+        initial={{}}
+        initialQuestions={[]}
+        groups={groupsForEventType("practice")}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("preview-template"));
+    });
+
+    expect(screen.getByTestId("template-colour-help")).toHaveTextContent(
+      "Choose a colour for this template.",
+    );
   });
 });
 

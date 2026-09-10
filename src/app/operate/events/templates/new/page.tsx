@@ -2,7 +2,10 @@ import { PageHeader } from "@/components/page-header";
 import Stack from "@mui/material/Stack";
 import { templateGroupsForEventType } from "@/lib/services/audience-selection";
 import { DEFAULT_TEMPLATE_CLASS } from "@/lib/services/event-templates";
-import type { RawEventTemplate } from "@/lib/services/event-template-input";
+import {
+  DEFAULT_TEMPLATE_COLOUR_KEY,
+  type RawEventTemplate,
+} from "@/lib/services/event-template-input";
 import { gateShellPage } from "../../../gate";
 import TemplateEditor from "../template-editor";
 import { NEW_TEMPLATE_HEADLINE } from "../presentation";
@@ -37,6 +40,7 @@ export default async function NewEventTemplatePage() {
 
   const initial: RawEventTemplate = {
     name: "",
+    colourKey: DEFAULT_TEMPLATE_COLOUR_KEY,
     defaultVenue: "",
     defaultDeliveryMode: "unset",
     defaultDurationMinutes: "",

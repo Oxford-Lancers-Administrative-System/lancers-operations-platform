@@ -120,6 +120,7 @@ function entry(overrides: Partial<PublicEventListEntry> = {}): PublicEventListEn
     eventType: "practice",
     templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
     templateName: "Practice",
+    templateColour: "blue",
     scheduledOn: "2026-10-14",
     startsAt: "20:00",
     endsAt: "22:00",

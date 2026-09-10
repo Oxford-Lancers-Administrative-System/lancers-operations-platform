@@ -96,13 +96,17 @@ import {
 
 export {
   DEFAULT_TEMPLATE_CLASS,
+  DEFAULT_TEMPLATE_COLOUR_KEY,
   describeDuration,
   endTimeFromStart,
+  TEMPLATE_COLOUR_PALETTE,
+  templateColourFor,
   validateEventTemplate,
   type EventTemplateInput,
   type EventTypeFormDefaults,
   type EventTemplateValidation,
   type RawEventTemplate,
+  type TemplateColourSwatch,
   type TemplateFieldIssue,
 } from "./event-template-input";
 
@@ -116,6 +120,8 @@ export interface EventTemplate {
   id: string;
   /** The club's own word for this kind of event, and the only label ever shown. */
   name: string;
+  /** LAN-276 correction round 1. A key into `TEMPLATE_COLOUR_PALETTE`. */
+  colourKey: string;
   /** The behavioural class underneath. Never shown to an operator. */
   eventType: string;
   defaultVenue: string | null;
@@ -135,6 +141,8 @@ export interface EventTemplate {
 export interface EventTemplateSummary {
   id: string;
   name: string;
+  /** LAN-276 correction round 1. A key into `TEMPLATE_COLOUR_PALETTE`. */
+  colourKey: string;
   eventType: string;
   audienceGroups: AudienceGroupKey[];
   defaultVenue: string | null;
@@ -205,6 +213,7 @@ export const TEMPLATE_TYPE_RULE = "event_template_unknown";
 interface TemplateRow {
   id: string;
   name: string;
+  colour_key: string;
   event_type: string;
   default_venue: string | null;
   default_delivery_mode: EventDeliveryMode | null;
@@ -232,7 +241,7 @@ function toTemplateShape(row: TemplateRow) {
   };
 }
 
-const TEMPLATE_COLUMNS = `id, name, event_type::text as event_type, default_venue,
+const TEMPLATE_COLUMNS = `id, name, colour_key, event_type::text as event_type, default_venue,
         default_delivery_mode::text as default_delivery_mode, default_duration_minutes,
         default_description, default_required_equipment, default_is_mandatory`;
 
@@ -265,6 +274,7 @@ export async function listEventTemplates(): Promise<EventTemplateSummary[]> {
     return templates.rows.map((row) => ({
       id: row.id,
       name: row.name,
+      colourKey: row.colour_key,
       eventType: row.event_type,
       audienceGroups: orderedGroups(
         row.event_type,
@@ -369,6 +379,7 @@ export async function readEventTemplateIn(tx: Tx, templateId: string): Promise<E
   return {
     id: row.id,
     name: row.name,
+    colourKey: row.colour_key,
     eventType: row.event_type,
     defaultVenue: row.default_venue,
     defaultDeliveryMode: row.default_delivery_mode,
@@ -936,17 +947,19 @@ async function planOrApply(
     await tx.query(
       `update public.event_templates
           set name = $2,
-              default_venue = $3,
-              default_delivery_mode = $4::public.event_delivery_mode,
-              default_duration_minutes = $5,
-              default_description = $6,
-              default_required_equipment = $7,
-              default_is_mandatory = $8,
+              colour_key = $3,
+              default_venue = $4,
+              default_delivery_mode = $5::public.event_delivery_mode,
+              default_duration_minutes = $6,
+              default_description = $7,
+              default_required_equipment = $8,
+              default_is_mandatory = $9,
               updated_at = now()
         where id = $1::uuid`,
       [
         templateId,
         input.name,
+        input.colourKey,
         input.defaultVenue,
         input.defaultDeliveryMode,
         input.defaultDurationMinutes,
@@ -1243,6 +1256,7 @@ export async function saveEventTemplate(
         // otherwise the only record of the old word is in people's memories, and
         // "why does last term's chalk say Film Review" has no answer.
         renamedFrom: plan.renamedFrom,
+        colourKey: input.colourKey,
         eventType: plan.eventType,
         fieldsChanged: plan.fieldChanges.map((change) => change.field),
         questionsChanged: plan.questionChanges.length,
@@ -1295,12 +1309,14 @@ export async function createEventTemplate(
 
     const inserted = await tx.query<{ id: string }>(
       `insert into public.event_templates
-           (name, event_type, default_venue, default_delivery_mode, default_duration_minutes,
-            default_description, default_required_equipment, default_is_mandatory)
-         values ($1, $2::public.event_type, $3, $4::public.event_delivery_mode, $5, $6, $7, $8)
+           (name, colour_key, event_type, default_venue, default_delivery_mode,
+            default_duration_minutes, default_description, default_required_equipment,
+            default_is_mandatory)
+         values ($1, $2, $3::public.event_type, $4, $5::public.event_delivery_mode, $6, $7, $8, $9)
          returning id`,
       [
         input.name,
+        input.colourKey,
         eventType,
         input.defaultVenue,
         input.defaultDeliveryMode,
@@ -1355,6 +1371,7 @@ export async function createEventTemplate(
       entityId: templateId,
       context: {
         name: input.name,
+        colourKey: input.colourKey,
         eventType,
         audienceGroups,
         questionCount: questions.length,
