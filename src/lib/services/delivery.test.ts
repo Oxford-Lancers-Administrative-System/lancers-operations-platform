@@ -267,20 +267,22 @@ async function fixture(
             `with target as (select (now() + interval '48 hours') at time zone 'Europe/London' as local)
              insert into public.events
                (season_id, name, event_type, status, scheduled_on, starts_at,
-                audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
+                audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id, template_id)
              select $1, $2, 'practice', 'approved',
                     (select local::date from target), (select local::time from target),
-                    now(), $3, now(), $3
-             returning id`,
+                    now(), $3, now(), $3,
+              (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
+       returning id`,
             [seasonId, `${MARKER} practice`, personId],
           )
         : await observer.query<{ id: string }>(
             `insert into public.events
                (season_id, name, event_type, status, scheduled_on, starts_at,
-                audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
+                audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id, template_id)
              values ($1, $2, 'practice', 'approved',
                      ((now() + interval '48 hours') at time zone 'Europe/London')::date, $4::time,
-                     now(), $3, now(), $3)
+                     now(), $3, now(), $3,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))
              returning id`,
             [seasonId, `${MARKER} practice`, personId, options.startsAt],
           );
@@ -1848,11 +1850,12 @@ describe("the recruit consent gate — LAN-203", () => {
         `with target as (select (now() + interval '48 hours') at time zone 'Europe/London' as local)
          insert into public.events
            (season_id, name, event_type, status, scheduled_on, starts_at,
-            audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
+            audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id, template_id)
          select $1, $2, 'recruitment', 'approved',
                 (select local::date from target), (select local::time from target),
-                now(), $3, now(), $3
-         returning id`,
+                now(), $3, now(), $3,
+              (select tpl.id from public.event_templates tpl where tpl.event_type = 'recruitment' order by lower(tpl.name) limit 1)
+       returning id`,
         [seasonId, `${MARKER} recruitment`, personId],
       );
       const eventId = event.rows[0].id;

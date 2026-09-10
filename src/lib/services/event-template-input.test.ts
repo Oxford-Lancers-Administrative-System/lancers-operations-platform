@@ -16,6 +16,9 @@ import {
 
 function template(overrides: Partial<RawEventTemplate> = {}): RawEventTemplate {
   return {
+    // LAN-265's one required field. Every case below is about a field that is
+    // optional, so the name is supplied here and never the thing under test.
+    name: "Practice",
     defaultVenue: "",
     defaultDeliveryMode: "unset",
     defaultDurationMinutes: "",
@@ -34,8 +37,8 @@ function accepted(raw: RawEventTemplate) {
   return outcome.value;
 }
 
-describe("every field is optional (Brian, 2026-08-21)", () => {
-  it("accepts a template that has decided nothing at all", () => {
+describe("every field but the name is optional (Brian, 2026-08-21)", () => {
+  it("accepts a template that has decided nothing but what it is called", () => {
     // "the template does not mean that everything needs to be changed ... You
     // can have some details not decided."
     const value = accepted(template());
@@ -86,10 +89,11 @@ describe("a default length, never a default start time (D78)", () => {
     expect(validateEventTemplate(template({ defaultDurationMinutes: "two hours" })).ok).toBe(false);
   });
 
-  it("has nowhere at all to put a start time, a date or a name", () => {
+  it("has nowhere at all to put a start time or a date, and names the kind rather than the event", () => {
     // Brian, 2026-08-21: "the name is always going to be unique ... Usual time
-    // doesn't make any sense to me. That is not a field you would have." A type
-    // recurs; a particular Wednesday does not.
+    // doesn't make any sense to me. That is not a field you would have." That
+    // is about the **event's** name, and it holds — nothing here supplies one.
+    // LAN-265 added `name`, which is what the club calls this *kind* of event.
     const value = accepted(template({ defaultDurationMinutes: "90" }));
 
     expect(Object.keys(value).sort()).toEqual([
@@ -100,7 +104,19 @@ describe("a default length, never a default start time (D78)", () => {
       "defaultIsMandatory",
       "defaultRequiredEquipment",
       "defaultVenue",
+      "name",
     ]);
+  });
+
+  it("refuses a template with no name, and one whose name is only whitespace", () => {
+    // The name is the only thing an operator ever sees of a template, so a
+    // nameless one could not be picked, listed or read.
+    for (const name of ["", "   "]) {
+      const outcome = validateEventTemplate(template({ name }));
+      expect(outcome.ok).toBe(false);
+      if (outcome.ok) throw new Error("expected a refusal");
+      expect(outcome.issues[0].field).toBe("name");
+    }
   });
 
   it("carries no RSVP timing of any kind, because that is Mission 4's", () => {

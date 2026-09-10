@@ -21,10 +21,12 @@ export const BANNER = "LANCERS OPERATIONS";
 /**
  * The kind of event, in the club's word for it.
  *
- * Re-exported from the operator screens rather than restated, so that a player
- * and an operator cannot end up calling the same event two different things.
- * `TYPE_LABELS` is the single list; adding an event type to the enum without
- * adding it there shows the raw value, which is ugly enough to notice.
+ * **Only `/design-preview` still calls this** — LAN-265. Every live screen reads
+ * `templateName` off the row instead, because the club's word for a kind of
+ * event is a template's name now rather than a label keyed by a seven-value
+ * enum, and a rename has to reach a player's page like every other surface. The
+ * design previews carry hand-written fixtures with no template behind them, so
+ * this is what turns their stored enum value into a plausible word.
  */
 export function eventTypeLabel(eventType: string): string {
   return TYPE_LABELS[eventType] ?? eventType;

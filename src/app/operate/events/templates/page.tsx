@@ -1,5 +1,6 @@
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Typography from "@mui/material/Typography";
 import { PageHeader } from "@/components/page-header";
 import { RowCard, RowCardList, DesktopOnly } from "@/components/row-card";
 import { TableFrame } from "@/components/sortable-header";
@@ -19,27 +20,30 @@ import {
   describeQuestionCount,
   describeTemplateAudience,
   describeTemplateWhere,
-  labelFor,
+  NEW_TEMPLATE_ACTION,
   TEMPLATE_COLUMN_LABELS,
+  TEMPLATES_DELETE_RULE,
   TEMPLATES_HEADLINE,
-  TYPE_LABELS,
 } from "./presentation";
 
 /**
- * W8-01 — seven types, seven templates.
+ * W8-01 — the club's templates.
  *
- * The administration surface D40 asks for, behind the Events area. It is a short
- * list on purpose: there are exactly seven kinds of event, so there are exactly
- * seven templates, and adding an eighth is a change to the approved domain model
- * rather than an administrative act.
+ * The administration surface D40 asks for, behind the Events area. It was a
+ * fixed list of exactly seven until LAN-265: "A template is anything the
+ * operators want to create: 'Kicking Clinic', 'Full Pads Practice', 'Film
+ * Review', whatever they name" (Brian, with Stu and Clint, 2026-09-09).
  *
- * ## No create and no delete, anywhere
+ * ## Create and delete, and the sentence under the table
  *
- * There is no **Add a template** control, because there is no such act — the
- * seven rows are created by the migration and `event_templates` is granted
- * `select, update` and nothing else. The sentence under the table says so, which
- * is the one rule this surface states in words: the place somebody would look
- * for that button is the place to say there is not one, or they hunt for it.
+ * **New template** is here because creating one is now an ordinary
+ * administrative act rather than a migration. Deleting is not symmetrical with
+ * it, and the sentence under the table is where that is said: a template an
+ * event was created from cannot be deleted, because an event's every label is
+ * read from its template and there is nothing for one to fall back to. The place
+ * an operator looks for **Delete** and does not find it is the place to say why —
+ * `docs/ux/standards.md` rule 4, the same reason this surface used to carry the
+ * opposite sentence about **Add a type**.
  *
  * ## Two presentations of one list
  *
@@ -71,17 +75,27 @@ export default async function EventTemplatesPage() {
     <Stack spacing={3} sx={{ maxWidth: 900 }} data-testid="event-templates">
       <PageHeader
         title={TEMPLATES_HEADLINE}
-        subtitle={`${templates.length} types`}
+        subtitle={templateCount(templates.length)}
         back={{ href: "/operate/events", label: "Back to events" }}
+        actions={
+          <Button
+            variant="contained"
+            href="/operate/events/templates/new"
+            data-testid="new-template"
+            sx={{ minHeight: 44 }}
+          >
+            {NEW_TEMPLATE_ACTION}
+          </Button>
+        }
       />
 
       <RowCardList testId="template-cards">
         {templates.map((template) => (
           <RowCard
-            key={template.eventType}
+            key={template.id}
             testId="template-card"
-            title={labelFor(TYPE_LABELS, template.eventType)}
-            href={`/operate/events/templates/${template.eventType}`}
+            title={template.name}
+            href={`/operate/events/templates/${template.id}`}
             sublines={[
               <span key="facts" data-testid="template-card-facts">
                 {[
@@ -108,12 +122,12 @@ export default async function EventTemplatesPage() {
             </TableHead>
             <TableBody>
               {templates.map((template) => (
-                <TableRow key={template.eventType} data-testid="template-row">
+                <TableRow key={template.id} data-testid="template-row">
                   <TableCell>
                     <Button
-                      href={`/operate/events/templates/${template.eventType}`}
+                      href={`/operate/events/templates/${template.id}`}
                       // `textTransform: none` because these are the club's own
-                      // words for its own event types — "Strength and
+                      // words for its own kinds of event — "Strength and
                       // conditioning", not "STRENGTH AND CONDITIONING" — and
                       // MUI's button default would shout them at an operator
                       // reading a table of sentence-case values. The width and
@@ -129,7 +143,7 @@ export default async function EventTemplatesPage() {
                         textTransform: "none",
                       }}
                     >
-                      {labelFor(TYPE_LABELS, template.eventType)}
+                      {template.name}
                     </Button>
                   </TableCell>
                   <TableCell>{describeTemplateAudience(groupLabels(template))}</TableCell>
@@ -143,8 +157,17 @@ export default async function EventTemplatesPage() {
           </Table>
         </TableFrame>
       </DesktopOnly>
+
+      <Typography variant="body2" color="text.secondary" data-testid="templates-delete-rule">
+        {TEMPLATES_DELETE_RULE}
+      </Typography>
     </Stack>
   );
+}
+
+/** "7 templates" — the count and the noun agreeing. */
+function templateCount(count: number): string {
+  return `${count} ${count === 1 ? "template" : "templates"}`;
 }
 
 /** The stored group keys as the club's words, in the builder's own order. */

@@ -21,7 +21,6 @@ import {
 } from "./event-questions";
 import {
   deriveTermCoordinate,
-  DRAFTABLE_EVENT_TYPES,
   OCCURRED_FILTER,
   OPERATOR_CREATED_ORIGIN,
   optional,
@@ -142,6 +141,32 @@ export {
 export interface EventListEntry {
   id: string;
   name: string;
+  /**
+   * The template this event was created from — LAN-265.
+   *
+   * Carried on every entry because it is what the Template filter selects by and
+   * what the event page links to. Never rendered: `templateName` is.
+   */
+  templateId: string;
+  /**
+   * What the club calls this kind of event, read from the template.
+   *
+   * The single source of the word, everywhere — this list, the event page, the
+   * public calendar, the ICS feed, the RSVP page and the Monday report. Read at
+   * render time from the template rather than stored on the event, which is what
+   * makes a rename retroactive: rename "Chalk" to "Film Review" and last term's
+   * sessions read "Film Review", with no row in `events` rewritten (Brian,
+   * 2026-09-09).
+   */
+  templateName: string;
+  /**
+   * The behavioural class, `public.event_type`.
+   *
+   * Kept on the entry because a handful of rules genuinely need a closed
+   * vocabulary — the recruitment audience, the Monday report's buckets, coach
+   * attendance — and none of them can key off a name an operator may change.
+   * Never shown to anybody: the word a reader sees is `templateName`.
+   */
   eventType: string;
   status: EventStatus;
   scheduledOn: string | null;
@@ -217,8 +242,17 @@ export interface EventListFilters {
    * The fourth, `occurred`, is derived and never stored (D30) — see the query.
    */
   status?: string | null;
-  /** An `event_type` value, or `null` for all. */
-  eventType?: string | null;
+  /**
+   * A template id, or `null` for all — LAN-265.
+   *
+   * The filter used to be an `event_type`, when the type was the template and
+   * the seven values were the seven things an operator could think of. It
+   * selects by template now for the same reason the column shows a template's
+   * name: the operator picks the word they see, and two templates may share a
+   * class. An id that matches no template matches no rows, which is what an
+   * unknown filter should do.
+   */
+  templateId?: string | null;
   /** One of `EVENT_SORT_COLUMNS`. Anything else falls back to the date. */
   sort?: string | null;
   /** `"asc"` or `"desc"`. Anything else falls back to the column's default. */
@@ -276,7 +310,17 @@ export const EVENT_SORT_COLUMNS: Readonly<
   name: Object.freeze({ sql: "e.name", default: "asc" as const }),
   venue: Object.freeze({ sql: "e.venue", default: "asc" as const }),
   status: Object.freeze({ sql: "e.status", default: "asc" as const }),
-  type: Object.freeze({ sql: "e.event_type", default: "asc" as const }),
+  /**
+   * By the template's **name**, since LAN-265, and no longer by the enum's own
+   * declared order.
+   *
+   * The column reads "Chalk" or "Kicking Clinic", and a sort that ordered by
+   * `e.event_type` would now group a club's own templates by a class nobody is
+   * shown — every operator-created template sitting together under `practice`,
+   * in an order the screen gives no account of. Sorting by what the column
+   * prints is the only ordering a reader can check.
+   */
+  type: Object.freeze({ sql: "lower(tpl.name)", default: "asc" as const }),
   invited: Object.freeze({ sql: "invitation_count", default: "desc" as const }),
   said_yes: Object.freeze({ sql: "said_yes_count", default: "desc" as const }),
   /**
@@ -431,9 +475,25 @@ export const PARTICIPATION_TABLES: readonly string[] = Object.freeze([
   "rsvp_responses",
 ]);
 
+/**
+ * The template join every event read carries — LAN-265.
+ *
+ * An inner join, and safe as one: `events.template_id` is `not null` and
+ * `events_template_fkey` is `on delete restrict`, so an event without a template
+ * row cannot exist. Written once here because eight queries need the name and a
+ * ninth written by hand would be the surface that quietly kept showing the old
+ * word after a rename.
+ */
+const TEMPLATE_JOIN = "join public.event_templates tpl on tpl.id = e.template_id";
+
+/** The two template columns every projection selects, public tier included. */
+const TEMPLATE_COLUMNS = "e.template_id, tpl.name as template_name";
+
 interface EventRow {
   id: string;
   name: string;
+  template_id: string;
+  template_name: string;
   event_type: string;
   status: EventStatus;
   scheduled_on: Date | string | null;
@@ -481,6 +541,8 @@ function toListEntry(row: EventRow): EventListEntry {
   return {
     id: row.id,
     name: row.name,
+    templateId: row.template_id,
+    templateName: row.template_name,
     eventType: row.event_type,
     status: row.status,
     scheduledOn: asDate(row.scheduled_on),
@@ -516,7 +578,7 @@ export async function listCurrentSeasonEvents(filters: EventListFilters = {}): P
     // concern — the value is a parameter either way — just a wrong result.
     const search = escapeLikePattern(optional(filters.search));
     const status = optional(filters.status);
-    const eventType = optional(filters.eventType);
+    const templateId = optional(filters.templateId);
     const today = filters.today ?? todayInClubZone();
 
     /*
@@ -541,11 +603,13 @@ export async function listCurrentSeasonEvents(filters: EventListFilters = {}): P
       filter should do.
     */
     const result = await tx.query<EventRow>(
-      `select e.id, e.name, e.event_type::text as event_type, e.status::text as status,
+      `select e.id, e.name, ${TEMPLATE_COLUMNS}, e.event_type::text as event_type,
+              e.status::text as status,
               e.scheduled_on, e.starts_at::text as starts_at, e.ends_at::text as ends_at,
               e.delivery_mode::text as delivery_mode, e.venue, e.is_mandatory,
               ${COUNT_COLUMNS}
          from public.events e
+         ${TEMPLATE_JOIN}
          ${participationJoins("p.season_id = $1")}
         where e.season_id = $1
           and ($2::text is null or e.name ilike '%' || $2 || '%'
@@ -555,9 +619,12 @@ export async function listCurrentSeasonEvents(filters: EventListFilters = {}): P
                      when e.status = 'approved' and e.scheduled_on < $6::date then $5
                      else e.status::text
                    end = $3)
-          and ($4::text is null or e.event_type::text = $4)
+          -- Compared as text, not cast to uuid: the value arrives in a query
+          -- string, and a hand-typed ?template=chalk must match nothing rather
+          -- than raise an invalid-input error the list has no way to render.
+          and ($4::text is null or e.template_id::text = $4)
         order by ${orderBy(optional(filters.sort), optional(filters.direction))}`,
-      [season.id, search, status, eventType, OCCURRED_FILTER, today],
+      [season.id, search, status, templateId, OCCURRED_FILTER, today],
     );
 
     const total = await tx.query<{ count: string }>(
@@ -622,6 +689,15 @@ export async function listEventsForOperator(filters: EventListFilters = {}): Pro
 export interface PublicEventListEntry {
   id: string;
   name: string;
+  /** LAN-265. What the public filter and the type legend select by. */
+  templateId: string;
+  /** The word a reader sees for this kind of event. See `EventListEntry`. */
+  templateName: string;
+  /**
+   * The behavioural class. Public because it always was — the calendar colours
+   * its tiles by it and the legend groups by it — and because it says nothing
+   * about anybody. The word beside the colour is `templateName`.
+   */
   eventType: string;
   scheduledOn: string | null;
   startsAt: string | null;
@@ -683,7 +759,8 @@ export interface PublicEventList {
  * participation data at all" — not hidden after loading, never read. The public
  * tier gained exactly one column and no other boundary moved.
  */
-export const PUBLIC_EVENT_COLUMNS = `e.id, e.name, e.event_type::text as event_type,
+export const PUBLIC_EVENT_COLUMNS = `e.id, e.name, ${TEMPLATE_COLUMNS},
+            e.event_type::text as event_type,
             e.scheduled_on, e.starts_at::text as starts_at, e.ends_at::text as ends_at,
             e.delivery_mode::text as delivery_mode, e.venue, e.is_mandatory,
             e.joining_url,
@@ -692,6 +769,8 @@ export const PUBLIC_EVENT_COLUMNS = `e.id, e.name, e.event_type::text as event_t
 interface PublicEventRow {
   id: string;
   name: string;
+  template_id: string;
+  template_name: string;
   event_type: string;
   scheduled_on: Date | string | null;
   starts_at: string | null;
@@ -707,6 +786,8 @@ function toPublicEntry(row: PublicEventRow): PublicEventListEntry {
   return {
     id: row.id,
     name: row.name,
+    templateId: row.template_id,
+    templateName: row.template_name,
     eventType: row.event_type,
     scheduledOn: asDate(row.scheduled_on),
     startsAt: asTime(row.starts_at),
@@ -722,8 +803,8 @@ function toPublicEntry(row: PublicEventRow): PublicEventListEntry {
 export interface PublicEventListFilters {
   /** Free text over name and venue. */
   search?: string | null;
-  /** An `event_type` value, or `null` for all. */
-  eventType?: string | null;
+  /** A template id, or `null` for all — LAN-265, as on the operator's list. */
+  templateId?: string | null;
   /** One of `EVENT_SORT_COLUMNS` that the public tier offers. */
   sort?: string | null;
   direction?: string | null;
@@ -777,17 +858,18 @@ export async function listPublicSeasonEvents(
     const season = await readCurrentSeasonIn(tx);
 
     const search = escapeLikePattern(optional(filters.search));
-    const eventType = optional(filters.eventType);
+    const templateId = optional(filters.templateId);
 
     const result = await tx.query<PublicEventRow>(
       `select ${PUBLIC_EVENT_COLUMNS}
          from public.events e
+         ${TEMPLATE_JOIN}
         where e.season_id = $1
           and ($2::text is null or e.name ilike '%' || $2 || '%'
                                 or coalesce(e.venue, '') ilike '%' || $2 || '%')
-          and ($3::text is null or e.event_type::text = $3)
+          and ($3::text is null or e.template_id::text = $3)
         order by ${publicOrderBy(optional(filters.sort), optional(filters.direction))}`,
-      [season.id, search, eventType],
+      [season.id, search, templateId],
     );
 
     const total = await tx.query<{ count: string }>(
@@ -825,6 +907,7 @@ export async function readPublicEvent(eventId: string): Promise<PublicEventDetai
     >(
       `select ${PUBLIC_EVENT_COLUMNS}, e.description, e.required_equipment
          from public.events e
+         ${TEMPLATE_JOIN}
         where e.id = $1 and e.season_id = $2`,
       [eventId, season.id],
     );
@@ -919,6 +1002,7 @@ export async function listPublicSeasonEventsForFeed(): Promise<{
     >(
       `select ${PUBLIC_EVENT_COLUMNS}, e.description, e.required_equipment, e.updated_at
          from public.events e
+         ${TEMPLATE_JOIN}
         where e.season_id = $1
         order by e.scheduled_on asc nulls last, e.starts_at asc nulls last, e.id asc`,
       [season.id],
@@ -1032,16 +1116,18 @@ export async function readEventIn(tx: Tx, eventId: string): Promise<EventDetail>
   }
 
   const result = await tx.query<EventDetailRow>(
-    `select e.id, e.name, e.event_type::text as event_type, e.status::text as status,
+    `select e.id, e.name, ${TEMPLATE_COLUMNS}, e.event_type::text as event_type,
+            e.status::text as status,
             e.scheduled_on, e.starts_at::text as starts_at, e.ends_at::text as ends_at,
             e.delivery_mode::text as delivery_mode, e.venue, e.is_mandatory,
             e.description, e.required_equipment, e.joining_url, e.origin::text as origin,
-            e.term_id, t.name::text as term_name, t.academic_year as term_academic_year,
+            e.term_id, term.name::text as term_name, term.academic_year as term_academic_year,
             e.week_number, e.decision_reason, e.season_id,
             ${personDisplayNameSql("o")} as created_by_name,
             ${COUNT_COLUMNS}
        from public.events e
-       left join public.terms t on t.id = e.term_id
+       ${TEMPLATE_JOIN}
+       left join public.terms term on term.id = e.term_id
        left join public.people o on o.id = e.owner_person_id
        ${participationJoins("p.event_id = $1")}
       where e.id = $1`,
@@ -1094,23 +1180,30 @@ export async function createEventDraft(
     // Read before the event exists, so the questions and the default audience a
     // new draft inherits come from one template rather than from whatever it
     // said between three separate reads.
-    const inherited = await readTemplateInheritanceIn(tx, input.eventType);
+    //
+    // It is also where `event_type` comes from, since LAN-265. The form posts a
+    // template and never a class: the class is the template's, read here inside
+    // the transaction, so a submission that named one and implied the other
+    // cannot exist. `events_template_fkey` is composite and would refuse the
+    // pairing anyway; this is what stops it ever being attempted.
+    const inherited = await readTemplateInheritanceIn(tx, input.templateId);
     // Derived, not chosen: the date the operator entered decides both.
     const term = deriveTermCoordinate(input.scheduledOn, await listTermWindows(tx));
 
     const inserted = await tx.query<{ id: string }>(
       `insert into public.events
-         (season_id, name, event_type, origin, status, scheduled_on, starts_at, ends_at,
-          delivery_mode, venue, description, required_equipment, joining_url,
+         (season_id, name, template_id, event_type, origin, status, scheduled_on, starts_at,
+          ends_at, delivery_mode, venue, description, required_equipment, joining_url,
           term_id, week_number, is_mandatory, owner_person_id)
-       values ($1, $2, $3::public.event_type, $4::public.event_origin, 'draft',
-               $5, $6::time, $7::time, $8::public.event_delivery_mode, $9, $10, $11, $12,
-               $13, $14, $15, $16)
+       values ($1, $2, $3::uuid, $4::public.event_type, $5::public.event_origin, 'draft',
+               $6, $7::time, $8::time, $9::public.event_delivery_mode, $10, $11, $12, $13,
+               $14, $15, $16, $17)
        returning id`,
       [
         season.id,
         input.name,
-        input.eventType,
+        input.templateId,
+        inherited.eventType,
         OPERATOR_CREATED_ORIGIN,
         input.scheduledOn,
         input.startsAt,
@@ -1151,7 +1244,8 @@ export async function createEventDraft(
       entityId: id,
       toState: "draft",
       context: {
-        eventType: input.eventType,
+        templateId: input.templateId,
+        eventType: inherited.eventType,
         deliveryMode: input.deliveryMode,
         isMandatory: input.isMandatory,
         origin: OPERATOR_CREATED_ORIGIN,
@@ -1254,20 +1348,24 @@ export async function updateEventDraft(
     // provenance it arrived with, and editing its name here must not quietly
     // reclassify it as the club's own. Nothing in this slice creates such an
     // event; the schema does, and later issues will.
+    // LAN-265. The template is deliberately absent from this statement, on the
+    // same reasoning `origin` already is: a different template is a different
+    // kind of event, and an edit that silently changed one would reclassify an
+    // event underneath the audience and the questions it already carries. The
+    // form does not offer it, and neither does amendment.
     const updated = await tx.query<{ id: string }>(
       `update public.events
-          set name = $2, event_type = $3::public.event_type,
-              scheduled_on = $4, starts_at = $5::time, ends_at = $6::time,
-              delivery_mode = $7::public.event_delivery_mode, venue = $8,
-              description = $9, required_equipment = $10, joining_url = $11,
-              term_id = $12, week_number = $13, is_mandatory = $14,
+          set name = $2,
+              scheduled_on = $3, starts_at = $4::time, ends_at = $5::time,
+              delivery_mode = $6::public.event_delivery_mode, venue = $7,
+              description = $8, required_equipment = $9, joining_url = $10,
+              term_id = $11, week_number = $12, is_mandatory = $13,
               updated_at = now()
         where id = $1 and status = 'draft'
        returning id`,
       [
         eventId,
         input.name,
-        input.eventType,
         input.scheduledOn,
         input.startsAt,
         input.endsAt,
@@ -1301,7 +1399,8 @@ export async function updateEventDraft(
       fromState: "draft",
       toState: "draft",
       context: {
-        eventType: input.eventType,
+        // Not the template: an edit cannot change it (see the update above), so
+        // recording it here would say a decision was taken that was not.
         deliveryMode: input.deliveryMode,
         isMandatory: input.isMandatory,
         weekNumber: term.weekNumber,
@@ -1473,9 +1572,14 @@ function requireValid(input: EventDraftInput): void {
   if (trimmed(input.name) === "") {
     throw new ConstraintViolated("Give the event a name.", { rule: "events_name_not_blank" });
   }
-  if (!DRAFTABLE_EVENT_TYPES.includes(input.eventType)) {
-    throw new ConstraintViolated("That is not an event type this form can record.", {
-      rule: "event_type_not_draftable",
+  // LAN-265. The class is no longer something a caller supplies, so there is
+  // nothing to check here: `readTemplateInheritanceIn` refuses an unknown
+  // template with `TEMPLATE_NOT_FOUND_MESSAGE`, and the class it returns comes
+  // off the template's own row. What survives is the shape check — a caller that
+  // named no template at all.
+  if (!UUID_PATTERN.test(input.templateId)) {
+    throw new ConstraintViolated("Choose the kind of event this is.", {
+      rule: "event_template_not_chosen",
     });
   }
   if (input.startsAt !== null && input.endsAt !== null && input.endsAt <= input.startsAt) {

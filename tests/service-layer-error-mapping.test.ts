@@ -101,8 +101,9 @@ const CASES = [
     attempt: (tx: Tx, base: Baseline) =>
       tx.query(
         `insert into public.events
-           (season_id, name, event_type, status, scheduled_on, approved_at, approved_by_person_id)
-         values ($1, 'No audience', 'practice', 'approved', '2026-11-04', now(), $2)`,
+           (season_id, name, event_type, status, scheduled_on, approved_at, approved_by_person_id, template_id)
+         values ($1, 'No audience', 'practice', 'approved', '2026-11-04', now(), $2,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))`,
         [base.seasonId, base.personId],
       ),
   },
@@ -124,8 +125,9 @@ const CASES = [
     kind: "constraint_violated",
     attempt: (tx: Tx, base: Baseline) =>
       tx.query(
-        `insert into public.events (season_id, name, event_type, starts_at, ends_at)
-         values ($1, 'Backwards practice', 'practice', '20:00', '19:00')`,
+        `insert into public.events (season_id, name, event_type, starts_at, ends_at, template_id)
+         values ($1, 'Backwards practice', 'practice', '20:00', '19:00',
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))`,
         [base.seasonId],
       ),
   },
@@ -135,7 +137,8 @@ const CASES = [
     kind: "constraint_violated",
     attempt: (tx: Tx, base: Baseline) =>
       tx.query(
-        `insert into public.events (season_id, name, event_type) values ($1, '   ', 'practice')`,
+        `insert into public.events (season_id, name, event_type, template_id) values ($1, '   ', 'practice',
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))`,
         [base.seasonId],
       ),
   },

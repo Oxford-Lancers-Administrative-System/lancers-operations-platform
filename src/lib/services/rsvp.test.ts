@@ -152,10 +152,13 @@ async function fixture(
     const event = await observer.query<{ id: string }>(
       `with target as (select (now() + make_interval(hours => $3)) at time zone 'Europe/London' as local)
        insert into public.events
-         (season_id, name, event_type, status, scheduled_on, starts_at, ends_at, venue,
-          audience_confirmed_at, audience_confirmed_by_person_id,
+         (season_id, name, event_type, template_id, status, scheduled_on, starts_at, ends_at,
+          venue, audience_confirmed_at, audience_confirmed_by_person_id,
           approved_at, approved_by_person_id)
-       select $1, $2, 'practice', $4::public.event_status,
+       select $1, $2, 'practice',
+              (select tpl.id from public.event_templates tpl
+                where tpl.event_type = 'practice' order by lower(tpl.name) limit 1),
+              $4::public.event_status,
               (select local::date from target),
               -- Truncated to the minute, so it can never fall inside the last
               -- second of the day and collide with the cap below.

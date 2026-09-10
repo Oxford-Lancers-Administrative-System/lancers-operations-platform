@@ -303,6 +303,9 @@ export interface EventFactsBase {
   readonly id: string;
   readonly name: string;
   readonly status: string;
+  /** LAN-265. The word every tier reads for this kind of event. */
+  readonly templateName: string;
+  /** The behavioural class underneath it, which nothing here displays. */
   readonly eventType: string;
   readonly scheduledOn: string | null;
   readonly startsAt: string | null;

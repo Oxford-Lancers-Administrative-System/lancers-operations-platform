@@ -146,16 +146,19 @@ export async function writeEventQuestionsIn(
 }
 
 /**
- * The questions a type's template attaches to every event created from it
- * (D42), in the shape a new event's questions are written from.
+ * The questions a template attaches to every event created from it (D42), in
+ * the shape a new event's questions are written from.
  *
  * Marked `fromTemplate` here rather than by the caller, because that is what
  * makes them removable per event without touching the template: the flag is the
  * only record of where a question came from.
+ *
+ * Read by template id since LAN-265, on the same key everything else about a
+ * template now uses.
  */
 export async function readTemplateQuestionsAsEventInputIn(
   tx: Tx,
-  eventType: string,
+  templateId: string,
 ): Promise<EventQuestionInput[]> {
   const result = await tx.query<{
     prompt: string;
@@ -165,9 +168,9 @@ export async function readTemplateQuestionsAsEventInputIn(
   }>(
     `select prompt, answer_type::text as answer_type, choices, is_required
        from public.event_template_questions
-      where event_type = $1::public.event_type
+      where template_id = $1::uuid
       order by sort_order, prompt`,
-    [eventType],
+    [templateId],
   );
 
   return result.rows.map((row) => ({

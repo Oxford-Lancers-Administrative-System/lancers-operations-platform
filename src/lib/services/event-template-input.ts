@@ -6,13 +6,18 @@
  * reason: the template editor is a Client Component, and the module that
  * reaches the database cannot be in its import graph.
  *
- * ## Seven templates, and nobody creates or deletes one
+ * ## Operators create templates, and name them — LAN-265
  *
- * D12 fixes seven event types and D40 gives each exactly one template. The rows
- * are created by `20260822120000_events_target_state.sql` and the table is
- * granted `select, update` and nothing else, so "add an eighth type" is refused
- * by the grant as well as by this module. Adding one is a change to the approved
- * domain model and Brian's decision.
+ * D12's seven event types and D40's one-template-each were the same fact until
+ * Brian reopened it on 2026-09-09: "A template is anything the operators want to
+ * create." A template is now a row with its own id and its own name, and the
+ * seven-value enum survives underneath it as the behavioural class the code
+ * needs a closed vocabulary for. Adding a *class* is still a migration and
+ * Brian's decision; adding a *template* is an ordinary administrative act.
+ *
+ * What that costs this module is one required field. Everything a template says
+ * about the event is still optional; the name is not, because the name is the
+ * whole of what an operator ever sees of a template.
  *
  * ## Every field is optional
  *
@@ -25,9 +30,12 @@
  *
  * ## What a template deliberately does not hold
  *
- * No name, no date and no start time (D40, Brian 2026-08-21: "the name is always
- * going to be unique ... Usual time doesn't make any sense to me"). What a type
- * can usefully say about time is how long it runs, so it holds a duration.
+ * No date and no start time (D40, Brian 2026-08-21: "the name is always going to
+ * be unique ... Usual time doesn't make any sense to me"). That quotation is
+ * about the **event's** name, which a template still never supplies; the
+ * template's own name, added by LAN-265, is what the kind of event is called
+ * rather than what any one of them is called. What a template can usefully say
+ * about time is how long it runs, so it holds a duration.
  *
  * And no RSVP timing of any kind. The per-type chase threshold lives in
  * `event_type_settings` for Mission 4 to consume; a template is what an event
@@ -50,6 +58,12 @@ import type { RawEventQuestion } from "./event-questions-input";
  * controls, where "the template does not say" and "empty" are the same thing.
  */
 export interface EventTypeFormDefaults {
+  /** LAN-265. The template's own identity, which is what the event stores. */
+  id: string;
+  /** What the operator picks it by, and the only word the control shows. */
+  name: string;
+  /** The class this template gives an event. Never rendered. */
+  eventType: string;
   deliveryMode: EventDeliveryMode;
   venue: string;
   description: string;
@@ -63,8 +77,17 @@ export interface EventTypeFormDefaults {
 export const MIN_TEMPLATE_DURATION_MINUTES = 5;
 export const MAX_TEMPLATE_DURATION_MINUTES = 1440;
 
+/** The narrowest and widest a template's own name may be. */
+export const MAX_TEMPLATE_NAME_LENGTH = 60;
+
 /** What the template editor posted. Every field a string, every one optional. */
 export interface RawEventTemplate {
+  /**
+   * LAN-265. The one field that is **not** optional: a template with no name
+   * cannot be picked, listed or read, because the name is the whole of what an
+   * operator ever sees of it.
+   */
+  name?: string | null;
   defaultVenue?: string | null;
   defaultDeliveryMode?: string | null;
   /** Minutes, as typed. Empty means the template does not say. */
@@ -80,6 +103,7 @@ export interface RawEventTemplate {
 
 /** The same values, checked. */
 export interface EventTemplateInput {
+  name: string;
   defaultVenue: string | null;
   defaultDeliveryMode: EventDeliveryMode | null;
   defaultDurationMinutes: number | null;
@@ -110,6 +134,21 @@ export type EventTemplateValidation =
  */
 export function validateEventTemplate(raw: RawEventTemplate): EventTemplateValidation {
   const issues: TemplateFieldIssue[] = [];
+
+  // LAN-265. Uniqueness is not checked here and deliberately so: two operators
+  // can each be holding a form that says "Kicking Clinic", and the only place
+  // that can be decided is the database's own unique index at the moment of the
+  // write. This function owns the shape of a value, exactly as it does for the
+  // audience groups it also refuses to judge.
+  const name = trimmed(raw.name);
+  if (name === "") {
+    issues.push({ field: "name", message: "Give this template a name." });
+  } else if (name.length > MAX_TEMPLATE_NAME_LENGTH) {
+    issues.push({
+      field: "name",
+      message: `Use ${MAX_TEMPLATE_NAME_LENGTH} characters or fewer.`,
+    });
+  }
 
   const deliveryModeRaw = trimmed(raw.defaultDeliveryMode);
   let defaultDeliveryMode: EventDeliveryMode | null = null;
@@ -162,6 +201,7 @@ export function validateEventTemplate(raw: RawEventTemplate): EventTemplateValid
   return {
     ok: true,
     value: {
+      name,
       defaultVenue: optional(raw.defaultVenue),
       defaultDeliveryMode,
       defaultDurationMinutes,

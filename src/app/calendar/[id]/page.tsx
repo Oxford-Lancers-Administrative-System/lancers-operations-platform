@@ -18,7 +18,6 @@ import {
   JOINING_LINK_LABEL,
   labelFor,
   STATUS_LABELS,
-  TYPE_LABELS,
 } from "@/lib/services/event-vocabulary";
 import { readPublicEvent, type PublicEventDetail } from "@/lib/services/events";
 import { safeUri } from "@/lib/services/safe-uri";
@@ -131,11 +130,7 @@ export default async function PublicEventPage({ params }: PageProps<"/calendar/[
         />
         <Section title="Details">
           <FactGrid>
-            <Fact
-              testId="public-event-fact"
-              label="Type"
-              value={labelFor(TYPE_LABELS, event.eventType)}
-            />
+            <Fact testId="public-event-fact" label="Type" value={event.templateName} />
             <Fact testId="public-event-fact" label="Where" value={whereItIs(event)} />
             <Fact
               label="Term and week"

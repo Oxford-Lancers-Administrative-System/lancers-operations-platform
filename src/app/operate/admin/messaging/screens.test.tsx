@@ -75,8 +75,37 @@ function signedIn(operator: ResolvedOperator | null) {
   );
 }
 
+/**
+ * The seven templates the migration seeds, by behavioural class — LAN-265.
+ *
+ * Fixed literals in `20260916090000_event_templates.sql`, so a fixture can name
+ * one without reading it back; the page keys every row by the identifier and
+ * labels it with the name.
+ */
+const TEMPLATE_IDS: Readonly<Record<string, string>> = {
+  practice: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  strength_and_conditioning: "8fb4acfc-1d41-53b0-bda8-202f454a8629",
+  chalk: "b547e0b3-f48c-5601-9dc6-e8725fc434f9",
+  game: "67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae",
+  social: "8de00424-52a8-52ad-9c9f-a29823f9c4bf",
+  recruitment: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
+  meeting: "660cdcb7-51e3-5a19-aaa2-08c5256af288",
+};
+
+const TEMPLATE_NAMES: Readonly<Record<string, string>> = {
+  practice: "Practice",
+  strength_and_conditioning: "Strength and conditioning",
+  chalk: "Chalk",
+  game: "Game",
+  social: "Social",
+  recruitment: "Recruitment",
+  meeting: "Meeting",
+};
+
 function schedule(overrides: Partial<MessagingSchedule> = {}): MessagingSchedule {
   return {
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+    templateName: "Practice",
     eventType: "practice",
     rsvpByDays: 2,
     // An arbitrary lead chosen only so the baseline fixture below carries no
@@ -125,7 +154,7 @@ function plan(base: MessagingSchedule, overrides: Partial<MessagingPlan> = {}): 
     })),
   ];
   return {
-    eventType: base.eventType,
+    templateId: base.templateId,
     schedule: base,
     eventStartsAt,
     responseDeadlineAt,
@@ -154,10 +183,15 @@ const EVENT_TYPES = [
 
 function rows(): MessagingScheduleWithPreview[] {
   return EVENT_TYPES.map((eventType) => {
+    const identity = {
+      templateId: TEMPLATE_IDS[eventType],
+      templateName: TEMPLATE_NAMES[eventType],
+      eventType,
+    };
     const row = schedule(
       eventType === "recruitment"
-        ? { eventType, recruitInvitationLeadDays: 5, recruitFollowUpCadenceHours: 72 }
-        : { eventType },
+        ? { ...identity, recruitInvitationLeadDays: 5, recruitFollowUpCadenceHours: 72 }
+        : identity,
     );
     return { schedule: row, preview: plan(row) };
   });
@@ -396,12 +430,14 @@ describe("one save button per row — OWNER-LAN171-04", () => {
     expect(gameRow.querySelector('button[type="submit"]')).toHaveTextContent("Save game");
   });
 
-  it("scopes each row's hidden event type to its own form", async () => {
+  it("scopes each row's hidden template to its own form", async () => {
+    // LAN-265 rekeyed the table, so the hidden field a row posts is the
+    // template's identifier rather than the class it happens to carry.
     const { container } = render(await MessagingSchedulePage());
 
-    const hiddenInputs = container.querySelectorAll('input[name="eventType"]');
+    const hiddenInputs = container.querySelectorAll('input[name="templateId"]');
     expect(Array.from(hiddenInputs).map((input) => (input as HTMLInputElement).value)).toEqual(
-      EVENT_TYPES,
+      EVENT_TYPES.map((eventType) => TEMPLATE_IDS[eventType]),
     );
   });
 });
@@ -562,7 +598,7 @@ describe("the Recruitment event row's two audiences — DEC-split-on-the-schedul
     const { container } = render(await MessagingSchedulePage());
 
     const recruitmentForm = Array.from(container.querySelectorAll("form")).find((form) =>
-      form.querySelector('input[name="eventType"][value="recruitment"]'),
+      form.querySelector(`input[name="templateId"][value="${TEMPLATE_IDS.recruitment}"]`),
     )!;
     expect(recruitmentForm).toBeDefined();
     expect(recruitmentForm.querySelectorAll('button[type="submit"]')).toHaveLength(1);

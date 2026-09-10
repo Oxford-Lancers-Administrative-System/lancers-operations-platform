@@ -216,9 +216,10 @@ describe("events as the club actually schedules them", () => {
       client,
       `insert into public.events
          (season_id, name, event_type, origin, status, scheduled_on,
-          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
+          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id, template_id)
        values ($1, 'BUCS fixture — TBC', 'game', 'externally_assigned', 'approved', '2026-11-08',
-               now(), $2, now(), $2)`,
+               now(), $2, now(), $2,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'game' order by lower(tpl.name) limit 1))`,
       [base.seasonId, base.personId],
     );
   });
@@ -229,10 +230,16 @@ describe("events as the club actually schedules them", () => {
       client,
       `insert into public.events
          (season_id, name, event_type, status, scheduled_on,
-          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
-       values ($1, 'Chalk', 'chalk', 'approved', '2026-11-04', now(), $2, now(), $2),
-              ($1, 'S&C', 'strength_and_conditioning', 'approved', '2026-11-04', now(), $2, now(), $2),
-              ($1, 'Social', 'social', 'approved', '2026-11-04', now(), $2, now(), $2)`,
+          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id, template_id)
+       select $1, kind.name, kind.event_type::public.event_type, 'approved', '2026-11-04',
+              now(), $2, now(), $2, tpl.id
+         from (values ('Chalk', 'chalk'),
+                      ('S&C', 'strength_and_conditioning'),
+                      ('Social', 'social')) as kind(name, event_type)
+         join lateral (
+                select id from public.event_templates
+                 where event_type::text = kind.event_type
+                 order by lower(name) limit 1) tpl on true`,
       [base.seasonId, base.personId],
     );
   });
@@ -249,8 +256,9 @@ describe("events as the club actually schedules them", () => {
       client,
       `insert into public.events
          (season_id, alternative_group_id, name, event_type, status, scheduled_on,
-          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
-       values ($1, $2, 'Potential Crewdate A', 'social', 'approved', '2026-11-05', now(), $3, now(), $3)`,
+          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id, template_id)
+       values ($1, $2, 'Potential Crewdate A', 'social', 'approved', '2026-11-05', now(), $3, now(), $3,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'social' order by lower(tpl.name) limit 1))`,
       [base.seasonId, group.id, base.personId],
     );
     // The losing candidate is a draft. LAN-151 retired `rejected` with the rest
@@ -259,8 +267,9 @@ describe("events as the club actually schedules them", () => {
     await expectAccepted(
       client,
       `insert into public.events
-         (season_id, alternative_group_id, name, event_type, status, scheduled_on, decision_reason)
-       values ($1, $2, 'Potential Crewdate B', 'social', 'draft', '2026-11-06', 'A was taken instead')`,
+         (season_id, alternative_group_id, name, event_type, status, scheduled_on, decision_reason, template_id)
+       values ($1, $2, 'Potential Crewdate B', 'social', 'draft', '2026-11-06', 'A was taken instead',
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'social' order by lower(tpl.name) limit 1))`,
       [base.seasonId, group.id],
     );
   });
@@ -573,8 +582,9 @@ describe("derived current-state views", () => {
       client,
       `insert into public.events
          (season_id, name, event_type, status, scheduled_on,
-          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
-       values ($1, 'AGM', 'meeting', 'approved', '2027-06-09', now(), $2, now(), $2) returning id`,
+          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id, template_id)
+       values ($1, 'AGM', 'meeting', 'approved', '2027-06-09', now(), $2, now(), $2,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'meeting' order by lower(tpl.name) limit 1)) returning id`,
       [base.seasonId, base.personId],
     );
     const member = await confirmAudienceMember(

@@ -1,7 +1,7 @@
 "use client";
 
 import ListFilters from "../list-filters";
-import { DERIVED_STATE_LABELS, labelFor, STATUS_LABELS, TYPE_LABELS } from "./presentation";
+import { DERIVED_STATE_LABELS, labelFor, STATUS_LABELS } from "./presentation";
 
 /**
  * The word for one Status filter value — Q-6.
@@ -38,21 +38,22 @@ function statusFilterLabel(value: string): string {
  */
 export default function EventFilters({
   statuses,
-  types,
+  templates,
   sortColumns,
   search,
   status,
-  eventType,
+  templateId,
   sort,
   direction,
   period,
 }: {
   statuses: readonly string[];
-  types: readonly string[];
+  /** LAN-265. The club's own templates, offered by name and selected by id. */
+  templates: readonly { id: string; name: string }[];
   sortColumns: readonly { value: string; label: string }[];
   search: string;
   status: string;
-  eventType: string;
+  templateId: string;
   sort: string;
   direction: string;
   /** Kept as the operator narrows, so typing does not reset the period. */
@@ -77,12 +78,17 @@ export default function EventFilters({
           options: statuses.map((value) => ({ value, label: statusFilterLabel(value) })),
         },
         {
+          // The parameter stays `type` and the label stays **Type** — what
+          // changed under LAN-265 is what the values are, not what the operator
+          // is narrowing by. The values are template ids now, so a link saved
+          // before this change carries an enum label that matches no template
+          // and shows an empty list, which is what an unknown filter should do.
           name: "type",
           label: "Type",
-          value: eventType,
+          value: templateId,
           allLabel: "All types",
           minWidth: 170,
-          options: types.map((value) => ({ value, label: labelFor(TYPE_LABELS, value) })),
+          options: templates.map((template) => ({ value: template.id, label: template.name })),
         },
       ]}
       sortColumns={sortColumns}

@@ -1,4 +1,3 @@
-import { TYPE_LABELS } from "@/lib/services/event-vocabulary";
 import type { MessagingSchedule, MessagingScheduleChange } from "@/lib/services/messaging-schedule";
 
 /**
@@ -8,13 +7,17 @@ import type { MessagingSchedule, MessagingScheduleChange } from "@/lib/services/
  * The database's own `messaging_schedules_*` check constraints are the
  * backstop (`src/lib/db/errors.ts` names each one in the club's words), and
  * this is the ergonomic layer in front of them: the same six bounds, checked
- * here so a mistyped field comes back naming the event type and the field
+ * here so a mistyped field comes back naming the template and the field
  * rather than a round trip to the database. Pure and side-effect-free, so it
  * is testable without a transaction.
+ *
+ * The caller passes the template'''s **name**, not its id — LAN-265. A refusal is
+ * read by a person, and "Kicking Clinic: first invitation sent cannot be left
+ * blank" is the sentence; the id is what the write is keyed by and says nothing
+ * to anybody. There is no list of valid names to check against here, and there
+ * deliberately is not one: the templates a club has are data now, and the row
+ * being saved is one the page just rendered from them.
  */
-
-/** The seven event types, in the order `messaging_schedules` declares them. */
-export const SCHEDULE_EVENT_TYPES: readonly string[] = Object.freeze(Object.keys(TYPE_LABELS));
 
 /**
  * The six fields every event type's row carries. LAN-203 added two more to
@@ -174,8 +177,11 @@ export type ScheduleValidation =
  * never happen; when one does anyway, `scheduleSaveFailedNotice` is what the
  * operator sees, not a raw constraint failure.
  */
-export function readOneScheduleChange(eventType: string, formData: FormData): ScheduleValidation {
-  const label = TYPE_LABELS[eventType] ?? eventType;
+export function readOneScheduleChange(
+  label: string,
+  eventType: string,
+  formData: FormData,
+): ScheduleValidation {
   const values: Partial<Record<keyof MessagingScheduleChange, number>> = {};
 
   for (const bound of SCHEDULE_FIELDS) {

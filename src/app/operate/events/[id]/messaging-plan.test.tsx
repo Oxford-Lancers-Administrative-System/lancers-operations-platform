@@ -20,6 +20,8 @@ import type {
 } from "@/lib/services/messaging-schedule";
 
 const SCHEDULE: MessagingSchedule = {
+  templateId: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
+  templateName: "Recruitment",
   eventType: "recruitment",
   rsvpByDays: 2,
   invitationLeadDays: 5,
@@ -37,7 +39,7 @@ function planWithRecruitLadder(overrides: Partial<MessagingPlan> = {}): Messagin
   const responseDeadlineAt = new Date("2026-09-20T19:00:00Z");
   const recruitInvitationAt = new Date("2026-09-15T19:00:00Z");
   return {
-    eventType: "recruitment",
+    templateId: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
     schedule: SCHEDULE,
     eventStartsAt: new Date("2026-09-22T19:00:00Z"),
     responseDeadlineAt,

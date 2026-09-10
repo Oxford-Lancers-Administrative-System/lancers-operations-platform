@@ -589,8 +589,9 @@ const GUARD_CASES: readonly GuardCase[] = [
       const vocabulary = await spareVocabulary(c, "spare-for-event");
       const season = await spareSeason(c, "SOMEBODY ELSE event season", vocabulary);
       await c.query(
-        `insert into public.events (id, season_id, name, event_type, status)
-         values ($1, $2, 'Somebody else event', 'practice', 'draft')`,
+        `insert into public.events (id, season_id, name, event_type, status, template_id)
+         values ($1, $2, 'Somebody else event', 'practice', 'draft',
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))`,
         [ID.event, season],
       );
     },
@@ -848,8 +849,9 @@ const GUARD_CASES: readonly GuardCase[] = [
     afterSetup: true,
     arrange: async (c) =>
       void (await c.query(
-        `insert into public.events (season_id, name, event_type, status)
-         values ($1, 'Somebody else event', 'practice', 'draft')`,
+        `insert into public.events (season_id, name, event_type, status, template_id)
+         values ($1, 'Somebody else event', 'practice', 'draft',
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))`,
         [ID.season],
       )),
   },

@@ -126,7 +126,7 @@ afterAll(async () => {
 function draft(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
   return {
     name: `${NAME_MARKER} Sunday practice`,
-    eventType: "practice",
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
     scheduledOn: "2026-10-18",
     startsAt: "10:00",
     endsAt: "13:00",
@@ -152,9 +152,26 @@ async function newDraft(overrides: Partial<EventDraftInput> = {}) {
  * deadline configuration cover every type in the enum, so proving those needs a
  * row the form would refuse to make.
  */
+/**
+ * The seven templates the migration seeds, by behavioural class — LAN-265.
+ *
+ * Fixed literals in `20260916090000_event_templates.sql`, so a test can name one
+ * without reading it back, and the deadline table can still be driven by class.
+ */
+const SEEDED_TEMPLATE_IDS: Readonly<Record<string, string>> = {
+  practice: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  strength_and_conditioning: "8fb4acfc-1d41-53b0-bda8-202f454a8629",
+  chalk: "b547e0b3-f48c-5601-9dc6-e8725fc434f9",
+  game: "67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae",
+  social: "8de00424-52a8-52ad-9c9f-a29823f9c4bf",
+  recruitment: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
+  meeting: "660cdcb7-51e3-5a19-aaa2-08c5256af288",
+};
+
 async function insertDraftDirectly(input: {
   name: string;
-  eventType: string;
+  /** The template the row belongs to — LAN-265. Its class comes off the row. */
+  templateId: string;
   scheduledOn: string;
   /** `null` for the confirmed-date-but-no-kick-off case, which is legal. */
   startsAt?: string | null;
@@ -163,16 +180,21 @@ async function insertDraftDirectly(input: {
     "select id from public.seasons where status = 'active' order by starts_on desc limit 1",
   );
   const inserted = await observer.query<{ id: string }>(
+    // `event_type` is read off the template rather than passed: LAN-265 made
+    // `events_template_fkey` composite, so the pair on the row has to agree
+    // with the template's own class or the insert is refused.
     `insert into public.events
-       (season_id, name, event_type, origin, status, scheduled_on, starts_at,
+       (season_id, name, template_id, event_type, origin, status, scheduled_on, starts_at,
         is_mandatory, owner_person_id)
-     values ($1, $2, $3::public.event_type, 'club_controlled', 'draft', $4, $6::time,
-             true, $5)
+     select $1, $2, tpl.id, tpl.event_type, 'club_controlled', 'draft', $4, $6::time,
+            true, $5
+       from public.event_templates tpl
+      where tpl.id = $3::uuid
      returning id`,
     [
       season.rows[0].id,
       input.name,
-      input.eventType,
+      input.templateId,
       input.scheduledOn,
       actorPersonId,
       input.startsAt === undefined ? "19:00" : input.startsAt,
@@ -785,7 +807,10 @@ async function grantRecruitConsent(personId: string, seasonId: string): Promise<
 
 describe("the recruit ladder — LAN-203", () => {
   it("countByCapacity reports recruits in the approval summary — the second defect, restored and fixed", async () => {
-    const event = await newDraft({ eventType: "recruitment", scheduledOn: "2026-11-20" });
+    const event = await newDraft({
+      templateId: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
+      scheduledOn: "2026-11-20",
+    });
     const playerKeys = await keysFor(event, "player", 2);
     const recruitKeys = await keysFor(event, "recruit", 2);
     expect(recruitKeys.length).toBeGreaterThan(0);
@@ -807,7 +832,10 @@ describe("the recruit ladder — LAN-203", () => {
   });
 
   it("never gives a recruit invitation the player reminder ladder — the first defect, restored and fixed", async () => {
-    const event = await newDraft({ eventType: "recruitment", scheduledOn: "2026-11-20" });
+    const event = await newDraft({
+      templateId: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
+      scheduledOn: "2026-11-20",
+    });
     const playerKeys = await keysFor(event, "player", 1);
     const recruitKeys = await keysFor(event, "recruit", 1);
     expect(recruitKeys.length).toBe(1);
@@ -844,9 +872,12 @@ describe("the recruit ladder — LAN-203", () => {
     // The Recruitment row's shipped defaults differ — 5 days for recruits,
     // 5 days for players too here, so widen the gap so a defect that
     // anchored both to the same instant cannot pass by coincidence.
-    const event = await newDraft({ eventType: "recruitment", scheduledOn: "2026-11-20" });
+    const event = await newDraft({
+      templateId: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
+      scheduledOn: "2026-11-20",
+    });
     await withTransaction((tx) =>
-      updateMessagingScheduleIn(tx, actorPersonId, "recruitment", {
+      updateMessagingScheduleIn(tx, actorPersonId, SEEDED_TEMPLATE_IDS.recruitment, {
         rsvpByDays: 2,
         invitationLeadDays: 20,
         reminderCadenceHours: 24,
@@ -882,7 +913,7 @@ describe("the recruit ladder — LAN-203", () => {
       expect(byCapacity.recruit - byCapacity.player).toBe(15 * 24 * 60 * 60 * 1000);
     } finally {
       await withTransaction((tx) =>
-        updateMessagingScheduleIn(tx, actorPersonId, "recruitment", {
+        updateMessagingScheduleIn(tx, actorPersonId, SEEDED_TEMPLATE_IDS.recruitment, {
           rsvpByDays: 2,
           invitationLeadDays: 5,
           reminderCadenceHours: 24,
@@ -897,7 +928,10 @@ describe("the recruit ladder — LAN-203", () => {
   });
 
   it("never escalates a recruit, and never counts one toward the President's outstanding tally", async () => {
-    const event = await newDraft({ eventType: "recruitment", scheduledOn: "2026-11-20" });
+    const event = await newDraft({
+      templateId: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
+      scheduledOn: "2026-11-20",
+    });
     const recruitKeys = await keysFor(event, "recruit", 1);
     expect(recruitKeys.length).toBe(1);
 
@@ -914,7 +948,10 @@ describe("the recruit ladder — LAN-203", () => {
   });
 
   it("freezes the recruit ladder onto the plan, and grouped by audience — REQ-approval-shows-both-ladders", async () => {
-    const event = await newDraft({ eventType: "recruitment", scheduledOn: "2026-11-20" });
+    const event = await newDraft({
+      templateId: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
+      scheduledOn: "2026-11-20",
+    });
     const playerKeys = await keysFor(event, "player", 1);
     const recruitKeys = await keysFor(event, "recruit", 1);
     const [recruitId] = recruitKeys;
@@ -971,7 +1008,10 @@ describe("the recruit ladder — LAN-203", () => {
   });
 
   it("schedules no recruit follow-up job for a recruit with no granted consent this season", async () => {
-    const event = await newDraft({ eventType: "recruitment", scheduledOn: "2026-11-20" });
+    const event = await newDraft({
+      templateId: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
+      scheduledOn: "2026-11-20",
+    });
     const recruitKeys = await keysFor(event, "recruit", 1);
     expect(recruitKeys.length).toBe(1);
 
@@ -990,7 +1030,10 @@ describe("the recruit ladder — LAN-203", () => {
   });
 
   it("cancels a recruit's own pending follow-up the moment they answer — never a second reminder to someone who has already replied", async () => {
-    const event = await newDraft({ eventType: "recruitment", scheduledOn: "2026-11-20" });
+    const event = await newDraft({
+      templateId: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
+      scheduledOn: "2026-11-20",
+    });
     const recruitKeys = await keysFor(event, "recruit", 1);
     expect(recruitKeys.length).toBe(1);
 
@@ -1146,7 +1189,10 @@ describe("approving twice", () => {
 
 describe("the deadline every approval computes", () => {
   it("gives an event's invitations the configured deadline", async () => {
-    const event = await newDraft({ eventType: "practice", scheduledOn: "2026-10-18" });
+    const event = await newDraft({
+      templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+      scheduledOn: "2026-10-18",
+    });
     const keys = await keysFor(event, "player", 2);
 
     const outcome = await approve(event.id, keys);
@@ -1423,7 +1469,7 @@ describe("every event type in the enum gets the deadline Brian configured", () =
   it.each(EXPECTED)("a %s deadline lands at %s", async (eventType, expiresAt) => {
     const event = await insertDraftDirectly({
       name: `${NAME_MARKER} ${eventType}`,
-      eventType,
+      templateId: SEEDED_TEMPLATE_IDS[eventType],
       scheduledOn: "2026-10-18",
     });
     const keys = await keysFor(event, "player", 1);
@@ -1462,7 +1508,7 @@ describe("every event type in the enum gets the deadline Brian configured", () =
     // call that used to carry it.
     const plan = await withTransaction((tx) =>
       resolveMessagingPlanIn(tx, {
-        eventType: "practice",
+        templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
         scheduledOn: "2026-10-18",
         startsAt: null,
       }),
@@ -1473,7 +1519,7 @@ describe("every event type in the enum gets the deadline Brian configured", () =
     // it outright is what F-C1 refuses now.
     const event = await insertDraftDirectly({
       name: `${NAME_MARKER} Dateless kickoff`,
-      eventType: "practice",
+      templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
       scheduledOn: "2026-10-18",
       startsAt: null,
     });
@@ -1496,12 +1542,12 @@ describe("every event type in the enum gets the deadline Brian configured", () =
     // it.
     const summer = await insertDraftDirectly({
       name: `${NAME_MARKER} Summer time`,
-      eventType: "practice",
+      templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
       scheduledOn: "2026-10-18",
     });
     const winter = await insertDraftDirectly({
       name: `${NAME_MARKER} Winter time`,
-      eventType: "practice",
+      templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
       scheduledOn: "2027-01-20",
     });
 
@@ -1770,9 +1816,12 @@ describe("an event outside the operating season", () => {
 
     const inserted = await observer.query<{ id: string }>(
       `insert into public.events
-         (season_id, name, event_type, origin, status, scheduled_on, is_mandatory,
+         (season_id, name, event_type, template_id, origin, status, scheduled_on, is_mandatory,
           owner_person_id)
-       values ($1, $2, 'practice', 'club_controlled', 'draft', '2026-05-20', true, $3)
+       values ($1, $2, 'practice',
+               (select tpl.id from public.event_templates tpl
+                 where tpl.event_type = 'practice' order by lower(tpl.name) limit 1),
+               'club_controlled', 'draft', '2026-05-20', true, $3)
        returning id`,
       [archived.rows[0].id, `${NAME_MARKER} Last season's leftover`, actorPersonId],
     );

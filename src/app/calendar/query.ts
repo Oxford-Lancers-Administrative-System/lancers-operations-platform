@@ -20,7 +20,8 @@ export function first(value: string | string[] | undefined): string {
 
 export interface ListQuery {
   search: string;
-  eventType: string;
+  /** LAN-265. A template id, from the URL's still-named `type` parameter. */
+  templateId: string;
   status: string;
   period: EventPeriod;
   sort: string;
@@ -47,17 +48,17 @@ export function readListQuery(params: QueryParams, allowedSorts: readonly string
       : (EVENT_SORT_COLUMNS[sort]?.default ?? "asc");
 
   const search = first(params.q);
-  const eventType = first(params.type);
+  const templateId = first(params.type);
   const status = first(params.status);
 
   return {
     search,
-    eventType,
+    templateId,
     status,
     period: parseEventPeriod(first(params.period)),
     sort,
     direction,
-    filtered: search !== "" || eventType !== "" || status !== "",
+    filtered: search !== "" || templateId !== "" || status !== "",
   };
 }
 

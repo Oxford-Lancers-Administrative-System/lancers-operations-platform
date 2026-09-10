@@ -38,6 +38,7 @@ import {
 } from "./lib/local-db.mjs";
 import fs from "node:fs";
 import { seedFrame, shiftAuthoredValue, shiftedYearOf } from "./lib/seed-clock.mjs";
+import { seededTemplateIdFor } from "./lib/event-template-ids.mjs";
 
 const SEED = 20260810;
 const random = makeRandom(SEED);
@@ -2239,6 +2240,12 @@ function makeEvent(spec) {
     week_number: spec.week ?? null,
     name: spec.name,
     event_type: spec.type,
+    // LAN-265. The class stays on the row as the behavioural class; the template
+    // is what every surface reads the event's word from. The seed writes events
+    // directly rather than through `createEventDraft`, so it names the template
+    // the migration seeded for this class — `events_template_fkey` is composite
+    // and would refuse a pairing that disagreed with the class beside it.
+    template_id: seededTemplateIdFor(spec.type),
     origin: spec.origin ?? "club_controlled",
     status,
     scheduled_on: scheduled,
@@ -5217,6 +5224,7 @@ const WRITE_PLAN = [
       "week_number",
       "name",
       "event_type",
+      "template_id",
       "origin",
       "status",
       "scheduled_on",

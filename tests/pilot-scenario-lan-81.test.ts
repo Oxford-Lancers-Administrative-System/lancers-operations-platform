@@ -418,9 +418,10 @@ describe("setup.sql", () => {
     // A real event in the reporting window makes the README's numbers wrong and
     // makes cleanup's identification of the generated snapshots ambiguous.
     await client.query(
-      `insert into public.events (season_id, name, event_type, status, scheduled_on)
+      `insert into public.events (season_id, name, event_type, status, scheduled_on, template_id)
        values ((select id from public.seasons where status in ('open', 'active')),
-               'An unrelated practice', 'practice', 'draft', current_date - 31)`,
+               'An unrelated practice', 'practice', 'draft', current_date - 31,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))`,
     );
 
     await expect(client.query(SETUP)).rejects.toThrow(/already sit in the reporting window/);
@@ -434,10 +435,11 @@ describe("setup.sql", () => {
 
   it("refuses when an unrelated event has taken the sentinel", async () => {
     await client.query(
-      `insert into public.events (season_id, name, event_type, status, scheduled_on)
+      `insert into public.events (season_id, name, event_type, status, scheduled_on, template_id)
        values ((select id from public.seasons where status in ('open', 'active')),
                '${SENTINEL} something somebody else named', 'practice', 'draft',
-               current_date + 60)`,
+               current_date + 60,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))`,
     );
 
     await expect(client.query(SETUP)).rejects.toThrow(/are not this scenario/);

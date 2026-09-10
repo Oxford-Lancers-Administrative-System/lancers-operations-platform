@@ -119,7 +119,7 @@ afterAll(async () => {
 function draft(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
   return {
     name: `${NAME_MARKER} practice`,
-    eventType: "practice",
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
     // Yesterday: the event has happened, so the register is open and the
     // discrepancy cases are reachable.
     scheduledOn: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10),

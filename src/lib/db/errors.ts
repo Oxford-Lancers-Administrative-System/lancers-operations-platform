@@ -219,6 +219,21 @@ const CONSTRAINT_MESSAGES: Readonly<Record<string, Mapping>> = {
       { rule: "operator_accounts_login_email_key", context },
     ),
 
+  // LAN-265. A template's name is the only thing an operator ever sees of it,
+  // so two templates cannot share one — case-insensitively, because "Chalk" and
+  // "chalk" are indistinguishable everywhere a name is all that is shown. The
+  // check cannot be made ahead of the write: two operators can each be holding
+  // a form that says "Kicking Clinic", and the unique index is the only place
+  // that is decided. The name is deliberately not in the sentence — this
+  // mapping sees the constraint, not the value — and the field it points at is
+  // the one the operator is looking at.
+  event_templates_name_unique: (context) =>
+    new Conflict(
+      "There is already a template with that name. Give this one a different name — the name " +
+        "is the only thing anybody sees of a template, so two the same could not be told apart.",
+      { rule: "event_templates_name_unique", context },
+    ),
+
   // Invariant P3 / Requirement 5.
   rsvp_responses_no_requires_a_reason: (context) =>
     new ConstraintViolated("A 'no' answer has to say why. Record the reason given and try again.", {

@@ -224,15 +224,17 @@ export async function createBaseline(client: Client): Promise<Baseline> {
     client,
     `insert into public.events (
        season_id, name, event_type, status, scheduled_on,
-       audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
-     values ($1, 'Fixture approved event', 'practice', 'approved', '2026-11-04', now(), $2, now(), $2)
+       audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id, template_id)
+     values ($1, 'Fixture approved event', 'practice', 'approved', '2026-11-04', now(), $2, now(), $2,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))
      returning id`,
     [season.id, person.id],
   );
   const draftEvent = await one<{ id: string }>(
     client,
-    `insert into public.events (season_id, name, event_type, status)
-     values ($1, 'Fixture draft event', 'practice', 'draft') returning id`,
+    `insert into public.events (season_id, name, event_type, status, template_id)
+     values ($1, 'Fixture draft event', 'practice', 'draft',
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)) returning id`,
     [season.id],
   );
   // D30: an event has occurred when its date has passed and it was not
@@ -242,8 +244,9 @@ export async function createBaseline(client: Client): Promise<Baseline> {
     client,
     `insert into public.events (
        season_id, name, event_type, status, scheduled_on,
-       audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
-     values ($1, 'Fixture occurred event', 'practice', 'approved', current_date - 7, now(), $2, now(), $2)
+       audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id, template_id)
+     values ($1, 'Fixture occurred event', 'practice', 'approved', current_date - 7, now(), $2, now(), $2,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))
      returning id`,
     [season.id, person.id],
   );

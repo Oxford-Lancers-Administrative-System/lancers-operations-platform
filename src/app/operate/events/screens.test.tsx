@@ -60,6 +60,7 @@ vi.mock("@/lib/services/event-templates", async (importOriginal) => {
     readEventFormDefaults: vi.fn(),
     readEventTemplate: vi.fn(),
     listEventTemplates: vi.fn(),
+    listEventTemplateOptions: vi.fn(),
   };
 });
 // LAN-156. The event detail reads its change history; these screens are about
@@ -119,7 +120,11 @@ import {
   type EventListEntry,
 } from "@/lib/services/events";
 import { listTermWindows } from "@/lib/services/seasons";
-import { readEventFormDefaults, readEventTemplate } from "@/lib/services/event-templates";
+import {
+  listEventTemplateOptions,
+  readEventFormDefaults,
+  readEventTemplate,
+} from "@/lib/services/event-templates";
 import type { EventTypeFormDefaults } from "@/lib/services/event-template-input";
 import {
   readApprovalPreview,
@@ -149,6 +154,35 @@ import EditEventPage from "./[id]/edit/page";
 const EVENT_ID = "33333333-3333-4333-8333-333333333333";
 
 /**
+ * The seven templates the migration seeds, by behavioural class — LAN-265.
+ *
+ * Fixed literals in `20260916090000_event_templates.sql`, so a fixture can name
+ * one without reading it back, and the form's Type control has real identifiers
+ * to select by.
+ */
+const SEEDED_TEMPLATE_IDS: Readonly<Record<string, string>> = {
+  practice: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  strength_and_conditioning: "8fb4acfc-1d41-53b0-bda8-202f454a8629",
+  chalk: "b547e0b3-f48c-5601-9dc6-e8725fc434f9",
+  game: "67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae",
+  social: "8de00424-52a8-52ad-9c9f-a29823f9c4bf",
+  recruitment: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
+  meeting: "660cdcb7-51e3-5a19-aaa2-08c5256af288",
+};
+
+const SEEDED_TEMPLATE_NAMES: Readonly<Record<string, string>> = {
+  practice: "Practice",
+  strength_and_conditioning: "Strength and conditioning",
+  chalk: "Chalk",
+  game: "Game",
+  social: "Social",
+  recruitment: "Recruitment",
+  meeting: "Meeting",
+};
+
+const PRACTICE_TEMPLATE_ID = SEEDED_TEMPLATE_IDS.practice;
+
+/**
  * A calendar operator — one of the four roles Brian's clarification names.
  *
  * `reader()` below is the other case that now matters: a linked, active
@@ -174,6 +208,8 @@ function listEntry(overrides: Partial<EventListEntry> = {}): EventListEntry {
     id: EVENT_ID,
     name: "Wednesday practice",
     eventType: "practice",
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+    templateName: "Practice",
     status: "draft",
     scheduledOn: "2026-10-14",
     startsAt: "20:00",
@@ -310,10 +346,30 @@ beforeEach(() => {
   // LAN-154. Seven templates, all of them undecided, so a test that is not
   // about inheritance sees the form the operator sees before anybody has
   // configured a type — every field empty and nothing arriving from anywhere.
+  // LAN-265. Keyed by template id rather than by class, and each entry carries
+  // the name the Type control prints.
   vi.mocked(readEventFormDefaults).mockResolvedValue(
-    Object.fromEntries(EVENT_TYPES.map((type) => [type, formDefaults()])),
+    Object.fromEntries(
+      EVENT_TYPES.map((type) => [
+        SEEDED_TEMPLATE_IDS[type],
+        formDefaults({
+          id: SEEDED_TEMPLATE_IDS[type],
+          name: SEEDED_TEMPLATE_NAMES[type],
+          eventType: type,
+        }),
+      ]),
+    ),
+  );
+  // LAN-265. The list's Type filter offers the club's own templates by name.
+  vi.mocked(listEventTemplateOptions).mockResolvedValue(
+    EVENT_TYPES.map((type) => ({
+      id: SEEDED_TEMPLATE_IDS[type],
+      name: SEEDED_TEMPLATE_NAMES[type],
+    })),
   );
   vi.mocked(readEventTemplate).mockResolvedValue({
+    id: PRACTICE_TEMPLATE_ID,
+    name: "Practice",
     eventType: "practice",
     defaultVenue: null,
     defaultDeliveryMode: null,
@@ -330,6 +386,9 @@ beforeEach(() => {
 /** A template that has decided nothing, in the shape the form fills itself from. */
 function formDefaults(overrides: Partial<EventTypeFormDefaults> = {}): EventTypeFormDefaults {
   return {
+    id: PRACTICE_TEMPLATE_ID,
+    name: "Practice",
+    eventType: "practice",
     deliveryMode: "in_person",
     venue: "",
     description: "",
@@ -859,7 +918,7 @@ describe("UX-30 — the current season's events", () => {
       choose("Type", "Practice");
 
       const url = routerPush.mock.calls[0][0] as string;
-      expect(url).toContain("type=practice");
+      expect(url).toContain(`type=${PRACTICE_TEMPLATE_ID}`);
       expect(url).toContain("status=draft");
       expect(url).toContain("q=practice");
     });
@@ -877,13 +936,13 @@ describe("UX-30 — the current season's events", () => {
 
     it("clears a filter back to all, without dropping the others", async () => {
       givenList([listEntry()]);
-      render(await EventsPage(listProps({ status: "draft", type: "practice" })));
+      render(await EventsPage(listProps({ status: "draft", type: PRACTICE_TEMPLATE_ID })));
 
       choose("Status", "All statuses");
 
       const url = routerPush.mock.calls[0][0] as string;
       expect(url).not.toContain("status=");
-      expect(url).toContain("type=practice");
+      expect(url).toContain(`type=${PRACTICE_TEMPLATE_ID}`);
     });
 
     it("mirrors the current filters into the search form, so Enter keeps them", async () => {
@@ -911,12 +970,16 @@ describe("UX-30 — the current season's events", () => {
   it("passes the query string through as the filter", async () => {
     givenList([listEntry()]);
 
-    render(await EventsPage(listProps({ q: "practice", status: "draft", type: "practice" })));
+    // The parameter is still `type` — what LAN-265 changed is what its values
+    // are, not what the reader is narrowing by. It carries a template id now.
+    render(
+      await EventsPage(listProps({ q: "practice", status: "draft", type: PRACTICE_TEMPLATE_ID })),
+    );
 
     expect(vi.mocked(listEventsForOperator).mock.calls[0][0]).toEqual({
       search: "practice",
       status: "draft",
-      eventType: "practice",
+      templateId: PRACTICE_TEMPLATE_ID,
       sort: "date",
       // Soonest first, because the list opens on what is upcoming (D84).
       direction: "asc",
@@ -986,8 +1049,13 @@ describe("UX-31 — creating an event", () => {
     vi.mocked(readEventFormDefaults).mockResolvedValue(
       Object.fromEntries(
         EVENT_TYPES.map((type) => [
-          type,
-          formDefaults(type === "practice" ? { attendance: "mandatory" } : {}),
+          SEEDED_TEMPLATE_IDS[type],
+          formDefaults({
+            id: SEEDED_TEMPLATE_IDS[type],
+            name: SEEDED_TEMPLATE_NAMES[type],
+            eventType: type,
+            ...(type === "practice" ? { attendance: "mandatory" as const } : {}),
+          }),
         ]),
       ),
     );
@@ -1011,16 +1079,16 @@ describe("UX-31 — creating an event", () => {
     expect([...checked].map((input) => input.value)).toEqual(["optional"]);
   });
 
-  it("offers only the event types this form can fully describe", async () => {
+  it("offers the club's own templates, and opens on the first of them", async () => {
+    // LAN-265. The control used to offer `DRAFTABLE_EVENT_TYPES` and open on
+    // the literal `practice`; it offers the templates the club has, by name,
+    // and opens on the first the service listed. The value it posts is a
+    // template id, which is what `createEventDraft` reads the class from.
     const { container } = render(await NewEventPage(newProps()));
-    const options = [...container.querySelectorAll('li[role="option"]')].map((node) =>
-      node.getAttribute("data-value"),
-    );
 
-    // Rendered lazily by MUI's menu; the hidden input carries the value instead.
-    const selected = container.querySelector<HTMLInputElement>('input[name="eventType"]');
-    expect(selected?.value).toBe("practice");
-    expect(options).not.toContain("fixture");
+    const selected = container.querySelector<HTMLInputElement>('input[name="templateId"]');
+    expect(selected?.value).toBe(PRACTICE_TEMPLATE_ID);
+    expect(container.querySelector('input[name="eventType"]')).toBeNull();
   });
 
   it("asks for no term, no week and no origin", async () => {
@@ -1112,8 +1180,8 @@ describe("W154C-F3 — the Name field only mentions an opponent for a Game", () 
   it("says nothing about an opponent for the default type, Practice", async () => {
     const { container } = render(await NewEventPage(newProps()));
 
-    expect(container.querySelector('input[name="eventType"]')?.getAttribute("value")).toBe(
-      "practice",
+    expect(container.querySelector('input[name="templateId"]')?.getAttribute("value")).toBe(
+      PRACTICE_TEMPLATE_ID,
     );
     expect(
       flatten(container.querySelector('[data-field="name"]')?.textContent ?? ""),
@@ -2201,6 +2269,7 @@ describe("the participation table on the event page", () => {
       id: EVENT_ID,
       name: "Team practice",
       status: "approved",
+      templateName: "Practice",
       eventType: "practice",
       scheduledOn: "2027-02-17",
       startsAt: "20:00:00",
@@ -2562,9 +2631,12 @@ describe("the type's template fills the form in, field by field (D40-D47)", () =
     vi.mocked(readEventFormDefaults).mockResolvedValue(
       Object.fromEntries(
         EVENT_TYPES.map((type) => [
-          type,
+          SEEDED_TEMPLATE_IDS[type],
           type === "practice"
             ? formDefaults({
+                id: SEEDED_TEMPLATE_IDS[type],
+                name: SEEDED_TEMPLATE_NAMES[type],
+                eventType: type,
                 venue: "Iffley Road Astro",
                 description: "Full contact.",
                 requiredEquipment: "Gumshield",
@@ -2581,6 +2653,9 @@ describe("the type's template fills the form in, field by field (D40-D47)", () =
               })
             : type === "social"
               ? formDefaults({
+                  id: SEEDED_TEMPLATE_IDS[type],
+                  name: SEEDED_TEMPLATE_NAMES[type],
+                  eventType: type,
                   venue: "The Kings Arms",
                   description: "Come along.",
                   requiredEquipment: "",
@@ -2595,7 +2670,11 @@ describe("the type's template fills the form in, field by field (D40-D47)", () =
                     },
                   ],
                 })
-              : formDefaults(),
+              : formDefaults({
+                  id: SEEDED_TEMPLATE_IDS[type],
+                  name: SEEDED_TEMPLATE_NAMES[type],
+                  eventType: type,
+                }),
         ]),
       ),
     );
@@ -2664,7 +2743,17 @@ describe("the type's template fills the form in, field by field (D40-D47)", () =
 
   it("fills the end from the start and the type's default length (D78)", async () => {
     vi.mocked(readEventFormDefaults).mockResolvedValue(
-      Object.fromEntries(EVENT_TYPES.map((type) => [type, formDefaults({ durationMinutes: 120 })])),
+      Object.fromEntries(
+        EVENT_TYPES.map((type) => [
+          SEEDED_TEMPLATE_IDS[type],
+          formDefaults({
+            id: SEEDED_TEMPLATE_IDS[type],
+            name: SEEDED_TEMPLATE_NAMES[type],
+            eventType: type,
+            durationMinutes: 120,
+          }),
+        ]),
+      ),
     );
     render(await NewEventPage(newProps()));
 
@@ -2677,7 +2766,17 @@ describe("the type's template fills the form in, field by field (D40-D47)", () =
 
   it("leaves an end the operator set themselves", async () => {
     vi.mocked(readEventFormDefaults).mockResolvedValue(
-      Object.fromEntries(EVENT_TYPES.map((type) => [type, formDefaults({ durationMinutes: 120 })])),
+      Object.fromEntries(
+        EVENT_TYPES.map((type) => [
+          SEEDED_TEMPLATE_IDS[type],
+          formDefaults({
+            id: SEEDED_TEMPLATE_IDS[type],
+            name: SEEDED_TEMPLATE_NAMES[type],
+            eventType: type,
+            durationMinutes: 120,
+          }),
+        ]),
+      ),
     );
     render(await NewEventPage(newProps()));
 

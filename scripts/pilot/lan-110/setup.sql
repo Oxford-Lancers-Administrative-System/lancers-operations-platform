@@ -337,7 +337,7 @@ insert into public.events
   (id, season_id, name, event_type, status, scheduled_on, starts_at, ends_at, venue,
    is_mandatory,
    audience_confirmed_at, audience_confirmed_by_person_id,
-   approved_at, approved_by_person_id, response_deadline_at)
+   approved_at, approved_by_person_id, response_deadline_at, template_id)
 select
   scenario.id::uuid,
   (select id from public.seasons where status in ('open', 'active')),
@@ -371,8 +371,9 @@ from (values
    'PILOT-LAN-110 Today session',
    current_date::text,
    (((current_date - 2) + '18:00'::time) at time zone 'Europe/London')::text)
-) as scenario(id, name, scheduled_on, deadline_at)
-on conflict (id) do nothing;
+) as scenario(id, name, scheduled_on, deadline_at),
+              (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
+       on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- The audience

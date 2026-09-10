@@ -1,7 +1,7 @@
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import type { CalendarEvent } from "@/lib/services/calendar";
-import { labelFor, TYPE_LABELS } from "@/lib/services/event-vocabulary";
+import { labelFor } from "@/lib/services/event-vocabulary";
 import { formatCellDate, typeColour } from "./presentation";
 
 /**
@@ -104,7 +104,7 @@ export default function CalendarEntry({
 }) {
   const printed = statusWord ?? "";
   const announced = (announcedStatus === undefined ? statusWord : announcedStatus) ?? "";
-  const type = labelFor(TYPE_LABELS, event.eventType);
+  const type = event.templateName;
   const when = event.scheduledOn ? formatCellDate(event.scheduledOn) : "No date yet";
   const time = event.startsAt ?? "";
   const colour = typeColour(event.eventType);

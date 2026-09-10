@@ -581,8 +581,9 @@ describe("events (E1–E6)", () => {
       client,
       `insert into public.events
          (season_id, name, event_type, status, audience_confirmed_at, audience_confirmed_by_person_id,
-          approved_at, approved_by_person_id)
-       values ($1, 'No date', 'practice', 'approved', now(), $2, now(), $2)`,
+          approved_at, approved_by_person_id, template_id)
+       values ($1, 'No date', 'practice', 'approved', now(), $2, now(), $2,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))`,
       [base.seasonId, base.personId],
       "events_approval_requires_date_and_audience",
     );
@@ -594,8 +595,9 @@ describe("events (E1–E6)", () => {
     await expectRejected(
       client,
       `insert into public.events
-         (season_id, name, event_type, status, scheduled_on, approved_at, approved_by_person_id)
-       values ($1, 'No audience', 'practice', 'approved', '2026-11-04', now(), $2)`,
+         (season_id, name, event_type, status, scheduled_on, approved_at, approved_by_person_id, template_id)
+       values ($1, 'No audience', 'practice', 'approved', '2026-11-04', now(), $2,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))`,
       [base.seasonId, base.personId],
       "events_approval_requires_date_and_audience",
     );
@@ -660,8 +662,9 @@ describe("events (E1–E6)", () => {
       await client.query(
         `insert into public.events
            (season_id, alternative_group_id, name, event_type, status, scheduled_on,
-            audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
-         values ($1, $2, $3, 'social', 'approved', $4, now(), $5, now(), $5)`,
+            audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id, template_id)
+         values ($1, $2, $3, 'social', 'approved', $4, now(), $5, now(), $5,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'social' order by lower(tpl.name) limit 1))`,
         [base.seasonId, group.id, name, on, base.personId],
       );
     }
@@ -682,8 +685,9 @@ describe("events (E1–E6)", () => {
     // `public.terms` rather than stored.
     await expectRejected(
       client,
-      `insert into public.events (season_id, name, event_type, status, week_number)
-       values ($1, 'Vacation session', 'practice', 'draft', 3)`,
+      `insert into public.events (season_id, name, event_type, status, week_number, template_id)
+       values ($1, 'Vacation session', 'practice', 'draft', 3,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))`,
       [base.seasonId],
       "events_week_number_valid",
     );
@@ -697,8 +701,9 @@ describe("events (E1–E6)", () => {
     );
     await expectRejected(
       client,
-      `insert into public.events (season_id, name, event_type, status, term_id, week_number)
-       values ($1, 'Week nine', 'practice', 'draft', $2, 9)`,
+      `insert into public.events (season_id, name, event_type, status, term_id, week_number, template_id)
+       values ($1, 'Week nine', 'practice', 'draft', $2, 9,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))`,
       [base.seasonId, term.id],
       "events_week_number_valid",
     );
@@ -710,8 +715,9 @@ describe("events (E1–E6)", () => {
     await expectRejected(
       client,
       `insert into public.events
-         (season_id, name, event_type, status, delivery_mode, joining_url)
-       values ($1, 'On the pitch', 'practice', 'draft', 'in_person', 'https://example.invalid/x')`,
+         (season_id, name, event_type, status, delivery_mode, joining_url, template_id)
+       values ($1, 'On the pitch', 'practice', 'draft', 'in_person', 'https://example.invalid/x',
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))`,
       [base.seasonId],
       "events_joining_url_is_for_online_events",
     );

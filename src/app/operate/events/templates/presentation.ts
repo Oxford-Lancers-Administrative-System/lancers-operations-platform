@@ -1,6 +1,6 @@
 import { describeQuestionCount } from "@/lib/services/event-questions-input";
 import { describeDuration, TEMPLATE_DURATION_OPTIONS } from "@/lib/services/event-template-input";
-import { DELIVERY_MODE_LABELS, labelFor, TYPE_LABELS } from "../presentation";
+import { DELIVERY_MODE_LABELS, labelFor } from "../presentation";
 
 /**
  * How an event-type template reads on screen — W8-01 through W8-04.
@@ -11,33 +11,64 @@ import { DELIVERY_MODE_LABELS, labelFor, TYPE_LABELS } from "../presentation";
  * test does.
  */
 
-export {
-  describeDuration,
-  describeQuestionCount,
-  labelFor,
-  TEMPLATE_DURATION_OPTIONS,
-  TYPE_LABELS,
-};
+export { describeDuration, describeQuestionCount, labelFor, TEMPLATE_DURATION_OPTIONS };
 
 export const TEMPLATES_HEADLINE = "Event templates";
 
 /** What the list says under its heading. What it is, not why it is. */
-export const TEMPLATES_DETAIL = "What each kind of event starts as. Seven types, seven templates.";
+export const TEMPLATES_DETAIL = "What each kind of event starts as.";
 
 /**
  * The one sentence on this surface that states a rule, and it earns its place.
  *
- * W8 asks for it explicitly: the place an operator would look for **Add a type**
- * is the place to say that there is no such act. Saying nothing would leave them
- * hunting for a control that does not exist, which is `docs/ux/standards.md`
- * rule 4's problem in its widest form.
+ * It used to say the opposite — "there are seven because there are seven kinds
+ * of event; templates cannot be added or removed" — which W8 asked for because
+ * the place an operator looks for **Add a type** is the place to say there is no
+ * such act. LAN-265 makes it an act, and the sentence that earns its place now
+ * is the other half of the same courtesy: a template the club has used cannot be
+ * deleted, so the place somebody looks for **Delete** and does not find it is
+ * where to say why.
  */
-export const TEMPLATES_ARE_FIXED =
-  "There are seven because there are seven kinds of event. Templates cannot be added or removed.";
+export const TEMPLATES_DELETE_RULE =
+  "A template can be deleted while no event has been created from it. Renaming one is always safe: the new name reaches every event, past and future.";
+
+/** The control that starts a new one — W8-01, reopened by LAN-265. */
+export const NEW_TEMPLATE_ACTION = "New template";
+
+export const NEW_TEMPLATE_HEADLINE = "New template";
+
+/** The Name field's own section, and the consequence stated beside it. */
+export const TEMPLATE_NAME_HEADLINE = "What it is called";
+
+/**
+ * Said on the editor rather than left to be discovered.
+ *
+ * Brian, 2026-09-09, on renaming: "Renames are retroactive: rename 'Chalk' to
+ * 'Film Review' and every past chalk event reads 'Film Review', the same way a
+ * venue rename would." That is the behaviour operators expect and it is still
+ * the kind of thing somebody should be told before they type, not after.
+ */
+export const TEMPLATE_NAME_HELP =
+  "Every event of this kind reads this name, including ones already in the past.";
+
+/** The primary control on the new-template form. It creates; it does not save. */
+export const TEMPLATE_CREATE_ACTION = "Create template";
+
+export const TEMPLATE_DELETE_ACTION = "Delete template";
+
+export const TEMPLATE_DELETE_TITLE = "Delete this template?";
+
+export function templateDeleteQuestion(name: string): string {
+  return `No event has been created from ${name}, so deleting it changes nothing else. Its messaging schedule goes with it.`;
+}
+
+export function templateDeleted(name: string): string {
+  return `${name} deleted.`;
+}
 
 /** The columns of W8-01, so the list and the phone cards name them the same. */
 export const TEMPLATE_COLUMN_LABELS = Object.freeze({
-  type: "Type",
+  type: "Template",
   audience: "Invites by default",
   where: "Where",
   questions: "Questions",
@@ -60,6 +91,10 @@ export function templateEditorDetail(eventTypeLabel: string): string {
   return `What a new ${eventTypeLabel.toLowerCase()} starts as. Leave anything undecided.`;
 }
 
+/** The same sentence, for a template that does not exist yet. */
+export const NEW_TEMPLATE_DETAIL =
+  "What a new event of this kind starts as. Leave anything undecided.";
+
 export const TEMPLATE_AUDIENCE_HEADLINE = "Who it invites";
 
 /**
@@ -74,7 +109,7 @@ export const TEMPLATE_AUDIENCE_DETAIL = "Groups, never people.";
 
 export const TEMPLATE_EVENT_HEADLINE = "The event itself";
 
-export const TEMPLATE_QUESTIONS_HEADLINE = "Questions every event of this type asks";
+export const TEMPLATE_QUESTIONS_HEADLINE = "Questions every event of this kind asks";
 
 export const TEMPLATE_QUESTIONS_DETAIL =
   "They arrive on every new one. Any of them can be removed on a single event.";

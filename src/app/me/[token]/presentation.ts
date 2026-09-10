@@ -19,6 +19,14 @@ export const BANNER = "LANCERS OPERATIONS";
 export const PRIVACY_NOTE =
   "This secure page shows only your own events and answers. Nobody else's response is ever shown here.";
 
+/**
+ * The kind of event, in the club's word for it.
+ *
+ * **Only `/design-preview` still calls this** — LAN-265. Every live screen reads
+ * `templateName` off the row instead: the club's word for a kind of event is a
+ * template's name now, not a label keyed by a seven-value enum, and a rename has
+ * to reach a player's page like every other surface.
+ */
 export function eventTypeLabel(eventType: string): string {
   return TYPE_LABELS[eventType] ?? eventType;
 }

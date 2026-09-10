@@ -79,6 +79,7 @@ function invitation(overrides: Partial<PlayerHomeInvitation>): PlayerHomeInvitat
     invitationId: "00000000-0000-4000-8000-000000000001",
     eventId: "00000000-0000-4000-8000-000000000002",
     eventName: "Fresh invite",
+    templateName: "Practice",
     eventType: "practice",
     scheduledOn: "2026-10-14",
     startsAt: "20:00",

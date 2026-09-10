@@ -136,12 +136,36 @@ function reader(): ResolvedOperator {
 
 let nextId = 0;
 
+/**
+ * The seven templates the migration seeds, by behavioural class — LAN-265.
+ *
+ * A case here overrides `eventType` to colour a tile; the word the tile prints
+ * is the template's own name, so the two are derived together rather than left
+ * for a case to remember. Fixed literals, from
+ * `20260916090000_event_templates.sql`.
+ */
+const SEEDED_TEMPLATES: Readonly<Record<string, { id: string; name: string }>> = {
+  practice: { id: "7e34a764-7ed1-535e-8cef-73e00a62eafc", name: "Practice" },
+  strength_and_conditioning: {
+    id: "8fb4acfc-1d41-53b0-bda8-202f454a8629",
+    name: "Strength and conditioning",
+  },
+  chalk: { id: "b547e0b3-f48c-5601-9dc6-e8725fc434f9", name: "Chalk" },
+  game: { id: "67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae", name: "Game" },
+  social: { id: "8de00424-52a8-52ad-9c9f-a29823f9c4bf", name: "Social" },
+  recruitment: { id: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7", name: "Recruitment" },
+  meeting: { id: "660cdcb7-51e3-5a19-aaa2-08c5256af288", name: "Meeting" },
+};
+
 function listEntry(overrides: Partial<EventListEntry> = {}): EventListEntry {
   nextId += 1;
+  const template = SEEDED_TEMPLATES[overrides.eventType ?? "practice"];
   return {
     id: `33333333-3333-4333-8333-${`${nextId}`.padStart(12, "0")}`,
     name: `Event ${nextId}`,
     eventType: "practice",
+    templateId: template.id,
+    templateName: template.name,
     status: "draft",
     scheduledOn: "2026-10-14",
     startsAt: "20:00",

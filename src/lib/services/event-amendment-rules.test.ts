@@ -27,7 +27,7 @@ import {
 
 const BASE: AmendableEvent = {
   name: "Practice — michaelmas week 5",
-  eventType: "practice",
+  templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
   scheduledOn: "2026-11-11",
   startsAt: "20:00",
   endsAt: "22:00",
@@ -307,13 +307,15 @@ describe("mergeAmendment — a form cannot revert a field it never touched", () 
     const applied = mergeAmendment(
       CURRENT,
       BASE,
-      moved({ isMandatory: false, deliveryMode: "online", eventType: "chalk", name: "Renamed" }),
+      moved({ isMandatory: false, deliveryMode: "online", name: "Renamed" }),
     );
 
     expect(applied.isMandatory).toBe(false);
     expect(applied.deliveryMode).toBe("online");
-    expect(applied.eventType).toBe("chalk");
     expect(applied.name).toBe("Renamed");
+    // LAN-265: the template is not amendable, so it survives a merge untouched
+    // whatever the submission said.
+    expect(applied.templateId).toBe(BASE.templateId);
     // ...and still keeps the field it did not touch.
     expect(applied.venue).toBe("M2W Tab A Venue");
   });

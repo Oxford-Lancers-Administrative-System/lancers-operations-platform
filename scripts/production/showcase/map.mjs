@@ -546,6 +546,21 @@ const STATE_ROWS = [
     2,
   ],
   ["event.type.meeting", "A meeting", "public.events", "t.event_type = 'meeting'", 2],
+  // LAN-265. The seven `event.type.*` states above still read `t.event_type`,
+  // which is now the behavioural class rather than the identity, and they are
+  // right to: the dataset is authored by class and those counts are what the
+  // workbook promises. What the rekey adds is the invariant underneath them —
+  // every event names a template, and that template's own class is the one on
+  // the row. `events_template_fkey` is composite so the second half cannot be
+  // false, but a state that reads it is what makes the loader's own output
+  // evidence of the rekey rather than of the enum it used to key on.
+  [
+    "event.template.named",
+    "An event whose kind is read from a template it names",
+    "public.events",
+    "exists (select 1 from public.event_templates tpl where tpl.id = t.template_id and tpl.event_type = t.event_type)",
+    25,
+  ],
   [
     "event.draft.no-audience",
     "A draft with no audience",
@@ -1526,12 +1541,12 @@ export const WORKFLOWS = Object.freeze([
   wf(
     M2,
     "W8",
-    "Administer event-type templates",
+    "Create, rename and administer event templates",
     "Event management",
     "tester1",
-    ["/operate/events/templates", "/operate/events/templates/{type.practice}"],
-    ["event.type.practice"],
-    "One template per type; saving changes every unapproved draft of that type and nothing else.",
+    ["/operate/events/templates", "/operate/events/templates/{template.practice}"],
+    ["event.type.practice", "event.template.named"],
+    "Saving a template changes every unapproved draft made from it and nothing else. Rename one and every event of that kind reads the new name, past ones included. New template creates one with its own messaging cadence, which appears on Administration → Messaging schedule straight away.",
   ),
 
   // M4 — messaging
@@ -2154,7 +2169,7 @@ export function routePattern(template) {
         return "[membershipId]";
       if (match.startsWith("{event.")) return "[id]";
       if (match.startsWith("{role.")) return "[roleId]";
-      if (match.startsWith("{type.")) return "[type]";
+      if (match.startsWith("{template.")) return "[templateId]";
       if (match.startsWith("{operator.")) return "[operatorId]";
       return "[id]";
     })

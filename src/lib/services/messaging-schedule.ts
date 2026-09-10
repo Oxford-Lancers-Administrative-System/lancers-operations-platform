@@ -3,7 +3,7 @@ import "server-only";
 import { addClubDays, CLUB_TIME_ZONE, todayInClubZone } from "@/lib/club-time";
 import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
 
-import { deriveEntityIdFromNaturalKey, recordAudit } from "./audit";
+import { recordAudit } from "./audit";
 
 /**
  * The club's messaging schedule, and the plan one approval freezes. LAN-169.
@@ -67,8 +67,13 @@ import { deriveEntityIdFromNaturalKey, recordAudit } from "./audit";
  * intended behaviour rather than a defect to be smoothed over later.
  */
 
-/** One event type's policy, as `public.messaging_schedules` holds it. */
+/** One template's policy, as `public.messaging_schedules` holds it. */
 export interface MessagingSchedule {
+  /** LAN-265. The template this cadence belongs to, and the key it is read by. */
+  readonly templateId: string;
+  /** What the club calls that template — the only word any screen shows for it. */
+  readonly templateName: string;
+  /** The behavioural class underneath, which the recruit ladder still keys off. */
   readonly eventType: string;
   /** Whole days before the event's own start at which an answer is due. */
   readonly rsvpByDays: number;
@@ -103,18 +108,33 @@ export const PLAN_NEEDS_A_DATE_RULE = "messaging_plan_requires_a_date";
 export const PLAN_NOT_FROZEN_RULE = "messaging_plan_not_frozen";
 
 const SCHEDULE_COLUMNS = `
-  event_type::text as event_type,
-  rsvp_by_days,
-  invitation_lead_days,
-  reminder_cadence_hours,
-  whatsapp_reminder_count,
-  email_reminder_count,
-  escalation_hours,
-  recruit_invitation_lead_days,
-  recruit_follow_up_cadence_hours,
-  updated_at`;
+  s.template_id,
+  t.name as template_name,
+  s.event_type::text as event_type,
+  s.rsvp_by_days,
+  s.invitation_lead_days,
+  s.reminder_cadence_hours,
+  s.whatsapp_reminder_count,
+  s.email_reminder_count,
+  s.escalation_hours,
+  s.recruit_invitation_lead_days,
+  s.recruit_follow_up_cadence_hours,
+  s.updated_at`;
+
+/**
+ * The schedule joined to the template whose name every reader of it prints.
+ *
+ * One string rather than the join written out at each call site, and aliased `s`
+ * and `t` so `SCHEDULE_COLUMNS` above can qualify every column: after LAN-265
+ * `event_type` is no longer unique across this table, and an unqualified column
+ * list beside a join is one added column away from being ambiguous.
+ */
+const SCHEDULE_FROM = `public.messaging_schedules s
+         join public.event_templates t on t.id = s.template_id`;
 
 interface ScheduleRow {
+  template_id: string;
+  template_name: string;
   event_type: string;
   rsvp_by_days: number;
   invitation_lead_days: number;
@@ -129,6 +149,8 @@ interface ScheduleRow {
 
 function toSchedule(row: ScheduleRow): MessagingSchedule {
   return {
+    templateId: row.template_id,
+    templateName: row.template_name,
     eventType: row.event_type,
     rsvpByDays: row.rsvp_by_days,
     invitationLeadDays: row.invitation_lead_days,
@@ -143,34 +165,42 @@ function toSchedule(row: ScheduleRow): MessagingSchedule {
 }
 
 /**
- * The schedule for one event type, or a refusal naming the gap.
+ * The schedule for one template, or a refusal naming the gap.
  *
  * The refusal is ADR 0021's first surviving rule and it is the point of the
- * function. If a later migration widens `public.event_type` without a row being
- * added here, approving such an event fails loudly and says which type has no
- * policy — rather than quietly inheriting a practice's two days and messaging
- * forty people on a schedule nobody approved.
+ * function. A template with no cadence row cannot approve an event, and says so
+ * — rather than quietly inheriting a practice's two days and messaging forty
+ * people on a schedule nobody approved.
+ *
+ * Since LAN-265 the gap it guards against is a different one and a narrower one.
+ * It used to be "a migration widened `public.event_type` and nobody added a
+ * row"; `messaging_schedules_pkey` on `template_id` and the cascade on
+ * `messaging_schedules_template_fkey` now make a template without a cadence
+ * unrepresentable, and `createEventTemplate` writes both rows in one
+ * transaction. What is left is a template deleted between the read that offered
+ * it and the approval that used it, which is exactly the sentence below.
  */
 export async function readMessagingScheduleIn(
   tx: Tx,
-  eventType: string,
+  templateId: string,
 ): Promise<MessagingSchedule> {
-  // Compared as text, deliberately, and not by casting the parameter to
-  // `public.event_type`. The cast is the natural way to write this and it
-  // defeats the refusal below: PostgreSQL rejects an unknown label with an
-  // invalid-input error, so a widened enum — or a typo in a caller — produced
-  // "The database could not complete this change" instead of a sentence naming
-  // the event type that has no policy. The refusal is the whole reason this
-  // function is not a plain lookup, so it must survive the case it exists for.
+  // Compared as text, not cast to `uuid`, and for the reason this function used
+  // to compare `event_type::text` rather than casting the parameter to the enum:
+  // the cast is the natural way to write it and it defeats the refusal below.
+  // PostgreSQL rejects a malformed uuid with an invalid-input error, so a caller
+  // holding a stale or hand-typed identifier got "the database could not
+  // complete this change" instead of the sentence naming what has no policy.
+  // The refusal is the whole reason this is not a plain lookup, so it has to
+  // survive the case it exists for.
   const result = await tx.query<ScheduleRow>(
-    `select ${SCHEDULE_COLUMNS} from public.messaging_schedules where event_type::text = $1`,
-    [eventType],
+    `select ${SCHEDULE_COLUMNS} from ${SCHEDULE_FROM} where s.template_id::text = $1`,
+    [templateId],
   );
 
   const row = result.rows[0];
   if (!row) {
     throw new ConstraintViolated(
-      `No messaging schedule has been agreed for ${eventType} events, so this event cannot ` +
+      "No messaging schedule has been agreed for this event's template, so the event cannot " +
         "be approved. That is a club decision rather than a fault in the app.",
       { rule: SCHEDULE_NOT_CONFIGURED_RULE },
     );
@@ -181,22 +211,82 @@ export async function readMessagingScheduleIn(
 /**
  * Every configured schedule, for the settings page and the approval panel.
  *
- * `order by t.event_type` — the table-qualified, still-enum-typed column —
- * deliberately, and not the bare `event_type` the `select` list also produces.
- * `SCHEDULE_COLUMNS` casts the column to text for its output alias, and
- * PostgreSQL resolves a bare `ORDER BY` name against an output alias of the
- * same name before it considers the source column: unqualified, this sorted
- * alphabetically by the cast text ("chalk, game, meeting, practice…") rather
- * than by `public.event_type`'s own declared order ("practice,
- * strength_and_conditioning, chalk, game…") — the order LAN-171's settings
- * page groups by, and the order the seed inserts in. Qualifying it is what
- * makes `ORDER BY` see the real enum column instead of the aliased text.
+ * Ordered by the template's name since LAN-265, and no longer by
+ * `public.event_type`'s declared order. The old order existed because the seven
+ * rows *were* the seven types and the settings page grouped them that way; the
+ * rows are now whatever the club has created, several may share a class, and the
+ * only ordering an operator can perceive is the one they can read. `lower()` so
+ * a name's casing does not decide its neighbourhood.
  */
 export async function listMessagingSchedulesIn(tx: Tx): Promise<readonly MessagingSchedule[]> {
   const result = await tx.query<ScheduleRow>(
-    `select ${SCHEDULE_COLUMNS} from public.messaging_schedules t order by t.event_type`,
+    `select ${SCHEDULE_COLUMNS} from ${SCHEDULE_FROM} order by lower(t.name)`,
   );
   return result.rows.map(toSchedule);
+}
+
+/**
+ * The cadence a template created today starts from — LAN-265.
+ *
+ * Brian, 2026-09-09: a new template's cadence "starts from a default cadence and
+ * can then be edited on the Messaging schedule screen like the seven existing
+ * ones". These are the numbers six of the seven shipped rows already carry, and
+ * which `20260825120000_messaging_schedule_and_chase.sql` calls the routine
+ * events': answer two days before, invite five days before, a rung a day, two
+ * WhatsApps counting the invitation, one email, and the President told twelve
+ * hours after the deadline. A game's seven days and a social's five are
+ * decisions about a game and a social, and there is nothing to base such a
+ * decision on for a kind of event that did not exist a minute ago.
+ *
+ * Exported because `createEventTemplate` records it in the audit context: the
+ * cadence a template started life with is a fact about a club decision, and a
+ * later edit on `/operate/admin/messaging` should be readable as a change from
+ * something rather than as the first thing anybody ever said.
+ */
+export const DEFAULT_MESSAGING_SCHEDULE: MessagingScheduleChange = Object.freeze({
+  rsvpByDays: 2,
+  invitationLeadDays: 5,
+  reminderCadenceHours: 24,
+  whatsappReminderCount: 2,
+  emailReminderCount: 1,
+  escalationHours: 12,
+});
+
+/**
+ * The cadence row that a newly created template gets, before anybody edits it.
+ *
+ * `event_type` travels with it because `messaging_schedules_template_fkey` is
+ * composite — the class on this row is provably the template's own rather than
+ * conventionally so — and because
+ * `messaging_schedules_recruit_fields_are_recruitment_only` still reads it: a
+ * template of the `recruitment` class must carry the two recruit columns and any
+ * other class must not. Operators cannot create a recruitment-class template
+ * (`DEFAULT_TEMPLATE_CLASS` is `practice` and nothing offers the choice), so the
+ * two columns are left null here; the day that changes, this is where the
+ * recruit defaults go, and the check constraint is what will insist on it.
+ */
+export async function createMessagingScheduleIn(
+  tx: Tx,
+  templateId: string,
+  eventType: string,
+): Promise<MessagingSchedule> {
+  await tx.query(
+    `insert into public.messaging_schedules
+       (template_id, event_type, rsvp_by_days, invitation_lead_days, reminder_cadence_hours,
+        whatsapp_reminder_count, email_reminder_count, escalation_hours)
+     values ($1::uuid, $2::public.event_type, $3, $4, $5, $6, $7, $8)`,
+    [
+      templateId,
+      eventType,
+      DEFAULT_MESSAGING_SCHEDULE.rsvpByDays,
+      DEFAULT_MESSAGING_SCHEDULE.invitationLeadDays,
+      DEFAULT_MESSAGING_SCHEDULE.reminderCadenceHours,
+      DEFAULT_MESSAGING_SCHEDULE.whatsappReminderCount,
+      DEFAULT_MESSAGING_SCHEDULE.emailReminderCount,
+      DEFAULT_MESSAGING_SCHEDULE.escalationHours,
+    ],
+  );
+  return readMessagingScheduleIn(tx, templateId);
 }
 
 /**
@@ -233,7 +323,7 @@ export async function listMessagingSchedulesWithPreview(): Promise<
     const withPreview: MessagingScheduleWithPreview[] = [];
     for (const schedule of schedules) {
       const preview = await resolveMessagingPlanIn(tx, {
-        eventType: schedule.eventType,
+        templateId: schedule.templateId,
         scheduledOn,
         startsAt: "20:00",
       });
@@ -274,12 +364,12 @@ export interface MessagingScheduleChange {
 export async function updateMessagingScheduleIn(
   tx: Tx,
   actorPersonId: string,
-  eventType: string,
+  templateId: string,
   change: MessagingScheduleChange,
 ): Promise<MessagingSchedule> {
-  const before = await readMessagingScheduleIn(tx, eventType);
+  const before = await readMessagingScheduleIn(tx, templateId);
 
-  const updated = await tx.query<ScheduleRow>(
+  const updated = await tx.query<{ template_id: string }>(
     `update public.messaging_schedules
         set rsvp_by_days = $2,
             invitation_lead_days = $3,
@@ -290,10 +380,10 @@ export async function updateMessagingScheduleIn(
             recruit_invitation_lead_days = coalesce($8::smallint, recruit_invitation_lead_days),
             recruit_follow_up_cadence_hours = coalesce($9::smallint, recruit_follow_up_cadence_hours),
             updated_at = now()
-      where event_type = $1
-     returning ${SCHEDULE_COLUMNS}`,
+      where template_id = $1::uuid
+     returning template_id`,
     [
-      eventType,
+      templateId,
       change.rsvpByDays,
       change.invitationLeadDays,
       change.reminderCadenceHours,
@@ -310,25 +400,28 @@ export async function updateMessagingScheduleIn(
   // audit row is the whole of what replaces version control here, so it carries
   // both the old and the new values rather than only the new ones.
   //
-  // `entityId` is derived, not `eventType` itself (OWNER-LAN171-01):
-  // `audit_events.entity_id` is `uuid not null`, and `messaging_schedules` is
-  // keyed by `public.event_type` — a plain enum label such as `"practice"`,
-  // which Postgres rejects outright as a uuid. That rejection used to roll
-  // back this whole transaction, discarding the schedule UPDATE above along
-  // with the audit insert, so every save silently failed. `entity_table`
-  // still says `messaging_schedules` and `context` carries the full before
-  // and after, so the derived id and that pair together still identify
-  // exactly which row changed. See `deriveEntityIdFromNaturalKey`'s own
-  // comment for why this is not a migration.
+  // `entityId` is the template's own id, and OWNER-LAN171-01's workaround is
+  // retired with it. `audit_events.entity_id` is `uuid not null`, and this table
+  // used to be keyed by `public.event_type` — a plain enum label such as
+  // `"practice"`, which Postgres rejects outright as a uuid, rolling back the
+  // whole transaction and silently failing every save. The key that LAN-265 gave
+  // this table *is* a uuid, so the audit row now names the real row rather than
+  // a hash of its natural key, and `context` goes on carrying the full before
+  // and after.
   await recordAudit(tx, {
     actorPersonId,
     action: "messaging_schedule.changed",
     entityTable: "messaging_schedules",
-    entityId: deriveEntityIdFromNaturalKey("messaging_schedules", eventType),
+    entityId: templateId,
     context: { before, after: change },
   });
 
-  return toSchedule(updated.rows[0]);
+  // Re-read rather than `returning ${SCHEDULE_COLUMNS}`: those columns are
+  // qualified against the join that carries the template's name, and a
+  // `returning` clause cannot join. One extra read on a rarely used
+  // administrative write, in exchange for one definition of what a schedule row
+  // reads as.
+  return readMessagingScheduleIn(tx, updated.rows[0].template_id);
 }
 
 // ---------------------------------------------------------------------------
@@ -366,7 +459,8 @@ export interface RecruitMessagingLadder {
 }
 
 export interface MessagingPlan {
-  readonly eventType: string;
+  /** LAN-265. The template the cadence was resolved from. */
+  readonly templateId: string;
   readonly schedule: MessagingSchedule;
   /** The event's own start instant, in the club's zone. */
   readonly eventStartsAt: Date;
@@ -408,7 +502,8 @@ export interface MessagingPlan {
 
 /** The subset of an event this module needs. Deliberately not the whole record. */
 export interface PlannableEvent {
-  readonly eventType: string;
+  /** LAN-265. The cadence is the template's, so this is what resolves it. */
+  readonly templateId: string;
   /** `YYYY-MM-DD` in the club's zone. */
   readonly scheduledOn: string | null;
   /** Local wall-clock `HH:MM`, or null where the event records no time. */
@@ -504,7 +599,7 @@ export async function resolveMessagingPlanIn(
   event: PlannableEvent,
   asOf?: Date,
 ): Promise<MessagingPlan> {
-  const schedule = await readMessagingScheduleIn(tx, event.eventType);
+  const schedule = await readMessagingScheduleIn(tx, event.templateId);
 
   if (event.scheduledOn === null) {
     // Invariant E1a requires a date from approval onward and the database would
@@ -643,7 +738,7 @@ export async function resolveMessagingPlanIn(
   }
 
   return {
-    eventType: event.eventType,
+    templateId: event.templateId,
     schedule,
     eventStartsAt: row.event_starts_at,
     responseDeadlineAt,
@@ -771,6 +866,8 @@ export async function readFrozenPlanIn(
 ): Promise<FrozenMessagingPlan | null> {
   const result = await tx.query<{
     event_id: string;
+    template_id: string;
+    template_name: string;
     event_type: string;
     rsvp_by_days: number;
     invitation_lead_days: number;
@@ -792,7 +889,12 @@ export async function readFrozenPlanIn(
     recruit_dispatches_immediately: boolean | null;
     recruit_follow_up_at: Date | null;
   }>(
-    `select p.event_id, e.event_type::text as event_type,
+    // The frozen numbers are the plan's own copies (`REQ-schedule-not-
+    // retroactive`) and stay that way. The template's **name** is joined live
+    // and deliberately: a rename is retroactive by decision (LAN-265, Brian
+    // 2026-09-09), so an approved event reads whatever the club calls that kind
+    // of event today, exactly as its list row and its public page do.
+    `select p.event_id, e.template_id, t.name as template_name, e.event_type::text as event_type,
             p.rsvp_by_days, p.invitation_lead_days, p.reminder_cadence_hours,
             p.whatsapp_reminder_count, p.email_reminder_count, p.escalation_hours,
             p.response_deadline_at, p.invitation_at, p.escalation_at,
@@ -802,6 +904,7 @@ export async function readFrozenPlanIn(
             p.recruit_invitation_at, p.recruit_dispatches_immediately, p.recruit_follow_up_at
        from public.event_messaging_plans p
        join public.events e on e.id = p.event_id
+       join public.event_templates t on t.id = e.template_id
       where p.event_id = $1`,
     [eventId],
   );
@@ -812,6 +915,8 @@ export async function readFrozenPlanIn(
   return {
     eventId: row.event_id,
     schedule: {
+      templateId: row.template_id,
+      templateName: row.template_name,
       eventType: row.event_type,
       rsvpByDays: row.rsvp_by_days,
       invitationLeadDays: row.invitation_lead_days,

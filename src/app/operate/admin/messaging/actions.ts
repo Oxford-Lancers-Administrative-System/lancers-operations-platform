@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError, withTransaction } from "@/lib/db";
-import { TYPE_LABELS } from "@/lib/services/event-vocabulary";
 import {
   readMessagingScheduleIn,
   updateMessagingScheduleIn,
@@ -32,13 +31,13 @@ import {
 import { readOneScheduleChange, scheduleChanged } from "./validation";
 
 /**
- * Saving one event type's messaging schedule — W7, LAN-171, round 2.
+ * Saving one template's messaging schedule — W7, LAN-171, rekeyed by LAN-265.
  *
  * One action per row, not one action for the whole page (OWNER-LAN171-04):
  * Brian, on the approved-then-reversed shape, "I think there should be a save
  * button per event. Having one group save at the top doesn't really make a
- * lot of sense." Each of the seven rows on `/operate/admin/messaging` posts
- * its own `<form>`, carrying a hidden `eventType` alongside its six fields, to
+ * lot of sense." Each row on `/operate/admin/messaging` posts
+ * its own `<form>`, carrying a hidden `templateId` alongside its six fields, to
  * this one action — which is what "one action per row" actually needs to mean
  * for a Server Action: the function is shared, but each row's `useActionState`
  * call is independent, so one row's pending/error/notice state can never leak
@@ -61,29 +60,43 @@ export async function updateOneMessagingScheduleAction(
 ): Promise<AdminActionState> {
   const operator = await requireCapability("delivery_administration");
 
-  const eventType = formData.get("eventType");
-  if (typeof eventType !== "string" || eventType.trim() === "") {
+  const templateId = formData.get("templateId");
+  if (typeof templateId !== "string" || templateId.trim() === "") {
     // Not a reachable state from the page's own markup — every row's form
     // carries this hidden field — but a malformed direct POST names the
-    // actual problem rather than crashing on a `null` event type below.
+    // actual problem rather than crashing on a `null` template below.
     return {
       ...EMPTY_ADMIN_ACTION_STATE,
-      error: "This submission did not say which event type it was for, so nothing was saved.",
+      error: "This submission did not say which template it was for, so nothing was saved.",
     };
   }
 
-  const validated = readOneScheduleChange(eventType, formData);
+  // LAN-265. The row is read before the form is checked, and that inversion is
+  // deliberate: the refusal has to name the template in the club's own words
+  // ("Kicking Clinic: cadence has to be a whole number"), the name lives on the
+  // template row, and a hidden field carrying the label would be a name the
+  // browser chose. Reading first also settles "does this template still exist"
+  // once, with a sentence, rather than after six field checks have passed.
+  let current;
+  try {
+    current = await withTransaction((tx) => readMessagingScheduleIn(tx, templateId));
+  } catch (error) {
+    if (!isServiceError(error)) throw error;
+    return { ...EMPTY_ADMIN_ACTION_STATE, error: error.message };
+  }
+
+  const label = current.templateName;
+
+  const validated = readOneScheduleChange(label, current.eventType, formData);
   if (!validated.ok) {
     return { ...EMPTY_ADMIN_ACTION_STATE, error: validated.message };
   }
 
-  const label = TYPE_LABELS[eventType] ?? eventType;
-
   try {
     const wrote = await withTransaction(async (tx) => {
-      const current = await readMessagingScheduleIn(tx, eventType);
-      if (!scheduleChanged(current, validated.change)) return false;
-      await updateMessagingScheduleIn(tx, operator.personId, eventType, validated.change);
+      const fresh = await readMessagingScheduleIn(tx, templateId);
+      if (!scheduleChanged(fresh, validated.change)) return false;
+      await updateMessagingScheduleIn(tx, operator.personId, templateId, validated.change);
       return true;
     });
 

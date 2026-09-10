@@ -15,6 +15,7 @@ import {
   type ExportableEvent,
   type ImportApplied,
   type ImportableEvent,
+  type ImportableTemplate,
   type ImportPlan,
   type ImportPlanResult,
 } from "./event-csv";
@@ -224,6 +225,7 @@ export async function planSeasonImport(request: PlanRequest): Promise<ImportPlan
       csvText: request.csvText,
       fileName: request.fileName ?? null,
       events,
+      templates: await readImportableTemplatesIn(tx),
     });
   });
 }
@@ -282,6 +284,7 @@ export async function applySeasonImport(request: ApplyRequest): Promise<ImportAp
       csvText: request.csvText,
       fileName: request.fileName ?? null,
       events,
+      templates: await readImportableTemplatesIn(tx),
     });
 
     if (!planned.ok) {
@@ -345,9 +348,31 @@ export async function applySeasonImport(request: ApplyRequest): Promise<ImportAp
 // Reading the season
 // ---------------------------------------------------------------------------
 
+/**
+ * Every template the club has, for the `type` column to be read against.
+ *
+ * Read in the same transaction as the season's events and, on the apply path,
+ * under the same lock-and-digest discipline: a template renamed between the
+ * proposal and the confirmation changes what a `type` cell resolves to, and the
+ * digest check is what turns that into "the season changed while you were
+ * reading this" rather than into a silently different write.
+ */
+async function readImportableTemplatesIn(tx: Tx): Promise<ImportableTemplate[]> {
+  const result = await tx.query<{ id: string; name: string; event_type: string }>(
+    "select id, name, event_type::text as event_type from public.event_templates order by lower(name)",
+  );
+  return result.rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    eventType: row.event_type,
+  }));
+}
+
 interface ImportEventRow {
   id: string;
   name: string;
+  template_id: string;
+  template_name: string;
   event_type: string;
   status: EventStatus;
   scheduled_on: Date | string | null;
@@ -376,19 +401,29 @@ async function readSeasonEventsIn(
   lock: boolean,
 ): Promise<ImportableEvent[]> {
   const result = await tx.query<ImportEventRow>(
-    `select id, name, event_type::text as event_type, status::text as status,
-            scheduled_on, starts_at::text as starts_at, ends_at::text as ends_at,
-            delivery_mode::text as delivery_mode, venue, description,
-            required_equipment, joining_url, is_mandatory
-       from public.events
-      where season_id = $1
-      order by scheduled_on nulls last, starts_at nulls first, name, id${lock ? "\n        for update" : ""}`,
+    `select e.id, e.name, e.template_id, t.name as template_name,
+            e.event_type::text as event_type, e.status::text as status,
+            e.scheduled_on, e.starts_at::text as starts_at, e.ends_at::text as ends_at,
+            e.delivery_mode::text as delivery_mode, e.venue, e.description,
+            e.required_equipment, e.joining_url, e.is_mandatory
+       from public.events e
+       join public.event_templates t on t.id = e.template_id
+      where e.season_id = $1
+      order by e.scheduled_on nulls last, e.starts_at nulls first, e.name, e.id${
+        // `of e` because the lock is on the events being rewritten. Without it
+        // PostgreSQL refuses `for update` over an outer join and, over an inner
+        // one, would lock every template row the season touches — serialising an
+        // import against anybody editing a template.
+        lock ? "\n        for update of e" : ""
+      }`,
     [seasonId],
   );
 
   return result.rows.map((row) => ({
     id: row.id,
     name: row.name,
+    templateId: row.template_id,
+    templateName: row.template_name,
     eventType: row.event_type,
     status: row.status,
     scheduledOn: asDate(row.scheduled_on),

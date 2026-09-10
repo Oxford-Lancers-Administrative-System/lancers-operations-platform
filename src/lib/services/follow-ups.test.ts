@@ -228,10 +228,11 @@ async function fixture(
        insert into public.events
          (season_id, name, event_type, status, scheduled_on, starts_at,
           audience_confirmed_at, audience_confirmed_by_person_id,
-          approved_at, approved_by_person_id)
+          approved_at, approved_by_person_id, template_id)
        select $1, $2, 'practice', 'approved',
               (select local::date from target), (select local::time from target),
-              now(), $3, now(), $3
+              now(), $3, now(), $3,
+              (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
        returning id`,
       [seasonId, `${MARKER} practice ${crypto.randomUUID().slice(0, 8)}`, personId],
     );

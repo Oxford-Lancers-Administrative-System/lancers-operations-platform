@@ -114,7 +114,7 @@ function amendForm(overrides: Record<string, string> = {}): FormData {
   const fields: Record<string, string> = {
     eventId: EVENT_ID,
     name: "Wednesday practice",
-    eventType: "practice",
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
     scheduledOn: "2026-10-14",
     startsAt: "20:00",
     endsAt: "22:00",
@@ -180,7 +180,7 @@ beforeEach(() => {
     ok: true,
     value: {
       name: "Wednesday practice",
-      eventType: "practice",
+      templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
       scheduledOn: "2026-10-14",
       startsAt: "20:00",
       endsAt: "22:00",

@@ -139,7 +139,7 @@ function pastDay(offsetDays = 30): string {
 function draft(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
   return {
     name: `${NAME_MARKER} Practice`,
-    eventType: "practice",
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
     scheduledOn: futureDay(),
     startsAt: "20:00",
     endsAt: "22:00",
@@ -1744,7 +1744,7 @@ describe("rescheduling recomputes the chase threshold", () => {
     const practice = await approvedEvent();
     const game = await approvedEvent({
       name: `${NAME_MARKER} Game`,
-      eventType: "game",
+      templateId: "67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae",
     });
     const newDate = futureDay(60);
 
@@ -1757,7 +1757,13 @@ describe("rescheduling recomputes the chase threshold", () => {
     const gameOutcome = await amendApprovedEvent(
       actorPersonId,
       game.eventId,
-      { ...draft({ name: `${NAME_MARKER} Game`, eventType: "game" }), scheduledOn: newDate },
+      {
+        ...draft({
+          name: `${NAME_MARKER} Game`,
+          templateId: "67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae",
+        }),
+        scheduledOn: newDate,
+      },
       { notify: true },
     );
 

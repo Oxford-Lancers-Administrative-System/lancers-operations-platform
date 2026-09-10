@@ -155,14 +155,15 @@ async function fixture(startsInHours: number, status = "approved") {
       `with target as (select (now() + make_interval(hours => $3)) at time zone 'Europe/London' as local)
      insert into public.events
        (season_id, name, event_type, status, scheduled_on, starts_at,
-        audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
+        audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id, template_id)
      select $1, $2, 'practice', $4::public.event_status,
             (select local::date from target), (select local::time from target),
             case when $4 = 'draft' then null else now() end,
             case when $4 = 'draft' then null else $5::uuid end,
             case when $4 = 'draft' then null else now() end,
-            case when $4 = 'draft' then null else $5::uuid end
-     returning id`,
+            case when $4 = 'draft' then null else $5::uuid end,
+              (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
+       returning id`,
       [seasonId, `${MARKER} practice`, startsInHours, status, personId],
     );
     const eventId = event.rows[0].id;

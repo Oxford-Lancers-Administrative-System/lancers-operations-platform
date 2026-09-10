@@ -14,7 +14,6 @@ import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
 import {
   deriveTermCoordinate,
-  DRAFTABLE_EVENT_TYPES,
   validateEventDraft,
   type FieldIssue,
   type RawEventDraft,
@@ -33,8 +32,6 @@ import {
   CLUB_TIME_ZONE_NOTE,
   describeTermCoordinate,
   JOINING_URL_IS_PUBLIC_WARNING,
-  labelFor,
-  TYPE_LABELS,
 } from "../../presentation";
 import { amendEventAction } from "../change-actions";
 import {
@@ -216,7 +213,10 @@ export default function AmendForm({
     };
     return {
       name: field("name"),
-      eventType: field("eventType"),
+      // LAN-265. The form carries it as a hidden field rather than a control:
+      // an amendment cannot change the template, and `validateEventDraft`
+      // refuses a draft that names none.
+      templateId: field("templateId"),
       scheduledOn: field("scheduledOn"),
       startsAt: field("startsAt"),
       endsAt: field("endsAt"),
@@ -242,7 +242,7 @@ export default function AmendForm({
 
     const next = diffAmendment(before, {
       name: validation.value.name,
-      eventType: validation.value.eventType,
+      templateId: validation.value.templateId,
       scheduledOn: validation.value.scheduledOn,
       startsAt: validation.value.startsAt,
       endsAt: validation.value.endsAt,
@@ -351,17 +351,17 @@ export default function AmendForm({
                   helperText={issueFor(issues, "name")}
                 />
 
-                <SelectField
-                  name="eventType"
-                  label="Kind of event"
-                  defaultValue={value("eventType")}
-                  error={Boolean(issueFor(issues, "eventType"))}
-                  helperText={issueFor(issues, "eventType")}
-                  options={DRAFTABLE_EVENT_TYPES.map((type) => ({
-                    value: type,
-                    label: labelFor(TYPE_LABELS, type),
-                  }))}
-                />
+                {/*
+                  LAN-265, Brian 2026-09-09: "Amend does not change template."
+                  The control that used to sit here is gone rather than
+                  disabled — a greyed-out select on the one screen whose job is
+                  changing things reads as a fault. What kind of event this is
+                  is stated on the event page above; changing it means
+                  cancelling this event and creating the other one, because the
+                  audience, the questions and the cadence forty people were
+                  messaged on all came from the template.
+                */}
+                <input type="hidden" name="templateId" value={value("templateId")} />
 
                 <DateField
                   name="scheduledOn"

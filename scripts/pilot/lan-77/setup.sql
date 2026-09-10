@@ -270,7 +270,7 @@ on conflict (id) do nothing;
 -- date the operator edits through the application rather than a third event.
 insert into public.events
   (id, season_id, name, event_type, origin, status, scheduled_on, starts_at, ends_at,
-   venue, is_mandatory)
+   venue, is_mandatory, template_id)
 select
   scenario.id,
   season.id,
@@ -289,8 +289,9 @@ from (values
 ) as scenario(id, name)
 cross join (
   select id from public.seasons where status in ('open', 'active') limit 1
-) as season
-on conflict (id) do nothing;
+) as season,
+              (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
+       on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- 6. The blocker that makes rollback observable

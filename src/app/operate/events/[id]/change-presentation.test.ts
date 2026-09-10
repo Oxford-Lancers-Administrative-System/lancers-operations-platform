@@ -23,7 +23,7 @@ import { describeChange, silenceConsequence } from "./change-presentation";
 
 const BASE: AmendableEvent = {
   name: "Practice",
-  eventType: "practice",
+  templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
   scheduledOn: "2026-11-11",
   startsAt: "19:00",
   endsAt: "21:00",

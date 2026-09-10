@@ -11,6 +11,33 @@
 
 import pg from "pg";
 
+import { SEEDED_TEMPLATE_IDS } from "../../lib/event-template-ids.mjs";
+
+/**
+ * One template per behavioural class, chosen the same way on every database.
+ *
+ * The workbook's vocabulary resolves to a class (`sources.mjs`), and after
+ * LAN-265 a class can have more than one template — every template an operator
+ * creates is `practice`. The template the migration seeded for that class is the
+ * one the showcase means: it is the one whose defaults the dataset was authored
+ * against, and it exists identically everywhere because its identifier is a
+ * fixed literal rather than a generated one. A class with no seeded template
+ * falls back to the first by name, so a future class added by migration loads
+ * rather than throwing halfway through a plan.
+ */
+function templatesByClass(rows) {
+  const byClass = new Map();
+  for (const row of rows) {
+    const held = byClass.get(row.event_type);
+    if (held && held.id !== SEEDED_TEMPLATE_IDS[row.event_type]) {
+      if (row.id === SEEDED_TEMPLATE_IDS[row.event_type]) byClass.set(row.event_type, row);
+      continue;
+    }
+    if (!held) byClass.set(row.event_type, row);
+  }
+  return byClass;
+}
+
 /** Opens a client against the resolved target. Never logs the string. */
 export async function connect(target, env = process.env) {
   const client = new pg.Client({ connectionString: target.connectionString });
@@ -99,6 +126,20 @@ export async function readExisting(client, { authUserIds = [] } = {}) {
 
   // Reference rows the migrations own and the loader may only read.
   const schedules = await client.query("select * from public.messaging_schedules");
+  // LAN-265. Templates stopped being the seven enum values and became rows the
+  // club creates, and `events.template_id` is `not null`, so the loader has to
+  // name one for every event it writes. It reads them rather than hard-coding
+  // the seven identifiers the migration seeds, on the same rule the rest of this
+  // function follows: reference rows the migrations own, the loader may only
+  // read. Keyed by behavioural class, because that is what the workbook's
+  // vocabulary resolves to (`sources.mjs`) — a hosted database carrying an
+  // operator-created template of the same class is a real possibility, and
+  // `ORDER BY` makes which one wins deterministic rather than accidental.
+  const templates = await client.query(
+    `select id, name, event_type::text as event_type
+       from public.event_templates
+      order by event_type, lower(name)`,
+  );
   const agreementVersions = await client.query(
     `select distinct on (agreement_type) id, agreement_type::text as agreement_type
        from public.onboarding_agreement_versions
@@ -112,6 +153,7 @@ export async function readExisting(client, { authUserIds = [] } = {}) {
     operators,
     assignments,
     messagingSchedules: new Map(schedules.rows.map((row) => [row.event_type, row])),
+    eventTemplates: templatesByClass(templates.rows),
     agreementVersions: new Map(agreementVersions.rows.map((row) => [row.agreement_type, row.id])),
     chaseSettings: chase.rows[0] ?? null,
     // Whole rows, not just identifiers: since LAN-128 the catalogue is created

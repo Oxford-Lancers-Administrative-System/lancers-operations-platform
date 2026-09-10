@@ -49,6 +49,9 @@ import type { TermWindow } from "./event-input";
 export interface CalendarEvent {
   id: string;
   name: string;
+  /** The word the tile prints for this kind of event — LAN-265. */
+  templateName: string;
+  /** The behavioural class, which is what the tile is coloured by. */
   eventType: string;
   /** `YYYY-MM-DD`, or `null` for an event whose date is not decided yet. */
   scheduledOn: string | null;

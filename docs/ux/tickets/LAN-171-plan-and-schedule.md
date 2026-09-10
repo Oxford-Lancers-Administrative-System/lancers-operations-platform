@@ -51,8 +51,8 @@ anything, and where the rules behind that plan are read and changed.
 - The same disclosure, frozen, on the approved event page — `event_messaging_plans`' stored
   anchor and counts replayed through the same ladder arithmetic, never a second copy of it.
 - `/operate/admin/messaging`, **Messaging schedule**, under Administration between Operators and
-  Roles: one editable card per event type, each with its own **Save `<event type>`** button
-  (round 2, OWNER-LAN171-04 — a page-level save read as "one act" over seven independent rows,
+  Roles: one editable card per **template**, each with its own **Save `<template name>`** button
+  (round 2, OWNER-LAN171-04 — a page-level save read as "one act" over independent rows,
   which Brian rejected once he saw it live). Two rows of three labelled fields per card — RSVP by
   / First inv. / Cadence, then WhatsApp / Email / President — each carrying its unit (`days`,
   `h`) beside the value, or no unit for the two plain counts (round 2, OWNER-LAN171-03). Cadence,
@@ -73,19 +73,22 @@ anything, and where the rules behind that plan are read and changed.
   never "WhatsApp reminders") both reflect this; a policy of 2 WhatsApp + 1 email therefore sends
   the invitation, one further WhatsApp reminder, one email reminder, then the President — four
   messages, not five.
-- Saving a schedule change writes an attributed `audit_events` row even though
-  `messaging_schedules`' own key (`public.event_type`) is not a uuid: `entity_id` is a UUIDv5
-  derived deterministically from the event type (round 2, OWNER-LAN171-01 — the literal event
-  type text was rejected by `audit_events.entity_id`'s `uuid` column, silently rolling back every
-  save since the page shipped).
+- Saving a schedule change writes an attributed `audit_events` row naming the template it
+  changed. It used to need a workaround: `messaging_schedules`' own key was `public.event_type`,
+  which is not a uuid, so `entity_id` carried a UUIDv5 derived from the event type (round 2,
+  OWNER-LAN171-01 — the literal event type text was rejected by `audit_events.entity_id`'s `uuid`
+  column, silently rolling back every save since the page shipped). LAN-265 rekeyed the table by
+  `template_id`, which **is** a uuid, so the audit row now names the real row and the derivation
+  is retired.
 - A write that genuinely fails names the row and the submitted values rather than suggesting a
   retry that cannot fix a deterministic rejection (round 2, OWNER-LAN171-02).
-- One card per event type below the table breakpoint; no horizontal scrolling at 375px.
+- One card per template below the table breakpoint; no horizontal scrolling at 375px.
 
 ## Explicitly not in this ticket
 
-- A per-event override of any kind — the schedule is set per event type only, never per event
-  (ADR 0021, unchanged).
+- A per-event override of any kind — the schedule is set per template only, never per event
+  (ADR 0021, unchanged; LAN-265 changed what a row is keyed by, not that there is no per-event
+  override).
 - Reordering the ladder — WhatsApp, WhatsApp, email, then the President is fixed; only spacing and
   counts are configurable.
 - Quiet hours, in any form.
@@ -126,26 +129,28 @@ Restated from `acceptance/W1.md` and `acceptance/W7.md` as what was built to sat
 - An event inside its own invitation lead says, before approval, that it dispatches immediately.
 - A missing or unusable WhatsApp route is named as a concise count before approval, with the
   affected person revealed on request; no manual-send control is offered.
-- The messaging schedule is editable per event type and offers no per-event override anywhere in
-  its markup.
+- The messaging schedule is editable per template and offers no per-event override anywhere in
+  its markup. A template an operator has just created is already on this page, carrying the
+  default cadence (LAN-265).
 - Every schedule row previews the dates it produces, starts closed, and does not draw a callout
   for the gap before the deadline — that arithmetic is still computed and tested, only not shown.
-- Each event type saves independently, through its own button; saving one row never touches
+- Each template saves independently, through its own button; saving one row never touches
   another's.
 - The WhatsApp count includes the invitation, and its label never calls the invitation a reminder.
 - Changing the schedule leaves already-approved events untouched, and every change is attributed —
   including that the write itself succeeds: a schedule change actually persists, and its audit row
-  actually exists, for every event type (round 2, OWNER-LAN171-01).
-- One card per event type below the table breakpoint; no horizontal scrolling; desktop and true
+  actually exists, for every template (round 2, OWNER-LAN171-01).
+- One card per template below the table breakpoint; no horizontal scrolling; desktop and true
   375px both conform.
 - `npm run verify` passes.
 
 ## Known deviations from the mission packet's mockups
 
-- `TYPE_LABELS` renders "Strength and conditioning" (the application's existing canonical label,
-  used everywhere else an event type is shown) rather than the mockup's "Strength & conditioning".
-  One label per concept across the application was judged more valuable than matching the
-  mockup's ampersand.
+- The row is labelled "Strength and conditioning" rather than the mockup's "Strength &
+  conditioning". It was `TYPE_LABELS`' canonical label, used everywhere else an event type was
+  shown; since LAN-265 it is the template's own `name`, backfilled from that label, and the club
+  may now change it here to whatever it likes. One label per concept across the application was
+  judged more valuable than matching the mockup's ampersand.
 - The messaging plan's per-rung "side" chip (`38 people`, `Unanswered`, `Still unanswered`,
   `President`) is real product content on the event page; the mockup's `Proposed` chip is a
   mockup-authoring annotation marking new content for reviewers and was not carried into the

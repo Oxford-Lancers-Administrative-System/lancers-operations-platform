@@ -135,7 +135,7 @@ afterAll(async () => {
 function draftInput(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
   return {
     name: `${NAME_MARKER} draft`,
-    eventType: "practice",
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
     scheduledOn: futureDate(21),
     startsAt: null,
     endsAt: null,

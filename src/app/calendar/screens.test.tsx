@@ -23,6 +23,12 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/calendar",
   useRouter: () => ({ push: routerPush, replace: vi.fn(), refresh: vi.fn() }),
 }));
+// LAN-265. The public Type filter offers the club's own templates by name, so
+// the page reads them; the seven the migration seeds are what it meets here.
+vi.mock("@/lib/services/event-templates", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/event-templates")>();
+  return { ...actual, listEventTemplateOptions: vi.fn() };
+});
 vi.mock("@/lib/services/events", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/events")>();
   return {
@@ -55,6 +61,7 @@ import {
   type PublicEventDetail,
   type PublicEventListEntry,
 } from "@/lib/services/events";
+import { listEventTemplateOptions } from "@/lib/services/event-templates";
 import { listTermWindows } from "@/lib/services/seasons";
 import type { TermWindow } from "@/lib/services/event-input";
 import PublicCalendarPage from "./page";
@@ -111,6 +118,8 @@ function entry(overrides: Partial<PublicEventListEntry> = {}): PublicEventListEn
     id: `33333333-3333-4333-8333-${`${nextId}`.padStart(12, "0")}`,
     name: `Event ${nextId}`,
     eventType: "practice",
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+    templateName: "Practice",
     scheduledOn: "2026-10-14",
     startsAt: "20:00",
     endsAt: "22:00",
@@ -176,6 +185,10 @@ beforeEach(() => {
   routerPush.mockClear();
   vi.mocked(listTermWindows).mockResolvedValue([TRINITY, HILARY, MICHAELMAS, TRINITY_BEFORE]);
   vi.mocked(readPublicEvent).mockResolvedValue(detail());
+  vi.mocked(listEventTemplateOptions).mockResolvedValue([
+    { id: "7e34a764-7ed1-535e-8cef-73e00a62eafc", name: "Practice" },
+    { id: "8de00424-52a8-52ad-9c9f-a29823f9c4bf", name: "Social" },
+  ]);
   givenEvents([entry()]);
 });
 
@@ -578,6 +591,8 @@ describe("the public event page", () => {
       detail({
         name: "Chalk — michaelmas week 4",
         eventType: "chalk",
+        templateId: "b547e0b3-f48c-5601-9dc6-e8725fc434f9",
+        templateName: "Chalk",
         deliveryMode: "online",
         venue: "Teams",
         isMandatory: false,

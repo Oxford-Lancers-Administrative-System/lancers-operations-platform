@@ -130,7 +130,7 @@ afterAll(async () => {
 function draft(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
   return {
     name: `${NAME_MARKER} Wednesday practice`,
-    eventType: "practice",
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
     scheduledOn: michaelmasWeek1Wednesday,
     startsAt: "20:00",
     endsAt: "22:00",
@@ -364,12 +364,16 @@ describe("row 1 — an operator creates the Wednesday practice as a draft", () =
     expect(error.message).toMatch(/end after it starts/i);
   });
 
-  it("refuses a type this form cannot fully describe", async () => {
+  it("refuses a submission that names no template", async () => {
+    // LAN-265 replaced "a type this form cannot fully describe" with this. The
+    // class is no longer something a caller supplies — it is read off the
+    // template inside the transaction — so the only thing left to refuse at
+    // this boundary is a submission that named no template at all.
     const error = await refusalFrom(() =>
-      createEventDraft(actorPersonId, draft({ eventType: "fixture" })),
+      createEventDraft(actorPersonId, draft({ templateId: "" })),
     );
 
-    expect(error.rule).toBe("event_type_not_draftable");
+    expect(error.rule).toBe("event_template_not_chosen");
   });
 
   it("refuses a change that names nobody", async () => {
@@ -947,7 +951,7 @@ describe("row 7 — two events on one date are both accepted (invariant E4)", ()
 describe("row 8 — the form's rules, checked without a database", () => {
   const complete = {
     name: "Wednesday practice",
-    eventType: "practice",
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
     scheduledOn: michaelmasWeek1Wednesday,
     startsAt: "20:00",
     endsAt: "22:00",
@@ -1208,8 +1212,9 @@ describe("row 10 — the list is the current season's, and refuses to guess", ()
     expect(other.rows[0], "the seeded dataset has no non-operating season").toBeDefined();
 
     const foreign = await observer.query<{ id: string }>(
-      `insert into public.events (season_id, name, event_type, status, scheduled_on)
-       values ($1, $2, 'practice', 'draft', '2026-10-14')
+      `insert into public.events (season_id, name, event_type, status, scheduled_on, template_id)
+       values ($1, $2, 'practice', 'draft', '2026-10-14',
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))
        returning id`,
       [other.rows[0].id, `${NAME_MARKER} Last season's practice`],
     );
@@ -1387,7 +1392,7 @@ describe("row 10 — the list is the current season's, and refuses to guess", ()
         actorPersonId,
         draft({
           name: `${NAME_MARKER} Occurred game`,
-          eventType: "game",
+          templateId: "67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae",
           scheduledOn: BEFORE,
         }),
       );
@@ -1396,7 +1401,7 @@ describe("row 10 — the list is the current season's, and refuses to guess", ()
       const combined = await listCurrentSeasonEvents({
         search: NAME_MARKER,
         status: "occurred",
-        eventType: "practice",
+        templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
         today: TODAY,
       });
 
@@ -1461,6 +1466,11 @@ describe("the public tier reads a narrower event", () => {
       "name",
       "scheduledOn",
       "startsAt",
+      // LAN-265. The word a reader sees for this kind of event, and the id the
+      // Type filter selects by. Neither says anything about a person, which is
+      // what this exact-key-set assertion is really guarding.
+      "templateId",
+      "templateName",
       "venue",
     ]);
   });
@@ -1497,7 +1507,9 @@ describe("the public tier reads a narrower event", () => {
 
   it("narrows by type, and leaves the season's total alone", async () => {
     const all = await listPublicSeasonEvents();
-    const byType = await listPublicSeasonEvents({ eventType: "chalk" });
+    const byType = await listPublicSeasonEvents({
+      templateId: "b547e0b3-f48c-5601-9dc6-e8725fc434f9",
+    });
 
     expect(byType.events.length).toBeGreaterThan(0);
     expect(byType.events.length).toBeLessThan(all.events.length);
@@ -1549,6 +1561,9 @@ describe("the public tier reads a narrower event", () => {
       "requiredEquipment",
       "scheduledOn",
       "startsAt",
+      // LAN-265, as above: the kind of event, in the club's own word for it.
+      "templateId",
+      "templateName",
       "venue",
     ]);
   });
@@ -1581,8 +1596,9 @@ describe("the public tier reads a narrower event", () => {
     const season = await readCurrentSeason();
     const inserted = await observer.query<{ id: string }>(
       `insert into public.events (season_id, name, event_type, origin, status, scheduled_on,
-                                  delivery_mode, is_mandatory, joining_url)
-       values ($1, $2, 'chalk', 'club_controlled', 'draft', $3, 'online', false, $4)
+                                  delivery_mode, is_mandatory, joining_url, template_id)
+       values ($1, $2, 'chalk', 'club_controlled', 'draft', $3, 'online', false, $4,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'chalk' order by lower(tpl.name) limit 1))
        returning id`,
       [
         season.id,
@@ -1624,8 +1640,9 @@ describe("the public tier reads a narrower event", () => {
 
     const inserted = await observer.query<{ id: string }>(
       `insert into public.events (season_id, name, event_type, origin, status, scheduled_on,
-                                  delivery_mode, is_mandatory)
-       values ($1, $2, 'practice', 'club_controlled', 'draft', $3, 'in_person', false)
+                                  delivery_mode, is_mandatory, template_id)
+       values ($1, $2, 'practice', 'club_controlled', 'draft', $3, 'in_person', false,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))
        returning id`,
       [archived.rows[0].id, `${NAME_MARKER} last season's practice`, michaelmasWeek1Wednesday],
     );

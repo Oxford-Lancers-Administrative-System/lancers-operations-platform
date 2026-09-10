@@ -130,6 +130,8 @@ function detail(overrides: Partial<EventDetail> = {}): EventDetail {
     id: EVENT_ID,
     name: "Practice — michaelmas week 5",
     eventType: "practice",
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+    templateName: "Practice",
     status: "approved",
     scheduledOn: "2099-11-11",
     startsAt: "20:00",
@@ -307,17 +309,20 @@ describe("the amendment editor", () => {
     expect(within(panel).getByTestId("kept-said-no").querySelector("p")?.textContent).toBe("4");
   });
 
-  it("shrinks the type label, so the chosen type is readable", async () => {
-    render(await AmendEventPage(amendProps()));
+  it("offers no control for the kind of event, and carries the template unchanged", async () => {
+    // LAN-265, Brian 2026-09-09: "Amend does not change template." The **Kind
+    // of event** select that used to sit here is gone rather than disabled — a
+    // greyed-out control on the one screen whose job is changing things reads
+    // as a fault — and this case, which used to prove that select's label
+    // shrank over its value, is its replacement.
+    const { container } = render(await AmendEventPage(amendProps()));
 
-    // Without `slotProps.inputLabel.shrink`, a MUI select renders its label on
-    // top of a `defaultValue` — "Kind of event" printed over "Practice", which
-    // is what the first browser preflight of this screen found.
-    const shrunk = screen
-      .getAllByText("Kind of event")
-      .filter((node) => node.className.includes("MuiInputLabel-root"));
-    expect(shrunk).toHaveLength(1);
-    expect(shrunk[0].className).toContain("MuiInputLabel-shrink");
+    expect(screen.queryByText("Kind of event")).not.toBeInTheDocument();
+    // Carried as a hidden field, because `validateEventDraft` refuses a draft
+    // that names no template.
+    expect(
+      container.querySelector<HTMLInputElement>('input[type="hidden"][name="templateId"]')?.value,
+    ).toBeTruthy();
   });
 
   it("says nothing is saved or sent until the operator saves", async () => {

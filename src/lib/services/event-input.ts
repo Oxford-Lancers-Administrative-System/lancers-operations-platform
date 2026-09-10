@@ -193,7 +193,15 @@ export const EVENT_STATUS_FILTERS: readonly string[] = Object.freeze([
  */
 export interface RawEventDraft {
   name?: string | null;
-  eventType?: string | null;
+  /**
+   * The template this event is created from — LAN-265, replacing `eventType`.
+   *
+   * The form posts an identifier and never a class: an operator picks "Kicking
+   * Clinic" from a list of the club's own templates, and what class of event
+   * that is underneath is the template's answer, read server-side inside the
+   * transaction that writes the row.
+   */
+  templateId?: string | null;
   scheduledOn?: string | null;
   startsAt?: string | null;
   endsAt?: string | null;
@@ -214,7 +222,8 @@ export interface RawEventDraft {
 /** The same values, checked. Term, week and origin are not among them. */
 export interface EventDraftInput {
   name: string;
-  eventType: string;
+  /** LAN-265. The class the event ends up with is this template's, not a field. */
+  templateId: string;
   scheduledOn: string | null;
   startsAt: string | null;
   endsAt: string | null;
@@ -276,9 +285,14 @@ export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
     issues.push({ field: "name", message: "Give the event a name." });
   }
 
-  const eventType = trimmed(raw.eventType);
-  if (!DRAFTABLE_EVENT_TYPES.includes(eventType)) {
-    issues.push({ field: "eventType", message: "Choose the kind of event this is." });
+  // LAN-265. Shape only: whether this identifier is a template the club still
+  // has is `readTemplateInheritanceIn`'s question, asked inside the writing
+  // transaction, because a template deleted between the form loading and the
+  // save is a real race and a list checked here would be a stale copy of it.
+  // What this function can honestly refuse is "nothing was chosen".
+  const templateId = trimmed(raw.templateId);
+  if (!UUID_PATTERN.test(templateId)) {
+    issues.push({ field: "templateId", message: "Choose the kind of event this is." });
   }
 
   const scheduledOn = optional(raw.scheduledOn);
@@ -371,7 +385,7 @@ export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
     ok: true,
     value: {
       name,
-      eventType,
+      templateId,
       scheduledOn,
       startsAt,
       endsAt,

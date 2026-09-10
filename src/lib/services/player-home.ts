@@ -309,6 +309,9 @@ export interface PlayerHomeInvitation {
   readonly invitationId: string;
   readonly eventId: string;
   readonly eventName: string;
+  /** LAN-265. What the club calls this kind of event, from its template. */
+  readonly templateName: string;
+  /** The behavioural class. Carried, never shown. */
   readonly eventType: string;
   readonly scheduledOn: string | null;
   readonly startsAt: string | null;
@@ -412,6 +415,7 @@ export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<Player
     invitation_id: string;
     event_id: string;
     event_name: string;
+    template_name: string;
     event_type: string;
     scheduled_on: string | null;
     starts_at: string | null;
@@ -426,6 +430,7 @@ export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<Player
     beyond_horizon: boolean;
   }>(
     `select i.id as invitation_id, e.id as event_id, e.name as event_name,
+            tpl.name as template_name,
             e.event_type::text as event_type,
             to_char(e.scheduled_on, 'YYYY-MM-DD') as scheduled_on,
             to_char(e.starts_at, 'HH24:MI') as starts_at,
@@ -448,6 +453,7 @@ export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<Player
             not (${eventWithinHorizonExpression("e")}) as beyond_horizon
        from public.invitations i
        join public.events e on e.id = i.event_id
+       join public.event_templates tpl on tpl.id = e.template_id
        left join public.season_memberships m on m.id = i.season_membership_id
        left join public.current_rsvp r on r.invitation_id = i.id
       where coalesce(i.person_id, m.person_id) = $1
@@ -482,6 +488,7 @@ export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<Player
       invitationId: row.invitation_id,
       eventId: row.event_id,
       eventName: row.event_name,
+      templateName: row.template_name,
       eventType: row.event_type,
       scheduledOn: row.scheduled_on,
       startsAt: row.starts_at,

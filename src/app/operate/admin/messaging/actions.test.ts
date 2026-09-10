@@ -148,6 +148,8 @@ function givenSession(access: OperatorAccess) {
 
 function scheduleRow(eventType: string, change: MessagingScheduleChange): MessagingSchedule {
   return {
+    templateId: TEMPLATE_IDS[eventType] ?? TEMPLATE_IDS.practice,
+    templateName: TEMPLATE_NAMES[eventType] ?? eventType,
     eventType,
     ...change,
     recruitInvitationLeadDays: change.recruitInvitationLeadDays ?? null,
@@ -156,10 +158,37 @@ function scheduleRow(eventType: string, change: MessagingScheduleChange): Messag
   };
 }
 
-/** One row's own form: `eventType` plus its six fields. */
+/**
+ * The seven templates the migration seeds, by class — LAN-265.
+ *
+ * Fixed literals in the migration, so a fixture can name one without reading it
+ * back. The name is here too because the action reads the row for it: a refusal
+ * names the template in the club's own words, not its identifier.
+ */
+const TEMPLATE_IDS: Readonly<Record<string, string>> = {
+  practice: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  strength_and_conditioning: "8fb4acfc-1d41-53b0-bda8-202f454a8629",
+  chalk: "b547e0b3-f48c-5601-9dc6-e8725fc434f9",
+  game: "67fbd6c7-1c6c-55d5-ab83-f85816c4c2ae",
+  social: "8de00424-52a8-52ad-9c9f-a29823f9c4bf",
+  recruitment: "ae03257b-292e-5a97-b6ef-c3a6a2b839d7",
+  meeting: "660cdcb7-51e3-5a19-aaa2-08c5256af288",
+};
+
+const TEMPLATE_NAMES: Readonly<Record<string, string>> = {
+  practice: "Practice",
+  strength_and_conditioning: "Strength and conditioning",
+  chalk: "Chalk",
+  game: "Game",
+  social: "Social",
+  recruitment: "Recruitment",
+  meeting: "Meeting",
+};
+
+/** One row's own form: `templateId` plus its six fields. */
 function rowForm(eventType: string, change: Partial<MessagingScheduleChange> = {}): FormData {
   const data = new FormData();
-  data.set("eventType", eventType);
+  data.set("templateId", TEMPLATE_IDS[eventType] ?? TEMPLATE_IDS.practice);
   const values = { ...BASE_CHANGE, ...change };
   for (const bound of SCHEDULE_FIELDS) {
     data.set(bound.key, String(values[bound.field]));
@@ -269,9 +298,12 @@ describe("holding delivery_administration", () => {
 
     expect(updateMessagingScheduleIn).toHaveBeenCalledTimes(1);
     expect(updateMessagingScheduleIn).toHaveBeenCalledWith(
-      expect.anything(),
+      // `expect.anything()` refuses a plain `{}` — the transaction handle the
+      // stub hands back — so the first argument is matched structurally.
+      expect.any(Object),
       operator.personId,
-      CHALK,
+      // The template's identifier since LAN-265, not the class it carries.
+      TEMPLATE_IDS[CHALK],
       expect.objectContaining({ escalationHours: 6 }),
     );
     expect(revalidatePath).toHaveBeenCalledWith("/operate/admin/messaging");

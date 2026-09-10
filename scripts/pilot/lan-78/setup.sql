@@ -240,7 +240,7 @@ insert into public.events
   (id, season_id, name, event_type, status, scheduled_on, starts_at, venue,
    is_mandatory,
    audience_confirmed_at, audience_confirmed_by_person_id,
-   approved_at, approved_by_person_id, response_deadline_at)
+   approved_at, approved_by_person_id, response_deadline_at, template_id)
 select
   '00780078-0078-4078-8078-000000000050',
   (select id from public.seasons where status in ('open', 'active')),
@@ -255,8 +255,9 @@ select
   '00780078-0078-4078-8078-000000000001',
   now(),
   '00780078-0078-4078-8078-000000000001',
-  ((current_date + 5) + '18:00'::time) at time zone 'Europe/London'
-on conflict (id) do nothing;
+  ((current_date + 5) + '18:00'::time) at time zone 'Europe/London',
+              (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
+       on conflict (id) do nothing;
 
 insert into public.event_audience_members
   (id, event_id, season_id, capacity, season_membership_id, added_at, added_by_person_id)

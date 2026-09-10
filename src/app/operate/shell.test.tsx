@@ -53,6 +53,12 @@ vi.mock("@/lib/services/events", async (importOriginal) => {
     listEventsForOperator: vi.fn(empty),
   };
 });
+// LAN-265. The events list's Type filter offers the club's own templates by
+// name, so the page reads them; this suite is about the shell around it.
+vi.mock("@/lib/services/event-templates", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/services/event-templates")>()),
+  listEventTemplateOptions: vi.fn(async () => []),
+}));
 // The list's Term and week column reads the same academic year the Oxford View
 // draws, which needs the term rows. Empty here: this suite is about the shell.
 vi.mock("@/lib/services/seasons", async (importOriginal) => ({
@@ -266,6 +272,8 @@ function eventEntry(
     id,
     name,
     eventType: "practice",
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+    templateName: "Practice",
     status,
     scheduledOn,
     startsAt: "20:00",

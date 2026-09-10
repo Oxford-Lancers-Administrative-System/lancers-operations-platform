@@ -13,7 +13,6 @@ import {
   formatShortDate,
   labelFor,
   STATUS_LABELS,
-  TYPE_LABELS,
 } from "@/lib/services/event-vocabulary";
 import type { PublicEventListEntry } from "@/lib/services/events";
 import type { PeriodBucket } from "@/lib/services/event-periods";
@@ -123,7 +122,7 @@ export default function PublicList({
                           </Typography>
                         ) : null}
                       </TableCell>
-                      <TableCell>{labelFor(TYPE_LABELS, event.eventType)}</TableCell>
+                      <TableCell>{event.templateName}</TableCell>
                       <TableCell>{formatShortDate(event.scheduledOn)}</TableCell>
                       <TableCell>{coordinateOf(event)}</TableCell>
                       <TableCell>{whereItIs(event)}</TableCell>
@@ -154,7 +153,7 @@ export default function PublicList({
                 }
                 sublines={[
                   formatShortDate(event.scheduledOn),
-                  labelFor(TYPE_LABELS, event.eventType),
+                  event.templateName,
                   coordinateOf(event),
                   whereItIs(event),
                 ]}

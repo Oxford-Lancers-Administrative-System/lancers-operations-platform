@@ -358,7 +358,9 @@
                 >
               </li>
               <li>
-                <a href="#M-EVENTS-CALENDAR-TARGET-STATE:W8">W8 Administer event-type templates</a>
+                <a href="#M-EVENTS-CALENDAR-TARGET-STATE:W8"
+                  >W8 Create, rename and administer event templates</a
+                >
               </li>
             </ol>
           </li>
@@ -509,7 +511,7 @@
         <div class="summary">
           <div><b>54</b> workflows across six missions</div>
           <div><b>0</b> arriving with Mission 7's remaining packages</div>
-          <div><b>174</b> data states the loader produces and verifies</div>
+          <div><b>175</b> data states the loader produces and verifies</div>
           <div><b>4</b> states that arrive later</div>
           <div><b>21</b> for Tester 1</div>
           <div><b>14</b> for Tester 2</div>
@@ -1484,7 +1486,7 @@
         </section>
         <section class="doc" id="M-EVENTS-CALENDAR-TARGET-STATE:W8">
           <header>
-            <h2>W8 — Administer event-type templates</h2>
+            <h2>W8 — Create, rename and administer event templates</h2>
             <span class="chip ok">on main</span><span class="chip tester">Tester 1</span>
           </header>
           <p><strong>Outcome.</strong> every future draft of that type arrives with the</p>
@@ -1499,13 +1501,15 @@
           <h3>Routes</h3>
           <ul class="routes">
             <li><code>/operate/events/templates</code></li>
-            <li><code>/operate/events/templates/{type.practice}</code></li>
+            <li><code>/operate/events/templates/{template.practice}</code></li>
           </ul>
 
           <h3>What the tester should see</h3>
           <p>
-            One template per type; saving changes every unapproved draft of that type and nothing
-            else.
+            Saving a template changes every unapproved draft made from it and nothing else. Rename
+            one and every event of that kind reads the new name, past ones included. New template
+            creates one with its own messaging cadence, which appears on Administration → Messaging
+            schedule straight away.
           </p>
           <h3>Actions on the page</h3>
           <p><em>No required-actions section in the ledger.</em></p>
@@ -1519,7 +1523,14 @@
             <li>Nothing else in the system moves.</li>
           </ul>
           <h3>Data states it needs</h3>
-          <p><span class="state" title="A practice — floor 10">event.type.practice</span></p>
+          <p>
+            <span class="state" title="A practice — floor 10">event.type.practice</span>
+            <span
+              class="state"
+              title="An event whose kind is read from a template it names — floor 25"
+              >event.template.named</span
+            >
+          </p>
           <h3>Screens</h3>
           <p>
             <a

@@ -2,7 +2,6 @@ import { Fact, FactGrid } from "@/components/fact";
 import { Section } from "@/components/section";
 import { Metric, MetricRow } from "@/components/metric";
 
-import { labelFor, TYPE_LABELS } from "@/lib/services/event-vocabulary";
 import type { ClubLinkEvent, ParticipationHeadline } from "@/lib/services/participation-view";
 
 import {
@@ -71,7 +70,7 @@ export function EventFacts({ event }: { event: ClubLinkEvent }) {
   // LAN-264: `multiline` marks the two facts that are free text the operator
   // typed, so a kit list written as three lines is read as three lines here too.
   const facts: { label: string; value: string; multiline?: boolean }[] = [
-    { label: "Type", value: labelFor(TYPE_LABELS, event.eventType) },
+    { label: "Type", value: event.templateName },
     {
       label: online ? "Destination" : "Where",
       value: event.venue ?? (online ? "Online" : ""),

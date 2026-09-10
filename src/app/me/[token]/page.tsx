@@ -75,7 +75,6 @@ import {
   STILL_NEED_ANSWER_HEADING,
   STILL_NEED_ANSWER_SENTENCE,
   answeredSentence,
-  eventTypeLabel,
 } from "./presentation";
 
 export const dynamic = "force-dynamic";
@@ -431,7 +430,7 @@ function SummaryRow({
   return (
     <RowCard
       title={entry.eventName}
-      sublines={[eventTypeLabel(entry.eventType), when(entry), ...(sentence ? [sentence] : [])]}
+      sublines={[entry.templateName, when(entry), ...(sentence ? [sentence] : [])]}
       chips={
         <StatusChip
           domain="rsvp"
@@ -502,9 +501,7 @@ function FocusedPanel({
   return (
     <Section
       title={invitation.eventName}
-      description={[eventTypeLabel(invitation.eventType), when(invitation)]
-        .filter(Boolean)
-        .join(" · ")}
+      description={[invitation.templateName, when(invitation)].filter(Boolean).join(" · ")}
     >
       <Stack spacing={2}>
         <FactGrid>

@@ -124,11 +124,12 @@ async function fixture(startsInHours: number, eventNameSuffix = "") {
       `with target as (select (now() + make_interval(hours => $3)) at time zone 'Europe/London' as local)
      insert into public.events
        (season_id, name, event_type, status, scheduled_on, starts_at,
-        audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
+        audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id, template_id)
      select $1, $2, 'practice', 'approved',
             (select local::date from target), (select local::time from target),
-            now(), $4::uuid, now(), $4::uuid
-     returning id`,
+            now(), $4::uuid, now(), $4::uuid,
+              (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
+       returning id`,
       [seasonId, `${MARKER} practice${eventNameSuffix}`, startsInHours, personId],
     );
     const eventId = event.rows[0].id;
@@ -179,11 +180,12 @@ async function secondInvitationFor(
     `with target as (select (now() + make_interval(hours => $3)) at time zone 'Europe/London' as local)
      insert into public.events
        (season_id, name, event_type, status, scheduled_on, starts_at,
-        audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
+        audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id, template_id)
      select $1, $2, 'practice', 'approved',
             (select local::date from target), (select local::time from target),
-            now(), $4::uuid, now(), $4::uuid
-     returning id`,
+            now(), $4::uuid, now(), $4::uuid,
+              (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1)
+       returning id`,
     [seasonId, `${MARKER} practice${suffix}`, startsInHours, personId],
   );
   const audience = await observer.query<{ id: string }>(
@@ -292,9 +294,10 @@ describe("the answer-specific landing content", () => {
     const otherEvent = await observer.query<{ id: string }>(
       `insert into public.events
          (season_id, name, event_type, status, scheduled_on, starts_at,
-          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
+          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id, template_id)
        values ($1, $2, 'practice', 'approved', current_date + 2, '18:00',
-               now(), $3, now(), $3)
+               now(), $3, now(), $3,
+               (select tpl.id from public.event_templates tpl where tpl.event_type = 'practice' order by lower(tpl.name) limit 1))
        returning id`,
       [seasonId, `${MARKER} practice-out-2`, personId],
     );

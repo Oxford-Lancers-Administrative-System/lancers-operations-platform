@@ -18,7 +18,12 @@ import type { RawEventQuestion } from "@/lib/services/event-questions-input";
 import type { RawEventTemplate } from "@/lib/services/event-template-input";
 import type { TemplateChangePlan } from "@/lib/services/event-templates";
 import QuestionEditor from "../question-editor";
-import { previewEventTemplateAction, saveEventTemplateAction } from "./actions";
+import {
+  createEventTemplateAction,
+  deleteEventTemplateAction,
+  previewEventTemplateAction,
+  saveEventTemplateAction,
+} from "./actions";
 import { EMPTY_TEMPLATE_FORM_STATE, type TemplateFormState } from "./form-state";
 import {
   changeTouchesNothing,
@@ -30,13 +35,19 @@ import {
   TEMPLATE_AUDIENCE_HEADLINE,
   TEMPLATE_CONFIRM_BACK,
   TEMPLATE_CONFIRM_TITLE,
+  TEMPLATE_CREATE_ACTION,
+  TEMPLATE_DELETE_ACTION,
+  TEMPLATE_DELETE_TITLE,
   TEMPLATE_DISCARD_ACTION,
   TEMPLATE_DURATION_LABEL,
   TEMPLATE_DURATION_OPTIONS,
   TEMPLATE_EVENT_HEADLINE,
+  TEMPLATE_NAME_HEADLINE,
+  TEMPLATE_NAME_HELP,
   TEMPLATE_QUESTIONS_HEADLINE,
   TEMPLATE_SAVE_ACTION,
   TEMPLATE_UNTOUCHED_HEADLINE,
+  templateDeleteQuestion,
   templateSaved,
   untouchedApproved,
   untouchedPast,
@@ -72,12 +83,29 @@ import {
  */
 
 export interface TemplateEditorProps {
-  eventType: string;
+  /**
+   * The template being edited, or `null` when this is **New template**.
+   *
+   * One component for both, on the same reasoning `EventForm` gives for create
+   * and edit: they are the same screen with the same rules, and the differences
+   * are the action it posts to, the heading above it and whether the fields
+   * start empty. LAN-265.
+   */
+  templateId: string | null;
+  /** What the club calls it. The heading, and the word every event of it reads. */
   eventTypeLabel: string;
   initial: RawEventTemplate;
   initialQuestions: RawEventQuestion[];
-  /** The groups this type may carry — recruits on Recruitment alone (D46). */
+  /** The groups this template may carry — recruits on Recruitment alone (D46). */
   groups: readonly AudienceGroup[];
+  /**
+   * How many events were created from this template — LAN-265.
+   *
+   * Decides whether **Delete** is offered at all. Zero on a template nobody has
+   * used, and on the new-template form, where there is nothing to delete yet and
+   * the control is absent for that reason instead.
+   */
+  eventCount: number;
 }
 
 function issueFor(state: TemplateFormState, field: keyof RawEventTemplate): string | undefined {
@@ -85,11 +113,12 @@ function issueFor(state: TemplateFormState, field: keyof RawEventTemplate): stri
 }
 
 export default function TemplateEditor({
-  eventType,
+  templateId,
   eventTypeLabel,
   initial,
   initialQuestions,
   groups,
+  eventCount,
 }: TemplateEditorProps) {
   const [previewState, previewAction, previewing] = useActionState(
     previewEventTemplateAction,
@@ -99,11 +128,36 @@ export default function TemplateEditor({
     saveEventTemplateAction,
     EMPTY_TEMPLATE_FORM_STATE,
   );
+  // Its own slot rather than a share of `saveState`: a delete that is refused
+  // ("events have already been created from this") is not a failed save, and
+  // showing it through the save form's state would leave the change plan and
+  // the refusal fighting over the same banner. LAN-265.
+  const [deleteState, deleteAction, deletingNow] = useActionState(
+    deleteEventTemplateAction,
+    EMPTY_TEMPLATE_FORM_STATE,
+  );
+  const [createState, createAction, creating] = useActionState(
+    createEventTemplateAction,
+    EMPTY_TEMPLATE_FORM_STATE,
+  );
+
+  /**
+   * Creating skips the preview, and the form posts straight to the write.
+   *
+   * `previewEventTemplateAction` exists because saving an existing template can
+   * reach drafts the operator was not thinking about. A template that does not
+   * exist yet has no drafts, so the dialog would be asking somebody to approve
+   * nothing happening to anybody — see `createEventTemplateAction`.
+   */
+  const creatingNew = templateId === null;
 
   // The later of the two outcomes wins. A save that has produced anything is
   // the current answer about this template; before that, the preview is.
-  const state =
-    saveState.phase === "editing" && saveState.error === null ? previewState : saveState;
+  const state = creatingNew
+    ? createState
+    : saveState.phase === "editing" && saveState.error === null
+      ? previewState
+      : saveState;
 
   // Every field is controlled from here, so a refused submission keeps what the
   // operator typed without the action having to hand it back — and so the
@@ -117,6 +171,9 @@ export default function TemplateEditor({
     ...((initial.audienceGroups ?? []) as AudienceGroupKey[]),
   ]);
   const [questions, setQuestions] = useState<RawEventQuestion[]>(() => [...initialQuestions]);
+  const [name, setName] = useState(text("name"));
+  /** Whether the delete confirmation is open. Nothing is written until it is. */
+  const [deleting, setDeleting] = useState(false);
   const [venue, setVenue] = useState(text("defaultVenue"));
   const [deliveryMode, setDeliveryMode] = useState(text("defaultDeliveryMode") || "unset");
   const [duration, setDuration] = useState(text("defaultDurationMinutes"));
@@ -134,8 +191,8 @@ export default function TemplateEditor({
   const [dismissed, setDismissed] = useState<TemplateChangePlan | null>(null);
 
   const confirming =
-    state.phase === "confirming" && state.plan !== null && state.plan !== dismissed;
-  const busy = previewing || saving;
+    !creatingNew && state.phase === "confirming" && state.plan !== null && state.plan !== dismissed;
+  const busy = previewing || saving || deletingNow || creating;
 
   /**
    * C6's off-grid case: a template saved before the eight-option grid existed
@@ -159,7 +216,8 @@ export default function TemplateEditor({
   /** Every field, as the dialog has to re-post it. One place, so they agree. */
   const hiddenFields = (
     <>
-      <input type="hidden" name="eventType" value={eventType} />
+      {templateId === null ? null : <input type="hidden" name="templateId" value={templateId} />}
+      <input type="hidden" name="name" value={name} />
       <input type="hidden" name="defaultVenue" value={venue} />
       <input type="hidden" name="defaultDeliveryMode" value={deliveryMode} />
       <input type="hidden" name="defaultDurationMinutes" value={duration} />
@@ -192,16 +250,47 @@ export default function TemplateEditor({
         </Notice>
       ) : null}
 
+      {deleteState.error ? (
+        <Notice severity="error" testId="template-delete-error">
+          {deleteState.error}
+        </Notice>
+      ) : null}
+
       {state.phase === "saved" && state.plan !== null ? (
         <Notice severity="success" testId="template-saved">
           {templateSaved(state.plan.taking.length)}
         </Notice>
       ) : null}
 
-      <Box component="form" action={previewAction} data-testid="template-form">
-        <input type="hidden" name="eventType" value={eventType} />
+      <Box
+        component="form"
+        action={creatingNew ? createAction : previewAction}
+        data-testid="template-form"
+      >
+        {templateId === null ? null : <input type="hidden" name="templateId" value={templateId} />}
 
         <Stack spacing={3}>
+          {/*
+            LAN-265. The one field a template cannot leave undecided, and the
+            first one on the screen because it is the only thing an operator
+            ever sees of a template anywhere else in the application. The helper
+            text states the consequence of a rename rather than leaving somebody
+            to discover it: Brian, 2026-09-09, asked for it out loud.
+          */}
+          <Section title={TEMPLATE_NAME_HEADLINE}>
+            <Field
+              label="Name"
+              name="name"
+              data-field="name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              error={Boolean(issueFor(state, "name"))}
+              helperText={issueFor(state, "name") ?? TEMPLATE_NAME_HELP}
+              disabled={busy}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+          </Section>
+
           {/* D47 — the default audience, as groups and never as people. */}
           <Section title={TEMPLATE_AUDIENCE_HEADLINE}>
             <Stack spacing={2}>
@@ -368,8 +457,36 @@ export default function TemplateEditor({
                 data-testid="preview-template"
                 sx={{ minHeight: 44 }}
               >
-                {previewing ? "Checking…" : TEMPLATE_SAVE_ACTION}
+                {creatingNew
+                  ? creating
+                    ? "Creating…"
+                    : TEMPLATE_CREATE_ACTION
+                  : previewing
+                    ? "Checking…"
+                    : TEMPLATE_SAVE_ACTION}
               </Button>
+            }
+            /*
+              LAN-265, "delete when unused". Absent rather than disabled on a
+              template the club has used: a control that is always there and
+              usually refuses teaches an operator to ignore it, and the sentence
+              under the list already says why this one is missing. The service
+              refuses regardless — `events_template_fkey` is `on delete
+              restrict` — so this is a courtesy and never the boundary.
+            */
+            secondary={
+              templateId !== null && eventCount === 0 ? (
+                <Button
+                  variant="text"
+                  color="error"
+                  disabled={busy}
+                  onClick={() => setDeleting(true)}
+                  data-testid="delete-template"
+                  sx={{ minHeight: 44 }}
+                >
+                  {TEMPLATE_DELETE_ACTION}
+                </Button>
+              ) : undefined
             }
             cancel={
               <Button
@@ -421,6 +538,51 @@ export default function TemplateEditor({
               sx={{ minHeight: 44 }}
             >
               {saving ? "Saving…" : confirmSaveAction(state.plan?.taking.length ?? 0)}
+            </Button>
+          </Box>
+        </DialogActions>
+      </Dialog>
+
+      {/*
+        LAN-265 — deleting a template, confirmed by name.
+        The same shape D29 gives a draft's own delete: one dialog, naming the
+        thing, and the destructive button saying what it destroys. It is offered
+        only where nothing was ever created from this template, so there is no
+        blast radius to preview — which is exactly why this is a sentence and not
+        the change plan the save path shows.
+      */}
+      <Dialog
+        open={deleting}
+        onClose={() => (busy ? undefined : setDeleting(false))}
+        aria-labelledby="template-delete-title"
+        maxWidth="xs"
+        fullWidth
+        data-testid="template-delete-confirm"
+      >
+        <DialogTitle id="template-delete-title">{TEMPLATE_DELETE_TITLE}</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2">{templateDeleteQuestion(eventTypeLabel)}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setDeleting(false)}
+            disabled={busy}
+            data-testid="dismiss-template-delete"
+            sx={{ minHeight: 44 }}
+          >
+            {TEMPLATE_CONFIRM_BACK}
+          </Button>
+          <Box component="form" action={deleteAction}>
+            <input type="hidden" name="templateId" value={templateId ?? ""} />
+            <Button
+              type="submit"
+              variant="contained"
+              color="error"
+              disabled={busy}
+              data-testid="confirm-delete-template"
+              sx={{ minHeight: 44 }}
+            >
+              {TEMPLATE_DELETE_ACTION}
             </Button>
           </Box>
         </DialogActions>

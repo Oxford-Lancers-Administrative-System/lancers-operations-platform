@@ -266,7 +266,7 @@ insert into public.events
    is_mandatory,
    audience_confirmed_at, audience_confirmed_by_person_id,
    approved_at, approved_by_person_id,
-   response_deadline_at)
+   response_deadline_at, template_id)
 select
   event.id::uuid,
   (select id from public.seasons where status in ('open', 'active')),
@@ -299,8 +299,9 @@ from (values
    'PILOT-LAN-81 Committee briefing',
    'meeting', 'approved', (current_date - 34)::text,
    (((current_date - 36) + '18:00'::time) at time zone 'Europe/London')::text)
-) as event(id, name, event_type, status, scheduled_on, deadline_at)
-on conflict (id) do nothing;
+) as event(id, name, event_type, status, scheduled_on, deadline_at),
+              (select tpl.id from public.event_templates tpl where tpl.event_type = event.event_type::public.event_type order by lower(tpl.name) limit 1)
+       on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- The confirmed audience

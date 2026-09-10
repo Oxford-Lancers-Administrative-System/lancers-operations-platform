@@ -87,7 +87,7 @@ export default async function NewEventPage({ searchParams }: PageProps<"/operate
       ? undefined
       : {
           name: source.name,
-          eventType: source.eventType,
+          templateId: source.templateId,
           scheduledOn: "",
           startsAt: source.startsAt ?? "",
           endsAt: source.endsAt ?? "",

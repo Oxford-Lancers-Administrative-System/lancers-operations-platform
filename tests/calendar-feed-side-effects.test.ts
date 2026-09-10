@@ -83,7 +83,7 @@ async function draftFixtureEvent(
 ): Promise<EventDetail> {
   return createEventDraft(actorPersonId, {
     name: `${NAME_MARKER} — ${Math.random().toString(36).slice(2, 10)}`,
-    eventType: "practice",
+    templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
     scheduledOn: anchorDay,
     startsAt: "18:00",
     endsAt: "19:00",

@@ -130,6 +130,8 @@ const EXISTING: ImportableEvent = {
   id: "11111111-1111-4111-8111-111111111111",
   name: "Practice — before",
   eventType: "practice",
+  templateId: "7e34a764-7ed1-535e-8cef-73e00a62eafc",
+  templateName: "Practice",
   status: "draft",
   scheduledOn: "2026-11-04",
   startsAt: "20:00",
@@ -149,9 +151,23 @@ const APPROVED: ImportableEvent = {
   status: "approved",
 };
 
+/** Two of the seven templates the migration seeds, by their fixed identifiers. */
+const PRACTICE_TEMPLATE_ID = "7e34a764-7ed1-535e-8cef-73e00a62eafc";
+const CHALK_TEMPLATE_ID = "b547e0b3-f48c-5601-9dc6-e8725fc434f9";
+
 /** A real plan, from the pure planner — never hand-authored. */
 function proposalFor(csvText: string): ImportPlanResult {
-  return planImport({ csvText, fileName: "michaelmas-2026.csv", events: [EXISTING, APPROVED] });
+  return planImport({
+    csvText,
+    fileName: "michaelmas-2026.csv",
+    events: [EXISTING, APPROVED],
+    // LAN-265. The `type` column names a template, so the planner is handed the
+    // ones this fixture's events belong to.
+    templates: [
+      { id: PRACTICE_TEMPLATE_ID, name: "Practice", eventType: "practice" },
+      { id: CHALK_TEMPLATE_ID, name: "Chalk", eventType: "chalk" },
+    ],
+  });
 }
 
 const HEADER = "id,name,type,date,start,end,online,venue,description,required_equipment,mandatory";

@@ -58,11 +58,14 @@ function renderEvents() {
   return render(
     <EventFilters
       statuses={["draft", "approved"]}
-      types={["practice", "social"]}
+      templates={[
+        { id: "7e34a764-7ed1-535e-8cef-73e00a62eafc", name: "Practice" },
+        { id: "8de00424-52a8-52ad-9c9f-a29823f9c4bf", name: "Social" },
+      ]}
       sortColumns={EVENT_SORT_COLUMNS}
       search=""
       status=""
-      eventType=""
+      templateId=""
       sort="date"
       direction="desc"
       period="month"

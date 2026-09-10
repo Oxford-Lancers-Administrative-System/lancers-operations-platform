@@ -1,9 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import {
+  createEventTemplate,
+  deleteEventTemplate,
   planEventTemplateChange,
   saveEventTemplate,
   validateEventTemplate,
@@ -49,6 +52,7 @@ function text(formData: FormData, field: string): string {
 
 function readTemplate(formData: FormData): RawEventTemplate {
   return {
+    name: text(formData, "name"),
     defaultVenue: text(formData, "defaultVenue"),
     defaultDeliveryMode: text(formData, "defaultDeliveryMode"),
     defaultDurationMinutes: text(formData, "defaultDurationMinutes"),
@@ -134,13 +138,13 @@ export async function previewEventTemplateAction(
   formData: FormData,
 ): Promise<TemplateFormState> {
   await requireCapability("event_calendar_management");
-  const eventType = text(formData, "eventType");
+  const templateId = text(formData, "templateId");
 
   const outcome = checked(formData);
   if (!outcome.ok) return outcome.state;
 
   try {
-    const plan = await planEventTemplateChange(eventType, outcome.template, outcome.questions);
+    const plan = await planEventTemplateChange(templateId, outcome.template, outcome.questions);
     return {
       phase: "confirming",
       issues: [],
@@ -175,7 +179,7 @@ export async function saveEventTemplateAction(
   formData: FormData,
 ): Promise<TemplateFormState> {
   const operator = await requireCapability("event_calendar_management");
-  const eventType = text(formData, "eventType");
+  const templateId = text(formData, "templateId");
 
   const outcome = checked(formData);
   if (!outcome.ok) return outcome.state;
@@ -183,13 +187,17 @@ export async function saveEventTemplateAction(
   try {
     const plan = await saveEventTemplate(
       operator.personId,
-      eventType,
+      templateId,
       outcome.template,
       outcome.questions,
     );
 
     revalidatePath("/operate/events/templates");
-    revalidatePath(`/operate/events/templates/${eventType}`);
+    revalidatePath(`/operate/events/templates/${templateId}`);
+    // LAN-265. A rename reaches every surface that prints the word, and a new
+    // template appears on the Messaging schedule screen the moment it is saved.
+    revalidatePath("/operate/admin/messaging");
+    revalidatePath("/calendar");
     // Every draft this may have moved is on both of these.
     revalidatePath("/operate/events");
     revalidatePath("/operate/events/calendar");
@@ -214,4 +222,90 @@ export async function saveEventTemplateAction(
       plan: null,
     };
   }
+}
+
+/**
+ * Creating a template — LAN-265, W8-01's **New template**.
+ *
+ * There is deliberately no preview step. `previewEventTemplateAction` exists
+ * because saving an existing template can reach drafts the operator did not
+ * think about; a template that did not exist a second ago has no events, no
+ * drafts and no blast radius, so a confirmation would be a dialog asking
+ * somebody to approve nothing happening to anybody.
+ *
+ * It **redirects**, where the save path deliberately does not. The save path
+ * keeps the operator where they were so they can read what moved; there is
+ * nothing to read here, and the useful next screen is the template they just
+ * made — which is also where its name, its defaults and its Delete now live.
+ * `redirect` throws, so it is outside the `try`: caught, it would be reported as
+ * a failure to create the template that had just been created.
+ */
+export async function createEventTemplateAction(
+  _previous: TemplateFormState,
+  formData: FormData,
+): Promise<TemplateFormState> {
+  const operator = await requireCapability("event_calendar_management");
+
+  const outcome = checked(formData);
+  if (!outcome.ok) return outcome.state;
+
+  let created;
+  try {
+    created = await createEventTemplate(operator.personId, outcome.template, outcome.questions);
+  } catch (error) {
+    return {
+      phase: "editing",
+      issues: [],
+      questionIssues: [],
+      error: messageFor(error),
+      values: outcome.raw,
+      questions: outcome.rawQuestions,
+      plan: null,
+    };
+  }
+
+  revalidatePath("/operate/events/templates");
+  // The whole point of the decision: its cadence exists from this moment and is
+  // editable on the Messaging schedule screen like the seven that shipped.
+  revalidatePath("/operate/admin/messaging");
+  revalidatePath("/operate/events/new");
+
+  redirect(`/operate/events/templates/${created.id}`);
+}
+
+/**
+ * Deleting a template nothing was created from — LAN-265.
+ *
+ * The service decides, not this action and not the screen: `deleteEventTemplate`
+ * counts the events inside the transaction and refuses with a sentence, and
+ * `events_template_fkey`'s `on delete restrict` is underneath that. The editor
+ * hides the control when the count is non-zero, which is a courtesy; a direct
+ * POST gets the sentence.
+ */
+export async function deleteEventTemplateAction(
+  _previous: TemplateFormState,
+  formData: FormData,
+): Promise<TemplateFormState> {
+  const operator = await requireCapability("event_calendar_management");
+  const templateId = text(formData, "templateId");
+
+  try {
+    await deleteEventTemplate(operator.personId, templateId);
+  } catch (error) {
+    return {
+      phase: "editing",
+      issues: [],
+      questionIssues: [],
+      error: messageFor(error),
+      values: null,
+      questions: null,
+      plan: null,
+    };
+  }
+
+  revalidatePath("/operate/events/templates");
+  revalidatePath("/operate/admin/messaging");
+  revalidatePath("/operate/events/new");
+
+  redirect("/operate/events/templates");
 }
